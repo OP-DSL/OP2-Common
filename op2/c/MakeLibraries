@@ -1,0 +1,19 @@
+
+OP2 = $(OP2_INST_DIR)
+SRC = $(OP2)/src
+INC = $(OP2)/include
+LIB = $(OP2)/lib
+
+CC = gcc
+CPP = g++
+
+all: core reference
+
+core: $(INC)/op_lib_core.h $(SRC)/op_lib_core.c
+	$(CPP) -std=c99 -I$(INC) -c $(SRC)/op_lib_core.c -o $(SRC)/op_lib_core.o
+	ar rcs $(LIB)/libop2_core.a $(SRC)/op_lib_core.o
+
+reference: $(INC)/op_reference.h $(SRC)/op_reference.cpp $(INC)/op_lib_core.h $(SRC)/op_lib_core.c
+	$(CPP) -std=c99 -I$(INC) -c $(SRC)/op_lib_core.c -o $(SRC)/op_lib_core.o
+	$(CPP) -I$(INC) -c $(SRC)/op_reference.cpp -o $(SRC)/op_reference.o
+	ar rcs $(LIB)/libop2_reference.a $(SRC)/op_reference.o
