@@ -41,13 +41,18 @@
 #include <math_constants.h>
 
 #include "op_lib.h"
-
+#include "op_cuda_rt_support.h"
+#include "op_rt_support.h"
 
 // arrays for global constants and reductions
 
 int   OP_consts_bytes=0,    OP_reduct_bytes=0;
 char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 
+
+//
+// CUDA utility functions
+//
 
 inline void __cudaSafeCall(cudaError err,
                            const char *file, const int line){
@@ -82,6 +87,8 @@ inline void cutilDeviceInit(int argc, char **argv) {
   printf("\n Using CUDA device: %s\n", deviceProp.name);
   cutilSafeCall(cudaSetDevice(0));
 }
+
+
 
 //
 // routines to move arrays to/from GPU device
@@ -141,26 +148,13 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size,
 }
 
 void op_exit(){
-  for(int ip=0; ip<OP_plan_index; ip++) {
-    for (int m=0; m<OP_plans[ip].ninds; m++)
-      cutilSafeCall(cudaFree(OP_plans[ip].ind_maps[m]));
-    for (int m=0; m<OP_plans[ip].nargs; m++)
-      if (OP_plans[ip].loc_maps[m] != NULL)
-        cutilSafeCall(cudaFree(OP_plans[ip].loc_maps[m]));
-    cutilSafeCall(cudaFree(OP_plans[ip].ind_offs));
-    cutilSafeCall(cudaFree(OP_plans[ip].ind_sizes));
-    cutilSafeCall(cudaFree(OP_plans[ip].nthrcol));
-    cutilSafeCall(cudaFree(OP_plans[ip].thrcol));
-    cutilSafeCall(cudaFree(OP_plans[ip].offset));
-    cutilSafeCall(cudaFree(OP_plans[ip].nelems));
-    cutilSafeCall(cudaFree(OP_plans[ip].blkmap));
-  }
 
   for(int i=0; i<OP_dat_index; i++) {
     cutilSafeCall(cudaFree(OP_dat_list[i]->data_d));
   }
 
-  op_exit_core();
+  op_rt_exit ();
+  op_exit_core ();
 
   cudaThreadExit();
 }
