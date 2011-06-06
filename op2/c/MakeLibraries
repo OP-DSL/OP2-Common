@@ -3,23 +3,25 @@ OP2 = $(OP2_INST_DIR)
 SRC = $(OP2)/src
 INC = $(OP2)/include
 LIB = $(OP2)/lib
+OBJ = $(OP2)/obj
 
 CC = gcc
 CPP = g++
+NVCC = nvcc
 
 FLAGS = -Wall
 
 all: core reference
 
 core: $(INC)/op_lib_core.h $(SRC)/op_lib_core.c
-	$(CC) $(FLAGS) -std=c99 -I$(INC) -c $(SRC)/op_lib_core.c -o $(SRC)/op_lib_core.o
-	ar rcs $(LIB)/libop2_core.a $(SRC)/op_lib_core.o
+	$(CC) $(FLAGS) -std=c99 -I$(INC) -c $(SRC)/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	ar rcs $(LIB)/libop2_core.a $(OBJ)/op_lib_core.o
 
 reference: $(INC)/op_reference.h $(SRC)/op_reference.cpp $(INC)/op_lib_core.h $(SRC)/op_lib_core.c
-	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/op_reference.cpp -o $(SRC)/op_reference.o
-	ar rcs $(LIB)/libop2_reference.a $(SRC)/op_reference.o
+	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/op_reference.cpp -o $(OBJ)/op_reference.o
+	ar rcs $(LIB)/libop2_reference.a $(OBJ)/op_reference.o
 	
-cuda: $(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_decl.cu $(SRC)/op_cuda_rt_support.cu \
-	$(NVCC) $(FLAGS) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.cu -o $(SRC)/op_cuda_decl.o
-	$(NVCC) $(FLAGS) -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cu -o $(SRC)/op_cuda_rt_support.o
-	ar rcs $(LIB)/libop2_cuda.a $(SRC)/op_cuda_rt_support.o $(SRC)/op_cuda_decl.o
+cuda: $(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_decl.cu $(SRC)/cuda/op_cuda_rt_support.cu
+	$(NVCC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.cu -o $(OBJ)/cuda/op_cuda_decl.o
+	$(NVCC) -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cu -o $(OBJ)/cuda/op_cuda_rt_support.o
+	ar rcs $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o

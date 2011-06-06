@@ -4,7 +4,6 @@
 #include "op_lib_core.h"
 #include "op_cuda_rt_support.h"
 
-
 //
 // CUDA-specific OP2 functions
 //
