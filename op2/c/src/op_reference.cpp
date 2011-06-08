@@ -32,7 +32,7 @@ op_map op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * n
 extern "C"
 op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * data, char const * name )
 {
-  op_decl_dat_core ( set, dim, type, size, data, name );
+  return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
 //

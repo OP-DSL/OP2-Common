@@ -3,8 +3,10 @@
 //
 
 // header
-
-#include "op_lib.cu"
+#include <op_lib.h>
+#include <op_lib_core.h>
+#include <op_rt_support.h>
+#include <op_cuda_rt_support.h>
 
 // global constants
 

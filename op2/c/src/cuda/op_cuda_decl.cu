@@ -8,6 +8,7 @@
 // CUDA-specific OP2 functions
 //
 
+
 void op_init(int argc, char **argv, int diags){
   op_init_core(argc, argv, diags);
 
@@ -25,13 +26,39 @@ void op_init(int argc, char **argv, int diags){
   printf("\n 16/48 L1/shared \n");
 }
 
-op_dat op_decl_dat_char(op_set set, int dim, char const *type,
-                        int size, char *data, char const *name){
-  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+op_dat op_decl_dat ( op_set set, int dim, char const *type,
+                     int size, char *data, char const *name )
+{
+  op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
   op_cpHostToDevice((void **)&(dat->data_d),
                     (void **)&(dat->data),
                                dat->size*set->size);
   return dat;
+}
+
+
+
+op_set op_decl_set ( int size, char const * name )
+{
+  return op_decl_set_core ( size, name );
+}
+
+
+op_map op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * name )
+{
+  return op_decl_map_core ( from, to, dim, imap, name );
+}
+
+
+op_arg op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
+{
+  return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+}
+
+
+op_arg op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
+{
+  return op_arg_gbl ( data, dim, type, acc );
 }
 

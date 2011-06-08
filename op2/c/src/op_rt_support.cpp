@@ -14,6 +14,11 @@
 
 
 //
+// this variable is actually defined in op_lib_core.c
+//
+extern int OP_cache_line_size;
+
+//
 // Global variables
 //
 int OP_plan_index=0, OP_plan_max=0;
