@@ -35,6 +35,12 @@
 // header files
 //
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <device_launch_parameters.h>
+#include <device_functions.h>
+
 #include "op_lib_core.h"
 #include "op_rt_support.h"
 
@@ -42,6 +48,13 @@
 
 #define OP_WARPSIZE 32
 
+//
+// Global variables actually defined in the cpp file
+//
+extern char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+
+
+extern void __syncthreads();
 
 //
 // personal stripped-down version of cutil_inline.h 
@@ -50,13 +63,13 @@
 #define cutilSafeCall(err) __cudaSafeCall(err,__FILE__,__LINE__)
 #define cutilCheckMsg(msg) __cutilCheckMsg(msg,__FILE__,__LINE__)
 
-inline void __cudaSafeCall ( cudaError err, 
-                             const char *file, const int line );
+void __cudaSafeCall ( cudaError err, 
+                      const char *file, const int line );
 
-inline void __cutilCheckMsg ( const char *errorMessage,
-                             const char *file, const int line );
+void __cutilCheckMsg ( const char *errorMessage,
+                       const char *file, const int line );
                             
-inline void cutilDeviceInit ( int argc, char **argv );
+void cutilDeviceInit ( int argc, char **argv );
 
 //
 // routines to move arrays to/from GPU device
@@ -96,7 +109,77 @@ void mvReductArraysToHost ( int reduct_bytes );
 // reduction routine for arbitrary datatypes
 //
 
+//template < op_access reduction, class T >
+//__inline__ __device__ void op_reduction ( volatile T *dat_g, T dat_l );
+
+//
+// reduction routine for arbitrary datatypes
+//
+
 template < op_access reduction, class T >
-__inline__ __device__ void op_reduction ( volatile T *dat_g, T dat_l );
+  __inline__ __device__ void op_reduction(volatile T *dat_g, T dat_l)
+{
+  int tid = threadIdx.x;
+  int d   = blockDim.x>>1; 
+  extern __shared__ T temp[];
+
+  __syncthreads();  // important to finish all previous activity
+
+  temp[tid] = dat_l;
+
+  for (; d>warpSize; d>>=1) {
+    __syncthreads();
+    if (tid<d) {
+      switch (reduction) {
+      case OP_INC:
+        temp[tid] = temp[tid] + temp[tid+d];
+        break;
+      case OP_MIN:
+        if(temp[tid+d]<temp[tid]) temp[tid] = temp[tid+d];
+        break;
+      case OP_MAX:
+        if(temp[tid+d]>temp[tid]) temp[tid] = temp[tid+d];
+        break;
+      }
+    }
+  }
+
+  __syncthreads();
+
+  volatile T *vtemp = temp;   // see Fermi compatibility guide 
+
+  if (tid<warpSize) {
+    for (; d>0; d>>=1) {
+      if (tid<d) {
+        switch (reduction) {
+        case OP_INC:
+          vtemp[tid] = vtemp[tid] + vtemp[tid+d];
+          break;
+        case OP_MIN:
+          if(vtemp[tid+d]<vtemp[tid]) vtemp[tid] = vtemp[tid+d];
+          break;
+        case OP_MAX:
+          if(vtemp[tid+d]>vtemp[tid]) vtemp[tid] = vtemp[tid+d];
+          break;
+        }
+      }
+    }
+  }
+
+  if (tid==0) {
+    switch (reduction) {
+    case OP_INC:
+      *dat_g = *dat_g + vtemp[0];
+      break;
+    case OP_MIN:
+      if(temp[0]<*dat_g) *dat_g = vtemp[0];
+      break;
+    case OP_MAX:
+      if(temp[0]>*dat_g) *dat_g = vtemp[0];
+      break;
+    }
+  }
+
+}
 
 #endif

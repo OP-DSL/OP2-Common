@@ -1,6 +1,8 @@
 #ifndef __OP_RT_SUPPORT_H
 #define __OP_RT_SUPPORT_H
 
+#include "op_lib_core.h"
+
 typedef struct {
   // input arguments
   char const  *name;
@@ -39,6 +41,8 @@ op_plan * op_plan_old_core(char const *, op_set, int, int, op_dat *,
 
 extern "C"
 op_plan * op_plan_core(char const *, op_set, int, int, op_arg *, int, int *);
+
+void op_timers(double *cpu, double *et);
 
 void op_rt_exit ();
 

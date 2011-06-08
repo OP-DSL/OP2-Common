@@ -46,7 +46,7 @@ __global__ void op_cuda_res_calc(
   __shared__ int    nelems2, ncolor;                                    
   __shared__ int    nelem, offset_b;                                    
                                                                         
-  extern __shared__ char shared[nshared];                                      
+  extern __shared__ char shared[];                                      
                                                                         
   if (threadIdx.x==0) {                                                 
                                                                         
