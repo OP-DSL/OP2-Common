@@ -4,9 +4,9 @@ LIB = lib
 OBJ = obj
 CUDA_INC = $(CUDA)/include
 
-CC = gcc
-CPP = g++
-NVCC = nvcc
+CC = gcc -g
+CPP = g++ -g
+NVCC = nvcc -g
 
 FLAGS = -Wall
 
@@ -25,7 +25,7 @@ core_nvcc: $(INC)/op_lib_core.h $(SRC)/op_lib_core.cpp
 reference: $(INC)/op_reference.h $(SRC)/op_reference.cpp $(INC)/op_lib_core.h $(SRC)/op_lib_core.cpp
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/op_reference.cpp -o $(OBJ)/op_reference.o
 	ar -r $(LIB)/libop2_reference.a $(OBJ)/op_reference.o
-	
+
 reference_nvcc: $(INC)/op_reference.h $(SRC)/op_reference.cpp $(INC)/op_lib_core.h $(SRC)/op_lib_core.cpp
 	$(NVCC) --compiler-options $(FLAGS) -I$(INC) -c $(SRC)/op_reference.cpp -o $(OBJ)/op_reference.o
 	ar -r $(LIB)/libop2_reference_nvcc.a $(OBJ)/op_reference.o

@@ -136,6 +136,10 @@ void op_fetch_data(op_dat);
 extern "C++"
 void op_exit();
 
+// forward declaration op_decl_dat from lower level libraries
+op_dat op_decl_dat ( op_set, int, char const *, int, char *, char const * );
+
+
 //
 // templates for handling datasets and constants
 //
@@ -150,7 +154,7 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
     exit ( 1 );
   }
 
-  return op_decl_dat_core ( set, dim, type, sizeof(T), (char *) data, name );
+  return op_decl_dat ( set, dim, type, sizeof(T), (char *) data, name );
 }
 
 // Forward declaration: the actual implementation is in op_reference_decl.cpp
@@ -163,7 +167,7 @@ void op_decl_const2(char const *name, int dim, char const *type, T *data){
   if (type_error(data,type)) {
     printf("incorrect type specified for constant \"%s\" \n",name); exit(1);
   }
-  op_decl_const_core ( dim, type, sizeof(T), (char *)data, name );
+  op_decl_const_char ( dim, type, sizeof(T), (char *)data, name );
 }
 
 template < class T >

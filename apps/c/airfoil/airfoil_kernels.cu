@@ -22,11 +22,12 @@ __constant__ float mach;
 __constant__ float alpha;                                
 __constant__ float qinf[4];                              
                                                          
-void op_decl_const_char(int dim, char const *type,       
+/*void op_decl_const_char(int dim, char const *type,       
             int size, char *dat, char const *name){      
   cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));
 }                                                        
-                                                         
+*/
+                                                       
 // user kernel files                                     
                                                          
 #include "save_soln_kernel.cu"                           
