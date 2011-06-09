@@ -4,9 +4,9 @@ LIB = lib
 OBJ = obj
 CUDA_INC = $(CUDA)/include
 
-CC = gcc
-CPP = g++
-NVCC = nvcc
+CC = gcc -g
+CPP = g++ -g
+NVCC = nvcc -g
 
 FLAGS = -Wall
 

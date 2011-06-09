@@ -203,7 +203,10 @@ op_dat op_decl_dat_core ( op_set set, int dim, char const * type,
 }
 
 extern "C"
-void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name ) {}
+void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
+{
+
+}
 
 void op_exit_core ()
 {

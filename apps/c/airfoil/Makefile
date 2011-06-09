@@ -28,11 +28,13 @@ CPP = g++
 #CCFLAGS	:= -g -fPIC -DUNIX -Wall -Wextra
 #NVCCFLAGS	:= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 
-CCFLAGS		:= -O3  -DUNIX -Wall -Wextra
+#CCFLAGS		:= -g
+CCFLAGS		:= -g  -DUNIX -Wall -Wextra
 #NVCCFLAGS	:= -O3 -maxrregcount 48 -arch=sm_20 \
 #		   -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
-NVCCFLAGS	:= -O3 -arch=sm_20 \
+NVCCFLAGS	:= -g -arch=sm_20 \
 		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
+#NVCCFLAGS	:= -g
 LIBS		:= $(LIB) -lcudart
 OMP		:= -fopenmp -lgomp
 OP2_H		:= $(OP2)/op_seq.h $(OP2)/op_lib.h $(OP2)/op_lib_core.h
@@ -71,8 +73,7 @@ airfoil_op:	airfoil_op.cpp airfoil_kernels.cpp \
 #
 
 airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o Makefile
-		g++ -fPIC $(INC_CUDA) -I$(INC_OP2) -L$(LIB_OP2) $(LIB_CUDA) airfoil.cpp airfoil_kernels_cu.o -lcudart -lop2_rt_support -lop2_cuda -o airfoil_cuda
-
+		g++ -g -fPIC $(INC_CUDA) -I$(INC_OP2) -L$(LIB_OP2) $(LIB_CUDA) airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_rt_support -lop2_cuda -o airfoil_cuda
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 		save_soln_kernel.cu save_soln.h \
@@ -81,7 +82,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 		bres_calc_kernel.cu bres_calc.h \
 		update_kernel.cu    update.h    \
                 Makefile
-		nvcc $(INC) $(NVCCFLAGS)  -I$(OP2_INST_DIR)/include -L$(OP2_INST_DIR)/lib -lop2_rt_support_nvcc  -lop2_cuda_nvcc \
+		nvcc $(INC) $(NVCCFLAGS)  -I$(OP2_INST_DIR)/include \
 		-c -o airfoil_kernels_cu.o \
 		airfoil_kernels.cu
 

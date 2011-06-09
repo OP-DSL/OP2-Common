@@ -87,6 +87,8 @@ void cutilDeviceInit(int argc, char **argv) {
 
   printf("\n Using CUDA device: %s\n", deviceProp.name);
   cutilSafeCall(cudaSetDevice(0));
+
+  //  exit ( 0 );
 }
 
 

@@ -137,6 +137,7 @@ int main(int argc, char **argv){
   becell = (int *) malloc(  nbedge*sizeof(int));
   bound  = (int *) malloc(  nbedge*sizeof(int));
 
+
   x      = (float *) malloc(2*nnode*sizeof(float));
   q      = (float *) malloc(4*ncell*sizeof(float));
   qold   = (float *) malloc(4*ncell*sizeof(float));
