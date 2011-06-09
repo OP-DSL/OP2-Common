@@ -1,12 +1,7 @@
-
-
-
-
-OP2 = $(OP2_INST_DIR)
-SRC = $(OP2)/src
-INC = $(OP2)/include
-LIB = $(OP2)/lib
-OBJ = $(OP2)/obj
+SRC = src
+INC = include
+LIB = lib
+OBJ = obj
 CUDA_INC = $(CUDA)/include
 
 CC = gcc
