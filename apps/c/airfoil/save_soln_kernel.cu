@@ -19,8 +19,6 @@ __global__ void op_cuda_save_soln(
   int   offset_s,
   int   set_size ) {
 
-
-
   float arg0_l[4];
   float arg1_l[4];
   int   tid = threadIdx.x%OP_WARPSIZE;
@@ -59,7 +57,7 @@ __global__ void op_cuda_save_soln(
     for (int m=0; m<4; m++)
       arg1[tid+m*nelems+offset*4] = ((float *)arg_s)[tid+m*nelems];
 
-  }
+ }
 }
 
 

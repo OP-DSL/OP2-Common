@@ -1,0 +1,10 @@
+#!/bin/sh
+
+#PBS -l mem=1gb
+#PBS -l ncpus=1
+#PBS -l ngpus=1
+#PBS -W block=true
+
+module load cuda/4.0.11
+
+$WORK/OP2-Common/apps/c/airfoil/airfoil_cuda
