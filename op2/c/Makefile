@@ -45,7 +45,14 @@ openmp: $(SRC)/openmp/op_openmp_decl.cpp $(OBJ)/op_lib_core.o
 
 clean:
 	\rm -if $(OBJ)/*.o
+	\rm -if $(OBJ)/*~
 	\rm -if $(OBJ)/cuda/*.o
+	\rm -if $(OBJ)/cuda/*~
 	\rm -if $(OBJ)/openmp/*.o
+	\rm -if $(OBJ)/openmp/*~
 	\rm -if $(LIB)/*.a
-	\rm -if ./*~
+	\rm -if $(SRC)/*~
+	\rm -if $(SRC)/cuda/*~
+	\rm -if $(SRC)/openmp/*~
+	\rm -if $(INCLUDE)/*~
+	\rm -if *~
