@@ -29,10 +29,10 @@ CPP = g++
 #NVCCFLAGS	:= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 
 #CCFLAGS		:= -g
-CCFLAGS		:= -g  -DUNIX -Wall -Wextra
+CCFLAGS		:= -O3  -DUNIX -Wall -Wextra
 #NVCCFLAGS	:= -O3 -maxrregcount 48 -arch=sm_20 \
 #		   -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
-NVCCFLAGS	:= -g -arch=sm_20 \
+NVCCFLAGS	:= -O3 -arch=sm_20 \
 		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
 #NVCCFLAGS	:= -g
 LIBS		:= $(LIB) -lcudart
@@ -70,7 +70,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		update_kernel.cpp     update.h    \
                 Makefile $(LIB_OP2)/libop2_rt_support.a $(LIB_OP2)/libop2_openmp.a \
 		$(INC_OP2)/op_lib.h $(INC_OP2)/op_rt_support.h
-		g++ $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
+		g++ -O3 $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
 			airfoil_kernels.cpp -lop2_openmp -lop2_rt_support
 
 #
@@ -78,7 +78,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 #
 
 airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o Makefile $(LIB_OP2)/libop2_reference.a $(LIB_OP2)/libop2_rt_support.a
-		g++ -g -fPIC $(INC_CUDA) -I$(INC_OP2) -L$(LIB_OP2) $(LIB_CUDA) airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_rt_support -lop2_cuda -o $(EXEC_CUDA)
+		g++ -O3 -fPIC $(INC_CUDA) -I$(INC_OP2) -L$(LIB_OP2) $(LIB_CUDA) airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_rt_support -lop2_cuda -o $(EXEC_CUDA)
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 		save_soln_kernel.cu save_soln.h \
