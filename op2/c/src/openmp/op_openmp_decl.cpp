@@ -5,7 +5,7 @@
 
 #include "op_lib.h"
 #include "op_lib_core.h"
-
+#include "op_rt_support.h"
 
 //
 // routines called by user code and kernels
@@ -30,21 +30,9 @@ op_plan * op_plan_get(char const *name, op_set set, int part_size,
   return op_plan_core(name, set, part_size, nargs, args, ninds, inds);
 }
 
-void op_exit(){
-  for(int ip=0; ip<OP_plan_index; ip++) {
-    for (int m=0; m<OP_plans[ip].nargs; m++)
-      if (OP_plans[ip].loc_maps[m] != NULL)
-        free(OP_plans[ip].loc_maps[m]);
-    for (int m=0; m<OP_plans[ip].ninds; m++)
-      free(OP_plans[ip].ind_maps[m]);
-    free(OP_plans[ip].ind_offs);
-    free(OP_plans[ip].ind_sizes);
-    free(OP_plans[ip].nthrcol);
-    free(OP_plans[ip].thrcol);
-    free(OP_plans[ip].offset);
-    free(OP_plans[ip].nelems);
-    free(OP_plans[ip].blkmap);
-  }
+void op_exit ()
+{
+  op_rt_exit ();
 
-  op_exit_core();
+  op_exit_core ();
 }
