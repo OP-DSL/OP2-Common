@@ -79,7 +79,7 @@ int main(int argc, char **argv){
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("/Users/carlo/Documents/Projects/Siloet/airfoil-F/airfoil-seq/new_grid.dat","r")) == NULL) {
+  if ( (fp = fopen("/work/cbertoll/airfoil-data/new_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -258,5 +258,9 @@ int main(int argc, char **argv){
   }
 
   op_timing_output();
+
+  for ( int i = 0; i < 4 * ncell; i++ )
+    printf ( "%lf\n", q[i] );
+
 }
 

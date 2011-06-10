@@ -1,0 +1,7 @@
+#!/bin/sh
+
+#PBS -l mem=1gb
+#PBS -l ncpus=1
+#PBS -W block=true
+
+$WORK/OP2-Common/apps/c/airfoil/airfoil_seq
