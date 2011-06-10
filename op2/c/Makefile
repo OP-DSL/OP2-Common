@@ -39,6 +39,10 @@ cuda: $(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_decl.cpp $(SRC)/cuda/op_cu
 	$(CPP) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cpp -o $(OBJ)/cuda/op_cuda_rt_support.o
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o $(OBJ)/op_lib_core.o
 
+openmp: $(SRC)/openmp/op_openmp_decl.cpp $(OBJ)/op_lib_core.o
+	$(CPP) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.cpp -o $(OBJ)/openmp/op_openmp_decl.o
+	ar -r $(LIB)/libop2_openmp.a $(OBJ)/openmp/op_openmp_decl.o $(OBJ)/op_lib_core.o
+
 clean:
 	\rm -if $(OBJ)/*.o
 	\rm -if $(OBJ)/cuda/*.o
