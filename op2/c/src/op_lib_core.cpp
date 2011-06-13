@@ -202,7 +202,7 @@ op_dat op_decl_dat_core ( op_set set, int dim, char const * type,
   return dat;
 }
 
-extern "C"
+//extern "C"
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
 
