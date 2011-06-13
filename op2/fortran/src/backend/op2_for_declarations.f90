@@ -65,21 +65,21 @@ module OP2_Fortran_Declarations
 
   end type op_dat
 
-  type, BIND(C) :: op_arg
+!  type, BIND(C) :: op_arg
 
-    integer(4) ::   index
-    type(op_dat) :: dat
-    type(op_map) :: map
-    integer(4) ::   dim
-    integer(4) ::   idx
-    integer(4) ::   size
-    type(c_ptr) ::  data
-    type(c_ptr) ::  data_d
-    type(c_ptr) ::  type
-    integer(4) ::   acc
-    integer(4) ::   argType
+!    integer(4) ::   index
+!    type(op_dat) :: dat
+!    type(op_map) :: map
+!    integer(4) ::   dim
+!    integer(4) ::   idx
+!    integer(4) ::   size
+!    type(c_ptr) ::  data
+!    type(c_ptr) ::  data_d
+!    type(c_ptr) ::  type
+!    integer(4) ::   acc
+!    integer(4) ::   argType
 
-  end type op_arg
+!  end type op_arg
 
   ! declaration of identity and global mapping
   type(op_map) :: OP_ID, OP_GBL
