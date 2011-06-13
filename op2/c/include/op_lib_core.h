@@ -152,41 +152,40 @@ typedef struct {
 //
 // Core lib function prototypes
 //
-extern "C"
+//extern "C"
 void op_init_core ( int, char **, int );
 
-extern "C"
+//extern "C"
 void op_exit_core ();
 
-extern "C"
+//extern "C"
 op_set op_decl_set_core ( int, char const * );
 
-extern "C"
+//extern "C"
 op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
 
-extern "C"
+//extern "C"
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
 
-extern "C"
+//extern "C"
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
-
-extern "C"
+//extern "C"
 void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
-extern "C"
+//extern "C"
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
-extern "C"
+//extern "C"
 op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
 
-extern "C"
+//extern "C"
 void op_diagnostic_output ();
 
-extern "C"
+//extern "C"
 void op_timing_output ();
 
-extern "C"
+//extern "C"
 void op_timing_realloc ( int );
 
 
