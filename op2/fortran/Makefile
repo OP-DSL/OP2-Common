@@ -47,7 +47,7 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.cpp \
 						 $(F_OP2_SRC)/backend/op2_C_reference.c
 	$(CC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_lib_core.cpp -o $(F_OP2_OBJ)/op_lib_core.o
 	$(CC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_reference.cpp -o $(F_OP2_OBJ)/op_reference.o
-	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
+	g++ -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(FCC) -c $(F_OP2_SRC)/backend/op2_for_declarations.f90 -o $(F_OP2_SRC)/backend/op2_for_declarations.o
 	$(FCC) -c $(F_OP2_SRC)/backend/op2_for_reference.f90 -o $(F_OP2_SRC)/backend/op2_for_reference.o
 	$(CC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
