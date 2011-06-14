@@ -31,13 +31,18 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+//
+// This header defines the OP2 C++ routines and it is based on OP2 C routines declared in op_lib_c.h
+// The generic name op_lib.h has been chosen to avoid changing include files in OP2 C applications
+//
+
 
 //
-// include core definitions
+// include core definitions and C declarations of op2 user-level routines
 //
 
-#include "op_lib_core.h"
-//#include "op_rt_support.h"
+#include <op_lib_core.h>
+#include <op_lib_c.h>
 
 
 #ifdef _OPENMP
@@ -48,13 +53,13 @@
 // run-time type-checking routines
 //
 
-inline int type_error(const double *,const char *type){return strcmp(type,"double");}
-inline int type_error(const float  *,const char *type){return strcmp(type,"float" );}
-inline int type_error(const int    *,const char *type){return strcmp(type,"int"   );}
-inline int type_error(const uint   *,const char *type){return strcmp(type,"uint"  );}
-inline int type_error(const ll     *,const char *type){return strcmp(type,"ll"    );}
-inline int type_error(const ull    *,const char *type){return strcmp(type,"ull"   );}
-inline int type_error(const bool   *,const char *type){return strcmp(type,"bool"  );}
+inline int type_error(const double * a, const char *type){return strcmp(type,"double");}
+inline int type_error(const float  * a, const char *type){return strcmp(type,"float" );}
+inline int type_error(const int    * a, const char *type){return strcmp(type,"int"   );}
+inline int type_error(const uint   * a, const char *type){return strcmp(type,"uint"  );}
+inline int type_error(const ll     * a, const char *type){return strcmp(type,"ll"    );}
+inline int type_error(const ull    * a, const char *type){return strcmp(type,"ull"   );}
+inline int type_error(const bool   * a, const char *type){return strcmp(type,"bool"  );}
 
 //
 // add in user's datatypes
@@ -99,45 +104,8 @@ extern op_map    *OP_map_list;
 extern op_dat    *OP_dat_list;
 extern op_kernel *OP_kernels;
 
-//
-// OP function prototypes
-//
 
-//extern "C++"
-void op_init(int, char **, int);
-
-//extern "C++"
-op_set op_decl_set(int, char const *);
-
-//extern "C++"
-op_map op_decl_map(op_set, op_set, int, int *, char const *);
-
-//extern "C"
-//extern "C++"
 op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
-
-//extern "C"
-//extern "C++"
-void op_decl_const_char(int, char const *, int, char *, char const *);
-
-//extern "C"
-//extern "C++"
-op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
-
-//extern "C"
-//extern "C++"
-op_arg op_arg_gbl(char *, int, char const *, op_access);
-
-//extern "C"
-//extern "C++"
-void op_fetch_data(op_dat);
-
-//extern "C"
-//extern "C++"
-void op_exit();
-
-// forward declaration op_decl_dat from lower level libraries
-op_dat op_decl_dat ( op_set, int, char const *, int, char *, char const * );
 
 
 //

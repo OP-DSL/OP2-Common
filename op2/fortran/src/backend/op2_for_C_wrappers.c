@@ -9,7 +9,7 @@
  * Fortran specific core library functions
  */
 
-#include <op_lib.h>
+#include <op_lib_c.h>
 #include <op_lib_core.h>
 
 /*
@@ -18,7 +18,7 @@
  * the stack. An alternative to this is to use dynamic memory allocation of F90
  * to guarantee persistence of name and type strings in the callers.
  */
-extern "C"
+//extern "C"
 op_set op_decl_set_f ( int size, char const * name )
 {
 
@@ -29,7 +29,7 @@ op_set op_decl_set_f ( int size, char const * name )
   return op_decl_set ( size, heapName );
 }
 
-extern "C"
+//extern "C"
 op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name )
 {
 
@@ -40,7 +40,7 @@ op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** ima
   return op_decl_map ( from, to, dim, *imap, heapName );
 }
 
-extern "C"
+//extern "C"
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
                        int size, char ** data, char const *name )
 {
@@ -53,7 +53,7 @@ op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
   return op_decl_dat_core ( set, dim, typeName, size, *data, heapName );
 }
 
-extern "C"
+//extern "C"
 op_map_core * op_decl_null_map ( )
 {
   /* must allocate op_set_core instead of op_set, because the latter is actually a pointer to the former */
@@ -66,16 +66,15 @@ op_map_core * op_decl_null_map ( )
   nullSet->size = 0;
   nullSet->name = NULL;
 
-
   map->from = nullSet;
   map->to = nullSet;
-  map->dim = 0; /* set to the proper value is done in the Fortran caller */
+  map->dim = 0; /* set to the proper value in Fortran */
   map->map = NULL;
 
   return map;
 }
 
-extern "C"
+//extern "C"
 void op_decl_const_f ( int dim, void **dat, char const *name )
 {
   if ( dim <= 0 )

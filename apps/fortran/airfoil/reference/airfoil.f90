@@ -2,7 +2,9 @@ program airfoil
 
 use, intrinsic :: ISO_C_BINDING
 
-use OP2_Fortran
+use OP2_Fortran_Declarations
+use OP2_Fortran_Reference
+
 use constantVars
 use airfoil_seq
 
@@ -145,9 +147,9 @@ use airfoil_seq
     ! save old flow solution
 
     call op_par_loop_2 ( save_soln, cells, &
-                         & p_q,    -1, OP_ID, OP_READ, &
-                         & p_qold, -1, OP_ID, OP_WRITE &
-                       & )
+                       & p_x,    1, pcell, OP_READ, &
+                       & p_qold, -1, OP_ID, OP_WRITE &
+                     & )
 
     ! predictor/corrector update loop
 
@@ -156,26 +158,28 @@ use airfoil_seq
       ! calculate area/timstep
 
       call op_par_loop_6 ( adt_calc, cells, &
-                           & p_x,   1, pcell, OP_READ, &
-                           & p_x,   2, pcell, OP_READ, &
-                           & p_x,   3, pcell, OP_READ, &
-                           & p_x,   4, pcell, OP_READ, &
-                           & p_q,   -1, OP_ID, OP_READ, &
-                           & p_adt, -1, OP_ID, OP_WRITE &
-                         & )
+                         & p_x,   1, pcell, OP_READ, &
+                         & p_x,   2, pcell, OP_READ, &
+                         & p_x,   3, pcell, OP_READ, &
+                         & p_x,   4, pcell, OP_READ, &
+                         & p_q,   -1, OP_ID, OP_READ, &
+                         & p_adt, -1, OP_ID, OP_WRITE &
+                       & )
 
       ! calculate flux residual
 
+    print *, OP_GBL%mapPtr%dim
+
       call op_par_loop_8 ( res_calc, edges, &
-                           & p_x,    1, pedge,  OP_READ, &
-                           & p_x,    2, pedge,  OP_READ, &
-                           & p_q,    1, pecell, OP_READ, &
-                           & p_q,    2, pecell, OP_READ, &
-                           & p_adt,  1, pecell, OP_READ, &
-                           & p_adt,  2, pecell, OP_READ, &
-                           & p_res,  1, pecell, OP_INC,  &
-                           & p_res,  2, pecell, OP_INC   &
-                         & )
+                         & p_x,    1, pedge,  OP_READ, &
+                         & p_x,    2, pedge,  OP_READ, &
+                         & p_q,    1, pecell, OP_READ, &
+                         & p_q,    2, pecell, OP_READ, &
+                         & p_adt,  1, pecell, OP_READ, &
+                         & p_adt,  2, pecell, OP_READ, &
+                         & p_res,  1, pecell, OP_INC,  &
+                         & p_res,  2, pecell, OP_INC   &
+                       & )
 
       call op_par_loop_6 ( bres_calc, bedges, &
                          & p_x,      1, pbedge,  OP_READ, &
@@ -187,8 +191,11 @@ use airfoil_seq
                        & )
 
       ! update flow field
+      print *, OP_GBL%mapPtr%dim
 
       rms(1) = 0.0
+
+      print *, OP_GBL%mapPtr%dim
 
       call op_par_loop_5 ( update, cells, &
                          & p_qold, -1, OP_ID,  OP_READ,  &
