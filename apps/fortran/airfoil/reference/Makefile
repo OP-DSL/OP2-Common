@@ -14,6 +14,8 @@ F_OP2_MOD = $(OP2)/fortran/mod
 # IC = 
 # FC = ifort -debug full
 
+.PHONY: clean
+
 all: c_extlib airfoil airfoil_link
 
 c_extlib: debug.c
@@ -27,6 +29,6 @@ airfoil_link: debug.o airfoil.o  airfoil_seqfun.o  constvars.o input.f90 output.
 	$(FC) $(FDEBUG) -L$(F_OP2_LIB) debug.o constvars.o airfoil_seqfun.o input.o output.o airfoil.o -lop2_for_reference -o airfoil_seq
 
 clean:
-	rm -f *.o
-	rm -f *.mod
-	rm -f airfoil_seq
+	-rm -f *.o
+	-rm -f *.mod
+	-rm -f airfoil_seq

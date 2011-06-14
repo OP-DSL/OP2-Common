@@ -48,8 +48,8 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 				$(F_OP2_OBJ)/op2_C_reference.o
 
 clean:
-	rm $(F_OP2_OBJ)/*.o
-	rm $(F_OP2_LIB)/*.a
-	rm $(F_OP2_SRC)/*~
-	rm $(F_OP2_INC)/*~
-	rm $(F_OP2_MOD)/*.mod
+	-rm $(F_OP2_OBJ)/*.o
+	-rm $(F_OP2_LIB)/*.a
+	-rm $(F_OP2_SRC)/*~
+	-rm $(F_OP2_MOD)/*.mod
+	-rm $(F_OP2)/*~
