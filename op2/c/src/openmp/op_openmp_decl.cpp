@@ -3,7 +3,7 @@
 // header file (includes op_lib_core.h and various system header files)
 //
 
-#include "op_lib.h"
+#include "op_lib_c.h"
 #include "op_lib_core.h"
 #include "op_rt_support.h"
 

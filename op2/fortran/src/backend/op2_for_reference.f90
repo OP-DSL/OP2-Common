@@ -210,6 +210,8 @@ module OP2_Fortran_Reference
 		itemSelC3 = itemSel3 - 1
 		itemSelC4 = itemSel4 - 1
 
+               print *, map4%mapPtr%dim
+
 		! warning: look at the -1 on itemSels: it is used to access C++ arrays!
 		call op_par_loop_5_f ( subroutineName, set%setPtr, &
 											 & data0%dataPtr, itemSelC0, map0%mapPtr, access0, &

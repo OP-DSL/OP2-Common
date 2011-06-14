@@ -5,7 +5,9 @@ program airfoil
 
 use, intrinsic :: ISO_C_BINDING
 
-use OP2_Fortran
+use OP2_Fortran_Declarations
+use OP2_Fortran_Reference
+
 use constantVars
 use airfoil_seq
 
@@ -148,10 +150,12 @@ use airfoil_seq
 		! save old flow solution
 
     call op_par_loop_2 ( save_soln, cells, &
-                       & p_q,    -1, OP_ID, OP_READ, &
+                       & p_x,    1, pcell, OP_READ, &
                        & p_qold, -1, OP_ID, OP_WRITE &
                      & )
 	
+
+
 		! predictor/corrector update loop
 				
     do k = 1, 2
@@ -168,6 +172,8 @@ use airfoil_seq
                        & )
 
       ! calculate flux residual
+
+    print *, OP_GBL%mapPtr%dim
 
       call op_par_loop_8 ( res_calc, edges, &
                          & p_x,    1, pedge,  OP_READ, &
@@ -190,8 +196,11 @@ use airfoil_seq
 											 & )
 	
 			! update flow field
-	
+    print *, OP_GBL%mapPtr%dim	
+
       rms(1) = 0.0
+
+    print *, OP_GBL%mapPtr%dim	
 
       call op_par_loop_5 ( update, cells, &
                          & p_qold, -1, OP_ID,  OP_READ,  &
