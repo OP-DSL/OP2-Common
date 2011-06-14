@@ -147,7 +147,7 @@ use airfoil_seq
     ! save old flow solution
 
     call op_par_loop_2 ( save_soln, cells, &
-                       & p_x,    1, pcell, OP_READ, &
+                       & p_q,    -1, OP_ID, OP_READ, &
                        & p_qold, -1, OP_ID, OP_WRITE &
                      & )
 
@@ -167,8 +167,6 @@ use airfoil_seq
                        & )
 
       ! calculate flux residual
-
-    print *, OP_GBL%mapPtr%dim
 
       call op_par_loop_8 ( res_calc, edges, &
                          & p_x,    1, pedge,  OP_READ, &
@@ -191,11 +189,7 @@ use airfoil_seq
                        & )
 
       ! update flow field
-      print *, OP_GBL%mapPtr%dim
-
       rms(1) = 0.0
-
-      print *, OP_GBL%mapPtr%dim
 
       call op_par_loop_5 ( update, cells, &
                          & p_qold, -1, OP_ID,  OP_READ,  &
@@ -221,7 +215,7 @@ use airfoil_seq
 !
 ! Uncomment to obtain the result
 !
-  retdebug = openfile ( c_char_"/homes/cbertoll/airfoil-reference-newcorelib/q-1304.txt"//c_null_char )
+  retdebug = openfile ( c_char_"/data/carlo/q-seq.txt"//c_null_char )
 
   do debugiter = 1, 4*ncell
     datad = q(debugiter)

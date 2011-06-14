@@ -17,6 +17,7 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_set_core
 
+    integer(kind=c_int) :: index  ! position in the private OP2 array of op_set_core variables
     integer(kind=c_int) :: size ! number of elements in the set
     type(c_ptr)         :: name ! set name
 
@@ -31,6 +32,7 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_map_core
 
+    integer(kind=c_int) ::    index ! position in the private OP2 array of op_map_core variables
     type(c_ptr) ::            from  ! set map from
     type(c_ptr) ::            to    ! set map to
     integer(kind=c_int) ::    dim   ! dimension of map
@@ -48,6 +50,7 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_dat_core
 
+    integer(kind=c_int) ::    index ! position in the private OP2 array of op_dat_core variables
     type(c_ptr) ::            set   ! set on which data is defined
     integer(kind=c_int) ::    dim   ! dimension of data
     integer(kind=c_int) ::    size  ! size of each element in dataset
