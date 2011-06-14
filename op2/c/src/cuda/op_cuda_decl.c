@@ -12,7 +12,6 @@
 // CUDA-specific OP2 functions
 //
 
-//extern "C"
 void op_init(int argc, char **argv, int diags){
   op_init_core(argc, argv, diags);
   
