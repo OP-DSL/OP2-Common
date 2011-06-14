@@ -25,7 +25,7 @@ runtime: $(INC)/op_rt_support.h $(SRC)/op_rt_support.cpp $(INC)/op_lib_core.h $(
 	ar -r $(LIB)/libop2_rt_support.a $(OBJ)/op_rt_support.o
 
 cuda: $(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_decl.cpp $(SRC)/cuda/op_cuda_rt_support.cpp $(OBJ)/op_lib_core.o
-	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(INC) -c $(SRC)/cuda/op_cuda_decl.cpp -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
 	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cpp -o $(OBJ)/cuda/op_cuda_rt_support.o
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o $(OBJ)/op_lib_core.o
 

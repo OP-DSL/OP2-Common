@@ -47,7 +47,12 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 				$(F_OP2_OBJ)/op2_for_declarations.o \
 				$(F_OP2_OBJ)/op2_C_reference.o
 
-f_cuda:
+f_cuda: cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
+							$(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_rt_support.cpp \
+							$(SRC)/cuda/op_cuda_decl.cpp \
+	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cpp -o $(OBJ)/cuda/op_cuda_rt_support.o
+
 
 clean:
 	-rm $(F_OP2_OBJ)/*.o
