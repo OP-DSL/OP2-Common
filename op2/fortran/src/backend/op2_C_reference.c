@@ -143,7 +143,7 @@ void op_par_loop_8 ( void (*subroutineName)(char *, char *, char *, char *, char
 	}	
 }
 
-void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *), op_set * set,
+void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
 					  op_dat * dat0, int itemSel0, op_map * map0, op_access access0,
 					  op_dat * dat1, int itemSel1, op_map * map1, op_access access1,
 					  op_dat * dat2, int itemSel2, op_map * map2, op_access access2,
