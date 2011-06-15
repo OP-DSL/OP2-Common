@@ -50,8 +50,8 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 				$(F_OP2_OBJ)/op2_C_reference.o
 
 f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
-	$(C_OP2_INC)/op_cuda_rt_support.h $(C_OP2_SRC)/cuda/op_cuda_rt_support.c \
-	$(C_OP2_SRC)/cuda/op_cuda_decl.c
+				$(C_OP2_INC)/op_cuda_rt_support.h $(C_OP2_SRC)/cuda/op_cuda_rt_support.c \
+				$(C_OP2_SRC)/cuda/op_cuda_decl.c
 	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/cuda/op_cuda_decl.o
 	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/cuda/op_cuda_rt_support.o
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
@@ -61,6 +61,16 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(F_OP2_OBJ)/cuda/op_cuda_rt_support.o \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_declarations.o
+
+f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_INC)/op_rt_support.c \
+							$(F_OP2_SRC)/op2_for_rt_wrappers.c $(F_OP2_SRC)/op2_for_rt_support.f90
+	$(CC) $(FLAGS) -I(C_OP2_INC) -c $(C_OP2_INC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) $(FLAGS) -I(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	ar -r $(F_OP2_LIB)/libop2_for_rt_support.a \
+		$(F_OP2_OBJ)/op_rt_support.o \
+		$(F_OP2_OBJ)/op2_for_rt_wrappers.o \
+		$(F_OP2_OBJ)/op2_for_rt_support.o
 
 clean:
 	-rm $(F_OP2_OBJ)/*.o

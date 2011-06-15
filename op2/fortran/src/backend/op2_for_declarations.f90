@@ -246,7 +246,12 @@ contains
 		if ( present ( opname ) .eqv. .false. ) then
 			set%setCPtr = op_decl_set_F ( setsize, fakeName )
 		else
+#ifdef GNU_FORTRAN
 			cName = C_CHAR_''//opName//C_NULL_CHAR
+#else
+			cname = opname//char(0)
+#endif
+
 			set%setCPtr = op_decl_set_F ( setsize, cName )
 		end if
 		
@@ -269,7 +274,11 @@ contains
 		if ( present ( opname ) .eqv. .false. ) then
 			map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), fakeName )
 		else
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+#ifdef GNU_FORTRAN
+			cName = C_CHAR_''//opName//C_NULL_CHAR
+#else
+			cname = opname//char(0)
+#endif
 			map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), cName )
 		end if
 			
@@ -296,7 +305,12 @@ contains
 		if ( present ( opname ) .eqv. .false. ) then
 			data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), fakeName )
 		else
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+#ifdef GNU_FORTRAN
+			cName = C_CHAR_''//opName//C_NULL_CHAR
+#else
+			cname = opname//char(0)
+#endif
+
 			data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), cName )
 		end if
 			
@@ -322,7 +336,11 @@ contains
 		if ( present ( opname ) .eqv. .false. ) then
 			data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), fakeName )
 		else
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+#ifdef GNU_FORTRAN
+			cName = C_CHAR_''//opName//C_NULL_CHAR
+#else
+			cname = opname//char(0)
+#endif
 			data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), cName )
 		end if
 

@@ -2,6 +2,9 @@
 #include <op_core_lib.h>
 #include <op_rt_support.h>
 
+/* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
+#define F_OP_ARG_DAT 0
+#define F_OP_ARG_GBL 1
 
 /*
  * Wrapper for Fortran to plan function
@@ -15,7 +18,9 @@ op_plan * FortranPlanCaller ( char name[],
 							  int maps[],
 							  int accs[],
 							  int indsNumber,
-							  int inds[]
+							  int inds[],
+                int argsType[],
+                int partitionSize
 							)
 {
 
@@ -23,12 +28,13 @@ op_plan * FortranPlanCaller ( char name[],
 
 	op_plan * generatedPlan = NULL;
 
-	op_dat planArgs[argsNumber];
-	op_map planMaps[argsNumber];
+	op_dat_core planDatArgs[argsNumber];
+	op_map_core planMaps[argsNumber];
 	int planDims[argsNumber];
 	char * planTypes[argsNumber];
 	op_access planAccs[argsNumber];
-	op_set * iterationSet =  OP_set_list[setId];
+  op_arg planArguments[argsNumber];
+	op_set_core * iterationSet =  OP_set_list[setId];
 
 	if ( iterationSet == NULL )
 	{
@@ -36,11 +42,11 @@ op_plan * FortranPlanCaller ( char name[],
 		exit ( -1 );
 	}
 
-	/* build planArgs variable by accessing OP_dat_list with indexes(=positions) in args */
+	/* build planDatArgs variable by accessing OP_dat_list with indexes(=positions) in args */
 	for ( i = 0; i < argsNumber; i++ )
 	{
 		op_dat * tmp = OP_dat_list[args[i]];
-		planArgs[i] = *tmp;
+		planDatArgs[i] = *tmp;
 	}
 
 	/* build planMaps variables by accessing OP_map_list with indexes(=positions) in args */
@@ -65,7 +71,7 @@ op_plan * FortranPlanCaller ( char name[],
 	/* build dimensions of data using op_dat */
 	for ( i = 0; i < argsNumber; i++ )
 	{
-		planDims[i] = planArgs[i].dim;
+		planDims[i] = planDatArgs[i].dim;
 	}
 
 	/* build op_dat data type names (allocate precise space for name and copy it) */
@@ -87,15 +93,40 @@ op_plan * FortranPlanCaller ( char name[],
 		planAccs[i] = getAccFromIntCode ( accs[i] );
 	}
 
+  /* now builds op_arg array */
+  for ( i = 0; i < argsNumber; i++ )
+  {
+    planArguments[i].index = ;
+    planArguments[i].dat = planDatArgs[i];
+    planArguments[i].map = planMaps[i];
+    planArguments[i].dim = planDims[i];
+    planArguments[i].idx = idxs[i];
+    planArguments[i].size = planDatArgs[i].size;
+    planArguments[i].data = planDatArgs[i].data;
+    planArguments[i].data_d = planDatArgs[i].data_d;
+    planArguments[i].type = planDatArgs[i].type;
+    planArguments[i].acc = planAccs[i];
+    
+    switch ( argsType[i] )
+    {
+    case F_OP_ARG_DAT :
+      planArguments[i].argtype = OP_ARG_DAT;
+      break;
+    case F_OP_ARG_GBL :
+      planArguments[i].argtype = OP_ARG_GBL;
+      break;
+    default :
+      printf ( "Error while setting argument type\n" );
+      exit ( 0 );
+    }
+  }
+
+//name,set,part_size,nargs,args,ninds,inds
 	generatedPlan = plan ( name,
 						   *iterationSet,
-						   argsNumber,
-						   planArgs,
-						   idxs,
-						   planMaps,
-						   planDims,
-						   (const char **) planTypes,
-						   planAccs,
+						   partitionSize,
+               argsNumber,
+               planArguments,
 						   indsNumber,
 						   inds
 						 );

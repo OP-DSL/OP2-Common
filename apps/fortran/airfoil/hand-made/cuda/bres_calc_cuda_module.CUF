@@ -545,8 +545,9 @@ module bres_calc_cuda_module
 				integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
 
 				! Compiler: variables used to invoke cplan 
-				integer(4) :: args(6), idxs(6), maps(6), accs(6), inds(6)
+				integer(4) :: args(6), idxs(6), maps(6), accs(6), inds(6), argsType(6)
 				integer(4) :: argsNumber, indsNumber
+        integer(4) :: partitionSize
 
 !				! returned plan address by cplan and plan functions
 !				type(c_ptr) :: planRet
@@ -703,12 +704,58 @@ module bres_calc_cuda_module
 					inds(5) = 3
 					inds(6) = -1
 
+          if ( map0%dim .eq. -1 ) ! global data
+            argsType(1) = F_OP_ARG_GBL
+          else
+            argsType(1) = F_OP_ARG_DAT
+          end if
 
+          if ( map1%dim .eq. -1 ) ! global data
+            argsType(2) = F_OP_ARG_GBL
+          else
+            argsType(2) = F_OP_ARG_DAT
+          end if
 
-					! get the plan
-					planRet = cplan ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds )  		
+          if ( map2%dim .eq. -1 ) ! global data
+            argsType(3) = F_OP_ARG_GBL
+          else
+            argsType(3) = F_OP_ARG_DAT
+          end if
 
-					
+          if ( map3%dim .eq. -1 ) ! global data
+            argsType(4) = F_OP_ARG_GBL
+          else
+            argsType(4) = F_OP_ARG_DAT
+          end if
+
+          if ( map4%dim .eq. -1 ) ! global data
+            argsType(5) = F_OP_ARG_GBL
+          else
+            argsType(5) = F_OP_ARG_DAT
+          end if
+
+          if ( map5%dim .eq. -1 ) ! global data
+            argsType(6) = F_OP_ARG_GBL
+          else
+            argsType(6) = F_OP_ARG_DAT
+          end if
+
+          partitionSize = 0
+
+          ! get the plan
+          planRet = cplan ( subroutineName, &
+                          & set%index, &
+                          & argsNumber, &
+                          & args, &
+                          & idxs, &
+                          & maps, &
+                          & accs, &
+                          & indsNumber, &
+                          & inds, &
+                          & argsType, &
+                          & partitionSize &
+                       &  )
+              
 					
 					call bres_calc_initialiseConstants()
 
