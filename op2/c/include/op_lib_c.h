@@ -3,6 +3,22 @@
 
 #include <op_lib_core.h>
 
+//
+// external variables declared in op_lib_core.cpp
+//
+
+extern int OP_diags, OP_part_size, OP_block_size;
+
+extern int OP_set_index,  OP_set_max,
+           OP_map_index,  OP_map_max,
+           OP_dat_index,  OP_dat_max,
+           OP_plan_index, OP_plan_max,
+                          OP_kern_max;
+
+extern op_set    *OP_set_list;
+extern op_map    *OP_map_list;
+extern op_dat    *OP_dat_list;
+extern op_kernel *OP_kernels;
 
 //
 // declaration of C routines wrapping lower layer implementations (e.g. CUDA, reference, etc..)
