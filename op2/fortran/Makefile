@@ -15,6 +15,8 @@ F_OP2_MOD = $(F_OP2)/mod
 F_OP2_USER = $(F_OP2_SRC)/user
 F_OP2_BACKEND = $(F_OP2_SRC)/backend
 
+CUDA_INC = $(CUDA_INSTALL_PATH)/include
+
 CC = gcc -g
 FCC = gfortran -g
 
@@ -48,10 +50,10 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 				$(F_OP2_OBJ)/op2_C_reference.o
 
 f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
-	$(INC)/op_cuda_rt_support.h $(SRC)/cuda/op_cuda_rt_support.cpp \
-	$(SRC)/cuda/op_cuda_decl.cpp
-	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/cuda/op_cuda_decl.o
-	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.cpp -o $(F_OP2_OBJ)/cuda/op_cuda_rt_support.o
+	$(C_OP2_INC)/op_cuda_rt_support.h $(C_OP2_SRC)/cuda/op_cuda_rt_support.c \
+	$(C_OP2_SRC)/cuda/op_cuda_decl.c
+	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/cuda/op_cuda_decl.o
+	$(CC) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/cuda/op_cuda_rt_support.o
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_declarations.f90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
