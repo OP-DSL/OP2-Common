@@ -34,12 +34,12 @@ typedef struct {
 } op_plan;
 
 
-extern "C"
+//extern "C"
 op_plan * op_plan_old_core(char const *, op_set, int, int, op_dat *,
                            int *, op_map *, int *, char const **, op_access *, int, int *);
 
 
-extern "C"
+//extern "C"
 op_plan * op_plan_core(char const *, op_set, int, int, op_arg *, int, int *);
 
 void op_timers(double *cpu, double *et);
