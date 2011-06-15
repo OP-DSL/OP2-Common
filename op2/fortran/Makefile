@@ -24,7 +24,7 @@ FFLAGS = -J$(F_OP2_MOD)
 
 .PHONY: clean
 
-all: f_reference
+all: f_reference f_cuda
 
 # does not depend on reference.h because we don't need the op_par_loop templated implementation, but our own implementation
 f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
@@ -46,6 +46,8 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 				$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 				$(F_OP2_OBJ)/op2_for_declarations.o \
 				$(F_OP2_OBJ)/op2_C_reference.o
+
+f_cuda: 
 
 clean:
 	-rm $(F_OP2_OBJ)/*.o
