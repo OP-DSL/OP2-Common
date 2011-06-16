@@ -167,8 +167,8 @@ contains
 
   ! caller of the kernel
   attributes(host) function op_par_loop_save_soln ( subroutineName, setIn, &
-                                                  & arg0, idx0, ptr0, access0, &
-                                                  & arg1, idx1, ptr1, access1 &
+                                                  & arg0In, idx0, map0In, access0, &
+                                                  & arg1In, idx1, map1In, access1 &
                                                 & )
 
     ! use directives
@@ -195,8 +195,8 @@ contains
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1
 
-    ! ptr ids for indirect access to data
-    type(op_map) :: ptr0In, ptr1In
+    ! map ids for indirect access to data
+    type(op_map) :: map0In, map1In
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1
@@ -204,7 +204,7 @@ contains
     ! local variables
 
     type(op_set_core), pointer :: set
-    type(op_map_core), pointer :: ptr0, ptr1
+    type(op_map_core), pointer :: map0, map1
     type(op_dat_core), pointer :: arg0, arg1
 
     ! used for mallocs and memcpys
@@ -244,8 +244,8 @@ contains
     ! initialise input data
     set = setIn%setPtr
 
-    ptr0 = ptr0In%mapPtr
-    ptr1 = ptr1In%mapPtr
+    map0 = map0In%mapPtr
+    map1 = map1In%mapPtr
 
     arg0 = arg0In%datPtr
     arg1 = arg1In%datPtr
