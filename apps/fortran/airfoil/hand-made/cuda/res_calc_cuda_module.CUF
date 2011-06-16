@@ -1,6 +1,7 @@
 module res_calc_cuda_module
 
-  use OP2_C
+  use OP2_Fortran_Declarations
+  use OP2_Fortran_RT_Support
   use cudaConfigurationParams
   use constantVarsCuda
   use OP2Profiling
@@ -545,22 +546,22 @@ contains
     character(kind=c_char,len=*), intent(in) :: subroutineName
 
     ! data set on which we loop
-    type(op_set), intent(in) :: set
+    type(op_set_core), intent(in) :: set
 
     ! data ids used in the function
-    type(op_dat) :: arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7
+    type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7
 
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7
 
     ! ptr ids for indirect access to data
-    type(op_map) :: map0, map1, map2, map3, map4, map5, map6, map7
+    type(op_map_core) :: map0, map1, map2, map3, map4, map5, map6, map7
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1, access2, access3, access4, access5, access6, access7
 
     ! Compiler: variables used to invoke cplan
-    integer(4) :: args(8), idxs(8), maps(8), accs(8), inds(8), argsTypes(8)
+    integer(4) :: args(8), idxs(8), maps(8), accs(8), inds(8), argsType(8)
     integer(4) :: argsNumber, indsNumber
     integer(4) :: partitionSize
 
@@ -650,6 +651,8 @@ contains
     real(8), dimension(:), allocatable, device :: argument4
     real(8), dimension(:), allocatable, device :: argument6
 !
+    type(op_set_core), pointer :: arg0Set, arg2Set, arg4Set, arg6Set
+
 !   ! sizes of variables passed to kernel are all encapsulated inside a single struct
 !   type(varSizes_res_calc), device :: argSizes
 
@@ -730,49 +733,49 @@ contains
       inds(7) = 3
       inds(8) = 3
 
-      if ( map0%dim .eq. -1 ) ! global data
+      if ( map0%dim .eq. -1 ) then ! global data
         argsType(1) = F_OP_ARG_GBL
       else
         argsType(1) = F_OP_ARG_DAT
       end if
 
-      if ( map1%dim .eq. -1 ) ! global data
+      if ( map1%dim .eq. -1 ) then ! global data
         argsType(2) = F_OP_ARG_GBL
       else
         argsType(2) = F_OP_ARG_DAT
       end if
 
-      if ( map2%dim .eq. -1 ) ! global data
+      if ( map2%dim .eq. -1 ) then ! global data
         argsType(3) = F_OP_ARG_GBL
       else
         argsType(3) = F_OP_ARG_DAT
       end if
 
-      if ( map3%dim .eq. -1 ) ! global data
+      if ( map3%dim .eq. -1 ) then ! global data
         argsType(4) = F_OP_ARG_GBL
       else
         argsType(4) = F_OP_ARG_DAT
       end if
 
-      if ( map4%dim .eq. -1 ) ! global data
+      if ( map4%dim .eq. -1 ) then ! global data
         argsType(5) = F_OP_ARG_GBL
       else
         argsType(5) = F_OP_ARG_DAT
       end if
 
-      if ( map5%dim .eq. -1 ) ! global data
+      if ( map5%dim .eq. -1 ) then ! global data
         argsType(6) = F_OP_ARG_GBL
       else
         argsType(6) = F_OP_ARG_DAT
       end if
 
-      if ( map6%dim .eq. -1 ) ! global data
+      if ( map6%dim .eq. -1 ) then ! global data
         argsType(7) = F_OP_ARG_GBL
       else
         argsType(7) = F_OP_ARG_DAT
       end if
 
-      if ( map7%dim .eq. -1 ) ! global data
+      if ( map7%dim .eq. -1 ) then ! global data
         argsType(8) = F_OP_ARG_GBL
       else
         argsType(8) = F_OP_ARG_DAT
@@ -799,16 +802,20 @@ contains
     end if
 
     ! 1. transfer C pointers to Fortran pointers
-    arg0Size = arg0%dim * arg0%set%size
+    call c_f_pointer ( arg0%set, arg0Set )
+    arg0Size = arg0%dim * arg0set%size
     call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )
 
-    arg2Size = arg2%dim * arg2%set%size
+    call c_f_pointer ( arg2%set, arg2Set )
+    arg2Size = arg2%dim * arg2set%size
     call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
 
-    arg4Size = arg4%dim * arg4%set%size
+    call c_f_pointer ( arg4%set, arg4Set )
+    arg4Size = arg4%dim * arg4Set%size
     call c_f_pointer ( arg4%dat_d, argument4, (/arg4Size/) )
 
-    arg6Size = arg6%dim * arg6%set%size
+    call c_f_pointer ( arg6%set, arg6Set )
+    arg6Size = arg6%dim * arg6set%size
     call c_f_pointer ( arg6%dat_d, argument6, (/arg6Size/) )
 
     ! convert arguments and plan data to Fortran pointers (not a copy!)

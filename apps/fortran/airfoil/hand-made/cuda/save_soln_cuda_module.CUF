@@ -1,6 +1,6 @@
 module save_soln_cuda_module
 
-use OP2_C
+use OP2_Fortran_Declarations
 use cudaConfigurationParams
 use OP2Profiling
 use cudafor
@@ -161,13 +161,12 @@ contains
 
       n = n + blockdim%x * griddim%x
 
-
     end do
 
   end subroutine op_cuda_save_soln
 
   ! caller of the kernel
-  attributes(host) function op_par_loop_save_soln ( subroutineName, set, &
+  attributes(host) function op_par_loop_save_soln ( subroutineName, setIn, &
                                                   & arg0, idx0, ptr0, access0, &
                                                   & arg1, idx1, ptr1, access1 &
                                                 & )
@@ -188,30 +187,36 @@ contains
     character, dimension(*), intent(in) :: subroutineName
 
     ! data set on which we loop
-    type(op_set), intent(in) :: set
+    type(op_set), intent(in) :: setIn
 
     ! data ids used in the function
-    type(op_dat) :: arg0, arg1
+    type(op_dat) :: arg0In, arg1In
 
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1
 
     ! ptr ids for indirect access to data
-    type(op_map) :: ptr0, ptr1
+    type(op_map) :: ptr0In, ptr1In
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1
 
     ! local variables
 
+    type(op_set_core), pointer :: set
+    type(op_map_core), pointer :: ptr0, ptr1
+    type(op_dat_core), pointer :: arg0, arg1
+
     ! used for mallocs and memcpys
-!     integer(4) :: data0Size, data1Size
+!   integer(4) :: data0Size, data1Size
 
     ! define and compute grid and block sizes and other variables (unused in this case)
     real(8), dimension(:), allocatable, device :: argument0
     real(8), dimension(:), allocatable, device :: argument1
 
-!     type(varSizes_save_soln), device :: argSizes
+    type(op_set_core), pointer :: arg0Set, arg1Set
+
+!   type(varSizes_save_soln), device :: argSizes
 
     integer(4) :: nblocks = 200
     integer(4) :: nthreads = 128
@@ -236,6 +241,15 @@ contains
 
     istat = cudaEventRecord ( startHostTime, 0 )
 
+    ! initialise input data
+    set = setIn%setPtr
+
+    ptr0 = ptr0In%mapPtr
+    ptr1 = ptr1In%mapPtr
+
+    arg0 = arg0In%datPtr
+    arg1 = arg1In%datPtr
+
 
     warpSizeOP2 = OP_WARP_SIZE
 
@@ -252,12 +266,12 @@ contains
 
     nshared = nshared * nthreads
 
-
     if ( isKernelInputDataGenerated .eq. .false. ) then
+      call c_f_pointer ( arg0%set, arg0Set )
+      data0Size = ( arg0%dim * arg0Set%size)
 
-      data0Size = ( arg0%dim * arg0%set%size)
-      data1Size = ( arg1%dim * arg1%set%size)
-
+      call c_f_pointer ( arg1%set, arg1Set )
+      data1Size = ( arg1%dim * arg1Set%size)
 
       argSizes%parg0Size = data0Size
       argSizes%parg1Size = data1Size

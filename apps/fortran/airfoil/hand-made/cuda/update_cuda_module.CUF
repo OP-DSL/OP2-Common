@@ -383,7 +383,6 @@ contains
     ! data ids used in the function
     type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4
 
-
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4
 
@@ -407,6 +406,7 @@ contains
     real(8), dimension(:), allocatable :: redArrayHost
     real(8), dimension(:), allocatable, device :: redArrayDev
 
+    type(op_set_core), pointer :: arg0Set, arg1Set, arg2Set, arg3Set
 !   integer(4) :: arg0Size, arg1Size, arg2Size, arg3Size, arg4Size
 !   real(8), dimension(:), pointer :: c2fPtrArg4
 
@@ -495,7 +495,7 @@ contains
     ! arg4.dat_d = OP_reduct_d + reduct_bytes;
 
     ! copy reduction array from host to device
-!     redArrayDev = redArrayHost
+!   redArrayDev = redArrayHost
 
     ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
     ! one that has been assigned as a result of the previous execution of this op_par_loop)
@@ -519,16 +519,20 @@ contains
     ! copy arguments from host to device
 
     ! 1. transfer C pointers to Fortran pointers
-    arg0Size = arg0%dim * arg0%set%size
+    call c_f_pointer ( arg0%set, arg0Set )
+    arg0Size = arg0%dim * arg0set%size
     call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )
 
-    arg1Size = arg1%dim * arg1%set%size
+    call c_f_pointer ( arg1%set, arg1Set )
+    arg1Size = arg1%dim * arg1set%size
     call c_f_pointer ( arg1%dat_d, argument1, (/arg1Size/) )
 
-    arg2Size = arg2%dim * arg2%set%size
+    call c_f_pointer ( arg2%set, arg2Set )
+    arg2Size = arg2%dim * arg2set%size
     call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
 
-    arg3Size = arg3%dim * arg3%set%size
+    call c_f_pointer ( arg3%set, arg3Set )
+    arg3Size = arg3%dim * arg3set%size
     call c_f_pointer ( arg3%dat_d, argument3, (/arg3Size/) )
 
     ! warning: the argument is a global op_dat so the size is directly the dim of the op_dat

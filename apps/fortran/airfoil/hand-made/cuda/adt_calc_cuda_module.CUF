@@ -1,9 +1,10 @@
 module adt_calc_cuda_module
 
-use OP2_C
-use cudaConfigurationParams
-use OP2Profiling
-use cudafor
+      use OP2_Fortran_Declarations
+      use OP2_Fortran_RT_Support
+      use cudaConfigurationParams
+      use OP2Profiling
+      use cudafor
 
   type varSizes_adt_calc
 
@@ -281,13 +282,13 @@ contains
   end subroutine op_cuda_adt_calc
 
   attributes(host) function op_par_loop_adt_calc ( subroutineName, set, &
-                                                 & arg0,   idx0, map0, access0, &
-                                                 & arg1,   idx1, map1, access1, &
-                                                 & arg2,   idx2, map2, access2, &
-                                                 & arg3,   idx3, map3, access3, &
-                                                 & arg4,   idx4, map4, access4, &
-                                                 & arg5,   idx5, map5, access5  &
-                                               & )
+                                                   & arg0,   idx0, map0, access0, &
+                                                   & arg1,   idx1, map1, access1, &
+                                                   & arg2,   idx2, map2, access2, &
+                                                   & arg3,   idx3, map3, access3, &
+                                                   & arg4,   idx4, map4, access4, &
+                                                   & arg5,   idx5, map5, access5  &
+                                                 & )
 
     ! use directives
     use, intrinsic :: ISO_C_BINDING
@@ -303,16 +304,16 @@ contains
     character(kind=c_char,len=*), intent(in) :: subroutineName
 
     ! data set on which we loop
-    type(op_set), intent(in) :: set
+    type(op_set_core), intent(in) :: set
 
     ! data ids used in the function
-    type(op_dat) :: arg0, arg1, arg2, arg3, arg4, arg5
+    type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4, arg5
 
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5
 
     ! ptr ids for indirect access to data
-    type(op_map) :: map0, map1, map2, map3, map4, map5
+    type(op_map_core) :: map0, map1, map2, map3, map4, map5
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
@@ -409,6 +410,7 @@ contains
     real(8), dimension(:), allocatable, device :: argument4
     real(8), dimension(:), allocatable, device :: argument5
 
+    type(op_set_core), pointer :: arg0Set, arg4Set, arg5Set
 
     ! variable storing CUDA kernel argument sizes
 !   type(varSizes_adt_calc), device :: argSizes
@@ -477,37 +479,37 @@ contains
       inds(5) = -1
       inds(6) = -1
 
-      if ( map0%dim .eq. -1 ) ! global data
+      if ( map0%dim .eq. -1 ) then ! global data
         argsType(1) = F_OP_ARG_GBL
       else
         argsType(1) = F_OP_ARG_DAT
       end if
 
-      if ( map1%dim .eq. -1 ) ! global data
+      if ( map1%dim .eq. -1 ) then ! global data
         argsType(2) = F_OP_ARG_GBL
       else
         argsType(2) = F_OP_ARG_DAT
       end if
 
-      if ( map2%dim .eq. -1 ) ! global data
+      if ( map2%dim .eq. -1 ) then ! global data
         argsType(3) = F_OP_ARG_GBL
       else
         argsType(3) = F_OP_ARG_DAT
       end if
 
-      if ( map3%dim .eq. -1 ) ! global data
+      if ( map3%dim .eq. -1 ) then ! global data
         argsType(4) = F_OP_ARG_GBL
       else
         argsType(4) = F_OP_ARG_DAT
       end if
 
-      if ( map4%dim .eq. -1 ) ! global data
+      if ( map4%dim .eq. -1 ) then ! global data
         argsType(5) = F_OP_ARG_GBL
       else
         argsType(5) = F_OP_ARG_DAT
       end if
 
-      if ( map5%dim .eq. -1 ) ! global data
+      if ( map5%dim .eq. -1 ) then ! global data
         argsType(6) = F_OP_ARG_GBL
       else
         argsType(6) = F_OP_ARG_DAT
@@ -526,13 +528,16 @@ contains
     ! stage in of input arguments (transfer pointers + copy from host to device memory)
 
     ! 1. transfer C pointers to Fortran pointers
-    arg0Size = arg0%dim * arg0%set%size
+    call c_f_pointer( arg0%set, arg0Set )
+    arg0Size = arg0%dim * arg0Set%size
     call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )
 
-    arg4Size = arg4%dim * arg4%set%size
+    call c_f_pointer( arg4%set, arg4Set )
+    arg4Size = arg4%dim * arg4Set%size
     call c_f_pointer ( arg4%dat_d, argument4, (/arg4Size/) )
 
-    arg5Size = arg5%dim * arg5%set%size
+    call c_f_pointer( arg5%set, arg5Set )
+    arg5Size = arg5%dim * arg5Set%size
     call c_f_pointer ( arg5%dat_d, argument5, (/arg5Size/) )
 
     ! convert arguments and plan data to Fortran pointers (not a copy!)
