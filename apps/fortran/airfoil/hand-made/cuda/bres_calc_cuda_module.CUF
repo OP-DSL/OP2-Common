@@ -508,13 +508,13 @@ module bres_calc_cuda_module
 			
 		end subroutine op_cuda_bres_calc
 	
-		attributes(host) function op_par_loop_bres_calc ( subroutineName, set, &
-																											& arg0,   idx0, map0, access0, &
-																											& arg1,   idx1, map1, access1, &
-																											& arg2,   idx2, map2, access2, &
-																											& arg3,   idx3, map3, access3, &
-																											& arg4,   idx4, map4, access4, &
-																											& arg5,   idx5, map5, access5  &
+		attributes(host) function op_par_loop_bres_calc ( subroutineName, setIn, &
+																											& arg0In,   idx0, map0In, access0, &
+																											& arg1In,   idx1, map1In, access1, &
+																											& arg2In,   idx2, map2In, access2, &
+																											& arg3In,   idx3, map3In, access3, &
+																											& arg4In,   idx4, map4In, access4, &
+																											& arg5In,   idx5, map5In, access5  &
 																										& )
 
 
@@ -531,19 +531,24 @@ module bres_calc_cuda_module
 				character(kind=c_char,len=*), intent(in) :: subroutineName
 	
 				! data set on which we loop
-				type(op_set_core), intent(in) :: set
+				type(op_set_core), intent(in) :: setIn
 
 				! data ids used in the function
-				type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4, arg5
+				type(op_dat_core) :: arg0In, arg1In, arg2In, arg3In, arg4In, arg5In
 	
 				! index to be used in first and second pointers
 				integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5
 	
 				! ptr ids for indirect access to data
-				type(op_map_core) :: map0, map1, map2, map3, map4, map5
+				type(op_map_core) :: map0In, map1In, map2In, map3In, map4In, map5In
 	
 				! access values for arguments
 				integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
+
+        ! local variables			
+        type(op_set_core), pointer :: set
+        type(op_map_core), pointer :: map0, map1, map2, map3, map4, map5
+        type(op_dat_core), pointer :: arg0, arg1, arg2, arg3, arg4, arg5      
 
 				! Compiler: variables used to invoke cplan 
 				integer(4) :: args(6), idxs(6), maps(6), accs(6), inds(6), argsType(6)
@@ -655,6 +660,24 @@ module bres_calc_cuda_module
 				istat = cudaEventCreate(stopHostTime)
 				
 				istat = cudaEventRecord ( startHostTime, 0 )
+
+        ! initialising arguments
+        set = setIn%setPtr
+        
+        map0 = map0In%mapPtr
+        map1 = map1In%mapPtr
+        map2 = map2In%mapPtr
+        map3 = map3In%mapPtr
+        map4 = map4In%mapPtr
+        map5 = map5In%mapPtr
+
+        arg0 = arg0In%datPtr
+        arg1 = arg1In%datPtr
+        arg2 = arg2In%datPtr
+        arg3 = arg3In%datPtr
+        arg4 = arg4In%datPtr
+        arg5 = arg5In%datPtr
+
 
 				if ( isKernelInputDataGenerated .eq. .false. ) then
 					
