@@ -1,10 +1,13 @@
 
-#include <op_core_lib.h>
+#include <op_lib_core.h>
 #include <op_rt_support.h>
+#include <op_lib_c.h>
 
 /* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
 #define F_OP_ARG_DAT 0
 #define F_OP_ARG_GBL 1
+
+#define ERR_INDEX -1
 
 /*
  * Wrapper for Fortran to plan function
@@ -25,7 +28,7 @@ op_plan * FortranPlanCaller ( char name[],
 {
   int i, generatedPlanIndex = ERR;
 
-  op_plan * generatedPlan = NULL;
+  int i, generatedPlanIndex = ERR_INDEX;
 
   op_dat_core planDatArgs[argsNumber];
   op_map_core planMaps[argsNumber];
@@ -44,14 +47,14 @@ op_plan * FortranPlanCaller ( char name[],
   /* build planDatArgs variable by accessing OP_dat_list with indexes(=positions) in args */
   for ( i = 0; i < argsNumber; i++ )
   {
-    op_dat * tmp = OP_dat_list[args[i]];
+    op_dat_core * tmp = OP_dat_list[args[i]];
     planDatArgs[i] = *tmp;
   }
 
   /* build planMaps variables by accessing OP_map_list with indexes(=positions) in args */
   for ( i = 0; i < argsNumber; i++ )
   {
-    op_map * tmp;
+    op_map_core * tmp;
     int j;
 
     if ( maps[i] != -1 ) /* another magic number !!! */
@@ -63,7 +66,10 @@ op_plan * FortranPlanCaller ( char name[],
     else
     {
       /* build false map with index = -1 ... */
-      planMaps[i] = OP_ID;
+      op_map_core * falseMap = (op_map_core *) calloc ( 1, sizeof ( op_map_core ) ); //OP_ID;
+      falseMap->index = -1;
+      planMaps[i] = *falseMap;
+
     }
   }
 
@@ -77,7 +83,7 @@ op_plan * FortranPlanCaller ( char name[],
   for ( i = 0; i < argsNumber; i++ )
   {
     /* obtain reference to next op_dat */
-    op_dat * tmpDat = OP_dat_list[args[i]];
+    op_dat_core * tmpDat = OP_dat_list[args[i]];
 
     /* allocate space and copy strings */
     int typeNameLen = strlen ( tmpDat->type );
@@ -95,9 +101,9 @@ op_plan * FortranPlanCaller ( char name[],
   /* now builds op_arg array */
   for ( i = 0; i < argsNumber; i++ )
   {
-    planArguments[i].index = ;
-    planArguments[i].dat = planDatArgs[i];
-    planArguments[i].map = planMaps[i];
+    planArguments[i].index = -1; //index is not specified nor used for now..
+    planArguments[i].dat = &(planDatArgs[i]);
+    planArguments[i].map = &(planMaps[i]);
     planArguments[i].dim = planDims[i];
     planArguments[i].idx = idxs[i];
     planArguments[i].size = planDatArgs[i].size;
@@ -120,15 +126,16 @@ op_plan * FortranPlanCaller ( char name[],
     }
   }
 
-  //name,set,part_size,nargs,args,ninds,inds
-  generatedPlan = plan ( name,
-                         *iterationSet,
-                         partitionSize,
-                         argsNumber,
-                         planArguments,
-                         indsNumber,
-                         inds
-                       );
+//name,set,part_size,nargs,args,ninds,inds
+  generatedPlan = op_plan_core ( name,
+               iterationSet,
+               partitionSize,
+               argsNumber,
+               planArguments,
+               indsNumber,
+               inds
+             );
 
   return generatedPlan;
+
 }

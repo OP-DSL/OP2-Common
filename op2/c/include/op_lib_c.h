@@ -3,6 +3,12 @@
 
 #include <op_lib_core.h>
 
+// identity mapping and global identifier
+
+#define OP_ID  (op_map) NULL
+#define OP_GBL (op_map) NULL
+
+
 //
 // external variables declared in op_lib_core.cpp
 //
