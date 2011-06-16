@@ -7,7 +7,7 @@ use, intrinsic :: ISO_C_BINDING
 
 
 !use OP2
-use OP2_C
+use OP2_Fortran_Declarations
 use constantVars
 use airfoil_seq
 use OP2Profiling
@@ -97,6 +97,9 @@ use constantVarsCuda
 
 	logical :: firstTime = .true.
 
+	integer(4) :: diags = 7
+
+
 	! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
 	! fortran 90)
 	call getSetSizes ( nnode, ncell, nedge, nbedge )
@@ -129,7 +132,7 @@ use constantVarsCuda
   end do 
 
   ! OP initialisation
-	call op_init()
+	call op_init ( diags )
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   call op_decl_set ( nnode, nodes, nodesName )
@@ -150,7 +153,7 @@ use constantVarsCuda
   call op_decl_dat ( cells, 1, adt, p_adt, adtName )
   call op_decl_dat ( cells, 4, res, p_res, resName )
 
-	call op_decl_gbl ( rms, 1, p_rms )
+	call op_decl_gbl ( rms, p_rms, 1 )
 
 	! main time-marching loop
 		

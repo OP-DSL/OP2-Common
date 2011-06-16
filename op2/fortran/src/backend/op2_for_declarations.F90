@@ -5,6 +5,7 @@
 module OP2_Fortran_Declarations
 
   use, intrinsic :: ISO_C_BINDING
+  use cudafor
 
   integer, parameter :: MAX_NAME_LEN = 100
   integer, parameter :: BSIZE_DEFAULT = 256
@@ -55,7 +56,7 @@ module OP2_Fortran_Declarations
 		integer(kind=c_int) ::		dim		! dimension of data	
 		integer(kind=c_int) ::		size	! size of each element in dataset
 		type(c_ptr) ::						dat		! data on host
-		type(c_ptr) ::	  				dat_d ! data on device
+		type(c_devptr) ::	  				dat_d ! data on device
 		type(c_ptr) ::						type	! data type
 		type(c_ptr) ::						name	! data name
 

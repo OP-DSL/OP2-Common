@@ -1,7 +1,8 @@
 
 module bres_calc_cuda_module
 
-	use OP2_C
+	use OP2_Fortran_Declarations
+        use OP2_Fortran_RT_Support
 	!use constantVarsCuda
 	use cudaConfigurationParams
 	use OP2Profiling
@@ -530,16 +531,16 @@ module bres_calc_cuda_module
 				character(kind=c_char,len=*), intent(in) :: subroutineName
 	
 				! data set on which we loop
-				type(op_set), intent(in) :: set
+				type(op_set_core), intent(in) :: set
 
 				! data ids used in the function
-				type(op_dat) :: arg0, arg1, arg2, arg3, arg4, arg5
+				type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4, arg5
 	
 				! index to be used in first and second pointers
 				integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5
 	
 				! ptr ids for indirect access to data
-				type(op_map) :: map0, map1, map2, map3, map4, map5
+				type(op_map_core) :: map0, map1, map2, map3, map4, map5
 	
 				! access values for arguments
 				integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
@@ -635,6 +636,8 @@ module bres_calc_cuda_module
 !
 !				! the type of the following argument is derived from the main airfoil program
 				integer(4), dimension(:), allocatable, device :: argument5
+
+				type(op_set_core), pointer :: arg0Set, arg2Set, arg3Set, arg4Set, arg5Set
 !				
 !				! sizes of variables passed to kernel are all encapsulated inside a single struct
 !				type(varSizes_bres_calc), device :: argSizes
@@ -704,37 +707,37 @@ module bres_calc_cuda_module
 					inds(5) = 3
 					inds(6) = -1
 
-          if ( map0%dim .eq. -1 ) ! global data
+          if ( map0%dim .eq. -1 ) then ! global data
             argsType(1) = F_OP_ARG_GBL
           else
             argsType(1) = F_OP_ARG_DAT
           end if
 
-          if ( map1%dim .eq. -1 ) ! global data
+          if ( map1%dim .eq. -1 ) then ! global data
             argsType(2) = F_OP_ARG_GBL
           else
             argsType(2) = F_OP_ARG_DAT
           end if
 
-          if ( map2%dim .eq. -1 ) ! global data
+          if ( map2%dim .eq. -1 ) then ! global data
             argsType(3) = F_OP_ARG_GBL
           else
             argsType(3) = F_OP_ARG_DAT
           end if
 
-          if ( map3%dim .eq. -1 ) ! global data
+          if ( map3%dim .eq. -1 ) then ! global data
             argsType(4) = F_OP_ARG_GBL
           else
             argsType(4) = F_OP_ARG_DAT
           end if
 
-          if ( map4%dim .eq. -1 ) ! global data
+          if ( map4%dim .eq. -1 ) then ! global data
             argsType(5) = F_OP_ARG_GBL
           else
             argsType(5) = F_OP_ARG_DAT
           end if
 
-          if ( map5%dim .eq. -1 ) ! global data
+          if ( map5%dim .eq. -1 ) then ! global data
             argsType(6) = F_OP_ARG_GBL
           else
             argsType(6) = F_OP_ARG_DAT
@@ -764,19 +767,24 @@ module bres_calc_cuda_module
 					! stage in of input arguments (transfer pointers + copy from host to device memory)
 		
 					! 1. transfer C pointers to Fortran pointers
-					arg0Size = arg0%dim * arg0%set%size
+					call c_f_pointer ( arg0%set, arg0Set )
+					arg0Size = arg0%dim * arg0set%size
 					call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )
 
-					arg2Size = arg2%dim * arg2%set%size
+					call c_f_pointer ( arg2%set, arg2Set )
+					arg2Size = arg2%dim * arg2set%size
 					call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
 					
-					arg3Size = arg3%dim * arg3%set%size
+					call c_f_pointer ( arg3%set, arg3Set )
+					arg3Size = arg3%dim * arg3set%size
 					call c_f_pointer ( arg3%dat_d, argument3, (/arg3Size/) )
 
-					arg4Size = arg4%dim * arg4%set%size
+					call c_f_pointer ( arg4%set, arg4Set )
+					arg4Size = arg4%dim * arg4set%size
 					call c_f_pointer ( arg4%dat_d, argument4, (/arg4Size/) )
 					
-					arg5Size = arg5%dim * arg5%set%size
+					call c_f_pointer ( arg5%set, arg5Set )
+					arg5Size = arg5%dim * arg5set%size
 					call c_f_pointer ( arg5%dat_d, argument5, (/arg5Size/) )
 				
 				
