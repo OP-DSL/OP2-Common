@@ -1,6 +1,7 @@
 module update_cuda_module
 
-  use OP2_C
+  use OP2_Fortran_Declarations
+  use OP2_Fortran_RT_Support
   use cudaConfigurationParams
 ! use constantVarsCuda
   use OP2Profiling
@@ -360,12 +361,12 @@ contains
 ! end function round_up
 
   attributes(host) function op_par_loop_update ( subroutineName, set, &
-                                               & arg0,   idx0, map0, access0, &
-                                               & arg1,   idx1, map1, access1, &
-                                               & arg2,   idx2, map2, access2, &
-                                               & arg3,   idx3, map3, access3, &
-                                               & arg4,   idx4, map4, access4  &
-                                             & )
+                                                 & arg0,   idx0, map0, access0, &
+                                                 & arg1,   idx1, map1, access1, &
+                                                 & arg2,   idx2, map2, access2, &
+                                                 & arg3,   idx3, map3, access3, &
+                                                 & arg4,   idx4, map4, access4  &
+                                               & )
 
     use cudafor
 
@@ -377,16 +378,17 @@ contains
     character(kind=c_char,len=*), intent(in) :: subroutineName
 
     ! data set on which we loop
-    type(op_set), intent(in) :: set
+    type(op_set_core), intent(in) :: set
 
     ! data ids used in the function
-    type(op_dat) :: arg0, arg1, arg2, arg3, arg4
+    type(op_dat_core) :: arg0, arg1, arg2, arg3, arg4
+
 
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4
 
     ! ptr ids for indirect access to data
-    type(op_map) :: map0, map1, map2, map3, map4
+    type(op_map_core) :: map0, map1, map2, map3, map4
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1, access2, access3, access4
