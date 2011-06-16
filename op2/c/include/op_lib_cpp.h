@@ -81,12 +81,6 @@ inline int type_error(const bool   * a, const char *type){return strcmp(type,"bo
 #define ZERO_ull     0;
 #define ZERO_bool    0;
 
-
-// identity mapping and global identifier
-
-#define OP_ID  (op_map) NULL
-#define OP_GBL (op_map) NULL
-
 //
 // external variables declared in op_lib_core.cpp
 //
