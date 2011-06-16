@@ -4,6 +4,7 @@
 module OP2_Fortran_RT_Support
 
   use, intrinsic :: ISO_C_BINDING
+  use cudafor
 
   integer(kind=c_int), parameter :: F_OP_ARG_DAT = 0
   integer(kind=c_int), parameter :: F_OP_ARG_GBL = 1
@@ -14,7 +15,7 @@ module OP2_Fortran_RT_Support
 		type(c_ptr) ::														name	
 		type(c_ptr) ::                            set
     integer(kind=c_int) ::                    nargs, ninds, part_size
-		type(c_ptr) ::														maps
+		type(c_ptr) ::														in_maps
 		type(c_ptr) ::														idxs
 		type(c_ptr) ::														accs
 

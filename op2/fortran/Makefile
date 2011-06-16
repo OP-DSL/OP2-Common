@@ -24,11 +24,12 @@ PGF = pgfortran -g
 
 CFLAGS = -Wall
 FFLAGS = -J$(F_OP2_MOD)
-PGFFLAGS = -module $(F_OP2_MOD)
+PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform
 
 .PHONY: clean
 
-all: f_reference f_cuda
+# reference is not included in the all directive (missing gfortran on cx1) and is treated as a special case
+all: f_cuda f_rt_support
 
 # does not depend on reference.h because we don't need the op_par_loop templated implementation, but our own implementation
 f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
@@ -69,14 +70,17 @@ f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
 	$(CC) $(FLAGS) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
 	$(CC) $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
 	ar -r $(F_OP2_LIB)/libop2_for_rt_support.a \
 		$(F_OP2_OBJ)/op_rt_support.o \
 		$(F_OP2_OBJ)/op2_for_rt_wrappers.o \
-		$(F_OP2_OBJ)/op2_for_rt_support.o
+		$(F_OP2_OBJ)/op2_for_rt_support.o \
+		$(F_OP2_OBJ)/cudaConfigurationParams.o
 
 clean:
 	-rm $(F_OP2_OBJ)/*.o
 	-rm $(F_OP2_LIB)/*.a
 	-rm $(F_OP2_SRC)/*~
+	-rm $(F_OP2_SRC)/backend/*~
 	-rm $(F_OP2_MOD)/*.mod
 	-rm $(F_OP2)/*~
