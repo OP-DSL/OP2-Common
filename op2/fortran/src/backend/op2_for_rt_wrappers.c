@@ -26,9 +26,9 @@ op_plan * FortranPlanCaller ( char name[],
                               int partitionSize
                             )
 {
-  int i, generatedPlanIndex = ERR;
-
   int i, generatedPlanIndex = ERR_INDEX;
+
+  op_plan * generatedPlan = NULL;
 
   op_dat_core planDatArgs[argsNumber];
   op_map_core planMaps[argsNumber];

@@ -304,16 +304,16 @@ contains
     character(kind=c_char,len=*), intent(in) :: subroutineName
 
     ! data set on which we loop
-    type(op_set_core), intent(in) :: setIn
+    type(op_set), intent(in) :: setIn
 
     ! data ids used in the function
-    type(op_dat_core) :: arg0In, arg1In, arg2In, arg3In, arg4In, arg5In
+    type(op_dat) :: arg0In, arg1In, arg2In, arg3In, arg4In, arg5In
 
     ! index to be used in first and second pointers
     integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5
 
     ! ptr ids for indirect access to data
-    type(op_map_core) :: map0In, map1In, map2In, map3In, map4In, map5In
+    type(op_map) :: map0In, map1In, map2In, map3In, map4In, map5In
 
     ! access values for arguments
     integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
@@ -443,12 +443,12 @@ contains
     map4 = map4In%mapPtr
     map5 = map5In%mapPtr
 
-    arg0 = arg0In%datPtr
-    arg1 = arg1In%datPtr
-    arg2 = arg2In%datPtr
-    arg3 = arg3In%datPtr
-    arg4 = arg4In%datPtr
-    arg5 = arg5In%datPtr
+    arg0 = arg0In%dataPtr
+    arg1 = arg1In%dataPtr
+    arg2 = arg2In%dataPtr
+    arg3 = arg3In%dataPtr
+    arg4 = arg4In%dataPtr
+    arg5 = arg5In%dataPtr
 
     if ( isKernelInputDataGenerated .eq. .false. ) then ! generate kernel input data
 

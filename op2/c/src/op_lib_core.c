@@ -56,7 +56,6 @@ op_kernel *OP_kernels;
 // OP core functions
 //
 
-
 void op_init_core(int argc, char **argv, int diags){
   OP_diags = diags;
 
@@ -112,7 +111,6 @@ op_set op_decl_set_core ( int size, char const *name )
   return set;
 }
 
-
 op_map op_decl_map_core ( op_set from, op_set to, int dim, int *imap,
                           char const * name )
 {
@@ -164,7 +162,6 @@ op_map op_decl_map_core ( op_set from, op_set to, int dim, int *imap,
   return map;
 }
 
-
 op_dat op_decl_dat_core ( op_set set, int dim, char const * type,
                           int size, char * data, char const * name )
 {
@@ -203,12 +200,10 @@ op_dat op_decl_dat_core ( op_set set, int dim, char const * type,
   return dat;
 }
 
-
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
 
 }
-
 
 void op_exit_core ()
 {
@@ -313,7 +308,6 @@ op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * 
 
   return arg;
 }
-
 
 op_arg op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
 {
