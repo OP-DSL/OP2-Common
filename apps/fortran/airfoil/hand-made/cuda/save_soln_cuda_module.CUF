@@ -248,8 +248,8 @@ use cudafor
 			map0 = map0In%mapPtr
 			map1 = map1In%mapPtr
 
-			arg0 = arg0In%datPtr
-			arg1 = arg1In%datPtr
+			arg0 = arg0In%dataPtr
+			arg1 = arg1In%dataPtr
 
 			warpSizeOP2 = OP_WARP_SIZE
 

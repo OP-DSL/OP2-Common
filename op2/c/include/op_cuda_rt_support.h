@@ -40,6 +40,7 @@
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 #include <device_functions.h>
+#include <driver_types.h>
 
 #include "op_lib_core.h"
 #include "op_rt_support.h"
@@ -63,7 +64,7 @@ extern void __syncthreads();
 #define cutilSafeCall(err) __cudaSafeCall(err,__FILE__,__LINE__)
 #define cutilCheckMsg(msg) __cutilCheckMsg(msg,__FILE__,__LINE__)
 
-void __cudaSafeCall ( cudaError err, 
+void __cudaSafeCall ( cudaError_t err, 
                       const char *file, const int line );
 
 void __cutilCheckMsg ( const char *errorMessage,
