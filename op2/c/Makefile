@@ -6,6 +6,7 @@ CUDA_INC = $(CUDA)/include
 
 CC = gcc
 CPP = g++
+NVCC = nvcc
 
 FLAGS = -Wall -O3
 
@@ -25,8 +26,8 @@ runtime: $(INC)/op_rt_support.h $(SRC)/op_rt_support.c $(INC)/op_lib_core.h $(SR
 	ar -r $(LIB)/libop2_rt_support.a $(OBJ)/op_rt_support.o
 
 cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c $(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
-	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include  -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
-	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
+	$(NVCC) $(FLAGS)  -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CC) -std=c99 $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o $(OBJ)/op_lib_core.o
 
 openmp: $(SRC)/openmp/op_openmp_decl.cpp $(OBJ)/op_lib_core.o
