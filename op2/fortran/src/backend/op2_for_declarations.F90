@@ -188,7 +188,7 @@ module OP2_Fortran_Declarations
 
       integer(c_int) :: dataw
 
-    end function writerealtofile
+    end function writeinttofile
 
   end interface
 
