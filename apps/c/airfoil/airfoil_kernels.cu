@@ -7,6 +7,7 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_cuda_rt_support.h>
+#include <op_cuda_reduction.h>
 
 // global constants
 

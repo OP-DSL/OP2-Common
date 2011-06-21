@@ -87,7 +87,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 		bres_calc_kernel.cu bres_calc.h \
 		update_kernel.cu    update.h    \
                 Makefile
-		nvcc $(INC) $(NVCCFLAGS)  -I$(OP2_INST_DIR)/include \
+		nvcc $(INC) $(NVCCFLAGS)  -I$(INC_OP2) \
 		-c -o airfoil_kernels_cu.o \
 		airfoil_kernels.cu
 
