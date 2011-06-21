@@ -2,15 +2,15 @@
 # set paths for header files and libraries
 #
 
-OP2		= $(OP2_INST_DIR)
-INC_OP2 = $(OP2)/include
+C_OP2		= $(OP2)/c
+INC_OP2 = $(C_OP2)/include
 #src should be replaced by LIB, when we get libraries
-SRC_OP2 = $(OP2)/src
-LIB_OP2 = $(OP2)/lib
+SRC_OP2 = $(C_OP2)/src
+LIB_OP2 = $(C_OP2)/lib
 
 #CUDA stuff
 CUDA := $(CUDA_INSTALL_PATH)
-INC_CUDA := -I$(CUDA)/include -I$(OP2) -I.
+INC_CUDA := -I$(CUDA)/include -I$(C_OP2) -I.
 LIB_CUDA := -L$(CUDA)/lib64
 
 
@@ -37,8 +37,8 @@ NVCCFLAGS	:= -O3 -arch=sm_20 \
 #NVCCFLAGS	:= -g
 LIBS		:= $(LIB) -lcudart
 OMP		:= -fopenmp -lgomp
-OP2_H		:= $(OP2)/op_seq.h $(OP2)/op_lib.h $(OP2)/op_lib_core.h
-OP2_LIB		:= $(OP2)/op_lib.a
+C_OP2_H		:= $(C_OP2)/op_seq.h $(C_OP2)/op_lib.h $(C_OP2)/op_lib_core.h
+OP2_LIB		:= $(C_OP2)/op_lib.a
 
 EXEC_SEQ = airfoil_seq
 EXEC_OPENMP = airfoil_openmp
