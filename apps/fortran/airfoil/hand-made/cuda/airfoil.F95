@@ -238,6 +238,61 @@ use constantVarsCuda
 
       ! calculate flux residual
 
+      call op_fetch_data ( p_x )
+      call op_fetch_data ( p_q )
+      call op_fetch_data ( p_adt )
+      call op_fetch_data ( p_res )
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/x-part.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, 2*nnode
+
+        datad = x(debugiter)
+        retDebug = writeRealToFile ( datad )
+      
+      end do
+
+      retDebug = closefile ()
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q-part.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, 4*ncell
+
+        datad = q(debugiter)
+        retDebug = writeRealToFile ( datad )
+      
+      end do
+
+      retDebug = closefile ()
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/adt-part.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, ncell
+
+        datad = adt(debugiter)
+        retDebug = writeRealToFile ( datad )
+      
+      end do
+
+      retDebug = closefile ()
+
+      retDebug = closefile ()
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res-part.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, 4*ncell
+
+        datad = res(debugiter)
+        retDebug = writeRealToFile ( datad )
+      
+      end do
+
+      retDebug = closefile ()
+
+
+      stop
+
+
       res_calc_info = op_par_loop_res_calc ( rescalcName, edges, &
 																					 & p_x,    1, pedge,  OP_READ, &
 																					 & p_x,    2, pedge,  OP_READ, &
@@ -250,19 +305,6 @@ use constantVarsCuda
 																				 & )
 
 
-      call op_fetch_data ( p_res )
-
-        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res-part.txt"//C_NULL_CHAR )
-
-        do debugiter = 1, 4*ncell
-
-                datad = res(debugiter)
-                retDebug = writeRealToFile ( datad )
-        end do
-
-        retDebug = closefile ()
-
-stop
 
 
 
