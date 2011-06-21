@@ -70,3 +70,11 @@ void op_decl_const_char ( int dim, char const *type,
 {
   cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim*size, 0, cudaMemcpyHostToDevice ) );
 }
+
+void op_exit () {
+
+  op_cuda_exit(); // frees dat_d memory
+  op_rt_exit (); // frees plan memory
+  op_exit_core (); // frees lib core variables
+
+}

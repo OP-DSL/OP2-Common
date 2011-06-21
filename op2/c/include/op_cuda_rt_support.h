@@ -84,7 +84,7 @@ void op_fetch_data ( op_dat dat );
 op_plan *op_plan_get ( char const *name, op_set set, int part_size,
                        int nargs, op_arg *args, int ninds, int *inds );
 
-void op_exit ();
+void op_cuda_exit ();
 
 //
 // routines to resize constant/reduct arrays, if necessary
