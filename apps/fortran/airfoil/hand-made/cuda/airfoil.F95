@@ -73,7 +73,7 @@ use constantVarsCuda
   character(kind=c_char,len=10) :: brescalcName = C_CHAR_'bres_calc' // C_NULL_CHAR
   character(kind=c_char, len=7) :: updateName = C_CHAR_'update' // C_NULL_CHAR
 
-    ! names of sets, maps and dats
+  ! names of sets, maps and dats
   character(len=5) :: nodesName = 'nodes'
   character(len=5) :: edgesName = 'edges'
   character(len=6) :: bedgesName = 'bedges'
@@ -217,8 +217,6 @@ use constantVarsCuda
 
       adt_calc_count = adt_calc_count + 1
 
-!     stop
-
 !      call op_par_loop_6 ( adt_calc, cells, &
 !                        & p_x,   1, pcell, OP_READ, &
 !                        & p_x,   2, pcell, OP_READ, &
@@ -240,6 +238,19 @@ use constantVarsCuda
                                            & p_res,  1, pecell, OP_INC,  &
                                            & p_res,  2, pecell, OP_INC   &
                                          & )
+
+      call op_fetch_data ( p_res )
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res-part.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, 4*ncell
+        datad = res(debugiter)
+        retDebug = writeRealToFile ( datad )
+      end do
+
+      retDebug = closefile ()
+
+      stop
 
       res_calc_kernel_time = res_calc_kernel_time + res_calc_info%kernelTime
       res_calc_host_time = res_calc_host_time + res_calc_info%hostTime
@@ -299,13 +310,6 @@ use constantVarsCuda
                                        & p_rms,  -1, OP_GBL, OP_INC    &
                                      & )
 
-!     stop
-
-!     if ( firstTime .eq. .false. ) stop
-!     if ( firstTime .eq. .true. ) firstTime = .false.
-
-!     if ( k .eq. 2 ) stop
-
       update_kernel_time = update_kernel_time + update_info%kernelTime
       update_host_time = update_host_time + update_info%hostTime
 
@@ -321,8 +325,13 @@ use constantVarsCuda
 
     end do ! internal loop
 
+    print *, 'before ', rms(1)
+
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
+
+
+    print *, 'after ', rms(1), ncellr
 
     istat = cudaEventRecord ( iterationEndTime, 0 )
 
@@ -338,21 +347,16 @@ use constantVarsCuda
     end if
 
 
-  print *, rms(1)
-
-stop
-
    call op_fetch_data ( p_q )
 
-        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+  retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
-        do debugiter = 1, 4*ncell
+  do debugiter = 1, 4*ncell
+    datad = q(debugiter)
+    retDebug = writeRealToFile ( datad )
+  end do
 
-                datad = q(debugiter)
-                retDebug = writeRealToFile ( datad )
-        end do
-
-        retDebug = closefile ()
+  retDebug = closefile ()
 
   stop
 
