@@ -217,6 +217,8 @@ static int times = 0;
 
   if ( times == 2 ) {
 
+    printf ( "%s\n", name );
+
     // move plan arrays to GPU if first time
     dumpPlanToFile ( "/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
     
