@@ -330,15 +330,8 @@ use constantVarsCuda
 		
     end do ! internal loop
 
-	print *, 'before ', rms(1)
-
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
-
-
-	print *, 'after ', rms(1), ncellr
-
-  stop
 
 		istat = cudaEventRecord ( iterationEndTime, 0 )
 
@@ -405,7 +398,7 @@ use constantVarsCuda
 
 	call op_fetch_data ( p_q )
 
-	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
 	do debugiter = 1, 4*ncell
 
