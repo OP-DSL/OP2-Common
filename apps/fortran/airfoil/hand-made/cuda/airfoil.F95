@@ -243,7 +243,7 @@ use constantVarsCuda
       do debugiter = 1, 2*nedge
 
               datai = ecell(debugiter)
-              retDebug = writeRealToFile ( datai )
+              retDebug = writeIntToFile ( datai )
       end do
 
       retDebug = closefile ()
