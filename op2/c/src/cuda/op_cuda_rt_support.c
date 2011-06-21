@@ -122,6 +122,89 @@ void op_fetch_data(op_dat dat) {
   cutilSafeCall(cudaThreadSynchronize());
 }
 
+
+
+void dumpPlanToFile ( const char filename[], op_plan * planD, int setsize, int nargs, int ninds, int * inds )
+{
+  FILE * dumpedFile;
+  int i, m;
+  
+  dumpedFile = fopen ( filename, "w" );
+  
+  // copying nthrcol
+  fprintf ( dumpedFile, "nthrcol\n" );
+  for ( i = 0; i < planD->nblocks; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->nthrcol[i] );
+  
+  // copying thrcol
+  fprintf ( dumpedFile, "thrcol\n" );
+  for ( i = 0; i < setsize; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->thrcol[i] );
+  
+  // copying offset
+  fprintf ( dumpedFile, "offset\n" );
+  for ( i = 0; i < planD->nblocks; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->offset[i] );
+  
+  // copying ind_maps
+  fprintf ( dumpedFile, "ind_maps\n" );
+  for ( m = 0; m < ninds; m++ ) {
+    fprintf ( dumpedFile, "ind_maps-%d\n", m );		
+    for ( i = 0; i < planD->nindirect[m]; i++ )
+      fprintf ( dumpedFile, "%d\n", planD->ind_maps[m][i] );	
+  }
+  
+  // copying nindirect
+  fprintf ( dumpedFile, "nindirect\n" );
+  for ( i = 0; i < ninds; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->nindirect[i] );
+  
+  // copying ind_offs
+  fprintf ( dumpedFile, "ind_offs\n" );
+  for ( i = 0; i < (planD->nblocks)*ninds; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->ind_offs[i] );
+  
+  // copying ind_sizes
+  fprintf ( dumpedFile, "ind_sizes\n" );
+  for ( i = 0; i < (planD->nblocks)*ninds; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->ind_sizes[i] );
+  
+  // copying maps
+  fprintf ( dumpedFile, "maps\n" );
+  for ( m = 0; m < nargs; m++ ) {
+    if ( inds[m] >= 0 ) {
+      fprintf ( dumpedFile, "maps-%d\n", m );
+      for ( i = 0; i < setsize; i++ )
+        fprintf ( dumpedFile, "%d\n", planD->loc_maps[m][i] );
+    }
+  }
+  
+  // copying nelems
+  fprintf ( dumpedFile, "nelems\n" );
+  for ( i = 0; i < planD->nblocks; i++ )
+    fprintf ( dumpedFile, "%d\n", planD->nelems[i] );
+  
+  
+  // copying blkmap
+  fprintf ( dumpedFile, "blkmap\n" );
+  for ( i = 0; i < (planD->nblocks); i++ )
+    fprintf ( dumpedFile, "%d\n", planD->blkmap[i] );
+  
+  // copying nshared
+  fprintf ( dumpedFile, "%d\n", planD->nshared );				
+  
+  // copying nshared
+  fprintf ( dumpedFile, "%f\n", planD->transfer );
+  
+  fprintf ( dumpedFile, "%f\n", planD->transfer2 );
+  
+  
+  fclose ( dumpedFile );
+  
+  
+}
+
+
 op_plan *op_plan_get(char const *name, op_set set, int part_size,
                      int nargs, op_arg *args, int ninds, int *inds){
 
@@ -129,6 +212,8 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size,
                                    nargs, args, ninds, inds);
 
   // move plan arrays to GPU if first time
+  dumpPlanToFile ( "/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
+exit ( 0 );  
 
   if (plan->count == 1) {
     for (int m=0; m<ninds; m++)
