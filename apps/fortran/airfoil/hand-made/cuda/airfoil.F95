@@ -220,13 +220,12 @@ use constantVarsCuda
 																					 & p_adt, -1, OP_ID, OP_WRITE &
 																				 & )
 
-
 			adt_calc_kernel_time = adt_calc_kernel_time + adt_calc_info%kernelTime
 			adt_calc_host_time = adt_calc_host_time + adt_calc_info%hostTime
 		
 			adt_calc_count = adt_calc_count + 1
 
-!			stop
+
 
 !      call op_par_loop_6 ( adt_calc, cells, &
 !											   & p_x,   1, pcell, OP_READ, &
@@ -249,6 +248,23 @@ use constantVarsCuda
 																					 & p_res,  1, pecell, OP_INC,  &
 																					 & p_res,  2, pecell, OP_INC   &
 																				 & )
+
+
+      call op_fetch_data ( p_res )
+
+        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res-part.txt"//C_NULL_CHAR )
+
+        do debugiter = 1, 4*ncell
+
+                datad = res(debugiter)
+                retDebug = writeRealToFile ( datad )
+        end do
+
+        retDebug = closefile ()
+
+stop
+
+
 
 			res_calc_kernel_time = res_calc_kernel_time + res_calc_info%kernelTime
 			res_calc_host_time = res_calc_host_time + res_calc_info%hostTime
@@ -309,12 +325,8 @@ use constantVarsCuda
 																		 & )
 !
 !
-!			stop
 
-!			if ( firstTime .eq. .false. ) stop
-!			if ( firstTime .eq. .true. ) firstTime = .false.
 
-!			if ( k .eq. 2 ) stop
 
 !
 			update_kernel_time = update_kernel_time + update_info%kernelTime
@@ -335,9 +347,13 @@ use constantVarsCuda
 		
     end do ! internal loop
 
+	print *, 'before ', rms(1)
 
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
+
+
+	print *, 'after ', rms(1), ncellr
 
 		istat = cudaEventRecord ( iterationEndTime, 0 )
 
@@ -353,11 +369,8 @@ use constantVarsCuda
 		end if
 
 
-	print *, rms(1)
 
-stop
-
-	 call op_fetch_data ( p_q )
+	  call op_fetch_data ( p_q )
 
         retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
@@ -368,9 +381,9 @@ stop
         end do
 
         retDebug = closefile ()
-
-	stop
 	
+stop
+
 	end do ! external loop
 
 	istat = cudaEventRecord ( stopEvent, 0 )

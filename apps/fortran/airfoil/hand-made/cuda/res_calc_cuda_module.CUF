@@ -862,8 +862,8 @@ module res_calc_cuda_module
 			call c_f_pointer ( pindMaps(1), pindMaps1, pnindirect(1) )
 			call c_f_pointer ( pindMaps(2), pindMaps2, pnindirect(2) )
 			call c_f_pointer ( pindMaps(3), pindMaps3, pnindirect(3) )
-			call c_f_pointer ( pindMaps(4), pindMaps4, pnindirect(4) )
-					
+			call c_f_pointer ( pindMaps(4), pindMaps4, pnindirect(4) )				
+
 			! must be done for all indirect pointers: in this case 4 different arguments are accessed indirectly
 			
 			! convert maps in op_plan: there are argsNumber maps

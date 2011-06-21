@@ -371,11 +371,15 @@ contains
 		character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
 		! unsed op_set
-		type(op_set_core), target :: unusedSet;
-		
+		type(op_set_core), dimension(:), allocatable, target :: unusedSet
+
 		type(c_ptr) :: gblCPtr = C_NULL_PTR
 		
-		gblData%dataCPtr = op_decl_dat_f ( c_loc ( unusedSet ), gbldim, type, 8, c_loc ( dat ), name )
+		allocate ( unusedSet ( 1 ) )
+
+		unusedSet(1)%size = 1
+
+		gblData%dataCPtr = op_decl_dat_f ( c_loc ( unusedSet(1) ), gbldim, type, 8, c_loc ( dat ), name )
 		
 		call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
 		
