@@ -238,20 +238,6 @@ use constantVarsCuda
 
       ! calculate flux residual
 
-      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/pedge-map.txt"//C_NULL_CHAR )
-
-      do debugiter = 1, 2*nedge
-
-              datai = edge(debugiter)
-              retDebug = writeIntToFile ( datai )
-      end do
-
-      retDebug = closefile ()
-	
-      stop
-
-      
-
       res_calc_info = op_par_loop_res_calc ( rescalcName, edges, &
 																					 & p_x,    1, pedge,  OP_READ, &
 																					 & p_x,    2, pedge,  OP_READ, &
