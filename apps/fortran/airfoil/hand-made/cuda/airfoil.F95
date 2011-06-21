@@ -249,25 +249,6 @@ use constantVarsCuda
 																					 & p_res,  2, pecell, OP_INC   &
 																				 & )
 
-
-
-	  call op_fetch_data ( p_res )
-
-        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res.txt"//C_NULL_CHAR )
-
-        do debugiter = 1, 4*ncell
-
-                datad = res(debugiter)
-                retDebug = writeRealToFile ( datad )
-        end do
-
-        retDebug = closefile ()
-	
-  stop
-
-
-
-
 			res_calc_kernel_time = res_calc_kernel_time + res_calc_info%kernelTime
 			res_calc_host_time = res_calc_host_time + res_calc_info%hostTime
 
@@ -356,6 +337,8 @@ use constantVarsCuda
 
 
 	print *, 'after ', rms(1), ncellr
+
+  stop
 
 		istat = cudaEventRecord ( iterationEndTime, 0 )
 
