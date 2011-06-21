@@ -41,6 +41,7 @@
 #include <math_constants.h>
 
 #include <op_lib_c.h>
+#include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_cuda_rt_support.h>
 
@@ -235,14 +236,11 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size,
   return plan;
 }
 
-void op_exit(){
+void op_cuda_exit(){
 
   for(int i=0; i<OP_dat_index; i++) {
     cutilSafeCall(cudaFree(OP_dat_list[i]->data_d));
   }
-
-  op_rt_exit ();
-  op_exit_core ();
 
   cudaThreadExit();
 }
