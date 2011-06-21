@@ -215,7 +215,7 @@ static int times = 0;
                                    nargs, args, ninds, inds);
 
 
-  if ( times == 2 ) {
+  if ( times == 1 ) {
 
     printf ( "%s\n", name );
 
