@@ -31,7 +31,7 @@ use constantVarsCuda
 	integer(c_int) :: retDebug, dataSize
 	character(kind=c_char) :: debfilename(20)
 	real(c_double) :: datad
-	integer(4) :: debugiter
+	integer(4) :: debugiter, datai
 
   integer(4), parameter :: maxnode = 9900
   integer(4), parameter :: maxcell = (9702+1)
@@ -237,6 +237,20 @@ use constantVarsCuda
 !											 & )
 
       ! calculate flux residual
+
+      retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/pecell-map.txt"//C_NULL_CHAR )
+
+      do debugiter = 1, 2*nedge
+
+              datai = ecell(debugiter)
+              retDebug = writeRealToFile ( datai )
+      end do
+
+      retDebug = closefile ()
+	
+      stop
+
+      
 
       res_calc_info = op_par_loop_res_calc ( rescalcName, edges, &
 																					 & p_x,    1, pedge,  OP_READ, &
