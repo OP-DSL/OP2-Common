@@ -12,8 +12,8 @@
 /* Access codes: must have the same values here and in op2_for_declarations.F90 file */
 #define FOP_READ 1
 #define FOP_WRITE 2
-#define FOP_RW 3
-#define FOP_INC 4
+#define FOP_INC 3
+#define FOP_RW 4
 #define FOP_MAX 5
 #define FOP_MIN 6
 
