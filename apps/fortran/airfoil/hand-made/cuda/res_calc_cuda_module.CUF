@@ -810,6 +810,57 @@ module res_calc_cuda_module
 
       partitionSize = 0
 
+      print *, 'set index = ', set%index
+      print *, 'argsNumber = ', argsNumber
+      print *, 'args(1) = ', args(1)
+      print *, 'args(2) = ', args(2)
+      print *, 'args(3) = ', args(3)
+      print *, 'args(4) = ', args(4)
+      print *, 'args(5) = ', args(5)
+      print *, 'args(6) = ', args(6)
+      print *, 'args(7) = ', args(7)
+      print *, 'args(8) = ', args(8)
+      
+      print *, 'idxs(1) = ', idxs(1)
+      print *, 'idxs(2) = ', idxs(2)
+      print *, 'idxs(3) = ', idxs(3)
+      print *, 'idxs(4) = ', idxs(4)
+      print *, 'idxs(5) = ', idxs(5)
+      print *, 'idxs(6) = ', idxs(6)
+      print *, 'idxs(7) = ', idxs(7)
+      print *, 'idxs(8) = ', idxs(8)
+      
+      print *, 'maps(1) = ', maps(1)
+      print *, 'maps(2) = ', maps(2)
+      print *, 'maps(3) = ', maps(3)
+      print *, 'maps(4) = ', maps(4)
+      print *, 'maps(5) = ', maps(5)
+      print *, 'maps(6) = ', maps(6)
+      print *, 'maps(7) = ', maps(7)
+      print *, 'maps(8) = ', maps(8)
+
+      print *, 'accs(1) = ', accs(1)
+      print *, 'accs(2) = ', accs(2)
+      print *, 'accs(3) = ', accs(3)
+      print *, 'accs(4) = ', accs(4)
+      print *, 'accs(5) = ', accs(5)
+      print *, 'accs(6) = ', accs(6)
+      print *, 'accs(7) = ', accs(7)
+      print *, 'accs(8) = ', accs(8)
+      
+      print *, 'indsNumber = ', indsNumber
+      
+      print *, 'inds(1) = ', inds(1)
+      print *, 'inds(2) = ', inds(2)
+      print *, 'inds(3) = ', inds(3)
+      print *, 'inds(4) = ', inds(4)
+      print *, 'inds(5) = ', inds(5)
+      print *, 'inds(6) = ', inds(6)
+      print *, 'inds(7) = ', inds(7)
+      print *, 'inds(8) = ', inds(8)
+
+      stop
+
 			! get the plan
 			planRet = cplan ( subroutineName, &
                       & set%index, &
