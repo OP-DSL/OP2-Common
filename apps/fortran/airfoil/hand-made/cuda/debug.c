@@ -42,24 +42,11 @@ int writerealtofile ( double * value )
 	
 }
 
-
-int writeinttofile ( int * data, int dataSize, char filename[20] )
+int writeinttofile ( int * value )
 
 {
-
-	int k;
 	
-	// copy results to output file
-	FILE * myfile;
-	
-	myfile = fopen ( filename, "w" );
-	
-	
-	for ( k = 0; k < dataSize; k++ )
-		fwrite ( &data[k], sizeof(int), 1, myfile );
-	
-	
-	fclose ( myfile );
+	fprintf ( myfile, "%d\n", *value );
 	
 	return 0;
 	

@@ -184,15 +184,13 @@ module OP2_Fortran_Declarations
 	
 			end function writerealtofile
 
-			integer(KIND=C_INT) function writeinttofile ( dataw, datasize, filename ) BIND(C)
+			integer(KIND=C_INT) function writeinttofile ( dataw ) BIND(C)
 	
 				use, intrinsic :: ISO_C_BINDING
 
-				type(c_ptr) :: dataw
-				integer(c_int) :: datasize
-				character(c_char), dimension(20) :: filename
+				integer(c_int) :: dataw
 	
-			end function writeinttofile
+			end function writerealtofile
 	
 		end interface
 	
