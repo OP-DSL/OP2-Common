@@ -1,8 +1,8 @@
 IC = nvcc
 FC = pgfortran
 
-IC_OPT = -lcudart -O3 -use_fast_math
-FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -O4 -Mcuda=fastmath
+IC_OPT = -lcudart -use_fast_math -g # -O3
+FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -g # -O4
 
 F_OP2_LIB = $(OP2)/fortran/lib
 F_OP2_MOD = $(OP2)/fortran/mod

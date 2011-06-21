@@ -201,9 +201,6 @@ use constantVarsCuda
 
     do k = 1, 2
 
-!   print *, niter, k
-
-
       ! calculate area/timstep
 
       adt_calc_info = op_par_loop_adt_calc ( adtcalcName, cells, &
@@ -250,7 +247,7 @@ use constantVarsCuda
       res_calc_count = res_calc_count + 1
 
 
-!     stop
+
 !      call op_par_loop_8 ( res_calc, edges, &
 !                         & p_x,    1, pedge,  OP_READ, &
 !                         & p_x,    2, pedge,  OP_READ, &
@@ -340,6 +337,25 @@ use constantVarsCuda
 
     end if
 
+
+  print *, rms(1)
+
+stop
+
+   call op_fetch_data ( p_q )
+
+        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+
+        do debugiter = 1, 4*ncell
+
+                datad = q(debugiter)
+                retDebug = writeRealToFile ( datad )
+        end do
+
+        retDebug = closefile ()
+
+  stop
+
   end do ! external loop
 
   istat = cudaEventRecord ( stopEvent, 0 )
@@ -389,10 +405,9 @@ use constantVarsCuda
 
   retDebug = closefile ()
 
+  call op_fetch_data ( p_q )
 
-  call op_fetchdata ( p_q )
-
-  retDebug = openfile ( C_CHAR_"/work/cbertoll/airfoil-cuda-optimised/q.txt"//C_NULL_CHAR )
+  retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
   do debugiter = 1, 4*ncell
     datad = q(debugiter)

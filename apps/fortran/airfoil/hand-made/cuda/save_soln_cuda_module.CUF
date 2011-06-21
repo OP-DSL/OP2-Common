@@ -242,13 +242,13 @@ contains
     istat = cudaEventRecord ( startHostTime, 0 )
 
     ! initialise input data
-    set = setIn%setPtr
+    set => setIn%setPtr
 
-    map0 = map0In%mapPtr
-    map1 = map1In%mapPtr
+    map0 => map0In%mapPtr
+    map1 => map1In%mapPtr
 
-    arg0 = arg0In%dataPtr
-    arg1 = arg1In%dataPtr
+    arg0 => arg0In%dataPtr
+    arg1 => arg1In%dataPtr
 
 
     warpSizeOP2 = OP_WARP_SIZE

@@ -69,8 +69,8 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 
 f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
 	$(F_OP2_SRC)/backend/op2_for_rt_wrappers.c $(F_OP2_SRC)/backend/op2_for_rt_support.f90
-	g++ $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
-	g++ $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(NVCC) $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
 	ar -r $(F_OP2_LIB)/libop2_for_rt_support.a \

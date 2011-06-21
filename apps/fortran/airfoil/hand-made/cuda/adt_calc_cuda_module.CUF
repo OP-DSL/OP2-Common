@@ -434,21 +434,21 @@ contains
     istat = cudaEventRecord ( startHostTime, 0 )
 
     ! initialising arguments
-    set = setIn%setPtr
+    set => setIn%setPtr
 
-    map0 = map0In%mapPtr
-    map1 = map1In%mapPtr
-    map2 = map2In%mapPtr
-    map3 = map3In%mapPtr
-    map4 = map4In%mapPtr
-    map5 = map5In%mapPtr
+    map0 => map0In%mapPtr
+    map1 => map1In%mapPtr
+    map2 => map2In%mapPtr
+    map3 => map3In%mapPtr
+    map4 => map4In%mapPtr
+    map5 => map5In%mapPtr
 
-    arg0 = arg0In%dataPtr
-    arg1 = arg1In%dataPtr
-    arg2 = arg2In%dataPtr
-    arg3 = arg3In%dataPtr
-    arg4 = arg4In%dataPtr
-    arg5 = arg5In%dataPtr
+    arg0 => arg0In%dataPtr
+    arg1 => arg1In%dataPtr
+    arg2 => arg2In%dataPtr
+    arg3 => arg3In%dataPtr
+    arg4 => arg4In%dataPtr
+    arg5 => arg5In%dataPtr
 
     if ( isKernelInputDataGenerated .eq. .false. ) then ! generate kernel input data
 
