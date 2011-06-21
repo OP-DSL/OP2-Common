@@ -208,13 +208,23 @@ void dumpPlanToFile ( const char filename[], op_plan * planD, int setsize, int n
 op_plan *op_plan_get(char const *name, op_set set, int part_size,
                      int nargs, op_arg *args, int ninds, int *inds){
 
+
+static int times = 0;
+
   op_plan *plan = op_plan_core(name, set, part_size,
                                    nargs, args, ninds, inds);
 
-  // move plan arrays to GPU if first time
-  dumpPlanToFile ( "/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
-exit ( 0 );  
 
+  if ( times == 2 ) {
+
+    // move plan arrays to GPU if first time
+    dumpPlanToFile ( "/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
+    
+    exit ( 0 );  
+  }
+  
+  times++;
+      
   if (plan->count == 1) {
     for (int m=0; m<ninds; m++)
       op_mvHostToDevice((void **)&(plan->ind_maps[m]),
