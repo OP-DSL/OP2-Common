@@ -251,6 +251,21 @@ use constantVarsCuda
 
 
 
+	  call op_fetch_data ( p_res )
+
+        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/res.txt"//C_NULL_CHAR )
+
+        do debugiter = 1, 4*ncell
+
+                datad = res(debugiter)
+                retDebug = writeRealToFile ( datad )
+        end do
+
+        retDebug = closefile ()
+	
+  stop
+
+
 
 
 			res_calc_kernel_time = res_calc_kernel_time + res_calc_info%kernelTime
@@ -354,22 +369,6 @@ use constantVarsCuda
 			iterationTime = iterationTime + iterationPartialTime
 
 		end if
-
-
-
-	  call op_fetch_data ( p_q )
-
-        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
-
-        do debugiter = 1, 4*ncell
-
-                datad = q(debugiter)
-                retDebug = writeRealToFile ( datad )
-        end do
-
-        retDebug = closefile ()
-	
-stop
 
 	end do ! external loop
 

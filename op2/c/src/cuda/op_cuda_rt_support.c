@@ -209,23 +209,23 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size,
                      int nargs, op_arg *args, int ninds, int *inds){
 
 
-static int times = 0;
+//static int times = 0;
 
   op_plan *plan = op_plan_core(name, set, part_size,
                                    nargs, args, ninds, inds);
 
 
-  if ( times == 1 ) {
-
-    printf ( "%s\n", name );
-
-    // move plan arrays to GPU if first time
-    dumpPlanToFile ( "/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
-    
-    exit ( 0 );  
-  }
-  
-  times++;
+//  if ( times == 1 ) {
+//
+//    printf ( "%s\n", name );
+//
+//    // move plan arrays to GPU if first time
+//    dumpPlanToFile ( "/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/planout.txt", plan, set->size, nargs, ninds, inds );
+//    
+//    exit ( 0 );  
+//  }
+//  
+//  times++;
       
   if (plan->count == 1) {
     for (int m=0; m<ninds; m++)
