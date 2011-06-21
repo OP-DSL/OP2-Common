@@ -51,7 +51,7 @@ op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
   strncpy ( heapName, name, strlen ( name ) );
   strncpy ( typeName, type, strlen ( type ) );  
   
-  return op_decl_dat_core ( set, dim, typeName, size, *data, heapName );
+  return op_decl_dat ( set, dim, typeName, size, *data, heapName );
 }
 
 //extern "C"

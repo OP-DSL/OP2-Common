@@ -438,21 +438,21 @@ contains
 		istat = cudaEventRecord ( startHostTime, 0 )
 		
     ! initialising arguments
-    set = setIn%setPtr
+    set => setIn%setPtr
     
-    map0 = map0In%mapPtr
-    map1 = map1In%mapPtr
-    map2 = map2In%mapPtr
-    map3 = map3In%mapPtr
-    map4 = map4In%mapPtr
-    map5 = map5In%mapPtr
+    map0 => map0In%mapPtr
+    map1 => map1In%mapPtr
+    map2 => map2In%mapPtr
+    map3 => map3In%mapPtr
+    map4 => map4In%mapPtr
+    map5 => map5In%mapPtr
 
-    arg0 = arg0In%dataPtr
-    arg1 = arg1In%dataPtr
-    arg2 = arg2In%dataPtr
-    arg3 = arg3In%dataPtr
-    arg4 = arg4In%dataPtr
-    arg5 = arg5In%dataPtr
+    arg0 => arg0In%dataPtr
+    arg1 => arg1In%dataPtr
+    arg2 => arg2In%dataPtr
+    arg3 => arg3In%dataPtr
+    arg4 => arg4In%dataPtr
+    arg5 => arg5In%dataPtr
     
 		if ( isKernelInputDataGenerated .eq. .false. ) then ! generate kernel input data
 
@@ -485,6 +485,8 @@ contains
 			maps(4) = map3%index
 			maps(5) = map4%index
 			maps(6) = map5%index
+
+
 
 			accs(1) = access0
 			accs(2) = access1
@@ -544,8 +546,7 @@ contains
       partitionSize = 0
 
 			! get the plan
-			planRet = cplan ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )  		
-
+			planRet = cplan ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )
 
 			call adt_calc_initialiseConstants()
 
@@ -565,23 +566,24 @@ contains
 			call c_f_pointer( arg5%set, arg5Set )
 			arg5Size = arg5%dim * arg5Set%size
 			call c_f_pointer ( arg5%dat_d, argument5, (/arg5Size/) )
+
 			
 			! convert arguments and plan data to Fortran pointers (not a copy!)
 			! Typically, first compute size, then transform pointer
 			
 			! transform the returned C pointer to a type(op_plan) variable
 			call c_f_pointer ( planRet, actualPlan )		
-			
+
 			! convert nindirect  used to generate the pindMapsSize array of sizes
 			call c_f_pointer ( actualPlan%nindirect, pnindirect, (/indsNumber/) )
 				
 			! convert pindMaps: there are indsNumber ind_maps
 			call c_f_pointer ( actualPlan%ind_maps, pindMaps, (/indsNumber/) )
-			
+
 			! convert first position of the pindMaps array (the size is stored in the corresponding pnindirect position)
-			call c_f_pointer ( pindMaps(1), pindMaps1, pnindirect(1) )
+			call c_f_pointer ( pindMaps(1), pindMaps1, pnindirect(1) )   
 			! must be done for all indirect pointers: in this case just one op_dat is indirectly accessed)
-			
+
 			! convert maps in op_plan: there are argsNumber maps
 			call c_f_pointer ( actualPlan%maps, pmaps, (/argsNumber/) )
 			
@@ -615,8 +617,10 @@ contains
 			if ( inds(6) .ge. 0 ) then
 				pmaps6Size = set%size
 				call c_f_pointer ( pmaps(6), pmaps6, (/pmaps6Size/) )
-			end if	
-			
+			end if				
+
+
+
 			! convert argument 0 
 			!(This will be needed in the final version, when the op_decl_dat copies data to
 			! device memory)
@@ -661,7 +665,7 @@ contains
 			call c_f_pointer ( actualPlan%thrcol, pthrcol, (/pthrcolSize/) )
 
 			blockOffset = 0
-		
+
 
 		if ( isKernelInputDataGenerated .eq. .false. ) then ! generate kernel input data
 
@@ -698,6 +702,8 @@ contains
 		
 	  istat = cudaEventRecord ( startKernelTime, 0 )
 		
+
+
 		! execute the plan
 		do col = 0, (actualPlan%ncolors-1)
 			

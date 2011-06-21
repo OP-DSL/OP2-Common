@@ -16,6 +16,8 @@ module OP2_Fortran_RT_Support
 		type(c_ptr) ::                            set
     integer(kind=c_int) ::                    nargs, ninds, part_size
 		type(c_ptr) ::														in_maps
+    type(c_ptr) ::                            dats
+
 		type(c_ptr) ::														idxs
 		type(c_ptr) ::														accs
 
@@ -62,7 +64,7 @@ module OP2_Fortran_RT_Support
 			integer(kind=c_int), dimension(*) :: inds
 
       integer(kind=c_int) :: argsType(*)
-      integer(kind=c_int) :: partitionSize
+      integer(kind=c_int), value :: partitionSize
 
 		end function cplan
 

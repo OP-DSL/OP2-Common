@@ -43,7 +43,9 @@
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 #include <op_cuda_rt_support.h>
-#include <op_cuda_reduction.h>
+
+// small utility to avoid using struct
+typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 // arrays for global constants and reductions
 
@@ -55,7 +57,7 @@ char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 // CUDA utility functions
 //
 
-void __cudaSafeCall ( cudaError err,
+void __cudaSafeCall ( cudaError_t err,
                       const char *file, const int line )
 {
   if(cudaSuccess != err) {
@@ -83,7 +85,7 @@ void cutilDeviceInit(int argc, char **argv) {
     exit(-1);
   }
 
-  cudaDeviceProp deviceProp;
+  cudaDeviceProp_t deviceProp;
   cutilSafeCall(cudaGetDeviceProperties(&deviceProp,0));
 
   printf("\n Using CUDA device: %s\n", deviceProp.name);
@@ -148,6 +150,7 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size,
     op_mvHostToDevice((void **)&(plan->nelems ),sizeof(int)*plan->nblocks);
     op_mvHostToDevice((void **)&(plan->blkmap ),sizeof(int)*plan->nblocks);
   }
+  
   return plan;
 }
 

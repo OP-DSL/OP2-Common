@@ -146,6 +146,7 @@ use constantVarsCuda
 	call op_decl_map ( bedges, cells, 1, becell, pbecell, pecellName )
   call op_decl_map ( cells, nodes, 4, cell, pcell, pcellName )
 
+
   call op_decl_dat ( bedges, 1, bound, p_bound, boundName )	
   call op_decl_dat ( nodes, 2, x, p_x, xName )
   call op_decl_dat ( cells, 4, q, p_q, qName )
@@ -207,8 +208,6 @@ use constantVarsCuda
 				
     do k = 1, 2
 
-!		print *, niter, k
-
 
       ! calculate area/timstep
 
@@ -220,6 +219,7 @@ use constantVarsCuda
 																					 & p_q,   -1, OP_ID, OP_READ, &
 																					 & p_adt, -1, OP_ID, OP_WRITE &
 																				 & )
+
 
 			adt_calc_kernel_time = adt_calc_kernel_time + adt_calc_info%kernelTime
 			adt_calc_host_time = adt_calc_host_time + adt_calc_info%hostTime
@@ -256,7 +256,7 @@ use constantVarsCuda
 			res_calc_count = res_calc_count + 1
 
 
-!			stop
+
 !      call op_par_loop_8 ( res_calc, edges, &
 !                         & p_x,    1, pedge,  OP_READ, &
 !                         & p_x,    2, pedge,  OP_READ, &
@@ -351,7 +351,26 @@ use constantVarsCuda
 			iterationTime = iterationTime + iterationPartialTime
 
 		end if
-		
+
+
+	print *, rms(1)
+
+stop
+
+	 call op_fetch_data ( p_q )
+
+        retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+
+        do debugiter = 1, 4*ncell
+
+                datad = q(debugiter)
+                retDebug = writeRealToFile ( datad )
+        end do
+
+        retDebug = closefile ()
+
+	stop
+	
 	end do ! external loop
 
 	istat = cudaEventRecord ( stopEvent, 0 )
@@ -402,9 +421,9 @@ use constantVarsCuda
 	retDebug = closefile ()
 
 
-	call op_fetchdata ( p_q )
+	call op_fetch_data ( p_q )
 
-	retDebug = openfile ( C_CHAR_"/work/cbertoll/airfoil-cuda-optimised/q.txt"//C_NULL_CHAR )
+	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
 	do debugiter = 1, 4*ncell
 

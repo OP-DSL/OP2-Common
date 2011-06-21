@@ -153,6 +153,15 @@ module OP2_Fortran_Declarations
 		
 			end subroutine op_decl_const_f
 
+			subroutine op_fetch_data_f ( opdat ) BIND(C,name='op_fetch_data')
+
+			        import :: op_dat_core
+
+			        type(op_dat_core) :: opdat
+
+			end subroutine op_fetch_data_f
+
+
 			! debug C functions (to obtain similar output file that can be diff-ed
 			integer(KIND=C_INT) function openfile ( filename ) BIND(C)
 
@@ -444,5 +453,13 @@ contains
 
 	end	subroutine op_decl_const_scalar_real_8
 	
+	subroutine op_fetch_data ( opdat )
+
+	        type(op_dat) :: opdat
+
+		call op_fetch_data_f ( opdat%dataPtr)
+
+	end subroutine op_fetch_data
+
 end module OP2_Fortran_Declarations
 

@@ -36,10 +36,12 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
 {
   op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
-    op_cpHostToDevice((void **)&(dat->data_d),
+  printf ( "Copy from host to device of %d\n", dat->size * set->size );
+
+        op_cpHostToDevice((void **)&(dat->data_d),
                     (void **)&(dat->data),
                              dat->size*set->size);
-    
+  
   return dat;
 }
 
@@ -66,5 +68,5 @@ op_arg op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
 void op_decl_const_char ( int dim, char const *type,
 			  int size, char *dat, char const *name)
 {
-  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));
+  cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim*size, 0, cudaMemcpyHostToDevice ) );
 }

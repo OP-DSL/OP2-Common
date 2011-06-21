@@ -241,15 +241,17 @@ use cudafor
 			istat = cudaEventCreate(stopHostTime)
 			
 			istat = cudaEventRecord ( startHostTime, 0 )
-			
-			! initialise input data
-			set = setIn%setPtr
-			
-			map0 = map0In%mapPtr
-			map1 = map1In%mapPtr
 
-			arg0 = arg0In%dataPtr
-			arg1 = arg1In%dataPtr
+
+
+			! initialise input data
+			set => setIn%setPtr
+			
+			map0 => map0In%mapPtr
+			map1 => map1In%mapPtr
+
+			arg0 => arg0In%dataPtr
+			arg1 => arg1In%dataPtr
 
 			warpSizeOP2 = OP_WARP_SIZE
 
@@ -265,6 +267,8 @@ use cudafor
 			offsetS = nshared * OP_WARP_SIZE
 
 			nshared = nshared * nthreads
+
+
 
 
 			if ( isKernelInputDataGenerated .eq. .false. ) then 
@@ -294,7 +298,7 @@ use cudafor
 			tmpHostTime = 0
 			
 			istat = cudaEventRecord ( startKernelTime, 0 )
-			
+
 			! apply kernel to all set elements
 			call op_cuda_save_soln<<<nblocks,nthreads,nshared>>> ( argSizes, &
 																													 & argument0, &

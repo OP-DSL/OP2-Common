@@ -2,12 +2,42 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_lib_c.h>
+#include <op_cuda_rt_support.h>
 
 /* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
 #define F_OP_ARG_DAT 0
 #define F_OP_ARG_GBL 1
 
 #define ERR_INDEX -1
+
+/* Access codes: must have the same values here and in op2_for_declarations.F90 file */
+#define FOP_READ 1
+#define FOP_WRITE 2
+#define FOP_RW 3
+#define FOP_INC 4
+#define FOP_MAX 5
+#define FOP_MIN 6
+
+
+
+/*
+ * Small utility for transforming Fortran OP2 access codes into C OP2 access codes
+ */
+op_access getAccFromIntCode ( int accCode )
+{
+  switch ( accCode ) {
+  case FOP_READ:
+    return OP_READ;
+  case FOP_WRITE:
+    return OP_WRITE;
+  case FOP_RW:
+    return OP_RW;
+  case FOP_INC:
+    return OP_INC;
+  default:
+    return OP_READ; //default case is treated as READ
+  }
+}
 
 /*
  * Wrapper for Fortran to plan function
@@ -36,8 +66,10 @@ op_plan * FortranPlanCaller ( char name[],
 	int planDims[argsNumber];
 	char * planTypes[argsNumber];
 	op_access planAccs[argsNumber];
-  op_arg planArguments[argsNumber];
+	op_arg * planArguments;
 	op_set_core * iterationSet =  OP_set_list[setId];
+
+	planArguments = calloc ( argsNumber, sizeof ( op_arg ) );
 
 	if ( iterationSet == NULL )
 	{
@@ -58,7 +90,7 @@ op_plan * FortranPlanCaller ( char name[],
 		op_map_core * tmp;
 		int j;
 
-		if ( maps[i] != -1 ) /* another magic number !!! */
+		if ( inds[i] >= 0 ) /* another magic number !!! */
 		{
 			int iter;
 			tmp = OP_map_list[maps[i]];
@@ -104,7 +136,12 @@ op_plan * FortranPlanCaller ( char name[],
   {
     planArguments[i].index = -1; //index is not specified nor used for now..
     planArguments[i].dat = &(planDatArgs[i]);
-    planArguments[i].map = &(planMaps[i]);
+
+    if ( inds[i] >= 0  ) /* another magic number !!! */
+      planArguments[i].map = &(planMaps[i]);
+    else
+      planArguments[i].map = NULL;
+
     planArguments[i].dim = planDims[i];
     planArguments[i].idx = idxs[i];
     planArguments[i].size = planDatArgs[i].size;
@@ -127,8 +164,8 @@ op_plan * FortranPlanCaller ( char name[],
     }
   }
 
-//name,set,part_size,nargs,args,ninds,inds
-  generatedPlan = op_plan_core ( name,
+
+  generatedPlan = op_plan_get ( name,
 						   iterationSet,
 						   partitionSize,
                argsNumber,
@@ -137,6 +174,9 @@ op_plan * FortranPlanCaller ( char name[],
 						   inds
 						 );
 
-	return generatedPlan;
+
+
+
+  return generatedPlan;
 
 }
