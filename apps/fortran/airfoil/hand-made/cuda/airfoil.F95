@@ -312,13 +312,8 @@ use constantVarsCuda
 
     end do ! internal loop
 
-    print *, 'before ', rms(1)
-
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
-
-
-    print *, 'after ', rms(1), ncellr
 
     istat = cudaEventRecord ( iterationEndTime, 0 )
 
