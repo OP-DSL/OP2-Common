@@ -5,4 +5,4 @@
 #PBS -l ngpus=1
 #PBS -W block=true
 
-$WORK/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda
+$WORK/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda
