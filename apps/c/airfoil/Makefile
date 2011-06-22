@@ -69,7 +69,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		bres_calc_kernel.cpp  bres_calc.h \
 		update_kernel.cpp     update.h    \
                 Makefile $(LIB_OP2)/libop2_rt_support.a $(LIB_OP2)/libop2_openmp.a \
-		$(INC_OP2)/op_lib.h $(INC_OP2)/op_rt_support.h
+		$(INC_OP2)/op_lib_cpp.h $(INC_OP2)/op_rt_support.h
 		g++ -O3 $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
 			airfoil_kernels.cpp -lop2_openmp -lop2_rt_support
 

@@ -80,9 +80,9 @@ f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
 		$(F_OP2_OBJ)/cudaConfigurationParams.o
 
 clean:
-	-rm $(F_OP2_OBJ)/*.o
-	-rm $(F_OP2_LIB)/*.a
-	-rm $(F_OP2_SRC)/*~
-	-rm $(F_OP2_SRC)/backend/*~
-	-rm $(F_OP2_MOD)/*.mod
-	-rm $(F_OP2)/*~
+	-rm -if $(F_OP2_OBJ)/*.o
+	-rm -if $(F_OP2_LIB)/*.a
+	-rm -if $(F_OP2_SRC)/*~
+	-rm -if $(F_OP2_SRC)/backend/*~
+	-rm -if $(F_OP2_MOD)/*.mod
+	-rm -if $(F_OP2)/*~
