@@ -27,7 +27,7 @@ runtime: $(INC)/op_rt_support.h $(SRC)/op_rt_support.c $(INC)/op_lib_core.h $(SR
 	ar -r $(LIB)/libop2_rt_support.a $(OBJ)/op_rt_support.o
 
 cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c $(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
-	$(CPP) -DSET_CUDA_CACHE_CONFIG -I$(CUDA_INC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CPP) -fno-strict-aliasing -DSET_CUDA_CACHE_CONFIG $(FLAGS) -I$(CUDA_INC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
 	$(CPP) -fno-strict-aliasing $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o $(OBJ)/op_lib_core.o
 

@@ -3,8 +3,8 @@
 #
 
 C_OP2		= $(OP2)/c
+
 INC_OP2 = $(C_OP2)/include
-#src should be replaced by LIB, when we get libraries
 SRC_OP2 = $(C_OP2)/src
 LIB_OP2 = $(C_OP2)/lib
 
@@ -29,7 +29,7 @@ CPP = g++
 #NVCCFLAGS	:= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 
 #CCFLAGS		:= -g
-CCFLAGS		:= -O3  -DUNIX -Wall -Wextra
+CCFLAGS		:= -O3 -DUNIX -Wall -Wextra
 #NVCCFLAGS	:= -O3 -maxrregcount 48 -arch=sm_20 \
 #		   -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
 NVCCFLAGS	:= -O3 -arch=sm_20 \

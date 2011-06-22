@@ -293,17 +293,30 @@ op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * 
 {
   op_arg arg;
 
+  /* index is not used for now */
+  arg.index = -1;
+
   arg.argtype = OP_ARG_DAT;
 
   arg.dat  = dat;
   arg.map  = map;
   arg.dim  = dim;
   arg.idx  = idx;
+
   if (dat!=NULL) {
     arg.size   = dat->size;
     arg.data   = dat->data;
     arg.data_d = dat->data_d;
   }
+  else
+  {
+    /* set default values */
+    arg.size = -1;
+    arg.data = NULL;
+    arg.data_d = NULL;
+  }
+
+
   arg.type = typ;
   arg.acc  = acc;
 
@@ -324,6 +337,10 @@ op_arg op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
   arg.data = data;
   arg.type = typ;
   arg.acc  = acc;
+
+  /* setting default values for remaining fields */
+  arg.index = -1;
+  arg.data_d = NULL;
 
   return arg;
 }
