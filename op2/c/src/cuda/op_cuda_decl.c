@@ -30,7 +30,16 @@ void op_init(int argc, char **argv, int diags){
 
   cutilDeviceInit(argc, argv);
 
-//  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
+  /*
+   * The following macro check is needed because we can't safely link
+   * libcudart.a 4 from PGI Fortran, as it will cause result dirtying.
+   * Instead, we want to use it for C. The C Makefile will have to
+   * define the SET_CUDA_CACHE_CONFIG variable.
+   */
+#ifdef SET_CUDA_CACHE_CONFIG
+  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
+#endif
+
   printf("\n 16/48 L1/shared \n");
 
 }
