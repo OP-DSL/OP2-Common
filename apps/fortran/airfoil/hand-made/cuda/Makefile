@@ -1,5 +1,5 @@
-IC = nvcc
 FC = pgfortran
+CC = pgcc
 
 IC_OPT = -lcudart -use_fast_math -g # -O3
 FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -g # -O4
@@ -11,7 +11,10 @@ F_OP2_MOD = $(OP2)/fortran/mod
 # the following generates corresponding intermediate C CUDA code
 # -Mcuda=keepgpu
 
-all: airfoil_comp airfoil_link
+all: debug airfoil_comp airfoil_link
+
+debug: debug.c
+	$(CC) -c debug.c
 
 airfoil_comp: OP2Profiling.F95 constvars.F95 airfoil_seqfun.F95 update_cuda_module.CUF bres_calc_cuda_module.CUF res_calc_cuda_module.CUF adt_calc_cuda_module.CUF input.F95 output.F95 save_soln_cuda_module.CUF airfoil.F95
 	$(FC) $(FC_OPT) -module $(F_OP2_MOD) -c OP2Profiling.F95 constantVarsCuda.CUF constvars.F95 airfoil_seqfun.F95 input.F95 output.F95 update_cuda_module.CUF bres_calc_cuda_module.CUF res_calc_cuda_module.CUF save_soln_cuda_module.CUF adt_calc_cuda_module.CUF airfoil.F95
