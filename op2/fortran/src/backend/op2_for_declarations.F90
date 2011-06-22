@@ -1,5 +1,5 @@
-! This module defines the interoperable data types between OP2 C and Fortran
-! and it defines the Fortran interface for declaration routines
+! This file defines the module used by all OP2 back-ends (e.g. CUDA and openmp)
+! and it makes use of the proper implementation in C (e.g. op_cuda_decl.c or op_openmp_decl.cpp)
 
 module OP2_Fortran_Declarations
 
@@ -159,36 +159,6 @@ module OP2_Fortran_Declarations
       type(op_dat_core) :: opdat
 
     end subroutine op_fetch_data_f
-
-    ! debug C functions (to obtain similar output file that can be diff-ed
-    integer(KIND=C_INT) function openfile ( filename ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-      character(c_char), dimension(20) :: filename
-
-    end function openfile
-
-    integer(KIND=C_INT) function closefile ( ) BIND(C)
-
-        use, intrinsic :: ISO_C_BINDING
-
-    end function closefile
-
-    integer(KIND=C_INT) function writerealtofile ( dataw ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-
-      real(c_double) :: dataw
-
-    end function writerealtofile
-
-    integer(KIND=C_INT) function writeinttofile ( dataw ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-
-      integer(c_int) :: dataw
-
-    end function writeinttofile
 
   end interface
 

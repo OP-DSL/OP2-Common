@@ -1,11 +1,11 @@
 #ifndef __OP_CUDA_REDUCTION_H
 #define __OP_CUDA_REDUCTION_H
 
-//
-// This file provides an optimised implementation for OP2 global variable reductions
-// It is separated from the op_cuda_rt_support.h file because the reduction code
-// is based on C++ templates, while the other file only includes C routines
-//
+/*
+ * This file provides an optimised implementation for reduction of OP2 global variables.
+ * It is separated from the op_cuda_rt_support.h file because the reduction code
+ * is based on C++ templates, while the other file only includes C routines.
+ */
 
 #include <cuda.h>
 

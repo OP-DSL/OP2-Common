@@ -1,10 +1,11 @@
-! This module defines the interoperable data types between OP2 C and Fortran
+! This file defines the Fortran module used for the Fortran OP2 reference implementation.
+
+! It defines the interoperable data types between OP2 C and Fortran
 ! and it defines the Fortran interface for declaration routines
 
 module OP2_Fortran_Declarations
 
   use, intrinsic :: ISO_C_BINDING
-  use cudafor
 
   integer, parameter :: MAX_NAME_LEN = 100
   integer, parameter :: BSIZE_DEFAULT = 256
@@ -151,38 +152,6 @@ module OP2_Fortran_Declarations
       character(kind=c_char,len=1) :: name
 
     end subroutine op_decl_const_f
-
-    ! debug C functions (to obtain similar output file that can be diff-ed
-    integer(KIND=C_INT) function openfile ( filename ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-      character(c_char), dimension(20) :: filename
-
-    end function openfile
-
-    integer(KIND=C_INT) function closefile ( ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-
-    end function closefile
-
-    integer(KIND=C_INT) function writerealtofile ( dataw ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-
-      real(c_double) :: dataw
-
-    end function writerealtofile
-
-    integer(KIND=C_INT) function writeinttofile ( dataw, datasize, filename ) BIND(C)
-
-      use, intrinsic :: ISO_C_BINDING
-
-      type(c_ptr) :: dataw
-      integer(c_int) :: datasize
-      character(c_char), dimension(20) :: filename
-
-    end function writeinttofile
 
   end interface
 

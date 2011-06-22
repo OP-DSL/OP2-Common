@@ -2,12 +2,11 @@ program airfoil
 
 use, intrinsic :: ISO_C_BINDING
 
-!use OP2
 use OP2_Fortran_Declarations
 use constantVars
 use airfoil_seq
 use OP2Profiling
-
+use AirfoilDebug
 
 use save_soln_cuda_module
 use adt_calc_cuda_module

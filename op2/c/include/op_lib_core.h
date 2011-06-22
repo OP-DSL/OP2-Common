@@ -30,6 +30,15 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+
+/*
+ * This header file declares all types and functions required
+ * by *any* OP2 implementation, i.e. independently of the
+ * back-end and the target languages.
+ * It is typically used by language or back-end specific
+ * top level OP2 libraries
+ */
+
 //
 // header files
 //

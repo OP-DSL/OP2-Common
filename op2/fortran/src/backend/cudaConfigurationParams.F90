@@ -1,3 +1,6 @@
+
+! This file defines the configuration variables used by the Fortran CUDA OP2 back-end
+
 module cudaConfigurationParams
 
   ! Default block size = number of threads in a single block

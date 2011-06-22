@@ -3,6 +3,14 @@
 
 #include <op_lib_core.h>
 
+/*
+ * This header file defines the user-level OP2 library for
+ * the case of C programs.
+ * To optimise software engineering activities it is also
+ * used by the fortran backends
+ */
+
+
 // identity mapping and global identifier
 
 #define OP_ID  (op_map) NULL

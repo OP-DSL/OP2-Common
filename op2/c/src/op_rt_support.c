@@ -1,7 +1,12 @@
 
-//
-// routines below are needed for generated CUDA and OpenMP code
-//
+
+/*
+ * This file implements the OP2 run-time support used by different
+ * OP2 back-ends, like CUDA and OpenMP. It provides and implementation
+ * of the plan building function for colouring and partitioning of
+ * unstructured meshes.
+ */
+
 
 //
 // timing routine from Gihan Mudalige
