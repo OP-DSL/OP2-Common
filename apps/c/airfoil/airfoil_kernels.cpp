@@ -4,7 +4,7 @@
 
 // header                      
                                
-#include "op_lib.h"            
+#include "op_lib_cpp.h"            
                                
 void __syncthreads(){}         
                                
