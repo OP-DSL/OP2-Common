@@ -17,14 +17,15 @@ F_OP2_BACKEND = $(F_OP2_SRC)/backend
 
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
 
-CC = gcc -g
-FCC = gfortran -g
-NVCC = nvcc -g
-PGF = pgfortran -g
+CC = gcc
+FCC = gfortran
+NVCC = nvcc
+PGF = pgfortran
 
-CFLAGS = -Wall
-FFLAGS = -J$(F_OP2_MOD)
-PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform
+CFLAGS = -Wall -O3
+FFLAGS = -J$(F_OP2_MOD) -O4
+PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform -O4
+NVCCFLAGS = -O4
 
 .PHONY: clean
 
@@ -55,10 +56,10 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(C_OP2_INC)/op_cuda_rt_support.h $(C_OP2_SRC)/cuda/op_cuda_rt_support.c \
 	$(C_OP2_SRC)/cuda/op_cuda_decl.c
-	$(CC) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(NVCC) $(FLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
-	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
-	$(CC) -std=c99 -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
+	$(CC) $(CFLAGS) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	$(NVCC) -Xcompiler -fno-strict-aliasing $(NVCCFLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
+	$(CC) -fno-strict-aliasing -std=c99 $(CFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
+	$(CC) -std=c99 $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
