@@ -1,9 +1,9 @@
 To compile the OP2 libraries it is required to set the environment variable:
 
-CUDA_INSTALL_DIR
+CUDA_INSTALL_PATH
 
 to the appropriate path.
 
 For instance, on CX1 if we want to use cuda 4.0.11, we will have to set it as following:
 
-export CUDA_INSTALL_DIR=/apps/cuda/4.0.11
+export CUDA_INSTALL_PATH=/apps/cuda/4.0.11

@@ -31,10 +31,15 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-//
-// This header defines the OP2 C++ routines and it is based on OP2 C routines declared in op_lib_c.h
-// The generic name op_lib.h has been chosen to avoid changing include files in OP2 C applications
-//
+/*
+ * This header file defines the user-level OP2 library for
+ * the case of C++ programs, integrating the missing part
+ * of the OP2 C interface (implemented in op_lib_c.h).
+ * The definitions used here are specifically using C++
+ * abstractions and cannot be used by Fortran without 
+ * a special briding library.
+ */
+
 
 
 //

@@ -1,11 +1,11 @@
 
 #include "op_lib_core.h"
 
-//
-// Wrappers of core library routines (actual wrappers: they do not extend the semantics, 
-// but just expose the lower core library calls to the main op2 program for C or to the 
-// interoperability support for Fortran
-//
+/*
+ * This file implements thw wrappers of core library routines for
+ * the OP2 reference implementation. These functions are also used
+ * by the Fortran OP2 reference implementation.
+ */
 
 
 void op_init ( int argc, char ** argv, int diags )

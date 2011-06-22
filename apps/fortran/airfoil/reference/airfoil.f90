@@ -10,6 +10,7 @@ use OP2_Fortran_Reference
 
 use constantVars
 use airfoil_seq
+use AirfoilDebug
 
   implicit none
 

@@ -1,7 +1,8 @@
 
+! This file defines the OP2 interface required for OP2 programs 
+! when transformed by the OP2 compiler
 
-
-module OP2_C
+module OP2_Fortran_Declarations
 
 
 use, intrinsic :: ISO_C_BINDING
