@@ -27,9 +27,10 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-//
-// OP2 core header file -- defines datatypes and core functions
-//
+/*
+ * This file implements the OP2 core library functions used by *any*
+ * OP2 implementation
+ */
 
 #include "op_lib_core.h"
 

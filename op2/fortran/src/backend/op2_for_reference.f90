@@ -1,10 +1,9 @@
-! This module defines the interface towards C reference implementation
-! of op_par_loop
+! This module defines the Fortran interface towards C reference implementation
+! of op_par_loop functions
 
 module OP2_Fortran_Reference
 
 	use OP2_Fortran_Declarations
-
 
 	interface
 
@@ -18,7 +17,6 @@ module OP2_Fortran_Reference
 
 			import :: op_set_core, op_map_core, op_dat_core
 
-!			external subroutineName
       interface
         subroutine subroutineName () BIND(C)
         end subroutine subroutineName
@@ -43,13 +41,11 @@ module OP2_Fortran_Reference
 
 			import :: op_set_core, op_map_core, op_dat_core
 
-!     external subroutineName
       interface
         subroutine subroutineName () BIND(C)
         end subroutine subroutineName
       end interface
 
-!			type(c_funptr) :: subroutineName
 			type(op_set_core) :: set
 			type(op_dat_core) :: data0, data1, data2, data3, data4
 			integer(kind=c_int), value :: itemSel0, itemSel1, itemSel2, itemSel3, itemSel4
@@ -72,13 +68,11 @@ module OP2_Fortran_Reference
 
 			import :: op_set_core, op_map_core, op_dat_core
 
-!     external subroutineName
       interface
         subroutine subroutineName () BIND(C)
         end subroutine subroutineName
       end interface
 
-!			type(c_funptr) :: subroutineName
 			type(op_set_core) :: set
 			type(op_dat_core) :: data0, data1, data2, data3, data4, data5
 			integer(kind=c_int), value :: itemSel0, itemSel1, itemSel2, itemSel3, itemSel4, itemSel5
@@ -102,13 +96,11 @@ module OP2_Fortran_Reference
 
 			import :: op_set_core, op_map_core, op_dat_core
 
-!     external subroutineName
       interface
         subroutine subroutineName () BIND(C)
         end subroutine subroutineName
       end interface
 
-!			type(c_funptr) :: subroutineName
 			type(op_set_core) :: set
 			type(op_dat_core) :: data0, data1, data2, data3, data4, data5, data6, data7
 			integer(kind=c_int), value :: itemSel0, itemSel1, itemSel2, itemSel3, itemSel4, itemSel5, itemSel6, itemSel7
@@ -137,13 +129,11 @@ module OP2_Fortran_Reference
 
 			import :: op_set_core, op_map_core, op_dat_core
 
-!     external subroutineName
       interface
         subroutine subroutineName () BIND(C)
         end subroutine subroutineName
       end interface
 
-!			type(c_funptr) :: subroutineName
 			type(op_set_core) :: set
 			type(op_dat_core) :: data0, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11
 			integer(kind=c_int), value :: itemSel0, itemSel1, itemSel2, itemSel3, itemSel4, &

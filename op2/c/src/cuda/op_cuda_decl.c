@@ -1,5 +1,8 @@
 
-// includes op_lib_core.h (wraps core declarations) and op_cuda_rt_support.h (uses cpHostToDevice)
+/*
+ * This file implements the OP2 user-level functions for the CUDA case,
+ * and it makes use of the core library routines.
+ */
 
 #include <cuda.h>
 #include <cuda_runtime.h>

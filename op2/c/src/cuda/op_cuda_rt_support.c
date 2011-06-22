@@ -27,6 +27,10 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/*
+ * This file implements the CUDA-specific run-time support functions
+ */
+
 //
 // header files
 //
