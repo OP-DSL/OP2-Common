@@ -40,4 +40,4 @@ module AirfoilDebug
 
   end interface
 
-end AirfoilDebug
+end module AirfoilDebug
