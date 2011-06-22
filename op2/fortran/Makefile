@@ -46,10 +46,10 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	ar -r $(F_OP2_LIB)/libop2_for_reference.a \
 				$(F_OP2_OBJ)/op_lib_core.o \
-				$(F_OP2_OBJ)/op2_for_reference_declarations.o \
+				$(F_OP2_OBJ)/op_reference.o \
 				$(F_OP2_OBJ)/op2_for_reference.o \
 				$(F_OP2_OBJ)/op2_for_C_wrappers.o \
-				$(F_OP2_OBJ)/op2_for_declarations.o \
+				$(F_OP2_OBJ)/op2_for_reference_declarations.o \
 				$(F_OP2_OBJ)/op2_C_reference.o
 
 f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
