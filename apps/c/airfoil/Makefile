@@ -55,7 +55,7 @@ all: airfoil_seq airfoil_openmp airfoil_cuda
 # simple sequential version
 #
 
-airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h $(LIB_OP2)/libop2_reference.a $(INC_OP2)/op_lib.h
+airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h $(LIB_OP2)/libop2_reference.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
 		$(CPP) airfoil.cpp -I$(INC_OP2) -L$(LIB_OP2) -lop2_reference -o $(EXEC_SEQ)
 
 #
