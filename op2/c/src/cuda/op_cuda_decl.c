@@ -37,6 +37,7 @@ void op_init(int argc, char **argv, int diags){
    * define the SET_CUDA_CACHE_CONFIG variable.
    */
 #ifdef SET_CUDA_CACHE_CONFIG
+  printf ( "Actually called it\n" );
   cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
