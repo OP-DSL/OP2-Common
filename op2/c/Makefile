@@ -11,6 +11,9 @@ NVCC = nvcc
 
 FLAGS = -Wall -O3
 
+#this variable activates the call to cudaThreadSetCacheConfig
+SET_CUDA_CACHE_CONFIG = 0
+
 .PHONY: clean
 
 all: core reference runtime cuda openmp
