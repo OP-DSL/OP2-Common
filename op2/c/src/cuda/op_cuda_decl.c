@@ -30,7 +30,7 @@ void op_init(int argc, char **argv, int diags){
 
   cutilDeviceInit(argc, argv);
 
-  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
+//  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
   printf("\n 16/48 L1/shared \n");
   
 }
