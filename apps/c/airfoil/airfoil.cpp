@@ -51,7 +51,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib.h"
+#include "op_lib_cpp.h"
 #include "op_reference.h"
 
 //
