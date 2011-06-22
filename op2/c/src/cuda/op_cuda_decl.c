@@ -30,8 +30,7 @@ void op_init(int argc, char **argv, int diags){
 
   cutilDeviceInit(argc, argv);
 
-  
-  //  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
+  cutilSafeCall(cudaThreadSetCacheConfig(cudaFuncCachePreferShared));
   printf("\n 16/48 L1/shared \n");
   
 }
@@ -41,11 +40,9 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
 {
   op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
-  printf ( "Copy from host to device of %d\n", dat->size * set->size );
-
-        op_cpHostToDevice((void **)&(dat->data_d),
-                    (void **)&(dat->data),
-                             dat->size*set->size);
+  op_cpHostToDevice ( (void **) &(dat->data_d),
+                      (void **) &(dat->data),
+                       dat->size*set->size );
   
   return dat;
 }
