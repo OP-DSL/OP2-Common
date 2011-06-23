@@ -1,0 +1,12 @@
+This directory cointains the Fortran OP2 interface.
+
+To compile it it is required to:
+
+1. Set the CUDA_INSTALL_PATH environment variable to the proper value.
+   For instance, in CX1 under bash it can be defined as:
+
+       export CUDA_INSTALL_PATH = /apps/cuda/4.0.11
+
+2. Set the OP2 environment variable to the op2 base directory
+   which corresponds to the one containing the "c" and "fortran"
+   directories.
