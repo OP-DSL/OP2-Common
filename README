@@ -1,0 +1,7 @@
+This is the OP2 base directory providing:
+
+1. An implementation of the OP2 C and Fortran interfaces ("op2" directory).
+
+2. Application examples in C and Fortran ("apps" directory).
+
+3. Traslators for C and Fortran ("translator" directories).
