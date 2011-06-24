@@ -1,7 +1,7 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_lib_c.h>
-#include <op_cuda_rt_support.h>
+//#include <op_cuda_rt_support.h>
 
 /* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
 #define F_OP_ARG_DAT 0
@@ -37,26 +37,20 @@ op_access getAccFromIntCode ( int accCode )
   }
 }
 
-/*
- * Wrapper for Fortran to plan function
- */
 
-op_plan * FortranPlanCaller ( char name[],
-                              int setId,
-                              int argsNumber,
-                              int args[],
-                              int idxs[],
-                              int maps[],
-                              int accs[],
-                              int indsNumber,
-                              int inds[],
-                              int argsType[],
-                              int partitionSize
-                            )
+op_arg * generatePlanInputData ( char name[],
+                                 int setId,
+                                 int argsNumber,
+                                 int args[],
+                                 int idxs[],
+                                 int maps[],
+                                 int accs[],
+                                 int indsNumber,
+                                 int inds[],
+                                 int argsType[]
+                               )
 {
   int i, generatedPlanIndex = ERR_INDEX;
-
-  op_plan * generatedPlan = NULL;
 
   op_dat_core planDatArgs[argsNumber];
   op_map_core planMaps[argsNumber];
@@ -64,15 +58,9 @@ op_plan * FortranPlanCaller ( char name[],
   char * planTypes[argsNumber];
   op_access planAccs[argsNumber];
   op_arg * planArguments;
-  op_set_core * iterationSet =  OP_set_list[setId];
 
   planArguments = calloc ( argsNumber, sizeof ( op_arg ) );
 
-  if ( iterationSet == NULL )
-  {
-    printf ( "bad set index\n" );
-    exit ( -1 );
-  }
 
   /* build planDatArgs variable by accessing OP_dat_list with indexes(=positions) in args */
   for ( i = 0; i < argsNumber; i++ )
@@ -161,16 +149,49 @@ op_plan * FortranPlanCaller ( char name[],
     }
   }
 
-  generatedPlan = op_plan_get ( name,
-                                iterationSet,
-                                partitionSize,
-                                argsNumber,
-                                planArguments,
-                                indsNumber,
-                                inds
-                              );
-
-  return generatedPlan;
+  return planArguments;
 }
 
 
+/*
+ * Wrapper for Fortran to plan function for OP2 --> OpenMP
+ */
+
+op_plan * FortranPlanCallerOpenMP ( char name[],
+                                    int setId,
+                                    int argsNumber,
+                                    int args[],
+                                    int idxs[],
+                                    int maps[],
+                                    int accs[],
+                                    int indsNumber,
+                                    int inds[],
+                                    int argsType[],
+                                    int partitionSize
+                                  )
+{
+  op_plan * generatedPlan = NULL;
+  op_set_core * iterationSet =  OP_set_list[setId];
+
+  if ( iterationSet == NULL )
+  {
+     /* TO DO: treat this as an error to be returned to the caller */
+    printf ( "bad set index\n" );
+    exit ( -1 );
+  }
+
+  /* generate the input arguments for the plan function */
+  op_arg * planArguments = generatePlanInputData ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType );
+
+  /* call the C OP2 core function (we don't need anything else for openmp */
+  generatedPlan = op_plan_core ( name,
+                                 iterationSet,
+                                 partitionSize,
+                                 argsNumber,
+                                 planArguments,
+                                 indsNumber,
+                                 inds
+                               );
+
+  return generatedPlan;
+}
