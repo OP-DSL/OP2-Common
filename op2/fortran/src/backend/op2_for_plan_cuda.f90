@@ -41,7 +41,8 @@ module Plan_CUDA
     real(kind=c_float) ::                     transfer ! bytes of data transfer per kernel call
     real(kind=c_float) ::                     transfer2 ! bytes of cache line per kernel call
     integer(kind=c_int) ::                    count ! number fo times called (should not work for fortran?)
-  end type op_plan
+
+  end type op_plan_cuda
 
 
 end module Plan_CUDA

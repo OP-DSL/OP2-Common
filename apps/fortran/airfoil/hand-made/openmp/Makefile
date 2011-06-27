@@ -26,7 +26,7 @@ airfoil_openmp: airfoil_debug.f90 OP2Profiling.f90 input.f90 constvars.f90 airfo
 	$(FC) $(DEBUG) $(OPENMP) $(PREPROCESSOR) -I$(F_OP2_MOD) -c airfoil_debug.f90 OP2Profiling.f90 input.f90 constvars.f90 airfoil_seqfun.f90 save_soln_openmp.f90 adt_calc_openmp.f90 res_calc_openmp.f90 bres_calc_openmp.f90 update_openmp.f90 airfoil.f90
 
 airfoil_link: airfoil_debug.o OP2Profiling.o input.o constvars.o airfoil_seqfun.o save_soln_openmp.o adt_calc_openmp.o res_calc_openmp.o bres_calc_openmp.o update_openmp.o airfoil.o
-	$(FC) $(DEBUG) $(FLINK) $(OPENMP) $(PREPROCESSOR) $(CPPLINK) airfoil_debug.o OP2Profiling.o debug.o input.o constvars.o airfoil_seqfun.o save_soln_openmp.o adt_calc_openmp.o res_calc_openmp.o bres_calc_openmp.o update_openmp.o airfoil.o -lop2_for_rt_support -lop2_for_openmp -o $(EXEC)
+	$(FC) $(DEBUG) $(FLINK) $(OPENMP) $(PREPROCESSOR) $(CPPLINK) airfoil_debug.o OP2Profiling.o debug.o input.o constvars.o airfoil_seqfun.o save_soln_openmp.o adt_calc_openmp.o res_calc_openmp.o bres_calc_openmp.o update_openmp.o airfoil.o -lop2_for_openmp_rt_support -lop2_for_openmp -o $(EXEC)
 
 clean:
 	-rm -f *.o
