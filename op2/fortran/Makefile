@@ -64,7 +64,7 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_plan_cuda.f90 -o $(F_OP2_OBJ)/op2_for_plan_cuda.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
-	$(NVCC) -Xcompiler -fno-strict-aliasing $(NVCCFLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
+	$(NVCC) -Xcompiler -fno-strict-aliasing $(NVCCFLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_cuda_decl.o \
