@@ -4,6 +4,9 @@
  * The following include is needed to be able to call the
  * op_plan_get function
 */
+#include <op_lib_core.h>
+#include <op_rt_support.h>
+#include <op_lib_c.h>
 #include <op_cuda_rt_support.h>
 
 /*
