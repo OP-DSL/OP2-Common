@@ -153,6 +153,14 @@ module OP2_Fortran_Declarations
 
     end subroutine op_decl_const_f
 
+    subroutine op_timers_f ( cpu, et ) BIND(C,name='op_timers')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      real(kind=c_double) :: cpu, et
+
+    end subroutine op_timers_f
+
   end interface
 
   interface op_decl_dat
@@ -410,6 +418,16 @@ contains
     end if
 
   end subroutine op_decl_const_scalar_real_8
+
+  subroutine op_timers ( et )
+
+    real(kind=c_double) :: et
+
+    real(kind=c_double) :: cpu = 0
+
+    call op_timers_f ( cpu, et )
+
+  end subroutine op_timers
 
 end module OP2_Fortran_Declarations
 

@@ -1,9 +1,12 @@
-To compile the OP2 libraries it is required to set the environment variable:
+This directory provides an implementation of the C and C++ OP2 interface.
 
-CUDA_INSTALL_PATH
+To compile it, it is required to:
 
-to the appropriate path.
+1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.
+   For instance, on CX1 under bash, if we want to use cuda 4.0.11,
+   we will have to set it as following:
 
-For instance, on CX1 if we want to use cuda 4.0.11, we will have to set it as following:
+      export CUDA_INSTALL_PATH=/apps/cuda/4.0.11
 
-export CUDA_INSTALL_PATH=/apps/cuda/4.0.11
+2. Set the environment variable OP2 to the base op2 directory,
+   i.e. the one containing the "c" and "fortran" directories.

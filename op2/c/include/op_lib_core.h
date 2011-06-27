@@ -39,9 +39,6 @@
  * top level OP2 libraries
  */
 
-//
-// header files
-//
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -49,17 +46,17 @@
 #include <strings.h>
 #include <math.h>
 
-//
-// essential typedefs
-//
+/*
+ * essential typedefs
+ */
 
 typedef unsigned int uint;
 typedef long long ll;
 typedef unsigned long long ull;
 
-//
-// OP diagnostics level; defined in op_seq.cpp/op_lib.cu and set in op_init
-//
+/*
+ * OP diagnostics level
+ */
 
 extern int OP_diags;
 
@@ -72,77 +69,82 @@ extern int OP_diags;
    7 or above   report positive checks in op_plan_check
 */
 
-//
-// enum list for op_par_loop
-//
+/*
+ * enum list for op_par_loop
+ */
 
-typedef enum {OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX} op_access;
+typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
 
-typedef enum {OP_ARG_GBL, OP_ARG_DAT} op_arg_type;
+typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
 
-//
-// structures
-//
+/*
+ * structures
+ */
 
-typedef struct {
-  int         index;  // index
-  int         size;   // number of elements in set
-  char const *name;   // name of set
+typedef struct
+{
+  int         index;  /* index */
+  int         size;   /* number of elements in set */
+  char const *name;   /* name of set */
 } op_set_core;
 
 typedef op_set_core * op_set;
 
-typedef struct {
-  int         index;  // index
-  op_set      from,   // set pointed from
-              to;     // set pointed to
-  int         dim,    // dimension of pointer
-             *map;    // array defining pointer
-  char const *name;   // name of pointer
+typedef struct
+{
+  int         index;  /* index */
+  op_set      from,   /* set pointed from */
+              to;     /* set pointed to */
+  int         dim,    /* dimension of pointer */
+             *map;    /* array defining pointer */
+  char const *name;   /* name of pointer */
 } op_map_core;
 
 typedef op_map_core * op_map;
 
-typedef struct {
-  int         index;  // index
-  op_set      set;    // set on which data is defined
-  int         dim,    // dimension of data
-              size;   // size of each element in dataset
-  char       *data,   // data on host
-             *data_d; // data on device (GPU)
-  char const *type,   // datatype
-             *name;   // name of dataset
+typedef struct
+{
+  int         index;  /* index */
+  op_set      set;    /* set on which data is defined */
+  int         dim,    /* dimension of data */
+              size;   /* size of each element in dataset */
+  char       *data,   /* data on host */
+             *data_d; /* data on device (GPU) */
+  char const *type,   /* datatype */
+             *name;   /* name of dataset */
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
 
-typedef struct {
-  int         index;  // index
-  op_dat      dat;    // dataset
-  op_map      map;    // indirect mapping
-  int         dim,    // dimension of data
-              idx,    //
-              size;   // size (for sequential execution)
-  char       *data,   // data on host
-             *data_d; // data on device (for CUDA execution)
-  char const *type;   // datatype
+typedef struct
+{
+  int         index;  /* index */
+  op_dat      dat;    /* dataset */
+  op_map      map;    /* indirect mapping */
+  int         dim,    /* dimension of data */
+              idx,
+              size;   /* size (for sequential execution) */
+  char       *data,   /* data on host */
+             *data_d; /* data on device (for CUDA execution) */
+  char const *type;   /* datatype */
   op_access   acc;
   op_arg_type argtype;
 } op_arg;
 
 
-typedef struct {
-  char const *name;     // name of kernel function
-  int         count;    // number of times called
-  float       time;     // total execution time
-  float       transfer; // bytes of data transfer (used)
-  float       transfer2;// bytes of data transfer (total)
+typedef struct
+{
+  char const *name;     /* name of kernel function */
+  int         count;    /* number of times called */
+  float       time;     /* total execution time */
+  float       transfer; /* bytes of data transfer (used) */
+  float       transfer2;/* bytes of data transfer (total) */
 } op_kernel;
 
 
-//
-//  min / max definitions
-//
+/*
+ * min / max definitions
+ */
 
 #ifndef MIN
 #define MIN(a,b) ((a<b) ? (a) : (b))
@@ -151,20 +153,20 @@ typedef struct {
 #define MAX(a,b) ((a>b) ? (a) : (b))
 #endif
 
-//
-// alignment macro based on example on page 50 of CUDA Programming Guide version 3.0
-// rounds up to nearest multiple of 16 bytes
-//
+/*
+ * alignment macro based on example on page 50 of CUDA Programming Guide version 3.0
+ * rounds up to nearest multiple of 16 bytes
+ */
 
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 
-//
-// Core lib function prototypes
-//
+/*
+ * Core lib function prototypes
+ */
 
 void op_init_core ( int, char **, int );
 
-void op_exit_core ();
+void op_exit_core ( );
 
 op_set op_decl_set_core ( int, char const * );
 
@@ -180,11 +182,10 @@ op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * 
 
 op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
 
-void op_diagnostic_output ();
+void op_diagnostic_output ( );
 
-void op_timing_output ();
+void op_timing_output ( );
 
 void op_timing_realloc ( int );
-
 
 #endif

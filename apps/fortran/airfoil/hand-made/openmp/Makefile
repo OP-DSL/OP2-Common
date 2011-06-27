@@ -1,5 +1,5 @@
-CC = gcc
-FC = gfortran
+CC = gcc -g
+FC = gfortran -g
 
 OPENMP = -fopenmp
 
@@ -29,6 +29,7 @@ airfoil_link: airfoil_debug.o OP2Profiling.o input.o constvars.o airfoil_seqfun.
 	$(FC) $(DEBUG) $(FLINK) $(OPENMP) $(PREPROCESSOR) $(CPPLINK) airfoil_debug.o OP2Profiling.o debug.o input.o constvars.o airfoil_seqfun.o save_soln_openmp.o adt_calc_openmp.o res_calc_openmp.o bres_calc_openmp.o update_openmp.o airfoil.o -lop2_for_rt_support -lop2_for_openmp -o $(EXEC)
 
 clean:
-	rm -f *.o
-	rm -f *.mod
-	rm -f airfoil_seq
+	-rm -f *.o
+	-rm -f *.mod
+	-rm -f airfoil_seq
+	-rm -f *~
