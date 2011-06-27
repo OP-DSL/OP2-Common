@@ -64,7 +64,6 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_plan_cuda.f90 -o $(F_OP2_OBJ)/op2_for_plan_cuda.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
-	$(NVCC) -Xcompiler -fno-strict-aliasing $(NVCCFLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_cuda_decl.o \
@@ -72,8 +71,7 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_declarations.o \
 	$(F_OP2_OBJ)/op2_for_plan_cuda.o \
-	$(F_OP2_OBJ)/cudaConfigurationParams.o \
-	$(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
+	$(F_OP2_OBJ)/cudaConfigurationParams.o
 
 f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	  $(C_OP2_SRC)/openmp/op_openmp_decl.c \
@@ -88,15 +86,27 @@ f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	  $(F_OP2_OBJ)/op_openmp_decl.o \
 	  $(F_OP2_OBJ)/op2_for_reference_declarations.o
 
+f_openmp_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
+	$(F_OP2_SRC)/backend/op2_for_rt_wrappers.c $(F_OP2_SRC)/backend/op2_for_rt_support.f90
+	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	ar -r $(F_OP2_LIB)/libop2_for_rt_support.a \
+	      $(F_OP2_OBJ)/op_rt_support.o \
+	      $(F_OP2_OBJ)/op2_for_rt_wrappers.o \
+	      $(F_OP2_OBJ)/op2_for_rt_support.o
+
 f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
 	$(F_OP2_SRC)/backend/op2_for_rt_wrappers.c $(F_OP2_SRC)/backend/op2_for_rt_support.f90
 	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
 	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(PGF) $(PGFFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	$(NVCC) -Xcompiler -fno-strict-aliasing $(NVCCFLAGS) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_rt_support.a \
 	      $(F_OP2_OBJ)/op_rt_support.o \
 	      $(F_OP2_OBJ)/op2_for_rt_wrappers.o \
-	      $(F_OP2_OBJ)/op2_for_rt_support.o
+	      $(F_OP2_OBJ)/op2_for_rt_support.o	\
+	      $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 
 clean:
 	-rm -if $(F_OP2_OBJ)/*.o
