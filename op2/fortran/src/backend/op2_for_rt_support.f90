@@ -43,9 +43,9 @@ module OP2_Fortran_RT_Support
 
 	interface
 
-		! C wrapper to plan function for Fortran (cPlan function)
+		! C wrapper to plan function for Fortran (cPlan function)                         
 		type(c_ptr) function cplan_CUDA ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize ) &
-							& BIND(C,name='FortranPlanCallerCUDA')
+							& BIND(C,name='FortranPlanCallerCUDA')                            
 
 			use, intrinsic :: ISO_C_BINDING
 
