@@ -44,4 +44,4 @@ module Plan_CUDA
   end type op_plan
 
 
-end Plan_CUDA
+end module Plan_CUDA
