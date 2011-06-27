@@ -2,6 +2,7 @@ module adt_calc_cuda_module
 
       use OP2_Fortran_Declarations
       use OP2_Fortran_RT_Support
+      use Plan_CUDA
       use cudaConfigurationParams
       use OP2Profiling
       use cudafor
@@ -338,7 +339,7 @@ contains
 !		type(c_ptr) :: planRet
 !		
 !		! variable for storing the actual OP Plan
-		type(op_plan), pointer :: actualPlan
+		type(op_plan_cuda), pointer :: actualPlan
 			
 		! iteration and offset variables to implement plan execution
 		integer(4) :: blockOffset, col
@@ -546,7 +547,7 @@ contains
       partitionSize = 0
 
 			! get the plan
-			planRet = cplan ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )
+			planRet = cplan_CUDA ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )
 
 			call adt_calc_initialiseConstants()
 
@@ -571,7 +572,7 @@ contains
 			! convert arguments and plan data to Fortran pointers (not a copy!)
 			! Typically, first compute size, then transform pointer
 			
-			! transform the returned C pointer to a type(op_plan) variable
+			! transform the returned C pointer to a type(op_plan_cuda) variable
 			call c_f_pointer ( planRet, actualPlan )		
 
 			! convert nindirect  used to generate the pindMapsSize array of sizes

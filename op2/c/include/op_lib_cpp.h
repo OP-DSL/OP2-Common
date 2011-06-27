@@ -40,11 +40,9 @@
  * a special briding library.
  */
 
-
-
-//
-// include core definitions and C declarations of op2 user-level routines
-//
+/*
+ * include core definitions and C declarations of op2 user-level routines
+ */
 
 #include <op_lib_core.h>
 #include <op_lib_c.h>
@@ -54,29 +52,29 @@
 #include <omp.h>
 #endif
 
-//
-// run-time type-checking routines
-//
+/*
+ * run-time type-checking routines
+ */
 
-inline int type_error(const double * a, const char *type){return strcmp(type,"double");}
-inline int type_error(const float  * a, const char *type){return strcmp(type,"float" );}
-inline int type_error(const int    * a, const char *type){return strcmp(type,"int"   );}
-inline int type_error(const uint   * a, const char *type){return strcmp(type,"uint"  );}
-inline int type_error(const ll     * a, const char *type){return strcmp(type,"ll"    );}
-inline int type_error(const ull    * a, const char *type){return strcmp(type,"ull"   );}
-inline int type_error(const bool   * a, const char *type){return strcmp(type,"bool"  );}
+inline int type_error (const double * a, const char *type ) { return strcmp ( type, "double" ); }
+inline int type_error (const float  * a, const char *type ) { return strcmp ( type, "float" ); }
+inline int type_error (const int    * a, const char *type ) { return strcmp ( type, "int"   ); }
+inline int type_error (const uint   * a, const char *type ) { return strcmp ( type, "uint"  ); }
+inline int type_error (const ll     * a, const char *type ) { return strcmp ( type, "ll"    ); }
+inline int type_error (const ull    * a, const char *type ) { return strcmp ( type, "ull"   ); }
+inline int type_error (const bool   * a, const char *type ) { return strcmp ( type, "bool"  ); }
 
-//
-// add in user's datatypes
-//
+/*
+ * add in user's datatypes
+ */
 
 #ifdef OP_USER_DATATYPES
 #include <OP_USER_DATATYPES>
 #endif
 
-//
-// zero constants
-//
+/*
+ * zero constants
+ */
 
 #define ZERO_double  0.0;
 #define ZERO_float   0.0f;
@@ -86,9 +84,9 @@ inline int type_error(const bool   * a, const char *type){return strcmp(type,"bo
 #define ZERO_ull     0;
 #define ZERO_bool    0;
 
-//
-// external variables declared in op_lib_core.cpp
-//
+/*
+ * external variables declared in op_lib_core.cpp
+ */
 
 extern int OP_diags, OP_part_size, OP_block_size;
 
@@ -98,23 +96,24 @@ extern int OP_set_index,  OP_set_max,
            OP_plan_index, OP_plan_max,
                           OP_kern_max;
 
-extern op_set    *OP_set_list;
-extern op_map    *OP_map_list;
-extern op_dat    *OP_dat_list;
-extern op_kernel *OP_kernels;
+extern op_set    * OP_set_list;
+extern op_map    * OP_map_list;
+extern op_dat    * OP_dat_list;
+extern op_kernel * OP_kernels;
 
 
-op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
+op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 
 
-//
-// templates for handling datasets and constants
-//
+/*
+ * templates for handling datasets and constants
+ */
 
 template < class T >
 op_dat op_decl_dat ( op_set set, int dim, char const *type,
-					 T *data, char const *name )
+					 T * data, char const * name )
 {
+
   if ( type_error ( data, type ) ) 
   {
     printf ( "incorrect type specified for dataset \"%s\" \n", name ); 
@@ -124,17 +123,15 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
   return op_decl_dat ( set, dim, type, sizeof(T), (char *) data, name );
 }
 
-// Forward declaration: the actual implementation is in op_reference_decl.cpp
-//extern "C"
-//void op_decl_const_core( int dim, char const * type, int typeSize, char * data, char const * name );
-
-
 template < class T >
-void op_decl_const2(char const *name, int dim, char const *type, T *data){
-  if (type_error(data,type)) {
-    printf("incorrect type specified for constant \"%s\" \n",name); exit(1);
+void op_decl_const2 ( char const * name, int dim, char const *type, T * data )
+{
+  if ( type_error ( data, type ) )
+  {
+    printf ( "incorrect type specified for constant \"%s\" \n", name ); exit ( 1 );
   }
-  op_decl_const_char ( dim, type, sizeof(T), (char *)data, name );
+  
+  op_decl_const_char ( dim, type, sizeof ( T ), (char *) data, name );
 }
 
 template < class T >
@@ -148,10 +145,10 @@ void op_decl_const ( int dim, char const * type, T * data )
 }
 
 template < class T >
-op_arg op_arg_gbl ( T *data, int dim, char const *type, op_access acc )
+op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
 {
   if ( type_error ( data, type ) )
-    return op_arg_gbl_core ( ( char * )data, dim, "error", acc );
+    return op_arg_gbl_core ( ( char *  )data, dim, "error", acc );
   else
     return op_arg_gbl_core ( ( char * ) data, dim, type, acc );
 }

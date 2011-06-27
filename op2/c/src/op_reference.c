@@ -1,5 +1,5 @@
 
-#include "op_lib_core.h"
+#include <op_lib_core.h>
 
 /*
  * This file implements thw wrappers of core library routines for
@@ -31,13 +31,12 @@ op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * da
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
-//
-// The following function is empty for the reference implementation
-// and is not present in the core library: it is only needed 
-// in OP2 main program to signal OP2 compilers which are the constant
-// names in the program
-//
-
+/*
+ * The following function is empty for the reference implementation
+ * and is not present in the core library: it is only needed 
+ * in OP2 main program to signal OP2 compilers which are the constant
+ * names in the program
+ */
 
 void op_decl_const_char ( int dim, char const * type, int typeSize, char * data, char const * name ) {}
 
