@@ -200,7 +200,7 @@ use constantVarsCuda
 		save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
 		save_soln_count = save_soln_count + 1
 								
-    op_fetch_data ( p_qold )
+    call op_fetch_data ( p_qold )
 
 
     retdebug = openfile ( c_char_"/work/cbertoll/OP2/qold-int.txt"//c_null_char )
