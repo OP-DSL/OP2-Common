@@ -192,10 +192,10 @@ program airfoil
 
 		! save old flow solution
 
-		save_soln_info = op_par_loop_save_soln ( savesolnName, cells, &
-																			     & p_q,    -1, OP_ID, OP_READ, &
-																			     & p_qold, -1, OP_ID, OP_WRITE &
-																		     & )
+!		save_soln_info = op_par_loop_save_soln ( savesolnName, cells, &
+!																			     & p_q,    -1, OP_ID, OP_READ, &
+!																			     & p_qold, -1, OP_ID, OP_WRITE &
+!																		     & )
 
 
 		save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
