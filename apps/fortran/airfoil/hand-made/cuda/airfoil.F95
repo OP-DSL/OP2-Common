@@ -201,8 +201,21 @@ use constantVarsCuda
 		save_soln_count = save_soln_count + 1
 								
 								
-!		stop
-		
+    op_fetchdata ( p_qold )
+
+
+    retdebug = openfile ( c_char_"/work/cbertoll/OP2/qold-int.txt"//c_null_char )
+  
+    do debugiter = 1, 4*ncell
+  
+      datad = qold(debugiter)
+      retdebug = writerealtofile ( datad )
+    end do
+  
+    retdebug = closefile ()
+
+    stop
+
 		! predictor/corrector update loop
 				
     do k = 1, 2
