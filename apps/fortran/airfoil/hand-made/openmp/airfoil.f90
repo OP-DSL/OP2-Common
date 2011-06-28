@@ -198,6 +198,20 @@ program airfoil
 																		     & )
 
 
+    op_fetchdata ( p_qold )
+
+    retdebug = openfile ( c_char_"/work/cbertoll/OP2/qold-int.txt"//c_null_char )
+  
+    do debugiter = 1, 4*ncell
+  
+      datad = qold(debugiter)
+      retdebug = writerealtofile ( datad )
+    end do
+  
+    retdebug = closefile ()
+
+    stop
+
 		save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
 		save_soln_count = save_soln_count + 1
 
