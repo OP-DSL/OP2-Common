@@ -769,7 +769,7 @@ module bres_calc_cuda_module
           partitionSize = 0
 
           ! get the plan
-          planRet = cplan_CUDA ( subroutineName, &
+          planRet = FortranPlanCallerCUDA ( subroutineName, &
                                & set%index, &
                                & argsNumber, &
                                & args, &
