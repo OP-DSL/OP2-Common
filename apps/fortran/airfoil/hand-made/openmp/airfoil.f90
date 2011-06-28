@@ -200,6 +200,7 @@ program airfoil
 
     op_fetchdata ( p_qold )
 
+stop
     retdebug = openfile ( c_char_"/work/cbertoll/OP2/qold-int.txt"//c_null_char )
   
     do debugiter = 1, 4*ncell
