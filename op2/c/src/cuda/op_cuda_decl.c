@@ -51,8 +51,8 @@ op_decl_dat ( op_set set, int dim, char const *type, int size, char * data, char
 {
 	op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
-	op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-											( void ** ) &( dat->data ), dat->size * set->size );
+//	op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+//											( void ** ) &( dat->data ), dat->size * set->size );
 
 	return dat;
 }
