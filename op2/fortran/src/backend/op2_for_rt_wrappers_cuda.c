@@ -32,6 +32,9 @@ op_plan * FortranPlanCallerCUDA ( char name[],
                                 )
 {
   
+  printf ( "Inside the plan caller for cuda\n" );
+  exit ( 0 );
+  
   op_plan * generatedPlan = NULL;
   op_set_core * iterationSet =  OP_set_list[setId];
   
