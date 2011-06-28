@@ -200,6 +200,9 @@ use constantVarsCuda
 		save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
 		save_soln_count = save_soln_count + 1
 								
+
+    print *, 'just before the stop'
+    stop
 								
     op_fetchdata ( p_qold )
 
