@@ -763,18 +763,18 @@ contains
         partitionSize = 0
 
         ! get the plan
-        planRet = cplan_CUDA ( subroutineName, &
-                             & set%index, &
-                             & argsNumber, &
-                             & args, &
-                             & idxs, &
-                             & maps, &
-                             & accs, &
-                             & indsNumber, &
-                             & inds, &
-                             & argsType, &
-                             & partitionSize &
-                          &  )
+        planRet = FortranPlanCallerCUDA ( subroutineName, &
+                                        & set%index, &
+                                        & argsNumber, &
+                                        & args, &
+                                        & idxs, &
+                                        & maps, &
+                                        & accs, &
+                                        & indsNumber, &
+                                        & inds, &
+                                        & argsType, &
+                                        & partitionSize &
+                                     &  )
 
         call bres_calc_initialiseConstants()
 
