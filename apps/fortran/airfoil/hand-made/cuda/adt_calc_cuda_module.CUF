@@ -2,7 +2,7 @@ module adt_calc_cuda_module
 
       use OP2_Fortran_Declarations
       use OP2_Fortran_RT_Support
-      use Plan_CUDA
+!      use Plan_CUDA
       use cudaConfigurationParams
       use OP2Profiling
       use cudafor
@@ -339,7 +339,7 @@ contains
 !		type(c_ptr) :: planRet
 !		
 !		! variable for storing the actual OP Plan
-		type(op_plan_cuda), pointer :: actualPlan
+		type(op_plan), pointer :: actualPlan
 			
 		! iteration and offset variables to implement plan execution
 		integer(4) :: blockOffset, col
