@@ -1,5 +1,5 @@
-FC = pgfortran
-CC = pgcc
+FC = pgfortran -g
+CC = pgcc -g
 
 IC_OPT = -lcudart -use_fast_math -g # -O3
 FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -g # -O4
