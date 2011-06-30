@@ -122,7 +122,7 @@ int main(int argc, char **argv){
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("/home/carlo/mesh_generator/new_grid-800-1200.dat","r")) == NULL) {
+  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
