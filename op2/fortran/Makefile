@@ -73,10 +73,10 @@ f_cuda: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
 	$(F_OP2_OBJ)/op2_for_plan_cuda.o \
 	$(F_OP2_OBJ)/cudaConfigurationParams.o
 
-f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
+f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
 	  $(C_OP2_SRC)/openmp/op_openmp_decl.c \
 	  $(F_OP2_SRC)/backend/op2_for_reference_declarations.F90
-	  $(CC) $(CFLAGS) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	  $(CC) $(CFLAGS) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
 	  $(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	  $(CC) $(CFLAGS) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/openmp/op_openmp_decl.c -o $(F_OP2_OBJ)/op_openmp_decl.o
 	  $(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_reference_declarations.F90 -o $(F_OP2_OBJ)/op2_for_reference_declarations.o
@@ -86,9 +86,9 @@ f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
 	  $(F_OP2_OBJ)/op_openmp_decl.o \
 	  $(F_OP2_OBJ)/op2_for_reference_declarations.o
 
-f_openmp_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/op_rt_support.c \
+f_openmp_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/backend/op2_for_rt_wrappers.c $(F_OP2_SRC)/backend/op2_for_rt_support.f90
-	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
 	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	ar -r $(F_OP2_LIB)/libop2_for_openmp_rt_support.a \
