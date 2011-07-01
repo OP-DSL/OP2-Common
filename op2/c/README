@@ -10,3 +10,4 @@ To compile it, it is required to:
 
 2. Set the environment variable OP2 to the base op2 directory,
    i.e. the one containing the "c" and "fortran" directories.
+

@@ -52,7 +52,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_cpp.h"
-#include "op_reference.h"
+#include "op_seq.h"
 
 //
 // kernel routines for parallel loops
@@ -259,8 +259,6 @@ int main(int argc, char **argv){
 
   op_timing_output();
 
-  for ( int i = 0; i < 4 * ncell; i++ )
-    printf ( "%lf\n", q[i] );
 
 }
 

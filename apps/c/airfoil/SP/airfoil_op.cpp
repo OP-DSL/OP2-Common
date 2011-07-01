@@ -304,8 +304,5 @@ int main(int argc, char **argv){
   op_timing_output();
 
   op_fetch_data ( p_q );
-
-  for ( int i = 0; i < 4 * ncell; i++ )
-    printf ( "%lf\n", q[i] );
 }
 

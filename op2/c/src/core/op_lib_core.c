@@ -141,7 +141,8 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
     exit ( -1 );
   }
 
-  for ( int d = 0; d < dim; d++ )
+  /*This check breaks for MPI - need to fix this  */
+  /*for ( int d = 0; d < dim; d++ )
   {
     for ( int n = 0; n < from->size; n++ )
     {
@@ -152,7 +153,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
         exit ( -1 );
       }
     }
-  }
+  }*/
 
   if ( OP_map_index == OP_map_max )
   {
