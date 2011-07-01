@@ -11,19 +11,19 @@ __device__
 // CUDA kernel function                                              
                                                                      
 __global__ void op_cuda_update(                                      
-  float *arg0,                                                       
-  float *arg1,                                                       
-  float *arg2,                                                       
-  float *arg3,                                                       
-  float *arg4,                                                       
+  double *arg0,                                                       
+  double *arg1,                                                       
+  double *arg2,                                                       
+  double *arg3,                                                       
+  double *arg4,                                                       
   int   offset_s,                                                    
   int   set_size ) {                                                 
                                                                      
-  float arg0_l[4];                                                   
-  float arg1_l[4];                                                   
-  float arg2_l[4];                                                   
-  float arg4_l[1];                                                   
-  for (int d=0; d<1; d++) arg4_l[d]=ZERO_float;                      
+  double arg0_l[4];                                                   
+  double arg1_l[4];                                                   
+  double arg2_l[4];                                                   
+  double arg4_l[1];                                                   
+  for (int d=0; d<1; d++) arg4_l[d]=ZERO_double;                      
   int   tid = threadIdx.x%OP_WARPSIZE;                               
                                                                      
   extern __shared__ char shared[];                                   
@@ -41,16 +41,16 @@ __global__ void op_cuda_update(
     // copy data into shared memory, then into local                 
                                                                      
     for (int m=0; m<4; m++)                                          
-      ((float *)arg_s)[tid+m*nelems] = arg0[tid+m*nelems+offset*4];  
+      ((double *)arg_s)[tid+m*nelems] = arg0[tid+m*nelems+offset*4];  
                                                                      
     for (int m=0; m<4; m++)                                          
-      arg0_l[m] = ((float *)arg_s)[m+tid*4];                         
+      arg0_l[m] = ((double *)arg_s)[m+tid*4];                         
                                                                      
     for (int m=0; m<4; m++)                                          
-      ((float *)arg_s)[tid+m*nelems] = arg2[tid+m*nelems+offset*4];  
+      ((double *)arg_s)[tid+m*nelems] = arg2[tid+m*nelems+offset*4];  
                                                                      
     for (int m=0; m<4; m++)                                          
-      arg2_l[m] = ((float *)arg_s)[m+tid*4];                         
+      arg2_l[m] = ((double *)arg_s)[m+tid*4];                         
                                                                      
                                                                      
     // user-supplied kernel call                                     
@@ -64,16 +64,16 @@ __global__ void op_cuda_update(
     // copy back into shared memory, then to device                  
                                                                      
     for (int m=0; m<4; m++)                                          
-      ((float *)arg_s)[m+tid*4] = arg1_l[m];                         
+      ((double *)arg_s)[m+tid*4] = arg1_l[m];                         
                                                                      
     for (int m=0; m<4; m++)                                          
-      arg1[tid+m*nelems+offset*4] = ((float *)arg_s)[tid+m*nelems];  
+      arg1[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];  
                                                                      
     for (int m=0; m<4; m++)                                          
-      ((float *)arg_s)[m+tid*4] = arg2_l[m];                         
+      ((double *)arg_s)[m+tid*4] = arg2_l[m];                         
                                                                      
     for (int m=0; m<4; m++)                                          
-      arg2[tid+m*nelems+offset*4] = ((float *)arg_s)[tid+m*nelems];  
+      arg2[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];  
                                                                      
   }                                                                  
                                                                      
@@ -93,7 +93,7 @@ void op_par_loop_update(char const *name, op_set set,
   op_arg arg3,                                                       
   op_arg arg4 ){                                                     
                                                                      
-  float *arg4h = (float *)arg4.data;                                 
+  double *arg4h = (double *)arg4.data;                                 
                                                                      
   if (OP_diags>2) {                                                  
     printf(" kernel routine w/o indirection:  update \n");           
@@ -121,8 +121,8 @@ void op_par_loop_update(char const *name, op_set set,
                                                                      
   int reduct_bytes = 0;                                              
   int reduct_size  = 0;                                              
-  reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));               
-  reduct_size   = MAX(reduct_size,sizeof(float));                    
+  reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));               
+  reduct_size   = MAX(reduct_size,sizeof(double));                    
                                                                      
   reallocReductArrays(reduct_bytes);                                 
                                                                      
@@ -131,17 +131,17 @@ void op_par_loop_update(char const *name, op_set set,
   arg4.data_d = OP_reduct_d + reduct_bytes;                          
   for (int b=0; b<maxblocks; b++)                                    
     for (int d=0; d<1; d++)                                          
-      ((float *)arg4.data)[d+b*1] = ZERO_float;                      
-  reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));               
+      ((double *)arg4.data)[d+b*1] = ZERO_double;                      
+  reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));               
                                                                      
   mvReductArraysToDevice(reduct_bytes);                              
                                                                      
   // work out shared memory requirements per element                 
                                                                      
   int nshared = 0;                                                   
-  nshared = MAX(nshared,sizeof(float)*4);                            
-  nshared = MAX(nshared,sizeof(float)*4);                            
-  nshared = MAX(nshared,sizeof(float)*4);                            
+  nshared = MAX(nshared,sizeof(double)*4);                            
+  nshared = MAX(nshared,sizeof(double)*4);                            
+  nshared = MAX(nshared,sizeof(double)*4);                            
                                                                      
   // execute plan                                                    
                                                                      
@@ -149,11 +149,11 @@ void op_par_loop_update(char const *name, op_set set,
                                                                      
   nshared = MAX(nshared*nthread,reduct_size*nthread);                
                                                                      
-  op_cuda_update<<<nblocks,nthread,nshared>>>( (float *) arg0.data_d,
-                                               (float *) arg1.data_d,
-                                               (float *) arg2.data_d,
-                                               (float *) arg3.data_d,
-                                               (float *) arg4.data_d,
+  op_cuda_update<<<nblocks,nthread,nshared>>>( (double *) arg0.data_d,
+                                               (double *) arg1.data_d,
+                                               (double *) arg2.data_d,
+                                               (double *) arg3.data_d,
+                                               (double *) arg4.data_d,
                                                offset_s,             
                                                set->size );          
                                                                      
@@ -166,7 +166,7 @@ void op_par_loop_update(char const *name, op_set set,
                                                                      
   for (int b=0; b<maxblocks; b++)                                    
     for (int d=0; d<1; d++)                                          
-      arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1];             
+      arg4h[d] = arg4h[d] + ((double *)arg4.data)[d+b*1];             
                                                                      
   // update kernel record                                            
                                                                      
@@ -175,9 +175,9 @@ void op_par_loop_update(char const *name, op_set set,
   OP_kernels[4].name      = name;                                    
   OP_kernels[4].count    += 1;                                       
   OP_kernels[4].time     += wall_t2 - wall_t1;                       
-  OP_kernels[4].transfer += (float)set->size * arg0.size;            
-  OP_kernels[4].transfer += (float)set->size * arg1.size;            
-  OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;     
-  OP_kernels[4].transfer += (float)set->size * arg3.size;            
+  OP_kernels[4].transfer += (double)set->size * arg0.size;            
+  OP_kernels[4].transfer += (double)set->size * arg1.size;            
+  OP_kernels[4].transfer += (double)set->size * arg2.size * 2.0f;     
+  OP_kernels[4].transfer += (double)set->size * arg3.size;            
 }                                                                    
                                                                      

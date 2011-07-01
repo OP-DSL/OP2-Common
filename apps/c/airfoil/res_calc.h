@@ -1,6 +1,6 @@
-inline void res_calc(float *x1,  float *x2,  float *q1,  float *q2,
-                     float *adt1,float *adt2,float *res1,float *res2) {
-  float dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+inline void res_calc(double *x1,  double *x2,  double *q1,  double *q2,
+                     double *adt1,double *adt2,double *res1,double *res2) {
+  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
   dx = x1[0] - x2[0];
   dy = x1[1] - x2[1];

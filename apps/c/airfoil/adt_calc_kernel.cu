@@ -11,13 +11,13 @@ __device__
 // CUDA kernel function                                                 
                                                                         
 __global__ void op_cuda_adt_calc(                                       
-  float *ind_arg0, int *ind_arg0_maps,                                  
+  double *ind_arg0, int *ind_arg0_maps,                                  
   short *arg0_maps,                                                     
   short *arg1_maps,                                                     
   short *arg2_maps,                                                     
   short *arg3_maps,                                                     
-  float *arg4,                                                          
-  float *arg5,                                                          
+  double *arg4,                                                          
+  double *arg5,                                                          
   int   *ind_arg_sizes,                                                 
   int   *ind_arg_offs,                                                  
   int    block_offset,                                                  
@@ -29,7 +29,7 @@ __global__ void op_cuda_adt_calc(
                                                                         
                                                                         
   __shared__ int   *ind_arg0_map, ind_arg0_size;                        
-  __shared__ float *ind_arg0_s;                                         
+  __shared__ double *ind_arg0_s;                                         
   __shared__ int    nelem, offset_b;                                    
                                                                         
   extern __shared__ char shared[];                                      
@@ -50,7 +50,7 @@ __global__ void op_cuda_adt_calc(
     // set shared memory pointers                                       
                                                                         
     int nbytes = 0;                                                     
-    ind_arg0_s = (float *) &shared[nbytes];                             
+    ind_arg0_s = (double *) &shared[nbytes];                             
   }                                                                     
                                                                         
   __syncthreads(); // make sure all of above completed                  
@@ -130,13 +130,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     int nblocks = Plan->ncolblk[col];                                   
     int nshared = Plan->nshared;                                        
     op_cuda_adt_calc<<<nblocks,nthread,nshared>>>(                      
-       (float *)arg0.data_d, Plan->ind_maps[0],                         
+       (double *)arg0.data_d, Plan->ind_maps[0],                         
        Plan->loc_maps[0],                                               
        Plan->loc_maps[1],                                               
        Plan->loc_maps[2],                                               
        Plan->loc_maps[3],                                               
-       (float *)arg4.data_d,                                            
-       (float *)arg5.data_d,                                            
+       (double *)arg4.data_d,                                            
+       (double *)arg5.data_d,                                            
        Plan->ind_sizes,                                                 
        Plan->ind_offs,                                                  
        block_offset,                                                    

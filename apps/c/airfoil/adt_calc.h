@@ -1,5 +1,5 @@
-inline void adt_calc(float *x1,float *x2,float *x3,float *x4,float *q,float *adt){
-  float dx,dy, ri,u,v,c;
+inline void adt_calc(double *x1,double *x2,double *x3,double *x4,double *q,double *adt){
+  double dx,dy, ri,u,v,c;
 
   ri =  1.0f/q[0];
   u  =   ri*q[1];
