@@ -52,11 +52,11 @@ op_arg * generatePlanInputData ( char name[],
 {
   int i, generatedPlanIndex = ERR_INDEX;
 
-  op_dat_core planDatArgs[argsNumber];
-  op_map_core planMaps[argsNumber];
-  int planDims[argsNumber];
-  char * planTypes[argsNumber];
-  op_access planAccs[argsNumber];
+  op_dat_core * planDatArgs = calloc ( argsNumber, sizeof ( op_dat_core ) );
+  op_map_core * planMaps = calloc ( argsNumber, sizeof ( op_map_core ) );
+  int * planDims = calloc ( argsNumber, sizeof ( int ) );
+  char ** planTypes = calloc ( argsNumber, sizeof ( char * ) );
+  op_access * planAccs = calloc ( argsNumber, sizeof ( op_access ) );
   op_arg * planArguments;
 
   planArguments = calloc ( argsNumber, sizeof ( op_arg ) );
