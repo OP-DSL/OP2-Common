@@ -362,7 +362,7 @@ program airfoil
 !
 ! Uncomment to obtain the result
 !
-  retdebug = openfile ( c_char_"/data/carlo/AirfoilFortran/airfoil-openmp/q.txt"//c_null_char )
+  retdebug = openfile ( c_char_"/data/carlo/OP2-Common/apps/fortran/airfoil/hand-made/openmp/q.txt"//c_null_char )
  
   do debugiter = 1, 4*ncell
  

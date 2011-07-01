@@ -4,7 +4,6 @@
 module OP2_Fortran_RT_Support
 
   use, intrinsic :: ISO_C_BINDING
-  use cudafor
 
   integer(kind=c_int), parameter :: F_OP_ARG_DAT = 0
   integer(kind=c_int), parameter :: F_OP_ARG_GBL = 1
@@ -45,7 +44,17 @@ module OP2_Fortran_RT_Support
 	interface
 
 		! C wrapper to plan function for Fortran (cPlan function)                         
-		type(c_ptr) function FortranPlanCallerCUDA ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize ) &
+		type(c_ptr) function FortranPlanCallerCUDA ( name, &
+                                               & setId, &
+                                               & argsNumber, &
+                                               & args, &
+                                               & idxs, &
+                                               & maps, &
+                                               & accs, &
+                                               & indsNumber, &
+                                               & inds, &
+                                               & argsType, &
+                                               & partitionSize ) &
 							& BIND(C,name='FortranPlanCallerCUDA')                            
 
 			use, intrinsic :: ISO_C_BINDING
