@@ -55,8 +55,5 @@ op_plan * FortranPlanCallerCUDA ( char name[],
                                 inds
                               );
 
-  printf ( "After the plan get\n" );
-  exit ( 0 );
-
   return generatedPlan;
 }

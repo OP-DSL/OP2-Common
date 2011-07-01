@@ -306,11 +306,11 @@ op_plan_core ( char const * name, op_set set, int part_size,
 		OP_plans[ip].count++;
 		return &( OP_plans[ip] );
 	}
-//	else
-//	{
-//		if ( OP_diags > 1 )
-			//printf ( " new execution plan #%d for kernel %s\n", ip, name );
-//	}
+	else
+	{
+		if ( OP_diags > 1 )
+			printf ( " new execution plan #%d for kernel %s\n", ip, name );
+	}
 
 	/* work out worst case shared memory requirement per element */
 

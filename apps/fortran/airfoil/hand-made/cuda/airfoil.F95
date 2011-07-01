@@ -394,7 +394,7 @@ use constantVarsCuda
 
 	call op_fetch_data ( p_q )
 
-	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
 	do debugiter = 1, 4*ncell
 

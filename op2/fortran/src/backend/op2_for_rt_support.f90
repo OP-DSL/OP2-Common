@@ -4,6 +4,7 @@
 module OP2_Fortran_RT_Support
 
   use, intrinsic :: ISO_C_BINDING
+  use cudafor
 
   integer(kind=c_int), parameter :: F_OP_ARG_DAT = 0
   integer(kind=c_int), parameter :: F_OP_ARG_GBL = 1
