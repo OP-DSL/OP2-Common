@@ -102,10 +102,32 @@ typedef struct
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
 
+extern int OP_part_index;
+extern part *OP_part_list;
+extern int** orig_part_range;
+
+
+/*
+ * utility functions
+ */
+
+void decl_partition(op_set set, int* g_index, int* partition);
+
+void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm);
+
+int get_partition(int global_index, int* part_range, int* local_index, int comm_size);
+
+int get_global_index(int local_index, int partition, int* part_range, int comm_size);
+
+void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
+  int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm);
+
+void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
+    int* total, int* temp_list, int size, int comm_size, int my_rank);
+
 /*
  * Core mpi lib function prototypes
  */
-
 
 void op_halo_create();
 

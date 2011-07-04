@@ -29,31 +29,10 @@
 
 
 /*
- * written by: Gihan R. Mudalige, 01-03-2011
+ * written by: Gihan R. Mudalige, 07-06-2011
  */
 
-#include <op_lib_core.h>
-#include <op_lib_cpp.h>
-#include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
+void op_partition_geom(op_dat coords, int g_nnode);
 
-
-//
-//MPI Communicator for halo creation and exchange
-//
-extern MPI_Comm OP_MPI_WORLD;
-
-extern halo_list *OP_export_exec_list;//EEH list
-extern halo_list *OP_import_exec_list;//IEH list
-
-extern halo_list *OP_import_nonexec_list;//INH list
-extern halo_list *OP_export_nonexec_list;//ENH list
-
-extern int* dirtybit;
-extern op_mpi_buffer *OP_mpi_buffer_list;
-extern int *owned_num;
-
-extern int OP_part_index;
-extern part *OP_part_list;
-extern int** orig_part_range;
+void op_partition_reverse();
 

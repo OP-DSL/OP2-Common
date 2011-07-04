@@ -11,3 +11,7 @@ To compile it, it is required to:
 2. Set the environment variable OP2 to the base op2 directory,
    i.e. the one containing the "c" and "fortran" directories.
 
+3. Set the environment variable PARMETIS_INSTALL_PATH to the to the appropriate path.
+   For instance:
+
+      export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
