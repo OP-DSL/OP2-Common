@@ -346,7 +346,7 @@ int main(int argc, char **argv){
     op_diagnostic_output();
 
     //partition 
-    //op_partition_geom(p_x, g_nnode);
+    op_partition_geom(p_x, g_nnode);
     
     //create halos
     op_halo_create();
@@ -428,7 +428,7 @@ int main(int argc, char **argv){
     if(my_rank==0)printf("Max total runtime = %f\n",max_time);
     
     op_halo_destroy();
-    //op_partition_reverse();
+    op_partition_reverse();
 
     //gatherprint_tofile(p_q, "out_grid.dat");
     //gatherprint_bin_tofile(p_q, "out_grid.bin");    

@@ -21,7 +21,7 @@ CPP = icpc#g++
 MPI_HOME = /home/gihan/openmpi#this should be set as an environment variable
 MPICPP = $(MPI_HOME)/bin/mpiCC -g
 
-CCFLAGS	:= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
 
 #openmp
 OMP	:= -openmp -openmp-report2
@@ -44,6 +44,7 @@ NVCCFLAGS	:= -O3 -arch=sm_20 \
 		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
 
 LIBS		:= $(LIB) -lcudart
+PARMETISLIB 	:= $(PARMETIS_INSTALL_PATH)/libparmetis.a $(PARMETIS_INSTALL_PATH)/libmetis.a
 
 C_OP2_H		:= $(C_OP2)/op_seq.h $(C_OP2)/op_lib.h $(C_OP2)/op_lib_core.h
 OP2_LIB		:= $(C_OP2)/op_lib.a
@@ -106,7 +107,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 
 airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
 		$(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
-		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -L$(LIB_OP2) -lop2_mpi -o $(EXEC_MPI)
+		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INSTALL_PATH) -L$(LIB_OP2) -lop2_mpi $(PARMETISLIB) -o $(EXEC_MPI)
 		
 
 #

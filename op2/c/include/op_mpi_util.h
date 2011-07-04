@@ -32,28 +32,28 @@
  * written by: Gihan R. Mudalige, 01-03-2011
  */
 
-#include <op_lib_core.h>
-#include <op_lib_cpp.h>
-#include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
 
 
-//
-//MPI Communicator for halo creation and exchange
-//
-extern MPI_Comm OP_MPI_WORLD;
+void* xmalloc (size_t size);
 
-extern halo_list *OP_export_exec_list;//EEH list
-extern halo_list *OP_import_exec_list;//IEH list
+void* xrealloc (void *ptr, size_t size);
 
-extern halo_list *OP_import_nonexec_list;//INH list
-extern halo_list *OP_export_nonexec_list;//ENH list 
+int compare_sets(op_set set1, op_set set2);
 
-extern int* dirtybit;
-extern op_mpi_buffer *OP_mpi_buffer_list;
-extern int *owned_num; 
+int min(int array[], int size);
 
-extern int OP_part_index;
-extern part *OP_part_list;
-extern int** orig_part_range;
- 
+int binary_search(int a[], int value, int low, int high);
+
+int linear_search(int a[], int value, int low, int high);
+
+void quickSort(int arr[], int left, int right);
+
+void quickSort_2(int arr1[], int arr2[], int left, int right);
+
+void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size);
+
+void quickSort_map(int arr[], int map[], int left, int right, int dim);
+
+int removeDups(int a[], int array_size);
+
+
