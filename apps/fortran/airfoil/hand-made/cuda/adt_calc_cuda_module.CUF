@@ -550,7 +550,7 @@ contains
       partitionSize = 0
 #endif
 
-      print *, 'Partition size = ', part_size
+      print *, 'Partition size = ', partitionSize
 
       stop
 
