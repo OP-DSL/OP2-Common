@@ -31,7 +31,7 @@
 
 int OP_diags = 0,
     OP_part_size = 0,
-    OP_block_size = 512,
+    OP_block_size = 64,
     OP_cache_line_size = 128;
 
 int OP_set_index = 0, OP_set_max = 0,

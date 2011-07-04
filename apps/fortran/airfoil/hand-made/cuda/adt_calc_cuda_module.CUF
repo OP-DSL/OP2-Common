@@ -544,15 +544,8 @@ contains
         argsType(6) = F_OP_ARG_DAT
       end if
 
-#ifdef OP_PART_SIZE_2                                                 
-    partitionSize = OP_PART_SIZE_2;                                     
-#else
-      partitionSize = 0
-#endif
+      partitionSize = 64
 
-      print *, 'Partition size = ', partitionSize
-
-      stop
 
 			! get the plan                                      
 			planRet = FortranPlanCallerCUDA ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )

@@ -766,7 +766,7 @@ module bres_calc_cuda_module
             argsType(6) = F_OP_ARG_DAT
           end if
 
-          partitionSize = 0
+          partitionSize = 64
 
           ! get the plan
           planRet = FortranPlanCallerCUDA ( subroutineName, &
