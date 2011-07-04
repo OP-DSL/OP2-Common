@@ -2,4 +2,4 @@ rm qsub_script.*
 
 qsub -q pqkelly qsub_script
 
-/work/cbertoll/getError10000 /work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt /work/cbertoll/airfoil-result/q-mikes.txt > auto-diffed-q
+/work/cbertoll/getError10000 /work/cbertoll/OP2-PaperTests/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt /work/cbertoll/airfoil-result/q-mikes.txt > auto-diffed-q

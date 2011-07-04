@@ -88,3 +88,24 @@ void op_decl_const_f ( int dim, void **dat, char const *name )
 }
 
 
+op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
+{
+
+  op_dat_core * dataOut = calloc ( 1, sizeof ( op_dat_core ) );
+
+  char * typeName = (char *) calloc ( strlen ( type ), sizeof ( char ) );
+  
+  strncpy ( typeName, type, strlen ( type ) );  
+  
+
+  dataOut->index = -1;
+  dataOut->set = NULL;
+  dataOut->dim = dim;
+  dataOut->size = size * dim;
+  dataOut->data = *dataIn;
+  dataOut->data_d = NULL;
+  dataOut->type = typeName;
+  dataOut->name = NULL;
+  
+  return dataOut;
+}

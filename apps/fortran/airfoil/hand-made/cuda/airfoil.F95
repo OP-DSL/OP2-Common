@@ -342,7 +342,12 @@ use constantVarsCuda
 
 		end if
 
+	    if ( mod ( niter, 100 ) .eq. 0 ) then
+		print *, niter, rms(1)
+	   end if
+
 	end do ! external loop
+
 
 	istat = cudaEventRecord ( stopEvent, 0 )
 	istat = cudaEventSynchronize ( stopEvent )
@@ -394,7 +399,7 @@ use constantVarsCuda
 
 	call op_fetch_data ( p_q )
 
-	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+	retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-PaperTests_OLD/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
 
 	do debugiter = 1, 4*ncell
 

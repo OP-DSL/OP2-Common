@@ -3,8 +3,8 @@
 #PBS -l mem=1gb
 #PBS -l ncpus=1
 #PBS -l ngpus=1
-#PBS -W block=true
+
 
 module load cuda/4.0.11
 
-$WORK/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda
+$WORK/OP2-PaperTests_OLD/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda

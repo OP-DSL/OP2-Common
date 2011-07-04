@@ -1,8 +1,8 @@
-FC = pgfortran -g
-CC = pgcc -g
+FC = pgfortran
+CC = pgcc
 
-IC_OPT = -lcudart -use_fast_math # -O3
-FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath # -O4
+IC_OPT = -lcudart -use_fast_math -O3
+FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -O4
 
 F_OP2_LIB = $(OP2)/fortran/lib
 F_OP2_MOD = $(OP2)/fortran/mod

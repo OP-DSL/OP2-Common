@@ -29,13 +29,10 @@ module update_cuda_module
 	
 	integer(4) :: arg0Size, arg1Size, arg2Size, arg3Size, arg4Size
 
-!	real(8), dimension(:), allocatable, device :: argument0
-!	real(8), dimension(:), allocatable, device :: argument1
-!	real(8), dimension(:), allocatable, device :: argument2
-!	real(8), dimension(:), allocatable, device :: argument3
-!	real(8), dimension(:), allocatable, device :: argument4
+	real(8), dimension(:), allocatable :: redArrayHost
+	real(8), dimension(:), allocatable, device :: redArrayDev
 
-	real(8), dimension(:), pointer :: c2fPtrArg4
+!	real(8), dimension(:), pointer :: c2fPtrArg4
 
 	
 contains
@@ -375,6 +372,8 @@ contains
 
 		implicit none
 		
+
+
 		type(profInfo) :: op_par_loop_update
 		
 		! formal arguments
@@ -411,18 +410,16 @@ contains
 		
 		! these two variables implement the global reduction in the host and device memory, respectively
 		! and they contain the values computed by each thread block
-		real(8), dimension(:), allocatable :: redArrayHost
-		real(8), dimension(:), allocatable, device :: redArrayDev
 		
 		type(op_set_core), pointer :: arg0Set, arg1Set, arg2Set, arg3Set
 !		integer(4) :: arg0Size, arg1Size, arg2Size, arg3Size, arg4Size
-!		real(8), dimension(:), pointer :: c2fPtrArg4
+		real(kind=c_double), dimension(:), pointer :: c2fPtrArg4
 
 		real(8), dimension(:), allocatable, device :: argument0
 		real(8), dimension(:), allocatable, device :: argument1
 		real(8), dimension(:), allocatable, device :: argument2
 		real(8), dimension(:), allocatable, device :: argument3
-		real(8), dimension(:), allocatable, device :: argument4
+!		real(8), dimension(:), allocatable, device :: argument4
 		
 		! this is needed to avoid having more than 1 device variable in the same expression (see re-assignement
 		! after kernel call below)
@@ -505,16 +502,11 @@ contains
 
 		reductSize = max ( reductSize, 8 )
 				
-		allocate ( redArrayDev ( reductItems ) )
 
 
 		if ( isKernelInputDataGenerated .eq. .false. ) then
 		
 			isKernelInputDataGenerated = .true.
-		
-			! allocate reduction arrays on host and device memory
-!			allocate ( redArrayHost ( reductItems ) )
-
 
 			! setting up arguments sizes
 			argSizes%parg0Size = arg0Size
@@ -526,87 +518,66 @@ contains
 			! because we instatiate a copy of that global data on device memory for each thread used
 			argSizes%parg4Size = reductItems
 
+      ! the first time allocate enough space on host and device for reduction
+      allocate ( redArrayHost ( reductItems ) )
+      allocate ( redArrayDev ( reductItems ) )
+
 		end if
 
-			
-			! remember that:
-			! arg4.dat   = OP_reduct_h + reduct_bytes;
-			! arg4.dat_d = OP_reduct_d + reduct_bytes;
-			
-			! copy reduction array from host to device
-!			redArrayDev = redArrayHost
-			
-			! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
-			! one that has been assigned as a result of the previous execution of this op_par_loop)
-			nshared = 0
-
-			! this should be done for each op_dat argument copied to shared memory
-			! in this case the three of them have dim = 4 and it is actually useless
-			nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
-			nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
-			nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
-
-			offsetS = nshared * OP_WARP_SIZE
-
-			! in Fortran the reduction variable is merged in the same automatically allocated
-			! shared variable, and the size is: the size of the needed memory for the 
-			! arguments *plus* the size of the needed memory for the reduction variable (see below)
-			nshared = nshared * nthreads
-
-	!		nshared = max ( nshared * nthreads, reductSize * nthreads )
-
+    ! always zero out reduction variable on host
+    do i = 1, reductItems
+    
+      redArrayHost ( i ) = 0
       
+    end do
 
-      ! 1. transfer C pointers to Fortran pointers
-      
-      call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )      
-      call c_f_pointer ( arg1%dat_d, argument1, (/arg1Size/) )
-      call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
-      call c_f_pointer ( arg3%dat_d, argument3, (/arg3Size/) )
-      call c_f_pointer ( arg4%dat, c2fPtrArg4, (/arg4Size/) )
+    ! and then copy it to device
+    redArrayDev = redArrayHost
 
-			! in Fortran CUDA we have to allocate enough automatic shared memory
-			! directly from here, and to fit all information in the "same space:
-			! (see the difference between Fortran CUDA automatic shared variables
-			! and C CUDA ones)
+    ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
+    ! one that has been assigned as a result of the previous execution of this op_par_loop)
+    nshared = 0
 
-			! the start offset of dynamically allocated shared memory is the end of the previously
-			! allocated shared space used for some of the parallel loop variables
-			redStartOffset = nshared
+    ! this should be done for each op_dat argument copied to shared memory
+    ! in this case the three of them have dim = 4 and it is actually useless
+    nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
+    nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
+    nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
 
-			! Adding up memory space for shared variable in reduction routine
-			! (this is actually the max addressable position in the reduction variable)
-			maxReductionSize = nthreads * 8 !( nthreads - 1 ) +  ishft ( nblocks, -1 ) * reductSize 
-			nshared = nshared + maxReductionSize
+    offsetS = nshared * OP_WARP_SIZE
 
-!		end if
+    ! in Fortran the reduction variable is merged in the same automatically allocated
+    ! shared variable, and the size is: the size of the needed memory for the 
+    ! arguments *plus* the size of the needed memory for the reduction variable (see below)
+    nshared = nshared * nthreads
 
-!		print *, arg4Size
+!		nshared = max ( nshared * nthreads, reductSize * nthreads )
 
+    
 
+    ! 1. transfer C pointers to Fortran pointers
+    
+    call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )      
+    call c_f_pointer ( arg1%dat_d, argument1, (/arg1Size/) )
+    call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
+    call c_f_pointer ( arg3%dat_d, argument3, (/arg3Size/) )
 
-		! 2. allocate space on device for reduction variable (old value, the new value is computed in redArrayDev)
-		allocate ( argument4 ( arg4Size ) )
+    ! we conver the dat (host) and not dat_d (device) because this is a global data
+    call c_f_pointer ( arg4%dat, c2fPtrArg4, (/arg4Size/) )
 
+    ! in Fortran CUDA we have to allocate enough automatic shared memory
+    ! directly from here, and to fit all information in the "same space:
+    ! (see the difference between Fortran CUDA automatic shared variables
+    ! and C CUDA ones)
 
-		
+    ! the start offset of dynamically allocated shared memory is the end of the previously
+    ! allocated shared space used for some of the parallel loop variables
+    redStartOffset = nshared
 
-
-
-	
-
-		! initialise redArrayHost to 0
-!		do i = 1, reductItems !reductionItems = maxblocks
-!		
-!			redArrayDev(i) = 0.0 ! real(8) variable
-!		
-!		end do
-!
-!
-
-		! this to guarantee that the actual reduct value respects user modifications in the main program
-		argument4 = c2fPtrArg4
-
+    ! Adding up memory space for shared variable in reduction routine
+    ! (this is actually the max addressable position in the reduction variable)
+    maxReductionSize = nthreads * 8 !( nthreads - 1 ) +  ishft ( nblocks, -1 ) * reductSize 
+    nshared = nshared + maxReductionSize
 
 		istat = cudaEventRecord ( stopHostTime, 0 )
 		istat = cudaEventSynchronize ( stopHostTime )
@@ -641,10 +612,25 @@ contains
 		
 		istat = cudaEventRecord ( startHostTime, 0 )
 
-		
+		! copy back reduction variable, from device to host
+    redArrayHost = redArrayDev
+
+
+!    print *, 'printing out host array'
+!    summed = 0    
+!    do i = 1, reductItems
+
+!      print *, redArrayHost ( i )
+!	summed = summed + redArrayHost ( i )
+    
+!    end do
+!print *, summed
+!    stop
+    
 
 		! 2. reduct the host array to the single user variable
 		! implements:
+
 		! for (int b=0; b<maxblocks; b++)
     !		for (int d=0; d<1; d++)
 		!			arg4h[d] = arg4h[d] + ((double *)arg4.dat)[d+b*1];
@@ -652,31 +638,17 @@ contains
 		
 			do d = 0, 0
 
-				! 1 for argument4 is needed because we map scalar variables to array of 1 position
-				! possibly this works always because global data are always scalar values?
-				
-				! +1 is needed because in this case we are using the Fortran indexing notation (1:N)
-				partialArg4Sum = argument4(d+1)
-				partialRedArrayDev4Sum = redArrayDev ( d + b * 1 )
-				argument4(d+1) = partialArg4Sum + partialRedArrayDev4Sum
-				!c2fPtrArg4(d+1) = c2fPtrArg4(d+1) + redArrayHost ( d + b * 1 )
-			
+		        c2fPtrArg4 ( d + 1 ) = c2fPtrArg4 ( d + 1 ) + redArrayHost ( d + b * 1 )
+        			
 			end do
 		
 		end do
-
 		
-		! copy back device to host of global variable
-		c2fPtrArg4 = argument4
-
 		istat = cudaEventRecord ( stopHostTime, 0 )
 		istat = cudaEventSynchronize ( stopHostTime )
 		istat = cudaEventElapsedTime ( tmpHostTime, startHostTime, stopHostTime )
 
 		op_par_loop_update%hostTime = op_par_loop_update%hostTime + tmpHostTime	
-
-		deallocate ( redArrayDev )
-		deallocate ( argument4 )
 		
 	end function op_par_loop_update
 
