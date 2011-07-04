@@ -152,6 +152,16 @@ module OP2_Fortran_Declarations
 
     end subroutine op_decl_const_f
 
+    type(c_ptr) function op_decl_gbl_f ( dataIn, dataDim, dataSize, name ) BIND(C,name='op_decl_gbl_f')
+
+        use, intrinsic :: ISO_C_BINDING
+
+        type(c_ptr), intent(in) :: dataIn
+        integer(kind=c_int), value, intent(in) :: dataDim, dataSize
+        character(kind=c_char,len=1) :: name
+
+    end function op_decl_gbl_f
+
     subroutine op_fetch_data_f ( opdat ) BIND(C,name='op_fetch_data')
 
       import :: op_dat_core
@@ -332,7 +342,6 @@ contains
     integer, intent(in) :: gbldim
 
     ! unused name
-    character(kind=c_char,len=7) :: name = C_CHAR_'NONAME'//C_NULL_CHAR
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
     ! unsed op_set
@@ -340,11 +349,7 @@ contains
 
     type(c_ptr) :: gblCPtr = C_NULL_PTR
 
-    allocate ( unusedSet ( 1 ) )
-
-    unusedSet(1)%size = 1
-
-    gblData%dataCPtr = op_decl_dat_f ( c_loc ( unusedSet(1) ), gbldim, type, 8, c_loc ( dat ), name )
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 8, type )
 
     call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
 

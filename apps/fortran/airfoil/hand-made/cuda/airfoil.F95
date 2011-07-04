@@ -327,6 +327,10 @@ use constantVarsCuda
 
     end if
 
+    if ( mod ( niter, 100 ) .eq. 0 ) then
+      print *, niter, rms(1)
+    end if
+
   end do ! external loop
 
   istat = cudaEventRecord ( stopEvent, 0 )

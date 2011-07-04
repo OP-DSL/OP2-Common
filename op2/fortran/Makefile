@@ -17,15 +17,15 @@ F_OP2_BACKEND = $(F_OP2_SRC)/backend
 
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
 
-CC = gcc -g
-FCC = gfortran -g
-NVCC = nvcc -g
-PGF = pgfortran -g
+CC = gcc
+FCC = gfortran
+NVCC = nvcc
+PGF = pgfortran
 
-CFLAGS = -Wall -g #-O3
-FFLAGS = -J$(F_OP2_MOD) -g #-O4
-PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform -g #-O4
-NVCCFLAGS = -g #-O4
+CFLAGS = -Wall -O3
+FFLAGS = -J$(F_OP2_MOD) -O4
+PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform -O4
+NVCCFLAGS = -O4
 
 .PHONY: clean
 
@@ -88,8 +88,8 @@ f_openmp: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
 
 f_openmp_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/backend/op2_for_rt_wrappers.c $(F_OP2_SRC)/backend/op2_for_rt_support.f90
-	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
-	$(CC) -std=c99 $(FLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(CC) -std=c99 $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) -std=c99 $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_rt_support.f90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	ar -r $(F_OP2_LIB)/libop2_for_openmp_rt_support.a \
 	      $(F_OP2_OBJ)/op_rt_support.o \
