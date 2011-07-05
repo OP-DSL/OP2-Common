@@ -186,6 +186,8 @@ void op_diagnostic_output ( );
 
 void op_timing_output ( ); 
 
+void op_timing_output_2_file ( const char * );
+
 void op_timing_realloc ( int );
 
 #endif
