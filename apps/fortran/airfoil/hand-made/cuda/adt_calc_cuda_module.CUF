@@ -550,8 +550,6 @@ contains
       partitionSize = 0
 #endif
 
-      print *, 'partitionSize = ', partitionSize
-
 			! get the plan                                      
 			planRet = FortranPlanCallerCUDA ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )
 
@@ -714,10 +712,6 @@ contains
 #else                                                                 
      nthread = FOP_BLOCK_SIZE
 #endif
-
-    print *, 'nthread = ', nthread
-
-    stop
 
 		! execute the plan
 		do col = 0, (actualPlan%ncolors-1)
