@@ -7,4 +7,4 @@
 
 module load cuda/4.0.11
 
-$WORK/OP2-PaperTests_OLD/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda
+$WORK/OP2-PaperTests/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda
