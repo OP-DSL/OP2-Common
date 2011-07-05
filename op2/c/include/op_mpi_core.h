@@ -127,6 +127,12 @@ void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
 void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
     int* total, int* temp_list, int size, int comm_size, int my_rank);
 
+void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
+    int comm_size, int my_rank);
+
+void create_import_list(op_set set, int* temp_list, halo_list h_list, int total_size,
+    int* ranks, int* sizes, int ranks_size, int comm_size, int my_rank);
+
 /*
  * Core mpi lib function prototypes
  */
@@ -141,7 +147,7 @@ void wait_all(op_arg arg);
 
 void set_dirtybit(op_arg arg);
 
-void op_mpi_fetch_data(op_dat dat);
+op_dat op_mpi_get_data(op_dat dat);
 
 void global_reduce(op_arg* arg);
 
@@ -151,9 +157,9 @@ int op_mpi_perf_time(const char* name, double time);
 
 void op_mpi_perf_comm(int kernel_index, op_arg arg);
 
-void gatherprint_tofile(op_dat dat, const char *file_name);
+void print_dat_tofile(op_dat dat, const char *file_name);
 
-void gatherprint_bin_tofile(op_dat dat, const char *file_name);
+void print_dat_tobinfile(op_dat dat, const char *file_name);
 
 void reset_halo(op_arg arg);
 
