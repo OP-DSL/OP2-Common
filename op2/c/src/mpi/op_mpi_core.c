@@ -1829,7 +1829,7 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
 
 /**-------------------------------Output functions----------------------------**/
 
-void print_dat_tofile(op_dat dat, const char *file_name)
+void print_dat_tofile(op_dat dat, const char *file_name) //print to ASCI file
 {
   //create new communicator for output
   int rank, comm_size;
@@ -1902,7 +1902,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 }
 
 
-void print_dat_tobinfile(op_dat dat, const char *file_name)
+void print_dat_tobinfile(op_dat dat, const char *file_name)//print to Binary file
 {
   //create new communicator for output
   int rank, comm_size;
