@@ -91,7 +91,7 @@ use constantVarsCuda
 
   logical :: firstTime = .true.
 
-  integer(4) :: diags = 7
+  integer(4) :: diags = 0
 
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
@@ -325,10 +325,6 @@ use constantVarsCuda
 
       iterationTime = iterationTime + iterationPartialTime
 
-    end if
-
-    if ( mod ( niter, 100 ) .eq. 0 ) then
-      print *, niter, rms(1)
     end if
 
   end do ! external loop
