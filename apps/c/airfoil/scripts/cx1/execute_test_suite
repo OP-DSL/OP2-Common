@@ -1,0 +1,30 @@
+
+qsub -q pqkelly qsub_script_cuda_64_64
+qsub -q pqkelly qsub_script_cuda_64_128
+qsub -q pqkelly qsub_script_cuda_64_256
+qsub -q pqkelly qsub_script_cuda_64_512
+qsub -q pqkelly qsub_script_cuda_64_1024
+
+qsub -q pqkelly qsub_script_cuda_128_64
+qsub -q pqkelly qsub_script_cuda_128_128
+qsub -q pqkelly qsub_script_cuda_128_256
+qsub -q pqkelly qsub_script_cuda_128_512
+qsub -q pqkelly qsub_script_cuda_128_1024
+
+qsub -q pqkelly qsub_script_cuda_256_64
+qsub -q pqkelly qsub_script_cuda_256_128
+qsub -q pqkelly qsub_script_cuda_256_256
+qsub -q pqkelly qsub_script_cuda_256_512
+qsub -q pqkelly qsub_script_cuda_256_1024
+
+qsub -q pqkelly qsub_script_cuda_512_64
+qsub -q pqkelly qsub_script_cuda_512_128
+qsub -q pqkelly qsub_script_cuda_512_256
+qsub -q pqkelly qsub_script_cuda_512_512
+qsub -q pqkelly qsub_script_cuda_512_1024
+
+qsub -q pqkelly qsub_script_cuda_1024_64
+qsub -q pqkelly qsub_script_cuda_1024_128
+qsub -q pqkelly qsub_script_cuda_1024_256
+qsub -q pqkelly qsub_script_cuda_1024_512
+qsub -q pqkelly qsub_script_cuda_1024_1024
