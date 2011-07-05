@@ -452,42 +452,42 @@ op_timing_output_2_file ( const char * outputFileName )
   FILE * outputFile = NULL;
   float totalKernelTime = 0.0f;
 
-  outputFile = fopen ( outputFileName, "r+" );
+  outputFile = fopen ( outputFileName, "w+" );
   if ( outputFile == NULL )
   {
     printf ( "Bad output file\n" );
     exit ( 1 );
   }
 
-	if ( OP_kern_max > 0 )
-	{
-		fprintf ( outputFile, "\n  count     time     GB/s     GB/s   kernel name " );
-		fprintf ( outputFile, "\n ----------------------------------------------- \n" );
-		for ( int n = 0; n < OP_kern_max; n++ )
-		{
-			if ( OP_kernels[n].count > 0 )
-			{
-				if ( OP_kernels[n].transfer2 == 0.0f )
+  if ( OP_kern_max > 0 )
+  {
+    fprintf ( outputFile, "\n  count     time     GB/s     GB/s   kernel name " );
+    fprintf ( outputFile, "\n ----------------------------------------------- \n" );
+    for ( int n = 0; n < OP_kern_max; n++ )
+    {
+      if ( OP_kernels[n].count > 0 )
+      {
+        if ( OP_kernels[n].transfer2 == 0.0f )
         {
           totalKernelTime += OP_kernels[n].time;
-					fprintf ( outputFile, " %6d  %8.4f %8.4f            %s \n",
+          fprintf ( outputFile, " %6d  %8.4f %8.4f            %s \n",
                   OP_kernels[n].count,
                   OP_kernels[n].time,
                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
-				}
+        }
         else
         {
           totalKernelTime += OP_kernels[n].time;
-					fprintf ( outputFile, " %6d  %8.4f %8.4f %8.4f   %s \n",
+          fprintf ( outputFile, " %6d  %8.4f %8.4f %8.4f   %s \n",
                   OP_kernels[n].count,
                   OP_kernels[n].time,
                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ),
                   OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
         }
-			}
-		}
+      }
+    }
     fprintf ( outputFile, "Total kernel time = %f\n", totalKernelTime );
-	}
+  }
 
   fclose ( outputFile );
 }
