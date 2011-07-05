@@ -323,7 +323,7 @@ int main(int argc, char **argv){
   FILE * resFile = fopen ( "/work/cbertoll/OP2-PaperTests/c-tests/results.txt", "r+" );
   
   for ( int i = 0; i < 4 * ncell; i++ )
-    fprintf ( resFile, "%lf\n", q[i])
+    fprintf ( resFile, "%lf\n", q[i]);
   
   fclose ( resFile );
   
