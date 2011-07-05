@@ -50,8 +50,6 @@
 MPI_Comm OP_PART_WORLD;
 
 
-
-
 int frequencyof(int value, int* array, int size)
 {
    int frequency = 0; 
@@ -84,51 +82,6 @@ int compare_all_sets(op_set target_set, op_set other_sets[], int size)
     	if(compare_sets(target_set, other_sets[i])==1)return i;
     }    
     return -1;
-}
-
-
-void create_exp_list(op_set set, int* temp_list, halo_list h_list, 
-    int size, int comm_size, int my_rank)
-{
-    int* ranks = (int *) xmalloc(comm_size*sizeof(int));
-    int* list = (int *) xmalloc((size/2)*sizeof(int));
-    int* disps = (int *) xmalloc(comm_size*sizeof(int));
-    int* sizes = (int *) xmalloc(comm_size*sizeof(int));
-    
-    int ranks_size = 0;
-    int total_size = 0;  
-    
-    create_list(list, ranks, disps, sizes, &ranks_size, &total_size,
-    temp_list, size, comm_size, my_rank);
-    
-    h_list->set = set;
-    h_list->size = total_size;
-    h_list->ranks = ranks;
-    h_list->ranks_size = ranks_size;
-    h_list->disps = disps;
-    h_list->sizes = sizes;
-    h_list->list = list;
-}
-
-void create_imp_list(op_set set, int* temp_list, halo_list h_list, 
-    int total_size, int* ranks, int* sizes, int ranks_size, int comm_size, 
-    int my_rank)
-{
-    int* disps = (int *) xmalloc(comm_size*sizeof(int));
-    disps[0] = 0;
-    for(int i=0; i<ranks_size; i++)
-    {
-    	if(i>0)disps[i] = disps[i-1]+sizes[i-1]; 	
-    }
-
-    h_list->set = set;
-    h_list->size = total_size;
-    h_list->ranks = ranks;
-    h_list->ranks_size = ranks_size;
-    h_list->disps = disps;
-    h_list->sizes = sizes;
-    h_list->list = temp_list;
-    
 }
 
 /**special routine to create export list during partitioning map->to set 
@@ -257,7 +210,7 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     	    }    	    
     	}    	
     }    
-    create_exp_list(map->to,temp_list, pi_list, count, comm_size, my_rank);
+    create_export_list(map->to,temp_list, pi_list, count, comm_size, my_rank);
     free(temp_list);
     
     
@@ -293,7 +246,7 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     	free(rbuf);
     }
     MPI_Waitall(pi_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
-    create_imp_list(map->to,temp_list, pe_list, count, 
+    create_import_list(map->to,temp_list, pe_list, count, 
     	neighbors, sizes, ranks_size, comm_size, my_rank);    
     
     
@@ -1065,9 +1018,9 @@ void migrate_all(int my_rank, int comm_size)
     	    	temp_list[count++] = i;//part.g_index[i];      	      
     	    }
     	}
-    	//create partition info export list
+    	//create partition export list
     	pe_list[set->index] = (halo_list) xmalloc(sizeof(halo_list_core));
-    	create_exp_list(set, temp_list, pe_list[set->index], count, comm_size, my_rank);
+    	create_export_list(set, temp_list, pe_list[set->index], count, comm_size, my_rank);
     	free(temp_list);      
     }
     
@@ -1117,7 +1070,7 @@ void migrate_all(int my_rank, int comm_size)
       
     	MPI_Waitall(exp->ranks_size,request_send, MPI_STATUSES_IGNORE );
     	pi_list[set->index] = (halo_list) xmalloc(sizeof(halo_list_core));
-    	create_imp_list(set, temp_list, pi_list[set->index], count,
+    	create_import_list(set, temp_list, pi_list[set->index], count,
     	    neighbors, sizes, ranks_size, comm_size, my_rank);
     }
     

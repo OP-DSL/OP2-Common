@@ -102,7 +102,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   
   if(arg0.idx != -1 || arg1.idx != -1)//indirect loop
   {
-      if (OP_diags>2) { 
+      if (OP_diags==1) { 
       	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
       	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
       }
@@ -216,7 +216,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 )//indirect loop
   {
-      if (OP_diags>2) { 
+      if (OP_diags==1) { 
       	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
       	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
       	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
@@ -366,7 +366,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1)//indirect loop
   {
-      if (OP_diags>2) { 
+      if (OP_diags==1) { 
       	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
       	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
       	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
@@ -533,7 +533,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1 || arg6.idx != -1 || arg7.idx != -1)//indirect loop
   {
-      if (OP_diags>2) { 
+      if (OP_diags==1) { 
       	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
       	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
       	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
