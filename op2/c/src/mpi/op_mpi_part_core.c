@@ -1521,7 +1521,7 @@ void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_
   op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
   //printf time for partitioning
   time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,0, OP_PART_WORLD);
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if(my_rank==0)printf("Max total geometric partitioning time = %lf\n",max_time);
 }
@@ -1586,7 +1586,7 @@ void op_partition_reverse()
   op_timers(&cpu_t2, &wall_t2);  //timer stop for partition reversing
   //printf time for partition reversing
   time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,0, OP_PART_WORLD);
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if(my_rank==0)printf("Max total partition reverse time = %lf\n",max_time);
 }

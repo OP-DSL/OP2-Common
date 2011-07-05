@@ -102,6 +102,8 @@ typedef struct
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
 
+#define MPI_ROOT 0
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
