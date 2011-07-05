@@ -18,7 +18,7 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
 	character(len=MAX_PWD_LEN) :: currDir
   call get_environment_variable ( "WORK", currDir )
 
-	currDir = trim(currDir) //  '/airfoil-input/new_grid.dat'
+	currDir =  '/home/carlo/airfoil-input/new_grid.dat'
 	print *, 'getting input from ', currDir
 	! iterator for file scanning and array addressing
 	
