@@ -346,6 +346,8 @@ use constantVarsCuda
   write(*,*) 'total kernel bres_calc time (ms) = ', bres_calc_kernel_time
   write(*,*) 'total kernel update time (ms) = ', update_kernel_time
 
+  write(*,*), 'TOTAL KERNEL TIME = (ms)', save_soln_kernel_time + adt_calc_kernel_time + res_calc_kernel_time + bres_calc_kernel_time + update_kernel_time
+
   write(*,*) 'total host save soln time (ms) = ', save_soln_host_time
   write(*,*) 'total host adt calc time (ms) = ', adt_calc_host_time
   write(*,*) 'total host res_calc time (ms) = ', res_calc_host_time
