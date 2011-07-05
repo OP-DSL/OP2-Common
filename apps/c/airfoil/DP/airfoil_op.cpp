@@ -317,10 +317,15 @@ int main(int argc, char **argv){
 
 	//printf ( "Execution time is %lf (sec.)\n", endTime - startTime );
 
-  op_timing_output();
+  op_timing_output_2_file ( "/work/cbertoll/OP2-PaperTests/c-tests/times.txt" );
 
   op_fetch_data ( p_q );
-
+  FILE * resFile = fopen ( "/work/cbertoll/OP2-PaperTests/c-tests/results.txt", "r+" );
+  
+  for ( int i = 0; i < 4 * ncell; i++ )
+    fprintf ( resFile, "%lf\n", q[i])
+  
+  fclose ( resFile );
   
 }
 
