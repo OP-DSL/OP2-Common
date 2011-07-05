@@ -808,7 +808,11 @@ contains
         argsType(8) = F_OP_ARG_DAT
       end if
 
+#ifdef OP_PART_SIZE_1
+      partitionSize = OP_PART_SIZE_1
+#else
       partitionSize = 0
+#endif
 
       ! get the plan
       planRet = FortranPlanCallerCUDA ( subroutineName, &
@@ -983,6 +987,11 @@ contains
     op_par_loop_res_calc%hostTime = op_par_loop_res_calc%hostTime + tmpHostTime
     tmpHostTime = 0
 
+#ifdef OP_BLOCK_SIZE_1
+    nthread = OP_BLOCK_SIZE_1
+#else
+    nthread = FOP_BLOCK_SIZE
+#endif
 
     istat = cudaEventRecord ( startKernelTime, 0 )
 
@@ -990,7 +999,6 @@ contains
     do col = 0, (actualPlan%ncolors-1)
 
       nblocks = ncolblk(col+1) !+1 is needed because ncolblk is indexed from 1:set%size and not from 0:set%size-1
-      nthread = FOP_BLOCK_SIZE
       nshared = actualPlan%nshared
 
 !     print *, 'col = ', col, nblocks, nthread, nshared
