@@ -457,7 +457,7 @@ op_timing_output_2_file ( const char * outputFileName )
   FILE * outputFile = NULL;
   float totalKernelTime = 0.0f;
   
-  outputFile = fopen ( outputFileName, "r+" );
+  outputFile = fopen ( outputFileName, "w+" );
   if ( outputFile == NULL )
   {
     printf ( "Bad output file\n" );
