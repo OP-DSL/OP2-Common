@@ -430,8 +430,8 @@ int main(int argc, char **argv){
     op_halo_destroy();
     op_partition_reverse();
 
-    //gatherprint_tofile(p_q, "out_grid.dat");
-    //gatherprint_bin_tofile(p_q, "out_grid.bin");    
+    gatherprint_tofile(p_q, "out_grid.dat");
+    gatherprint_bin_tofile(p_q, "out_grid.bin");    
     
     MPI_Finalize();   //user mpi finalize
 

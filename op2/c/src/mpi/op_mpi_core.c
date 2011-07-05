@@ -1116,7 +1116,7 @@ void op_halo_create()
     op_timers(&cpu_t2, &wall_t2);  //timer stop for list create    
     //compute import/export lists creation time
     time = wall_t2-wall_t1;
-    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,0, OP_MPI_WORLD);    
+    MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);    
     
     //compute average halo size in Bytes
     int tot_halo_size = 0;
@@ -1136,7 +1136,7 @@ void op_halo_create()
     	}
     }
     int avg_halo_size;
-    MPI_Reduce(&tot_halo_size,&avg_halo_size,1,MPI_INT, MPI_SUM,0, OP_MPI_WORLD);
+    MPI_Reduce(&tot_halo_size, &avg_halo_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
     
     //print performance results
     if(my_rank==0)
@@ -1348,17 +1348,17 @@ void global_reduce(op_arg *arg)
 	double result;
 	if(arg->acc == OP_INC)//global reduction
 	{
-	    MPI_Reduce((double *)arg->data,&result,1,MPI_DOUBLE, MPI_SUM,0, OP_MPI_WORLD);
+	    MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(double));
 	}
 	else if(arg->acc == OP_MAX)//global maximum
 	{
-	    MPI_Reduce((double *)arg->data,&result,1,MPI_DOUBLE, MPI_MAX,0, OP_MPI_WORLD);
+	    MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(double));;
 	}
 	else if(arg->acc == OP_MIN)//global minimum              
 	{
-	    MPI_Reduce((double *)arg->data,&result,1,MPI_DOUBLE, MPI_MIN,0, OP_MPI_WORLD);
+	    MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(double));
 	}
     }
@@ -1367,17 +1367,17 @@ void global_reduce(op_arg *arg)
 	float result;
 	if(arg->acc == OP_INC)//global reduction
 	{
-	    MPI_Reduce((float *)arg->data,&result,1,MPI_FLOAT, MPI_SUM,0, OP_MPI_WORLD);
+	    MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(float));
 	}
 	else if(arg->acc == OP_MAX)//global maximum
 	{
-	    MPI_Reduce((float *)arg->data,&result,1,MPI_FLOAT, MPI_MAX,0, OP_MPI_WORLD);
+	    MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(float));;
 	}
 	else if(arg->acc == OP_MIN)//global minimum              
 	{
-	    MPI_Reduce((float *)arg->data,&result,1,MPI_FLOAT, MPI_MIN,0, OP_MPI_WORLD);
+	    MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(float));
 	}
     }
@@ -1386,17 +1386,17 @@ void global_reduce(op_arg *arg)
 	int result;
 	if(arg->acc == OP_INC)//global reduction
 	{
-	    MPI_Reduce((int *)arg->data,&result,1,MPI_INT, MPI_SUM,0, OP_MPI_WORLD);
+	    MPI_Reduce((int *)arg->data, &result,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(int));
 	}
 	else if(arg->acc == OP_MAX)//global maximum
 	{
-	    MPI_Reduce((int *)arg->data,&result,1,MPI_INT, MPI_MAX,0, OP_MPI_WORLD);
+	    MPI_Reduce((int *)arg->data, &result, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(int));;
 	}
 	else if(arg->acc == OP_MIN)//global minimum              
 	{
-	    MPI_Reduce((int *)arg->data,&result,1,MPI_INT, MPI_MIN,0, OP_MPI_WORLD);
+	    MPI_Reduce((int *)arg->data, &result, 1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
 	    memcpy(arg->data, &result, sizeof(int));
 	}
     }
@@ -1512,9 +1512,9 @@ void op_mpi_timing_output()
     	printf("Kernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
     for (int n=0; n<HASHSIZE; n++) {
-    	MPI_Reduce(&op_mpi_kernel_tab[n].count,&count,1,MPI_INT, MPI_MAX,0, OP_MPI_WORLD);
-    	MPI_Reduce(&op_mpi_kernel_tab[n].time,&avg_time,1,MPI_DOUBLE, MPI_SUM,0, OP_MPI_WORLD);
-    	MPI_Reduce(&op_mpi_kernel_tab[n].time,&tot_time,1,MPI_DOUBLE, MPI_MAX,0, OP_MPI_WORLD);
+    	MPI_Reduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+    	MPI_Reduce(&op_mpi_kernel_tab[n].time,&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    	MPI_Reduce(&op_mpi_kernel_tab[n].time,&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
    	
     	if(my_rank == 0 && count > 0)
     	{
@@ -1663,7 +1663,7 @@ void gatherprint_tofile(op_dat dat, const char *file_name)
     
     if(rank==0) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
     MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts, 
-  	      displs, MPI_DOUBLE, 0, OP_MPI_IO_WORLD);
+  	      displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
     
     
     if(rank==0)
@@ -1735,7 +1735,7 @@ void gatherprint_bin_tofile(op_dat dat, const char *file_name)
     }
     if(rank==0) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
     MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts, 
-  	      displs, MPI_DOUBLE, 0, OP_MPI_IO_WORLD);
+  	      displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
     
     
     if(rank==0)

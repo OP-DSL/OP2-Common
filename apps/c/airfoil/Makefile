@@ -1,8 +1,7 @@
 #
 # set paths for header files and libraries
 #
-
-C_OP2		= $(OP2)/c
+C_OP2	= $(OP2)/c
 
 INC_OP2 = $(C_OP2)/include
 SRC_OP2 = $(C_OP2)/src
