@@ -547,7 +547,7 @@ contains
 #ifdef OP_PART_SIZE_1
       partitionSize = OP_PART_SIZE_1
 #else
-      partitionSize = OP_part_size
+      partitionSize = 0
 #endif
 
       print *, 'partitionSize = ', partitionSize
@@ -712,7 +712,7 @@ contains
 #ifdef OP_BLOCK_SIZE_1
      nthread = OP_BLOCK_SIZE_1
 #else                                                                 
-     nthread = OP_block_size
+     nthread = FOP_BLOCK_SIZE
 #endif
 
     print *, 'nthread = ', nthread
