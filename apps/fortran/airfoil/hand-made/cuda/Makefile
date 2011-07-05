@@ -2,7 +2,7 @@ FC = pgfortran
 CC = pgcc
 
 IC_OPT = -lcudart -use_fast_math -O3
-FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -Mpreprocess -O4 -DOP_PART_SIZE_1=128 -DOP_BLOCK_SIZE_1=64
+FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -Mpreprocess -O4 -DOP_PART_SIZE_1=1024 -DOP_BLOCK_SIZE_1=1024
 
 F_OP2_LIB = $(OP2)/fortran/lib
 F_OP2_MOD = $(OP2)/fortran/mod
