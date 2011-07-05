@@ -16,13 +16,13 @@ FLAGS = -Wall -O3
 all: core reference runtime cuda openmp
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
 
-reference: $(INC)/op_reference.h $(SRC)/op_reference.c $(OBJ)/op_lib_core.o
-	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/op_reference.c -o $(OBJ)/op_reference.o
+reference: $(INC)/op_reference.h $(SRC)/sequential/op_reference.c $(OBJ)/op_lib_core.o
+	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/sequential/op_reference.c -o $(OBJ)/op_reference.o
 	ar -r $(LIB)/libop2_reference.a $(OBJ)/op_reference.o $(OBJ)/op_lib_core.o
 
-runtime: $(INC)/op_rt_support.h $(SRC)/core/op_rt_support.c $(INC)/op_lib_core.h $(SRC)/op_lib_core.c
+runtime: $(INC)/op_rt_support.h $(SRC)/core/op_rt_support.c $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_rt_support.a $(OBJ)/op_rt_support.o
 
