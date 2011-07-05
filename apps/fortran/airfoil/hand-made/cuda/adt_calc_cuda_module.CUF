@@ -544,8 +544,13 @@ contains
         argsType(6) = F_OP_ARG_DAT
       end if
 
-      partitionSize = 64
+#ifdef OP_PART_SIZE_1
+      partitionSize = OP_PART_SIZE_1
+#else
+      partitionSize = OP_part_size
+#endif
 
+      print *, 'partitionSize = ', partitionSize
 
 			! get the plan                                      
 			planRet = FortranPlanCallerCUDA ( subroutineName, set%index, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType, partitionSize )
@@ -704,13 +709,21 @@ contains
 		
 	  istat = cudaEventRecord ( startKernelTime, 0 )
 		
+#ifdef OP_BLOCK_SIZE_1
+     nthread = OP_BLOCK_SIZE_1
+#else                                                                 
+     nthread = OP_block_size
+#endif
 
+    print *, 'nthread = ', nthread
+
+    stop
 
 		! execute the plan
 		do col = 0, (actualPlan%ncolors-1)
 			
 			nblocks = ncolblk(col+1) !+1 is needed because ncolblk is indexed from 1:set%size and not from 0:set%size-1
-			nthread = FOP_BLOCK_SIZE
+!			nthread = FOP_BLOCK_SIZE
 			nshared = actualPlan%nshared
 
 			! call the main kernel (I need to add the variable sizes, otherwise we would get sigsegv in copy back)
