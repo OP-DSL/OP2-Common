@@ -7,4 +7,5 @@
 
 module load cuda/4.0.11
 
-$WORK/OP2/OP2-Common/apps/c/airfoil/airfoil_cuda
+
+$WORK/OP2-PaperTests/OP2-Common/apps/c/airfoil/DP/airfoil_cuda_64_64

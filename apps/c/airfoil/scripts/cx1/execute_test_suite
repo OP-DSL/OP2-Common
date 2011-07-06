@@ -1,101 +1,126 @@
 
 qsub -q pqkelly qsub_script_cuda_64_64
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_64_64.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_64_64.txt
 
 qsub -q pqkelly qsub_script_cuda_64_128
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_64_128.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_64_128.txt
 
 qsub -q pqkelly qsub_script_cuda_64_256
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_64_256.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_64_256.txt
 
 qsub -q pqkelly qsub_script_cuda_64_512
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_64_512.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_64_512.txt
 
 qsub -q pqkelly qsub_script_cuda_64_1024
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_64_1024.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_64_1024.txt
 
 qsub -q pqkelly qsub_script_cuda_128_64
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_128_64.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_128_64.txt
 
 qsub -q pqkelly qsub_script_cuda_128_128
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_128_128.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_128_128.txt
 
 qsub -q pqkelly qsub_script_cuda_128_256
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_128_256.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_128_256.txt
 
 qsub -q pqkelly qsub_script_cuda_128_512
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_128_512.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_128_512.txt
 
 qsub -q pqkelly qsub_script_cuda_128_1024
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_128_1024.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_128_1024.txt
 
 qsub -q pqkelly qsub_script_cuda_256_64
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_256_64.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_256_64.txt
 
 qsub -q pqkelly qsub_script_cuda_256_128
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_256_128.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_256_128.txt
 
 qsub -q pqkelly qsub_script_cuda_256_256
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_256_1256.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_256_1256.txt
 
 qsub -q pqkelly qsub_script_cuda_256_512
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_256_512.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_256_512.txt
 
 qsub -q pqkelly qsub_script_cuda_256_1024
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_256_1024.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_256_1024.txt
 
 qsub -q pqkelly qsub_script_cuda_512_64
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_512_64.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_512_64.txt
 
 qsub -q pqkelly qsub_script_cuda_512_128
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_512_128.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_512_128.txt
 
 qsub -q pqkelly qsub_script_cuda_512_256
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_512_256.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_512_256.txt
 
 qsub -q pqkelly qsub_script_cuda_512_512
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_512_512.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_512_512.txt
 
 qsub -q pqkelly qsub_script_cuda_512_1024
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_512_1024.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_512_1024.txt
 
 qsub -q pqkelly qsub_script_cuda_1024_64
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_1024_64.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_1024_64.txt
 
 qsub -q pqkelly qsub_script_cuda_1024_128
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_1024_128.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_1024_128.txt
 
 qsub -q pqkelly qsub_script_cuda_1024_256
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_1024_256.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_1024_256.txt
 
 qsub -q pqkelly qsub_script_cuda_1024_512
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_1024_512.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_1024_512.txt
 
 qsub -q pqkelly qsub_script_cuda_1024_1024
+sleep 3
 mv /work/cbertoll/OP2-PaperTests/c-tests/results.txt /work/cbertoll/OP2-PaperTests/c-tests/results_1024_1024.txt
 mv /work/cbertoll/OP2-PaperTests/c-tests/times.txt /work/cbertoll/OP2-PaperTests/c-tests/times_1024_1024.txt
 
