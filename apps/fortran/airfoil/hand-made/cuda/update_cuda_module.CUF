@@ -517,7 +517,6 @@ contains
 
     end if
 
-
     ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
     ! one that has been assigned as a result of the previous execution of this op_par_loop)
     nshared = 0
@@ -571,7 +570,9 @@ contains
 
     istat = cudaEventRecord ( startKernelTime, 0 )
 
-  ! always zero out reduction variable on host
+    ! moved here to reflect Mike's timing
+
+    ! always zero out reduction variable on host
     do i = 1, reductItems
 
       redArrayHost ( i ) = 0
@@ -628,6 +629,15 @@ contains
       end do
 
     end do
+
+    ! moved here to reflect Mike's timing...
+
+    istat = cudaEventRecord ( stopKernelTime, 0 )
+    istat = cudaEventSynchronize ( stopKernelTime )
+    istat = cudaEventElapsedTime ( op_par_loop_update%kernelTime, startKernelTime, stopKernelTime )
+
+
+    istat = cudaEventRecord ( startHostTime, 0 )
 
     istat = cudaEventRecord ( stopKernelTime, 0 )
     istat = cudaEventSynchronize ( stopKernelTime )
