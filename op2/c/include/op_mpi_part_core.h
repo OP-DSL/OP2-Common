@@ -32,7 +32,25 @@
  * written by: Gihan R. Mudalige, 07-06-2011
  */
 
+//
+//Random partitioning wrapper
+//
+
+void op_partition_random(op_set primary_set);
+
+//
+//ParMetis wrappers
+//
+
 void op_partition_geom(op_dat coords, int g_nnode);
+
+void op_partition_kway(op_map primary_map);
+
+void op_partition_geomkway(op_dat coords, int g_nnode, op_map primary_map);
+
+//
+//Other required routines
+//
 
 void op_partition_reverse();
 
