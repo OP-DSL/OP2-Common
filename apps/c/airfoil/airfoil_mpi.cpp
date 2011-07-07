@@ -347,6 +347,7 @@ int main(int argc, char **argv){
 
     //partition 
     op_partition_geom(p_x, g_nnode);
+    //op_partition_random(edges);
     
     //create halos
     op_halo_create();
@@ -422,7 +423,7 @@ int main(int argc, char **argv){
     //output the result dat array to files 
     print_dat_tofile(temp, "out_grid.dat"); //ASCI
     print_dat_tobinfile(temp, "out_grid.bin"); //Binary
-        
+    
     //free memory allocated to halos
     op_halo_destroy(); 
     //return all op_dats, op_maps back to original element order
@@ -439,3 +440,5 @@ int main(int argc, char **argv){
 
 }
 
+
+//need to implement a random partitioner that randoly partitions a given op_set

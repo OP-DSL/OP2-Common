@@ -31,6 +31,9 @@
 /* 
  * written by: Gihan R. Mudalige, 07-06-2011
  */
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -205,6 +208,7 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     	    
     	    if(part != my_rank)
     	    {
+    	    	
     	    	temp_list[count++] = part;
     	    	temp_list[count++] = local_index;
     	    }    	    
@@ -213,6 +217,7 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     create_export_list(map->to,temp_list, pi_list, count, comm_size, my_rank);
     free(temp_list);
     
+    //printf("on rank %d: good up to here\n",my_rank);
     
     //now, discover neighbors and create export list of "to" elements
     int ranks_size = 0;
@@ -250,6 +255,7 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     	neighbors, sizes, ranks_size, comm_size, my_rank);    
     
     
+    //printf("on rank %d; good up to this\n",my_rank);
     //use the import and export lists to exchange partition information of 
     //this "to" set
     MPI_Request request_send_p[pe_list->ranks_size];
@@ -284,6 +290,8 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
     }
     MPI_Waitall(pe_list->ranks_size,request_send_p, MPI_STATUSES_IGNORE );
     for(int i = 0; i<pe_list->ranks_size; i++) free(sbuf[i]);free(sbuf);
+    
+    
     
     //allocate memory to hold the partition details for the set thats going to be 
     //partitioned 
@@ -377,7 +385,7 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     	    	}
     	    	
     	    	temp_list[count++] = part; //curent partition (i.e. mpi rank)
-    	    	temp_list[count++] = map->map[i*map->dim+j];//global index
+    	    	temp_list[count++] = local_index;//map->map[i*map->dim+j];//global index
     	    	temp_list[count++] = p_set->elem_part[i]; //new partition  	    	
     	    }
     	}
@@ -399,6 +407,7 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     
     find_neighbors_set(pe_list,neighbors,sizes,&ranks_size,my_rank, 
     	comm_size, OP_PART_WORLD);
+    
     
     MPI_Request request_send_t[pe_list->ranks_size];
     MPI_Request request_send_p[pe_list->ranks_size];
@@ -437,6 +446,7 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     
     create_imp_list_2(map->to, temp_list_t, pi_list, count,
     	neighbors, sizes, ranks_size, comm_size, my_rank);
+    
     
     
     //-----go through local mapping table as well as the imported information
@@ -479,6 +489,8 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     int *partition = (int *)xmalloc(sizeof(int)*map->to->size);
     for(int i = 0; i < map->to->size; i++){partition[i] = -99;}
     
+    count = count+pi_list->size;
+    
     //sort both to_elems[] and correspondingly parts[] arrays
     quickSort_2(to_elems, parts, 0, count-1);
     
@@ -506,8 +518,35 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     free(to_elems);free(parts);
     
     //check if this "from" set is an "on to" set 
-    for(int i = 0; i < map->to->size; i++) if(partition[i]<0)  return -1;
+    //need to check this globally on all processors
+    int ok = 1;
+    for(int i = 0; i < map->to->size; i++) 
+    {	
+    	if(partition[i]<0)  
+    	{
+    	    printf("on rank %d: Map %s is not an an on-to mapping from set %s to set %s\n",
+    	    	my_rank, map->name, map->from->name,map->to->name);
+    	    //return -1;
+    	    ok = -1;
+    	    break;
+    	}
+    }
  
+    //check if globally this map was giving us an on-to set mapping
+    int* global_ok_array = (int*)xmalloc(comm_size*sizeof(int));
+    for(int r = 0;r<comm_size;r++)global_ok_array[r] = 1; 
+    MPI_Allgather( &ok, 1, MPI_INT,  global_ok_array,
+    	1,MPI_INT,OP_PART_WORLD);
+    for(int r = 0;r<comm_size;r++)
+    {
+    	if(global_ok_array[r]<0)
+    	{
+    	    printf("Rank %d reported problem partitioning\n",r);
+    	    return -1;
+    	}
+    }
+    free(global_ok_array);
+    
     OP_part_list[map->to->index]->elem_part = partition;
     OP_part_list[map->to->index]->is_partitioned = 1;
     
@@ -545,13 +584,13 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
     {
     	int cost[OP_map_index];
     	for(int i = 0; i<OP_map_index; i++) cost[i] = 99;
-       
+        
     	//compute a "cost" associated with using each mapping table 
     	for(int m=0; m<OP_map_index; m++)
     	{
     	    op_map map=OP_map_list[m];
       	   
-    	    if(binary_search(all_used_maps,map->index,0,maps_used-1)<0)// if not used before 
+    	    if(linear_search(all_used_maps,map->index,0,maps_used-1)<0)// if not used before 
     	    {
     	    	part to_set = OP_part_list[map->to->index];
     	    	part from_set = OP_part_list[map->from->index];
@@ -567,10 +606,16 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
     	    	    cost[map->index] = 0;
     	    }
        	}
-       
+        
+       	
        	while(1)
        	{
        	    int selected = min(cost, OP_map_index);
+       	    
+       	    for(int i = 0; i<OP_map_index;i++)
+       	    	printf(" %d",cost[i]);
+       	    printf(": selected %d",selected);
+       	    printf("\n");
        	    if(selected >= 0)
        	    {
        	    	op_map map=OP_map_list[selected];
@@ -581,10 +626,12 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
        	       
        	    	if(to_set->is_partitioned == 1) 
        	    	{
+       	    	    printf("Attempting to partition %s using %s\n",map->from->name,map->to->name);
        	    	    if( partition_from_set(map, my_rank, comm_size, part_range) > 0)
        	    	    {
-       	    	    	//if(my_rank==0)printf("Found map %s to partition from set %s using set %s\n",
-       	    	    	//	   map->name,map->from->name,map->to->name);
+       	    	    	//if(my_rank==0)
+       	    	    	printf("On rank %d: Using map %s to partitioned from set %s using set %s\n",
+       	    	    		   my_rank, map->name,map->from->name,map->to->name);
        	    	    	all_partitioned_sets[sets_partitioned++] = map->from;
        	    	    	all_used_maps[maps_used++] = map->index;
        	    	    	break;       	       	       
@@ -594,10 +641,12 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
        	    	} 
        	    	else if(from_set->is_partitioned == 1) 
        	    	{
+       	    	    printf("Attempting to partition %s using %s\n",map->to->name,map->from->name);
        	    	    if( partition_to_set(map, my_rank, comm_size, part_range) > 0)
        	    	    {
-       	    	    	//if(my_rank==0)printf("Found map %s to partition to set %s using set %s\n",
-       	    	    	//	   map->name,map->to->name,map->from->name);
+       	    	    	//if(my_rank==0)
+       	    	    	printf("On rank %d: Using map %s to partitioned to set %s using set %s\n",
+       	    	    		   my_rank, map->name,map->to->name,map->from->name);
        	    	    	all_partitioned_sets[sets_partitioned++] = map->to;
        	    	    	all_used_maps[maps_used++] = map->index;
        	    	    	break;
@@ -608,6 +657,7 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
        	    }
        	    else //partitioning error;
        	    {
+       	    	printf("On rank %d: Partitioning error\n",my_rank);
        	    	error = 1; break;
        	    }       	   
        	}
@@ -1370,6 +1420,89 @@ void migrate_all(int my_rank, int comm_size)
 }
 
 
+/**-------------------Partition A Primary Set randomly ----------------------**/
+void op_partition_random(op_set primary_set)
+{
+    //declare timers
+    double cpu_t1, cpu_t2, wall_t1, wall_t2;
+    double time;
+    double max_time;
+    
+    op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
+  
+    //create new communicator for partitioning
+    int my_rank, comm_size;
+    MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+    MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+    MPI_Comm_size(OP_PART_WORLD, &comm_size);
+    
+    /*--STEP 0 - initialise partitioning data stauctures with the current (block) 
+    partitioning information */
+    
+    // Compute global partition range information for each set
+    int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+    get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
+    
+    //save the original part_range for future partition reversing
+    orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+    for(int s = 0; s< OP_set_index; s++)
+    {
+    	op_set set=OP_set_list[s];
+    	orig_part_range[set->index] = (int *)xmalloc(2*comm_size*sizeof(int));
+    	for(int j = 0; j<comm_size; j++){
+    	    orig_part_range[set->index][2*j] = part_range[set->index][2*j];
+    	    orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
+    	}
+    }
+    
+    //allocate memory for list
+    OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
+    
+    for(int s=0; s<OP_set_index; s++) { //for each set
+      op_set set=OP_set_list[s];
+      //printf("set %s size = %d\n", set.name, set.size);
+      int *g_index = (int *)xmalloc(sizeof(int)*set->size);
+      for(int i = 0; i< set->size; i++)
+      	  g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);      
+      decl_partition(set, g_index, NULL); 
+    }
+  
+/*-----STEP 1 - Partition Primary set using a random number generator --------*/
+
+    int *partition = (int *)xmalloc(sizeof(int)*primary_set->size);
+    //printf("RAND_MAX = %d",RAND_MAX);
+    for(int i = 0; i < primary_set->size; i++)
+    {
+    	//not sure if this is the best way to generate the required random number
+    	partition[i] = //rand()%comm_size;
+    	(int)((double)rand()/((double)RAND_MAX + 1)*comm_size);
+    }
+    
+    //initialise primary set as partitioned
+    OP_part_list[primary_set->index]->elem_part= partition;
+    OP_part_list[primary_set->index]->is_partitioned = 1;  
+
+    //free part range
+    for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+
+/*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+
+    //partition all other sets
+    partition_all(primary_set, my_rank, comm_size);
+    
+    //migrate data, sort elements 
+    migrate_all(my_rank, comm_size);
+    
+    //renumber mapping tables
+    renumber_maps(my_rank, comm_size);
+
+    op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
+    //printf time for partitioning
+    time = wall_t2-wall_t1;
+    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
+    MPI_Comm_free(&OP_PART_WORLD);  
+    if(my_rank==0)printf("Max total random partitioning time = %lf\n",max_time);     
+}
 
 /**------------Partition A Primary Set Using XYZ Geometry Data---------------**/
 void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_PartGeom()
@@ -1463,10 +1596,12 @@ void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_
     
     //free part range
     for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
-  
+
     //initialise primary set as partitioned
     OP_part_list[coords->set->index]->elem_part= partition;
     OP_part_list[coords->set->index]->is_partitioned = 1;  
+    
+/*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
     
     //partition all other sets
     partition_all(coords->set, my_rank, comm_size);

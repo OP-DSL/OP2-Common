@@ -199,7 +199,7 @@ void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
 {
     int index = 0;
     int total_size = 0;
-    
+    if(size < 0)printf("problem\n");
     //negative values set as an initialisation
     for(int r = 0;r<comm_size;r++)
     {
@@ -1396,10 +1396,8 @@ op_dat op_mpi_get_data(op_dat dat)
 {
     //create new communicator for fetching
     int my_rank, comm_size;
-    MPI_Comm OP_FETCH_WORLD;
-    MPI_Comm_dup(MPI_COMM_WORLD, &OP_FETCH_WORLD);
-    MPI_Comm_rank(OP_FETCH_WORLD, &my_rank);
-    MPI_Comm_size(OP_FETCH_WORLD, &comm_size);
+    MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+    MPI_Comm_size(OP_MPI_WORLD, &comm_size);
     
     //
     //make a copy of the distributed op_dat on to a distributed temporary op_dat
@@ -1462,7 +1460,7 @@ op_dat op_mpi_get_data(op_dat dat)
     sizes = (int *)xmalloc(comm_size*sizeof(int));
       
     find_neighbors_set(pe_list, neighbors, sizes, &ranks_size,
-    	my_rank, comm_size, OP_FETCH_WORLD);
+    	my_rank, comm_size, OP_MPI_WORLD);
     MPI_Request request_send[pe_list->ranks_size];
     
     int* rbuf;
@@ -1471,7 +1469,7 @@ op_dat op_mpi_get_data(op_dat dat)
     for(int i=0; i<pe_list->ranks_size; i++) {
     	int* sbuf = &pe_list->list[pe_list->disps[i]];
     	MPI_Isend( sbuf,  pe_list->sizes[i],  MPI_INT, pe_list->ranks[i], 1,
-    	    OP_FETCH_WORLD, &request_send[i] );
+    	    OP_MPI_WORLD, &request_send[i] );
     }
     
     for(int i=0; i< ranks_size; i++) cap = cap + sizes[i];
@@ -1479,7 +1477,7 @@ op_dat op_mpi_get_data(op_dat dat)
     
     for(int i=0; i<ranks_size; i++) {
     	rbuf = (int *)xmalloc(sizes[i]*sizeof(int));
-    	MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], 1, OP_FETCH_WORLD,
+    	MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], 1, OP_MPI_WORLD,
     	    	MPI_STATUSES_IGNORE );
     	memcpy(&temp_list[count],(void *)&rbuf[0],sizes[i]*sizeof(int));
     	count = count + sizes[i];
@@ -1509,13 +1507,13 @@ op_dat op_mpi_get_data(op_dat dat)
     	}
     	MPI_Isend(sbuf_char[i], dat->size*pe_list->sizes[i], 
     	    MPI_CHAR, pe_list->ranks[i],
-    	    dat->index, OP_FETCH_WORLD, &request_send[i]);
+    	    dat->index, OP_MPI_WORLD, &request_send[i]);
     }
     
     char *rbuf_char = (char *)xmalloc(dat->size*pi_list->size);
     for(int i=0; i < pi_list->ranks_size; i++) {
     	MPI_Recv(&rbuf_char[pi_list->disps[i]*dat->size],dat->size*pi_list->sizes[i],
-    	    MPI_CHAR, pi_list->ranks[i], dat->index, OP_FETCH_WORLD, MPI_STATUSES_IGNORE);
+    	    MPI_CHAR, pi_list->ranks[i], dat->index, OP_MPI_WORLD, MPI_STATUSES_IGNORE);
     }
     
     MPI_Waitall(pe_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
@@ -1560,7 +1558,7 @@ op_dat op_mpi_get_data(op_dat dat)
     	}
     	MPI_Isend(sbuf[i],  pe_list->sizes[i],
     	    MPI_INT, pe_list->ranks[i],
-    	    dat->index, OP_FETCH_WORLD, &request_send[i]);
+    	    dat->index, OP_MPI_WORLD, &request_send[i]);
     }
     
     rbuf = (int *)xmalloc(sizeof(int)*pi_list->size);
@@ -1569,7 +1567,7 @@ op_dat op_mpi_get_data(op_dat dat)
     for(int i=0; i < pi_list->ranks_size; i++) {
     	MPI_Recv(&rbuf[pi_list->disps[i]],pi_list->sizes[i],
     	    MPI_INT, pi_list->ranks[i], dat->index,
-    	    OP_FETCH_WORLD, MPI_STATUSES_IGNORE);
+    	    OP_MPI_WORLD, MPI_STATUSES_IGNORE);
     }
     MPI_Waitall(pe_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
     for(int i=0; i < pe_list->ranks_size; i++) free(sbuf[i]); free(sbuf);
@@ -1605,6 +1603,7 @@ op_dat op_mpi_get_data(op_dat dat)
     free(pi_list->ranks);free(pi_list->disps);
     free(pi_list->sizes);free(pi_list->list);
     free(pi_list);
+    
     
     //remember that the original set size is now given by count
     op_set set = (op_set) malloc(sizeof(op_set_core));
