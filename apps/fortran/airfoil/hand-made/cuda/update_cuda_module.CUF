@@ -588,7 +588,7 @@ contains
       
     end do
 
-    print *, 'Before copying from host to device'
+    print *, 'Before copying from host to device, reductItems = ', reductItems
 
     ! and then copy it to device
     redArrayDev = redArrayHost
