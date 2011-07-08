@@ -220,9 +220,9 @@ contains
 		call op_init_core ( argc, C_NULL_PTR, diags )
 		
     ! support for GTX
-    setDevReturnVal = cudaSetDevice ( 2 )
+    setDevReturnVal = cudaSetDevice ( 3 )
     
-    devPropRetVal = cudaGetDeviceProperties ( deviceProperties, 2 )
+    devPropRetVal = cudaGetDeviceProperties ( deviceProperties, 3 )
     
     print *, 'Using: ', deviceProperties%name
     
