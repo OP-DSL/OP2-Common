@@ -7,7 +7,7 @@ do
                 APP=$PART_SIZE_ENV$UND$BLOCK_SIZE_ENV
 
 #                echo qsub_script_$APP
-                 echo /home/carlo/OP2-PaperTests/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda_$APP
+                /home/carlo/OP2-PaperTests/OP2-Common/apps/fortran/airfoil/hand-made/cuda/airfoil_cuda_$APP > results_$APP
 
         done
 done
