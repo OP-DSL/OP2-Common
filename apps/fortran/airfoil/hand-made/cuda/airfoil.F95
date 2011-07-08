@@ -350,6 +350,19 @@ use constantVarsCuda
 		
     end do ! internal loop
 
+    call op_fetch_data ( p_q )
+    
+   	retDebug = openfile ( C_CHAR_"/home/carlo/OP2-PaperTests/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+
+    do debugiter = 1, 4*ncell
+
+      datad = q(debugiter)
+      retDebug = writeRealToFile ( datad )
+    end do
+
+    retDebug = closefile ()
+
+
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
 
