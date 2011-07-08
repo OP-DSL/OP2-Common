@@ -518,12 +518,12 @@ contains
 			! because we instatiate a copy of that global data on device memory for each thread used
 			argSizes%parg4Size = reductItems
 
-
-		end if
-
       ! the first time allocate enough space on host and device for reduction
       allocate ( redArrayHost ( reductItems ) )
       allocate ( redArrayDev ( reductItems ) )
+
+		end if
+
 
 
     ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
@@ -669,10 +669,6 @@ istat = cudaEventRecord ( startHostTime, 0 )
 
 		op_par_loop_update%hostTime = op_par_loop_update%hostTime + tmpHostTime	
 		
-          ! the first time allocate enough space on host and device for reduction
-      deallocate ( redArrayHost )
-      deallocate ( redArrayDev )
-
     
 	end function op_par_loop_update
 
