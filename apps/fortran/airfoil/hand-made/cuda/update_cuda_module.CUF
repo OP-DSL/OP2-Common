@@ -517,15 +517,6 @@ contains
 
     end if
 
-    ! always zero out reduction variable on host
-    do i = 1, reductItems
-
-      redArrayHost ( i ) = 0
-
-    end do
-
-    ! and then copy it to device
-    redArrayDev = redArrayHost
 
     ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
     ! one that has been assigned as a result of the previous execution of this op_par_loop)
@@ -580,6 +571,16 @@ contains
 
     istat = cudaEventRecord ( startKernelTime, 0 )
 
+  ! always zero out reduction variable on host
+    do i = 1, reductItems
+
+      redArrayHost ( i ) = 0
+
+    end do
+
+    ! and then copy it to device
+    redArrayDev = redArrayHost
+
     call  op_cuda_update <<< nblocks, nthreads, nshared >>> ( argSizes, &
                                                             & argument0, &
                                                             & argument1, &
@@ -594,13 +595,6 @@ contains
 
     ! synchronise threads after kernel call
     threadSynchRet = cudaThreadSynchronize()
-
-    istat = cudaEventRecord ( stopKernelTime, 0 )
-    istat = cudaEventSynchronize ( stopKernelTime )
-    istat = cudaEventElapsedTime ( op_par_loop_update%kernelTime, startKernelTime, stopKernelTime )
-
-
-    istat = cudaEventRecord ( startHostTime, 0 )
 
     ! copy back reduction variable, from device to host
     redArrayHost = redArrayDev
@@ -621,6 +615,7 @@ contains
 
     ! 2. reduct the host array to the single user variable
     ! implements:
+
     ! for (int b=0; b<maxblocks; b++)
     !   for (int d=0; d<1; d++)
     !     arg4h[d] = arg4h[d] + ((double *)arg4.dat)[d+b*1];
@@ -634,6 +629,11 @@ contains
 
     end do
 
+    istat = cudaEventRecord ( stopKernelTime, 0 )
+    istat = cudaEventSynchronize ( stopKernelTime )
+    istat = cudaEventElapsedTime ( op_par_loop_update%kernelTime, startKernelTime, stopKernelTime )
+
+    istat = cudaEventRecord ( startHostTime, 0 )
     istat = cudaEventRecord ( stopHostTime, 0 )
     istat = cudaEventSynchronize ( stopHostTime )
     istat = cudaEventElapsedTime ( tmpHostTime, startHostTime, stopHostTime )
