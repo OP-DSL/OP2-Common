@@ -366,16 +366,6 @@ use constantVarsCuda
   write(*,*) 'Average time for host bres calc (ms): ', (bres_calc_host_time / real(bres_calc_count))
   write(*,*) 'Average time for host update (ms): ', (update_host_time / real(update_count))
 
-  retDebug = openfile ( C_CHAR_"/work/cbertoll/airfoil-cuda-optimised/ittimes.txt"//C_NULL_CHAR )
-
-  do debugiter = 1, iterationNumber
-
-    datad = iterationFullTimes(debugiter)
-    retDebug = writeRealToFile ( datad )
-  end do
-
-  retDebug = closefile ()
-
   call op_fetch_data ( p_q )
 
   retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )

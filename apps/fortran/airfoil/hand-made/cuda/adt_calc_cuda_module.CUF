@@ -746,16 +746,6 @@ contains
 
     op_par_loop_adt_calc%hostTime = op_par_loop_adt_calc%hostTime + tmpHostTime
 
-    ! 2. copy back device to host
-!   c2fPtrArg0 = argument0
-!   c2fPtrArg4 = argument4
-!   c2fPtrArg5 = argument5
-!
-!   ! deallocate space on device
-!   deallocate ( argument0 )
-!   deallocate ( argument4 )
-!   deallocate ( argument5 )
-
   end function op_par_loop_adt_calc
 
 end module adt_calc_cuda_module
