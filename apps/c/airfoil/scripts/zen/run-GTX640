@@ -1,0 +1,13 @@
+UND="_"
+for PART_SIZE_ENV in 64 128 256 512 1024
+do
+        for BLOCK_SIZE_ENV in 64 128 256 512 1024
+        do
+
+                APP=$PART_SIZE_ENV$UND$BLOCK_SIZE_ENV
+
+#                echo qsub_script_$APP
+                /home/carlo/OP2-PaperTests/OP2-Common/apps/c/airfoil/airfoil_cuda_$APP > results_$APP
+
+        done
+done
