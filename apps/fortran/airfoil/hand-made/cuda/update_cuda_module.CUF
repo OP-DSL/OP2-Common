@@ -670,8 +670,8 @@ istat = cudaEventRecord ( startHostTime, 0 )
 		op_par_loop_update%hostTime = op_par_loop_update%hostTime + tmpHostTime	
 		
           ! the first time allocate enough space on host and device for reduction
-      deallocate ( redArrayHost ( reductItems ) )
-      deallocate ( redArrayDev ( reductItems ) )
+      deallocate ( redArrayHost )
+      deallocate ( redArrayDev )
 
     
 	end function op_par_loop_update
