@@ -6,8 +6,8 @@ do
 
                 APP=$PART_SIZE_ENV$UND$BLOCK_SIZE_ENV
 
-                print qsub_script_$APP
-#                qsub -q pqkelly qsub_script_$APP
+#                echo qsub_script_$APP
+                qsub -q pqkelly qsub_script_$APP
 
         done
 done
