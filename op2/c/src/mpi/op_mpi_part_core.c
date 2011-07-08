@@ -532,7 +532,6 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
   {
     if(global_ok_array[r]<0)
     {
-      printf("Rank %d reported problem partitioning\n",r);
       return -1;
     }
   }
@@ -601,11 +600,6 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
     {
       int selected = min(cost, OP_map_index);
 
-      for(int i = 0; i<OP_map_index;i++)
-        printf(" %d",cost[i]);
-      printf(": selected %d",selected);
-      printf("\n");
-
       if(selected >= 0)
       {
         op_map map=OP_map_list[selected];
@@ -616,12 +610,8 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
 
         if(to_set->is_partitioned == 1)
         {
-          printf("Attempting to partition %s using %s\n",map->from->name,map->to->name);
           if( partition_from_set(map, my_rank, comm_size, part_range) > 0)
           {
-            //if(my_rank==0)
-            printf("On rank %d: Using map %s to partitioned from set %s using set %s\n",
-                my_rank, map->name,map->from->name,map->to->name);
             all_partitioned_sets[sets_partitioned++] = map->from;
             all_used_maps[maps_used++] = map->index;
             break;
@@ -631,12 +621,8 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
         }
         else if(from_set->is_partitioned == 1)
         {
-          printf("Attempting to partition %s using %s\n",map->to->name,map->from->name);
           if( partition_to_set(map, my_rank, comm_size, part_range) > 0)
           {
-            //if(my_rank==0)
-            printf("On rank %d: Using map %s to partitioned to set %s using set %s\n",
-                my_rank, map->name,map->to->name,map->from->name);
             all_partitioned_sets[sets_partitioned++] = map->to;
             all_used_maps[maps_used++] = map->index;
             break;
