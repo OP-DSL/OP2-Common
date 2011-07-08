@@ -17,15 +17,15 @@ F_OP2_BACKEND = $(F_OP2_SRC)/backend
 
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
 
-CC = gcc
-FCC = gfortran
-NVCC = nvcc
-PGF = pgfortran
+CC = gcc -g
+FCC = gfortran -g
+NVCC = nvcc -g
+PGF = pgfortran -g
 
-CFLAGS = -Wall -O3
-FFLAGS = -J$(F_OP2_MOD) -O4
-PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform -O4
-NVCCFLAGS = -O4
+CFLAGS = -Wall #-O3
+FFLAGS = -J$(F_OP2_MOD) # -O4
+PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform # -O4
+NVCCFLAGS = # -O4
 
 .PHONY: clean
 
