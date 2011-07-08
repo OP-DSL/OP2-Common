@@ -178,8 +178,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
                                                                         
   // get plan                                                           
                                                                         
-  #ifdef OP_PART_SIZE_2                                                 
-    int part_size = OP_PART_SIZE_2;                                     
+  #ifdef OP_PART_SIZE_1                                                
+    int part_size = OP_PART_SIZE_1;                                     
   #else                                                                 
     int part_size = OP_part_size;                                       
   #endif                                                                
@@ -197,8 +197,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
                                                                         
   for (int col=0; col < Plan->ncolors; col++) {                         
                                                                         
-  #ifdef OP_BLOCK_SIZE_2                                                
-    int nthread = OP_BLOCK_SIZE_2;                                      
+  #ifdef OP_BLOCK_SIZE_1                                                
+    int nthread = OP_BLOCK_SIZE_1;                                      
   #else                                                                 
     int nthread = OP_block_size;                                        
   #endif                                                                
