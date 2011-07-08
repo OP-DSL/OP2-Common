@@ -216,7 +216,7 @@ contains
 		call op_init_core ( argc, C_NULL_PTR, diags )
 		
     ! support for GTX
-    cudaSetDevice ( 2 )
+    call cudaSetDevice ( 2 )
     
 	end subroutine op_init
 
