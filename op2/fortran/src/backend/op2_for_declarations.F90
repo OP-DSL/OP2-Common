@@ -196,6 +196,8 @@ contains
     ! local variables
 		integer(4) :: argc = 0
 
+    integer(4) :: setDevReturnVal = -1
+
 		type (op_map_core), pointer :: idPtr
 		type (op_map_core), pointer :: gblPtr
 
@@ -216,7 +218,7 @@ contains
 		call op_init_core ( argc, C_NULL_PTR, diags )
 		
     ! support for GTX
-    call cudaSetDevice ( 2 )
+    setDevReturnVal = cudaSetDevice ( 2 )
     
 	end subroutine op_init
 
