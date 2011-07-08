@@ -362,6 +362,7 @@ use constantVarsCuda
 
     retDebug = closefile ()
 
+    stop
 
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
