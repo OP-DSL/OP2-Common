@@ -1,0 +1,13 @@
+UND="_"
+for PART_SIZE_ENV in 64 128 256 512 1024
+do
+        for BLOCK_SIZE_ENV in 64 128 256 512 1024
+        do
+
+                APP=$PART_SIZE_ENV$UND$BLOCK_SIZE_ENV
+
+                print qsub_script_$APP
+#                qsub -q pqkelly qsub_script_$APP
+
+        done
+done
