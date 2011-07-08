@@ -589,13 +589,9 @@ contains
       
     end do
 
-    print *, 'Before copying from host to device, reductItems = ', reductItems
-
     ! and then copy it to device
     redArrayDev = redArrayHost
 		
-
-    print *, 'after copying from host to device'
 
 		call  op_cuda_update <<< nblocks, nthreads, nshared >>> ( argSizes, &
 																														&	argument0, &
@@ -613,12 +609,10 @@ contains
 		threadSynchRet = cudaThreadSynchronize()
 
 
-    print *, 'Before copying from device to host'
 
 		! copy back reduction variable, from device to host
     redArrayHost = redArrayDev
 
-    print *, 'after copying from device to host'
 
 !    print *, 'printing out host array'
 !    summed = 0    

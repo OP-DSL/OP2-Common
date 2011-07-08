@@ -190,16 +190,11 @@ use constantVarsCuda
 		
 		istat = cudaEventRecord ( iterationStartTime, 0 )
 
-    print *, 'Before the save soln, iteration = ', niter
-
 		! save old flow solution
 		save_soln_info = op_par_loop_save_soln ( savesolnName, cells, &
 																					 & p_q,    -1, OP_ID, OP_READ, &
 																					 & p_qold, -1, OP_ID, OP_WRITE &
 																				 & )
-
-    print *, 'After the save soln, iteration = ', niter
-
 
 		save_soln_kernel_time = save_soln_kernel_time + save_soln_info%kernelTime
 		save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
@@ -208,10 +203,6 @@ use constantVarsCuda
 		! predictor/corrector update loop
 				
     do k = 1, 2
-
-
-      print *, 'Before the adt calc, iteration1 = ', niter, ' iteration2 = ', k
-
 
       ! calculate area/timstep
 
@@ -223,9 +214,6 @@ use constantVarsCuda
 																					 & p_q,   -1, OP_ID, OP_READ, &
 																					 & p_adt, -1, OP_ID, OP_WRITE &
 																				 & )
-
-      print *, 'After the adt calc, iteration1 = ', niter, ' iteration2 = ', k
-
 
 			adt_calc_kernel_time = adt_calc_kernel_time + adt_calc_info%kernelTime
 			adt_calc_host_time = adt_calc_host_time + adt_calc_info%hostTime
@@ -245,8 +233,6 @@ use constantVarsCuda
 
       ! calculate flux residual
 
-      print *, 'Before the res calc, iteration1 = ', niter, ' iteration2 = ', k
-
 
       res_calc_info = op_par_loop_res_calc ( rescalcName, edges, &
 																					 & p_x,    1, pedge,  OP_READ, &
@@ -264,9 +250,6 @@ use constantVarsCuda
 
 			res_calc_count = res_calc_count + 1
 
-      print *, 'After the res calc, iteration1 = ', niter, ' iteration2 = ', k
-
-
 
 !      call op_par_loop_8 ( res_calc, edges, &
 !                         & p_x,    1, pedge,  OP_READ, &
@@ -278,9 +261,6 @@ use constantVarsCuda
 !                         & p_res,  1, pecell, OP_INC,  &
 !                         & p_res,  2, pecell, OP_INC   &
 !											 & )
-
-
-      print *, 'Before the bres calc, iteration1 = ', niter, ' iteration2 = ', k
 
       bres_calc_info = op_par_loop_bres_calc ( brescalcName, bedges, &
 																						 & p_x,      1, pbedge,  OP_READ, &
@@ -296,9 +276,6 @@ use constantVarsCuda
 
 			bres_calc_count = bres_calc_count + 1
 
-      print *, 'After the bres calc, iteration1 = ', niter, ' iteration2 = ', k
-
-
 !      call op_par_loop_6 ( bres_calc, bedges, &
 !												 & p_x,      1, pbedge,  OP_READ, &
 !												 & p_x,      2, pbedge,  OP_READ, &
@@ -311,9 +288,6 @@ use constantVarsCuda
       ! update flow field
       
       rms(1) = 0.0
-
-      print *, 'Before the update, iteration1 = ', niter, ' iteration2 = ', k
-
 
 			update_info%kernelTime = 0
 			update_info%hostTime = 0
@@ -330,8 +304,6 @@ use constantVarsCuda
 			update_host_time = update_host_time + update_info%hostTime
 
 			update_count = update_count + 1
-
-      print *, 'After the update, iteration1 = ', niter, ' iteration2 = ', k
 
 
 !      call op_par_loop_5 ( update, cells, &
