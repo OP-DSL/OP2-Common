@@ -195,6 +195,10 @@ contains
     ! local variables
     integer(4) :: argc = 0
 
+    integer(4) :: setDevReturnVal = -1
+    integer(4) :: devPropRetVal = -1
+    type(cudadeviceprop) :: deviceProperties
+
     type (op_map_core), pointer :: idPtr
     type (op_map_core), pointer :: gblPtr
 
@@ -213,6 +217,13 @@ contains
     OP_GBL%mapPtr => gblPtr
 
     call op_init_core ( argc, C_NULL_PTR, diags )
+
+    ! support for GTX
+    setDevReturnVal = cudaSetDevice ( 2 )
+
+    devPropRetVal = cudaGetDeviceProperties ( deviceProperties, 2 )
+
+    print *, 'Using: ', deviceProperties%name
 
   end subroutine op_init
 
