@@ -30,6 +30,8 @@ op_init ( int argc, char ** argv, int diags )
 #warning : " *** no support for double precision arithmetic *** "
 #endif
 
+  cudaSetDevice ( 2 );
+
 	cutilDeviceInit ( argc, argv );
 
 	/* 

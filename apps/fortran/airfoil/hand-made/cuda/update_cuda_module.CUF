@@ -524,7 +524,6 @@ contains
 
 		end if
 
-
     ! work out shared memory requirements per element (this is mandatory, otherwise the default value is the
     ! one that has been assigned as a result of the previous execution of this op_par_loop)
     nshared = 0
@@ -579,17 +578,19 @@ contains
 		tmpHostTime = 0
 
 		istat = cudaEventRecord ( startKernelTime, 0 )
+! moved here to reflect Mike's timing
 
-  ! always zero out reduction variable on host
+    ! always zero out reduction variable on host
     do i = 1, reductItems
-
+    
       redArrayHost ( i ) = 0
-
+      
     end do
 
     ! and then copy it to device
     redArrayDev = redArrayHost
 		
+
 
 		call  op_cuda_update <<< nblocks, nthreads, nshared >>> ( argSizes, &
 																														&	argument0, &
@@ -606,8 +607,6 @@ contains
 		! synchronise threads after kernel call
 		threadSynchRet = cudaThreadSynchronize()
 
-
-		
 
 		! copy back reduction variable, from device to host
     redArrayHost = redArrayDev
@@ -640,6 +639,16 @@ contains
 			end do
 		
 		end do
+
+! moved here to reflect Mike's timing...
+
+		istat = cudaEventRecord ( stopKernelTime, 0 )
+		istat = cudaEventSynchronize ( stopKernelTime )
+		istat = cudaEventElapsedTime ( op_par_loop_update%kernelTime, startKernelTime, stopKernelTime )
+
+		
+		istat = cudaEventRecord ( startHostTime, 0 )
+
 		
             istat = cudaEventRecord ( stopKernelTime, 0 )
                 istat = cudaEventSynchronize ( stopKernelTime )
