@@ -42,7 +42,7 @@
 
 /*-------------------------------Util functions-------------------------------*/
 
-//from www.gnu.org/
+//wrapper for malloc from www.gnu.org/
 void* xmalloc (size_t size)
 {
   if(size == 0) return (void *)NULL;
@@ -52,6 +52,7 @@ void* xmalloc (size_t size)
   return value;
 }
 
+//wrapper for realloc from www.gnu.org/
 void* xrealloc (void *ptr, size_t size)
 {
   if(size == 0) return (void *)NULL;

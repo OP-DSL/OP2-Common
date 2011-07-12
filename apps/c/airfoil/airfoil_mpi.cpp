@@ -340,7 +340,8 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //partition
-  op_partition_geom(p_x, g_nnode);
+  //op_partition_geom(p_x, g_nnode);
+  op_partition_kway(pecell);
 
   //create halos
   op_halo_create();
