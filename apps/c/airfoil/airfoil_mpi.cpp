@@ -346,8 +346,10 @@ int main(int argc, char **argv){
     op_diagnostic_output();
 
     //partition 
-    op_partition_geom(p_x, g_nnode);
+    //op_partition_geom(p_x, g_nnode);
     //op_partition_random(edges);
+    op_partition_kway(pecell);
+    
     
     //create halos
     op_halo_create();
@@ -414,6 +416,7 @@ int main(int argc, char **argv){
             if (iter%100 == 0)
             	printf("%d  %10.5e \n",iter,rms);
         }
+        
     }
     op_timers(&cpu_t2, &wall_t2);
     
