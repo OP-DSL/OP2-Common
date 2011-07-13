@@ -29,7 +29,11 @@
 
 
 /*
- * written by: Gihan R. Mudalige, 01-03-2011
+ * op_mpi_util.c
+ *
+ * Some utility functions for the OP2 Distributed memory (MPI) implementation
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
 #include <stdlib.h>
@@ -38,11 +42,13 @@
 #include <math.h>
 
 #include <op_lib_core.h>
+#include <op_mpi_util.h>
 
 
-/*-------------------------------Util functions-------------------------------*/
+/*******************************************************************************
+* Wrapper for malloc from www.gnu.org/
+*******************************************************************************/
 
-//wrapper for malloc from www.gnu.org/
 void* xmalloc (size_t size)
 {
   if(size == 0) return (void *)NULL;
@@ -52,7 +58,10 @@ void* xmalloc (size_t size)
   return value;
 }
 
-//wrapper for realloc from www.gnu.org/
+/*******************************************************************************
+* Wrapper for realloc from www.gnu.org/
+*******************************************************************************/
+
 void* xrealloc (void *ptr, size_t size)
 {
   if(size == 0) return (void *)NULL;
@@ -62,15 +71,36 @@ void* xrealloc (void *ptr, size_t size)
   return value;
 }
 
+/*******************************************************************************
+* Compare two op_sets and return 1 if they are identical
+*******************************************************************************/
+
 int compare_sets(op_set set1, op_set set2)
 {
-  if(set1->size == set2->size &
+  if(set1->size == set2->size & set1->index == set2->index &
       strcmp(set1->name,set2->name)==0 &
       set1->index == set2->index)
     return 1;
   else return 0;
 
 }
+
+/*******************************************************************************
+* Simple hash function for a char string
+*******************************************************************************/
+
+unsigned hash(const char *s)
+{
+  unsigned hashval;
+  for (hashval = 0; *s != '\0'; s++)
+    hashval = *s + 31 * hashval;
+  return hashval % HASHSIZE;
+}
+
+
+/*******************************************************************************
+* Return the index of the min value in an array
+*******************************************************************************/
 
 int min(int array[], int size)
 {
@@ -87,6 +117,10 @@ int min(int array[], int size)
   return index;
 }
 
+/*******************************************************************************
+* Binary search an array for a given value
+*******************************************************************************/
+
 int binary_search(int a[], int value, int low, int high)
 {
   if (high < low)
@@ -101,6 +135,10 @@ int binary_search(int a[], int value, int low, int high)
     return mid; // found
 }
 
+/*******************************************************************************
+* Linear search an array for a given value
+*******************************************************************************/
+
 int linear_search(int a[], int value, int low, int high)
 {
   for(int i = low; i<=high; i++)
@@ -109,6 +147,10 @@ int linear_search(int a[], int value, int low, int high)
   }
   return -1;
 }
+
+/*******************************************************************************
+* Quicksort an array
+*******************************************************************************/
 
 void quickSort(int arr[], int left, int right)
 {
@@ -134,7 +176,10 @@ void quickSort(int arr[], int left, int right)
     quickSort(arr, i, right);
 }
 
-//sort arr1 and organise arr2 elements according to the sorted arr1 order
+/*******************************************************************************
+* Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
+*******************************************************************************/
+
 void quickSort_2(int arr1[], int arr2[], int left, int right)
 {
   int i = left, j = right;
@@ -162,6 +207,10 @@ void quickSort_2(int arr1[], int arr2[], int left, int right)
   if (i < right)
     quickSort_2(arr1, arr2, i, right);
 }
+
+/*******************************************************************************
+* Quick sort arr and organise dat[] elements according to the sorted arr order
+*******************************************************************************/
 
 void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 {
@@ -197,6 +246,9 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
   free(tmp_dat);
 }
 
+/*******************************************************************************
+* Quick sort arr and organise map[] elements according to the sorted arr order
+*******************************************************************************/
 void quickSort_map(int arr[], int map[], int left, int right, int dim)
 {
   int i = left, j = right;
@@ -230,6 +282,10 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
     quickSort_map(arr, map, i, right, dim);
   free(tmp_map);
 }
+
+/*******************************************************************************
+* Remove duplicates in an array
+*******************************************************************************/
 
 int removeDups(int a[], int array_size)
 {

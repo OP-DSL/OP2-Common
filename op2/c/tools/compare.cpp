@@ -1,6 +1,11 @@
-/* Simple text file value comparison programe for comparing results printed
-   from the airfoil code
-*/
+/*
+ * compare.c
+ *
+ * Simple text file (ASCI) value comparison programe for comparing results printed
+ * from the airfoil code
+ *
+ * written by: Gihan R. Mudalige, (Started 04-04-2011)
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,7 +18,10 @@ int main(int argc, char *argv[])
   /* read in file1 from disk*/
   FILE *fp1, *fp2;
   int lines1, elem_dim1, lines2, elem_dim2;
-  double epsi = 0.00001;
+
+  /**indicate your tolerance**/
+  double epsi = 0.000001;
+
   int differ = 0;
 
 

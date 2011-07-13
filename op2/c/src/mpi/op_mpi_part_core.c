@@ -27,10 +27,16 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /*
- * written by: Gihan R. Mudalige, 07-06-2011
+ * op_mpi_part_core.c
+ *
+ * Implements the OP2 Distributed memory (MPI) Partitioning wrapper routines,
+ * data migration and support utility functions
+ *
+ * written by: Gihan R. Mudalige, (Started 07-04-2011)
  */
+
+
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -53,6 +59,9 @@
 
 MPI_Comm OP_PART_WORLD;
 
+/*******************************************************************************
+* Utility function to find the number of times a value appears in an array
+*******************************************************************************/
 int frequencyof(int value, int* array, int size)
 {
   int frequency = 0;
@@ -63,6 +72,9 @@ int frequencyof(int value, int* array, int size)
   return frequency;
 }
 
+/*******************************************************************************
+* Utility function to find the mode of a set of numbers in an array
+*******************************************************************************/
 int find_mode(int* array, int size)
 {
   int count = 0, mode = array[0], current;
@@ -78,6 +90,9 @@ int find_mode(int* array, int size)
   return mode;
 }
 
+/*******************************************************************************
+* Utility function to see if a target op_set is held in an op_set array
+*******************************************************************************/
 int compare_all_sets(op_set target_set, op_set other_sets[], int size)
 {
   for(int i = 0; i < size; i++)
@@ -87,8 +102,10 @@ int compare_all_sets(op_set target_set, op_set other_sets[], int size)
   return -1;
 }
 
-/**special routine to create export list during partitioning map->to set
-from map_>from set in partition_to_set()**/
+/*******************************************************************************
+* Special routine to create export list during partitioning map->to set
+* from map_>from set in partition_to_set()
+*******************************************************************************/
 int* create_exp_list_2(op_set set, int* temp_list, halo_list h_list,
     int* part_list, int size, int comm_size, int my_rank)
 {
@@ -157,8 +174,10 @@ int* create_exp_list_2(op_set set, int* temp_list, halo_list h_list,
   return part_list;
 }
 
-/**special routine to create import list during partitioning map->to set
-from map_>from set in partition_to_set()**/
+/*******************************************************************************
+* Special routine to create import list during partitioning map->to set
+* from map_>from set in partition_to_set()
+*******************************************************************************/
 void create_imp_list_2(op_set set, int* temp_list, halo_list h_list,
     int total_size, int* ranks, int* sizes, int ranks_size, int comm_size,
     int my_rank)
@@ -180,7 +199,10 @@ void create_imp_list_2(op_set set, int* temp_list, halo_list h_list,
 }
 
 
-/** ----use the partitioned map->to set to partition the map->from set ------**/
+/*******************************************************************************
+* Routine to use a partitioned map->to set to partition the map->from set
+*******************************************************************************/
+
 int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
 {
   part p_set = OP_part_list[map->to->index];
@@ -316,13 +338,13 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
           {
             printf("Element %d not found in partition import list\n",
                 local_index);
-            exit(1);
+            MPI_Abort(OP_PART_WORLD, 2);
           }
         }
         else
         {
           printf("Rank %d not found in partition import list\n", part);
-          exit(1);
+          MPI_Abort(OP_PART_WORLD, 2);
         }
       }
     }
@@ -342,8 +364,10 @@ int partition_from_set(op_map map, int my_rank, int comm_size, int** part_range)
   return 1;
 }
 
+/*******************************************************************************
+* Routine to use the partitioned map->from set to partition the map->to set
+*******************************************************************************/
 
-/** ---- use the partitioned map->from set to partition the map->to set -------**/
 int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
 {
   part p_set = OP_part_list[map->from->index];
@@ -517,8 +541,9 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     {
       if (OP_diags>2)
       {
-        printf("on rank %d: Map %s is not an an on-to mapping from set %s to set %s\n",
-            my_rank, map->name, map->from->name,map->to->name);
+        printf("on rank %d: Map %s is not an an on-to mapping \
+            from set %s to set %s\n", my_rank, map->name,
+            map->from->name,map->to->name);
       }
       //return -1;
       ok = -1;
@@ -535,6 +560,8 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
   {
     if(global_ok_array[r]<0)
     {
+      //printf("Rank %d reported problem partitioning\n",r);
+      free(global_ok_array);
       return -1;
     }
   }
@@ -545,16 +572,18 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
 
   //cleanup
   free(pi_list->list);free(pi_list->ranks);free(pi_list->sizes);
-  free(pi_list->disps);
+  free(pi_list->disps);free(pi_list);
   free(pe_list->list);free(pe_list->ranks);free(pe_list->sizes);
-  free(pe_list->disps);
+  free(pe_list->disps); free(pe_list);
   free(part_list_i);free(part_list_e);
 
   return 1;
 }
 
+/*******************************************************************************
+* Routine to partition all secondary sets using primary set partition
+*******************************************************************************/
 
-/**-------- Partition Secondary sets using primary set partition -------------*/
 void partition_all(op_set primary_set, int my_rank, int comm_size)
 {
   // Compute global partition range information for each set
@@ -642,7 +671,7 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
     }
   }
 
-  if(my_rank==0)
+  if(my_rank==MPI_ROOT)
   {
     printf("Sets partitioned = %d\n",sets_partitioned);
     if(sets_partitioned != OP_set_index)
@@ -657,15 +686,17 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
         }
       }
       printf("Partitioning aborted !\n");
-      exit(1);
+      MPI_Abort(OP_PART_WORLD, 1);
     }
   }
 
   for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
 }
 
+/*******************************************************************************
+* Routine to renumber mapping table entries with new partition's indexes
+*******************************************************************************/
 
-/**------- Renumber mapping table entries with new partition's indexes -------*/
 void renumber_maps(int my_rank, int comm_size)
 {
   //get partition rage information
@@ -839,15 +870,18 @@ void renumber_maps(int my_rank, int comm_size)
   for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
 }
 
+/*******************************************************************************
+* Routine to reverse the renumbering of mapping tables
+*******************************************************************************/
 
-/**--------- Reverse the renumbering of mapping tables------------------------*/
 void reverse_renumber_maps(int my_rank, int comm_size)
 {
   int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
   get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
 
   //renumber mapping tables replacing the to_set elements of each mapping table
-  // with the original index of those set elements from g_index (will need all to alls)
+  // with the original index of those set elements from
+  //g_index (will need all to alls)
   for(int m=0; m<OP_map_index; m++) { //for each map
     op_map map=OP_map_list[m];
 
@@ -857,7 +891,8 @@ void reverse_renumber_maps(int my_rank, int comm_size)
     for(int i = 0; i< map->from->size; i++)
     {
       int part, local_index;
-      for(int j=0; j<map->dim; j++) { //for each element pointed at by this entry
+      for(int j=0; j<map->dim; j++) { //for each element pointed
+        //at by this entry
         part = get_partition(map->map[i*map->dim+j],
             part_range[map->to->index],&local_index,comm_size);
 
@@ -1012,8 +1047,10 @@ void reverse_renumber_maps(int my_rank, int comm_size)
   for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
 }
 
+/*******************************************************************************
+* Routine to perform data migration to new partitions (or reverse parition)
+*******************************************************************************/
 
-/**------Data migration to new partitions (or reverse parition)---------------*/
 void migrate_all(int my_rank, int comm_size)
 {
   /*--STEP 1 - Create Imp/Export Lists for reverse migrating elements ----------*/
@@ -1049,7 +1086,8 @@ void migrate_all(int my_rank, int comm_size)
     }
     //create partition export list
     pe_list[set->index] = (halo_list) xmalloc(sizeof(halo_list_core));
-    create_export_list(set, temp_list, pe_list[set->index], count, comm_size, my_rank);
+    create_export_list(set, temp_list, pe_list[set->index],
+        count, comm_size, my_rank);
     free(temp_list);
   }
 
@@ -1103,6 +1141,7 @@ void migrate_all(int my_rank, int comm_size)
         neighbors, sizes, ranks_size, comm_size, my_rank);
   }
 
+
   /*--STEP 2 - Perform Partitioning Data migration -----------------------------*/
 
   //data migration first ......
@@ -1134,7 +1173,8 @@ void migrate_all(int my_rank, int comm_size)
           }
           //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
           //    my_rank,exp->ranks[i],dat->name,exp->sizes[i]);
-          MPI_Isend(sbuf[i], dat->size*exp->sizes[i], MPI_CHAR, exp->ranks[i],
+          MPI_Isend(sbuf[i], dat->size*exp->sizes[i],
+              MPI_CHAR, exp->ranks[i],
               d, OP_PART_WORLD, &request_send[i]);
         }
 
@@ -1397,8 +1437,10 @@ void migrate_all(int my_rank, int comm_size)
   }
 }
 
+/*******************************************************************************
+* This routine partitions a given set randomly
+*******************************************************************************/
 
-/**-------------------Partition A Primary Set randomly ----------------------**/
 void op_partition_random(op_set primary_set)
 {
   //declare timers
@@ -1479,11 +1521,15 @@ void op_partition_random(op_set primary_set)
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
-  if(my_rank==0)printf("Max total random partitioning time = %lf\n",max_time);
+  if(my_rank==MPI_ROOT)printf("Max total random partitioning time = %lf\n",max_time);
 }
 
-/**------------Partition A Primary Set Using XYZ Geometry Data---------------**/
-void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_PartGeom()
+/*******************************************************************************
+* Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
+* Using its XYZ Geometry Data
+*******************************************************************************/
+
+void op_partition_geom(op_dat coords)
 {
   //declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -1559,17 +1605,15 @@ void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_
   {
     printf("Dimensions of Coordinate array not one of 3D,2D or 1D\n");
     printf("Not supported by ParMetis - Indicate correct coordinates array\n");
-    exit(1);
+    MPI_Abort(OP_PART_WORLD, 1);
   }
 
   for(int i=0; i<comm_size; i++)
   {
     vtxdist[i] = part_range[coords->set->index][2*i];
   }
-  //vtxdist[comm_size] = g_nnode;
   vtxdist[comm_size] = part_range[coords->set->index][2*(comm_size-1)+1]+1;
-  //printf("g_nnode = %d\n",g_nnode);
-  //printf("other = %d\n",part_range[coords->set->index][2*(comm_size-1)+1]);
+
 
   //use xyz coordinates to feed into ParMETIS_V3_PartGeom
   ParMETIS_V3_PartGeom(vtxdist, &ndims, xyz, partition, &OP_PART_WORLD);
@@ -1581,6 +1625,8 @@ void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_
   //initialise primary set as partitioned
   OP_part_list[coords->set->index]->elem_part= partition;
   OP_part_list[coords->set->index]->is_partitioned = 1;
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
 
   //partition all other sets
   partition_all(coords->set, my_rank, comm_size);
@@ -1596,11 +1642,13 @@ void op_partition_geom(op_dat coords, int g_nnode) //wrapper to use ParMETIS_V3_
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
-  if(my_rank==0)printf("Max total geometric partitioning time = %lf\n",max_time);
+  if(my_rank==MPI_ROOT)printf("Max total geometric partitioning time = %lf\n",max_time);
 }
 
+/*******************************************************************************
+* Wrapper routine to partition a given set Using ParMETIS PartKway()
+*******************************************************************************/
 
-/**------------ Partition Using ParMETIS PartKway() routine --------------**/
 void op_partition_kway(op_map primary_map)
 {
   //declare timers
@@ -1805,8 +1853,8 @@ void op_partition_kway(op_map primary_map)
             adj[local_index] = (int *)xrealloc(adj[local_index],
                 adj_cap[local_index]*sizeof(int));
           }
-          adj[local_index][adj_i[local_index]++] = foreign_maps[i*primary_map->dim+k];
-          //primary_map->map[i*primary_map->dim+k];
+          adj[local_index][adj_i[local_index]++] =
+            foreign_maps[i*primary_map->dim+k];
         }
       }
     }
@@ -1835,7 +1883,16 @@ void op_partition_kway(op_map primary_map)
         part_range[primary_map->to->index], comm_size);
     quickSort(adj[i], 0, adj_i[i]-1);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
-    //if(adj_i[i]-1>8)printf("On rank %d, element %d, Size = %d\n",my_rank, i, adj_i[i]);
+
+
+    if(adj_i[i] < 2)
+    {
+      printf("The from set: %s of primary map: %s is not an on to set of to-set: %s\n",
+          primary_map->from->name, primary_map->name, primary_map->to->name);
+      printf("Need to select a different primary map\n");
+      MPI_Abort(OP_PART_WORLD, 2);
+    }
+
     adj[i] = (int *)xrealloc(adj[i],adj_i[i]*sizeof(int));
     for(int j = 0; j<adj_i[i]; j++)
     {
@@ -1886,7 +1943,7 @@ void op_partition_kway(op_map primary_map)
   free(imp_list);free(exp_list);
 
   if(my_rank==MPI_ROOT)
-  {	printf("-----------------------------------------------------------\n");
+  { printf("-----------------------------------------------------------\n");
     printf("ParMETIS_V3_PartKway Information\n");
     printf("-----------------------------------------------------------\n");
   }
@@ -1920,15 +1977,21 @@ void op_partition_kway(op_map primary_map)
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
-  if(my_rank==0)printf("Max total Kway partitioning time = %lf\n",max_time);
+  if(my_rank==MPI_ROOT)printf("Max total Kway partitioning time = %lf\n",max_time);
 }
 
 
-/**------------ Partition Using ParMETIS PartGeomKway() routine --------------**/
-void op_partition_geomkway(op_dat coords, int g_nnode, op_map primary_map){}
+/*******************************************************************************
+* Wrapper routine to use ParMETIS PartGeomKway() which partitions a the to-set
+* of an op_map using its XYZ Geometry Data
+*******************************************************************************/
+/**------------ Partition Using  routine --------------**/
+void op_partition_geomkway(op_dat coords, op_map primary_map){}
 
+/*******************************************************************************
+* Routine to revert back to the original partitioning
+*******************************************************************************/
 
-//revert back to the original partitioning
 void op_partition_reverse()
 {
   //declare timers
@@ -1974,13 +2037,14 @@ void op_partition_reverse()
     free(OP_part_list[set->index]);
   }
   free(OP_part_list);
-  for(int i = 0; i<OP_set_index; i++)free(orig_part_range[i]);free(orig_part_range);
+  for(int i = 0; i<OP_set_index; i++)free(orig_part_range[i]);
+  free(orig_part_range);
 
   op_timers(&cpu_t2, &wall_t2);  //timer stop for partition reversing
   //printf time for partition reversing
   time = wall_t2-wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
-  if(my_rank==0)printf("Max total partition reverse time = %lf\n",max_time);
+  if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);
 }
 

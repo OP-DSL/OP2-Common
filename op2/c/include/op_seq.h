@@ -3,7 +3,7 @@
 
 
 /*
- * This generated header file declares and defines the reference version
+ * This generated header file declares and defines the sequential version
  * of op_par_loop functions
  */
 

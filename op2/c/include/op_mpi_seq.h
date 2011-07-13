@@ -29,8 +29,18 @@
 
 
 /*
- * written by: Gihan R. Mudalige, 10-06-2011
+ * op_mpi_seq.h
+ *
+ * Headder file declares and defines the OP2 Distributed memory (MPI)
+ * op_par_loop runctions
+ *
+ * intra-node - sequential execution
+ * inter-node - MPI execution
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
+
+
 
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -61,10 +71,9 @@ op_arg* blank_arg(op_arg *arg)
   }
 }
 
-
-//
-// op_par_loop routine for 2 arguments
-//
+/*******************************************************************************
+* op_par_loop template for 2 arguments
+*******************************************************************************/
 
 template < class T0, class T1 >
 void op_par_loop(void (*kernel)( T0*, T1* ),
@@ -168,9 +177,9 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 
 }
 
-//
-// op_par_loop routine for 5 arguments
-//
+/*******************************************************************************
+* op_par_loop template for 5 arguments
+*******************************************************************************/
 
 template < class T0, class T1, class T2, class T3,
            class T4 >
@@ -314,9 +323,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 #endif
 }
 
-//
-// op_par_loop routine for 6 arguments
-//
+/*******************************************************************************
+* op_par_loop template for 6 arguments
+*******************************************************************************/
 
 template < class T0, class T1, class T2, class T3,
            class T4, class T5 >
@@ -474,9 +483,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 #endif
 }
 
-//
-// op_par_loop routine for 8 arguments
-//
+/*******************************************************************************
+* op_par_loop template for 8 arguments
+*******************************************************************************/
 
 template < class T0, class T1, class T2, class T3,
            class T4, class T5, class T6, class T7 >

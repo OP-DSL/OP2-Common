@@ -1,6 +1,11 @@
-/* Simple binary file value comparison programe for comparing results
-   from the airfoil code
-*/
+/*
+ * compare.c
+ *
+ * Simple binary file (ASCI) value comparison programe for comparing results printed
+ * from the airfoil code
+ *
+ * written by: Gihan R. Mudalige, (Started 04-04-2011)
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,7 +17,10 @@ int main(int argc, char *argv[])
   /* read in file1 from disk*/
   FILE *fp1, *fp2;
   int lines1, elem_dim1, lines2, elem_dim2;
+
+  /**indicate your tolerance**/
   double epsi = 0.00000000000001;//(10^-14)
+
   int differ = 0;
 
   if(argc < 3)
