@@ -38,9 +38,8 @@
 #include <op_mpi_part_core.h>
 
 
-//
-//MPI Communicator for halo creation and exchange
-//
+
+/** extern variables for halo creation and exchange**/
 extern MPI_Comm OP_MPI_WORLD;
 
 extern halo_list *OP_export_exec_list;//EEH list

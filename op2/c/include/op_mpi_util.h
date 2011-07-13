@@ -29,11 +29,21 @@
 
 
 /* 
- * written by: Gihan R. Mudalige, 01-03-2011
+ * op_mpi_util.h
+ * 
+ * Headder file for the utility functions used in op_mpi_util.c
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
+/** Define hash table size for holding MPI op_par_loop performance measures **/
+#define HASHSIZE 50
 
 
+
+/*******************************************************************************
+* MPI utility function prototypes
+*******************************************************************************/
 void* xmalloc (size_t size);
 
 void* xrealloc (void *ptr, size_t size);
@@ -41,6 +51,8 @@ void* xrealloc (void *ptr, size_t size);
 int compare_sets(op_set set1, op_set set2);
 
 int min(int array[], int size);
+
+unsigned hash(const char *s);
 
 int binary_search(int a[], int value, int low, int high);
 

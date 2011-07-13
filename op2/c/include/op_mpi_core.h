@@ -29,11 +29,25 @@
 
 
 /* 
- * written by: Gihan R. Mudalige, 01-03-2011
+ * op_mpi_core.h
+ * 
+ * Headder file for the OP2 Distributed memory (MPI) halo creation, 
+ * halo exchange and support utility routines/functions 
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
 
-/**-----------------------MPI halo Data Types-----------------------------**/
+/** Define the root MPI process **/
+#define MPI_ROOT 0
+
+
+
+
+
+/*******************************************************************************
+* MPI halo list data type
+*******************************************************************************/
 typedef struct {
  op_set set;        //set related to this list
  int    size;       //number of elements in this list                                
@@ -51,8 +65,9 @@ typedef halo_list_core * halo_list;
 
 
 
-/**-------------------Data structures related to partitioning----------------**/
-
+/*******************************************************************************
+* Data structures related to MPI level partitioning
+*******************************************************************************/
 //struct to hold the partition information for each set
 typedef struct
 {
@@ -68,7 +83,9 @@ typedef part_core *part;
 
 
 
-/**-----------------Data Type to hold MPI performance measures---------------**/
+/*******************************************************************************
+* Data Type to hold MPI performance measures
+*******************************************************************************/
 typedef struct 
 {
   char const  *name;   // name of kernel 
@@ -86,7 +103,10 @@ typedef struct
 } op_mpi_kernel;
 
 
-//buffer struct used in for non-blocking mpi halo sends/receives
+
+/*******************************************************************************
+* Buffer struct used in non-blocking mpi halo sends/receives
+*******************************************************************************/
 typedef struct {
  int         dat_index;    //index of the op_dat to which this buffer belongs
  char        *buf_exec;    //buffer holding exec halo to be exported;
@@ -102,18 +122,17 @@ typedef struct {
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
 
-#define MPI_ROOT 0
-
-
+/** extern variables **/
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
 
 
-/* 
- * utility functions
- */
- 
+
+
+/*******************************************************************************
+* Utility function prototypes
+*******************************************************************************/
 void decl_partition(op_set set, int* g_index, int* partition);
 
 void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm);
@@ -135,10 +154,10 @@ void create_import_list(op_set set, int* temp_list, halo_list h_list, int total_
     int* ranks, int* sizes, int ranks_size, int comm_size, int my_rank);
 
 
-/*
- * Core mpi lib function prototypes
- */
 
+/*******************************************************************************
+* Core MPI lib function prototypes
+*******************************************************************************/
 void op_halo_create();
 
 void op_halo_destroy();

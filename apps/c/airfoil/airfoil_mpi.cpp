@@ -113,7 +113,7 @@ void scatter_double_array(double* g_array, double* l_array, int comm_size, int g
   	  }
   
   	  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array, 
-  	  	  l_size*elem_size, MPI_DOUBLE, 0,  MPI_COMM_WORLD ); 
+  	  	  l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD ); 
   	  
   	  free(sendcnts);
   	  free(displs);
@@ -137,7 +137,7 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   	  }
   
   	  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array, 
-  	  	  l_size*elem_size, MPI_INT, 0,  MPI_COMM_WORLD ); 
+  	  	  l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD ); 
   	  
   	  free(sendcnts);
   	  free(displs);
@@ -191,7 +191,7 @@ int main(int argc, char **argv){
     
     // set constants
 
-    if(my_rank == 0 )printf("initialising flow field\n");
+    if(my_rank == MPI_ROOT )printf("initialising flow field\n");
     gam = 1.4f;
     gm1 = gam - 1.0f;
     cfl = 0.9f;
@@ -209,7 +209,7 @@ int main(int argc, char **argv){
     qinf[2] = 0.0f;
     qinf[3] = r*e;
 	  
-    if(my_rank == 0)
+    if(my_rank == MPI_ROOT)
     { 	  
     	printf("reading in grid \n");
     	printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
@@ -296,7 +296,7 @@ int main(int argc, char **argv){
     scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
     scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
   
-    if(my_rank == 0)
+    if(my_rank == MPI_ROOT)
     {
     	/*Freeing memory allocated to gloabal arrays on rank 0 
   	after scattering to all processes*/
@@ -346,7 +346,7 @@ int main(int argc, char **argv){
     op_diagnostic_output();
 
     //partition 
-    //op_partition_geom(p_x, g_nnode);
+    //op_partition_geom(p_x);
     //op_partition_random(edges);
     op_partition_kway(pecell);
     
@@ -408,9 +408,10 @@ int main(int argc, char **argv){
                   op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
                   op_arg_dat(p_adt, -1,OP_ID, 1,"double",OP_READ ),
                   op_arg_gbl(&rms,1,"double",OP_INC));
+           
         }
         //print iteration history
-        if(my_rank==0)
+        if(my_rank==MPI_ROOT)
         {
             rms = sqrt(rms/(double) g_ncell);
             if (iter%100 == 0)
@@ -436,11 +437,10 @@ int main(int argc, char **argv){
     op_mpi_timing_output();
     //print total time for niter interations
     time = wall_t2-wall_t1;
-    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,0, MPI_COMM_WORLD);
-    if(my_rank==0)printf("Max total runtime = %f\n",max_time);    
+    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+    if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
     
     MPI_Finalize();   //user mpi finalize
-
 }
 
 
