@@ -156,9 +156,6 @@ int main(int argc, char **argv){
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 	
-
-    //testing();
-	
     //timer
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
     double time;
@@ -348,10 +345,10 @@ int main(int argc, char **argv){
     //partition 
     //op_partition_geom(p_x);
     //op_partition_random(edges);
-    //op_partition_kway(pecell);
+    op_partition_kway(pecell);
     //op_partition_meshkway(pcell);  //not working !!    
     
-    /*  
+    
     //create halos
     op_halo_create();
     
@@ -439,7 +436,7 @@ int main(int argc, char **argv){
     time = wall_t2-wall_t1;
     MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
     if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
-    */
+    
     op_mpi_exit();
     MPI_Finalize();   //user mpi finalize
 }
