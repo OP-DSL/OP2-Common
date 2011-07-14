@@ -53,6 +53,8 @@ void op_partition_kway(op_map primary_map);
 
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
+void op_partition_meshkway(op_map primary_map);
+
 
 /*******************************************************************************
 * Other partitioning related routine prototypes
