@@ -20,7 +20,7 @@ CPP = icpc#g++
 MPI_HOME = /home/gihan/openmpi#this should be set as an environment variable
 MPICPP = $(MPI_HOME)/bin/mpiCC 
 
-CCFLAGS	:= -O3 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
 
 #openmp
 OMP	:= -openmp -openmp-report2

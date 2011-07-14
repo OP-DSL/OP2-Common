@@ -13,7 +13,7 @@ NVCC = nvcc
 MPICPP = $(MPI_HOME)/bin/mpiCC
 
 #FLAGS = -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
-FLAGS = -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
+FLAGS = -O2 -vec-report -xSSE4.2 -g #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
 
 .PHONY: clean
 
