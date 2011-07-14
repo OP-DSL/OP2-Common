@@ -153,6 +153,8 @@ void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
 void create_import_list(op_set set, int* temp_list, halo_list h_list, int total_size, 
     int* ranks, int* sizes, int ranks_size, int comm_size, int my_rank);
 
+int is_onto_map(op_map map);
+
 
 
 /*******************************************************************************
@@ -173,6 +175,8 @@ op_dat op_mpi_get_data(op_dat dat);
 void global_reduce(op_arg* arg);
 
 void op_mpi_timing_output();
+
+void op_mpi_exit();
 
 int op_mpi_perf_time(const char* name, double time);
 

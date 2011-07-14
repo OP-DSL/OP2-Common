@@ -349,11 +349,10 @@ int main(int argc, char **argv){
     //op_partition_geom(p_x);
     //op_partition_random(edges);
     op_partition_kway(pecell);
-    
-    
+    //op_partition_meshkway(pcell);  //not working yet!!  
+       
     //create halos
     op_halo_create();
-    
     
     //initialise timers for total execution wall time
     op_timers(&cpu_t1, &wall_t1); 
@@ -440,6 +439,7 @@ int main(int argc, char **argv){
     MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
     if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
     
+    op_mpi_exit();
     MPI_Finalize();   //user mpi finalize
 }
 

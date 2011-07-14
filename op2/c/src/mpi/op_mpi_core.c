@@ -339,6 +339,160 @@ void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_list,
     	ranks_size, comm_size, my_rank);
 }
 
+/*******************************************************************************
+* Check if a given op_map is an on-to map from the from-set to the to_set
+*******************************************************************************/
+int is_onto_map(op_map map)
+{
+    //create new communicator 
+    int my_rank, comm_size;
+    MPI_Comm OP_CHECK_WORLD;
+    MPI_Comm_dup(MPI_COMM_WORLD, &OP_CHECK_WORLD);
+    MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
+    MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
+        
+    // Compute global partition range information for each set
+    int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+    get_part_range(part_range,my_rank,comm_size, OP_CHECK_WORLD);
+    
+    //mak a copy of the to-set elements of the map
+    int* to_elem_copy = (int *)xmalloc(map->from->size*map->dim*sizeof(int));
+    memcpy(to_elem_copy,(void *)map->map,map->from->size*map->dim*sizeof(int));
+     
+    //sort and remove duplicates from to_elem_copy
+    quickSort(to_elem_copy, 0, map->from->size*map->dim - 1); 
+    int to_elem_copy_size = removeDups(to_elem_copy, map->from->size*map->dim);
+    to_elem_copy = (int *)xrealloc(to_elem_copy,to_elem_copy_size*sizeof(int));
+    
+    //go through the to-set element range that this local MPI process holds
+    //and collect the to-set elements not found in to_elem_copy 
+    int cap = 100; int count = 0;
+    int* not_found = (int *)xmalloc(sizeof(int)*cap);
+    for(int i = 0; i < map->to->size; i++)
+    {
+    	int g_index = get_global_index(i, my_rank, 
+    	    part_range[map->to->index], comm_size);
+    	if(binary_search(to_elem_copy, i, 0, to_elem_copy_size-1) < 0)
+    	{
+    	    //add to not_found list
+    	    if(count >= cap)
+    	    {
+    	    	cap = cap*2;
+    	    	not_found = (int *)xrealloc(not_found, cap*sizeof(int));    	    		
+    	    }
+    	    not_found[count++] = g_index;
+    	}    	
+    }
+    
+    //
+    //allreduce this not_found to form a global_not_found list
+    //
+    int recv_count[comm_size];
+    MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_CHECK_WORLD);
+      	
+    //discover global size of the not_found_list
+    int g_count = 0;
+    for(int i = 0; i< comm_size; i++)g_count += recv_count[i];
+    
+    //prepare for an allgatherv
+    int disp = 0;
+    int* displs = (int *)xmalloc(comm_size*sizeof(int));
+    for(int i = 0; i<comm_size; i++)
+    {
+    	displs[i] =   disp;
+    	disp = disp + recv_count[i];
+    }
+    
+    //allocate memory to hold the global_not_found list
+    int *global_not_found = (int *)xmalloc(sizeof(int)*g_count);
+    
+    MPI_Allgatherv(not_found,count,MPI_INT, global_not_found,recv_count,displs,
+      	    MPI_INT, OP_CHECK_WORLD);
+    free(not_found);free(displs);
+    
+    //sort and remove duplicates of the global_not_found list
+    if(g_count > 0)
+    {
+    	quickSort(global_not_found, 0, g_count-1);
+    	g_count = removeDups(global_not_found, g_count);
+    	global_not_found = (int *)xrealloc(global_not_found, g_count*sizeof(int));
+    }
+    else
+    {
+    	//nothing in the global_not_found list .. i.e. this is an on to map
+    	free(global_not_found);free(to_elem_copy);free(displs);
+    	for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+    	return 1;
+    }
+    
+    //see if any element in the global_not_found is found in the local map-copy
+    //and add it to a "found" list  
+    cap = 100; count = 0;
+    int* found = (int *)xmalloc(sizeof(int)*cap);
+    for(int i = 0; i < g_count; i++)
+    {
+    	if(binary_search(to_elem_copy, global_not_found[i], 0, 
+    	   to_elem_copy_size-1) >= 0)
+    	{
+    	    //add to found list
+    	    if(count >= cap)
+    	    {
+    	    	cap = cap*2;
+    	    	found = (int *)xrealloc(found, cap*sizeof(int));    	    		
+    	    }
+    	    found[count++] = global_not_found[i];
+    	}    	
+    }
+    free(global_not_found);
+    
+    //
+    //allreduce the "found" elements to form a global_found list
+    //
+    recv_count[comm_size];
+    MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_CHECK_WORLD);
+    
+    //discover global size of the found_list
+    int g_found_count = 0;
+    for(int i = 0; i< comm_size; i++)g_found_count += recv_count[i];
+    
+    //prepare for an allgatherv
+    disp = 0;
+    displs = (int *)xmalloc(comm_size*sizeof(int));
+    for(int i = 0; i<comm_size; i++)
+    {
+    	displs[i] =   disp;
+    	disp = disp + recv_count[i];
+    }
+    
+    //allocate memory to hold the global_found list
+    int *global_found = (int *)xmalloc(sizeof(int)*g_found_count);
+    
+    MPI_Allgatherv(found,count,MPI_INT, global_found,recv_count,displs,
+      	    MPI_INT, OP_CHECK_WORLD);
+    free(found);
+        
+    //sort global_found list and remove duplicates
+    if(g_count > 0)
+    {
+    	quickSort(global_found, 0, g_found_count-1);
+    	g_found_count = removeDups(global_found, g_found_count);
+    	global_found = (int *)xrealloc(global_found, g_found_count*sizeof(int));
+    }
+    
+    //if the global_found list size is smaller than the globla_not_found list size 
+    //then map is not an on_to map
+    int result = 0;
+    if(g_found_count == g_count)
+    	result = 1;
+       
+    free(global_found);free(displs);  
+    for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+    MPI_Comm_free(&OP_CHECK_WORLD);
+    free(to_elem_copy);
+    
+    return result;   
+}
+
 
 /*******************************************************************************
 * Main MPI halo creation routine
@@ -1233,14 +1387,7 @@ void op_halo_destroy()
     }
     free(OP_mpi_buffer_list);
     
-    //cleanup performance data
-    #if COMM_PERF
-    for (int n=0; n<HASHSIZE; n++) {
-    	free(op_mpi_kernel_tab[n].op_dat_indices);
-    	free(op_mpi_kernel_tab[n].tot_count);
-    	free(op_mpi_kernel_tab[n].tot_bytes);
-    }
-    #endif
+
     MPI_Comm_free(&OP_MPI_WORLD); 
 }
 
@@ -1910,6 +2057,23 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
     }    
 }
 
+
+/*******************************************************************************
+* Routine to exit an op2 mpi application - 
+*******************************************************************************/
+void op_mpi_exit()
+{
+    //cleanup performance data - need to do this in some op_mpi_exit() routine
+    #if COMM_PERF
+    for (int n=0; n<HASHSIZE; n++) {
+    	free(op_mpi_kernel_tab[n].op_dat_indices);
+    	free(op_mpi_kernel_tab[n].tot_count);
+    	free(op_mpi_kernel_tab[n].tot_bytes);
+    }
+    #endif
+    
+    //may need to call op_exit() at this point or get op_exit() to call this routine
+}
 
 /*******************************************************************************
 * Write a op_dat to a named ASCI file 
