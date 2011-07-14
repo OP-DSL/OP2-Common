@@ -2003,7 +2003,7 @@ void op_partition_kway(op_map primary_map)
 }
 
 /*******************************************************************************
-* Wrapper routine to use ParMETIS PartGeomKway() which partitions a the to-set
+* Wrapper routine to use ParMETIS PartGeomKway() which partitions the to-set
 * of an op_map using its XYZ Geometry Data
 *******************************************************************************/
 
@@ -2093,10 +2093,10 @@ void op_partition_meshkway(op_map primary_map)
   {
     elemdist[i] = part_range[primary_map->from->index][2*i];
   }
-  elemdist[comm_size] = part_range[primary_map->from->index][2*(comm_size-1)+1]+1;
+  elemdist[comm_size] = part_range[primary_map->from->index][2*(comm_size-1) + 1] + 1;
 
   idxtype *eind = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->from->size)*primary_map->dim);
-  idxtype *eptr = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->from->size+1));
+  idxtype *eptr = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->from->size + 1));
 
   //setup the eind
   for(int i=0; i<primary_map->from->size; i++)
@@ -2148,17 +2148,14 @@ void op_partition_meshkway(op_map primary_map)
   free(elemdist); free(eptr); free(eind);
   free(ubvec);free(tpwgts);
 
-
-  ///***check if the primary map is from a set that is on to the to-set***
-  ///NEED TO CHECK THIS WITH A SEPERATE FUNCTION THAT DOES A COLLECTIVE MPI OP TO
-  ///CHECK IF A primary_map is an onto map
+  //check if all to-set elements have been partitioned
   for(int i = 0; i<primary_map->to->size; i++)
   {
     if(partition[i]<0)
     {
-      printf("Partitioning problemon rank %d, set %s element %d not found\n",
+      printf("Partitioning problem on rank %d, set %s element %d not found\n",
           my_rank,primary_map->to->name, i);
-      //MPI_Abort(OP_PART_WORLD, 2);
+      MPI_Abort(OP_PART_WORLD, 2);
     }
   }
 
@@ -2183,7 +2180,6 @@ void op_partition_meshkway(op_map primary_map)
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if(my_rank==MPI_ROOT)printf("Max total MeshKway partitioning time = %lf\n",max_time);
-
 }
 
 /*******************************************************************************
