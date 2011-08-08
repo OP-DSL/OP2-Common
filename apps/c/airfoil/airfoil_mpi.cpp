@@ -346,6 +346,7 @@ int main(int argc, char **argv){
     //op_partition_geom(p_x);
     //op_partition_random(edges);
     op_partition_kway(pecell);
+    //op_partition_geomkway(p_x, pcell);
     //op_partition_meshkway(pcell);  //not working !!    
     
     
@@ -442,4 +443,4 @@ int main(int argc, char **argv){
 }
 
 
-//need to implement a random partitioner that randoly partitions a given op_set
+
