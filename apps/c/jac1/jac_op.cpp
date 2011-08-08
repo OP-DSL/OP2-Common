@@ -52,7 +52,7 @@ float alpha;
 // OP header file
 //
 
-#include "op_lib.h"
+#include "op_lib_cpp.h"
 
 //
 // op_par_loop declarations
