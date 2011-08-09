@@ -42,12 +42,14 @@
 
 // global constants
 
-float alpha;
+double alpha;
+
 
 //
 // OP header file
 //
 
+#include "op_lib_cpp.h"
 #include "op_seq.h"
 
 //
@@ -69,23 +71,23 @@ float alpha;
 int main(int argc, char **argv){
 
   int   nnode, nedge, n, e;
-  float dx;
+  double dx;
 
   nnode = (NN-1)*(NN-1);
   nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
-  dx    = 1.0f / ((float) NN);
+  dx    = 1.0f / ((double) NN);
 
   int    *pp = (int *)malloc(sizeof(int)*2*nedge);
   int    *p1 = (int *)malloc(sizeof(int)*nedge);
   int    *p2 = (int *)malloc(sizeof(int)*nedge);
 
-  float  *xe = (float *)malloc(sizeof(float)*2*nedge);
-  float  *xn = (float *)malloc(sizeof(float)*2*nnode);
+  double  *xe = (double *)malloc(sizeof(double)*2*nedge);
+  double  *xn = (double *)malloc(sizeof(double)*2*nnode);
 
   double *A  = (double *)malloc(sizeof(double)*3*nedge);
-  float  *r  = (float *)malloc(sizeof(float)*2*nnode);
-  float  *u  = (float *)malloc(sizeof(float)*2*nnode);
-  float  *du = (float *)malloc(sizeof(float)*3*nnode);
+  double  *r  = (double *)malloc(sizeof(double)*2*nnode);
+  double  *u  = (double *)malloc(sizeof(double)*2*nnode);
+  double  *du = (double *)malloc(sizeof(double)*3*nnode);
 
   // create matrix and r.h.s., and set coordinates needed for renumbering / partitioning
 
@@ -146,36 +148,36 @@ int main(int argc, char **argv){
   op_map ppedge = op_decl_map(edges,nodes,2,pp, "ppedge");
 
   op_dat p_A  = op_decl_dat(edges,3,"double",A,  "p_A" );
-  op_dat p_r  = op_decl_dat(nodes,2,"float", r,  "p_r" );
-  op_dat p_u  = op_decl_dat(nodes,2,"float", u,  "p_u" );
-  op_dat p_du = op_decl_dat(nodes,3,"float", du, "p_du");
+  op_dat p_r  = op_decl_dat(nodes,2,"double", r,  "p_r" );
+  op_dat p_u  = op_decl_dat(nodes,2,"double", u,  "p_u" );
+  op_dat p_du = op_decl_dat(nodes,3,"double", du, "p_du");
 
   alpha = 2.0f;
-  op_decl_const(1,"float",&alpha);
+  op_decl_const(1,"double",&alpha);
   alpha = 1.0f;
-  op_decl_const(1,"float",&alpha);
+  op_decl_const(1,"double",&alpha);
 
   op_diagnostic_output();
 
   // main iteration loop
 
-  float u_sum, u_max, beta = 1.0f;
+  double u_sum, u_max, beta = 1.0f;
 
   for (int iter=0; iter<NITER; iter++) {
     op_par_loop(res,"res", edges,
                 op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
-                op_arg_dat(p_u,  1,ppedge, 2,"float", OP_READ),
-                op_arg_dat(p_du, 0,ppedge, 3,"float", OP_INC ),
-                op_arg_gbl(&beta,1,"float",OP_READ));
+                op_arg_dat(p_u,  1,ppedge, 2,"double", OP_READ),
+                op_arg_dat(p_du, 0,ppedge, 3,"double", OP_INC ),
+                op_arg_gbl(&beta,1,"double",OP_READ));
 
     u_sum = 0.0f;
     u_max = 0.0f;
     op_par_loop(update,"update", nodes,
-                op_arg_dat(p_r,  -1,OP_ID, 2,"float",OP_READ),
-                op_arg_dat(p_du, -1,OP_ID, 3,"float",OP_RW  ),
-                op_arg_dat(p_u,  -1,OP_ID, 2,"float",OP_INC ),
-                op_arg_gbl(&u_sum,1,"float",OP_INC),
-                op_arg_gbl(&u_max,1,"float",OP_MAX));
+                op_arg_dat(p_r,  -1,OP_ID, 2,"double",OP_READ),
+                op_arg_dat(p_du, -1,OP_ID, 3,"double",OP_RW  ),
+                op_arg_dat(p_u,  -1,OP_ID, 2,"double",OP_INC ),
+                op_arg_gbl(&u_sum,1,"double",OP_INC),
+                op_arg_gbl(&u_max,1,"double",OP_MAX));
     printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
