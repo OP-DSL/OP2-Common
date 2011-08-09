@@ -40,17 +40,21 @@
 #include <string.h>
 #include <math.h>
 
+//
+// mpi header file - included by user for user level mpi
+//
+#include <mpi.h>
+
+
 // global constants
 
 double alpha;
-
 
 //
 // OP header file
 //
 
-#include "op_lib_cpp.h"
-#include "op_seq.h"
+#include "op_lib_mpi.h"
 
 //
 // kernel routines for parallel loops
@@ -59,16 +63,98 @@ double alpha;
 #include "res.h"
 #include "update.h"
 
+//
+// op_par_loop declarations
+//
+
+#include "op_mpi_seq.h"
+
+//
+//user declared functions
+//
+
+int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+{
+  int local_size = global_size/mpi_comm_size;
+  int remainder = (int)fmod(global_size,mpi_comm_size);
+
+  if (mpi_rank < remainder)
+  {
+    local_size = local_size + 1;
+
+  }
+  return local_size;
+}
+
+void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
+  int l_size, int elem_size)
+{
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
+
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
+
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
+      l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
+
+  free(sendcnts);
+  free(displs);
+}
+
+void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
+  int l_size, int elem_size)
+{
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
+
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
+
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array,
+      l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD );
+
+  free(sendcnts);
+  free(displs);
+}
 
 // define problem size
 
 #define NN       6
 #define NITER    2
 
-
 // main program
 
-int main(int argc, char **argv){
+int main(int argc, char **argv)
+{
+  int my_rank;
+  int comm_size;
+
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+
 
   int   nnode, nedge, n, e;
   double dx;
@@ -121,7 +207,7 @@ int main(int argc, char **argv){
 
         if ( (i2==0) || (i2==NN) || (j2==0) || (j2==NN) ) {
           r[2*n] += 0.25f;
-  }
+        }
         else {
           p1[e]     = n;
           p2[e]     = i2-1 + (j2-1)*(NN-1);
@@ -165,19 +251,19 @@ int main(int argc, char **argv){
 
   for (int iter=0; iter<NITER; iter++) {
     op_par_loop(res,"res", edges,
-                op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
-                op_arg_dat(p_u,  1,ppedge, 2,"double", OP_READ),
-                op_arg_dat(p_du, 0,ppedge, 3,"double", OP_INC ),
-                op_arg_gbl(&beta,1,"double",OP_READ));
+        op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
+        op_arg_dat(p_u,  1,ppedge, 2,"double", OP_READ),
+        op_arg_dat(p_du, 0,ppedge, 3,"double", OP_INC ),
+        op_arg_gbl(&beta,1,"double",OP_READ));
 
     u_sum = 0.0f;
     u_max = 0.0f;
     op_par_loop(update,"update", nodes,
-                op_arg_dat(p_r,  -1,OP_ID, 2,"double",OP_READ),
-                op_arg_dat(p_du, -1,OP_ID, 3,"double",OP_RW  ),
-                op_arg_dat(p_u,  -1,OP_ID, 2,"double",OP_INC ),
-                op_arg_gbl(&u_sum,1,"double",OP_INC),
-                op_arg_gbl(&u_max,1,"double",OP_MAX));
+        op_arg_dat(p_r,  -1,OP_ID, 2,"double",OP_READ),
+        op_arg_dat(p_du, -1,OP_ID, 3,"double",OP_RW  ),
+        op_arg_dat(p_u,  -1,OP_ID, 2,"double",OP_INC ),
+        op_arg_gbl(&u_sum,1,"double",OP_INC),
+        op_arg_gbl(&u_max,1,"double",OP_MAX));
     printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
@@ -186,8 +272,17 @@ int main(int argc, char **argv){
   printf("\n  Results after %d iterations:\n\n",NITER);
 
   op_fetch_data(p_u);
+  /*
+     op_fetch_data(p_du);
+     op_fetch_data(p_r);
+     */
 
   for (int pass=0; pass<1; pass++) {
+    /*
+       if(pass==0)      printf("\narray u\n");
+       else if(pass==1) printf("\narray du\n");
+       else if(pass==2) printf("\narray r\n");
+       */
 
     for (int j=NN-1; j>0; j--) {
       for (int i=1; i<NN; i++) {
