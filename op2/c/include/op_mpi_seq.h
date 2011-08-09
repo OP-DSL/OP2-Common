@@ -178,6 +178,133 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 }
 
 /*******************************************************************************
+* op_par_loop template for 4 arguments
+*******************************************************************************/
+
+template < class T0, class T1, class T2, class T3 >
+void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
+  char const * name, op_set set,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3) {
+
+  char *p_arg0, *p_arg1, *p_arg2, *p_arg3;
+  int exec_length = 0;
+  int sent[4] = {0,0,0,0};
+
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // initialise timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timers(&cpu_t1, &wall_t1);
+
+  if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1)//indirect loop
+  {
+    if (OP_diags==1) {
+      if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+      if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+      if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
+      if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
+    }
+
+    //for each indirect data set
+    if(arg0.argtype == OP_ARG_DAT) sent[0] = exchange_halo(arg0);
+    if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
+    if(arg2.argtype == OP_ARG_DAT) sent[2] = exchange_halo(arg2);
+    if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3);
+
+    //for all indirect dataset access with OP_READ
+    if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ &&
+        arg3.acc == OP_READ )
+      exec_length = set->size;
+    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
+  }
+  else //direct loop
+  {
+    exec_length = set->size;
+  }
+
+  // loop over set elements
+  //(1) over owned partition
+  for (int n=0; n<owned_num[set->index]; n++) {
+    op_arg_set(n,arg0 ,&p_arg0 );
+    op_arg_set(n,arg1 ,&p_arg1 );
+    op_arg_set(n,arg2 ,&p_arg2 );
+    op_arg_set(n,arg3 ,&p_arg3 );
+
+    // call kernel function, passing in pointers to data
+    kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3);
+  }
+
+  //wait for comms to complete
+  if(arg0.argtype == OP_ARG_DAT) if(sent[0] == 1 )wait_all(arg0);
+  if(arg1.argtype == OP_ARG_DAT) if(sent[1] == 1 )wait_all(arg1);
+  if(arg2.argtype == OP_ARG_DAT) if(sent[2] == 1 )wait_all(arg2);
+  if(arg3.argtype == OP_ARG_DAT) if(sent[3] == 1 )wait_all(arg3);
+
+  for (int n=owned_num[set->index]; n<set->size; n++) {
+    op_arg_set(n,arg0 ,&p_arg0 );
+    op_arg_set(n,arg1 ,&p_arg1 );
+    op_arg_set(n,arg2 ,&p_arg2 );
+    op_arg_set(n,arg3 ,&p_arg3 );
+
+    // call kernel function, passing in pointers to data
+    kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3);
+  }
+
+  //(2) over exec halo (blank out global parameters to avoid double counting)
+  for (int n=set->size; n<exec_length; n++) {
+    op_arg_set(n,*(blank_arg(&arg0)),&p_arg0 );
+    op_arg_set(n,*(blank_arg(&arg1)),&p_arg1 );
+    op_arg_set(n,*(blank_arg(&arg2)),&p_arg2 );
+    op_arg_set(n,*(blank_arg(&arg3)),&p_arg3 );
+
+    // call kernel function, passing in pointers to data
+    kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3);
+  }
+
+  //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
+  if(arg0.argtype == OP_ARG_DAT)set_dirtybit(arg0);
+  if(arg1.argtype == OP_ARG_DAT)set_dirtybit(arg1);
+  if(arg2.argtype == OP_ARG_DAT)set_dirtybit(arg2);
+  if(arg3.argtype == OP_ARG_DAT)set_dirtybit(arg3);
+
+  //performe any global operations
+  if(arg0.argtype == OP_ARG_GBL)
+    global_reduce(&arg0);
+  if(arg1.argtype == OP_ARG_GBL)
+    global_reduce(&arg1);;
+  if(arg2.argtype == OP_ARG_GBL)
+    global_reduce(&arg2);
+  if(arg3.argtype == OP_ARG_GBL)
+    global_reduce(&arg3);
+
+  //update timer record
+  op_timers(&cpu_t2, &wall_t2);
+  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+#if COMM_PERF
+  if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
+  if(sent[1] == 1)op_mpi_perf_comm(k_i, arg1);
+  if(sent[2] == 1)op_mpi_perf_comm(k_i, arg2);
+  if(sent[3] == 1)op_mpi_perf_comm(k_i, arg3);
+#endif
+}
+
+/*******************************************************************************
 * op_par_loop template for 5 arguments
 *******************************************************************************/
 

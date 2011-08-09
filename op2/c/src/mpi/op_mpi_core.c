@@ -2219,7 +2219,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
 
     for(int i = 0; i< g_size; i++)
     {
-      if (fwrite( &g_array[i*elem_size], sizeof(double), elem_size, fp ) != 4)
+      if (fwrite( &g_array[i*elem_size], sizeof(double), elem_size, fp ) < elem_size)
       {
         printf("error writing to %s\n",file_name);
         MPI_Abort(OP_MPI_IO_WORLD, -1);

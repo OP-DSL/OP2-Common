@@ -16,7 +16,7 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ float alpha;
+__constant__ double alpha;
 
 /*void op_decl_const_char(int dim, char const *type,
             int size, char *dat, char const *name){
