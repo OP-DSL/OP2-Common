@@ -10,7 +10,7 @@ void __syncthreads(){}
                             
 // global constants         
                             
-extern float alpha;         
+extern double alpha;         
                             
 // user kernel files        
                             

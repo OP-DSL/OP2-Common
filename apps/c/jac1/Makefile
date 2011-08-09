@@ -57,7 +57,7 @@ EXEC_MPI = jac_mpi
 # master to make all versions
 #
 
-all: jac_seq jac_openmp jac_cuda #jac_mpi
+all: jac_seq jac_openmp jac_cuda jac_mpi
 
 
 #
@@ -90,7 +90,15 @@ jac_kernels_cu.o:	jac_kernels.cu  \
                 Makefile
 		nvcc $(INC) $(NVCCFLAGS)  -I$(INC_OP2) 	-c -o jac_kernels_cu.o jac_kernels.cu
 	
+#
+# mpi with sequential-nodes version
+#
 
+jac_mpi:	jac_mpi.cpp update.h res.h \
+		Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
+		$(MPICPP) $(CCFLAGS) jac_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INSTALL_PATH) -L$(LIB_OP2) -lop2_mpi $(PARMETISLIB) -o $(EXEC_MPI)
+
+		
 #
 # cleanup
 #
