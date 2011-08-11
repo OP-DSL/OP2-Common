@@ -431,6 +431,11 @@ int main(int argc, char **argv)
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
 
+  //print total time for niter interations
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
+
   op_mpi_exit();
   MPI_Finalize();   //user mpi finalize
 }
