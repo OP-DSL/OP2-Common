@@ -2696,29 +2696,294 @@ void op_partition_ptscotch(op_map primary_map)
     	MPI_Abort(OP_PART_WORLD, 2); 	
     }
     
+    
+/*--STEP 0 - initialise partitioning data stauctures with the current (block) 
+    partitioning information */
+    
+    // Compute global partition range information for each set
+    int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+    get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
+    
+    //save the original part_range for future partition reversing
+    orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+    for(int s = 0; s< OP_set_index; s++)
+    {
+    	op_set set=OP_set_list[s];
+    	orig_part_range[set->index] = (int *)xmalloc(2*comm_size*sizeof(int));
+    	for(int j = 0; j<comm_size; j++){
+    	    orig_part_range[set->index][2*j] = part_range[set->index][2*j];
+    	    orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
+    	}
+    }
+    
+    //allocate memory for list
+    OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
+    
+    for(int s=0; s<OP_set_index; s++) { //for each set
+      op_set set=OP_set_list[s];
+      //printf("set %s size = %d\n", set.name, set.size);
+      int *g_index = (int *)xmalloc(sizeof(int)*set->size);
+      for(int i = 0; i< set->size; i++)
+      	  g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);      
+      decl_partition(set, g_index, NULL); 
+    }
+    
+    
+    
+/*--STEP 1 - Construct adjacency list of the to-set of the primary_map -------*/    
+	
+    //
+    //create export list
+    //
+    int i = 0; int cap = 1000;
+    int* list = (int *)xmalloc(cap*sizeof(int));//temp list
+    	
+    for(int e=0; e < primary_map->from->size; e++) { //for each maping table entry
+    	int part, local_index;
+    	for(int j=0; j < primary_map->dim; j++) { //for each element pointed at by this entry
+    	    part = get_partition(primary_map->map[e*primary_map->dim+j],
+    	    	part_range[primary_map->to->index],&local_index,comm_size);
+    	    if(i>=cap)
+    	    {
+    	    	cap = cap*2;
+    	    	list = (int *)xrealloc(list,cap*sizeof(int));
+    	    }
+    	    
+    	    if(part != my_rank){
+    	    	list[i++] = part; //add to export list
+    	    	list[i++] = e;
+    	    }
+    	}
+    }
+    halo_list exp_list= (halo_list)xmalloc(sizeof(halo_list_core));
+    create_export_list(primary_map->from,list, exp_list, i, comm_size, my_rank);
+    free(list);//free temp list 
+    
+    //
+    //create import list
+    //
+    int *neighbors, *sizes;
+    int ranks_size;
+    
+    //-----Discover neighbors-----
+    ranks_size = 0;
+    neighbors = (int *)xmalloc(comm_size*sizeof(int));
+    sizes = (int *)xmalloc(comm_size*sizeof(int));
+    
+    //halo_list list = OP_export_exec_list[set->index];
+    find_neighbors_set(exp_list, neighbors, sizes, &ranks_size, my_rank,
+    	comm_size, OP_PART_WORLD);
+    MPI_Request request_send[exp_list->ranks_size];
+    
+    int* rbuf, index = 0;
+    cap = 0;
+    
+    for(int i=0; i<exp_list->ranks_size; i++) {
+    	int* sbuf = &exp_list->list[exp_list->disps[i]];
+    	MPI_Isend( sbuf,  exp_list->sizes[i],  MPI_INT, exp_list->ranks[i], 
+    	    primary_map->index, OP_PART_WORLD, &request_send[i] );
+    }
+    
+    for(int i=0; i< ranks_size; i++) cap = cap + sizes[i];
+    int* temp = (int *)xmalloc(cap*sizeof(int));
+    
+    //import this list from those neighbors
+    for(int i=0; i<ranks_size; i++) {
+    	rbuf = (int *)xmalloc(sizes[i]*sizeof(int));
+    	MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i],primary_map->index, 
+    	    OP_PART_WORLD, MPI_STATUSES_IGNORE );
+    	memcpy(&temp[index],(void *)&rbuf[0],sizes[i]*sizeof(int));
+    	index = index + sizes[i];
+    	free(rbuf);
+    }
+    MPI_Waitall(exp_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
+    
+    halo_list imp_list= (halo_list)xmalloc(sizeof(halo_list_core));
+    create_import_list(primary_map->from, temp, imp_list, index,neighbors, sizes,
+    	ranks_size, comm_size, my_rank);
+    
+    
+    //
+    //Exchange mapping table entries using the import/export lists
+    //
+    
+    //prepare bits of the mapping tables to be exported
+    int** sbuf = (int **)xmalloc(exp_list->ranks_size*sizeof(int *));
+    	
+    for(int i=0; i < exp_list->ranks_size; i++) {
+    	sbuf[i] = (int *)xmalloc(exp_list->sizes[i]*primary_map->dim*sizeof(int));
+    	for(int j = 0; j < exp_list->sizes[i]; j++)
+    	{
+    	    for(int p = 0; p < primary_map->dim; p++)
+    	    {
+    	    	sbuf[i][j*primary_map->dim+p] =
+    	    	primary_map->map[primary_map->dim*
+    	    	(exp_list->list[exp_list->disps[i]+j])+p];
+    	    }
+    	}
+    	MPI_Isend(sbuf[i],  primary_map->dim*exp_list->sizes[i],  MPI_INT,
+    	    exp_list->ranks[i], primary_map->index, OP_PART_WORLD, &request_send[i]);
+    }
+    
+    //prepare space for the incomming mapping tables    
+    int* foreign_maps = (int *)xmalloc(primary_map->dim*(imp_list->size)*sizeof(int));
+
+    for(int i=0; i<imp_list->ranks_size; i++) {
+    	MPI_Recv(&foreign_maps[imp_list->disps[i]*primary_map->dim],
+    	    primary_map->dim*imp_list->sizes[i], MPI_INT, imp_list->ranks[i], 
+    	    primary_map->index, OP_PART_WORLD, MPI_STATUSES_IGNORE);
+    }
+    
+    MPI_Waitall(exp_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
+    for(int i=0; i < exp_list->ranks_size; i++) free(sbuf[i]); free(sbuf); 
+    
+    int** adj = (int **)xmalloc(primary_map->to->size*sizeof(int *));
+    int* adj_i = (int *)xmalloc(primary_map->to->size*sizeof(int ));
+    int* adj_cap = (int *)xmalloc(primary_map->to->size*sizeof(int ));
+    
+    for(int i = 0; i<primary_map->to->size; i++)adj_i[i] = 0;
+    for(int i = 0; i<primary_map->to->size; i++)adj_cap[i] = primary_map->dim;
+    for(int i = 0; i<primary_map->to->size; i++)adj[i] = (int *)xmalloc(adj_cap[i]*sizeof(int));
+    
+    
+    //go through each from-element of local primary_map and construct adjacency list
+    for(int i = 0; i<primary_map->from->size; i++)
+    {
+    	int part, local_index;
+    	for(int j=0; j < primary_map->dim; j++) { //for each element pointed at by this entry
+    	    part = get_partition(primary_map->map[i*primary_map->dim+j],
+    	    	part_range[primary_map->to->index],&local_index,comm_size);
+    	    
+    	    if(part == my_rank)
+    	    {
+    	    	for(int k = 0; k<primary_map->dim; k++)
+    	    	{
+    	    	    if(adj_i[local_index] >= adj_cap[local_index])
+    	    	    {
+    	    	    	adj_cap[local_index] = adj_cap[local_index]*2;
+    	    	    	adj[local_index] = (int *)xrealloc(adj[local_index],
+    	    	    	adj_cap[local_index]*sizeof(int));
+    	    	    }
+    	    	    adj[local_index][adj_i[local_index]++] = 
+    	    	    primary_map->map[i*primary_map->dim+k];
+    	    	}
+    	    }
+    	}
+    }
+    //go through each from-element of foreign primary_map and add to adjacency list
+    for(int i = 0; i<imp_list->size; i++)
+    {
+    	int part, local_index;
+    	for(int j=0; j < primary_map->dim; j++) { //for each element pointed at by this entry
+    	    part = get_partition(foreign_maps[i*primary_map->dim+j],
+    	    	part_range[primary_map->to->index],&local_index,comm_size);
+    	    
+    	    if(part == my_rank)
+    	    {
+    	    	for(int k = 0; k<primary_map->dim; k++)
+    	    	{
+    	    	    if(adj_i[local_index] >= adj_cap[local_index])
+    	    	    {
+    	    	    	adj_cap[local_index] = adj_cap[local_index]*2;
+    	    	    	adj[local_index] = (int *)xrealloc(adj[local_index],
+    	    	    	adj_cap[local_index]*sizeof(int));
+    	    	    }
+    	    	    adj[local_index][adj_i[local_index]++] = 
+    	    	    foreign_maps[i*primary_map->dim+k];
+    	    	}
+    	    }
+    	}
+    }
+    free(foreign_maps);
+    
+    
+    //
+    //Setup data structures for PT-Scotch
+    //
+        
     SCOTCH_Dgraph *grafptr = SCOTCH_dgraphAlloc();
     SCOTCH_dgraphInit(grafptr, OP_PART_WORLD); 
     
-    SCOTCH Num baseval = 0;
-    vertlocnbr //vertex local number - number of vertexes on local mpi rank
-    vertlocmax //vertex local max - put same value as vertlocnbr
-    vertloctab //local vertex adjacency index array, of size (vertlocnbr+1)
+    SCOTCH_Num baseval = 0;
     
-    vendloctab //not needed
-    veloloctab //not needed
-    vlblocltab //not needed
-
-    edgelocnbr, //local number of arcs (that is, twice the number of edges)
-    edgelocsiz, // equal to edgelocnbr
-    edgeloctab, //the local adjacency array, of size at least edgelocsiz, 
-    		//which stores the global indices of end vertices
+    //vertex local number - number of vertexes on local mpi rank
+    SCOTCH_Num vertlocnbr =   primary_map->to->size;
     
-    edgegsttab, //not needed
-    edloloctab //not needed
+    //vertex local max - put same value as vertlocnbr
+    SCOTCH_Num vertlocmax =  vertlocnbr;
+    
+    //local vertex adjacency index array, of size (vertlocnbr+1)
+    SCOTCH_Num *vertloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num)*(vertlocnbr+1));
+    cap = (primary_map->to->size)*primary_map->dim;
+    
+    SCOTCH_Num *vendloctab = NULL;//not needed
+    SCOTCH_Num *veloloctab = NULL;//not needed
+    SCOTCH_Num *vlblocltab = NULL;//not needed
+        
+    //the local adjacency array, of size at least edgelocsiz, 
+    //which stores the global indices of end vertices
+    SCOTCH_Num *edgeloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num)*cap);
+    int count = 0;int prev_count = 0;
+    
+    for(int i = 0; i<primary_map->to->size; i++)
+    {
+    	int g_index = get_global_index(i, my_rank, 
+    	    part_range[primary_map->to->index], comm_size);
+    	quickSort(adj[i], 0, adj_i[i]-1);  
+    	adj_i[i] = removeDups(adj[i], adj_i[i]);
+    	
+    	
+    	if(adj_i[i] < 2) 
+    	{
+    	    printf("The from set: %s of primary map: %s is not an on to set of to-set: %s\n",
+    	    	primary_map->from->name, primary_map->name, primary_map->to->name);
+    	    printf("Need to select a different primary map\n"); 
+    	    MPI_Abort(OP_PART_WORLD, 2);   	    
+    	}
+    	
+    	adj[i] = (int *)xrealloc(adj[i],adj_i[i]*sizeof(int));
+    	for(int j = 0; j<adj_i[i]; j++)
+    	{   
+    	    if(adj[i][j] != g_index)
+    	    {
+    	    	if(count >= cap)
+    	    	{
+    	    	    cap = cap*2;
+    	    	    edgeloctab = (SCOTCH_Num *)xrealloc(edgeloctab,sizeof(SCOTCH_Num)*cap);
+    	    	}
+    	    	edgeloctab[count++] = (SCOTCH_Num)adj[i][j];
+    	    }
+    	}
+    	if(i != 0)
+    	{
+    	    vertloctab[i] = prev_count;
+    	    prev_count = count;
+    	}
+    	else 
+    	{
+    	    vertloctab[i] = 0;
+    	    prev_count = count;
+    	}
+    }
+    vertloctab[primary_map->to->size] = count; 
+    
+    //local number of arcs (that is, twice the number of edges)
+    SCOTCH_Num edgelocnbr = count;
+    SCOTCH_Num edgelocsiz = edgelocnbr; // equal to edgelocnbr
+    
+    for(int i = 0; i<primary_map->to->size; i++)free(adj[i]);
+    free(adj_i);free(adj_cap);free(adj);
+    
+    
+    SCOTCH_Num *edgegsttab = NULL; //not needed
+    SCOTCH_Num *edloloctab = NULL;//not needed
+    
 
-
-    //int SCOTCH_dgraphBuild();
-    //int SCOTCH_dgraphCheck(const SCOTCH_Dgraph *grafptr);
+    SCOTCH_dgraphBuild(grafptr, baseval, vertlocnbr, vertlocmax, vertloctab, 
+    	vendloctab, veloloctab, vlblocltab, edgelocnbr, edgelocsiz,
+    	edgeloctab, edgegsttab, edloloctab);
+    int test = SCOTCH_dgraphCheck(grafptr);
+    if(test == 0)printf("PT-Scotch Graph Consistant\n");
     //int SCOTCH_dgraphPart();
 
     

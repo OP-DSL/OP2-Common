@@ -432,7 +432,7 @@ int main(int argc, char **argv){
     */
     
     //return all op_dats, op_maps back to original element order
-    op_partition_reverse(); 
+    //op_partition_reverse(); 
     
     //print each mpi process's timing info for each kernel
     op_mpi_timing_output();
