@@ -15,3 +15,7 @@ To compile it, it is required to:
    For instance:
 
       export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
+
+      and/or
+
+      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT_Scotch

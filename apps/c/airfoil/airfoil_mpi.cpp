@@ -340,8 +340,12 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //partition
-  //op_partition_geom(p_x, g_nnode);
-  op_partition_kway(pecell);
+  //op_partition_geom(p_x);
+  //op_partition_random(edges);
+  //op_partition_kway(pecell);
+  //op_partition_geomkway(p_x, pcell);
+  //op_partition_meshkway(pcell);  //not working !!
+  op_partition_ptscotch(pecell);
 
   //create halos
   op_halo_create();
@@ -426,11 +430,6 @@ int main(int argc, char **argv)
 
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
-
-  //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
 
   op_mpi_exit();
   MPI_Finalize();   //user mpi finalize

@@ -43,7 +43,12 @@ NVCCFLAGS	:= -O3 -arch=sm_20 \
 		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
 
 LIBS		:= $(LIB) -lcudart
-PARMETISLIB 	:= $(PARMETIS_INSTALL_PATH)/libparmetis.a $(PARMETIS_INSTALL_PATH)/libmetis.a
+PARMETIS_LIB = $(PARMETIS_INSTALL_PATH)/libparmetis.a $(PARMETIS_INSTALL_PATH)/libmetis.a
+PTSCOTCH_LIB = $(PTSCOTCH_INSTALL_PATH)/lib/libptscotch.a $(PTSCOTCH_INSTALL_PATH)/lib/libptscotcherr.a
+
+PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
+PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
+
 
 C_OP2_H		:= $(C_OP2)/op_seq.h $(C_OP2)/op_lib.h $(C_OP2)/op_lib_core.h
 OP2_LIB		:= $(C_OP2)/op_lib.a
@@ -106,7 +111,15 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 
 airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
 		Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
-		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INSTALL_PATH) -L$(LIB_OP2) -lop2_mpi $(PARMETISLIB) -o $(EXEC_MPI)
+		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+		-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o $(EXEC_MPI)
+
+
+#airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
+#		Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
+#		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PTSCOTCH_INSTALL_PATH)/include -L$(LIB_OP2) -lop2_mpi \
+#		-L/home/gihan/PT-Scotch/lib/ -lptscotchparmetis -lptscotch -lptscotcherr -o $(EXEC_MPI)
+
 
 
 #

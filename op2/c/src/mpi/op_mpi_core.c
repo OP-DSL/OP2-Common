@@ -1306,7 +1306,44 @@ void op_halo_create()
   time = wall_t2-wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
-  //compute average halo size in Bytes
+  //compute avg/min/max set sizes and exec sizes accross the MPI universe
+  int avg_size = 0, min_size = 0, max_size = 0;
+  for(int s = 0; s< OP_set_index; s++){
+    op_set set=OP_set_list[s];
+
+    //number of set elements first
+    MPI_Reduce(&set->size, &avg_size,1, MPI_INT, MPI_SUM,
+        MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&set->size, &min_size,1, MPI_INT, MPI_MIN,
+        MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&set->size, &max_size,1, MPI_INT, MPI_MAX,
+        MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT)
+    {
+      printf("Num of %10s (elems | exec halo elems): %10d %10d %10d ",
+          set->name, avg_size/comm_size, min_size, max_size);
+    }
+    avg_size = 0;min_size = 0; max_size = 0;
+
+    //number of exec halo elements second
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
+        &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
+        &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
+        &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT)
+    {
+      printf("| %10d %10d %10d \n",
+          avg_size/comm_size, min_size, max_size);
+    }
+    avg_size = 0;min_size = 0; max_size = 0;
+  }
+
+
+  //compute average worst case halo size in Bytes
   int tot_halo_size = 0;
   for(int s = 0; s< OP_set_index; s++){
     op_set set=OP_set_list[s];
