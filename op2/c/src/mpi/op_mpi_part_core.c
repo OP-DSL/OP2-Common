@@ -45,8 +45,20 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
+//mpi header
+#include <mpi.h>
+
+//ptscotch header
+#if PTSCOTCH
+#include <ptscotch.h>
+#endif
+
 //parmetis header
+#if PARMETIS
 #include <parmetis.h>
+#endif
+
+
 
 #include <op_mpi_core.h>
 #include <op_mpi_part_core.h>
@@ -1460,6 +1472,7 @@ void migrate_all(int my_rank, int comm_size)
 }
 
 
+
 /*******************************************************************************
 * This routine partitions a given set randomly
 *******************************************************************************/
@@ -1548,6 +1561,69 @@ void op_partition_random(op_set primary_set)
 
 
 
+
+/*******************************************************************************
+* Routine to revert back to the original partitioning  
+*******************************************************************************/
+void op_partition_reverse()
+{
+    //declare timers
+    double cpu_t1, cpu_t2, wall_t1, wall_t2;
+    double time;
+    double max_time;
+    op_timers(&cpu_t1, &wall_t1); //timer start for partition reversing
+    
+    //create new communicator for reverse-partitioning
+    int my_rank, comm_size;
+    MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+    MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+    MPI_Comm_size(OP_PART_WORLD, &comm_size);
+    
+    //need original g_index with current index - already in OP_part_list
+    //need original part_range - saved during partition creation
+          
+    //use g_index and original part range to fill in 
+    //OP_part_list[set->index]->elem_part with original partitioning information
+    for(int s=0; s<OP_set_index; s++) { //for each set
+    	op_set set=OP_set_list[s];
+    	
+    	for(int i = 0; i < set->size; i++)
+    	{
+    	    int local_index;
+    	    OP_part_list[set->index]->elem_part[i] = 
+    	    get_partition(OP_part_list[set->index]->g_index[i], 
+    	    	orig_part_range[set->index], &local_index, comm_size);
+    	}
+    }
+    
+    //reverse renumbering of mapping tables
+    reverse_renumber_maps(my_rank, comm_size);
+    
+    //reverse back migration
+    migrate_all(my_rank, comm_size);
+    
+    //destroy OP_part_list[]
+    for(int s=0; s<OP_set_index; s++) { //for each set
+    	op_set set=OP_set_list[s];
+    	free(OP_part_list[set->index]->g_index);
+    	free(OP_part_list[set->index]->elem_part);
+    	free(OP_part_list[set->index]);
+    }
+    free(OP_part_list);
+    for(int i = 0; i<OP_set_index; i++)free(orig_part_range[i]);
+    free(orig_part_range);
+    
+    op_timers(&cpu_t2, &wall_t2);  //timer stop for partition reversing
+    //printf time for partition reversing
+    time = wall_t2-wall_t1;
+    MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
+    MPI_Comm_free(&OP_PART_WORLD);  
+    if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);    
+}
+
+
+
+#if PARMETIS
 /*******************************************************************************
 * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set 
 * Using its XYZ Geometry Data
@@ -2420,11 +2496,6 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
     
 }
 
-
-
-
-
-
 /*******************************************************************************
 * Wrapper routine to use ParMETIS PartMeshKway() which partitions a the to-set 
 * of an op_map using the from-set of the op_map 
@@ -2597,69 +2668,73 @@ void op_partition_meshkway(op_map primary_map) //not working !!
     if(my_rank==MPI_ROOT)printf("Max total MeshKway partitioning time = %lf\n",max_time);    
     
 }
+#endif
 
 
 
-
-/*******************************************************************************
-* Routine to revert back to the original partitioning  
-*******************************************************************************/
-void op_partition_reverse()
+#if PTSCOTCH
+void op_partition_ptscotch(op_map primary_map)
 {
     //declare timers
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
     double time;
     double max_time;
-    op_timers(&cpu_t1, &wall_t1); //timer start for partition reversing
     
-    //create new communicator for reverse-partitioning
+    op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
+  
+    //create new communicator for partitioning
     int my_rank, comm_size;
     MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
     MPI_Comm_rank(OP_PART_WORLD, &my_rank);
     MPI_Comm_size(OP_PART_WORLD, &comm_size);
     
-    //need original g_index with current index - already in OP_part_list
-    //need original part_range - saved during partition creation
-          
-    //use g_index and original part range to fill in 
-    //OP_part_list[set->index]->elem_part with original partitioning information
-    for(int s=0; s<OP_set_index; s++) { //for each set
-    	op_set set=OP_set_list[s];
-    	
-    	for(int i = 0; i < set->size; i++)
-    	{
-    	    int local_index;
-    	    OP_part_list[set->index]->elem_part[i] = 
-    	    get_partition(OP_part_list[set->index]->g_index[i], 
-    	    	orig_part_range[set->index], &local_index, comm_size);
-    	}
+    //check if the  primary_map is an on to map from the from-set to the to-set
+    if(is_onto_map(primary_map) != 1)
+    {
+    	printf("Map %s is an not an onto map from set %s to set %s \n",
+    	    primary_map->name, primary_map->from->name, primary_map->to->name);
+    	MPI_Abort(OP_PART_WORLD, 2); 	
     }
     
-    //reverse renumbering of mapping tables
-    reverse_renumber_maps(my_rank, comm_size);
+    SCOTCH_Dgraph *grafptr = SCOTCH_dgraphAlloc();
+    SCOTCH_dgraphInit(grafptr, OP_PART_WORLD); 
     
-    //reverse back migration
-    migrate_all(my_rank, comm_size);
+    SCOTCH Num baseval = 0;
+    vertlocnbr //vertex local number - number of vertexes on local mpi rank
+    vertlocmax //vertex local max - put same value as vertlocnbr
+    vertloctab //local vertex adjacency index array, of size (vertlocnbr+1)
     
-    //destroy OP_part_list[]
-    for(int s=0; s<OP_set_index; s++) { //for each set
-    	op_set set=OP_set_list[s];
-    	free(OP_part_list[set->index]->g_index);
-    	free(OP_part_list[set->index]->elem_part);
-    	free(OP_part_list[set->index]);
-    }
-    free(OP_part_list);
-    for(int i = 0; i<OP_set_index; i++)free(orig_part_range[i]);
-    free(orig_part_range);
+    vendloctab //not needed
+    veloloctab //not needed
+    vlblocltab //not needed
+
+    edgelocnbr, //local number of arcs (that is, twice the number of edges)
+    edgelocsiz, // equal to edgelocnbr
+    edgeloctab, //the local adjacency array, of size at least edgelocsiz, 
+    		//which stores the global indices of end vertices
     
-    op_timers(&cpu_t2, &wall_t2);  //timer stop for partition reversing
-    //printf time for partition reversing
+    edgegsttab, //not needed
+    edloloctab //not needed
+
+
+    //int SCOTCH_dgraphBuild();
+    //int SCOTCH_dgraphCheck(const SCOTCH_Dgraph *grafptr);
+    //int SCOTCH_dgraphPart();
+
+    
+    
+    //free PT-Scotch allocated memory space
+    free(grafptr);
+    
+    op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
+    //printf time for partitioning
     time = wall_t2-wall_t1;
-    MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
+    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
     MPI_Comm_free(&OP_PART_WORLD);  
-    if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);    
+    if(my_rank==MPI_ROOT)printf("Max total PT-Scotch partitioning time = %lf\n",max_time);    
+    
+
 }
-
-
+#endif
 
 

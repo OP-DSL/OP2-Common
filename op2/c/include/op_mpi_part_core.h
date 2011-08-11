@@ -44,7 +44,7 @@
 void op_partition_random(op_set primary_set);
 
  
-
+#if PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
 *******************************************************************************/
@@ -55,7 +55,15 @@ void op_partition_kway(op_map primary_map);
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
 void op_partition_meshkway(op_map primary_map);
+#endif
 
+
+#if PTSCOTCH
+/*******************************************************************************
+* PT-SCOTCH wrapper prototypes
+*******************************************************************************/
+void op_partition_ptscotch(op_map primary_map);
+#endif
 
 /*******************************************************************************
 * Other partitioning related routine prototypes
