@@ -350,7 +350,6 @@ int main(int argc, char **argv){
     //op_partition_meshkway(pcell);  //not working !!    
     op_partition_ptscotch(pecell);
     
-    /*
     //create halos
     op_halo_create();
     
@@ -426,20 +425,19 @@ int main(int argc, char **argv){
     //output the result dat array to files 
     print_dat_tofile(temp, "out_grid.dat"); //ASCI
     print_dat_tobinfile(temp, "out_grid.bin"); //Binary
-    
+  
     //free memory allocated to halos
     op_halo_destroy(); 
-    */
-    
+        
     //return all op_dats, op_maps back to original element order
-    //op_partition_reverse(); 
+    op_partition_reverse(); 
     
     //print each mpi process's timing info for each kernel
     op_mpi_timing_output();
     //print total time for niter interations
-    //time = wall_t2-wall_t1;
-    //MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-    //if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
+    time = wall_t2-wall_t1;
+    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+    if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
     
     op_mpi_exit();
     MPI_Finalize();   //user mpi finalize

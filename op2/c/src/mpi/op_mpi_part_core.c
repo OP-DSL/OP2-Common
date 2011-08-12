@@ -591,6 +591,10 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     	OP_part_list[map->to->index]->elem_part = partition;
     	OP_part_list[map->to->index]->is_partitioned = 1;
     }
+    else
+    {
+    	free(partition);
+    }
     
     //cleanup 
     free(pi_list->list);free(pi_list->ranks);free(pi_list->sizes);
@@ -951,7 +955,7 @@ void reverse_renumber_maps(int my_rank, int comm_size)
       	{
       	    quickSort(req_list, 0, count-1);
       	    count = removeDups(req_list, count);
-      	    req_list = (int *)xrealloc(req_list, count*sizeof(int));      	    
+      	    req_list = (int *)xrealloc(req_list, count*sizeof(int));
       	}
       	
       	//do an allgather to findout how many elements that each process will 
@@ -2974,22 +2978,72 @@ void op_partition_ptscotch(op_map primary_map)
     for(int i = 0; i<primary_map->to->size; i++)free(adj[i]);
     free(adj_i);free(adj_cap);free(adj);
     
-    
     SCOTCH_Num *edgegsttab = NULL; //not needed
     SCOTCH_Num *edloloctab = NULL;//not needed
     
-
+     //clean up before calling Partitioner
+    for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+    free(imp_list->list);free(imp_list->disps);free(imp_list->ranks);free(imp_list->sizes);
+    free(exp_list->list);free(exp_list->disps);free(exp_list->ranks);free(exp_list->sizes);
+    free(imp_list);free(exp_list);
+    
+    //build a PT-Scotch graph
     SCOTCH_dgraphBuild(grafptr, baseval, vertlocnbr, vertlocmax, vertloctab, 
     	vendloctab, veloloctab, vlblocltab, edgelocnbr, edgelocsiz,
     	edgeloctab, edgegsttab, edloloctab);
     int test = SCOTCH_dgraphCheck(grafptr);
-    if(test == 0)printf("PT-Scotch Graph Consistant\n");
-    //int SCOTCH_dgraphPart();
-
+    if(test == 1)
+    {
+    	printf("PT-Scotch Graph Inconsistant - Aborting\n");
+    	MPI_Abort(OP_PART_WORLD, 2);
+    }
     
+    SCOTCH_Num *partloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num)*primary_map->to->size);
+    for(int i = 0; i < primary_map->to->size; i++){ partloctab[i] = -99; }
+    
+    //initialise partition strategy struct
+    SCOTCH_Strat straptr;
+    SCOTCH_stratInit(&straptr);
+
+    //SCOTCH_stratDgraphMapBuild(&straptr, SCOTCH_STRATQUALITY/*SCOTCH_STRATSCALABILITY*/,
+    //comm_size, comm_size, 1.05);
+    
+    
+    //partition the graph
+    SCOTCH_dgraphPart(grafptr, comm_size, &straptr, partloctab);
+    free(edgeloctab);free(vertloctab);
+    
+    //saniti check to see if all elements were partitioned
+    for(int i = 0; i<primary_map->to->size; i++)
+    {
+    	if(partloctab[i]<0)
+    	{
+    	    printf("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n",
+    	    	my_rank,primary_map->to->name, i);
+    	    MPI_Abort(OP_PART_WORLD, 2); 
+    	}
+    }
+    
+    //free strat struct
+    SCOTCH_stratExit(&straptr);    
     
     //free PT-Scotch allocated memory space
     free(grafptr);
+    
+    //initialise primary set as partitioned
+    OP_part_list[primary_map->to->index]->elem_part= partloctab;
+    OP_part_list[primary_map->to->index]->is_partitioned = 1;  
+
+/*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+    
+    //partition all other sets
+    partition_all(primary_map->to, my_rank, comm_size);
+    
+    //migrate data, sort elements 
+    migrate_all(my_rank, comm_size);
+    
+    //renumber mapping tables
+    renumber_maps(my_rank, comm_size);
     
     op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
     //printf time for partitioning
