@@ -115,13 +115,7 @@ airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
 		-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o $(EXEC_MPI)
 		
 
-#airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
-#		Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
-#		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PTSCOTCH_INSTALL_PATH)/include -L$(LIB_OP2) -lop2_mpi \
-#		-L/home/gihan/PT-Scotch/lib/ -lptscotchparmetis -lptscotch -lptscotcherr -o $(EXEC_MPI)
-		
-
-		
+	
 #
 # cleanup
 #

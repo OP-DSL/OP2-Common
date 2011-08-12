@@ -63,26 +63,6 @@ mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
 	$(OBJ)/openmp/op_openmp_decl.o \
 	$(OBJ)/mpi/op_mpi_util.o
 
-#mpi_seq:$(INC)/op_mpi_seq.h $(PTSCOTCH_INSTALL_PATH)/lib $(SRC)/openmp/op_openmp_decl.c \
-#	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(OBJ)/op_lib_core.o
-#	
-#	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.c \
-#	-o $(OBJ)/mpi/op_mpi_util.o
-#	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
-#	-o $(OBJ)/mpi/op_mpi_core.o
-#	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
-#	-o $(OBJ)/op_rt_support.o
-#	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c \
-#	-o $(OBJ)/openmp/op_openmp_decl.o
-#	$(MPICPP) $(FLAGS) -I$(INC) -I$(PTSCOTCH_INSTALL_PATH)/include -I$(PARMETIS_INSTALL_PATH) \
-#	-c $(SRC)/mpi/op_mpi_part_core.c \
-#	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/mpi/op_mpi_util.o /home/gihan/PT-Scotch/lib/libptscotchparmetis.a /home/gihan/PT-Scotch/lib/libptscotch.a /home/gihan/PT-Scotch/lib/libptscotcherr.a
-#	
-#	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
-#	$(OBJ)/mpi/op_mpi_part_core.o \
-#	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
-#	$(OBJ)/openmp/op_openmp_decl.o \
-#	$(OBJ)/mpi/op_mpi_util.o
 
 clean:
 	-rm -if $(OBJ)/*.o

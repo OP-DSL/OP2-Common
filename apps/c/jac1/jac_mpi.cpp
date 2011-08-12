@@ -277,6 +277,9 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
   
+  //random partitioning for diagnostics pourposes
+  //op_partition_random(nodes);
+  
   //create halos
   op_halo_create();
   
