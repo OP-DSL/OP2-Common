@@ -18,4 +18,4 @@ To compile it, it is required to:
       
       and/or 
       
-      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT_Scotch
+      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT-Scotch
