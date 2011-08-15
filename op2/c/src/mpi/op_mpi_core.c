@@ -2013,7 +2013,7 @@ void op_mpi_timing_output()
 
 int op_mpi_perf_time(const char* name, double time)
 {
-  int kernel_index = hash(name);
+  int kernel_index = op2_hash(name);
   if(op_mpi_kernel_tab[kernel_index].count == 0)
   {
     op_mpi_kernel_tab[kernel_index].name = name;

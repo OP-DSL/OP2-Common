@@ -4,10 +4,10 @@ INC = include
 LIB = lib
 OBJ = obj
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
-MPI_HOME = /home/gihan/openmpi
+MPI_HOME = /home/gihan/openmpi-intel#/home/gihan/openmpi-pgi
 
-CC = icc#gcc
-CPP = icpc#g++
+CC = icc#pgcc#gcc
+CPP = icpc#pgCC#g++
 NVCC = nvcc
 MPICPP = $(MPI_HOME)/bin/mpiCC
 
@@ -17,11 +17,11 @@ PTSCOTCH_LIB = $(PTSCOTCH_INSTALL_PATH)/lib/libptscotch.a $(PTSCOTCH_INSTALL_PAT
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
-FLAGS = -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
+FLAGS = -O2 -fno-strict-aliasing -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
 
 .PHONY: clean
 
-all: core seq cuda openmp mpi_seq
+all: core seq openmp mpi_seq cuda
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
@@ -31,8 +31,8 @@ seq: $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
 	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/op_lib_core.o
 
 cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c $(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
-	$(CPP) -fno-strict-aliasing -DSET_CUDA_CACHE_CONFIG $(FLAGS) -I$(CUDA_INC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
-	$(CPP) -fno-strict-aliasing $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
+	$(CPP) -DSET_CUDA_CACHE_CONFIG $(FLAGS) -I$(CUDA_INC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CPP) $(FLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o $(OBJ)/cuda/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
