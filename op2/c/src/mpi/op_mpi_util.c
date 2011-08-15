@@ -86,7 +86,7 @@ int compare_sets(op_set set1, op_set set2)
 /*******************************************************************************
 * Simple hash function for a char string
 *******************************************************************************/
-unsigned hash(const char *s)
+unsigned op2_hash(const char *s)
 {
     unsigned hashval;
     for (hashval = 0; *s != '\0'; s++)

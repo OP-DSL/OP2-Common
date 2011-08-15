@@ -15,9 +15,9 @@ LIB_CUDA := -L$(CUDA)/lib64
 
 
 # compiler
-CC = icc#gcc
-CPP = icpc#g++
-MPI_HOME = /home/gihan/openmpi#this should be set as an environment variable
+CC = icc#pgcc#gcc
+CPP = icpc#pgCC#g++
+MPI_HOME = /home/gihan/openmpi-intel#/home/gihan/openmpi-pgi 
 MPICPP = $(MPI_HOME)/bin/mpiCC 
 
 CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
