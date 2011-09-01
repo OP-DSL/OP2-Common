@@ -20,7 +20,7 @@ CPP = icpc#pgCC#g++
 MPI_HOME = /home/gihan/openmpi-intel#/home/gihan/openmpi-pgi 
 MPICPP = $(MPI_HOME)/bin/mpiCC 
 
-CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
+CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g -DCOMM_PERF #-DDEBUG
 
 #openmp
 OMP	:= -openmp -openmp-report2

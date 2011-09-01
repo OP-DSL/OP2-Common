@@ -344,13 +344,13 @@ int main(int argc, char **argv){
 
     //partition with ParMetis
     //op_partition_geom(p_x);
-    //op_partition_random(edges);
-    //op_partition_kway(pecell);
+    //op_partition_random(cells);
+    op_partition_kway(pecell);
     //op_partition_geomkway(p_x, pcell);
     //op_partition_meshkway(pcell);  //not working !!    
     
     //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
+    //op_partition_ptscotch(pecell);
     
     //create halos
     op_halo_create();

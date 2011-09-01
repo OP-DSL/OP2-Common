@@ -526,25 +526,24 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     count = count+pi_list->size;
     
     //sort both to_elems[] and correspondingly parts[] arrays
-    quickSort_2(to_elems, parts, 0, count-1);
+    if(count > 0)quickSort_2(to_elems, parts, 0, count-1);
     
     int* found_parts;
     for(int i = 0; i<count;)
     {
     	int curr = to_elems[i];
     	int c = 0; int cap = map->dim;
-    	found_parts = (int *)xmalloc(sizeof(int)*cap);
-    
-    	while(curr == to_elems[i])
-    	{
-    	  if(c>=cap) 
-    	  {
-    	      cap = cap*2;
-    	      found_parts = (int *)xrealloc(found_parts, sizeof(int)*cap);   
-    	  }
-    	  found_parts[c++] =  parts[i];
-    	  i++;
-    	}    	
+    	found_parts = (int *)xmalloc(sizeof(int)*cap);   
+    	
+    	do{
+    	    if(c>=cap)
+    	    {
+    	    	cap = cap*2;
+    	    	found_parts = (int *)xrealloc(found_parts, sizeof(int)*cap);
+    	    }
+    	    found_parts[c++] =  parts[i];
+    	    i++;
+    	} while(curr == to_elems[i]);   	
 	partition[curr] = find_mode(found_parts, c);
 	free(found_parts);
     }  
@@ -623,7 +622,7 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
     int all_used_maps[OP_map_index];
     for(int i = 0; i<OP_map_index; i++) { all_used_maps[i] = -1;}
     
-    //begin with the partitioned primary set - e.g nodes
+    //begin with the partitioned primary set 
     all_partitioned_sets[0] = OP_set_list[primary_set->index];
     
     int error = 0;
@@ -659,10 +658,13 @@ void partition_all(op_set primary_set, int my_rank, int comm_size)
        	{
        	    int selected = min(cost, OP_map_index);
        	    
-       	    /*for(int i = 0; i<OP_map_index;i++)
-       	    	printf(" %d",cost[i]);
-       	    printf(": selected %d",selected);
-       	    printf("\n");*/
+       	    /*if(my_rank == 648)
+       	    {
+       	    	for(int i = 0; i<OP_map_index;i++)
+       	    	    printf(" %d",cost[i]);
+       	    	printf(": selected %d",selected);
+       	    	printf("\n");
+       	    }*/
        	    if(selected >= 0)
        	    {
        	    	op_map map=OP_map_list[selected];
@@ -1725,6 +1727,17 @@ void op_partition_geom(op_dat coords)
     //free part range
     for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
 
+    //saniti check to see if all elements were partitioned
+    for(int i = 0; i<coords->size; i++)
+    {
+    	if(partition[i]<0)
+    	{
+    	    printf("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n",
+    	    	my_rank,coords->name, i);
+    	    MPI_Abort(OP_PART_WORLD, 2); 
+    	}
+    }
+    
     //initialise primary set as partitioned
     OP_part_list[coords->set->index]->elem_part= partition;
     OP_part_list[coords->set->index]->is_partitioned = 1;  

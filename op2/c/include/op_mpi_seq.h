@@ -118,6 +118,17 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
       if(arg0.argtype == OP_ARG_DAT) sent[0] = exchange_halo(arg0); 
       if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
       
+  }
+  
+  //if all indirect dataset access is with OP_READ
+  exec_length = set->size;
+  //else
+  if (arg0.idx != -1 && arg0.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg1.idx != -1 && arg1.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  
+  /*
       //for all indirect dataset access with OP_READ
       if(arg0.acc == OP_READ && arg1.acc == OP_READ   ) exec_length = set->size;
       else  exec_length = set->size + OP_import_exec_list[set->index]->size;
@@ -125,7 +136,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   else //direct loop
   {
       exec_length = set->size;
-  }     
+  }     */
 
   // loop over set elements                                               
   //(1) over owned partition                                                                        
@@ -228,7 +239,22 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
       if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
       if(arg2.argtype == OP_ARG_DAT) sent[2] = exchange_halo(arg2);
       if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3);
-
+  }
+  
+  
+  //if all indirect dataset access is with OP_READ
+  exec_length = set->size;
+  //else
+  if (arg0.idx != -1 && arg0.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg1.idx != -1 && arg1.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg2.idx != -1 && arg2.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg3.idx != -1 && arg3.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  
+  /*
       //for all indirect dataset access with OP_READ
       if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ && 
       	  arg3.acc == OP_READ )
@@ -238,7 +264,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
   else //direct loop
   {
       exec_length = set->size;
-  }
+  }*/
            
   // loop over set elements                                               
   //(1) over owned partition                                                                        
@@ -365,7 +391,24 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       if(arg2.argtype == OP_ARG_DAT) sent[2] = exchange_halo(arg2);
       if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3);
       if(arg4.argtype == OP_ARG_DAT) sent[4] = exchange_halo(arg4);
+  }
+  
+  //if all indirect dataset access is with OP_READ
+  exec_length = set->size;
+  //else
+  if (arg0.idx != -1 && arg0.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg1.idx != -1 && arg1.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg2.idx != -1 && arg2.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg3.idx != -1 && arg3.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg4.idx != -1 && arg4.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
 
+  
+  /*
       //for all indirect dataset access with OP_READ
       if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ && 
       	  arg3.acc == OP_READ && arg4.acc == OP_READ )
@@ -375,7 +418,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   else //direct loop
   {
       exec_length = set->size;
-  }
+  }*/
            
   // loop over set elements                                               
   //(1) over owned partition                                                                        
@@ -515,8 +558,26 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3); 
       if(arg4.argtype == OP_ARG_DAT) sent[4] = exchange_halo(arg4); 
       if(arg5.argtype == OP_ARG_DAT) sent[5] = exchange_halo(arg5);
+  }
+  
+  //if all indirect dataset access is with OP_READ
+  exec_length = set->size;
+  //else
+  if (arg0.idx != -1 && arg0.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg1.idx != -1 && arg1.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg2.idx != -1 && arg2.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg3.idx != -1 && arg3.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg4.idx != -1 && arg4.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg5.idx != -1 && arg5.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
 
-      //for all indirect dataset access with OP_READ
+  /*
+  //for all indirect dataset access with OP_READ
       if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ && 
       	  arg3.acc == OP_READ && arg4.acc == OP_READ && arg5.acc == OP_READ)
       exec_length = set->size;
@@ -526,6 +587,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   {
       exec_length = set->size;
   }
+  */
   
   // loop over set elements                                               
   //(1) over owned partition                                                                        
@@ -682,8 +744,30 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       if(arg5.argtype == OP_ARG_DAT) sent[5] = exchange_halo(arg5);
       if(arg6.argtype == OP_ARG_DAT) sent[6] = exchange_halo(arg6);
       if(arg7.argtype == OP_ARG_DAT) sent[7] = exchange_halo(arg7);
+  }
   
-      //for all indirect dataset access with OP_READ
+  //for all indirect dataset access with OP_READ
+  exec_length = set->size;
+  
+  if (arg0.idx != -1 && arg0.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg1.idx != -1 && arg1.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg2.idx != -1 && arg2.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg3.idx != -1 && arg3.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg4.idx != -1 && arg4.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg5.idx != -1 && arg5.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg6.idx != -1 && arg6.acc != OP_READ)
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
+  else if (arg7.idx != -1 && arg7.acc != OP_READ)
+    exec_length = set->size + OP_import_exec_list[set->index]->size;
+
+  /*
+  //for all indirect dataset access with OP_READ
       if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ && 
       	  arg3.acc == OP_READ && arg4.acc == OP_READ && arg5.acc == OP_READ && 
       	  arg6.acc == OP_READ && arg7.acc == OP_READ)
@@ -693,7 +777,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   else //direct loop
   {
       exec_length = set->size;
-  }
+  }*/
   
   // loop over set elements                                               
   //(1) over owned partition                                                                        
