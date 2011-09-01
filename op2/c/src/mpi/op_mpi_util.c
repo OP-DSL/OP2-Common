@@ -153,7 +153,8 @@ int linear_search(int a[], int value, int low, int high)
 
 void quickSort(int arr[], int left, int right)
 {
-  int i = left, j = right;
+  int i = left;
+  int j = right;
   int tmp;
   int pivot = arr[(left + right) / 2];
 
@@ -181,7 +182,8 @@ void quickSort(int arr[], int left, int right)
 
 void quickSort_2(int arr1[], int arr2[], int left, int right)
 {
-  int i = left, j = right;
+  int i = left;
+  int j = right;
   int tmp1,tmp2;
   int pivot = arr1[(left + right) / 2];
 
