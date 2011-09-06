@@ -13,13 +13,13 @@
                                                                         
 void op_x86_adt_calc(                                                   
   int    blockIdx,                                                      
-  float *ind_arg0, int *ind_arg0_maps,                                  
+  double *ind_arg0, int *ind_arg0_maps,                                  
   short *arg0_maps,                                                     
   short *arg1_maps,                                                     
   short *arg2_maps,                                                     
   short *arg3_maps,                                                     
-  float *arg4,                                                          
-  float *arg5,                                                          
+  double *arg4,                                                          
+  double *arg5,                                                          
   int   *ind_arg_sizes,                                                 
   int   *ind_arg_offs,                                                  
   int    block_offset,                                                  
@@ -31,7 +31,7 @@ void op_x86_adt_calc(
                                                                         
                                                                         
   int   *ind_arg0_map, ind_arg0_size;                        
-  float *ind_arg0_s;                                         
+  double *ind_arg0_s;                                         
   int    nelem, offset_b;                                    
                                                                         
   char shared[64000];                                        
@@ -51,7 +51,7 @@ void op_x86_adt_calc(
     // set shared memory pointers                                       
                                                                         
     int nbytes = 0;                                                     
-    ind_arg0_s = (float *) &shared[nbytes];                             
+    ind_arg0_s = (double *) &shared[nbytes];                             
   }                                                                     
                                                                         
   __syncthreads(); // make sure all of above completed                  
@@ -135,13 +135,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 #pragma omp parallel for                                                
     for (int blockIdx=0; blockIdx<nblocks; blockIdx++)                  
      op_x86_adt_calc( blockIdx,                                         
-       (float *)arg0.data, Plan->ind_maps[0],                           
+       (double *)arg0.data, Plan->ind_maps[0],                           
        Plan->loc_maps[0],                                               
        Plan->loc_maps[1],                                               
        Plan->loc_maps[2],                                               
        Plan->loc_maps[3],                                               
-       (float *)arg4.data,                                              
-       (float *)arg5.data,                                              
+       (double *)arg4.data,                                              
+       (double *)arg5.data,                                              
        Plan->ind_sizes,                                                 
        Plan->ind_offs,                                                  
        block_offset,                                                    

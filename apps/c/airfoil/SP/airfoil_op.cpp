@@ -49,7 +49,7 @@
 
 // global constants
 
-float gam, gm1, cfl, eps, mach, alpha, qinf[4];
+double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 //
 // OP header file
@@ -112,17 +112,18 @@ void op_par_loop_update(char const *, op_set,
 int main(int argc, char **argv){
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  float  *x, *q, *qold, *adt, *res;
+  double  *x, *q, *qold, *adt, *res;
 
   int    nnode,ncell,nedge,nbedge,niter;
-  float  rms;
+  double  rms;
 
   // read in grid
 
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("/home/carlo/mesh_generator/new_grid-800-1200.dat","r")) == NULL) {
+
+  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -138,14 +139,14 @@ int main(int argc, char **argv){
   bound  = (int *) malloc(  nbedge*sizeof(int));
 
 
-  x      = (float *) malloc(2*nnode*sizeof(float));
-  q      = (float *) malloc(4*ncell*sizeof(float));
-  qold   = (float *) malloc(4*ncell*sizeof(float));
-  res    = (float *) malloc(4*ncell*sizeof(float));
-  adt    = (float *) malloc(  ncell*sizeof(float));
+  x      = (double *) malloc(2*nnode*sizeof(double));
+  q      = (double *) malloc(4*ncell*sizeof(double));
+  qold   = (double *) malloc(4*ncell*sizeof(double));
+  res    = (double *) malloc(4*ncell*sizeof(double));
+  adt    = (double *) malloc(  ncell*sizeof(double));
 
   for (int n=0; n<nnode; n++) {
-    if (fscanf(fp,"%f %f \n",&x[2*n], &x[2*n+1]) != 2) {
+    if (fscanf(fp,"%lf %lf \n",&x[2*n], &x[2*n+1]) != 2) {
       printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
@@ -182,12 +183,12 @@ int main(int argc, char **argv){
   cfl = 0.9f;
   eps = 0.05f;
 
-  float mach  = 0.4f;
-  float alpha = 3.0f*atan(1.0f)/45.0f;  
-  float p     = 1.0f;
-  float r     = 1.0f;
-  float u     = sqrt(gam*p/r)*mach;
-  float e     = p/(r*gm1) + 0.5f*u*u;
+  double mach  = 0.4f;
+  double alpha = 3.0f*atan(1.0f)/45.0f;  
+  double p     = 1.0f;
+  double r     = 1.0f;
+  double u     = sqrt(gam*p/r)*mach;
+  double e     = p/(r*gm1) + 0.5f*u*u;
 
   qinf[0] = r;
   qinf[1] = r*u;
@@ -219,19 +220,19 @@ int main(int argc, char **argv){
   op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
 
   op_dat p_bound = op_decl_dat(bedges,1,"int"  ,bound,"p_bound");
-  op_dat p_x     = op_decl_dat(nodes ,2,"float",x    ,"p_x");
-  op_dat p_q     = op_decl_dat(cells ,4,"float",q    ,"p_q");
-  op_dat p_qold  = op_decl_dat(cells ,4,"float",qold ,"p_qold");
-  op_dat p_adt   = op_decl_dat(cells ,1,"float",adt  ,"p_adt");
-  op_dat p_res   = op_decl_dat(cells ,4,"float",res  ,"p_res");
+  op_dat p_x     = op_decl_dat(nodes ,2,"double",x    ,"p_x");
+  op_dat p_q     = op_decl_dat(cells ,4,"double",q    ,"p_q");
+  op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
+  op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
+  op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
 
-  op_decl_const2("gam",1,"float",&gam  );
-  op_decl_const2("gm1",1,"float",&gm1  );
-  op_decl_const2("cfl",1,"float",&cfl  );
-  op_decl_const2("eps",1,"float",&eps  );
-  op_decl_const2("mach",1,"float",&mach );
-  op_decl_const2("alpha",1,"float",&alpha);
-  op_decl_const2("qinf",4,"float",qinf  );
+  op_decl_const2("gam",1,"double",&gam  );
+  op_decl_const2("gm1",1,"double",&gm1  );
+  op_decl_const2("cfl",1,"double",&cfl  );
+  op_decl_const2("eps",1,"double",&eps  );
+  op_decl_const2("mach",1,"double",&mach );
+  op_decl_const2("alpha",1,"double",&alpha);
+  op_decl_const2("qinf",4,"double",qinf  );
 
   op_diagnostic_output();
 
@@ -244,8 +245,8 @@ int main(int argc, char **argv){
 //  save old flow solution
 
     op_par_loop_save_soln("save_soln", cells,
-                op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
-                op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
+                op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_READ ),
+                op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_WRITE));
 
 //  predictor/corrector update loop
 
@@ -254,31 +255,31 @@ int main(int argc, char **argv){
 //    calculate area/timstep
 
       op_par_loop_adt_calc("adt_calc",cells,
-                  op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   1,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   2,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   3,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
-                  op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
+                  op_arg_dat(p_x,   0,pcell, 2,"double",OP_READ ),
+                  op_arg_dat(p_x,   1,pcell, 2,"double",OP_READ ),
+                  op_arg_dat(p_x,   2,pcell, 2,"double",OP_READ ),
+                  op_arg_dat(p_x,   3,pcell, 2,"double",OP_READ ),
+                  op_arg_dat(p_q,  -1,OP_ID, 4,"double",OP_READ ),
+                  op_arg_dat(p_adt,-1,OP_ID, 1,"double",OP_WRITE));
 
 //    calculate flux residual
 
       op_par_loop_res_calc("res_calc",edges,
-                  op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
-                  op_arg_dat(p_x,    1,pedge, 2,"float",OP_READ),
-                  op_arg_dat(p_q,    0,pecell,4,"float",OP_READ),
-                  op_arg_dat(p_q,    1,pecell,4,"float",OP_READ),
-                  op_arg_dat(p_adt,  0,pecell,1,"float",OP_READ),
-                  op_arg_dat(p_adt,  1,pecell,1,"float",OP_READ),
-                  op_arg_dat(p_res,  0,pecell,4,"float",OP_INC ),
-                  op_arg_dat(p_res,  1,pecell,4,"float",OP_INC ));
+                  op_arg_dat(p_x,    0,pedge, 2,"double",OP_READ),
+                  op_arg_dat(p_x,    1,pedge, 2,"double",OP_READ),
+                  op_arg_dat(p_q,    0,pecell,4,"double",OP_READ),
+                  op_arg_dat(p_q,    1,pecell,4,"double",OP_READ),
+                  op_arg_dat(p_adt,  0,pecell,1,"double",OP_READ),
+                  op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
+                  op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
+                  op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
 
       op_par_loop_bres_calc("bres_calc",bedges,
-                  op_arg_dat(p_x,     0,pbedge, 2,"float",OP_READ),
-                  op_arg_dat(p_x,     1,pbedge, 2,"float",OP_READ),
-                  op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
-                  op_arg_dat(p_adt,   0,pbecell,1,"float",OP_READ),
-                  op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
+                  op_arg_dat(p_x,     0,pbedge, 2,"double",OP_READ),
+                  op_arg_dat(p_x,     1,pbedge, 2,"double",OP_READ),
+                  op_arg_dat(p_q,     0,pbecell,4,"double",OP_READ),
+                  op_arg_dat(p_adt,   0,pbecell,1,"double",OP_READ),
+                  op_arg_dat(p_res,   0,pbecell,4,"double",OP_INC ),
                   op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
 
 //    update flow field
@@ -286,16 +287,16 @@ int main(int argc, char **argv){
       rms = 0.0;
 
       op_par_loop_update("update",cells,
-                  op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_READ ),
-                  op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_WRITE),
-                  op_arg_dat(p_res, -1,OP_ID, 4,"float",OP_RW   ),
-                  op_arg_dat(p_adt, -1,OP_ID, 1,"float",OP_READ ),
-                  op_arg_gbl(&rms,1,"float",OP_INC));
+                  op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_READ ),
+                  op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_WRITE),
+                  op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
+                  op_arg_dat(p_adt, -1,OP_ID, 1,"double",OP_READ ),
+                  op_arg_gbl(&rms,1,"double",OP_INC));
     }
 
 //  print iteration history
 
-    rms = sqrt(rms/(float) ncell);
+    rms = sqrt(rms/(double) ncell);
 
     if (iter%100 == 0)
       printf(" %d  %10.5e \n",iter,rms);
@@ -305,7 +306,6 @@ int main(int argc, char **argv){
 
   op_fetch_data ( p_q );
 
-  for ( int i = 0; i < 4 * ncell; i++ )
-    printf ( "%lf\n", q[i] );
+  
 }
 

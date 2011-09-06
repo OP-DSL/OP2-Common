@@ -4,7 +4,11 @@
 
 // header                                                
                                                          
-#include "op_lib.cu"                                     
+#include <op_lib_cpp.h>                                 
+#include <op_lib_core.h>
+#include <op_rt_support.h>
+#include <op_cuda_rt_support.h>
+#include <op_cuda_reduction.h>                                    
                                                          
 // global constants                                      
                                                          
@@ -12,12 +16,12 @@
 #define MAX_CONST_SIZE 128                               
 #endif                                                   
                                                          
-__constant__ float alpha;                                
+__constant__ double alpha;                                
                                                          
-void op_decl_const_char(int dim, char const *type,       
+/*void op_decl_const_char(int dim, char const *type,       
             int size, char *dat, char const *name){      
   cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));
-}                                                        
+}*/                                                        
                                                          
 // user kernel files                                     
                                                          

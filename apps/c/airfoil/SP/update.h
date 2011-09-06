@@ -1,5 +1,5 @@
-inline void update(float *qold, float *q, float *res, float *adt, float *rms){
-  float del, adti;
+inline void update(double *qold, double *q, double *res, double *adt, double *rms){
+  double del, adti;
 
   adti = 1.0f/(*adt);
 
