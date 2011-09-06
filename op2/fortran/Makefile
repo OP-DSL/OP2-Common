@@ -33,21 +33,21 @@ NVCCFLAGS = -O4
 all: f_cuda f_rt_support
 
 # does not depend on reference.h because we don't need the op_par_loop templated implementation, but our own implementation
-f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/op_lib_core.c \
-						 $(C_OP2_SRC)/op_reference.c \
+f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
+						 $(C_OP2_SRC)/sequential/op_seq.c \
 						 $(F_OP2_SRC)/backend/op2_for_C_wrappers.c \
 						 $(F_OP2_SRC)/backend/op2_for_reference_declarations.F90 \
 						 $(F_OP2_SRC)/backend/op2_for_reference.f90 \
 						 $(F_OP2_SRC)/backend/op2_C_reference.c
-	$(CC) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CC) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/op_reference.c -o $(F_OP2_OBJ)/op_reference.o
+	$(CC) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	$(CC) -std=c99 -I$(C_OP2_INC) -c $(C_OP2_SRC)/sequential/op_seq.c -o $(F_OP2_OBJ)/op_seq.o
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_reference_declarations.F90 -o $(F_OP2_OBJ)/op2_for_reference_declarations.o
 	$(FCC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_reference.f90 -o $(F_OP2_OBJ)/op2_for_reference.o
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	ar -r $(F_OP2_LIB)/libop2_for_reference.a \
 				$(F_OP2_OBJ)/op_lib_core.o \
-				$(F_OP2_OBJ)/op_reference.o \
+				$(F_OP2_OBJ)/op_seq.o \
 				$(F_OP2_OBJ)/op2_for_reference.o \
 				$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 				$(F_OP2_OBJ)/op2_for_reference_declarations.o \

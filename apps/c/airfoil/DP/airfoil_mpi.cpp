@@ -113,7 +113,7 @@ void scatter_double_array(double* g_array, double* l_array, int comm_size, int g
   	  }
   
   	  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array, 
-  	  	  l_size*elem_size, MPI_DOUBLE, 0,  MPI_COMM_WORLD ); 
+  	  	  l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD ); 
   	  
   	  free(sendcnts);
   	  free(displs);
@@ -137,7 +137,7 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   	  }
   
   	  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array, 
-  	  	  l_size*elem_size, MPI_INT, 0,  MPI_COMM_WORLD ); 
+  	  	  l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD ); 
   	  
   	  free(sendcnts);
   	  free(displs);
@@ -155,9 +155,6 @@ int main(int argc, char **argv){
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-	
-
-    //testing();
 	
     //timer
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -191,7 +188,7 @@ int main(int argc, char **argv){
     
     // set constants
 
-    if(my_rank == 0 )printf("initialising flow field\n");
+    if(my_rank == MPI_ROOT )printf("initialising flow field\n");
     gam = 1.4f;
     gm1 = gam - 1.0f;
     cfl = 0.9f;
@@ -209,7 +206,7 @@ int main(int argc, char **argv){
     qinf[2] = 0.0f;
     qinf[3] = r*e;
 	  
-    if(my_rank == 0)
+    if(my_rank == MPI_ROOT)
     { 	  
     	printf("reading in grid \n");
     	printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
@@ -296,7 +293,7 @@ int main(int argc, char **argv){
     scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
     scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
   
-    if(my_rank == 0)
+    if(my_rank == MPI_ROOT)
     {
     	/*Freeing memory allocated to gloabal arrays on rank 0 
   	after scattering to all processes*/
@@ -345,8 +342,15 @@ int main(int argc, char **argv){
 
     op_diagnostic_output();
 
-    //partition 
-    op_partition_geom(p_x, g_nnode);
+    //partition with ParMetis
+    //op_partition_geom(p_x);
+    //op_partition_random(cells);
+    op_partition_kway(pecell);
+    //op_partition_geomkway(p_x, pcell);
+    //op_partition_meshkway(pcell);  //not working !!    
+    
+    //partition with PT-Scotch
+    //op_partition_ptscotch(pecell);
     
     //create halos
     op_halo_create();
@@ -405,35 +409,43 @@ int main(int argc, char **argv){
                   op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
                   op_arg_dat(p_adt, -1,OP_ID, 1,"double",OP_READ ),
                   op_arg_gbl(&rms,1,"double",OP_INC));
+           
         }
         //print iteration history
-        if(my_rank==0)
+        if(my_rank==MPI_ROOT)
         {
             rms = sqrt(rms/(double) g_ncell);
             if (iter%100 == 0)
             	printf("%d  %10.5e \n",iter,rms);
         }
+        
     }
-
-    //op_mpi_fetch_data(p_q);
-      
     op_timers(&cpu_t2, &wall_t2);
+    
+    //get results data array
+    op_dat temp = op_mpi_get_data(p_q);
+       
+    //output the result dat array to files 
+    print_dat_tofile(temp, "out_grid.dat"); //ASCI
+    print_dat_tobinfile(temp, "out_grid.bin"); //Binary
+    
+    //free memory allocated to halos
+    op_halo_destroy(); 
+        
+    //return all op_dats, op_maps back to original element order
+    op_partition_reverse(); 
     
     //print each mpi process's timing info for each kernel
     op_mpi_timing_output();
-    
     //print total time for niter interations
     time = wall_t2-wall_t1;
-    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,0, MPI_COMM_WORLD);
-    if(my_rank==0)printf("Max total runtime = %f\n",max_time);
+    MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+    if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);    
     
-    op_halo_destroy();
-    op_partition_reverse();
-
-    //gatherprint_tofile(p_q, "out_grid.dat");
-    //gatherprint_bin_tofile(p_q, "out_grid.bin");    
-    
+    op_mpi_exit();
     MPI_Finalize();   //user mpi finalize
-
 }
+
+ 
+
 
