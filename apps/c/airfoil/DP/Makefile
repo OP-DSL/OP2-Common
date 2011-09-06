@@ -16,9 +16,10 @@ LIB_CUDA := -L$(CUDA)/lib64
 
 
 # compiler
-CC = gcc
-CPP = g++
-MPI_HOME = /home/gihan/openmpi#this should be set as an environment variable
+CC = icc
+CPP = icc
+MPI_HOME = /home/gihan/openmpi-intel
+#openmpi#this should be set as an environment variable
 MPICPP = $(MPI_HOME)/bin/mpiCC -g
 
 CCFLAGS	:= -O2 -ipo -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
@@ -44,7 +45,6 @@ NVCCFLAGS	:= -O3 -arch=sm_20 \
 		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
 
 LIBS		:= $(LIB) -lcudart
-PARMETISLIB 	:= $(PARMETIS_INSTALL_PATH)/libparmetis.a $(PARMETIS_INSTALL_PATH)/libmetis.a
 
 C_OP2_H		:= $(C_OP2)/op_seq.h $(C_OP2)/op_lib.h $(C_OP2)/op_lib_core.h
 OP2_LIB		:= $(C_OP2)/op_lib.a
@@ -53,6 +53,13 @@ EXEC_SEQ = airfoil_seq
 EXEC_OPENMP = airfoil_openmp
 EXEC_CUDA = airfoil_cuda
 EXEC_MPI = airfoil_mpi
+
+PARMETIS_LIB 	:= -L$(PARMETIS_INSTALL_PATH) -lparmetis -L$(PARMETIS_INSTALL_PATH) -lmetis
+PTSCOTCH_LIB 	:= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+
+
+PARMETIS_INC = $(PARMETIS_INSTALL_PATH) -DPARMETIS
+PTSCOTCH_INC = $(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
 
 #
@@ -80,7 +87,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		update_kernel.cpp     update.h    \
                 Makefile $(LIB_OP2)/libop2_openmp.a \
 		$(INC_OP2)/op_lib_cpp.h $(INC_OP2)/op_rt_support.h
-		$(CC) -O3 $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
+		$(CC) -lm -O3 $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
 			airfoil_kernels.cpp -lop2_openmp
 
 #
@@ -105,9 +112,10 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 # mpi with sequential-nodes version
 #
 
-airfoil_mpi:	airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
-		$(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
-		$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INSTALL_PATH) -L$(LIB_OP2) -lop2_mpi $(PARMETISLIB) -o $(EXEC_MPI)
+airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
+	Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
+	$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INC) -I$(PTSCOTCH_INC) \
+	-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o $(EXEC_MPI)
 
 #
 # cleanup

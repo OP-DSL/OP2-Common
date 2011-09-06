@@ -55,7 +55,6 @@ char * OP_consts_h,
      * OP_reduct_h,
      * OP_reduct_d;
 
-
 /*
  * CUDA utility functions
  */
@@ -99,10 +98,7 @@ cutilDeviceInit ( int argc, char ** argv )
 
   printf ( "\n Using CUDA device: %s\n", deviceProp.name );
   cutilSafeCall ( cudaSetDevice ( 0 ) );
-
 }
-
-
 
 /*
  * routines to move arrays to/from GPU device
@@ -135,13 +131,10 @@ op_fetch_data ( op_dat dat )
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-
-
 op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-
   op_plan *plan = op_plan_core ( name, set, part_size,
                                  nargs, args, ninds, inds );
 
@@ -179,7 +172,6 @@ op_cuda_exit (  )
 
   cudaThreadExit (  );
 }
-
 
 /*
  * routines to resize constant/reduct arrays, if necessary

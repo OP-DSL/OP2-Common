@@ -4,10 +4,13 @@ INC = include
 LIB = lib
 OBJ = obj
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
-MPI_HOME = /home/gihan/openmpi-intel#/home/gihan/openmpi-pgi
+MPI_HOME = /home/gihan/openmpi-intel
+#/home/gihan/openmpi-pgi
 
-CC = icc#pgcc#gcc
-CPP = icpc#pgCC#g++
+CC = icc
+#pgcc#gcc
+CPP = icpc
+#pgCC#g++
 NVCC = nvcc
 MPICPP = $(MPI_HOME)/bin/mpiCC
 
@@ -21,7 +24,7 @@ FLAGS = -O2 -fno-strict-aliasing -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   -DCO
 
 .PHONY: clean
 
-all: core seq openmp mpi_seq cuda
+all: core seq openmp cuda mpi_seq
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
@@ -43,6 +46,7 @@ openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 
 mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(OBJ)/op_lib_core.o
+
 	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.c \
 	-o $(OBJ)/mpi/op_mpi_util.o
 	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
@@ -54,6 +58,7 @@ mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
 	$(MPICPP) $(FLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/mpi/op_mpi_util.o $(PARMETIS_LIB) $(PTSCOTCH_LIB)
+
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
