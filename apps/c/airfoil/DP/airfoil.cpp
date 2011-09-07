@@ -79,7 +79,7 @@ int main(int argc, char **argv){
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
+  if ( (fp = fopen("./new_grid3.dat","r")) == NULL) { ///new_grid.dat
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 

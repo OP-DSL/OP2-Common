@@ -170,7 +170,7 @@ int get_partition(int global_index, int* part_range, int* local_index,
 *******************************************************************************/
 
 int get_global_index(int local_index, int partition, int* part_range,
-             int comm_size)
+                     int comm_size)
 {
   int g_index = part_range[2*partition]+local_index;
 #if DEBUG
@@ -2180,6 +2180,7 @@ void op_mpi_exit()
   //may need to call op_exit() at this point or get op_exit() to call this routine
 }
 
+
 /*******************************************************************************
 * Write a op_dat to a named ASCI file
 *******************************************************************************/
@@ -2196,66 +2197,200 @@ void print_dat_tofile(op_dat dat, const char *file_name)
   //compute local number of elements in dat
   int count = dat->set->size;
 
-  double *l_array  = (double *) xmalloc(dat->dim*(count)*sizeof(double));
-  memcpy(l_array, (void *)&(dat->data[0]),
-      dat->size*count);
-
-  int l_size = count;
-  int elem_size = dat->dim;
-  int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
-  int* displs = (int *) xmalloc(comm_size*sizeof(int));
-  int disp = 0;
-  double *g_array;
-
-  MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
-
-  int g_size = 0;
-  for(int i = 0; i<comm_size; i++)
+  if(strcmp(dat->type,"double") == 0)
   {
-    g_size += recevcnts[i];
-    recevcnts[i] =   elem_size*recevcnts[i];
-  }
-  for(int i = 0; i<comm_size; i++)
-  {
-    displs[i] =   disp;
-    disp = disp + recevcnts[i];
-  }
-  if(rank==MPI_ROOT) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
-  MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
-      displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
+    double *l_array = (double *) xmalloc(dat->dim*(count)*sizeof(double));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
 
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    double *g_array;
 
-  if(rank==MPI_ROOT)
-  {
-    FILE *fp;
-    if ( (fp = fopen(file_name,"w")) == NULL) {
-      printf("can't open file %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
-    if (fprintf(fp,"%d %d\n",g_size, elem_size)<0)
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
     {
-      printf("error writing to %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
+      g_size += recevcnts[i];
+      recevcnts[i] = elem_size*recevcnts[i];
     }
-
-    for(int i = 0; i< g_size; i++)
+    for(int i = 0; i<comm_size; i++)
     {
-      for(int j = 0; j < elem_size; j++ )
-      {
-        if (fprintf(fp,"%lf ",g_array[i*elem_size+j])<0)
-        {
-          printf("error writing to %s\n",file_name);
-          MPI_Abort(OP_MPI_IO_WORLD, -1);
-        }
+      displs[i] = disp;
+      disp = disp + recevcnts[i];
+    }
+    if(rank==MPI_ROOT) g_array = (double *) xmalloc(elem_size*g_size*sizeof(double));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
+        displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
+
+    if(rank==MPI_ROOT)
+    {
+      FILE *fp;
+      if ( (fp = fopen(file_name,"w")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
-      fprintf(fp,"\n");
+
+      if (fprintf(fp,"%d %d\n",g_size, elem_size)<0)
+      {
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        for(int j = 0; j < elem_size; j++ )
+        {
+          if (fprintf(fp,"%lf ",g_array[i*elem_size+j])<0)
+          {
+            printf("error writing to %s\n",file_name);
+            MPI_Abort(OP_MPI_IO_WORLD, -1);
+          }
+        }
+        fprintf(fp,"\n");
+      }
+      fclose(fp);
+      free(g_array);
     }
-    fclose(fp);
-    free(g_array);
+    free(l_array);free(recevcnts);free(displs);
   }
-  free(l_array);free(recevcnts);free(displs);
+  else if(strcmp(dat->type,"float") == 0)
+  {
+    float *l_array = (float *) xmalloc(dat->dim*(count)*sizeof(float));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    float *g_array;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] = elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] = disp;
+      disp = disp + recevcnts[i];
+    }
+
+    if(rank==MPI_ROOT) g_array = (float *) xmalloc(elem_size*g_size*sizeof(float));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_FLOAT, g_array, recevcnts,
+        displs, MPI_FLOAT, MPI_ROOT, OP_MPI_IO_WORLD);
+
+
+    if(rank==MPI_ROOT)
+    {
+      FILE *fp;
+      if ( (fp = fopen(file_name,"w")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      if (fprintf(fp,"%d %d\n",g_size, elem_size)<0)
+      {
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        for(int j = 0; j < elem_size; j++ )
+        {
+          if (fprintf(fp,"%f ",g_array[i*elem_size+j])<0)
+          {
+            printf("error writing to %s\n",file_name);
+            MPI_Abort(OP_MPI_IO_WORLD, -1);
+          }
+        }
+        fprintf(fp,"\n");
+      }
+      fclose(fp);
+      free(g_array);
+    }
+    free(l_array);free(recevcnts);free(displs);
+  }
+  else if(strcmp(dat->type,"int") == 0)
+  {
+    int *l_array = (int *) xmalloc(dat->dim*(count)*sizeof(int));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    int *g_array;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] = elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] = disp;
+      disp = disp + recevcnts[i];
+    }
+
+    if(rank==MPI_ROOT) g_array = (int *) xmalloc(elem_size*g_size*sizeof(int));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_INT, g_array, recevcnts,
+        displs, MPI_INT, MPI_ROOT, OP_MPI_IO_WORLD);
+
+
+    if(rank==MPI_ROOT)
+    {
+      FILE *fp;
+      if ( (fp = fopen(file_name,"w")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      if (fprintf(fp,"%d %d\n",g_size, elem_size)<0)
+      {
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        for(int j = 0; j < elem_size; j++ )
+        {
+          if (fprintf(fp,"%d ",g_array[i*elem_size+j])<0)
+          {
+            printf("error writing to %s\n",file_name);
+            MPI_Abort(OP_MPI_IO_WORLD, -1);
+          }
+        }
+        fprintf(fp,"\n");
+      }
+      fclose(fp);
+      free(g_array);
+    }
+    free(l_array);free(recevcnts);free(displs);
+  }
+  else
+  {
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
+  }
+
   MPI_Comm_free(&OP_MPI_IO_WORLD);
+
 }
 
 /*******************************************************************************
@@ -2273,67 +2408,199 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   //compute local number of elements in dat
   int count = dat->set->size;
 
-  double *l_array  = (double *) xmalloc(dat->dim*(count)*sizeof(double));
-  memcpy(l_array, (void *)&(dat->data[0]),
-      dat->size*count);
-
-  int l_size = count;
-  int elem_size = dat->dim;
-  int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
-  int* displs = (int *) xmalloc(comm_size*sizeof(int));
-  int disp = 0;
-  double *g_array;
-
-  MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
-
-  int g_size = 0;
-  for(int i = 0; i<comm_size; i++)
+  if(strcmp(dat->type,"double") == 0)
   {
-    g_size += recevcnts[i];
-    recevcnts[i] =   elem_size*recevcnts[i];
-  }
-  for(int i = 0; i<comm_size; i++)
-  {
-    displs[i] =   disp;
-    disp = disp + recevcnts[i];
-  }
-  if(rank==MPI_ROOT) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
-  MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
-      displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
+    double *l_array  = (double *) xmalloc(dat->dim*(count)*sizeof(double));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
 
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    double *g_array;
 
-  if(rank==MPI_ROOT)
-  {
-    FILE *fp;
-    if ( (fp = fopen(file_name,"wb")) == NULL) {
-      printf("can't open file %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
-    if (fwrite(&g_size, sizeof(int),1, fp)<1)
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
     {
-      printf("error writing to %s",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
     }
-    if (fwrite(&elem_size, sizeof(int),1, fp)<1)
+    for(int i = 0; i<comm_size; i++)
     {
-      printf("error writing to %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
     }
+    if(rank==MPI_ROOT) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
+        displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
 
-    for(int i = 0; i< g_size; i++)
+
+    if(rank==MPI_ROOT)
     {
-      if (fwrite( &g_array[i*elem_size], sizeof(double), elem_size, fp ) < elem_size)
+      FILE *fp;
+      if ( (fp = fopen(file_name,"wb")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      if (fwrite(&g_size, sizeof(int),1, fp)<1)
+      {
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+      if (fwrite(&elem_size, sizeof(int),1, fp)<1)
       {
         printf("error writing to %s\n",file_name);
         MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        if (fwrite( &g_array[i*elem_size], sizeof(double), elem_size, fp ) < elem_size)
+        {
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
+        }
+      }
+      fclose(fp);
+      free(g_array);
     }
-    fclose(fp);
-    free(g_array);
+    free(l_array);free(recevcnts);free(displs);
+  }
+  else if(strcmp(dat->type,"float") == 0)
+  {
+    float *l_array  = (float *) xmalloc(dat->dim*(count)*sizeof(float));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    float *g_array;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
+    }
+    if(rank==MPI_ROOT) g_array  = (float *) xmalloc(elem_size*g_size*sizeof(float));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_FLOAT, g_array, recevcnts,
+        displs, MPI_FLOAT, MPI_ROOT, OP_MPI_IO_WORLD);
+
+
+    if(rank==MPI_ROOT)
+    {
+      FILE *fp;
+      if ( (fp = fopen(file_name,"wb")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      if (fwrite(&g_size, sizeof(int),1, fp)<1)
+      {
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+      if (fwrite(&elem_size, sizeof(int),1, fp)<1)
+      {
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        if (fwrite( &g_array[i*elem_size], sizeof(float), elem_size, fp ) < elem_size)
+        {
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
+        }
+      }
+      fclose(fp);
+      free(g_array);
+    }
+    free(l_array);free(recevcnts);free(displs);
+  }
+  else if(strcmp(dat->type,"int") == 0)
+  {
+    int *l_array  = (int *) xmalloc(dat->dim*(count)*sizeof(int));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+
+    int l_size = count;
+    int elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+    int *g_array;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
+    }
+    if(rank==MPI_ROOT) g_array  = (int *) xmalloc(elem_size*g_size*sizeof(int));
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_INT, g_array, recevcnts,
+        displs, MPI_INT, MPI_ROOT, OP_MPI_IO_WORLD);
+
+    if(rank==MPI_ROOT)
+    {
+      FILE *fp;
+      if ( (fp = fopen(file_name,"wb")) == NULL) {
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      if (fwrite(&g_size, sizeof(int),1, fp)<1)
+      {
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+      if (fwrite(&elem_size, sizeof(int),1, fp)<1)
+      {
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
+      }
+
+      for(int i = 0; i< g_size; i++)
+      {
+        if (fwrite( &g_array[i*elem_size], sizeof(int), elem_size, fp ) < elem_size)
+        {
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
+        }
+      }
+      fclose(fp);
+      free(g_array);
+    }
+    free(l_array);free(recevcnts);free(displs);
+  }
+  else
+  {
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
   }
 
-  free(l_array);free(recevcnts);free(displs);
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
