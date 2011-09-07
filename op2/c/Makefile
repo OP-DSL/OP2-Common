@@ -21,7 +21,7 @@ PTSCOTCH_LIB = $(PTSCOTCH_INSTALL_PATH)/lib/libptscotch.a $(PTSCOTCH_INSTALL_PAT
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
-FLAGS = -O2 -fno-strict-aliasing -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   -DCOMM_PERF #-DDEBUG #-Wall -O3 -g
+FLAGS = -O2 -fno-strict-aliasing -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
 
 .PHONY: clean
 
