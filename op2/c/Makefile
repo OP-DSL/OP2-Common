@@ -46,7 +46,7 @@ openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/openmp/op_openmp_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
-mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
+mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(OBJ)/op_lib_core.o
 
 	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.c \
@@ -55,8 +55,8 @@ mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
 	-o $(OBJ)/mpi/op_mpi_core.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c \
-	-o $(OBJ)/openmp/op_openmp_decl.o
+	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
+	-o $(OBJ)/mpi/op_mpi_decl.o
 	$(MPICPP) $(FLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/mpi/op_mpi_util.o $(PARMETIS_LIB) $(PTSCOTCH_LIB)
@@ -64,7 +64,7 @@ mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/openmp/op_openmp_decl.c \
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
-	$(OBJ)/openmp/op_openmp_decl.o \
+	$(OBJ)/mpi/op_mpi_decl.o \
 	$(OBJ)/mpi/op_mpi_util.o
 
 clean:
