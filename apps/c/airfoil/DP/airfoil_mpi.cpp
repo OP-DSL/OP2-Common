@@ -442,7 +442,7 @@ int main(int argc, char **argv)
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
   if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
 
-  op_mpi_exit();
+  op_exit();
   MPI_Finalize();   //user mpi finalize
 }
 

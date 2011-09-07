@@ -2176,8 +2176,6 @@ void op_mpi_exit()
     free(op_mpi_kernel_tab[n].tot_bytes);
   }
 #endif
-
-  //may need to call op_exit() at this point or get op_exit() to call this routine
 }
 
 
