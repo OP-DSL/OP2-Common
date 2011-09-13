@@ -121,7 +121,7 @@ int main(int argc, char **argv){
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("/work/cbertoll/airfoil-input/new_grid.dat","r")) == NULL) {
+  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -202,7 +202,7 @@ int main(int argc, char **argv){
 
   // OP initialisation
 
-  op_init(argc,argv,0);
+  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -307,20 +307,10 @@ int main(int argc, char **argv){
 
     rms = sqrt(rms/(double) ncell);
 
-    //    if (iter%100 == 0)
-    // printf(" %d  %10.5e \n",iter,rms);
+    if (iter%100 == 0)
+       printf(" %d  %10.5e \n",iter,rms);
   }
 
-  //  gettimeofday ( &t, ( struct timezone * ) 0 );
-  //        endTime = t.tv_sec + t.tv_usec * 1.0e-6;
-
-
-  //printf ( "Execution time is %lf (sec.)\n", endTime - startTime );
-
   op_timing_output();
-
-  op_fetch_data ( p_q );
-
-
 }
 
