@@ -22,7 +22,7 @@ MPI_HOME = /home/gihan/openmpi-intel
 #openmpi#this should be set as an environment variable
 MPICPP = $(MPI_HOME)/bin/mpiCC -g
 
-CCFLAGS	:= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
+CCFLAGS	:= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
 
 #openmp
 OMP	:= -openmp -openmp-report2
@@ -61,7 +61,7 @@ PTSCOTCH_LIB 	:= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL
 PARMETIS_INC = $(PARMETIS_INSTALL_PATH) -DPARMETIS
 PTSCOTCH_INC = $(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
-VAR = -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
+VAR = -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=512 -DOP_PART_SIZE_3=64
 
 #
 # master to make all versions
@@ -88,7 +88,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		update_kernel.cpp     update.h    \
                 Makefile $(LIB_OP2)/libop2_openmp.a \
 		$(INC_OP2)/op_lib_cpp.h $(INC_OP2)/op_rt_support.h
-		$(CC) $(CCFLAGS) $(VAR) -lm $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp \
+		$(CC) $(CCFLAGS) $(VAR) $(OMP) -I$(INC_OP2) -L$(LIB_OP2) -o $(EXEC_OPENMP) airfoil_op.cpp -lm \
 			airfoil_kernels.cpp -lop2_openmp
 
 #

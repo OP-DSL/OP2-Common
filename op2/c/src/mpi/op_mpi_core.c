@@ -1321,9 +1321,10 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("Num of %8s (total elems | OWNED elems | exec halo elems | non-exec halo elems ): %6d %6d %6d ",
-          set->name, avg_size/comm_size, min_size, max_size);
+      printf("Num of %8s (avg | min | max)\n",set->name);
+      printf("total elems         %10d %10d %10d\n",avg_size/comm_size, min_size, max_size);
     }
+
     avg_size = 0;min_size = 0; max_size = 0;
 
 
@@ -1337,10 +1338,10 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("| %6d %6d %6d ",
-          avg_size/comm_size, min_size, max_size);
+      printf("owned elems         %10d %10d %10d \n",avg_size/comm_size, min_size, max_size);
     }
     avg_size = 0;min_size = 0; max_size = 0;
+
 
     //number of exec halo elements third
     MPI_Reduce(&OP_import_exec_list[set->index]->size,
@@ -1352,8 +1353,7 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("| %6d %6d %6d ",
-          avg_size/comm_size, min_size, max_size);
+      printf("exec halo elems     %10d %10d %10d \n", avg_size/comm_size, min_size, max_size);
     }
     avg_size = 0;min_size = 0; max_size = 0;
 
@@ -1367,12 +1367,19 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("| %6d %6d %6d \n",
-          avg_size/comm_size, min_size, max_size);
+      printf("non-exec halo elems %10d %10d %10d \n", avg_size/comm_size, min_size, max_size);
     }
     avg_size = 0;min_size = 0; max_size = 0;
+    if(my_rank == MPI_ROOT)
+    {
+      printf("-----------------------------------------------------\n");
+    }
   }
 
+  if(my_rank == MPI_ROOT)
+  {
+    printf("\n\n");
+  }
 
   //compute avg/min/max number of MPI neighbors per process accross the MPI universe
   avg_size = 0, min_size = 0, max_size = 0;
@@ -1389,8 +1396,10 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("MPI neighbors for exchanging %8s ( exec halo elems | non-exec halo elems ): %6d %6d %6d ",
-          set->name, avg_size/comm_size, min_size, max_size);
+      printf("MPI neighbors for exchanging %8s (avg | min | max)\n",set->name);
+      printf("exec halo elems     %4d %4d %4d\n",avg_size/comm_size, min_size, max_size);
+
+
     }
     avg_size = 0;min_size = 0; max_size = 0;
 
@@ -1404,10 +1413,13 @@ void op_halo_create()
 
     if(my_rank == MPI_ROOT)
     {
-      printf("| %6d %6d %6d \n",
-          avg_size/comm_size, min_size, max_size);
+      printf("non-exec halo elems %4d %4d %4d\n",avg_size/comm_size, min_size, max_size);
     }
     avg_size = 0;min_size = 0; max_size = 0;
+    if(my_rank == MPI_ROOT)
+    {
+      printf("-----------------------------------------------------\n");
+    }
   }
 
   //compute average worst case halo size in Bytes
