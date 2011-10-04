@@ -126,19 +126,9 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   else if (arg1.idx != -1 && arg1.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
 
-  /*
-    //for all indirect dataset access with OP_READ
-    if(arg0.acc == OP_READ && arg1.acc == OP_READ   ) exec_length = set->size;
-    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
-  }
-  else //direct loop
-  {
-    exec_length = set->size;
-  } */
-
   // loop over set elements
-  //(1) over owned partition
-  for (int n=0; n<owned_num[set->index]; n++) {
+  //(1) over core partition
+  for (int n=0; n<core_num[set->index]; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
 
@@ -150,7 +140,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   if(arg0.argtype == OP_ARG_DAT) if(sent[0] == 1 )wait_all(arg0);
   if(arg1.argtype == OP_ARG_DAT) if(sent[1] == 1 )wait_all(arg1);
 
-  for (int n=owned_num[set->index]; n<set->size; n++) {
+  for (int n=core_num[set->index]; n<set->size; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
 
@@ -251,21 +241,10 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
   else if (arg3.idx != -1 && arg3.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
 
-  /*
-    //for all indirect dataset access with OP_READ
-    if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ &&
-      arg3.acc == OP_READ )
-      exec_length = set->size;
-    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
-  }
-  else //direct loop
-  {
-    exec_length = set->size;
-  }*/
 
   // loop over set elements
-  //(1) over owned partition
-  for (int n=0; n<owned_num[set->index]; n++) {
+  //(1) over core partition
+  for (int n=0; n<core_num[set->index]; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -281,7 +260,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
   if(arg2.argtype == OP_ARG_DAT) if(sent[2] == 1 )wait_all(arg2);
   if(arg3.argtype == OP_ARG_DAT) if(sent[3] == 1 )wait_all(arg3);
 
-  for (int n=owned_num[set->index]; n<set->size; n++) {
+  for (int n=core_num[set->index]; n<set->size; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -400,23 +379,11 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   else if (arg3.idx != -1 && arg3.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
   else if (arg4.idx != -1 && arg4.acc != OP_READ)
-    exec_length = set->size + OP_import_exec_list[set->index]->size;
-
-  /*
-    //for all indirect dataset access with OP_READ
-    if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ &&
-      arg3.acc == OP_READ && arg4.acc == OP_READ )
-      exec_length = set->size;
-    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
-  }
-  else //direct loop
-  {
-    exec_length = set->size;
-  }*/
+      exec_length = set->size + OP_import_exec_list[set->index]->size;
 
   // loop over set elements
-  //(1) over owned partition
-  for (int n=0; n<owned_num[set->index]; n++) {
+  //(1) over core partition
+  for (int n=0; n<core_num[set->index]; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -435,7 +402,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg3.argtype == OP_ARG_DAT) if(sent[3] == 1 )wait_all(arg3);
   if(arg4.argtype == OP_ARG_DAT) if(sent[4] == 1 )wait_all(arg4);
 
-  for (int n=owned_num[set->index]; n<set->size; n++) {
+  for (int n=core_num[set->index]; n<set->size; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -570,22 +537,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   else if (arg5.idx != -1 && arg5.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
 
-  /*
-  //for all indirect dataset access with OP_READ
-    if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ &&
-      arg3.acc == OP_READ && arg4.acc == OP_READ && arg5.acc == OP_READ)
-      exec_length = set->size;
-    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
-  }
-  else //direct loop
-  {
-    exec_length = set->size;
-  }
-  */
-
   // loop over set elements
-  //(1) over owned partition
-  for (int n=0; n<owned_num[set->index]; n++) {
+  //(1) over core partition
+  for (int n=0; n<core_num[set->index]; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -606,7 +560,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg4.argtype == OP_ARG_DAT) if(sent[4] == 1 )wait_all(arg4);
   if(arg5.argtype == OP_ARG_DAT) if(sent[5] == 1 )wait_all(arg5);
 
-  for (int n=owned_num[set->index]; n<set->size; n++) {
+  for (int n=core_num[set->index]; n<set->size; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -761,22 +715,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   else if (arg7.idx != -1 && arg7.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
 
-  /*
-  //for all indirect dataset access with OP_READ
-    if(arg0.acc == OP_READ && arg1.acc == OP_READ && arg2.acc == OP_READ &&
-      arg3.acc == OP_READ && arg4.acc == OP_READ && arg5.acc == OP_READ &&
-      arg6.acc == OP_READ && arg7.acc == OP_READ)
-      exec_length = set->size;
-    else  exec_length = set->size + OP_import_exec_list[set->index]->size;
-  }
-  else //direct loop
-  {
-    exec_length = set->size;
-  }*/
-
   // loop over set elements
-  //(1) over owned partition
-  for (int n=0; n<owned_num[set->index]; n++) {
+  //(1) over core partition
+  for (int n=0; n<core_num[set->index]; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
@@ -801,7 +742,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(arg6.argtype == OP_ARG_DAT && sent[6] == 1 )wait_all(arg6);
   if(arg7.argtype == OP_ARG_DAT && sent[7] == 1 )wait_all(arg7);
 
-  for (int n=owned_num[set->index]; n<set->size; n++) {
+  for (int n=core_num[set->index]; n<set->size; n++) {
     op_arg_set(n,arg0 ,&p_arg0 );
     op_arg_set(n,arg1 ,&p_arg1 );
     op_arg_set(n,arg2 ,&p_arg2 );
