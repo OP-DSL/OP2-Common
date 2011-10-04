@@ -79,10 +79,10 @@ op_mpi_buffer *OP_mpi_buffer_list;
 /*array to holding the index of the final element 
 that can be computed without halo exchanges for each set
 
-0 to owned_num[set->index] - no halo exchange needed
-owned_num[set->index] to n<set->size - halo exchange needed 
+0 to core_num[set->index] - no halo exchange needed
+core_num[set->index] to n<set->size - halo exchange needed 
 */
-int *owned_num; 
+int *core_num; 
 
 
 /*table holding MPI performance of each loop 
@@ -1062,11 +1062,11 @@ void op_halo_create()
     }
     
     
-/*-STEP 10 -------------------- Separate owned elements------------------------*/   
+/*-STEP 10 -------------------- Separate core elements------------------------*/   
 
-    owned_num = (int *)xmalloc(OP_dat_index*sizeof(int ));
+    core_num = (int *)xmalloc(OP_dat_index*sizeof(int ));
     
-    int** owned_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
+    int** core_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
     int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));    
     
     for(int s=0; s<OP_set_index; s++) { //for each set
@@ -1082,19 +1082,19 @@ void op_halo_create()
     	    quickSort(exp_elems[set->index], 0, exec->size-1);
     	        	    
     	    int num_exp = removeDups(exp_elems[set->index], exec->size);
-  	    owned_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
+  	    core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
     	    int count = 0;
     	    for(int e=0; e < set->size;e++){//for each elment of this set
     	    
     	    	if((binary_search(exp_elems[set->index], e, 0, num_exp-1) < 0))
     	    	{
-    	    	    owned_elems[set->index][count++] = e;
+    	    	    core_elems[set->index][count++] = e;
     	    	}	
     	    }
-    	    quickSort(owned_elems[set->index], 0, count-1);
+    	    quickSort(core_elems[set->index], 0, count-1);
     
     	    if(count+num_exp != set->size) printf("sizes not equal\n");
-    	    owned_num[set->index] = count;
+    	    core_num[set->index] = count;
     	    
     	    //for each data array defined on this set seperate its elements
     	    for(int d=0; d<OP_dat_index; d++) { //for each set
@@ -1107,7 +1107,7 @@ void op_halo_create()
     	    	    for(int i = 0; i<count; i++)
     	    	    {
     	    	    	memcpy(&new_dat[i*dat->size],
-    	    	    	    &dat->data[owned_elems[set->index][i]*dat->size],
+    	    	    	    &dat->data[core_elems[set->index][i]*dat->size],
     	    	    	    dat->size);  
     	    	    }
     	    	    for(int i = 0; i< num_exp; i++)
@@ -1132,7 +1132,7 @@ void op_halo_create()
     	    	    for(int i = 0; i<count; i++)
     	    	    {
     	    	    	memcpy(&new_map[i*map->dim],
-    	    	    	    &map->map[owned_elems[set->index][i]*map->dim],
+    	    	    	    &map->map[core_elems[set->index][i]*map->dim],
     	    	    	    map->dim*sizeof(int));  
     	    	    }
     	    	    for(int i = 0; i<num_exp; i++)
@@ -1152,20 +1152,20 @@ void op_halo_create()
     	    	int index = binary_search(exp_elems[set->index], 
     	    	    exec->list[i], 0, num_exp-1);    	    	
     	    	if(index < 0) 
-    	    	    printf("Problem in seperating owned elements - exec list\n");  
+    	    	    printf("Problem in seperating core elements - exec list\n");  
     	    	else exec->list[i] = count + index;	    	
     	    }
     	
     	    for(int i  = 0; i< nonexec->size;i++)
     	    {
-    	    	int index = binary_search(owned_elems[set->index], 
+    	    	int index = binary_search(core_elems[set->index], 
     	    	    nonexec->list[i], 0, count-1);
     	    	if (index < 0) 
     	    	{ 
     	    	    index = binary_search(exp_elems[set->index], 
     	    	    	nonexec->list[i], 0, num_exp-1);
     	    	    if(index < 0) 
-    	    	    	printf("Problem in seperating owned elements - nonexec list\n"); 
+    	    	    	printf("Problem in seperating core elements - nonexec list\n"); 
     	    	    else nonexec->list[i] = count + index;
     	    	}
     	    	else nonexec->list[i] = index;    	    	    
@@ -1173,12 +1173,12 @@ void op_halo_create()
     	}
     	else 
     	{
-    	    owned_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
+    	    core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
     	    exp_elems[set->index] = (int *)xmalloc(0*sizeof(int )); 
     	    for(int e=0; e < set->size;e++){//for each elment of this set
-    	    	owned_elems[set->index][e] = e;
+    	    	core_elems[set->index][e] = e;
     	    }
-    	    owned_num[set->index] = set->size;    	    
+    	    core_num[set->index] = set->size;    	    
     	}
     }
     
@@ -1195,19 +1195,19 @@ void op_halo_create()
     	    	                              //at by this entry
     	    	if(map->map[e*map->dim+j] < map->to->size)
     	    	{
-    	    	    int index = binary_search(owned_elems[map->to->index],
+    	    	    int index = binary_search(core_elems[map->to->index],
     	    	    	map->map[e*map->dim+j],
-    	    	    	0, owned_num[map->to->index]-1);
+    	    	    	0, core_num[map->to->index]-1);
     	    	    if(index < 0)
     	    	    {
     	    	    	index = binary_search(exp_elems[map->to->index],
     	    	    	    map->map[e*map->dim+j],
-    	    	    	    0, (map->to->size) - (owned_num[map->to->index]) -1);
+    	    	    	    0, (map->to->size) - (core_num[map->to->index]) -1);
     	    	    	if(index < 0) 
-    	    	    	printf("Problem in seperating owned elements - \
+    	    	    	printf("Problem in seperating core elements - \
     	    	    	    renumbering map\n");
     	    	    	else OP_map_list[map->index]->map[e*map->dim+j] = 
-    	    	    	    owned_num[map->to->index] + index;
+    	    	    	    core_num[map->to->index] + index;
     	    	    }
     	    	    else OP_map_list[map->index]->map[e*map->dim+j] = index;
     	    	}
@@ -1219,7 +1219,7 @@ void op_halo_create()
 /*-STEP 11 ----------- Save the original set element indexes------------------*/   
     
     //if OP_part_list is empty, (i.e. no previous partitioning done) then 
-    //create it and store the seperation of elements using owned_elems 
+    //create it and store the seperation of elements using core_elems 
     //and exp_elems
     if(OP_part_index != OP_set_index) 
     {
@@ -1239,12 +1239,12 @@ void op_halo_create()
     	    }
     	    decl_partition(set, g_index, partition); 
     	    
-    	    //combine owned_elems and exp_elems to one memory block
+    	    //combine core_elems and exp_elems to one memory block
     	    int* temp = (int *)xmalloc(sizeof(int)*set->size);
-    	    memcpy(&temp[0], owned_elems[set->index], 
-    	    	owned_num[set->index]*sizeof(int));
-    	    memcpy(&temp[owned_num[set->index]], exp_elems[set->index], 
-    	    	(set->size-owned_num[set->index])*sizeof(int));
+    	    memcpy(&temp[0], core_elems[set->index], 
+    	    	core_num[set->index]*sizeof(int));
+    	    memcpy(&temp[core_num[set->index]], exp_elems[set->index], 
+    	    	(set->size-core_num[set->index])*sizeof(int));
     	    
     	    //update OP_part_list[set->index]->g_index
     	    for(int i = 0; i<set->size; i++)
@@ -1261,12 +1261,12 @@ void op_halo_create()
     	for(int s=0; s<OP_set_index; s++) { //for each set
     	    op_set set=OP_set_list[s];
     	    
-    	    //combine owned_elems and exp_elems to one memory block
+    	    //combine core_elems and exp_elems to one memory block
     	    int* temp = (int *)xmalloc(sizeof(int)*set->size);
-    	    memcpy(&temp[0], owned_elems[set->index], 
-    	    	owned_num[set->index]*sizeof(int));
-    	    memcpy(&temp[owned_num[set->index]], exp_elems[set->index], 
-    	    	(set->size-owned_num[set->index])*sizeof(int));
+    	    memcpy(&temp[0], core_elems[set->index], 
+    	    	core_num[set->index]*sizeof(int));
+    	    memcpy(&temp[core_num[set->index]], exp_elems[set->index], 
+    	    	(set->size-core_num[set->index])*sizeof(int));
     	    
     	    //update OP_part_list[set->index]->g_index
     	    for(int i = 0; i<set->size; i++)
@@ -1289,10 +1289,10 @@ void op_halo_create()
    	  
     for(int i = 0; i<OP_set_index; i++)
     {	free(part_range[i]);
-    	free(owned_elems[i]); free(exp_elems[i]);
+    	free(core_elems[i]); free(exp_elems[i]);
     }
     free(part_range);
-    free(exp_elems); free(owned_elems);
+    free(exp_elems); free(core_elems);
        
     op_timers(&cpu_t2, &wall_t2);  //timer stop for list create    
     //compute import/export lists creation time
@@ -1322,16 +1322,16 @@ void op_halo_create()
     	
     	
     	//number of OWNED elements second
-    	MPI_Reduce(&owned_num[set->index], 
+    	MPI_Reduce(&core_num[set->index], 
     	    &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    	MPI_Reduce(&owned_num[set->index], 
+    	MPI_Reduce(&core_num[set->index], 
     	    &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    	MPI_Reduce(&owned_num[set->index], 
+    	MPI_Reduce(&core_num[set->index], 
     	    &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
     	    	
     	if(my_rank == MPI_ROOT)
     	{
-    	    printf("owned elems         %10d %10d %10d \n",avg_size/comm_size, min_size, max_size);
+    	    printf("core elems         %10d %10d %10d \n",avg_size/comm_size, min_size, max_size);
     	}	    
     	avg_size = 0;min_size = 0; max_size = 0;
     	
