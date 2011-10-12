@@ -1064,7 +1064,7 @@ void op_halo_create()
     
 /*-STEP 10 -------------------- Separate core elements------------------------*/   
 
-    core_num = (int *)xmalloc(OP_dat_index*sizeof(int ));
+    core_num = (int *)xmalloc(OP_set_index*sizeof(int ));
     
     int** core_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
     int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));    
