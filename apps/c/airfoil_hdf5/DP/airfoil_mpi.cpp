@@ -129,24 +129,26 @@ int main(int argc, char **argv)
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
+  char file[] = "new_grid.h5"; //new_grid.h5
+
   // declare sets, pointers, datasets and global constants - reading in from file
-  op_set nodes  = op_decl_set_hdf5("new_grid.h5", "nodes");
-  op_set edges  = op_decl_set_hdf5("new_grid.h5",  "edges");
-  op_set bedges = op_decl_set_hdf5("new_grid.h5", "bedges");
-  op_set cells  = op_decl_set_hdf5("new_grid.h5",  "cells");
+  op_set nodes  = op_decl_set_hdf5(file, "nodes");
+  op_set edges  = op_decl_set_hdf5(file,  "edges");
+  op_set bedges = op_decl_set_hdf5(file, "bedges");
+  op_set cells  = op_decl_set_hdf5(file,  "cells");
 
-  op_map pedge   = op_decl_map_hdf5(edges, nodes, 2, "new_grid.h5", "pedge");
-  op_map pecell  = op_decl_map_hdf5(edges, cells,2, "new_grid.h5", "pecell");
-  op_map pbedge  = op_decl_map_hdf5(bedges,nodes,2, "new_grid.h5", "pbedge");
-  op_map pbecell = op_decl_map_hdf5(bedges,cells,1, "new_grid.h5", "pbecell");
-  op_map pcell   = op_decl_map_hdf5(cells, nodes,4, "new_grid.h5", "pcell");
+  op_map pedge   = op_decl_map_hdf5(edges, nodes, 2, file, "pedge");
+  op_map pecell  = op_decl_map_hdf5(edges, cells,2, file, "pecell");
+  op_map pbedge  = op_decl_map_hdf5(bedges,nodes,2, file, "pbedge");
+  op_map pbecell = op_decl_map_hdf5(bedges,cells,1, file, "pbecell");
+  op_map pcell   = op_decl_map_hdf5(cells, nodes,4, file, "pcell");
 
-  op_dat p_bound = op_decl_dat_hdf5(bedges,1,"int"  ,"new_grid.h5","p_bound");
-  op_dat p_x     = op_decl_dat_hdf5(nodes ,2,"double","new_grid.h5","p_x");
-  op_dat p_q     = op_decl_dat_hdf5(cells ,4,"double","new_grid.h5","p_q");
-  op_dat p_qold  = op_decl_dat_hdf5(cells ,4,"double","new_grid.h5","p_qold");
-  op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double","new_grid.h5","p_adt");
-  op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double","new_grid.h5","p_res");
+  op_dat p_bound = op_decl_dat_hdf5(bedges,1,"int"  ,file,"p_bound");
+  op_dat p_x     = op_decl_dat_hdf5(nodes ,2,"double",file,"p_x");
+  op_dat p_q     = op_decl_dat_hdf5(cells ,4,"double",file,"p_q");
+  op_dat p_qold  = op_decl_dat_hdf5(cells ,4,"double",file,"p_qold");
+  op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double",file,"p_adt");
+  op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
 
   /**------------------------END Parallel I/O  -----------------------**/
 
