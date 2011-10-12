@@ -29,31 +29,19 @@
 
 
 /*
- * written by: Gihan R. Mudalige, 01-03-2011
+ * op_mpi_util.h
+ *
+ * Headder file for the parallel I/O functions in op_mpi_hdf5.c
+ *
+ * written by: Gihan R. Mudalige, (Started 10-10-2011)
  */
 
-#include <op_lib_core.h>
-#include <op_lib_cpp.h>
-#include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
-#include <op_mpi_hdf5.h>
+//
+//hdf5 header
+//
+#include "hdf5.h"
 
-
-
-/** extern variables for halo creation and exchange**/
-extern MPI_Comm OP_MPI_WORLD;
-
-extern halo_list *OP_export_exec_list;//EEH list
-extern halo_list *OP_import_exec_list;//IEH list
-
-extern halo_list *OP_import_nonexec_list;//INH list
-extern halo_list *OP_export_nonexec_list;//ENH list
-
-extern int* dirtybit;
-extern op_mpi_buffer *OP_mpi_buffer_list;
-extern int *core_num;
-
-extern int OP_part_index;
-extern part *OP_part_list;
-extern int** orig_part_range;
-
+op_set op_decl_set_hdf5(char const *file, char const *name);
+op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name);
+op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name);
+void op_write_hdf5(char* file_name);

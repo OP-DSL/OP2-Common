@@ -14,17 +14,20 @@ CPP = icpc
 NVCC = nvcc
 MPICPP = $(MPI_HOME)/bin/mpiCC
 
-PARMETIS_LIB = $(PARMETIS_INSTALL_PATH)/libparmetis.a $(PARMETIS_INSTALL_PATH)/libmetis.a
-PTSCOTCH_LIB = $(PTSCOTCH_INSTALL_PATH)/lib/libptscotch.a $(PTSCOTCH_INSTALL_PATH)/lib/libptscotcherr.a
+PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis -L$(PARMETIS_INSTALL_PATH) -lmetis
+PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
-FLAGS = -O2 -fno-strict-aliasing -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   -DCOMM_PERF #-DDEBUG #-Wall -O3 -g
+HDF5_INC = -I/home/gihan/hdf5/include/
+HDF5_LIB = -L/home/gihan/hdf5/lib/ -lhdf5 -lz
+
+FLAGS = -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
 
 .PHONY: clean
 
-all: core seq openmp cuda mpi_seq
+all: core mpi_seq #seq openmp cuda
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
@@ -44,8 +47,9 @@ openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/openmp/op_openmp_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
-mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/mpi/op_mpi_decl.c \
-	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(OBJ)/op_lib_core.o
+mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
+	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
+	$(INC)/op_mpi_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
 
 	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.c \
 	-o $(OBJ)/mpi/op_mpi_util.o
@@ -56,14 +60,19 @@ mpi_seq:$(INC)/op_mpi_seq.h $(PARMETIS_LIB) $(SRC)/mpi/op_mpi_decl.c \
 	$(MPICPP) $(FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/mpi/op_mpi_decl.o
 	$(MPICPP) $(FLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
-	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/mpi/op_mpi_util.o $(PARMETIS_LIB) $(PTSCOTCH_LIB)
+	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/mpi/op_mpi_util.o
+	$(MPICPP) $(FLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
+	-c $(SRC)/mpi/op_mpi_hdf5.c \
+	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/mpi/op_mpi_util.o
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
 	$(OBJ)/mpi/op_mpi_decl.o \
-	$(OBJ)/mpi/op_mpi_util.o
+	$(OBJ)/mpi/op_mpi_util.o \
+	$(OBJ)/mpi/op_mpi_hdf5.o
 
 clean:
 	-rm -if $(OBJ)/*.o
