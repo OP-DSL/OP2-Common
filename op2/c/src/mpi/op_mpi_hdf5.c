@@ -175,7 +175,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     H5Dclose(dset_id);
     
     //calculate local size of set for this mpi process
-    printf("read global size of %s on %d  = %d\n", name, my_rank, g_size);
     int l_size = compute_local_size (g_size, comm_size, my_rank);
 
     //check if size is accurate
@@ -695,7 +694,6 @@ void op_write_hdf5(char* file_name)
     {
     	printf("Max hdf5 file write time = %lf\n\n",max_time);
     }
-    
     MPI_Comm_free(&OP_MPI_HDF5_WORLD); 
     
     
