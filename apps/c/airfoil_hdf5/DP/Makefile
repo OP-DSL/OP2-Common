@@ -52,6 +52,7 @@ EXEC_SEQ = airfoil_seq
 EXEC_OPENMP = airfoil_openmp
 EXEC_CUDA = airfoil_cuda
 EXEC_MPI = airfoil_mpi
+EXEC_CONVERT = convert_grid
 
 PARMETIS_LIB 	:= -L$(PARMETIS_INSTALL_PATH) -lparmetis -L$(PARMETIS_INSTALL_PATH) -lmetis
 PTSCOTCH_LIB 	:= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
@@ -68,7 +69,7 @@ HDF5_LIB = -L/home/gihan/hdf5/lib/ -lhdf5 -lz
 # master to make all versions
 #
 
-all: airfoil_mpi 
+all: airfoil_mpi convert_grid
 
 
 #
@@ -80,9 +81,22 @@ airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
 	$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INC) -I$(PTSCOTCH_INC) $(HDF5_INC)\
 	-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB)-o $(EXEC_MPI)
 
+
+#
+# convert ASCI new_gird.dat to HDF5 new_grid.h5
+#
+
+convert_grid: convert_grid_to_hdf5.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
+	Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
+	$(MPICPP) $(CCFLAGS) convert_grid_to_hdf5.cpp -I$(INC_OP2) -I$(PARMETIS_INC) -I$(PTSCOTCH_INC) $(HDF5_INC)\
+	-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB)-o $(EXEC_CONVERT)
+
+
+	
+	
 #
 # cleanup
 #
 
 clean:
-		rm -f $(EXEC_SEQ) $(EXEC_OPENMP) $(EXEC_CUDA) $(EXEC_MPI) *.o
+		rm -f $(EXEC_SEQ) $(EXEC_OPENMP) $(EXEC_CUDA) $(EXEC_MPI) $(EXEC_CONVERT) *.o
