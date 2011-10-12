@@ -78,9 +78,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 // op_par_loop declarations
 //
-
 #include "op_mpi_seq.h"
-void* xmalloc (size_t size);
+
 
 //
 // main program
@@ -164,7 +163,7 @@ int main(int argc, char **argv)
   //write back original data just to compare you read the file correctly
   //do an h5diff between new_grid_writeback.h5 and new_grid.h5 to
   //compare two hdf5 files
-  op_write_hdf5("new_grid_writeback.h5");
+  //op_write_hdf5("new_grid.h5");
 
   //partition with ParMetis
   //op_partition_geom(p_x);
@@ -179,7 +178,7 @@ int main(int argc, char **argv)
   op_halo_create();
 
   int g_ncell = 0;
-  int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
+  int* sizes = (int *)malloc(sizeof(int)*comm_size);
   MPI_Allgather(&cells->size, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
   for(int i = 0; i<comm_size; i++)g_ncell = g_ncell + sizes[i];
   free(sizes);
@@ -255,6 +254,9 @@ int main(int argc, char **argv)
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");
+
+  //compress using
+  // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
 
   //free memory allocated to halos
   op_halo_destroy();
