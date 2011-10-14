@@ -169,12 +169,14 @@ int main(int argc, char **argv){
 
   
     /**------------------------BEGIN I/O and PARTITIONING -------------------**/
-  
+    
+    op_timers(&cpu_t1, &wall_t1);
+    
     /* read in grid from disk on root processor */
     FILE *fp;
 
-    if ( (fp = fopen("new_grid.dat","r")) == NULL) {
-    	printf("can't open file new_grid.dat\n"); exit(-1);
+    if ( (fp = fopen("new_grid-26mil.dat","r")) == NULL) {
+    	printf("can't open file new_grid-26mil.dat\n"); exit(-1);
     }
   
     int   g_nnode,g_ncell,g_nedge,g_nbedge;
@@ -305,6 +307,10 @@ int main(int argc, char **argv){
 	free(g_bound);
 	free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
     }
+   op_timers(&cpu_t2, &wall_t2); 
+   time = wall_t2-wall_t1;
+   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+   if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time); 
     
   /**------------------------END I/O and PARTITIONING -----------------------**/
   

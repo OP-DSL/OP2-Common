@@ -153,7 +153,7 @@ int main(int argc, char **argv){
     
     /**------------------------BEGIN  I/O -------------------**/
   
-    char file[] = "new_grid.dat";
+    char file[] = "new_grid-26mil.dat";
     char file_out[] = "new_grid_out.h5";
     
     /* read in grid from disk on root processor */
