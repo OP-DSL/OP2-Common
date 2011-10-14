@@ -61,9 +61,6 @@ PTSCOTCH_LIB 	:= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL
 PARMETIS_INC = $(PARMETIS_INSTALL_PATH) -DPARMETIS
 PTSCOTCH_INC = $(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 
-HDF5_INC = -I/home/gihan/hdf5/include/
-HDF5_LIB = -L/home/gihan/hdf5/lib/ -lhdf5 -lz
-
 #
 # master to make all versions
 #
@@ -116,8 +113,8 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 
 airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h \
 	Makefile $(LIB_OP2)/libop2_mpi.a $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h
-	$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INC) -I$(PTSCOTCH_INC)  $(HDF5_INC)\
-	-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o $(EXEC_MPI)
+	$(MPICPP) $(CCFLAGS) airfoil_mpi.cpp -I$(INC_OP2) -I$(PARMETIS_INC) -I$(PTSCOTCH_INC) \
+	-L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o $(EXEC_MPI)
 
 #
 # cleanup

@@ -123,7 +123,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   int l_size = compute_local_size (g_size, comm_size, my_rank);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
-  return op_decl_set_core(l_size,  name);
+  return op_decl_set(l_size,  name);
 }
 
 /*******************************************************************************
@@ -173,7 +173,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Dclose(dset_id);
 
   //calculate local size of set for this mpi process
-  printf("read global size of %s on %d  = %d\n", name, my_rank, g_size);
   int l_size = compute_local_size (g_size, comm_size, my_rank);
 
   //check if size is accurate
@@ -199,6 +198,28 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   if(map_dim != dim)
   {
     printf("map.dim %d in file %s and dim %d do not match\n",map_dim,file,dim);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
+
+  //
+  //find type with available attributes
+  //
+  dataspace= H5Screate(H5S_SCALAR);
+  hid_t  atype = H5Tcopy(H5T_C_S1);
+  H5Tset_size(atype, 10);
+  //open existing data set
+  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  //get OID of the attribute
+  attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
+  //read attribute
+  char typ[10];
+  H5Aread(attr,atype,typ);
+  H5Aclose(attr);
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
+  if(strcmp(typ,"int") != 0)
+  {
+    printf("map.type %s in file %s and type %s do not match\n",typ,file,"int"); //change "int" to map->type later
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
@@ -232,11 +253,28 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
-  //initialize data buffer
-  int* map = (int *)xmalloc(sizeof(int)*l_size*dim);
-
-  //read data
-  H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map);
+  //initialize data buffer and read data
+  int* map;
+  if(strcmp(typ,"int") == 0)
+  {
+    map = (int *)xmalloc(sizeof(int)*l_size*dim);
+    H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map);
+  }
+  else if (strcmp(typ,"long") == 0)
+  {
+    map = (int *)xmalloc(sizeof(long)*l_size*dim);
+    H5Dread(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, map);
+  }
+  else if (strcmp(typ,"long long") == 0)
+  {
+    map = (int *)xmalloc(sizeof(long)*l_size*dim);
+    H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
+  }
+  else
+  {
+    printf("unknown type\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   H5Pclose(plist_id);
   H5Sclose(memspace);
@@ -420,7 +458,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
-  return op_decl_dat_core (set, dim, type, dat_size, data, name );
+  return op_decl_dat(set, dim, type, dat_size, data, name );
 }
 
 /*******************************************************************************
@@ -570,6 +608,17 @@ void op_write_hdf5(char* file_name)
     //Write the attribute data.
     H5Awrite(attribute, H5T_NATIVE_INT, &map->dim);
     //Close the attribute.
+    H5Aclose(attribute);
+    H5Sclose(dataspace);
+
+    //Create an string attribute - type
+    dataspace= H5Screate(H5S_SCALAR);
+    hid_t atype = H5Tcopy(H5T_C_S1);
+    H5Tset_size(atype, 10);
+    attribute = H5Acreate(dset_id, "type", atype, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+
+    H5Awrite(attribute, atype, "int");  //the "int" will later be replaced by the type of a map (int or long)
     H5Aclose(attribute);
 
     //Close the dataspace

@@ -102,8 +102,10 @@ int main(int argc, char **argv)
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   double  *x, *q, *qold, *adt, *res;
 
-  int    nnode,ncell,nedge,nbedge,niter;
+  int    niter;
   double  rms;
+
+  op_timers(&cpu_t1, &wall_t1);
 
   // set constants
   if(my_rank == MPI_ROOT )printf("initialising flow field\n");
@@ -129,7 +131,7 @@ int main(int argc, char **argv)
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
-  char file[] = "new_grid.h5"; //new_grid.h5
+  char file[] = "new_grid.h5";
 
   // declare sets, pointers, datasets and global constants - reading in from file
   op_set nodes  = op_decl_set_hdf5(file, "nodes");
@@ -151,6 +153,11 @@ int main(int argc, char **argv)
   op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
 
   /**------------------------END Parallel I/O  -----------------------**/
+
+  op_timers(&cpu_t2, &wall_t2);
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time);
 
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
