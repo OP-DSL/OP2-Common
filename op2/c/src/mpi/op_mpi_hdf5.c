@@ -159,9 +159,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id );
   H5Pclose(plist_id);
 
-  //
-  //find total size of this map by reading attributes
-  //
+  /*find total size of this map by reading attributes*/
   int g_size;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -183,9 +181,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  //
-  //find dim with available attributes
-  //
+  /*find dim with available attributes*/
   int map_dim = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -201,9 +197,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  //
-  //find type with available attributes
-  //
+  /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
   H5Tset_size(atype, 10);
@@ -217,22 +211,13 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,"int") != 0)
-  {
-    printf("map.type %s in file %s and type %s do not match\n",typ,file,"int"); //change "int" to map->type later
-    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-  }
 
-
-  //
-  //read in map in hyperslabs
-  //
+  /*read in map in hyperslabs*/
 
   //Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
 
-  //Each process defines dataset in memory and reads from a hyperslab
-  //in the file.
+  //Each process defines dataset in memory and reads from a hyperslab in the file.
   int disp = 0;
   int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
   MPI_Allgather(&l_size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
@@ -281,7 +266,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Sclose(dataspace);
   H5Dclose(dset_id);
 
-
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
@@ -323,9 +307,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Pclose(plist_id);
 
 
-  //
-  //find element size of this dat with available attributes
-  //
+  /*find element size of this dat with available attributes*/
   int dat_size = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -336,9 +318,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aclose(attr);
   H5Dclose(dset_id);
 
-  //
-  //find dim with available attributes
-  //
+
+  /*find dim with available attributes*/
   int dat_dim = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -354,9 +335,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  //
-  //find type with available attributes
-  //
+  /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
   H5Tset_size(atype, 10);
@@ -376,9 +355,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  //
-  //read in dat in hyperslabs
-  //
+
+  /*read in dat in hyperslabs*/
 
   //Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -499,14 +477,11 @@ void op_write_hdf5(char* file_name)
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
 
-
   //Create a new file collectively and release property list identifier.
   file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   H5Pclose(plist_id);
 
-  //
-  //loop over all the op_sets and write them to file
-  //
+  /*loop over all the op_sets and write them to file*/
   for(int s=0; s<OP_set_index; s++) {
     op_set set=OP_set_list[s];
 
@@ -534,9 +509,8 @@ void op_write_hdf5(char* file_name)
     H5Dclose(dset_id);
   }
 
-  //
-  //loop over all the op_maps and write them to file
-  //
+
+  /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
 
@@ -552,8 +526,16 @@ void op_write_hdf5(char* file_name)
     dataspace = H5Screate_simple(2, dimsf, NULL);
 
     //Create the dataset with default properties and close dataspace.
-    dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_INT, dataspace,
-        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if(sizeof(map->map[0]) == sizeof(int))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_INT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(sizeof(map->map[0]) == sizeof(long))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_LONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(sizeof(map->map[0]) == sizeof(long long))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_LLONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
     H5Sclose(dataspace);
 
 
@@ -576,7 +558,12 @@ void op_write_hdf5(char* file_name)
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
     //write data
-    H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map->map);
+    if(sizeof(map->map[0]) == sizeof(int))
+      H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map->map);
+    else if(sizeof(map->map[0]) == sizeof(long))
+      H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, map->map);
+    else if(sizeof(map->map[0]) == sizeof(long long))
+      H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map->map);
 
     H5Pclose(plist_id);
     H5Sclose(memspace);
@@ -585,9 +572,8 @@ void op_write_hdf5(char* file_name)
 
     free(sizes);
 
-    //
-    //attach attributes to map
-    //
+    /*attach attributes to map*/
+
     //open existing data set
     dset_id = H5Dopen(file_id, map->name, H5P_DEFAULT);
     //create the data space for the attribute
@@ -618,7 +604,13 @@ void op_write_hdf5(char* file_name)
     attribute = H5Acreate(dset_id, "type", atype, dataspace,
         H5P_DEFAULT, H5P_DEFAULT);
 
-    H5Awrite(attribute, atype, "int");  //the "int" will later be replaced by the type of a map (int or long)
+    if(sizeof(map->map[0]) == sizeof(int))
+      H5Awrite(attribute, atype, "int");
+    if(sizeof(map->map[0]) == sizeof(long))
+      H5Awrite(attribute, atype, "long");
+    if(sizeof(map->map[0]) == sizeof(long long))
+      H5Awrite(attribute, atype, "long long");
+
     H5Aclose(attribute);
 
     //Close the dataspace
@@ -627,9 +619,7 @@ void op_write_hdf5(char* file_name)
     H5Dclose(dset_id);
   }
 
-  //
-  //loop over all the op_dats and write them to file
-  //
+  /*loop over all the op_dats and write them to file*/
   for(int d=0; d<OP_dat_index; d++) {
     op_dat dat=OP_dat_list[d];
 
@@ -691,9 +681,8 @@ void op_write_hdf5(char* file_name)
     H5Dclose(dset_id);
     free(sizes);
 
-    //
-    //attach attributes to dat
-    //
+
+    /*attach attributes to dat*/
 
     //open existing data set
     dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);

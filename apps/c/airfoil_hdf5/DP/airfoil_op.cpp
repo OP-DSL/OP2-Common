@@ -45,14 +45,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/time.h>
-// global constants
 
 //
 //hdf5 header
 //
 #include "hdf5.h"
 
+// global constants
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 //
@@ -60,6 +59,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_cpp.h"
+#include "op_hdf5.h"
 
 //
 // op_par_loop declarations

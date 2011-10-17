@@ -98,9 +98,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT );
 
-  //
-  //find total size of this map by reading attributes
-  //
+
+  /*find total size of this map by reading attributes*/
   int g_size;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -119,9 +118,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     exit(2);
   }
 
-  //
-  //find dim with available attributes
-  //
+
+  /*find dim with available attributes*/
   int map_dim = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -137,9 +135,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     exit(2);
   }
 
-  //
-  //find type with available attributes
-  //
+  /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
   H5Tset_size(atype, 10);
@@ -153,11 +149,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,"int") != 0)
-  {
-    printf("map.type %s in file %s and type %s do not match\n",typ,file,"int"); //change "int" to map->type later
-    exit(2);
-  }
 
   //Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -175,9 +166,14 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     map = (int *)xmalloc(sizeof(long)*g_size*dim);
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, map);
   }
+  else if (strcmp(typ,"long long") == 0)
+  {
+    map = (int *)xmalloc(sizeof(long long)*g_size*dim);
+    H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, map);
+  }
   else
   {
-    printf("unknown type\n");
+    printf("Unknown type in file %s for map %s\n",file, name);
     exit(2);
   }
 
@@ -187,6 +183,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 
   return op_decl_map(from, to, dim, map, name);
 }
+
 
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
@@ -202,9 +199,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
 
-  //
-  //find element size of this dat with available attributes
-  //
+  /*find element size of this dat with available attributes*/
   int dat_size = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -215,9 +210,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aclose(attr);
   H5Dclose(dset_id);
 
-  //
-  //find dim with available attributes
-  //
+  /*find dim with available attributes*/
   int dat_dim = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -233,9 +226,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     exit(2);
   }
 
-  //
-  //find type with available attributes
-  //
+  /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
   H5Tset_size(atype, 10);

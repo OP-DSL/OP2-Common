@@ -47,7 +47,6 @@
 #include <op_lib_c.h>
 
 
-#include <op_hdf5.h>
 
 #ifdef _OPENMP
 #include <omp.h>
