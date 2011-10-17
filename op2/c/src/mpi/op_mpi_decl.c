@@ -41,6 +41,7 @@ void op_decl_const_char ( int dim, char const * type, int typeSize, char * data,
 op_plan *op_plan_get( char const * name, op_set set, int part_size,
     int nargs, op_arg * args, int ninds, int * inds )
 {
+    
     return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
 }
 

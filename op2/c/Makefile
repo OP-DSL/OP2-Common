@@ -24,21 +24,25 @@ PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
 HDF5_INC = -I/home/gihan/hdf5/include/ 
 HDF5_LIB = -L/home/gihan/hdf5/lib/ -lhdf5 -lz 
 
-FLAGS = -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
+FLAGS = -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g   #-DCOMM_PERF #-DDEBUG #-Wall -O3 -g
 
 .PHONY: clean
 
-all: core mpi_seq seq openmp cuda 
+all: core mpi_seq seq openmp cuda hdf5 
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/core/op_lib_core.o
+	
+hdf5: $(SRC)/core/op_hdf5.c $(INC)/op_hdf5.h
 	$(MPICPP) $(FLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/core/op_hdf5.c $(HDF5_LIB) -o $(OBJ)/core/op_hdf5.o 
+	
+	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/core/op_hdf5.o  
 	
 
 seq: $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/core/op_lib_core.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
 	
-	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/core/op_lib_core.o $(OBJ)/core/op_hdf5.o
+	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/core/op_lib_core.o 
 	
 
 cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c $(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/core/op_lib_core.o
@@ -47,8 +51,7 @@ cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o \
-	$(OBJ)/cuda/op_cuda_decl.o $(OBJ)/core/op_lib_core.o $(OBJ)/op_rt_support.o \
-	$(OBJ)/core/op_hdf5.o
+	$(OBJ)/cuda/op_cuda_decl.o $(OBJ)/core/op_lib_core.o $(OBJ)/op_rt_support.o 
 	
 
 openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/core/op_lib_core.o
@@ -57,7 +60,7 @@ openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/core/op_lib_core.o
 	$(CPP) $(FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/openmp/op_openmp_decl.o \
-	$(OBJ)/core/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/core/op_hdf5.o
+	$(OBJ)/core/op_lib_core.o $(OBJ)/op_rt_support.o 
 	
 
 mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \

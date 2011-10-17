@@ -420,7 +420,7 @@ int is_onto_map(op_map map)
     else
     {
     	//nothing in the global_not_found list .. i.e. this is an on to map
-    	free(global_not_found);free(to_elem_copy);free(displs);
+    	free(global_not_found);free(to_elem_copy);//free(displs);
     	for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
     	return 1;
     }

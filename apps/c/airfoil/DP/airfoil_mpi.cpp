@@ -175,8 +175,8 @@ int main(int argc, char **argv){
     /* read in grid from disk on root processor */
     FILE *fp;
 
-    if ( (fp = fopen("new_grid-26mil.dat","r")) == NULL) {
-    	printf("can't open file new_grid-26mil.dat\n"); exit(-1);
+    if ( (fp = fopen("new_grid.dat","r")) == NULL) { //new_grid-26mil.dat
+    	printf("can't open file new_grid.dat\n"); exit(-1);
     }
   
     int   g_nnode,g_ncell,g_nedge,g_nbedge;

@@ -158,7 +158,7 @@ int main(int argc, char **argv){
     time = wall_t2-wall_t1;
     MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
     if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time); 
-   
+
     op_decl_const(1,"double",&gam  );
     op_decl_const(1,"double",&gm1  );
     op_decl_const(1,"double",&cfl  );
@@ -172,7 +172,7 @@ int main(int argc, char **argv){
     //write back original data just to compare you read the file correctly 
     //do an h5diff between new_grid_writeback.h5 and new_grid.h5 to 
     //compare two hdf5 files 
-    //op_write_hdf5("new_grid.h5");
+    op_write_hdf5("new_grid_out.h5");
     
     //partition with ParMetis
     //op_partition_geom(p_x);

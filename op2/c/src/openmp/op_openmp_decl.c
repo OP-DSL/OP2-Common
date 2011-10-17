@@ -43,9 +43,10 @@ op_decl_const_char ( int dim, char const * type, int typeSize, char * data, char
 
 op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
-							int nargs, op_arg * args, int ninds, int * inds )
+    int nargs, op_arg * args, int ninds, int * inds )
 {
-	return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
+    
+    return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
 }
 
 void
@@ -70,7 +71,8 @@ op_decl_set ( int size, char const *name )
 op_map
 op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * name )
 {
-	return op_decl_map_core ( from, to, dim, imap, name );
+    
+    return op_decl_map_core ( from, to, dim, imap, name );
 }
 
 
