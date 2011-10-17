@@ -46,10 +46,6 @@
 #include <string.h>
 #include <math.h>
 
-//
-//hdf5 header
-//
-#include "hdf5.h"
 
 // global constants
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
