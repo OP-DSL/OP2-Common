@@ -37,11 +37,10 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
-
+#include <mpi.h>
+ 
 /** Define the root MPI process **/
 #define MPI_ROOT 0
-
-
 
 
 

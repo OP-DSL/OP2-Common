@@ -409,9 +409,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 	int * nindirect = OP_plans[ip].nindirect;
 
 	/* allocate working arrays */
-
+	//printf("ninds = %d\n",ninds);
 	uint **work;
-	work = ( uint ** ) malloc ( ninds * sizeof ( uint * ) );
+	work = (uint **)malloc( ninds * sizeof ( uint * ) );
 
 	for ( int m = 0; m < ninds; m++ )
 	{
@@ -419,7 +419,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 		while ( inds[m2] != m )
 			m2++;
 
-		work[m] = ( uint * ) malloc ( ( maps[m2]->to )->size * sizeof ( uint ) );
+		work[m] = ( uint * )malloc((maps[m2]->to)->size * sizeof (uint));
 	}
 
 	int *work2;
@@ -455,7 +455,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
 			/* sort them, then eliminate duplicates */
 
-			qsort ( work2, ne, sizeof ( int ), comp );
+			qsort(work2, ne, sizeof(int), comp);
 
 			int e = 0;
 			int p = 0;
@@ -557,10 +557,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 		OP_plans[ip].nthrcol[b] = ncolors;	/* number of thread colors in this block */
 		total_colors += ncolors;
 
-		// if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
+		//if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
 
 		/* reorder elements by color? */
-
 	}
 
 
@@ -583,13 +582,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 		{
 			if ( inds[m] >= 0 )
 				for ( int e = 0; e < ( maps[m]->to )->size; e++ )
-					work[inds[m]][e] = 0;	/* zero out color arrays */
+					work[inds[m]][e] = 0;	// zero out color arrays 
 		}
 
 		for ( int b = 0; b < nblocks; b++ )
 		{
 			if ( blk_col[b] == -1 )
-			{													/* color not yet assigned to block */
+			{	// color not yet assigned to block 
 				int bs = MIN ( bsize, set->size - b * bsize );
 				uint mask = 0;
 
@@ -597,13 +596,12 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 				{
 					if ( inds[m] >= 0 && accs[m] == OP_INC )
 						for ( int e = b * bsize; e < b * bsize + bs; e++ )
-							mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];	/* set bits of mask 
-																																								 */
+							mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; // set bits of mask
 				}
 
-				int color = ffs ( ~mask ) - 1;	/* find first bit not set */
+				int color = ffs ( ~mask ) - 1;	// find first bit not set 
 				if ( color == -1 )
-				{												/* run out of colors on this pass */
+				{	//run out of colors on this pass 
 					repeat = 1;
 				}
 				else
@@ -622,7 +620,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 			}
 		}
 
-		ncolor += 32;								/* increment base level */
+		ncolor += 32;								// increment base level 
 	}
 
 	/* store block mapping and number of blocks per color */
@@ -631,10 +629,10 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 	OP_plans[ip].ncolors = ncolors;
 
 	for ( int b = 0; b < nblocks; b++ )
-		OP_plans[ip].ncolblk[blk_col[b]]++;	/* number of blocks of each color */
+		OP_plans[ip].ncolblk[blk_col[b]]++;	// number of blocks of each color 
 
 	for ( int c = 1; c < ncolors; c++ )
-		OP_plans[ip].ncolblk[c] += OP_plans[ip].ncolblk[c - 1];	/* cumsum */
+		OP_plans[ip].ncolblk[c] += OP_plans[ip].ncolblk[c - 1];	// cumsum 
 
 	for ( int c = 0; c < ncolors; c++ )
 		work2[c] = 0;
@@ -642,13 +640,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 	for ( int b = 0; b < nblocks; b++ )
 	{
 		int c = blk_col[b];
-		int b2 = work2[c];					/* number of preceding blocks of this color */
+		int b2 = work2[c]; // number of preceding blocks of this color 
 		if ( c > 0 )
-			b2 += OP_plans[ip].ncolblk[c - 1];	/* plus previous colors */
+			b2 += OP_plans[ip].ncolblk[c - 1];	// plus previous colors 
 
 		OP_plans[ip].blkmap[b2] = b;
 
-		work2[c]++;									/* increment counter */
+		work2[c]++;	//increment counter 
 	}
 
 	for ( int c = ncolors - 1; c > 0; c-- )
@@ -782,7 +780,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 	op_plan_check ( OP_plans[ip], ninds, inds );
 
 	/* free work arrays */
-
+	
 	for ( int m = 0; m < ninds; m++ )
 		free ( work[m] );
 	free ( work );
