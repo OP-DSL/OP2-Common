@@ -45,18 +45,7 @@
 #include "hdf5.h"
 
 #include <op_hdf5.h>
-
-/*******************************************************************************
-* Wrapper for malloc from www.gnu.org/
-*******************************************************************************/
-void* xmalloc (size_t size)
-{
-    if(size == 0) return (void *)NULL;
-    
-    register void *value = malloc (size);
-    if (value == 0) printf("Virtual memory exhausted at malloc\n");
-    return value;
-}
+#include <op_util.h> //just to include xmalloc routine
 
 
 /*******************************************************************************

@@ -44,6 +44,7 @@
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
+#include <op_util.h>
 
 //mpi header
 #include <mpi.h>
@@ -63,7 +64,7 @@
 #include <op_mpi_core.h>
 #include <op_mpi_part_core.h>
 
-#include <op_mpi_util.h>
+
 
 //
 //MPI Communicator for partitioning

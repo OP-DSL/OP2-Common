@@ -271,9 +271,8 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
  * OP plan construction
  */
 
-op_plan *
-op_plan_core ( char const * name, op_set set, int part_size,
-							 int nargs, op_arg * args, int ninds, int * inds )
+op_plan *op_plan_core(char const *name, op_set set, int part_size, 
+    int nargs, op_arg *args, int ninds, int *inds )
 {
 
 	/* first look for an existing execution plan */
@@ -285,14 +284,16 @@ op_plan_core ( char const * name, op_set set, int part_size,
 		if ( ( strcmp ( name, OP_plans[ip].name ) == 0 )
 				 && ( set == OP_plans[ip].set )
 				 && ( nargs == OP_plans[ip].nargs )
-				 && ( ninds == OP_plans[ip].ninds ) && ( part_size == OP_plans[ip].part_size ) )
+				 && ( ninds == OP_plans[ip].ninds ) 
+				 && ( part_size == OP_plans[ip].part_size ) )
 		{
 			match = 1;
 			for ( int m = 0; m < nargs; m++ )
 			{
 				match = match && ( args[m].dat == OP_plans[ip].dats[m] )
 					&& ( args[m].map == OP_plans[ip].maps[m] )
-					&& ( args[m].idx == OP_plans[ip].idxs[m] ) && ( args[m].acc == OP_plans[ip].accs[m] );
+					&& ( args[m].idx == OP_plans[ip].idxs[m] ) 
+					&& ( args[m].acc == OP_plans[ip].accs[m] );
 			}
 		}
 		ip++;
@@ -432,8 +433,8 @@ op_plan_core ( char const * name, op_set set, int part_size,
 	{
 		int bs = MIN ( bsize, set->size - b * bsize );
 
-		offset[b] = b * bsize;			/* offset for block */
-		nelems[b] = bs;							/* size of block */
+		offset[b] = b * bsize;	/* offset for block */
+		nelems[b] = bs;		/* size of block */
 
 		/* loop over indirection sets */
 
@@ -442,7 +443,7 @@ op_plan_core ( char const * name, op_set set, int part_size,
 
 			/* build the list of elements indirectly referenced in this block */
 
-			int ne = 0;								/* number of elements */
+			int ne = 0;/* number of elements */
 			for ( int m2 = 0; m2 < nargs; m2++ )
 			{
 				if ( inds[m2] == m )
@@ -465,7 +466,7 @@ op_plan_core ( char const * name, op_set set, int part_size,
 					p++;
 				e++;
 			}
-			ne = e;										/* number of distinct elements */
+			ne = e;	/* number of distinct elements */
 
 			/* 
 			   if (OP_diags > 5) { printf(" indirection set %d: ",m); for (int e=0; e<ne; e++) printf("
@@ -518,8 +519,8 @@ op_plan_core ( char const * name, op_set set, int part_size,
 			for ( int m = 0; m < nargs; m++ )
 			{
 				if ( inds[m] >= 0 )
-					for ( int e = b * bsize; e < b * bsize + bs; e++ )
-						work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0;	/* zero out color array */
+				    for ( int e = b * bsize; e < b * bsize + bs; e++ )
+				    	work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
 			}
 
 			for ( int e = b * bsize; e < b * bsize + bs; e++ )

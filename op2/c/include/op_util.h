@@ -31,7 +31,7 @@
 /* 
  * op_mpi_util.h
  * 
- * Headder file for the utility functions used in op_mpi_util.c
+ * Headder file for the utility functions used in op_util.c
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
@@ -44,9 +44,9 @@
 /*******************************************************************************
 * MPI utility function prototypes
 *******************************************************************************/
-void* xmalloc (size_t size);
+void* xmalloc(size_t size);
 
-void* xrealloc (void *ptr, size_t size);
+void* xrealloc(void *ptr, size_t size);
 
 int compare_sets(op_set set1, op_set set2);
 
