@@ -1,5 +1,3 @@
-
-
 /*
  * This file implements the OP2 run-time support used by different
  * OP2 back-ends, like CUDA and OpenMP. It provides and implementation
@@ -7,16 +5,13 @@
  * unstructured meshes.
  */
 
-
 /*
  * timing routine from Gihan Mudalige
  */
 
 #include <sys/time.h>
 
-
 #include "op_rt_support.h"
-
 
 extern int OP_cache_line_size;
 
@@ -27,12 +22,9 @@ int OP_plan_index = 0, OP_plan_max = 0;
 
 op_plan * OP_plans;
 
-
-
 void
 op_rt_exit (  )
 {
-
   /* free storage for plans */
   for ( int ip = 0; ip < OP_plan_index; ip++ )
   {
@@ -87,7 +79,6 @@ comp ( const void * a2, const void * b2 )
 void
 op_plan_check ( op_plan OP_plan, int ninds, int * inds )
 {
-
   int err, ntot;
 
   int nblock = 0;
@@ -266,16 +257,13 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
   return;
 }
 
-
 /*
  * OP plan construction
  */
 
-op_plan *
-op_plan_core ( char const * name, op_set set, int part_size,
-               int nargs, op_arg * args, int ninds, int * inds )
+op_plan *op_plan_core(char const *name, op_set set, int part_size,
+                      int nargs, op_arg *args, int ninds, int *inds )
 {
-
   /* first look for an existing execution plan */
 
   int ip = 0, match = 0;
@@ -283,16 +271,18 @@ op_plan_core ( char const * name, op_set set, int part_size,
   while ( match == 0 && ip < OP_plan_index )
   {
     if ( ( strcmp ( name, OP_plans[ip].name ) == 0 )
-         && ( set == OP_plans[ip].set )
-         && ( nargs == OP_plans[ip].nargs )
-         && ( ninds == OP_plans[ip].ninds ) && ( part_size == OP_plans[ip].part_size ) )
+        && ( set == OP_plans[ip].set )
+        && ( nargs == OP_plans[ip].nargs )
+        && ( ninds == OP_plans[ip].ninds )
+        && ( part_size == OP_plans[ip].part_size ) )
     {
       match = 1;
       for ( int m = 0; m < nargs; m++ )
       {
         match = match && ( args[m].dat == OP_plans[ip].dats[m] )
           && ( args[m].map == OP_plans[ip].maps[m] )
-          && ( args[m].idx == OP_plans[ip].idxs[m] ) && ( args[m].acc == OP_plans[ip].accs[m] );
+          && ( args[m].idx == OP_plans[ip].idxs[m] )
+          && ( args[m].acc == OP_plans[ip].accs[m] );
       }
     }
     ip++;
@@ -519,7 +509,7 @@ op_plan_core ( char const * name, op_set set, int part_size,
       {
         if ( inds[m] >= 0 )
           for ( int e = b * bsize; e < b * bsize + bs; e++ )
-            work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0;  /* zero out color array */
+            work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
       }
 
       for ( int e = b * bsize; e < b * bsize + bs; e++ )
@@ -529,8 +519,7 @@ op_plan_core ( char const * name, op_set set, int part_size,
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];  /* set bits of mask
-                                                                                 */
+              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];  /* set bits of mask */
 
           int color = ffs ( ~mask ) - 1;  /* find first bit not set */
           if ( color == -1 )
@@ -596,8 +585,7 @@ op_plan_core ( char const * name, op_set set, int part_size,
         {
           if ( inds[m] >= 0 && accs[m] == OP_INC )
             for ( int e = b * bsize; e < b * bsize + bs; e++ )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];  /* set bits of mask
-                                                                                 */
+              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];  /* set bits of mask */
         }
 
         int color = ffs ( ~mask ) - 1;  /* find first bit not set */

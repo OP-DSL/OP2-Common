@@ -29,9 +29,9 @@
 
 
 /*
- * op_mpi_util.h
+ * op_util.h
  *
- * Headder file for the utility functions used in op_mpi_util.c
+ * Headder file for the utility functions used in op_util.c
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */

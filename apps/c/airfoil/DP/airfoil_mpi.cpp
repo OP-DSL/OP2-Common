@@ -433,8 +433,6 @@ int main(int argc, char **argv)
   op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
-  print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
   //free memory allocated to halos
   op_halo_destroy();

@@ -42,7 +42,7 @@
 #include <math.h>
 
 #include <op_lib_core.h>
-#include <op_mpi_util.h>
+#include <op_util.h>
 
 
 /*******************************************************************************
