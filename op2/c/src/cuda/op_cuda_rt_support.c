@@ -137,33 +137,29 @@ op_fetch_data ( op_dat dat )
 
 
 
-op_plan *
-op_plan_get ( char const * name, op_set set, int part_size,
-							int nargs, op_arg * args, int ninds, int *inds )
+op_plan *op_plan_get ( char const * name, op_set set, int part_size,
+    int nargs, op_arg * args, int ninds, int *inds )
 {
 
-	op_plan *plan = op_plan_core ( name, set, part_size,
-																 nargs, args, ninds, inds );
+	op_plan *plan = op_plan_core(name, set, part_size, nargs, args, ninds, inds);
 
 	if ( plan->count == 1 )
 	{
-		for ( int m = 0; m < ninds; m++ )
-			op_mvHostToDevice ( ( void ** ) &( plan->ind_maps[m] ), sizeof ( int ) * plan->nindirect[m] );
+		for (int m = 0; m < ninds; m++)
+			op_mvHostToDevice ((void **) &(plan->ind_maps[m]), sizeof(int)*plan->nindirect[m]);
 
-		for ( int m = 0; m < nargs; m++ )
-			if ( plan->loc_maps[m] != NULL )
-				op_mvHostToDevice ( ( void ** ) &( plan->loc_maps[m] ),
+		for (int m = 0; m < nargs; m++)
+			if (plan->loc_maps[m] != NULL)
+				op_mvHostToDevice((void **) &(plan->loc_maps[m]),
 														sizeof ( short ) * plan->set->size );
 
-		op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ), sizeof ( int ) * plan->nblocks
-												* plan->ninds );
-		op_mvHostToDevice ( ( void ** ) &( plan->ind_offs ), sizeof ( int ) * plan->nblocks
-												* plan->ninds );
-		op_mvHostToDevice ( ( void ** ) &( plan->nthrcol ), sizeof ( int ) * plan->nblocks );
-		op_mvHostToDevice ( ( void ** ) &( plan->thrcol ), sizeof ( int ) * plan->set->size );
-		op_mvHostToDevice ( ( void ** ) &( plan->offset ), sizeof ( int ) * plan->nblocks );
-		op_mvHostToDevice ( ( void ** ) &( plan->nelems ), sizeof ( int ) * plan->nblocks );
-		op_mvHostToDevice ( ( void ** ) &( plan->blkmap ), sizeof ( int ) * plan->nblocks );
+		op_mvHostToDevice((void **) &(plan->ind_sizes), sizeof(int) * plan->nblocks* plan->ninds);
+		op_mvHostToDevice((void **) &(plan->ind_offs), sizeof(int) * plan->nblocks* plan->ninds);
+		op_mvHostToDevice((void **) &(plan->nthrcol), sizeof(int) * plan->nblocks);
+		op_mvHostToDevice((void **) &(plan->thrcol), sizeof(int) * plan->set->size);
+		op_mvHostToDevice((void **) &(plan->offset), sizeof(int) * plan->nblocks);
+		op_mvHostToDevice((void **) &(plan->nelems), sizeof(int) * plan->nblocks);
+		op_mvHostToDevice((void **) &(plan->blkmap), sizeof(int) * plan->nblocks);
 	}
 
 	return plan;

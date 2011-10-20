@@ -8,13 +8,8 @@
  */
 
 
-/* 
- * timing routine from Gihan Mudalige
- */
 
 #include <sys/time.h>
-
-
 #include "op_rt_support.h"
 
 
@@ -431,7 +426,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
 	for ( int b = 0; b < nblocks; b++ )
 	{
-		int bs = MIN ( bsize, set->size - b * bsize );
+		int bs = MIN ( bsize, set->size - b * bsize );/****/
 
 		offset[b] = b * bsize;	/* offset for block */
 		nelems[b] = bs;		/* size of block */
