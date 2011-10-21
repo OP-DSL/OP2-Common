@@ -151,7 +151,7 @@ op_plan *op_plan_get ( char const * name, op_set set, int part_size,
 		for (int m = 0; m < nargs; m++)
 			if (plan->loc_maps[m] != NULL)
 				op_mvHostToDevice((void **) &(plan->loc_maps[m]),
-														sizeof ( short ) * plan->set->size );
+				sizeof ( short ) * plan->set->size );
 
 		op_mvHostToDevice((void **) &(plan->ind_sizes), sizeof(int) * plan->nblocks* plan->ninds);
 		op_mvHostToDevice((void **) &(plan->ind_offs), sizeof(int) * plan->nblocks* plan->ninds);

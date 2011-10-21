@@ -36,24 +36,9 @@ void op_par_loop_save_soln(char const *name, op_set set,
   op_arg arg0,                                                
   op_arg arg1 ){                                              
                                                               
-  int sent[2] = {0,0,};   
-  if(arg0.idx != -1 || arg1.idx != -1 )//indirect loop
-  {
-      if (OP_diags==1) { 
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-
-      }
-  
-      //for each indirect data set
-      if(arg0.argtype == OP_ARG_DAT) sent[0] = exchange_halo(arg0); 
-      if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
-  }
-  
-  //wait for comms to complete
-  if(arg0.argtype == OP_ARG_DAT && sent[0] == 1 )wait_all(arg0);
-  if(arg1.argtype == OP_ARG_DAT && sent[1] == 1 )wait_all(arg1);
-
+  int ninds   = 0;    
+  int nargs   = 2;
+  op_arg args[2] = {arg0,arg1};
 
   if (OP_diags>2) {                                           
     printf(" kernel routine w/o indirection:  save_soln \n"); 
@@ -84,14 +69,12 @@ void op_par_loop_save_soln(char const *name, op_set set,
   }                                                           
                            
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
-  if(arg0.argtype == OP_ARG_DAT)set_dirtybit(arg0);
-  if(arg1.argtype == OP_ARG_DAT)set_dirtybit(arg1);
+  for(int i = 0; i<nargs; i++)
+      if(args[i].argtype == OP_ARG_DAT)
+      	set_dirtybit(args[i]);
   
   //performe any global operations
-  if(arg0.argtype == OP_ARG_GBL) 
-      global_reduce(&arg0);
-  if(arg1.argtype == OP_ARG_GBL) 
-      global_reduce(&arg1);;
+  // - NONE
 
   
   
