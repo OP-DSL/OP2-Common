@@ -148,11 +148,9 @@ void op_x86_res_calc(
       }
       __syncthreads();
     }
-
   }
 
   // apply pointered write/increment
-
   for (int n=0; n<ind_arg3_size; n++)
     for (int d=0; d<4; d++)
       ind_arg3[d+ind_arg3_map[n]*4] += ind_arg3_s[d+n*4];
@@ -172,47 +170,25 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg6,
   op_arg arg7 ){
 
-  int sent[8] = {0,0,0,0,0,0,0,0};
-  if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
-     arg4.idx != -1 || arg5.idx != -1 || arg6.idx != -1 || arg7.idx != -1)//indirect loop
-  {
-      if (OP_diags==1) {
-          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
-          if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
-          if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
-          if(arg6.argtype == OP_ARG_DAT) reset_halo(arg6);
-          if(arg7.argtype == OP_ARG_DAT) reset_halo(arg7);
-      }
-
-      //for each indirect data set
-      if(arg0.argtype == OP_ARG_DAT) sent[0] = exchange_halo(arg0);
-      if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
-      if(arg2.argtype == OP_ARG_DAT) sent[2] = exchange_halo(arg2);
-      if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3);
-      if(arg4.argtype == OP_ARG_DAT) sent[4] = exchange_halo(arg4);
-      if(arg5.argtype == OP_ARG_DAT) sent[5] = exchange_halo(arg5);
-      if(arg6.argtype == OP_ARG_DAT) sent[6] = exchange_halo(arg6);
-      if(arg7.argtype == OP_ARG_DAT) sent[7] = exchange_halo(arg7);
-  }
-
-  //wait for comms to complete
-  if(arg0.argtype == OP_ARG_DAT && sent[0] == 1 )wait_all(arg0);
-  if(arg1.argtype == OP_ARG_DAT && sent[1] == 1 )wait_all(arg1);
-  if(arg2.argtype == OP_ARG_DAT && sent[2] == 1 )wait_all(arg2);
-  if(arg3.argtype == OP_ARG_DAT && sent[3] == 1 )wait_all(arg3);
-  if(arg4.argtype == OP_ARG_DAT && sent[4] == 1 )wait_all(arg4);
-  if(arg5.argtype == OP_ARG_DAT && sent[5] == 1 )wait_all(arg5);
-  if(arg6.argtype == OP_ARG_DAT && sent[6] == 1 )wait_all(arg6);
-  if(arg7.argtype == OP_ARG_DAT && sent[7] == 1 )wait_all(arg7);
-
   int    nargs   = 8;
   op_arg args[8] = {arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7};
 
   int    ninds   = 4;
   int    inds[8] = {0,0,1,1,2,2,3,3};
+
+  int sent[8] = {0,0,0,0,0,0,0,0}; //array to set if halo is exchanged
+  if(ninds > 0) //indirect loop
+  {
+      for(int i = 0; i<nargs; i++)
+      {
+          if(args[i].argtype == OP_ARG_DAT)
+          {
+              if (OP_diags==1) reset_halo(args[i]);
+              sent[0] = exchange_halo(args[i]);
+              if(sent[0] == 1)wait_all(args[i]);
+          }
+      }
+  }
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc \n");
@@ -275,32 +251,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
-  if(arg0.argtype == OP_ARG_DAT)set_dirtybit(arg0);
-  if(arg1.argtype == OP_ARG_DAT)set_dirtybit(arg1);
-  if(arg2.argtype == OP_ARG_DAT)set_dirtybit(arg2);
-  if(arg3.argtype == OP_ARG_DAT)set_dirtybit(arg3);
-  if(arg4.argtype == OP_ARG_DAT)set_dirtybit(arg4);
-  if(arg5.argtype == OP_ARG_DAT)set_dirtybit(arg5);
-  if(arg6.argtype == OP_ARG_DAT)set_dirtybit(arg6);
-  if(arg7.argtype == OP_ARG_DAT)set_dirtybit(arg7);
+  for(int i = 0; i<nargs; i++)
+      if(args[i].argtype == OP_ARG_DAT)
+        set_dirtybit(args[i]);
 
   //performe any global operations
-  if(arg0.argtype == OP_ARG_GBL)
-      global_reduce(&arg0);
-  if(arg1.argtype == OP_ARG_GBL)
-      global_reduce(&arg1);;
-  if(arg2.argtype == OP_ARG_GBL)
-      global_reduce(&arg2);
-  if(arg3.argtype == OP_ARG_GBL)
-      global_reduce(&arg3);
-  if(arg4.argtype == OP_ARG_GBL)
-      global_reduce(&arg4);
-  if(arg5.argtype == OP_ARG_GBL)
-      global_reduce(&arg5);
-  if(arg6.argtype == OP_ARG_GBL)
-      global_reduce(&arg6);
-  if(arg7.argtype == OP_ARG_GBL)
-      global_reduce(&arg7);
+  // - NONE
 
   // update kernel record
   op_timers(&cpu_t2, &wall_t2);

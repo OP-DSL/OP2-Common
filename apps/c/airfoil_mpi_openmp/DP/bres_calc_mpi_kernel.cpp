@@ -159,43 +159,25 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   op_arg arg4,
   op_arg arg5 ){
 
-  int sent[6] = {0,0,0,0,0,0};
-  if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
-     arg4.idx != -1 || arg5.idx != -1 )//indirect loop
-  {
-      if (OP_diags==1) {
-          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
-          if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
-          if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
-      }
-
-      //for each indirect data set
-      if(arg0.argtype == OP_ARG_DAT) sent[0] = exchange_halo(arg0);
-      if(arg1.argtype == OP_ARG_DAT) sent[1] = exchange_halo(arg1);
-      if(arg2.argtype == OP_ARG_DAT) sent[2] = exchange_halo(arg2);
-      if(arg3.argtype == OP_ARG_DAT) sent[3] = exchange_halo(arg3);
-      if(arg4.argtype == OP_ARG_DAT) sent[4] = exchange_halo(arg4);
-      if(arg5.argtype == OP_ARG_DAT) sent[5] = exchange_halo(arg5);
-  }
-
-  //wait for comms to complete
-  if(arg0.argtype == OP_ARG_DAT && sent[0] == 1 )wait_all(arg0);
-  if(arg1.argtype == OP_ARG_DAT && sent[1] == 1 )wait_all(arg1);
-  if(arg2.argtype == OP_ARG_DAT && sent[2] == 1 )wait_all(arg2);
-  if(arg3.argtype == OP_ARG_DAT && sent[3] == 1 )wait_all(arg3);
-  if(arg4.argtype == OP_ARG_DAT && sent[4] == 1 )wait_all(arg4);
-  if(arg5.argtype == OP_ARG_DAT && sent[5] == 1 )wait_all(arg5);
-
-
-
   int    nargs   = 6;
   op_arg args[6] = {arg0,arg1,arg2,arg3,arg4,arg5};
 
   int    ninds   = 4;
   int    inds[6] = {0,0,1,2,3,-1};
+
+  int sent[6] = {0,0,0,0,0,0};
+  if(ninds > 0) //indirect loop
+  {
+      for(int i = 0; i<nargs; i++)
+      {
+          if(args[i].argtype == OP_ARG_DAT)
+          {
+              if (OP_diags==1) reset_halo(args[i]);
+              sent[0] = exchange_halo(args[i]);
+              if(sent[0] == 1)wait_all(args[i]);
+          }
+      }
+  }
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: bres_calc \n");
@@ -256,28 +238,13 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     block_offset += nblocks;
   }
 
-
-    //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
-  if(arg0.argtype == OP_ARG_DAT)set_dirtybit(arg0);
-  if(arg1.argtype == OP_ARG_DAT)set_dirtybit(arg1);
-  if(arg2.argtype == OP_ARG_DAT)set_dirtybit(arg2);
-  if(arg3.argtype == OP_ARG_DAT)set_dirtybit(arg3);
-  if(arg4.argtype == OP_ARG_DAT)set_dirtybit(arg4);
-  if(arg5.argtype == OP_ARG_DAT)set_dirtybit(arg5);
+  //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
+  for(int i = 0; i<nargs; i++)
+      if(args[i].argtype == OP_ARG_DAT)
+        set_dirtybit(args[i]);
 
   //performe any global operations
-  if(arg0.argtype == OP_ARG_GBL)
-      global_reduce(&arg0);
-  if(arg1.argtype == OP_ARG_GBL)
-      global_reduce(&arg1);;
-  if(arg2.argtype == OP_ARG_GBL)
-      global_reduce(&arg2);
-  if(arg3.argtype == OP_ARG_GBL)
-      global_reduce(&arg3);
-  if(arg4.argtype == OP_ARG_GBL)
-      global_reduce(&arg4);
-  if(arg5.argtype == OP_ARG_GBL)
-      global_reduce(&arg5);
+  // - NONE
 
 
   // update kernel record
