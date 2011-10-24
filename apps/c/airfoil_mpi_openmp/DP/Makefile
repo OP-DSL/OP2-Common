@@ -1,66 +1,66 @@
 #
+# The following environment variables should be predefined:
+#
+# CUDA_INSTALL_PATH
+# PARMETIS_INSTALL_PATH
+# PTSCOTCH_INSTALL_PATH
+# HDF5_INSTALL_PATH
+#
+# OP2_INSTALL_PATH
+# OP2_COMPILER (gnu,intel,etc)
+#
+
+#
 # set paths for header files and libraries
 #
+OP2_INC		= -I$(OP2_INSTALL_PATH)/c/include
+OP2_LIB		= -L$(OP2_INSTALL_PATH)/c/lib
 
-C_OP2		= $(OP2)/c
-
-INC_OP2 = $(C_OP2)/include
-SRC_OP2 = $(C_OP2)/src
-LIB_OP2 = $(C_OP2)/lib
-
-
-#CUDA stuff
-CUDA := $(CUDA_INSTALL_PATH)
-INC_CUDA := -I$(CUDA)/include -I$(C_OP2) -I.
-LIB_CUDA := -L$(CUDA)/lib64
+CUDA_INC	= -I$(CUDA_INSTALL_PATH)/include
+CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 
-# compiler
-CC = icc
-CPP = icpc
-MPI_HOME = /home/gihan/openmpi-intel
-MPICPP = $(MPI_HOME)/bin/mpiCC -g
-MPICC = $(MPICPP)
-
-CCFLAGS	:= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
-
-#openmp
-OMP	:= -openmp -openmp-report2
+ifeq ($(OP2_COMPILER),gnu)
+  CPP		= g++
+  CPPFLAGS	= -g -fPIC -DUNIX -Wall
+#  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
+  OMPFLAGS	= -fopenmp
+  MPICPP	= /usr/bin/mpiCC
+  MPIFLAGS	= $(CCFLAGS)
+else
+ifeq ($(OP2_COMPILER),intel)
+  CPP		= icpc
+  CPPFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
+  OMPFLAGS	= -openmp -openmp-report2
+  MPICPP	= mpiCC
+  MPIFLAGS	= $(CCFLAGS)
+else
+echo:
+	@echo "unrecognised value for OP2_COMPILER"
+endif
+endif
 
 #
-# set flags for compilation and linking
+# set flags for NVCC compilation and linking
+#
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -use_fast_math
+#NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
+
+
+#
+# partitioning software for MPI versions
 #
 
-# -Xptxas -dlcm=ca   => use L1 cache
-# -Xptxas -dlcm=cg   => no L1 cache
+PARMETIS_INC 	= -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
+PARMETIS_LIB 	= -L$(PARMETIS_INSTALL_PATH) -lparmetis \
+	       	  -L$(PARMETIS_INSTALL_PATH) -lmetis
 
-#CCFLAGS	:= -g -fPIC -DUNIX -Wall -Wextra
-#NVCCFLAGS	:= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
-
-#CCFLAGS		:= -g
-#CCFLAGS		:= -O3 -DUNIX -Wall -Wextra
-#NVCCFLAGS	:= -O3 -maxrregcount 48 -arch=sm_20 \
-#		   -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
-NVCCFLAGS	:= -O3 -arch=sm_21 \
-		   -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
-
-LIBS		:= $(LIB) -lcudart
-
-C_OP2_H		:= $(C_OP2)/op_seq.h $(C_OP2)/op_lib.h $(C_OP2)/op_lib_core.h
-OP2_LIB		:= $(C_OP2)/op_lib.a
-
-EXEC_MPI_OPENMP = airfoil_mpi_openmp
-
-
-PARMETIS_LIB 	:= -L$(PARMETIS_INSTALL_PATH) -lparmetis -L$(PARMETIS_INSTALL_PATH) -lmetis
-PTSCOTCH_LIB 	:= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
-
-
-PARMETIS_INC = $(PARMETIS_INSTALL_PATH) -DPARMETIS
-PTSCOTCH_INC = $(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
-
-HDF5_INC = -I/home/gihan/hdf5/include/ 
-HDF5_LIB = -L/home/gihan/hdf5/lib/ -lhdf5 -lz 
+PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
+PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+                  
+HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
 
 
 #
@@ -73,20 +73,17 @@ all: airfoil_mpi_openmp
 # mpi with openmp-nodes version
 #
 
-airfoil_mpi_openmp: airfoil_mpi_openmp.cpp  \
-		    $(INC_OP2)/op_lib_c.h $(INC_OP2)/op_lib_cpp.h \
-		    airfoil_mpi_kernels.cpp \
+airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
 		    save_soln_mpi_kernel.cpp  save_soln.h \
 		    adt_calc_mpi_kernel.cpp   adt_calc.h  \
 		    res_calc_mpi_kernel.cpp   res_calc.h  \
 		    bres_calc_mpi_kernel.cpp  bres_calc.h \
 		    update_mpi_kernel.cpp     update.h    \
-		    Makefile $(LIB_OP2)/libop2_mpi.a \
-		    $(INC_OP2)/op_lib_cpp.h $(INC_OP2)/op_rt_support.h
-		    $(MPICC) $(CCFLAGS) $(OMP) airfoil_mpi_openmp.cpp -lm airfoil_mpi_kernels.cpp -I$(INC_OP2) \
-		    -I$(PARMETIS_INC) -I$(PTSCOTCH_INC) $(HDF5_INC) \
-		    -L$(LIB_OP2) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		    $(HDF5_LIB) -o $(EXEC_MPI_OPENMP)
+		    Makefile
+		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
+		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		    $(HDF5_LIB) -o airfoil_mpi_openmp
 		    	
 
 #
@@ -94,4 +91,4 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp  \
 #
 
 clean:
-		rm -f $(EXEC_SEQ) $(EXEC_OPENMP) $(EXEC_CUDA) $(EXEC_MPI) $(EXEC_CONVERT) $(EXEC_MPI_OPENMP) *.o
+		rm -f rm -f airfoil_mpi_openmp *.o
