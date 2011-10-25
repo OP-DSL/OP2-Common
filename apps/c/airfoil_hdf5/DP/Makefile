@@ -35,7 +35,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CCFLAGS)
 else
-echo:
+print:
 	@echo "unrecognised value for OP2_COMPILER"
 endif
 endif

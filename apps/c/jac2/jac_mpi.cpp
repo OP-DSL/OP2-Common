@@ -45,10 +45,9 @@
 //
 #include <mpi.h>
 
-
 // global constants
 
-double alpha;
+float alpha;
 
 //
 // OP header file
@@ -84,6 +83,30 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 
   }
   return local_size;
+}
+
+void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size,
+  int l_size, int elem_size)
+{
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
+
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
+
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_FLOAT, l_array,
+      l_size*elem_size, MPI_FLOAT, MPI_ROOT,  MPI_COMM_WORLD );
+
+  free(sendcnts);
+  free(displs);
 }
 
 void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
@@ -134,6 +157,7 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   free(displs);
 }
 
+
 // define problem size
 
 #define NN       6
@@ -155,158 +179,184 @@ int main(int argc, char **argv)
   double time;
   double max_time;
 
+  int *pp;
+  float *r, *u, *du;
+  double *A;
 
   int   nnode, nedge, n, e;
-  double dx;
+  float dx;
 
-  nnode = (NN-1)*(NN-1);
-  nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
-  dx    = 1.0f / ((double) NN);
+  /**------------------------BEGIN I/O and PARTITIONING ---------------------**/
 
-  int    *pp = (int *)malloc(sizeof(int)*2*nedge);
-  int    *p1 = (int *)malloc(sizeof(int)*nedge);
-  int    *p2 = (int *)malloc(sizeof(int)*nedge);
+  int g_nnode, g_nedge, g_dx, g_n, g_e;
 
-  double  *xe = (double *)malloc(sizeof(double)*2*nedge);
-  double  *xn = (double *)malloc(sizeof(double)*2*nnode);
+  g_nnode = (NN-1)*(NN-1);
+  g_nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
+  g_dx    = 1.0f / ((float) NN);
 
-  double *A  = (double *)malloc(sizeof(double)*3*nedge);
-  double  *r  = (double *)malloc(sizeof(double)*2*nnode);
-  double  *u  = (double *)malloc(sizeof(double)*2*nnode);
-  double  *du = (double *)malloc(sizeof(double)*3*nnode);
+  int *g_pp;
+  float *g_r, *g_u, *g_du;
+  double *g_A;
 
-  // create matrix and r.h.s., and set coordinates needed for renumbering / partitioning
+  if(my_rank == MPI_ROOT)
+  {
+    printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
-  e = 0;
+    g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
 
-  for (int i=1; i<NN; i++) {
-    for (int j=1; j<NN; j++) {
-      n         = i-1 + (j-1)*(NN-1);
-      r[2*n]      = 0.0f;
-      u[2*n]      = 0.0f;
-      du[3*n]     = 0.0f;
-      xn[2*n  ] = i*dx;
-      xn[2*n+1] = j*dx;
+    g_A  = (double *)malloc(sizeof(double)*g_nedge);
+    g_r  = (float *)malloc(sizeof(float)*g_nnode);
+    g_u  = (float *)malloc(sizeof(float)*g_nnode);
+    g_du = (float *)malloc(sizeof(float)*g_nnode);
 
-      p1[e]     = n;
-      p2[e]     = n;
-      pp[2*e]   = p1[e];
-      pp[2*e+1] = p2[e];
-      A[3*e]      = -1.0f;
-      xe[2*e  ] = i*dx;
-      xe[2*e+1] = j*dx;
-      e++;
+    // create matrix and r.h.s., and set coordinates needed for renumbering / partitioning
 
-      for (int pass=0; pass<4; pass++) {
-        int i2 = i;
-        int j2 = j;
-        if (pass==0) i2 += -1;
-        if (pass==1) i2 +=  1;
-        if (pass==2) j2 += -1;
-        if (pass==3) j2 +=  1;
+    g_e = 0;
 
-        if ( (i2==0) || (i2==NN) || (j2==0) || (j2==NN) ) {
-          r[2*n] += 0.25f;
-        }
-        else {
-          p1[e]     = n;
-          p2[e]     = i2-1 + (j2-1)*(NN-1);
-          pp[2*e]   = p1[e];
-          pp[2*e+1] = p2[e];
-          A[3*e]      = 0.25f;
-          xe[2*e  ] = i*dx;
-          xe[2*e+1] = j*dx;
-          e++;
+    for (int i=1; i<NN; i++) {
+      for (int j=1; j<NN; j++) {
+        g_n         = i-1 + (j-1)*(NN-1);
+        g_r[g_n]      = 0.0f;
+        g_u[g_n]      = 0.0f;
+        g_du[g_n]     = 0.0f;
+
+        g_pp[2*g_e]   = g_n;
+        g_pp[2*g_e+1] = g_n;
+        g_A[g_e]      = -1.0f;
+        g_e++;
+
+        for (int pass=0; pass<4; pass++) {
+          int i2 = i;
+          int j2 = j;
+          if (pass==0) i2 += -1;
+          if (pass==1) i2 +=  1;
+          if (pass==2) j2 += -1;
+          if (pass==3) j2 +=  1;
+
+          if ( (i2==0) || (i2==NN) || (j2==0) || (j2==NN) ) {
+            g_r[g_n] += 0.25f;
+          }
+          else {
+            g_pp[2*g_e]   = g_n;
+            g_pp[2*g_e+1] = i2-1 + (j2-1)*(NN-1);
+            g_A[g_e]      = 0.25f;
+            g_e++;
+          }
         }
       }
     }
   }
 
+  /* Compute local sizes */
+  nnode = compute_local_size (g_nnode, comm_size, my_rank);
+  nedge = compute_local_size (g_nedge, comm_size, my_rank);
+  printf("Number of nodes, edges on process %d = %d, %d\n"
+      ,my_rank,nnode,nedge);
+
+  /*Allocate memory to hold local sets, mapping tables and data*/
+  pp = (int *)malloc(2*sizeof(int)*nedge);
+
+  A      = (double *) malloc(nedge*sizeof(double));
+  r      = (float *) malloc(nnode*sizeof(float));
+  u      = (float *) malloc(nnode*sizeof(float));
+  du      = (float *) malloc(nnode*sizeof(float));
+
+  /* scatter sets, mappings and data on sets*/
+  scatter_int_array(g_pp, pp, comm_size, g_nedge,nedge, 2);
+  scatter_double_array(g_A, A, comm_size, g_nedge,nedge, 1);
+  scatter_float_array(g_r, r, comm_size, g_nnode,nnode, 1);
+  scatter_float_array(g_u, u, comm_size, g_nnode,nnode, 1);
+  scatter_float_array(g_du, du, comm_size, g_nnode,nnode, 1);
+
+  if(my_rank == MPI_ROOT)
+  {     /*Freeing memory allocated to gloabal arrays on rank 0
+          after scattering to all processes*/
+    free(g_pp);
+    free(g_A);
+    free(g_r);
+    free(g_u);
+    free(g_du);
+  }
+
+  /**------------------------END I/O and PARTITIONING ---------------------**/
+
   // OP initialisation
 
-  op_init(argc,argv,5);
+  op_init(argc,argv,2);
 
   // declare sets, pointers, and datasets
 
-  op_set nodes = op_decl_set(nnode, "nodes");
-  op_set edges = op_decl_set(nedge, "edges");
+  op_set nodes = op_decl_set(nnode,"nodes");
+  op_set edges = op_decl_set(nedge,"edges");
 
   op_map ppedge = op_decl_map(edges,nodes,2,pp, "ppedge");
 
-  op_dat p_A  = op_decl_dat(edges,3,"double",A,  "p_A" );
-  op_dat p_r  = op_decl_dat(nodes,2,"double", r,  "p_r" );
-  op_dat p_u  = op_decl_dat(nodes,2,"double", u,  "p_u" );
-  op_dat p_du = op_decl_dat(nodes,3,"double", du, "p_du");
+  op_dat p_A = op_decl_dat(edges,1,"double", A,  "p_A" );
+  op_dat p_r = op_decl_dat(nodes,1,"float", r,  "p_r" );
+  op_dat p_u = op_decl_dat(nodes,1,"float", u,  "p_u" );
+  op_dat p_du = op_decl_dat(nodes,1,"float", du,"p_du");
 
   alpha = 2.0f;
-  op_decl_const(1,"double",&alpha);
+  op_decl_const(1,"float",&alpha);
   alpha = 1.0f;
-  op_decl_const(1,"double",&alpha);
+  op_decl_const(1,"float",&alpha);
 
   op_diagnostic_output();
 
+  //random partitioning for diagnostics pourposes
+  //op_partition_random(nodes);
+
+  //create halos
+  op_halo_create();
+
+  //initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
+
+
   // main iteration loop
 
-  double u_sum, u_max, beta = 1.0f;
+  float u_sum, u_max, beta = 1.0f;
 
   for (int iter=0; iter<NITER; iter++) {
     op_par_loop(res,"res", edges,
-        op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
-        op_arg_dat(p_u,  1,ppedge, 2,"double", OP_READ),
-        op_arg_dat(p_du, 0,ppedge, 3,"double", OP_INC ),
-        op_arg_gbl(&beta,1,"double",OP_READ));
+                op_arg_dat(p_A,  -1,OP_ID,  1,"double", OP_READ),
+                op_arg_dat(p_u,   1,ppedge, 1,"float", OP_READ),
+                op_arg_dat(p_du,  0,ppedge, 1,"float", OP_INC),
+                op_arg_gbl(&beta, 1,"float", OP_READ));
 
     u_sum = 0.0f;
     u_max = 0.0f;
     op_par_loop(update,"update", nodes,
-        op_arg_dat(p_r,  -1,OP_ID, 2,"double",OP_READ),
-        op_arg_dat(p_du, -1,OP_ID, 3,"double",OP_RW  ),
-        op_arg_dat(p_u,  -1,OP_ID, 2,"double",OP_INC ),
-        op_arg_gbl(&u_sum,1,"double",OP_INC),
-        op_arg_gbl(&u_max,1,"double",OP_MAX));
-    printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
+                op_arg_dat(p_r,   -1,OP_ID, 1,"float",OP_READ),
+                op_arg_dat(p_du,  -1,OP_ID, 1,"float",OP_RW),
+                op_arg_dat(p_u,   -1,OP_ID, 1,"float",OP_INC),
+                op_arg_gbl(&u_sum,1,"float",OP_INC),
+                op_arg_gbl(&u_max,1,"float",OP_MAX));
+
+    if(my_rank == MPI_ROOT)
+      printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
   }
 
-  // print out results
+  op_timers(&cpu_t2, &wall_t2);
 
-  printf("\n  Results after %d iterations:\n\n",NITER);
+  //get results data array
+  op_dat temp = op_mpi_get_data(p_u);
 
-  op_fetch_data(p_u);
-  /*
-     op_fetch_data(p_du);
-     op_fetch_data(p_r);
-     */
+  //output the result dat array to files
+  print_dat_tofile(temp, "out_grid.dat"); //ASCI
+  print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  for (int pass=0; pass<1; pass++) {
-    /*
-       if(pass==0)      printf("\narray u\n");
-       else if(pass==1) printf("\narray du\n");
-       else if(pass==2) printf("\narray r\n");
-       */
+  //free memory allocated to halos
+  op_halo_destroy();
+  //return all op_dats, op_maps back to original element order
+  op_partition_reverse();
 
-    for (int j=NN-1; j>0; j--) {
-      for (int i=1; i<NN; i++) {
-        if (pass==0)
-          printf(" %7.4f",u[2*(i-1 + (j-1)*(NN-1))]);
-        else if (pass==1)
-          printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
-        else if (pass==2)
-          printf(" %7.4f",r[2*(i-1 + (j-1)*(NN-1))]);
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
+  //print each mpi process's timing info for each kernel
+  op_mpi_timing_output();
+  //print total time for niter interations
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
 
-  op_timing_output();
-
-  op_exit();
-
-  // free allocated arrays
-
-  free(pp);
-  free(A);
-  free(r);
-  free(u);
-  free(du);
+  MPI_Finalize();   //user mpi finalize
 }

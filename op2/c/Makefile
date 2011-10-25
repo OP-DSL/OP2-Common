@@ -42,7 +42,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
-echo:
+print:
 	@echo "unrecognised value for OP2_COMPILER"
 endif
 endif
@@ -79,9 +79,13 @@ seq: $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/core/op_lib_core.o
 	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/core/op_lib_core.o
 
 
-cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c $(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/core/op_lib_core.o
-	$(CPP) -DSET_CUDA_CACHE_CONFIG $(FLAGS) $(CUDA_INC) -I$(INC) -c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
-	$(CPP) $(CPPFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c -o $(OBJ)/cuda/op_cuda_rt_support.o
+cuda: $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
+	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/core/op_lib_core.o
+
+	$(CPP) -DSET_CUDA_CACHE_CONFIG $(FLAGS) $(CUDA_INC) -I$(INC) \
+	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/cuda/op_cuda_decl.o
+	$(CPP) $(CPPFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
+	-o $(OBJ)/cuda/op_cuda_rt_support.o
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/core/op_rt_support.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/cuda/op_cuda_rt_support.o \
@@ -98,7 +102,7 @@ openmp: $(SRC)/openmp/op_openmp_decl.c $(OBJ)/core/op_lib_core.o
 
 mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
-	$(INC)/op_mpi_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/core/op_lib_core.o
+	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/core/op_lib_core.o
 
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/mpi/op_mpi_core.o
