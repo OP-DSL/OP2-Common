@@ -23,11 +23,11 @@ __constant__ double mach;
 __constant__ double alpha;                                
 __constant__ double qinf[4];                              
                                                          
-/*void op_decl_const_char(int dim, char const *type,       
+void op_decl_const_char(int dim, char const *type,       
             int size, char *dat, char const *name){      
   cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));
 }                                                        
-*/
+
                                                        
 // user kernel files                                     
                                                          

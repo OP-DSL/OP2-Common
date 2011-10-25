@@ -5,6 +5,7 @@
 // header                   
                             
 #include "op_lib_cpp.h"        
+#include "op_openmp_rt_support.h"
                             
 void __syncthreads(){}      
                             

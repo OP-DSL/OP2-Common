@@ -50,7 +50,7 @@
 #include <hdf5.h>
 
 #include <op_mpi_core.h>
-#include <op_mpi_hdf5.h>
+#include <op_hdf5.h>
 
 
 

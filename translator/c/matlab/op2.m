@@ -81,6 +81,8 @@ end
 
 nconsts = 0;
 
+ker_file3 = ' ';
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  loop over all input source files
@@ -315,7 +317,7 @@ for narg = 1: nargin
         elseif (maps(m)==OP_MAP & accs(m)==OP_INC)
           line = '  TYP ARG_l[DIM];';
           file = strvcat(file,rep(line,m));
-        elseif (ninds==0 & maps(m)==OP_ID & dims{m}~='1')
+        elseif (ninds==0 & maps(m)==OP_ID & ~strcmp(dims{m},'1'))
           line = '  TYP ARG_l[DIM];';
           file = strvcat(file,rep(line,m));
         end
@@ -479,7 +481,7 @@ for narg = 1: nargin
      if (target==OP_CUDA)
       use_shared = 0;
       for m = 1:nargs
-       if(maps(m)~=OP_GBL && dims{m}~='1')
+	if(maps(m)~=OP_GBL && ~strcmp(dims{m},'1') )
         use_shared = 1;
        end
       end
@@ -504,7 +506,7 @@ for narg = 1: nargin
       end
 
       for m = 1:nargs
-       if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && dims{m}~='1')
+	if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && ~strcmp(dims{m},'1'))
         line = '    for (int m=0; m<DIM; m++)';
         file = strvcat(file,rep(line,m));
         line = ['      ((TYP *)arg_s)[tid+m*nelems] =' ...
@@ -556,7 +558,7 @@ for narg = 1: nargin
           line = [ line 'ARG+(n+offset_b)*DIM,' ];
         else
           if (target==OP_CUDA)
-            if (dims{m}=='1')
+            if (strcmp(dims{m},'1'))
               line = [ line 'ARG+n,' ];
             else
               line = [ line 'ARG_l,' ];
@@ -652,7 +654,7 @@ for narg = 1: nargin
         end
 
         for m = 1:nargs
-          if(maps(m)~=OP_GBL && accs(m)~=OP_READ && dims{m}~='1')
+          if(maps(m)~=OP_GBL && accs(m)~=OP_READ && ~strcmp(dims{m},'1'))
             line = '    for (int m=0; m<DIM; m++)';
             file = strvcat(file,rep(line,m));
             line = '      ((TYP *)arg_s)[m+tid*DIM] = ARG_l[m];';
@@ -1010,7 +1012,7 @@ for narg = 1: nargin
           ' ','  int nshared = 0;');
 
         for m = 1:nargs
-          if(maps(m)~=OP_GBL && dims{m}~='1');
+          if(maps(m)~=OP_GBL && ~strcmp(dims{m},'1'));
             line = '  nshared = MAX(nshared,sizeof(TYP)*DIM);';
             file = strvcat(file,rep(line,m));
           end
@@ -1169,10 +1171,6 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    if (nkernels==1 & narg==1)
-      ker_file3 = ' ';
-    end
-
     if (target==OP_CUDA)
      ker_file3 = strvcat(ker_file3,['#include "' fn_name '_kernel.cu"']);
     elseif (target==OP_x86)
@@ -1283,7 +1281,7 @@ for narg = 1: nargin
       loc_old = loc-1;
 
       if (~isempty(find(loc==loc_header)))
-        fprintf(fid,'"op_lib.h"\n\n');
+        fprintf(fid,'"op_lib_cpp.h"\n\n');
         fprintf(fid,'//\n// op_par_loop declarations\n//\n');
 
         for k=1:nkernels
@@ -1295,7 +1293,7 @@ for narg = 1: nargin
           fprintf(fid,'  op_arg );\n');
         end
 
-        loc_old = loc+14;
+        loc_old = loc+11;
       end
 
       if (~isempty(find(loc==loc_loops)))
@@ -1335,12 +1333,14 @@ end
 
 if (target==OP_CUDA)
   file = strvcat(...
-    '// header                 ',' ',...
-    '#include "op_lib.cu"      ',' ',...
-    '// global constants       ',' ',...
-    '#ifndef MAX_CONST_SIZE    ',...
-    '#define MAX_CONST_SIZE 128',...
-    '#endif                    ',' ',...
+    '// header                      ',' ',...
+    '#include "op_lib_cpp.h"        ',...
+    '#include "op_cuda_rt_support.h"',...
+    '#include "op_cuda_reduction.h" ',' ',...
+    '// global constants            ',' ',...
+    '#ifndef MAX_CONST_SIZE         ',...
+    '#define MAX_CONST_SIZE 128     ',...
+    '#endif                         ',' ',...
     ker_file1,...
     ' ',...
     'void op_decl_const_char(int dim, char const *type,',...
@@ -1355,12 +1355,13 @@ if (target==OP_CUDA)
 
 elseif (target==OP_x86) 
   file = strvcat(...
-    '// header                 ',' ',...
-    '#include "op_lib.h"       ',' ',...
-    'void __syncthreads(){}    ',' ',...
-    '// global constants       ',' ',...
-    ker_file1,' ',...
-    '// user kernel files',...
+    '// header                        ',' ',...
+    '#include "op_lib_cpp.h"          ',...
+    '#include "op_openmp_rt_support.h"',' ',...
+    'void __syncthreads(){}           ',' ',...
+    '// global constants              ',' ',...
+    ker_file1,                        ' ',...
+    '// user kernel files             ',...
     ker_file3);
 
   fid = fopen([ varargin{1} '_kernels.cpp'],'wt');
@@ -1434,6 +1435,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function loop_args = op_par_loop_parse(file)
+
+loop_args = [];
 
 locs = strfind(file,'op_par_loop');
 
