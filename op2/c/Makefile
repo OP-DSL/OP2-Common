@@ -65,12 +65,12 @@ all: core seq openmp cuda hdf5 mpi_seq
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/core/op_lib_core.o
-	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_util.c -o $(OBJ)/core/op_util.o
+	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/externlib/op_util.o
 
-hdf5: $(SRC)/core/op_hdf5.c $(INC)/op_hdf5.h
-	$(MPICPP) $(CPPFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/core/op_hdf5.c $(HDF5_LIB) -o $(OBJ)/core/op_hdf5.o
+hdf5: $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
+	$(MPICPP) $(CPPFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c $(HDF5_LIB) -o $(OBJ)/externlib/op_hdf5.o
 
-	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/core/op_hdf5.o $(OBJ)/core/op_util.o
+	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/externlib/op_hdf5.o $(OBJ)/externlib/op_util.o
 
 
 seq: $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/core/op_lib_core.o
@@ -113,16 +113,16 @@ mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
-	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/core/op_util.o
+	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/externlib/op_util.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
-	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/core/op_util.o
+	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/externlib/op_util.o
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
 	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_mpi_rt_support.o \
 	$(OBJ)/mpi/op_mpi_decl.o \
-	$(OBJ)/core/op_util.o \
+	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o
 
 clean:
@@ -134,10 +134,15 @@ clean:
 	-rm -if $(OBJ)/openmp/*.o
 	-rm -if $(OBJ)/openmp/*~
 	-rm -if $(OBJ)/mpi/*.o
+	-rm -if $(OBJ)/mpi/*~
+	-rm -if $(OBJ)/externlib/*.o
+	-rm -if $(OBJ)/externlib/*~
 	-rm -if $(LIB)/*.a
 	-rm -if $(SRC)/*~
+	-rm -if $(SRC)/sequential/*~
 	-rm -if $(SRC)/cuda/*~
 	-rm -if $(SRC)/openmp/*~
 	-rm -if $(SRC)/mpi/*~
+	-rm -if $(SRC)/externlib/*~
 	-rm -if $(INC)/*~
 	-rm -if *~
