@@ -40,7 +40,9 @@
 #include <mpi.h>
 
 /** Define the root MPI process **/
+#ifndef MPI_ROOT
 #define MPI_ROOT 0
+#endif
 
 
 /*******************************************************************************
