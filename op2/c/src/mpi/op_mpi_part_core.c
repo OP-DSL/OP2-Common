@@ -560,7 +560,7 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     	{
     	    if (OP_diags>2)
     	    {
-    	    	printf("on rank %d: Map %s is not an an on-to mapping \ 
+    	    	printf("on rank %d: Map %s is not an an on-to mapping \
     	    	from set %s to set %s\n", my_rank, map->name, 
     	    	map->from->name,map->to->name);
     	    }
