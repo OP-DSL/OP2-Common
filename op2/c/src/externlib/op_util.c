@@ -75,7 +75,7 @@ void* xrealloc (void *ptr, size_t size)
 *******************************************************************************/
 int compare_sets(op_set set1, op_set set2)
 {
-    if(set1->size == set2->size & set1->index == set2->index &
+    if(set1->size == set2->size && set1->index == set2->index &&
     	strcmp(set1->name,set2->name)==0 )
     return 1;
     else return 0;

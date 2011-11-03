@@ -157,7 +157,7 @@ int get_partition(int global_index, int* part_range, int* local_index,
 {
 	for(int i = 0; i<comm_size; i++)
   	{
-  		if (global_index >= part_range[2*i] & 
+  		if (global_index >= part_range[2*i] && 
   		    global_index <= part_range[2*i+1])
   		{
   		    	*local_index = global_index -  part_range[2*i];
@@ -996,7 +996,7 @@ void op_halo_create()
               	      	      	}
               	      	    }
               	      	  
-              	      	    if(rank2 >=0 & found <0)
+              	      	    if(rank2 >=0 && found <0)
               	      	    {
               	      	    	found = binary_search(nonexec_set_list->list,
               	      	    	    local_index, nonexec_set_list->disps[rank2],
@@ -2215,7 +2215,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
 	int* displs = (int *) xmalloc(comm_size*sizeof(int));
 	int disp = 0;
-	double *g_array;
+	double *g_array = 0;
 	
 	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 	
@@ -2277,7 +2277,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
 	int* displs = (int *) xmalloc(comm_size*sizeof(int));
 	int disp = 0;
-	float *g_array;
+	float *g_array = 0;
 	
 	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 	
@@ -2340,7 +2340,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
 	int* displs = (int *) xmalloc(comm_size*sizeof(int));
 	int disp = 0;
-	int *g_array;
+	int *g_array = 0;
 	
 	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 	
@@ -2427,7 +2427,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
-    	double *g_array;
+    	double *g_array = 0;
     
     	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
     
@@ -2490,7 +2490,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
-    	float *g_array;
+    	float *g_array = 0;
     
     	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
     
@@ -2553,7 +2553,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
-    	int *g_array;
+    	int *g_array = 0;
     
     	MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
     
