@@ -40,6 +40,10 @@ print:
 endif
 endif
 
+VAR             = -DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=512 #\
+		  #-DOP_BLOCK_SIZE_0=128 -DOP_BLOCK_SIZE_1=128 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=128 -DOP_BLOCK_SIZE_4=512
+
+
 #
 # set flags for NVCC compilation and linking
 #
@@ -87,7 +91,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		bres_calc_kernel.cpp  bres_calc.h \
 		update_kernel.cpp     update.h    \
                 Makefile 
-		$(MPICPP) $(CPPFLAGS) $(OMPFLAGS) airfoil_op.cpp -lm airfoil_kernels.cpp \
+		$(MPICPP) $(CPPFLAGS) $(OMPFLAGS) airfoil_op.cpp -lm airfoil_kernels.cpp $(VAR) \
 		$(OP2_INC) $(HDF5_INC) \
 		$(OP2_LIB) -lop2_openmp -lop2_hdf5 $(HDF5_LIB) -o airfoil_openmp  
 
