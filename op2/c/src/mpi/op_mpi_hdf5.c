@@ -240,7 +240,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
   //initialize data buffer and read data
-  int* map;
+  int* map = 0;
   if(strcmp(typ,"int") == 0)
   {
     map = (int *)xmalloc(sizeof(int)*l_size*dim);
@@ -383,7 +383,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
   //initialize data buffer and read in data
-  char* data;
+  char* data = 0;
   if(strcmp(type,"double") == 0)
   {
     data = (char *)xmalloc(set->size*dim*sizeof(double));
@@ -465,7 +465,7 @@ void op_write_hdf5(char* file_name)
   //HDF5 APIs definitions
   hid_t       file_id; //file identifier
   hid_t plist_id;  //property list identifier
-  hid_t dset_id; //dataset identifier
+  hid_t dset_id = 0; //dataset identifier
   hid_t       dataspace; //data space identifier
   hid_t       memspace; //memory space identifier
 
@@ -612,7 +612,6 @@ void op_write_hdf5(char* file_name)
       H5Awrite(attribute, atype, "long long");
 
     H5Aclose(attribute);
-
     //Close the dataspace
     H5Sclose(dataspace);
     //Close to the dataset.
@@ -731,7 +730,5 @@ void op_write_hdf5(char* file_name)
   {
     printf("Max hdf5 file write time = %lf\n\n",max_time);
   }
-
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
-
