@@ -550,7 +550,6 @@ void op_halo_create()
   int s_i;
   int* set_list;
 
-  int* map_list[OP_map_index];
   int cap_s = 1000; //keep track of the temp array capacities
 
 
@@ -2021,7 +2020,6 @@ void op_mpi_timing_output()
   int count;
   double tot_time;
   double avg_time;
-  int tot_bytes_rank,tot_bytes;
 
 #if COMM_PERF
 
