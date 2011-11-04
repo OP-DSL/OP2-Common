@@ -94,4 +94,5 @@ op_reduction ( volatile T * dat_g, T dat_l )
   }
 }
 
-#endif
+#endif /* __OP_CUDA_REDUCTION_H */
+

@@ -1,8 +1,3 @@
-#ifndef __OP_LIB_C_H
-#define __OP_LIB_C_H
-
-#include <op_lib_core.h>
-
 /*
  * This header file defines the user-level OP2 library for
  * the case of C programs.
@@ -10,12 +5,15 @@
  * used by the fortran backends
  */
 
+#ifndef __OP_LIB_C_H
+#define __OP_LIB_C_H
+
+#include <op_lib_core.h>
 
 /* identity mapping and global identifier */
 
 #define OP_ID  (op_map) NULL
 #define OP_GBL (op_map) NULL
-
 
 /*
  * external variables declared in op_lib_core.cpp
@@ -38,6 +36,10 @@ extern op_kernel * OP_kernels;
  * declaration of C routines wrapping lower layer implementations (e.g. CUDA, reference, etc..)
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void op_init ( int, char **, int );
 
 op_set op_decl_set ( int, char const * );
@@ -56,4 +58,9 @@ void op_fetch_data ( op_dat );
 
 void op_exit (  );
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __OP_LIB_C_H */
+

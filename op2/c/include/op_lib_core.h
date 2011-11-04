@@ -1,6 +1,3 @@
-#ifndef __OP_LIB_CORE_H
-#define __OP_LIB_CORE_H
-
 /*
   Open source copyright declaration based on BSD open source template:
   http://www.opensource.org/licenses/bsd-license.php
@@ -30,7 +27,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /*
  * This header file declares all types and functions required
  * by *any* OP2 implementation, i.e. independently of the
@@ -39,6 +35,8 @@
  * top level OP2 libraries
  */
 
+#ifndef __OP_LIB_CORE_H
+#define __OP_LIB_CORE_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -160,6 +158,10 @@ typedef struct
 
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Core lib function prototypes
  */
@@ -190,4 +192,9 @@ void op_timing_output_2_file ( const char * );
 
 void op_timing_realloc ( int );
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __OP_LIB_CORE_H */
+

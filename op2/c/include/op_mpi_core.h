@@ -37,6 +37,9 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
+#ifndef __OP_MPI_CORE_H
+#define __OP_MPI_CORE_H
+
 #include <mpi.h>
 
 /** Define the root MPI process **/
@@ -132,6 +135,10 @@ extern int** orig_part_range;
 
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*******************************************************************************
 * Utility function prototypes
 *******************************************************************************/
@@ -188,4 +195,10 @@ void print_dat_tofile(op_dat dat, const char *file_name);
 void print_dat_tobinfile(op_dat dat, const char *file_name);
 
 void reset_halo(op_arg arg);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __OP_MPI_CORE_H */
 

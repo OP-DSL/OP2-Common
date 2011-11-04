@@ -1,6 +1,3 @@
-#ifndef __OP_LIB_H
-#define __OP_LIB_H
-
 /*
   Open source copyright declaration based on BSD open source template:
   http://www.opensource.org/licenses/bsd-license.php
@@ -39,14 +36,15 @@
  * a special briding library.
  */
 
+#ifndef __OP_LIB_CPP_H
+#define __OP_LIB_CPP_H
+
 /*
  * include core definitions and C declarations of op2 user-level routines
  */
 
 #include <op_lib_core.h>
 #include <op_lib_c.h>
-
-
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -153,4 +151,5 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
     return op_arg_gbl_core ( ( char * ) data, dim, type, acc );
 }
 
-#endif
+#endif /* __OP_LIB_CPP_H */
+
