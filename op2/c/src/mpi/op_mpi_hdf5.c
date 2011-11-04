@@ -45,7 +45,10 @@
 //mpi header
 #include <mpi.h>
 
-
+// Use version 2 of H5Dopen H5Acreate and H5Dcreate
+#define H5Dopen_vers 2
+#define H5Acreate_vers 2
+#define H5Dcreate_vers 2
 //hdf5 header
 #include <hdf5.h>
 
