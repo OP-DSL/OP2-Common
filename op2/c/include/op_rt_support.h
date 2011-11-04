@@ -1,12 +1,11 @@
-#ifndef __OP_RT_SUPPORT_H
-#define __OP_RT_SUPPORT_H
-
 /*
  * This header file defines the data structures required in the OP2 run-time support,
  * i.e. those related to OP2 plans, and it declares the low-level routines used to
  * build OP2 plans
  */
 
+#ifndef __OP_RT_SUPPORT_H
+#define __OP_RT_SUPPORT_H
 
 #include <op_lib_core.h>
 
@@ -41,6 +40,10 @@ typedef struct {
 } op_plan;
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif 
+
 op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
                              int *, op_map *, int *, char const **, op_access *, int, int * );
 
@@ -51,4 +54,8 @@ void op_timers ( double *cpu, double *et );
 
 void op_rt_exit ();
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __OP_RT_SUPPORT_H */

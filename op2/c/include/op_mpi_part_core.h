@@ -36,7 +36,13 @@
  *
  * written by: Gihan R. Mudalige, (Started 07-04-2011)
  */
- 
+
+#ifndef __OP_MPI_PART_CORE_H
+#define __OP_MPI_PART_CORE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif 
  
 /*******************************************************************************
 * Random partitioning wrapper prototype
@@ -70,8 +76,9 @@ void op_partition_ptscotch(op_map primary_map);
 *******************************************************************************/
 void op_partition_reverse();
 
+#ifdef __cplusplus
+}
+#endif
 
-
-
-
+#endif /* __OP_MPI_PART_CORE_H */
 

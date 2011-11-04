@@ -39,7 +39,14 @@
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
- 
+
+#ifndef __OP_MPI_SEQ_H
+#define __OP_MPI_SEQ_H
+
+/*******************************************************************************
+* Random partitioning wrapper prototype
+*******************************************************************************/
+void op_partition_random(op_set primary_set);
 
      
 #include <op_lib_core.h>
@@ -821,6 +828,8 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   if(sent[6] == 1)op_mpi_perf_comm(k_i, arg6);
   if(sent[7] == 1)op_mpi_perf_comm(k_i, arg7);
   #endif
-  
 
 }  
+
+#endif /* __OP_MPI_SEQ_H */
+

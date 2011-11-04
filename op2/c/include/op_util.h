@@ -27,19 +27,23 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /* 
  * op_mpi_util.h
  * 
- * Headder file for the utility functions used in op_util.c
+ * Header file for the utility functions used in op_util.c
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
+#ifndef __OP_UTIL_H
+#define __OP_UTIL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif 
+
 /** Define hash table size for holding MPI op_par_loop performance measures **/
 #define HASHSIZE 50
-
-
 
 /*******************************************************************************
 * MPI utility function prototypes
@@ -68,4 +72,9 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim);
 
 int removeDups(int a[], int array_size);
 
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __OP_UTIL_H */
 

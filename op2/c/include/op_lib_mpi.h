@@ -32,6 +32,9 @@
  * written by: Gihan R. Mudalige, 01-03-2011
  */
 
+#ifndef __OP_LIB_MPI_H
+#define __OP_LIB_MPI_H
+
 #include <op_lib_core.h>
 #include <op_lib_cpp.h>
 #include "op_rt_support.h"
@@ -57,4 +60,6 @@ extern int *core_num;
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
- 
+
+#endif /* __OP_LIB_MPI_H */
+
