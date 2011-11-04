@@ -89,7 +89,7 @@ jac_openmp:	jac_op.cpp update.h res.h jac_kernels.cpp res_kernel.cpp \
 #
 
 jac_cuda:	jac_op.cpp jac_kernels_cu.o Makefile
-		$(CPP) $(CPPFLAGS) $(INC_CUDA) $(OP2_INC) $(OP2_LIB) $(LIB_CUDA) \
+		$(CPP) $(CPPFLAGS) $(INC_CUDA) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
 		jac_op.cpp jac_kernels_cu.o -lcudart -lop2_cuda -o jac_cuda
 
 jac_kernels_cu.o:	jac_kernels.cu  res_kernel.cu res.h \
