@@ -54,6 +54,7 @@ double alpha;
 //
 
 #include "op_lib_mpi.h"
+#include "op_lib_cpp.h"
 
 //
 // kernel routines for parallel loops

@@ -51,6 +51,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_mpi.h"
+#include "op_lib_cpp.h"
 
 //
 //hdf5 header
@@ -74,7 +75,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_mpi_seq.h"
 
-int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
+extern "C" int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
 
 void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
   int l_size, int elem_size)
