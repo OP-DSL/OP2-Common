@@ -8,31 +8,39 @@ cmake_minimum_required(VERSION 2.8)
 
 project(OP2)
 
-# Set location of our FindFoo.cmake modules
-set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/../../cmake" CACHE INTERNAL "")
-set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
+set(OP2_VERSION_MAJOR 0)
+set(OP2_VERSION_MINOR 1)
+set(OP2_VERSION_PATCH 0)
+set(OP2_VERSION
+  ${OP2_VERSION_MAJOR}.${OP2_VERSION_MINOR}.${OP2_VERSION_PATCH})
 
 #------------------------------------------------------------------------------
 # General configuration
 
+# Set location of our FindFoo.cmake modules
+set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/../../cmake" CACHE INTERNAL "")
+set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
+
 # Set verbose output while testing CMake
-set(CMAKE_VERBOSE_MAKEFILE TRUE)
+set(CMAKE_VERBOSE_MAKEFILE FALSE)
 
 # Set CMake options, see `cmake --help-policy CMP000x`
 if (COMMAND cmake_policy)
+  # Libraries linked via full path no longer produce linker search paths.
   cmake_policy(SET CMP0003 NEW)
+  # Silently strip whitespace from target_link_libraries
   cmake_policy(SET CMP0004 OLD)
 endif()
 
-# Set location of our FindFoo.cmake modules
-#set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/cmake" CACHE INTERNAL "")
-#set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
-
 #------------------------------------------------------------------------------
-# Configurable options for how we want to build
+# Configurable options for what/how we want to build
 
-option(OP2_WITH_CUDA "Build OP2 with NVIDIA CUDA support." OFF)
-option(BUILD_SHARED_LIBS "Build OP2 with shared libraries." ON)
+option(OP2_WITH_SEQ      "Build a sequential version of the OP2 library."  ON)
+option(OP2_WITH_OPENMP   "Build an OpenMP version of the OP2 library."     ON)
+option(OP2_WITH_HDF5     "Build an HDF5 version of the OP2 library."       ON)
+option(OP2_WITH_MPI      "Build an MPI version of the OP2 library."        ON)
+option(OP2_WITH_CUDA     "Build a NVIDIA CUDA version of the OP2 library." ON)
+option(BUILD_SHARED_LIBS "Build OP2 with shared libraries."                ON)
 
 #------------------------------------------------------------------------------
 # Compiler flags
@@ -40,7 +48,8 @@ option(BUILD_SHARED_LIBS "Build OP2 with shared libraries." ON)
 # Default build type (can be overridden by user)
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-    "Choose the type of build, options are: Debug Developer MinSizeRel Release RelWithDebInfo." FORCE)
+    "Choose the type of build, options are:
+    Debug Developer MinSizeRel Release RelWithDebInfo." FORCE)
 endif()
 
 # Check for some C compiler flags
@@ -80,6 +89,7 @@ set(CMAKE_C_FLAGS_DEVELOPER ${OP2_C_DEVELOPER_FLAGS} CACHE STRING
 
 # Check for some CXX compiler flags
 include(CheckCXXCompilerFlag)
+
 CHECK_CXX_COMPILER_FLAG(-pipe HAVE_PIPE)
 if (HAVE_PIPE)
   set(OP2_CXX_DEVELOPER_FLAGS "-pipe ${OP2_CXX_DEVELOPER_FLAGS}")
@@ -110,57 +120,37 @@ set(CMAKE_CXX_FLAGS_DEVELOPER ${OP2_CXX_DEVELOPER_FLAGS} CACHE STRING
   "Flags used by the compiler during development.")
 
 #------------------------------------------------------------------------------
-# Run tests to find required packages
-
-# Check for PETSc
-#find_package(PETSc REQUIRED)
-
-#------------------------------------------------------------------------------
-# Run tests to find optional packages
-
-# Check for CUDA
-if (OP2_WITH_CUDA)
-  find_package(CUDA)
-endif()
-
-#------------------------------------------------------------------------------
 # Installation directories
-set(OP2_BIN_DIR "bin" CACHE PATH "Binary installation directory.")
-set(OP2_LIB_DIR "lib" CACHE PATH "Library installation directory.")
-set(OP2_INCLUDE_DIR "include" CACHE PATH "C/C++ header installation directory.")
-set(OP2_APPS_DIR "apps" CACHE PATH "Apps installation directory.")
+
+set(INSTALLATION_BIN_DIR bin CACHE PATH "Binary installation directory.")
+set(INSTALLATION_LIB_DIR lib CACHE PATH "Library installation directory.")
+set(INSTALLATION_INCLUDE_DIR include CACHE PATH
+  "C/C++ header installation directory.")
+set(INSTALLATION_APPS_DIR apps CACHE PATH "Apps installation directory.")
+set(INSTALLATION_CMAKE_DIR lib/CMake/op2 CACHE PATH
+    "Installation directory for CMake files")
+
+# Make relative paths absolute (needed later on)
+foreach(p LIB BIN INCLUDE APPS CMAKE)
+  set(var INSTALLATION_${p}_DIR)
+  if(NOT IS_ABSOLUTE "${${var}}")
+    set(${var} "${CMAKE_INSTALL_PREFIX}/${${var}}")
+  endif()
+endforeach()
 
 #------------------------------------------------------------------------------
 # Install header files
 
 file(GLOB HEADERS include/*.h)
-install(FILES ${HEADERS} DESTINATION ${OP2_INCLUDE_DIR} COMPONENT Development)
+install(FILES ${HEADERS} DESTINATION ${INSTALLATION_INCLUDE_DIR} COMPONENT
+  Development)
 
 #------------------------------------------------------------------------------
 # Set include directories
 
-# Add compiler include directories
 include_directories(${OP2_SOURCE_DIR}/include)
 
 #------------------------------------------------------------------------------
 # OP2 source directories
 
 add_subdirectory(src)
-
-#------------------------------------------------------------------------------
-# OP2 examples
-
-#set(OP2_EXAMPLES
-  #airfoil
-  #jac1
-  #jac2
-  #laplace1d
-#)
-
-# Add tests but do not add to default target
-#foreach(EXAMPLE ${OP2_EXAMPLES})
-  #add_subdirectory(examples/C/${EXAMPLE})
-  #set(EXAMPLE_TARGETS ${EXAMPLE}_seq ${EXAMPLE_TARGETS})
-#endforeach()
-
-#ADD_CUSTOM_TARGET( examples DEPENDS ${EXAMPLE_TARGETS} COMMENT "Build examples" )
