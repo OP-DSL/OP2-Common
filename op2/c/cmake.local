@@ -1,0 +1,19 @@
+#! /bin/bash
+
+# Performs CMake configuration and out-of-source build in the directory
+# 'build' and local install
+
+CMAKE_EXTRA_ARGS=$@
+
+INSTALLDIR=`pwd`
+CORES=`fgrep -m 1 'cpu cores' /proc/cpuinfo | cut -d ' ' -f 3`
+
+mkdir -p build && cd build &&
+(
+  cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR \
+        -DCMAKE_BUILD_TYPE=Developer \
+        $CMAKE_EXTRA_ARGS \
+        .. &&
+
+        (make -j$CORES all; make install)
+)
