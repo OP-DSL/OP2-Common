@@ -1,0 +1,42 @@
+# - Build details for OP2
+# It defines the following variables
+#  OP2_INCLUDE_DIRS - include directories for OP2
+#
+# This file has been automatically generated.
+
+# Do nothing if the configuration has already been loaded
+
+if(NOT OP2_FOUND)
+
+  # Package found
+  set(OP2_FOUND TRUE)
+
+  # Compilers
+  set(OP2_CXX_COMPILER "@CMAKE_CXX_COMPILER@")
+  set(OP2_C_COMPILER "@CMAKE_C_COMPILER@")
+
+  # Compiler defintions
+  #set(OP2_CXX_DEFINITIONS "-DOP2_VERSION=\"@OP2_VERSION@\";@OP2_CXX_DEFINITIONS@")
+  set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
+
+  # Compiler flags
+  set(CMAKE_CXX_FLAGS_DEVELOPER "@CMAKE_CXX_FLAGS_DEVELOPER@" CACHE STRING
+    "Flags used by the compiler during development.")
+  set(CMAKE_C_FLAGS_DEVELOPER "@CMAKE_C_FLAGS_DEVELOPER@" CACHE STRING
+    "Flags used by the compiler during development.")
+
+  # Include directories
+  set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
+  set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
+
+  # Installation directories
+  set(OP2_APPS_DIR "@INSTALLATION_APPS_DIR@" CACHE PATH "Apps installation directory.")
+
+  include("@INSTALLATION_CMAKE_DIR@/OP2LibraryDepends.cmake")
+
+  # Version
+  set(OP2_VERSION_MAJOR "@OP2_VERSION_MAJOR@")
+  set(OP2_VERSION_MINOR "@OP2_VERSION_MINOR@")
+  set(OP2_VERSION_MICRO "@OP2_VERSION_MICRO@")
+  set(OP2_VERSION_STR   "@OP2_VERSION@")
+endif()
