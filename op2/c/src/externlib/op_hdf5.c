@@ -297,7 +297,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 /*******************************************************************************
 * Routine to write all to a named hdf5 file
 *******************************************************************************/
-void op_write_hdf5(char* file_name)
+void op_write_hdf5(char const * file_name)
 {
     
 }
