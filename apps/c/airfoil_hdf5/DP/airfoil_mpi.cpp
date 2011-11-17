@@ -100,9 +100,6 @@ int main(int argc, char **argv)
   double time;
   double max_time;
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
-
   int    niter;
   double  rms;
 
@@ -258,9 +255,6 @@ int main(int argc, char **argv)
 
   }
   op_timers(&cpu_t2, &wall_t2);
-
-  //get results data array
-  op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");

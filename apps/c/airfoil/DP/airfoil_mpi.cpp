@@ -143,6 +143,13 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   free(displs);
 }
 
+void check_scan(int items_received, int items_expected) {
+  if(items_received != items_expected) {
+    printf("error reading from new_grid.dat\n");
+    exit(-1);
+  }
+}
+
 //
 // main program
 //
@@ -181,12 +188,10 @@ int main(int argc, char **argv)
 
   int   g_nnode,g_ncell,g_nedge,g_nbedge;
 
-  if (fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge) != 4) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
-  }
+  check_scan(fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge), 4);
 
-  int *g_becell, *g_ecell, *g_bound, *g_bedge, *g_edge, *g_cell;
-  double *g_x,*g_q, *g_qold, *g_adt, *g_res;
+  int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0, *g_cell = 0;
+  double *g_x = 0,*g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
 
   // set constants
 
@@ -228,22 +233,22 @@ int main(int argc, char **argv)
     g_adt      = (double *) malloc(  g_ncell*sizeof(double));
 
     for (int n=0; n<g_nnode; n++){
-      fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]);
+      check_scan(fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]), 2);
     }
 
     for (int n=0; n<g_ncell; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
-          &g_cell[4*n+2], &g_cell[4*n+3]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
+            &g_cell[4*n+2], &g_cell[4*n+3]), 4);
     }
 
     for (int n=0; n<g_nedge; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_edge[2*n],&g_edge[2*n+1],
-          &g_ecell[2*n],&g_ecell[2*n+1]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_edge[2*n],&g_edge[2*n+1],
+            &g_ecell[2*n],&g_ecell[2*n+1]), 4);
     }
 
     for (int n=0; n<g_nbedge; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_bedge[2*n],&g_bedge[2*n+1],
-          &g_becell[n],&g_bound[n]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_bedge[2*n],&g_bedge[2*n+1],
+            &g_becell[n],&g_bound[n]), 4);
     }
 
     //initialise flow field and residual
@@ -352,12 +357,12 @@ int main(int argc, char **argv)
   //partition with ParMetis
   //op_partition_geom(p_x);
   //op_partition_random(cells);
-  op_partition_kway(pecell);
+  //op_partition_kway(pecell);
   //op_partition_geomkway(p_x, pcell);
   //op_partition_meshkway(pcell);  //not working !!
 
   //partition with PT-Scotch
-  //op_partition_ptscotch(pecell);
+  op_partition_ptscotch(pecell);
 
   //create halos
   op_halo_create();
@@ -430,7 +435,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
-  op_dat temp = op_mpi_get_data(p_q);
+  //op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
 

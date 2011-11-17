@@ -184,8 +184,7 @@ int main(int argc, char **argv)
   float *r, *u, *du;
   double *A;
 
-  int   nnode, nedge, n, e;
-  float dx;
+  int   nnode, nedge;
 
   /**------------------------BEGIN I/O and PARTITIONING ---------------------**/
 
@@ -195,9 +194,9 @@ int main(int argc, char **argv)
   g_nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
   g_dx    = 1.0f / ((float) NN);
 
-  int *g_pp;
-  float *g_r, *g_u, *g_du;
-  double *g_A;
+  int *g_pp = 0;
+  float *g_r = 0, *g_u = 0, *g_du = 0;
+  double *g_A = 0;
 
   if(my_rank == MPI_ROOT)
   {
