@@ -1688,7 +1688,7 @@ void op_partition_geom(op_dat coords)
     idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*coords->set->size);
    
     int ndims = coords->dim;
-    float* xyz;
+    float* xyz = 0;
     
     // Create ParMetis compatible coordinates array 
     //- i.e. coordinates should be floats
@@ -2188,7 +2188,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
 /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures   ------------*/
 
     int ndims = coords->dim;
-    float* xyz;
+    float* xyz = 0;
     
     // Create ParMetis compatible coordinates array 
     //- i.e. coordinates should be floats
