@@ -28,7 +28,7 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <op_lib_core.h>
+#include <op_lib_c.h>
 
 /*
  * This file implements thw wrappers of core library routines for

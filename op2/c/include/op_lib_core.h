@@ -178,6 +178,8 @@ op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * )
 
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
+void op_err_print ( const char * error_string, int m, const char * name );
+
 void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
