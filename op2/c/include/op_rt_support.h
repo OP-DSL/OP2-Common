@@ -50,6 +50,11 @@ op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
 
 op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int * );
 
+op_plan * op_plan_get ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int * inds );
+
+void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
+
 void op_timers ( double *cpu, double *et );
 
 void op_rt_exit ();

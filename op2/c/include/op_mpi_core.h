@@ -194,6 +194,8 @@ void print_dat_tofile(op_dat dat, const char *file_name);
 
 void print_dat_tobinfile(op_dat dat, const char *file_name);
 
+void op_mpi_put_data(op_dat dat);
+
 void reset_halo(op_arg arg);
 
 #ifdef __cplusplus
