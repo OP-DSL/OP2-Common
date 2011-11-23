@@ -49,7 +49,9 @@ extern "C" {
 * MPI utility function prototypes
 *******************************************************************************/
 
-void* xmalloc (size_t size);
+int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
+
+void* xmalloc(size_t size);
 
 void* xrealloc (void *ptr, size_t size);
 

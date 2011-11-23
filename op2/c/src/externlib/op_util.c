@@ -46,6 +46,21 @@
 
 
 /*******************************************************************************
+* compute local size from global size
+*******************************************************************************/
+int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+{
+  int local_size = global_size/mpi_comm_size;
+  int remainder = (int)fmod(global_size,mpi_comm_size);
+
+  if (mpi_rank < remainder)
+  {
+    local_size = local_size + 1;
+  }
+  return local_size;
+}
+
+/*******************************************************************************
 * Wrapper for malloc from www.gnu.org/
 *******************************************************************************/
 
