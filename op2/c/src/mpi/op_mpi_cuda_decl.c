@@ -49,7 +49,7 @@
 //
 
 void
-op_init ( int argc, char ** argv, int diags, int my_rank )
+op_init ( int argc, char ** argv, int diags)
 {
   op_init_core ( argc, argv, diags );
 
@@ -61,7 +61,7 @@ op_init ( int argc, char ** argv, int diags, int my_rank )
 #warning : " *** no support for double precision arithmetic *** "
 #endif
 
-  cutilDeviceInit_mpi( argc, argv, my_rank );
+  cutilDeviceInit( argc, argv);
 
 // 
 // The following call is only made in the C version of OP2,

@@ -40,7 +40,7 @@ extern op_kernel * OP_kernels;
 extern "C" {
 #endif 
 
-void op_init ( int, char **, int, int );
+void op_init ( int, char **, int);
 
 op_set op_decl_set ( int, char const * );
 
