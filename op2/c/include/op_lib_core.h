@@ -110,6 +110,7 @@ typedef struct
              *data_d; /* data on device (GPU) */
   char const *type,   /* datatype */
              *name;   /* name of dataset */
+  char*      buffer_d; /* buffer for MPI halo sends on the devidce */
 } op_dat_core;
 
 typedef op_dat_core * op_dat;

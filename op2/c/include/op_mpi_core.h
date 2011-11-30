@@ -133,6 +133,12 @@ extern part *OP_part_list;
 extern int** orig_part_range;
 
 
+/** export list on the device **/
+
+extern int** export_exec_list_d;
+extern int** export_nonexec_list_d;
+
+
 
 
 #ifdef __cplusplus
@@ -174,7 +180,11 @@ void op_halo_destroy();
 
 int exchange_halo(op_arg arg);
 
+int exchange_halo_cuda(op_arg arg);
+
 void wait_all(op_arg arg);
+
+void wait_all_cuda(op_arg arg);
 
 void set_dirtybit(op_arg arg);
 
@@ -197,6 +207,10 @@ void print_dat_tobinfile(op_dat dat, const char *file_name);
 void op_mpi_put_data(op_dat dat);
 
 void reset_halo(op_arg arg);
+
+void op_mv_halo_device(op_set set, op_dat dat); //may need to be put in a seperate headder file
+
+void op_mv_halo_list_device(); //may need to be put in a seperate headder file
 
 #ifdef __cplusplus
 }
