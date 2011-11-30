@@ -62,7 +62,7 @@ __global__ void op_cuda_save_soln(
 
 void op_par_loop_save_soln(char const *name, op_set set,
   op_arg arg0,
-  op_arg arg1 ){
+  op_arg arg1){
 
 
   int nargs   = 2;
