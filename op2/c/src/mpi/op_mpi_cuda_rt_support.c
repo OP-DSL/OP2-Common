@@ -103,8 +103,8 @@ __cutilCheckMsg ( const char * errorMessage, const char * file,
   }
 }
 
-void
-cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
+//void cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
+void cutilDeviceInit( int argc, char ** argv)
 {
   int deviceCount;
   cutilSafeCall ( cudaGetDeviceCount ( &deviceCount ) );
@@ -115,10 +115,10 @@ cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
   }
 
   cudaDeviceProp_t deviceProp;
-  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, my_rank ) );
+  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, 0 ) );
 
   printf ( "\n Using CUDA device: %s\n", deviceProp.name );
-  cutilSafeCall ( cudaSetDevice ( my_rank ) );
+  cutilSafeCall ( cudaSetDevice ( 0 ) );
 }
 
 //

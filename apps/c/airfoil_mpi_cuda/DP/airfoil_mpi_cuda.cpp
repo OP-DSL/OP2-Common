@@ -356,7 +356,7 @@ int main(int argc, char **argv)
 
   // OP initialisation
 
-  op_init(argc,argv,2, my_rank);
+  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
