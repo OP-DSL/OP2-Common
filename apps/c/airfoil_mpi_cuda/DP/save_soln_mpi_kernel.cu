@@ -62,7 +62,7 @@ __global__ void op_cuda_save_soln(
                                                                          
 void op_par_loop_save_soln(char const *name, op_set set,                 
   op_arg arg0,                                                           
-  op_arg arg1 ){                                                         
+  op_arg arg1){                                                         
                                                                          
      
   int nargs   = 2;        
@@ -99,7 +99,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
   int offset_s = nshared*OP_WARPSIZE;                                    
                                                                          
   nshared = nshared*nthread;                                             
-                                                                         
+  
   op_cuda_save_soln<<<nblocks,nthread,nshared>>>( (double *) arg0.data_d,
                                                   (double *) arg1.data_d,
                                                   offset_s,              
