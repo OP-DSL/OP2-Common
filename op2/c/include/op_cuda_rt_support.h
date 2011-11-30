@@ -61,12 +61,13 @@ extern void __syncthreads (  );
 #define cutilSafeCall(err) __cudaSafeCall(err,__FILE__,__LINE__)
 #define cutilCheckMsg(msg) __cutilCheckMsg(msg,__FILE__,__LINE__)
 
-void __cudaSafeCall ( cudaError_t err, const char * file, const int line );
+void __cudaSafeCall( cudaError_t err, const char * file, const int line );
 
-void __cutilCheckMsg ( const char * errorMessage, const char * file, const int line );
+void __cutilCheckMsg( const char * errorMessage, const char * file, const int line );
 
-void cutilDeviceInit ( int argc, char ** argv );
+void cutilDeviceInit( int argc, char ** argv);
 
+void cutilDeviceInit_mpi( int argc, char ** argv, int mpi_rank);
 /* 
  * routines to move arrays to/from GPU device
  */

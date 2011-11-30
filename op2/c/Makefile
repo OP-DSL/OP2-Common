@@ -47,6 +47,7 @@ print:
 endif
 endif
 
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math 
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
@@ -64,7 +65,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean
 
-all: core seq openmp cuda hdf5 mpi_seq
+all: core seq openmp cuda hdf5 mpi_seq mpi_cuda
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/core/op_lib_core.o
@@ -128,6 +129,40 @@ mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/mpi/op_mpi_decl.o \
 	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o
+	
+mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
+	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
+	$(OBJ)/core/op_lib_core.o
+
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
+	-o $(OBJ)/mpi/op_mpi_core.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
+	-o $(OBJ)/mpi/op_mpi_rt_support.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
+	-o $(OBJ)/mpi/op_mpi_cuda_rt_support.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	-c $(SRC)/mpi/op_mpi_cuda_decl.c \
+	-o $(OBJ)/mpi/op_mpi_cuda_decl.o
+	
+	$(MPICPP) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+	-c $(SRC)/mpi/op_mpi_part_core.c \
+	-o $(OBJ)/mpi/op_mpi_part_core.o $(OBJ)/externlib/op_util.o 
+	$(MPICPP) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
+	-c $(SRC)/mpi/op_mpi_hdf5.c \
+	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/externlib/op_util.o 
+	nvcc $(NVCCFLAGS) -I$(INC) -I /home/gihan/openmpi-intel/include \
+	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
+	-o $(OBJ)/mpi/op_mpi_cuda_kernels.o
+
+	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/mpi/op_mpi_core.o \
+	$(OBJ)/mpi/op_mpi_part_core.o \
+	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_mpi_rt_support.o \
+	$(OBJ)/mpi/op_mpi_cuda_rt_support.o $(OBJ)/mpi/op_mpi_cuda_decl.o \
+	$(OBJ)/externlib/op_util.o \
+	$(OBJ)/mpi/op_mpi_hdf5.o \
+	$(OBJ)/mpi/op_mpi_cuda_kernels.o
 
 clean:
 	-rm -if $(OBJ)/*.o

@@ -104,6 +104,7 @@ int** orig_part_range = NULL;
 
 
 
+
 /*******************************************************************************
 * Routine to declare partition information for a given set
 *******************************************************************************/
@@ -1620,6 +1621,12 @@ int exchange_halo(op_arg arg)
     return 0;
 
 }
+
+
+
+
+
+
 
 /*******************************************************************************
 * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)

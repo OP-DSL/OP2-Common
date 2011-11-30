@@ -184,8 +184,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       	  if(args[i].argtype == OP_ARG_DAT)
       	  {
       	      if (OP_diags==1) reset_halo(args[i]);
-      	      sent[0] = exchange_halo(args[i]); 
-      	      if(sent[0] == 1)wait_all(args[i]);
+      	      sent[i] = exchange_halo(args[i]); 
+      	      if(sent[i] == 1)wait_all(args[i]);
       	  }
       }
   }
