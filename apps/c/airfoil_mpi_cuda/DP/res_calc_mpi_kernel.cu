@@ -130,8 +130,12 @@ __global__ void op_cuda_res_calc(
 
     // store local variables
 
-    int arg6_map = arg6_maps[n+offset_b];
-    int arg7_map = arg7_maps[n+offset_b];
+    int arg6_map;
+    int arg7_map;
+    if (col2>=0){
+      arg6_map = arg6_maps[n+offset_b];
+  arg7_map = arg7_maps[n+offset_b];
+    }
 
     for (int col=0; col<ncolor; col++) {
       if (col2==col) {

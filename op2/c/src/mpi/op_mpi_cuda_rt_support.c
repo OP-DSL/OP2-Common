@@ -103,7 +103,7 @@ __cutilCheckMsg ( const char * errorMessage, const char * file,
   }
 }
 
-
+/*
 void cutilDeviceInit ( int argc, char ** argv)
 {
   int deviceCount;
@@ -137,11 +137,12 @@ void cutilDeviceInit ( int argc, char ** argv)
 
   printf ( "\n Using CUDA device: %d %s\n", deviceId, deviceProp.name );
 }
+*/
 
 
-/*
+
 //void cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
-void cutilDeviceInit( int argc, char ** argv, int my_rank )
+void cutilDeviceInit( int argc, char ** argv)
 {
   int deviceCount;
   cutilSafeCall ( cudaGetDeviceCount ( &deviceCount ) );
@@ -150,14 +151,22 @@ void cutilDeviceInit( int argc, char ** argv, int my_rank )
     printf ( "cutil error: no devices supporting CUDA\n" );
     exit ( -1 );
   }
-
+  float *test;
+  cudaError_t error = cudaMalloc((void **)&test, sizeof(float));
+  if (error != cudaSuccess)  {
+      printf ( "Could not select CUDA device\n" );
+      exit ( -1 );
+  }
+  int deviceId = -1;
+  cudaGetDevice(&deviceId);
+  cudaFree(test);
   cudaDeviceProp_t deviceProp;
-  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, my_rank ) );
+  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
 
-  printf ( "\n Using CUDA device: %s\n", deviceProp.name );
-  cutilSafeCall ( cudaSetDevice ( my_rank ) );
+  printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
+  //cutilSafeCall ( cudaSetDevice ( my_rank ) );
 }
-*/
+
 
 //
 // routines to move arrays to/from GPU device
