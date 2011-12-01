@@ -121,9 +121,12 @@ __global__ void op_cuda_bres_calc(
       col2 = colors[n+offset_b];                                        
     }                                                                   
                                                                         
-    // store local variables                                            
-                                                                        
-    int arg4_map = arg4_maps[n+offset_b];                               
+    // store local variables
+    
+    int arg4_map;
+    if (col2>=0) {
+    	arg4_map = arg4_maps[n+offset_b];
+    }                            
                                                                         
     for (int col=0; col<ncolor; col++) {                                
       if (col2==col) {                                                  
