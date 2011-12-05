@@ -61,7 +61,7 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
 
-
+MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
 .PHONY: clean
 
@@ -152,7 +152,7 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/externlib/op_util.o 
-	nvcc $(NVCCFLAGS) -I$(INC) -I /home/gihan/openmpi-intel/include \
+	nvcc $(NVCCFLAGS) -I$(INC) $(MPI_INC) \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
 	-o $(OBJ)/mpi/op_mpi_cuda_kernels.o
 

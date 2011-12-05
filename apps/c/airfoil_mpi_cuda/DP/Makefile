@@ -63,6 +63,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
 
+MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
 #
 # master to make all versions
@@ -88,7 +89,7 @@ airfoil_mpi_kernels_cu.o:	airfoil_mpi_kernels.cu      \
 		  bres_calc_mpi_kernel.cu  bres_calc.h \
 		  update_mpi_kernel.cu     update.h    \
 		  Makefile
-		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I /home/gihan/openmpi-intel/include \
+		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) $(MPI_INC) \
 		  -c -o airfoil_mpi_kernels_cu.o airfoil_mpi_kernels.cu
 		    	
 
