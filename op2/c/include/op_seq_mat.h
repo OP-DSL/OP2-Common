@@ -33,14 +33,20 @@
 
 #include "op_lib_core.h"
 
-void op_arg_set(int n, op_arg arg, char **p_arg){
+static inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
   if (arg.map==NULL)         // identity mapping, or global data
     n2 = n;
   else                       // standard pointers
     n2 = arg.map->map[arg.idx+n*arg.map->dim];
-
   *p_arg = arg.data + n2*arg.size;
+}
+
+static inline void copy_in(int n, op_arg arg, char **p_arg) {
+  // For each index in the target dimension of the map, copy the pointer to
+  // the data
+  for (int i = 0; i < arg.map->dim; ++i)
+      p_arg[i] = arg.data + arg.map->map[i+n*arg.map->dim]*arg.size;
 }
 
 
@@ -70,19 +76,38 @@ void op_par_loop ( void (*kernel)( T0* ),
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 2 arguments
 //
 
 template < class T0, class T1 >
@@ -108,20 +133,54 @@ void op_par_loop ( void (*kernel)( T0*, T1* ),
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 3 arguments
 //
 
 template < class T0, class T1, class T2 >
@@ -148,21 +207,70 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2* ),
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 4 arguments
 //
 
 template < class T0, class T1, class T2, class T3 >
@@ -190,22 +298,86 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3* ),
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
+  if (arg3.idx < -1) {
+    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
-    op_arg_set(n,arg3 ,&p_arg3 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
+
+    if (arg3.idx < -1)
+      copy_in(n, arg3, (char**)p_arg3);
+    else
+      op_arg_set(n, arg3, &p_arg3 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
+
+  if (arg3.idx < -1) {
+    free((char **)p_arg3);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 5 arguments
 //
 
 template < class T0, class T1, class T2, class T3,
@@ -238,24 +410,103 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
+  if (arg3.idx < -1) {
+    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  }
+
+
+  if (arg4.idx < -1) {
+    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
-    op_arg_set(n,arg3 ,&p_arg3 );
-    op_arg_set(n,arg4 ,&p_arg4 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
+
+    if (arg3.idx < -1)
+      copy_in(n, arg3, (char**)p_arg3);
+    else
+      op_arg_set(n, arg3, &p_arg3 );
+
+
+    if (arg4.idx < -1)
+      copy_in(n, arg4, (char**)p_arg4);
+    else
+      op_arg_set(n, arg4, &p_arg4 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
+
+  if (arg3.idx < -1) {
+    free((char **)p_arg3);
+  }
+
+
+  if (arg4.idx < -1) {
+    free((char **)p_arg4);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 6 arguments
 //
 
 template < class T0, class T1, class T2, class T3,
@@ -289,25 +540,119 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
+  if (arg3.idx < -1) {
+    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  }
+
+
+  if (arg4.idx < -1) {
+    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  }
+
+
+  if (arg5.idx < -1) {
+    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
-    op_arg_set(n,arg3 ,&p_arg3 );
-    op_arg_set(n,arg4 ,&p_arg4 );
-    op_arg_set(n,arg5 ,&p_arg5 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
+
+    if (arg3.idx < -1)
+      copy_in(n, arg3, (char**)p_arg3);
+    else
+      op_arg_set(n, arg3, &p_arg3 );
+
+
+    if (arg4.idx < -1)
+      copy_in(n, arg4, (char**)p_arg4);
+    else
+      op_arg_set(n, arg4, &p_arg4 );
+
+
+    if (arg5.idx < -1)
+      copy_in(n, arg5, (char**)p_arg5);
+    else
+      op_arg_set(n, arg5, &p_arg5 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
+
+  if (arg3.idx < -1) {
+    free((char **)p_arg3);
+  }
+
+
+  if (arg4.idx < -1) {
+    free((char **)p_arg4);
+  }
+
+
+  if (arg5.idx < -1) {
+    free((char **)p_arg5);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 7 arguments
 //
 
 template < class T0, class T1, class T2, class T3,
@@ -342,26 +687,135 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
+  if (arg3.idx < -1) {
+    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  }
+
+
+  if (arg4.idx < -1) {
+    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  }
+
+
+  if (arg5.idx < -1) {
+    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  }
+
+
+  if (arg6.idx < -1) {
+    p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
-    op_arg_set(n,arg3 ,&p_arg3 );
-    op_arg_set(n,arg4 ,&p_arg4 );
-    op_arg_set(n,arg5 ,&p_arg5 );
-    op_arg_set(n,arg6 ,&p_arg6 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
+
+    if (arg3.idx < -1)
+      copy_in(n, arg3, (char**)p_arg3);
+    else
+      op_arg_set(n, arg3, &p_arg3 );
+
+
+    if (arg4.idx < -1)
+      copy_in(n, arg4, (char**)p_arg4);
+    else
+      op_arg_set(n, arg4, &p_arg4 );
+
+
+    if (arg5.idx < -1)
+      copy_in(n, arg5, (char**)p_arg5);
+    else
+      op_arg_set(n, arg5, &p_arg5 );
+
+
+    if (arg6.idx < -1)
+      copy_in(n, arg6, (char**)p_arg6);
+    else
+      op_arg_set(n, arg6, &p_arg6 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
+
+  if (arg3.idx < -1) {
+    free((char **)p_arg3);
+  }
+
+
+  if (arg4.idx < -1) {
+    free((char **)p_arg4);
+  }
+
+
+  if (arg5.idx < -1) {
+    free((char **)p_arg5);
+  }
+
+
+  if (arg6.idx < -1) {
+    free((char **)p_arg6);
+  }
+
 }
 
 //
-// op_par_loop routine for 1 arguments
+// op_par_loop routine for 8 arguments
 //
 
 template < class T0, class T1, class T2, class T3,
@@ -397,23 +851,147 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       printf(" kernel routine with indirection: %s \n",name);
   }
 
+  // Allocate memory for vector map indices
+
+  if (arg0.idx < -1) {
+    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  }
+
+
+  if (arg1.idx < -1) {
+    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  }
+
+
+  if (arg2.idx < -1) {
+    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  }
+
+
+  if (arg3.idx < -1) {
+    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  }
+
+
+  if (arg4.idx < -1) {
+    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  }
+
+
+  if (arg5.idx < -1) {
+    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  }
+
+
+  if (arg6.idx < -1) {
+    p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+  }
+
+
+  if (arg7.idx < -1) {
+    p_arg7 = (char *)malloc(arg7.map->dim*sizeof(T7));
+  }
+
+
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
-    op_arg_set(n,arg0 ,&p_arg0 );
-    op_arg_set(n,arg1 ,&p_arg1 );
-    op_arg_set(n,arg2 ,&p_arg2 );
-    op_arg_set(n,arg3 ,&p_arg3 );
-    op_arg_set(n,arg4 ,&p_arg4 );
-    op_arg_set(n,arg5 ,&p_arg5 );
-    op_arg_set(n,arg6 ,&p_arg6 );
-    op_arg_set(n,arg7 ,&p_arg7 );
+    // Copy in of vector map indices
+
+    if (arg0.idx < -1)
+      copy_in(n, arg0, (char**)p_arg0);
+    else
+      op_arg_set(n, arg0, &p_arg0 );
+
+
+    if (arg1.idx < -1)
+      copy_in(n, arg1, (char**)p_arg1);
+    else
+      op_arg_set(n, arg1, &p_arg1 );
+
+
+    if (arg2.idx < -1)
+      copy_in(n, arg2, (char**)p_arg2);
+    else
+      op_arg_set(n, arg2, &p_arg2 );
+
+
+    if (arg3.idx < -1)
+      copy_in(n, arg3, (char**)p_arg3);
+    else
+      op_arg_set(n, arg3, &p_arg3 );
+
+
+    if (arg4.idx < -1)
+      copy_in(n, arg4, (char**)p_arg4);
+    else
+      op_arg_set(n, arg4, &p_arg4 );
+
+
+    if (arg5.idx < -1)
+      copy_in(n, arg5, (char**)p_arg5);
+    else
+      op_arg_set(n, arg5, &p_arg5 );
+
+
+    if (arg6.idx < -1)
+      copy_in(n, arg6, (char**)p_arg6);
+    else
+      op_arg_set(n, arg6, &p_arg6 );
+
+
+    if (arg7.idx < -1)
+      copy_in(n, arg7, (char**)p_arg7);
+    else
+      op_arg_set(n, arg7, &p_arg7 );
+
 
     // call kernel function, passing in pointers to data
-
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6, (T7 *)p_arg7 );
   }
+
+  // Free memory for vector map indices
+
+  if (arg0.idx < -1) {
+    free((char **)p_arg0);
+  }
+
+
+  if (arg1.idx < -1) {
+    free((char **)p_arg1);
+  }
+
+
+  if (arg2.idx < -1) {
+    free((char **)p_arg2);
+  }
+
+
+  if (arg3.idx < -1) {
+    free((char **)p_arg3);
+  }
+
+
+  if (arg4.idx < -1) {
+    free((char **)p_arg4);
+  }
+
+
+  if (arg5.idx < -1) {
+    free((char **)p_arg5);
+  }
+
+
+  if (arg6.idx < -1) {
+    free((char **)p_arg6);
+  }
+
+
+  if (arg7.idx < -1) {
+    free((char **)p_arg7);
+  }
+
 }
 
 
