@@ -1,4 +1,4 @@
-inline void adt_calc(double *x1,double *x2,double *x3,double *x4,double *q,double *adt){
+inline void adt_calc(double *x[2], double q[4], double * adt){
   double dx,dy, ri,u,v,c;
 
   ri =  1.0f/q[0];
@@ -6,22 +6,21 @@ inline void adt_calc(double *x1,double *x2,double *x3,double *x4,double *q,doubl
   v  =   ri*q[2];
   c  = sqrt(gam*gm1*(ri*q[3]-0.5f*(u*u+v*v)));
 
-  dx = x2[0] - x1[0];
-  dy = x2[1] - x1[1];
+  dx = x[1][0] - x[0][0];
+  dy = x[1][1] - x[0][1];
   *adt  = fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
-  dx = x3[0] - x2[0];
-  dy = x3[1] - x2[1];
+  dx = x[2][0] - x[1][0];
+  dy = x[2][1] - x[1][1];
   *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
-  dx = x4[0] - x3[0];
-  dy = x4[1] - x3[1];
+  dx = x[3][0] - x[2][0];
+  dy = x[3][1] - x[2][1];
   *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
-  dx = x1[0] - x4[0];
-  dy = x1[1] - x4[1];
+  dx = x[0][0] - x[3][0];
+  dy = x[0][1] - x[3][1];
   *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
   *adt = (*adt) / cfl;
 }
-
