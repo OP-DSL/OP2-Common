@@ -95,13 +95,14 @@ set(OP2_VERSION
 #------------------------------------------------------------------------------
 # Configurable options for what/how we want to build
 
-option(OP2_WITH_SEQ      "Build a sequential version of the OP2 library."  ON)
-option(OP2_WITH_OPENMP   "Build an OpenMP version of the OP2 library."     ON)
+option(OP2_WITH_CUDA     "Build a NVIDIA CUDA version of the OP2 library." ON)
 option(OP2_WITH_HDF5     "Build an HDF5 version of the OP2 library."       ON)
 option(OP2_WITH_MPI      "Build an MPI version of the OP2 library."        ON)
 option(OP2_WITH_PTSCOTCH "Use PTScotch for partitioning in parallel."      ON)
 option(OP2_WITH_PARMETIS "Use ParMETIS for partitioning in parallel."      ON)
-option(OP2_WITH_CUDA     "Build a NVIDIA CUDA version of the OP2 library." ON)
+option(OP2_WITH_OPENMP   "Build an OpenMP version of the OP2 library."     ON)
+option(OP2_WITH_MATRICES "Enable support for matrix kernel arguments."     ON)
+option(OP2_WITH_SEQ      "Build a sequential version of the OP2 library."  ON)
 option(BUILD_SHARED_LIBS "Build OP2 with shared libraries."                ON)
 if(BUILD_SHARED_LIBS)
   option(USE_INSTALL_RPATH "Set rpath for installed shared libraries."     ON)
@@ -117,6 +118,7 @@ if(CMAKE_VERBOSE_CONFIGURE)
   add_feature_info("   OpenMP library" OP2_WITH_OPENMP "Requires OpenMP support by the compiler")
   add_feature_info("   HDF5 library" OP2_WITH_HDF5 "Requires the HDF5 library")
   add_feature_info("   MPI library" OP2_WITH_MPI "Requires an MPI library")
+  add_feature_info("   Matrix support" OP2_WITH_MATRICES "Requires PETSc")
   add_feature_info("   Parallel graph partitioning with PT-Scotch"
     OP2_WITH_PTSCOTCH "Requires the PT-Scotch library")
   add_feature_info("   Parallel graph partitioning with ParMETIS"

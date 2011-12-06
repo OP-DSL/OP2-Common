@@ -143,6 +143,16 @@ if(OP2_WITH_HDF5)
   endif()
 endif()
 
+if(OP2_WITH_MATRICES)
+  find_package(PETSc)
+  if(PETSC_FOUND)
+    message(STATUS "PETSc found")
+  else()
+    message(STATUS "Optional package PETSc not found - disabling matrix support")
+    set(OP2_WITH_MATRICES OFF)
+  endif()
+endif()
+
 #------------------------------------------------------------------------------
 # Common source files
 
