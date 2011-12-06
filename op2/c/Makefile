@@ -61,6 +61,9 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
+PETSC_INC = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/$(PETSC_ARCH)/include
+PETSC_LIB = -L$(PETSC_DIR)/$(PETSC_ARCH)/lib -lpetsc
+
 .PHONY: clean mklib
 
 all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda
@@ -82,7 +85,8 @@ seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
-	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
+        $(CXX) $(CXXFLAGS) -I$(INC) $(PETSC_INC) $(PETSC_LIB) -c $(SRC)/sequential/op_mat_seq.cpp -o $(OBJ)/op_mat_seq.o
+	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/op_lib_core.o $(OBJ)/op_mat_seq.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
 
 cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
 	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o

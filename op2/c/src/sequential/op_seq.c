@@ -30,6 +30,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <petscsys.h>
+
 #include <op_lib_c.h>
 
 /*
@@ -40,6 +42,7 @@
 
 void op_init ( int argc, char ** argv, int diags )
 {
+  PetscInitialize(&argc,&argv,(char *)0,(char *)0);
   op_init_core ( argc, argv, diags );
 }
 
@@ -110,6 +113,7 @@ void op_timers(double * cpu, double * et)
 void op_exit ()
 {
   op_exit_core ();
+  PetscFinalize();
 }
 
 void op_timing_output()

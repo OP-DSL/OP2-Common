@@ -31,7 +31,7 @@
 #ifndef __OP_SEQ_H
 #define __OP_SEQ_H
 
-#include "op_lib_core.h"
+#include "op_lib_mat.h"
 
 static inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
@@ -59,7 +59,7 @@ void op_par_loop ( void (*kernel)( T0* ),
   char const * name, op_set set,
   op_arg arg0 )
 {
-  char *p_arg0;
+  char *p_arg0 = 0;
 
   // consistency checks
 
@@ -78,32 +78,50 @@ void op_par_loop ( void (*kernel)( T0* ),
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
-
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
 }
 
 //
@@ -115,7 +133,7 @@ void op_par_loop ( void (*kernel)( T0*, T1* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1 )
 {
-  char *p_arg0, *p_arg1;
+  char *p_arg0 = 0, *p_arg1 = 0;
 
   // consistency checks
 
@@ -135,48 +153,80 @@ void op_par_loop ( void (*kernel)( T0*, T1* ),
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
-
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
-
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
 }
 
 //
@@ -188,7 +238,7 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1, op_arg arg2 )
 {
-  char *p_arg0, *p_arg1, *p_arg2;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0;
 
   // consistency checks
 
@@ -209,64 +259,110 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2* ),
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
-
-
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
-
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
-
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
 }
 
 //
@@ -278,7 +374,7 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3 )
 {
-  char *p_arg0, *p_arg1, *p_arg2, *p_arg3;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0;
 
   // consistency checks
 
@@ -300,80 +396,140 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3* ),
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
 
-
-  if (arg3.idx < -1) {
-    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx  < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(arg3.map->dim * arg3.map2->dim * arg3.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
-
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
-
-
-    if (arg3.idx < -1)
-      copy_in(n, arg3, (char**)p_arg3);
-    else
-      op_arg_set(n, arg3, &p_arg3 );
-
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
+    if (arg3.argtype == OP_ARG_MAT) {
+      const int rows = arg3.map->dim;
+      const int cols = arg3.map2->dim;
+      op_mat_addto( arg3.mat, p_arg3, rows, arg3.map->map + n*rows, cols, arg3.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
-
-
-  if (arg3.idx < -1) {
-    free((char **)p_arg3);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
 }
 
 //
@@ -388,8 +544,8 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
   op_arg arg4 )
 {
-  char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
-       *p_arg4;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0;
 
   // consistency checks
 
@@ -412,97 +568,171 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
 
-
-  if (arg3.idx < -1) {
-    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx  < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(arg3.map->dim * arg3.map2->dim * arg3.size);
+      break;
   }
 
-
-  if (arg4.idx < -1) {
-    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx  < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(arg4.map->dim * arg4.map2->dim * arg4.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
 
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
-
-
-    if (arg3.idx < -1)
-      copy_in(n, arg3, (char**)p_arg3);
-    else
-      op_arg_set(n, arg3, &p_arg3 );
-
-
-    if (arg4.idx < -1)
-      copy_in(n, arg4, (char**)p_arg4);
-    else
-      op_arg_set(n, arg4, &p_arg4 );
-
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
+    if (arg3.argtype == OP_ARG_MAT) {
+      const int rows = arg3.map->dim;
+      const int cols = arg3.map2->dim;
+      op_mat_addto( arg3.mat, p_arg3, rows, arg3.map->map + n*rows, cols, arg3.map2->map + n*cols);
+    }
+
+    if (arg4.argtype == OP_ARG_MAT) {
+      const int rows = arg4.map->dim;
+      const int cols = arg4.map2->dim;
+      op_mat_addto( arg4.mat, p_arg4, rows, arg4.map->map + n*rows, cols, arg4.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
 
-
-  if (arg3.idx < -1) {
-    free((char **)p_arg3);
-  }
-
-
-  if (arg4.idx < -1) {
-    free((char **)p_arg4);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
 }
 
 //
@@ -517,8 +747,8 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
   op_arg arg4, op_arg arg5 )
 {
-  char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
-       *p_arg4, *p_arg5;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0;
 
   // consistency checks
 
@@ -542,113 +772,201 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
 
-
-  if (arg3.idx < -1) {
-    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx  < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(arg3.map->dim * arg3.map2->dim * arg3.size);
+      break;
   }
 
-
-  if (arg4.idx < -1) {
-    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx  < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(arg4.map->dim * arg4.map2->dim * arg4.size);
+      break;
   }
 
-
-  if (arg5.idx < -1) {
-    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx  < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(arg5.map->dim * arg5.map2->dim * arg5.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
 
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
 
-
-    if (arg3.idx < -1)
-      copy_in(n, arg3, (char**)p_arg3);
-    else
-      op_arg_set(n, arg3, &p_arg3 );
-
-
-    if (arg4.idx < -1)
-      copy_in(n, arg4, (char**)p_arg4);
-    else
-      op_arg_set(n, arg4, &p_arg4 );
-
-
-    if (arg5.idx < -1)
-      copy_in(n, arg5, (char**)p_arg5);
-    else
-      op_arg_set(n, arg5, &p_arg5 );
-
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
+    if (arg3.argtype == OP_ARG_MAT) {
+      const int rows = arg3.map->dim;
+      const int cols = arg3.map2->dim;
+      op_mat_addto( arg3.mat, p_arg3, rows, arg3.map->map + n*rows, cols, arg3.map2->map + n*cols);
+    }
+
+    if (arg4.argtype == OP_ARG_MAT) {
+      const int rows = arg4.map->dim;
+      const int cols = arg4.map2->dim;
+      op_mat_addto( arg4.mat, p_arg4, rows, arg4.map->map + n*rows, cols, arg4.map2->map + n*cols);
+    }
+
+    if (arg5.argtype == OP_ARG_MAT) {
+      const int rows = arg5.map->dim;
+      const int cols = arg5.map2->dim;
+      op_mat_addto( arg5.mat, p_arg5, rows, arg5.map->map + n*rows, cols, arg5.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
 
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
 
-  if (arg3.idx < -1) {
-    free((char **)p_arg3);
-  }
-
-
-  if (arg4.idx < -1) {
-    free((char **)p_arg4);
-  }
-
-
-  if (arg5.idx < -1) {
-    free((char **)p_arg5);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
 }
 
 //
@@ -663,8 +981,8 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
   op_arg arg4, op_arg arg5, op_arg arg6 )
 {
-  char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
-       *p_arg4, *p_arg5, *p_arg6;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0, *p_arg6 = 0;
 
   // consistency checks
 
@@ -689,129 +1007,231 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
 
-
-  if (arg3.idx < -1) {
-    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx  < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(arg3.map->dim * arg3.map2->dim * arg3.size);
+      break;
   }
 
-
-  if (arg4.idx < -1) {
-    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx  < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(arg4.map->dim * arg4.map2->dim * arg4.size);
+      break;
   }
 
-
-  if (arg5.idx < -1) {
-    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx  < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(arg5.map->dim * arg5.map2->dim * arg5.size);
+      break;
   }
 
-
-  if (arg6.idx < -1) {
-    p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+  switch ( arg6.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg6 = arg6.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg6.idx  < -1)
+        p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+      break;
+    case OP_ARG_MAT:
+      p_arg6 = (char*) malloc(arg6.map->dim * arg6.map2->dim * arg6.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
 
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
 
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
 
-    if (arg3.idx < -1)
-      copy_in(n, arg3, (char**)p_arg3);
-    else
-      op_arg_set(n, arg3, &p_arg3 );
-
-
-    if (arg4.idx < -1)
-      copy_in(n, arg4, (char**)p_arg4);
-    else
-      op_arg_set(n, arg4, &p_arg4 );
-
-
-    if (arg5.idx < -1)
-      copy_in(n, arg5, (char**)p_arg5);
-    else
-      op_arg_set(n, arg5, &p_arg5 );
-
-
-    if (arg6.idx < -1)
-      copy_in(n, arg6, (char**)p_arg6);
-    else
-      op_arg_set(n, arg6, &p_arg6 );
-
+    if (arg6.argtype == OP_ARG_DAT) {
+      if (arg6.idx < -1)
+        copy_in(n, arg6, (char**)p_arg6);
+      else
+        op_arg_set(n, arg6, &p_arg6 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
+    if (arg3.argtype == OP_ARG_MAT) {
+      const int rows = arg3.map->dim;
+      const int cols = arg3.map2->dim;
+      op_mat_addto( arg3.mat, p_arg3, rows, arg3.map->map + n*rows, cols, arg3.map2->map + n*cols);
+    }
+
+    if (arg4.argtype == OP_ARG_MAT) {
+      const int rows = arg4.map->dim;
+      const int cols = arg4.map2->dim;
+      op_mat_addto( arg4.mat, p_arg4, rows, arg4.map->map + n*rows, cols, arg4.map2->map + n*cols);
+    }
+
+    if (arg5.argtype == OP_ARG_MAT) {
+      const int rows = arg5.map->dim;
+      const int cols = arg5.map2->dim;
+      op_mat_addto( arg5.mat, p_arg5, rows, arg5.map->map + n*rows, cols, arg5.map2->map + n*cols);
+    }
+
+    if (arg6.argtype == OP_ARG_MAT) {
+      const int rows = arg6.map->dim;
+      const int cols = arg6.map2->dim;
+      op_mat_addto( arg6.mat, p_arg6, rows, arg6.map->map + n*rows, cols, arg6.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
 
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
 
-  if (arg3.idx < -1) {
-    free((char **)p_arg3);
-  }
+  if ((arg6.argtype == OP_ARG_DAT && arg6.idx < -1) || arg6.argtype == OP_ARG_MAT) free(p_arg6);
 
-
-  if (arg4.idx < -1) {
-    free((char **)p_arg4);
-  }
-
-
-  if (arg5.idx < -1) {
-    free((char **)p_arg5);
-  }
-
-
-  if (arg6.idx < -1) {
-    free((char **)p_arg6);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
+  if (arg6.argtype == OP_ARG_MAT) op_mat_assemble(arg6.mat);
 }
 
 //
@@ -826,8 +1246,8 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
   op_arg arg4, op_arg arg5, op_arg arg6, op_arg arg7 )
 {
-  char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
-       *p_arg4, *p_arg5, *p_arg6, *p_arg7;
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0, *p_arg6 = 0, *p_arg7 = 0;
 
   // consistency checks
 
@@ -853,145 +1273,261 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   // Allocate memory for vector map indices
 
-  if (arg0.idx < -1) {
-    p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx  < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(arg0.map->dim * arg0.map2->dim * arg0.size);
+      break;
   }
 
-
-  if (arg1.idx < -1) {
-    p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx  < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(arg1.map->dim * arg1.map2->dim * arg1.size);
+      break;
   }
 
-
-  if (arg2.idx < -1) {
-    p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx  < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(arg2.map->dim * arg2.map2->dim * arg2.size);
+      break;
   }
 
-
-  if (arg3.idx < -1) {
-    p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx  < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(arg3.map->dim * arg3.map2->dim * arg3.size);
+      break;
   }
 
-
-  if (arg4.idx < -1) {
-    p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx  < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(arg4.map->dim * arg4.map2->dim * arg4.size);
+      break;
   }
 
-
-  if (arg5.idx < -1) {
-    p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx  < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(arg5.map->dim * arg5.map2->dim * arg5.size);
+      break;
   }
 
-
-  if (arg6.idx < -1) {
-    p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+  switch ( arg6.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg6 = arg6.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg6.idx  < -1)
+        p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+      break;
+    case OP_ARG_MAT:
+      p_arg6 = (char*) malloc(arg6.map->dim * arg6.map2->dim * arg6.size);
+      break;
   }
 
-
-  if (arg7.idx < -1) {
-    p_arg7 = (char *)malloc(arg7.map->dim*sizeof(T7));
+  switch ( arg7.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg7 = arg7.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg7.idx  < -1)
+        p_arg7 = (char *)malloc(arg7.map->dim*sizeof(T7));
+      break;
+    case OP_ARG_MAT:
+      p_arg7 = (char*) malloc(arg7.map->dim * arg7.map2->dim * arg7.size);
+      break;
   }
-
 
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 
-    if (arg0.idx < -1)
-      copy_in(n, arg0, (char**)p_arg0);
-    else
-      op_arg_set(n, arg0, &p_arg0 );
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
 
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
 
-    if (arg1.idx < -1)
-      copy_in(n, arg1, (char**)p_arg1);
-    else
-      op_arg_set(n, arg1, &p_arg1 );
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
 
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
 
-    if (arg2.idx < -1)
-      copy_in(n, arg2, (char**)p_arg2);
-    else
-      op_arg_set(n, arg2, &p_arg2 );
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
 
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
 
-    if (arg3.idx < -1)
-      copy_in(n, arg3, (char**)p_arg3);
-    else
-      op_arg_set(n, arg3, &p_arg3 );
+    if (arg6.argtype == OP_ARG_DAT) {
+      if (arg6.idx < -1)
+        copy_in(n, arg6, (char**)p_arg6);
+      else
+        op_arg_set(n, arg6, &p_arg6 );
+    }
 
-
-    if (arg4.idx < -1)
-      copy_in(n, arg4, (char**)p_arg4);
-    else
-      op_arg_set(n, arg4, &p_arg4 );
-
-
-    if (arg5.idx < -1)
-      copy_in(n, arg5, (char**)p_arg5);
-    else
-      op_arg_set(n, arg5, &p_arg5 );
-
-
-    if (arg6.idx < -1)
-      copy_in(n, arg6, (char**)p_arg6);
-    else
-      op_arg_set(n, arg6, &p_arg6 );
-
-
-    if (arg7.idx < -1)
-      copy_in(n, arg7, (char**)p_arg7);
-    else
-      op_arg_set(n, arg7, &p_arg7 );
-
+    if (arg7.argtype == OP_ARG_DAT) {
+      if (arg7.idx < -1)
+        copy_in(n, arg7, (char**)p_arg7);
+      else
+        op_arg_set(n, arg7, &p_arg7 );
+    }
 
     // call kernel function, passing in pointers to data
     kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
             (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6, (T7 *)p_arg7 );
+    // Assemble local matrix into global matrix
+
+    if (arg0.argtype == OP_ARG_MAT) {
+      const int rows = arg0.map->dim;
+      const int cols = arg0.map2->dim;
+      op_mat_addto( arg0.mat, p_arg0, rows, arg0.map->map + n*rows, cols, arg0.map2->map + n*cols);
+    }
+
+    if (arg1.argtype == OP_ARG_MAT) {
+      const int rows = arg1.map->dim;
+      const int cols = arg1.map2->dim;
+      op_mat_addto( arg1.mat, p_arg1, rows, arg1.map->map + n*rows, cols, arg1.map2->map + n*cols);
+    }
+
+    if (arg2.argtype == OP_ARG_MAT) {
+      const int rows = arg2.map->dim;
+      const int cols = arg2.map2->dim;
+      op_mat_addto( arg2.mat, p_arg2, rows, arg2.map->map + n*rows, cols, arg2.map2->map + n*cols);
+    }
+
+    if (arg3.argtype == OP_ARG_MAT) {
+      const int rows = arg3.map->dim;
+      const int cols = arg3.map2->dim;
+      op_mat_addto( arg3.mat, p_arg3, rows, arg3.map->map + n*rows, cols, arg3.map2->map + n*cols);
+    }
+
+    if (arg4.argtype == OP_ARG_MAT) {
+      const int rows = arg4.map->dim;
+      const int cols = arg4.map2->dim;
+      op_mat_addto( arg4.mat, p_arg4, rows, arg4.map->map + n*rows, cols, arg4.map2->map + n*cols);
+    }
+
+    if (arg5.argtype == OP_ARG_MAT) {
+      const int rows = arg5.map->dim;
+      const int cols = arg5.map2->dim;
+      op_mat_addto( arg5.mat, p_arg5, rows, arg5.map->map + n*rows, cols, arg5.map2->map + n*cols);
+    }
+
+    if (arg6.argtype == OP_ARG_MAT) {
+      const int rows = arg6.map->dim;
+      const int cols = arg6.map2->dim;
+      op_mat_addto( arg6.mat, p_arg6, rows, arg6.map->map + n*rows, cols, arg6.map2->map + n*cols);
+    }
+
+    if (arg7.argtype == OP_ARG_MAT) {
+      const int rows = arg7.map->dim;
+      const int cols = arg7.map2->dim;
+      op_mat_addto( arg7.mat, p_arg7, rows, arg7.map->map + n*rows, cols, arg7.map2->map + n*cols);
+    }
+
   }
 
   // Free memory for vector map indices
 
-  if (arg0.idx < -1) {
-    free((char **)p_arg0);
-  }
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
-  if (arg1.idx < -1) {
-    free((char **)p_arg1);
-  }
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
-  if (arg2.idx < -1) {
-    free((char **)p_arg2);
-  }
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
 
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
 
-  if (arg3.idx < -1) {
-    free((char **)p_arg3);
-  }
+  if ((arg6.argtype == OP_ARG_DAT && arg6.idx < -1) || arg6.argtype == OP_ARG_MAT) free(p_arg6);
 
+  if ((arg7.argtype == OP_ARG_DAT && arg7.idx < -1) || arg7.argtype == OP_ARG_MAT) free(p_arg7);
 
-  if (arg4.idx < -1) {
-    free((char **)p_arg4);
-  }
-
-
-  if (arg5.idx < -1) {
-    free((char **)p_arg5);
-  }
-
-
-  if (arg6.idx < -1) {
-    free((char **)p_arg6);
-  }
-
-
-  if (arg7.idx < -1) {
-    free((char **)p_arg7);
-  }
-
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
+  if (arg6.argtype == OP_ARG_MAT) op_mat_assemble(arg6.mat);
+  if (arg7.argtype == OP_ARG_MAT) op_mat_assemble(arg7.mat);
 }
 
 

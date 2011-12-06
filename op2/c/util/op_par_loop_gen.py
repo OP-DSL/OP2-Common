@@ -38,7 +38,7 @@ header_h = """/*
 #ifndef __OP_SEQ_H
 #define __OP_SEQ_H
 
-#include "op_lib_core.h"
+#include "op_lib_mat.h"
 
 static inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
@@ -93,39 +93,59 @@ templates = {
 
   // Allocate memory for vector map indices
 %(allocate)s
-
   // loop over set elements
 
   for (int n=0; n<set->size; n++) {
     // Copy in of vector map indices
 %(argsetters)s
-
     // call kernel function, passing in pointers to data
 %(kernelcall)s
+    // Assemble local matrix into global matrix
+%(mataddto)s
   }
 
   // Free memory for vector map indices
 %(free)s
+  // Global matrix assembly
+%(matassembly)s
 }
 """,
 
 'allocate': """
-  if (arg%d.idx < -1) {
-    p_arg%d = (char *)malloc(arg%d.map->dim*sizeof(T%d));
+  switch ( arg%d.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg%d = arg%d.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg%d.idx  < -1)
+        p_arg%d = (char *)malloc(arg%d.map->dim*sizeof(T%d));
+      break;
+    case OP_ARG_MAT:
+      p_arg%d = (char*) malloc(arg%d.map->dim * arg%d.map2->dim * arg%d.size);
+      break;
   }
 """,
 
 'argsetters': """
-    if (arg%d.idx < -1)
-      copy_in(n, arg%d, (char**)p_arg%d);
-    else
-      op_arg_set(n, arg%d, &p_arg%d );
+    if (arg%d.argtype == OP_ARG_DAT) {
+      if (arg%d.idx < -1)
+        copy_in(n, arg%d, (char**)p_arg%d);
+      else
+        op_arg_set(n, arg%d, &p_arg%d );
+    }
+""",
+
+'mataddto': """
+    if (arg%d.argtype == OP_ARG_MAT) {
+      const int rows = arg%d.map->dim;
+      const int cols = arg%d.map2->dim;
+      op_mat_addto( arg%d.mat, p_arg%d, rows, arg%d.map->map + n*rows, cols, arg%d.map2->map + n*cols);
+    }
 """,
 
 'free': """
-  if (arg%d.idx < -1) {
-    free((char **)p_arg%d);
-  }
+  if ((arg%d.argtype == OP_ARG_DAT && arg%d.idx < -1) || arg%d.argtype == OP_ARG_MAT) free(p_arg%d);
 """
 }
 
@@ -151,12 +171,14 @@ with open(file_h,"w") as h:
         par_loop_sig += "  char const * name, op_set set,\n"
         par_loop_sig += format_block("  ", " )" , "op_arg arg%d", ", ", 1, n, 4)
         par_loop_body = templates['par_loop_body'] % {
-          'argdefs': format_block("  char ", ";", "*p_arg%d", ", ", 1, n, 4),
+          'argdefs': format_block("  char ", ";", "*p_arg%d = 0", ", ", 1, n, 4),
           'argchecks': '\n'.join(["    op_arg_check(set,%d ,arg%d ,&ninds,name);" % (i,i) for i in range(n)]),
-          'allocate': '\n'.join([templates['allocate'] % ((i,)*4) for i in range(n)]),
-          'argsetters': '\n'.join([templates['argsetters'] % ((i,)*5) for i in range(n)]),
+          'allocate': ''.join([templates['allocate'] % ((i,)*11) for i in range(n)]),
+          'argsetters': ''.join([templates['argsetters'] % ((i,)*6) for i in range(n)]),
+          'mataddto': ''.join([templates['mataddto'] % ((i,)*7) for i in range(n)]),
           'kernelcall': format_block("    kernel( ", " );", "(T%d *)p_arg%d", ", ", 2, n, 4),
-          'free': '\n'.join([templates['free'] % (i,i) for i in range(n)]),
+          'free': ''.join([templates['free'] % ((i,)*4) for i in range(n)]),
+          'matassembly': '\n'.join(["  if (arg%d.argtype == OP_ARG_MAT) op_mat_assemble(arg%d.mat);" % ((i,)*2) for i in range(n)])
           }
 
         h.write(par_loop_comment + par_loop_sig + par_loop_body)

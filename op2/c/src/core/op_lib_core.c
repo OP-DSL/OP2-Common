@@ -50,6 +50,8 @@ int OP_diags = 0,
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_dat_max = 0,
+    OP_mat_index = 0, OP_mat_max = 0,
+    OP_sparsity_index = 0, OP_sparsity_max = 0,
     OP_kern_max = 0;
 
 /*
@@ -59,6 +61,8 @@ int OP_set_index = 0, OP_set_max = 0,
 op_set * OP_set_list;
 op_map * OP_map_list;
 op_dat * OP_dat_list;
+op_mat * OP_mat_list;
+op_sparsity * OP_sparsity_list;
 op_kernel * OP_kernels;
 
 static char * copy_str( char const * src )
@@ -73,7 +77,7 @@ static char * copy_str( char const * src )
  */
 
 void
-  op_init_core ( int argc, char ** argv, int diags )
+op_init_core ( int argc, char ** argv, int diags )
 {
   OP_diags = diags;
 
@@ -244,6 +248,100 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   return dat;
 }
 
+op_mat
+op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name )
+{
+
+  if ( rowset == NULL )
+  {
+    printf ( "op_decl_mat error -- invalid rowset for matrix: %s\n", name );
+    exit ( -1 );
+  }
+
+  if ( colset == NULL )
+  {
+    printf ( "op_decl_mat error -- invalid colset for matrix: %s\n", name );
+    exit ( -1 );
+  }
+
+  if ( dim <= 0 )
+  {
+    printf ( "op_decl_mat error -- negative/zero dimension for matrix: %s\n", name );
+    exit ( -1 );
+  }
+
+  if ( OP_mat_index == OP_mat_max )
+  {
+    OP_mat_max += 10;
+    OP_mat_list = ( op_mat * ) realloc ( OP_mat_list, OP_mat_max * sizeof ( op_mat ) );
+    if ( OP_mat_list == NULL )
+    {
+      printf ( " op_decl_mat error -- error reallocating memory\n" );
+      exit ( -1 );
+    }
+  }
+
+  op_mat mat = ( op_mat ) malloc ( sizeof ( op_mat_core ) );
+  mat->index = OP_mat_index;
+  mat->rowset = rowset;
+  mat->colset = colset;
+  mat->dim = dim;
+  mat->name = name;
+  mat->type = type;
+  mat->size = dim * size;
+  mat->mat = 0;
+
+  OP_mat_list[OP_mat_index++] = mat;
+
+  return mat;
+}
+
+op_sparsity
+op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
+{
+  if ( rowmap == NULL )
+  {
+    printf ( "op_decl_sparsity error -- invalid rowmap for sparsity: %s\n", name );
+    exit ( -1 );
+  }
+
+  if ( colmap == NULL )
+  {
+    printf ( "op_decl_sparsity error -- invalid colmap for sparsity: %s\n", name );
+    exit ( -1 );
+  }
+
+  if ( rowmap->from != colmap->from ) {
+    printf("op_decl_sparsity: row map and col map do not map from the same set for sparsity: %s\n", name );
+    exit(1);
+  }
+
+  if ( OP_sparsity_index == OP_sparsity_max )
+  {
+    OP_sparsity_max += 10;
+    OP_sparsity_list = ( op_sparsity * ) realloc ( OP_sparsity_list, OP_sparsity_max * sizeof ( op_sparsity ) );
+    if ( OP_sparsity_list == NULL )
+    {
+      printf ( " op_decl_sparsity error -- error reallocating memory\n" );
+      exit ( -1 );
+    }
+  }
+
+  op_sparsity sparsity = ( op_sparsity ) malloc ( sizeof ( op_sparsity_core ) );
+  sparsity->rowmap = rowmap;
+  sparsity->colmap = colmap;
+  sparsity->nrows = rowmap->to->size;
+  sparsity->ncols = colmap->to->size;
+  sparsity->nnz = NULL;
+  sparsity->rowptr = NULL;
+  sparsity->colidx = NULL;
+  sparsity->max_nonzeros = 0;
+
+  OP_sparsity_list[OP_sparsity_index++] = sparsity;
+
+  return sparsity;
+}
+
 void
 op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
@@ -288,6 +386,18 @@ op_exit_core (  )
   free ( OP_dat_list );
   OP_dat_list = NULL;
 
+  for ( int i = 0; i < OP_mat_index; i++ )
+  {
+    free ( OP_mat_list[i] );
+  }
+  free ( OP_mat_list );
+
+  for ( int i = 0; i < OP_sparsity_index; i++ )
+  {
+    free ( OP_sparsity_list[i] );
+  }
+  free ( OP_sparsity_list );
+
   // free storage for timing info
 
   free ( OP_kernels );
@@ -301,6 +411,10 @@ op_exit_core (  )
   OP_map_max = 0;
   OP_dat_index = 0;
   OP_dat_max = 0;
+  OP_mat_index = 0;
+  OP_mat_max = 0;
+  OP_sparsity_index = 0;
+  OP_sparsity_max = 0;
   OP_kern_max = 0;
 }
 
@@ -321,8 +435,10 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 {
   /* error checking for op_arg_dat */
 
-  if ( arg.argtype == OP_ARG_DAT )
+  switch ( arg.argtype  )
   {
+    /* error checking for op_arg_dat */
+  case OP_ARG_DAT:
     if ( set == NULL )
       op_err_print ( "invalid set", m, name );
 
@@ -345,14 +461,46 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( strcmp ( arg.dat->type, arg.type ) )
       op_err_print ( "dataset type does not match declared type", m, name );
 
-    if ( arg.idx >= 0 )
+    if ( arg.idx >= 0 || arg.idx < -1 )
       ( *ninds )++;
-  }
 
-  /* error checking for op_arg_gbl */
+    break;
 
-  if ( arg.argtype == OP_ARG_GBL )
-  {
+    /* error checking for op_arg_mat */
+  case OP_ARG_MAT:
+    if ( set == NULL )
+      op_err_print ( "invalid set", m, name );
+
+    if ( arg.map  == NULL && arg.mat->rowset != set )
+      op_err_print ( "row dataset does not match loop set", m, name );
+    if ( arg.map2 == NULL && arg.mat->colset != set )
+      op_err_print ( "row dataset does not match loop set", m, name );
+
+    if ( arg.map  != NULL && ( arg.map->from  != set || arg.map->to  != arg.mat->rowset ) )
+      op_err_print ( "mapping error in rowmap", m, name );
+    if ( arg.map2 != NULL && ( arg.map2->from != set || arg.map2->to != arg.mat->colset ) )
+      op_err_print ( "mapping error in colmap", m, name );
+
+    if ( ( arg.map == NULL && arg.idx != -1 ) || ( arg.map != NULL &&
+       ( arg.idx >= arg.map->dim || arg.idx < -1*arg.map->dim ) ) )
+      op_err_print ( "invalid row index", m, name );
+    if ( ( arg.map2 == NULL && arg.idx2 != -1 ) || ( arg.map2 != NULL &&
+       ( arg.idx2 >= arg.map2->dim || arg.idx2 < -1*arg.map2->dim ) ) )
+      op_err_print ( "invalid col index", m, name );
+
+    if ( arg.mat->dim != arg.dim )
+      op_err_print ( "dataset dim does not match declared dim", m, name );
+
+    if ( strcmp ( arg.mat->type, arg.type ) )
+      op_err_print ( "dataset type does not match declared type", m, name );
+
+    if ( arg.idx >= 0 || arg.idx < -1 )
+      ( *ninds )++;
+
+    break;
+
+    /* error checking for op_arg_gbl */
+  case OP_ARG_GBL:
     if ( !strcmp ( arg.type, "error" ) )
       op_err_print ( "datatype does not match declared type", m, name );
 
@@ -361,12 +509,19 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 
     if ( arg.data == NULL )
       op_err_print ( "NULL pointer for global data", m, name );
+
+    break;
   }
 }
 
 op_arg
 op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc )
 {
+  if ( dat == NULL ) {
+    printf ( " op_arg_dat error -- no valid op_dat given\n" );
+    exit ( -1 );
+  }
+
   op_arg arg;
 
   /* index is not used for now */
@@ -375,24 +530,47 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
   arg.argtype = OP_ARG_DAT;
 
   arg.dat = dat;
+  arg.mat = NULL;
   arg.map = map;
   arg.dim = dim;
   arg.idx = idx;
 
-  if ( dat != NULL )
-  {
-    arg.size = dat->size;
-    arg.data = dat->data;
-    arg.data_d = dat->data_d;
-  }
-  else
-  {
-    /* set default values */
-    arg.size = -1;
-    arg.data = NULL;
-    arg.data_d = NULL;
+  arg.size = dat->size;
+  arg.data = dat->data;
+  arg.data_d = dat->data_d;
+
+  arg.type = typ;
+  arg.acc = acc;
+
+  return arg;
+}
+
+op_arg
+op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc )
+{
+  if ( mat == NULL ) {
+    printf ( " op_arg_mat error -- no valid op_mat given\n" );
+    exit ( -1 );
   }
 
+  op_arg arg;
+
+  /* index is not used for now */
+  arg.index = -1;
+
+  arg.argtype = OP_ARG_MAT;
+
+  arg.dat = NULL;
+  arg.mat = mat;
+  arg.map = rowmap;
+  arg.map2 = colmap;
+  arg.dim = dim;
+  arg.idx = rowidx;
+  arg.idx2 = colidx;
+
+  arg.size = mat->size;
+  arg.data = NULL;
+  arg.data_d = NULL;
 
   arg.type = typ;
   arg.acc = acc;
@@ -411,6 +589,7 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.argtype = OP_ARG_GBL;
 
   arg.dat = NULL;
+  arg.mat = NULL;
   arg.map = NULL;
   arg.dim = dim;
   arg.idx = -1;

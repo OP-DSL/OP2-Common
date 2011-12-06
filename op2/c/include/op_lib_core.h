@@ -80,7 +80,7 @@ extern int OP_cache_line_size;
 
 typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
 
-typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
+typedef enum { OP_ARG_GBL, OP_ARG_DAT, OP_ARG_MAT } op_arg_type;
 
 /*
  * structures
@@ -129,13 +129,44 @@ typedef struct
 
 typedef op_dat_core * op_dat;
 
+typedef struct {
+  op_map rowmap,
+         colmap;
+  size_t nrows;       /* number of rows */
+  size_t ncols;       /* number of columns */
+  int    *nnz;        /* vector of number of nonzeros per row */
+  int    *rowptr;     /* csr row pointer (accumulation of nnz) */
+  int    *colidx;     /* csr column indices for each row */
+  size_t max_nonzeros;/* maximum number of nonzeros per row */
+  char const *name;   /* name of dataset */
+} op_sparsity_core;
+
+typedef op_sparsity_core * op_sparsity;
+
 typedef struct
 {
   int         index;  /* index */
-  op_dat      dat;    /* dataset */
-  op_map      map;    /* indirect mapping */
+  op_set      rowset, /* set on which row data is defined */
+              colset; /* set on which col data is defined */
   int         dim,    /* dimension of data */
-              idx,
+              size;   /* size of each element in dataset */
+  void*       mat;    /* handle to matrix object from 3rd party library */
+  char const *type,   /* datatype */
+             *name;   /* name of matrix */
+} op_mat_core;
+
+typedef op_mat_core * op_mat;
+
+typedef struct
+{
+  int         index;  /* index */
+  op_dat      dat;    /* dataset (not used for matrix) */
+  op_mat      mat;    /* matrix (not used for dat) */
+  op_map      map,    /* indirect mapping */
+              map2;   /* 2nd mapping only used for matrices*/
+  int         dim,    /* dimension of data */
+              idx,    /* index into the mapping */
+              idx2,   /* 2nd index only used for matrices */
               size;   /* size (for sequential execution) */
   char       *data,   /* data on host */
              *data_d; /* data on device (for CUDA execution) */
@@ -193,6 +224,10 @@ op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
 
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
 
+op_mat op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name );
+
+op_sparsity op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name );
+
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
 void op_err_print ( const char * error_string, int m, const char * name );
@@ -202,6 +237,8 @@ void op_arg_check ( op_set, int, op_arg, int *, char const * );
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
 op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
+
+op_arg op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc );
 
 void op_diagnostic_output ( void );
 
