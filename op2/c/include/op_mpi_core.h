@@ -27,7 +27,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /*
  * op_mpi_core.h
  *
@@ -48,26 +47,24 @@
 #endif
 #define MPI_ROOT 0
 
-
 /*******************************************************************************
 * MPI halo list data type
 *******************************************************************************/
 
 typedef struct {
- op_set set;        //set related to this list
- int    size;       //number of elements in this list
- int    *ranks;     //MPI ranks to be exported to or imported from
- int    ranks_size; //number of MPI neighbors
-                    //to be exported to or imported from
- int    *disps;     //displacements for the starting point of each
-                    //rank's element list
- int    *sizes;     //number of elements exported to or imported
-                    //from each ranks
- int    *list;      //the list of all elements
+  op_set set;        //set related to this list
+  int    size;       //number of elements in this list
+  int    *ranks;     //MPI ranks to be exported to or imported from
+  int    ranks_size; //number of MPI neighbors
+  //to be exported to or imported from
+  int    *disps;     //displacements for the starting point of each
+  //rank's element list
+  int    *sizes;     //number of elements exported to or imported
+  //from each ranks
+  int    *list;      //the list of all elements
 } halo_list_core;
 
 typedef halo_list_core * halo_list;
-
 
 /*******************************************************************************
 * Data structures related to MPI level partitioning
@@ -86,6 +83,15 @@ typedef struct
 
 typedef part_core *part;
 
+/*******************************************************************************
+* Data structure to hold sets for latency hiding
+*******************************************************************************/
+
+typedef struct
+{
+  op_set core_set;
+  op_set noncore_set;
+} set_part_core;
 
 /*******************************************************************************
 * Data Type to hold MPI performance measures
@@ -107,11 +113,12 @@ typedef struct
                            //for this op_dat in this kernel
 } op_mpi_kernel;
 
-
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
 *******************************************************************************/
-typedef struct {
+
+typedef struct
+{
  int         dat_index;    //index of the op_dat to which this buffer belongs
  char        *buf_exec;    //buffer holding exec halo to be exported;
  char        *buf_nonexec; //buffer holding nonexec halo to be exported;
@@ -125,21 +132,16 @@ typedef struct {
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
-
 /** extern variables **/
 
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
 
-
 /** export list on the device **/
 
 extern int** export_exec_list_d;
 extern int** export_nonexec_list_d;
-
-
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -148,6 +150,7 @@ extern "C" {
 /*******************************************************************************
 * Utility function prototypes
 *******************************************************************************/
+
 void decl_partition(op_set set, int* g_index, int* partition);
 
 void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm);

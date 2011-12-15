@@ -81,9 +81,12 @@ typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
 
 typedef struct
 {
-  int         index;  /* index */
-  int         size;   /* number of elements in set */
-  char const *name;   /* name of set */
+  int         index;        /* index */
+  int         size;         /* number of elements in set */
+  char const *name;         /* name of set */
+// for MPI support
+  int         exec_size;    /* number of additional imported elements to be executed */
+  int         nonexec_size; /* number of additional imported elements that are not executed */
 } op_set_core;
 
 typedef op_set_core * op_set;

@@ -71,9 +71,20 @@ comp ( const void * a2, const void * b2 )
  * plan check routine
  */
 
-void
-op_plan_check ( op_plan OP_plan, int ninds, int * inds )
+void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 {
+
+  //compute exec_length - which include the exec halo given certain conditions (MPI)
+  int exec_length = OP_plan.set->size;
+  for ( int m = 0; m < OP_plan.nargs; m++ )
+  {
+    if(OP_plan.idxs[m] != -1 && OP_plan.accs[m] != OP_READ ) //if it needs exchaning
+    {
+      exec_length += OP_plan.set->exec_size;
+      break;
+    }
+  }
+
   int err, ntot;
 
   int nblock = 0;
@@ -88,7 +99,7 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
   for ( int n = 0; n < nblock; n++ )
     nelem += OP_plan.nelems[n];
 
-  if ( nelem != OP_plan.set->size )
+  if ( nelem != exec_length )
   {
     printf ( " *** OP_plan_check: nelems error \n" );
   }
@@ -181,7 +192,11 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
     int m2 = 0;
     while ( inds[m2] != m )
       m2++;
-    int set_size = OP_plan.maps[m2]->to->size;
+    //int set_size = OP_plan.maps[m2]->to->size;
+
+    int halo_size = (OP_plan.maps[m2]->to)->exec_size + (OP_plan.maps[m2]->to)->nonexec_size;
+
+    int set_size = OP_plan.maps[m2]->to->size + halo_size;
 
     ntot = 0;
 
@@ -227,8 +242,7 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
         {
           int p_local = OP_plan.loc_maps[m][e];
           int p_global = OP_plan.ind_maps[m2][p_local + OP_plan.ind_offs[m2 + n * ninds]];
-
-          err += ( p_global != map->map[OP_plan.idxs[m] + e * map->dim] );
+          err += ( p_global != map->map[OP_plan.idxs[m] + (OP_plan.set_offset+e) * map->dim] ); // set_offset
         }
         ntot += OP_plan.nelems[n];
       }
@@ -252,13 +266,25 @@ op_plan_check ( op_plan OP_plan, int ninds, int * inds )
   return;
 }
 
+
 /*
  * OP plan construction
  */
 
-op_plan *op_plan_core(char const *name, op_set set, int part_size,
+op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_size,
                       int nargs, op_arg *args, int ninds, int *inds )
 {
+  //set exec length
+  int exec_length = set->size;
+  for(int i = 0; i< nargs; i++)
+  {
+    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    {
+      exec_length += set->exec_size;
+      break;
+    }
+  }
+
   /* first look for an existing execution plan */
 
   int ip = 0, match = 0;
@@ -267,6 +293,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   {
     if ( ( strcmp ( name, OP_plans[ip].name ) == 0 )
         && ( set == OP_plans[ip].set )
+        && ( set_offset == OP_plans[ip].set_offset )
         && ( nargs == OP_plans[ip].nargs )
         && ( ninds == OP_plans[ip].ninds )
         && ( part_size == OP_plans[ip].part_size ) )
@@ -311,7 +338,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   int bsize = part_size;        // blocksize
   if ( bsize == 0 )
     bsize = ( 48 * 1024 / ( 64 * maxbytes ) ) * 64;
-  int nblocks = ( set->size - 1 ) / bsize + 1;
+  int nblocks = ( exec_length - 1 ) / bsize + 1;
 
   /* enlarge OP_plans array if needed */
 
@@ -335,7 +362,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].accs = ( op_access * ) malloc ( nargs * sizeof ( op_access ) );
 
   OP_plans[ip].nthrcol = ( int * ) malloc ( nblocks * sizeof ( int ) );
-  OP_plans[ip].thrcol = ( int * ) malloc ( set->size * sizeof ( int ) );
+  OP_plans[ip].thrcol = ( int * ) malloc ( exec_length * sizeof ( int ) );
   OP_plans[ip].offset = ( int * ) malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].ind_maps = ( int ** ) malloc ( ninds * sizeof ( int * ) );
   OP_plans[ip].ind_offs = ( int * ) malloc ( nblocks * ninds * sizeof ( int ) );
@@ -343,7 +370,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].nindirect = ( int * ) calloc ( ninds, sizeof ( int ) );
   OP_plans[ip].loc_maps = ( short ** ) malloc ( nargs * sizeof ( short * ) );
   OP_plans[ip].nelems = ( int * ) malloc ( nblocks * sizeof ( int ) );
-  OP_plans[ip].ncolblk = ( int * ) calloc ( set->size, sizeof ( int ) );  /* max possibly needed */
+  OP_plans[ip].ncolblk = ( int * ) calloc ( exec_length, sizeof ( int ) );  /* max possibly needed */
   OP_plans[ip].blkmap = ( int * ) calloc ( nblocks, sizeof ( int ) );
 
   for ( int m = 0; m < ninds; m++ )
@@ -352,13 +379,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     for ( int m2 = 0; m2 < nargs; m2++ )
       if ( inds[m2] == m )
         count++;
-    OP_plans[ip].ind_maps[m] = ( int * ) malloc ( count * set->size * sizeof ( int ) );
+    OP_plans[ip].ind_maps[m] = ( int * ) malloc ( count * exec_length * sizeof ( int ) );
   }
 
   for ( int m = 0; m < nargs; m++ )
   {
     if ( inds[m] >= 0 )
-      OP_plans[ip].loc_maps[m] = ( short * ) malloc ( set->size * sizeof ( short ) );
+      OP_plans[ip].loc_maps[m] = ( short * ) malloc ( exec_length * sizeof ( short ) );
     else
       OP_plans[ip].loc_maps[m] = NULL;
 
@@ -370,6 +397,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   OP_plans[ip].name = name;
   OP_plans[ip].set = set;
+  OP_plans[ip].set_offset = set_offset;
   OP_plans[ip].nargs = nargs;
   OP_plans[ip].ninds = ninds;
   OP_plans[ip].part_size = part_size;
@@ -395,7 +423,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   /* allocate working arrays */
 
   uint **work;
-  work = (uint **)malloc( ninds * sizeof ( uint * ) );
+  work = (uint **)malloc(ninds * sizeof(uint *));
 
   for ( int m = 0; m < ninds; m++ )
   {
@@ -403,7 +431,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     while ( inds[m2] != m )
       m2++;
 
-    work[m] = ( uint * )malloc((maps[m2]->to)->size * sizeof (uint));
+    int to_size = (maps[m2]->to)->exec_size + (maps[m2]->to)->nonexec_size + (maps[m2]->to)->size;
+    work[m] = ( uint * )malloc( to_size * sizeof (uint));
   }
 
   int *work2;
@@ -415,7 +444,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   for ( int b = 0; b < nblocks; b++ )
   {
-    int bs = MIN ( bsize, set->size - b * bsize );
+    int bs = MIN ( bsize, exec_length - b * bsize );/****/
 
     offset[b] = b * bsize;      /* offset for block */
     nelems[b] = bs;             /* size of block */
@@ -432,7 +461,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       {
         if ( inds[m2] == m )
         {
-          for ( int e = b * bsize; e < b * bsize + bs; e++ )
+          for ( int e = set_offset + b * bsize; e < set_offset + b * bsize + bs; e++ )
             work2[ne++] = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
         }
       }
@@ -450,7 +479,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           p++;
         e++;
       }
-      ne = e;                   /* number of distinct elements */
+      ne = e; /* number of distinct elements */
 
       /*
          if (OP_diags > 5) { printf(" indirection set %d: ",m); for (int e=0; e<ne; e++) printf("
@@ -470,7 +499,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( inds[m2] == m )
         {
           for ( int e = b * bsize; e < b * bsize + bs; e++ )
-            OP_plans[ip].loc_maps[m2][e] = work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]];
+            OP_plans[ip].loc_maps[m2][e] = work[m][maps[m2]->map[idxs[m2] + (set_offset + e) * maps[m2]->dim]];
         }
       }
 
@@ -514,7 +543,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]];  /* set bits of mask */
+              mask |= work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]]; /* set bits of mask */
 
           int color = ffs ( ~mask ) - 1;  /* find first bit not set */
           if ( color == -1 )
@@ -529,7 +558,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
             for ( int m = 0; m < nargs; m++ )
               if ( inds[m] >= 0 && accs[m] == OP_INC )
-                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask;  /* set color bit */
+                work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] |= mask; /* set color bit */
           }
         }
       }
@@ -540,7 +569,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].nthrcol[b] = ncolors;  /* number of thread colors in this block */
     total_colors += ncolors;
 
-    // if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
+    //if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
 
     /* reorder elements by color? */
 
@@ -565,22 +594,26 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     for ( int m = 0; m < nargs; m++ )
     {
       if ( inds[m] >= 0 )
-        for ( int e = 0; e < ( maps[m]->to )->size; e++ )
+      {
+        int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
+        for ( int e = 0; e < to_size; e++ )
           work[inds[m]][e] = 0; // zero out color arrays
+      }
     }
 
     for ( int b = 0; b < nblocks; b++ )
     {
       if ( blk_col[b] == -1 )
       { // color not yet assigned to block
-        int bs = MIN ( bsize, set->size - b * bsize );
+        int bs = MIN ( bsize, exec_length - b * bsize );
         uint mask = 0;
 
         for ( int m = 0; m < nargs; m++ )
         {
           if ( inds[m] >= 0 && accs[m] == OP_INC )
             for ( int e = b * bsize; e < b * bsize + bs; e++ )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; // set bits of mask
+              mask |= work[inds[m]][maps[m]->map[idxs[m] +
+                (set_offset + e) * maps[m]->dim]]; // set bits of mask
         }
 
         int color = ffs ( ~mask ) - 1;  // find first bit not set
@@ -598,7 +631,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           {
             if ( inds[m] >= 0 && accs[m] == OP_INC )
               for ( int e = b * bsize; e < b * bsize + bs; e++ )
-                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask;
+                work[inds[m]][maps[m]->map[idxs[m] +
+                  (set_offset+e) * maps[m]->dim]] |= mask;
           }
         }
       }
@@ -666,54 +700,54 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   for ( int b = 0; b < nblocks; b++ )
   {
-    for ( int m = 0; m < nargs; m++ )
+    for ( int m = 0; m < nargs; m++ ) //for each argument
     {
-      if ( inds[m] < 0 )
+      if ( inds[m] < 0 ) //if it is directly addressed
       {
         float fac = 2.0f;
-        if ( accs[m] == OP_READ )
+        if ( accs[m] == OP_READ ) //if you only read it - only write???
           fac = 1.0f;
         if ( dats[m] != NULL )
         {
-          OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size;
+          OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
           OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
           transfer3 += fac * nelems[b] * dats[m]->size;
         }
       }
-      else
+      else //if it is indirectly addressed: cost of reading the pointer to it
       {
         OP_plans[ip].transfer += nelems[b] * sizeof ( short );
         OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
         transfer3 += nelems[b] * sizeof ( short );
       }
     }
-    for ( int m = 0; m < ninds; m++ )
+    for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
     {
       int m2 = 0;
-      while ( inds[m2] != m )
+      while ( inds[m2] != m ) //find the first argument that uses this mapping
         m2++;
       float fac = 2.0f;
-      if ( accs[m2] == OP_READ )
+      if ( accs[m2] == OP_READ ) //only read it (write??)
         fac = 1.0f;
-      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size;
+      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size; //simply read all data one by one
 
       /* work out how many cache lines are used by indirect addressing */
 
       int i_map, l_new, l_old;
-      int e0 = ind_offs[m + b * ninds];
-      int e1 = e0 + ind_sizes[m + b * ninds];
+      int e0 = ind_offs[m + b * ninds]; //where it starts
+      int e1 = e0 + ind_sizes[m + b * ninds]; //where it ends
 
       l_old = -1;
 
-      for ( int e = e0; e < e1; e++ )
+      for ( int e = e0; e < e1; e++ ) //iterate through every indirectly accessed data element
       {
-        i_map = ind_maps[m][e];
-        l_new = ( i_map * dats[m2]->size ) / OP_cache_line_size;
-        if ( l_new > l_old )
-          OP_plans[ip].transfer2 += fac * OP_cache_line_size;
+        i_map = ind_maps[m][e]; //the pointer to the data element
+        l_new = ( i_map * dats[m2]->size ) / OP_cache_line_size; //which cache line it is on (full size, dim*sizeof(type))
+        if ( l_new > l_old ) //if it is on a further cache line (that is not yet loaded, - i_map is ordered)
+          OP_plans[ip].transfer2 += fac * OP_cache_line_size; //load the cache line
         l_old = l_new;
-        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / OP_cache_line_size;
-        OP_plans[ip].transfer2 += fac * ( l_new - l_old ) * OP_cache_line_size;
+        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / OP_cache_line_size; //the last byte of the data
+        OP_plans[ip].transfer2 += fac * ( l_new - l_old ) * OP_cache_line_size; //again, if not loaded, load it (can be multiple cache lines)
         l_old = l_new;
       }
 
@@ -721,13 +755,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
       for ( int e = e0; e < e1; e++ )
       {
-        i_map = ind_maps[m][e];
-        l_new = ( i_map * dats[m2]->size ) / ( dats[m2]->dim * OP_cache_line_size );
+        i_map = ind_maps[m][e]; //pointer to the data element
+        l_new = ( i_map * dats[m2]->size ) / ( dats[m2]->dim * OP_cache_line_size ); //which cache line the first dimension of the data is on
         if ( l_new > l_old )
-          transfer3 += fac * dats[m2]->dim * OP_cache_line_size;
+          transfer3 += fac * dats[m2]->dim * OP_cache_line_size; //if not loaded yet, load all cache lines
         l_old = l_new;
-        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / ( dats[m2]->dim * OP_cache_line_size );
-        transfer3 += fac * ( l_new - l_old ) * dats[m2]->dim * OP_cache_line_size;
+        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / ( dats[m2]->dim * OP_cache_line_size ); //primitve type's last byte
+        transfer3 += fac * ( l_new - l_old ) * dats[m2]->dim * OP_cache_line_size; //load it
         l_old = l_new;
       }
 
@@ -751,11 +785,11 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf ( " maximum block size     = %d \n", bsize );
     printf ( " average thread colors  = %.2f \n", total_colors / nblocks );
     printf ( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
-    printf ( " average data reuse     = %.2f \n", maxbytes * ( set->size / total_shared ) );
+    printf ( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf ( " data transfer (used)   = %.2f MB \n",
-             OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
+        OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
     printf ( " data transfer (total)  = %.2f MB \n",
-             OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
+        OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
     printf ( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
   }
 
@@ -775,3 +809,4 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   return &( OP_plans[ip] );
 }
+

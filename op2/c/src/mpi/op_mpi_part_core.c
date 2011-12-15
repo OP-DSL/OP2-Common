@@ -526,7 +526,7 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
   for(int i = 0; i<count;)
   {
     int curr = to_elems[i];
-    int c = 0; int cap = map->dim;
+    int c = -1; int cap = map->dim;
     found_parts = (int *)xmalloc(sizeof(int)*cap);
 
     do{
@@ -2820,7 +2820,8 @@ void op_partition_ptscotch(op_map primary_map)
   int* adj_cap = (int *)xmalloc(primary_map->to->size*sizeof(int ));
 
   for(int i = 0; i<primary_map->to->size; i++)adj_i[i] = 0;
-  for(int i = 0; i<primary_map->to->size; i++)adj_cap[i] = primary_map->dim;
+  for(int i = 0; i<primary_map->to->size; i++)adj_cap[i] = 4;//primary_map->dim;
+  for(int i = 0; i<primary_map->to->size; i++)adj[i] = NULL;
   for(int i = 0; i<primary_map->to->size; i++)adj[i] = (int *)xmalloc(adj_cap[i]*sizeof(int));
 
 

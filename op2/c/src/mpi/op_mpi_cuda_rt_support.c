@@ -206,11 +206,17 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  op_plan *plan = op_plan_core ( name, set, part_size,
-                                 nargs, args, ninds, inds );
+  return op_plan_get_offset ( name, set, 0, part_size,
+    nargs, args, ninds, inds );
+}
 
-  int set_size = plan->set->size + OP_import_exec_list[plan->set->index]->size +
-    OP_import_nonexec_list[plan->set->index]->size;
+op_plan *
+op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds )
+{
+  op_plan *plan = op_plan_core ( name, set, set_offset, part_size,
+                                 nargs, args, ninds, inds );
+  int set_size = plan->set->size + plan->set->exec_size +  plan->set->nonexec_size;
 
   if ( plan->count == 1 )
   {

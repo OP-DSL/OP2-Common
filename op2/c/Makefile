@@ -47,7 +47,7 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math  -g -G
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
@@ -110,8 +110,8 @@ mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/mpi/op_mpi_core.o
-	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
-	-o $(OBJ)/mpi/op_mpi_rt_support.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
+	-o $(OBJ)/mpi/op_rt_support.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/mpi/op_mpi_decl.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
@@ -124,7 +124,7 @@ mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
-	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_mpi_rt_support.o \
+	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_rt_support.o \
 	$(OBJ)/mpi/op_mpi_decl.o \
 	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o
@@ -135,8 +135,8 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/mpi/op_mpi_core.o
-	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
-	-o $(OBJ)/mpi/op_mpi_rt_support.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
+	-o $(OBJ)/mpi/op_rt_support.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
 	-o $(OBJ)/mpi/op_mpi_cuda_rt_support.o
@@ -157,7 +157,7 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 
 	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
-	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_mpi_rt_support.o \
+	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_rt_support.o \
 	$(OBJ)/mpi/op_mpi_cuda_rt_support.o $(OBJ)/mpi/op_mpi_cuda_decl.o \
 	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o \
