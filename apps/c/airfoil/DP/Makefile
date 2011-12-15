@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -parallel -g #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CCFLAGS)
@@ -43,7 +43,10 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -use_fast_math
+#NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=128 -DOP_BLOCK_SIZE_2=128 -DOP_BLOCK_SIZE_3=128 -DOP_BLOCK_SIZE_4=512 -DOP_PART_SIZE_1=256 -DOP_PART_SIZE_2=128 -DOP_PART_SIZE_3=64 
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -DOP_BLOCK_SIZE_0=256 -DOP_BLOCK_SIZE_1=96 -DOP_BLOCK_SIZE_2=96 -DOP_BLOCK_SIZE_3=193 -DOP_BLOCK_SIZE_4=96 -DOP_PART_SIZE_1=192 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 
+VAR	= -DOP_PART_SIZE_1=192 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64
+
 #NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 
 
@@ -63,7 +66,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi
+all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi
 
 #
 # simple sequential version
@@ -83,7 +86,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 		bres_calc_kernel.cpp  bres_calc.h \
 		update_kernel.cpp     update.h    \
                 Makefile
-		$(CPP) $(CCFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
+		$(CPP) $(VAR) $(CCFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
 		airfoil_op.cpp airfoil_kernels.cpp -lm -lop2_openmp -o airfoil_openmp
 
 #
@@ -91,7 +94,7 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 #
 
 airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o Makefile 
-		$(CPP) $(CPPFLAGS) $(CUDA_INC) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
+		$(CPP) $(CPPFLAGS) $(VAR) $(CUDA_INC) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
 		airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_cuda -o airfoil_cuda
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \

@@ -86,6 +86,13 @@ typedef struct
 
 typedef part_core *part;
 
+/*******************************************************************************
+* Data structure to hold sets for latency hiding
+*******************************************************************************/
+typedef struct {
+	op_set core_set;
+	op_set noncore_set;
+} set_part_core;
 
 
 /*******************************************************************************
