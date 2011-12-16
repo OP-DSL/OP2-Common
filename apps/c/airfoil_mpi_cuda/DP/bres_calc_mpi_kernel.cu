@@ -123,10 +123,10 @@ __global__ void op_cuda_bres_calc(
 
     // store local variables
 
-    int arg4_map;
-    if (col2>=0) {
-      arg4_map = arg4_maps[n+offset_b];
-    }
+  int arg4_map;
+  if (col2>=0) {
+    arg4_map = arg4_maps[n+offset_b];
+  }
 
     for (int col=0; col<ncolor; col++) {
       if (col2==col) {
@@ -172,10 +172,14 @@ void op_par_loop_bres_calc(char const *name, op_set set,
           {
               if (OP_diags==1) reset_halo(args[i]);
               sent[i] = exchange_halo_cuda(args[i]);
-              if(sent[i] == 1)wait_all_cuda(args[i]);
+              //if(sent[i] == 1)wait_all_cuda(args[i]);
           }
       }
   }
+
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_plan *Plan;
+  int block_offset;
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: bres_calc \n");
@@ -189,18 +193,34 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     int part_size = OP_part_size;
   #endif
 
-  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+  //get offsets
+  int core_len = core_num[set->index];
+  int noncore_len = set->size + OP_import_exec_list[set->index]->size - core_len;
 
-  // initialise timers
+  if(core_len >0){
+  //process core set
+    if (OP_latency_sets[set->index].core_set == NULL) {
+        op_set core_set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+        core_set->index = set->index;
+        core_set->name = set->name;
+        core_set->size = core_len;
+        core_set->exec_size = 0;
+        core_set->nonexec_size = 0;
+        OP_latency_sets[set->index].core_set = core_set;
+    }
 
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+    Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,0,part_size,nargs,args,ninds,inds);
 
-  // execute plan
+    // initialise timers
 
-  int block_offset = 0;
 
-  for (int col=0; col < Plan->ncolors; col++) {
+    op_timers(&cpu_t1, &wall_t1);
+
+    // execute plan
+
+    block_offset = 0;
+
+    for (int col=0; col < Plan->ncolors; col++) {
 
   #ifdef OP_BLOCK_SIZE_3
     int nthread = OP_BLOCK_SIZE_3;
@@ -208,34 +228,109 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     int nthread = OP_block_size;
   #endif
 
-    int nblocks = Plan->ncolblk[col];
-    int nshared = Plan->nshared;
-    op_cuda_bres_calc<<<nblocks,nthread,nshared>>>(
-       (double *)arg0.data_d, Plan->ind_maps[0],
-       (double *)arg2.data_d, Plan->ind_maps[1],
-       (double *)arg3.data_d, Plan->ind_maps[2],
-       (double *)arg4.data_d, Plan->ind_maps[3],
-       Plan->loc_maps[0],
-       Plan->loc_maps[1],
-       Plan->loc_maps[2],
-       Plan->loc_maps[3],
-       Plan->loc_maps[4],
-       (int *)arg5.data_d,
-       Plan->ind_sizes,
-       Plan->ind_offs,
-       block_offset,
-       Plan->blkmap,
-       Plan->offset,
-       Plan->nelems,
-       Plan->nthrcol,
-       Plan->thrcol);
+      int nblocks = Plan->ncolblk[col];
+      int nshared = Plan->nshared;
+      op_cuda_bres_calc<<<nblocks,nthread,nshared>>>(
+          (double *)arg0.data_d, Plan->ind_maps[0],
+          (double *)arg2.data_d, Plan->ind_maps[1],
+          (double *)arg3.data_d, Plan->ind_maps[2],
+          (double *)arg4.data_d, Plan->ind_maps[3],
+          Plan->loc_maps[0],
+          Plan->loc_maps[1],
+          Plan->loc_maps[2],
+          Plan->loc_maps[3],
+          Plan->loc_maps[4],
+          (int *)arg5.data_d,
+          Plan->ind_sizes,
+          Plan->ind_offs,
+          block_offset,
+          Plan->blkmap,
+          Plan->offset,
+          Plan->nelems,
+          Plan->nthrcol,
+          Plan->thrcol);
 
-    cutilSafeCall(cudaThreadSynchronize());
-    cutilCheckMsg("op_cuda_bres_calc execution failed\n");
+      cutilSafeCall(cudaThreadSynchronize());
+      cutilCheckMsg("op_cuda_bres_calc execution failed\n");
 
-    block_offset += nblocks;
+      block_offset += nblocks;
   }
 
+  op_timers(&cpu_t2, &wall_t2);
+  OP_kernels[1].time     += wall_t2 - wall_t1;
+  }
+  if(ninds > 0) //indirect loop
+    {
+        for(int i = 0; i<nargs; i++)
+        {
+            if(args[i].argtype == OP_ARG_DAT)
+            {
+                if(sent[i] == 1)wait_all_cuda(args[i]);
+            }
+        }
+    }
+
+  op_timers(&cpu_t1, &wall_t1);
+
+  if (noncore_len>0) {
+    if (OP_latency_sets[set->index].noncore_set == NULL) {
+    op_set noncore_set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+    noncore_set->size = noncore_len;
+    noncore_set->name = set->name;
+    noncore_set->index = set->index;
+    noncore_set->exec_size = 0;
+    noncore_set->nonexec_size = 0;
+    OP_latency_sets[set->index].noncore_set = noncore_set;
+    }
+     Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,part_size,nargs,args,ninds,inds);
+
+    // initialise timers
+
+    double cpu_t1, cpu_t2, wall_t1, wall_t2;
+    op_timers(&cpu_t1, &wall_t1);
+
+    // execute plan
+
+    block_offset = 0;
+    for (int col=0; col < Plan->ncolors; col++) {
+
+    /*#ifdef OP_BLOCK_SIZE_3
+      int nthread = OP_BLOCK_SIZE_3;
+    #else
+      int nthread = OP_block_size;
+    #endif*/
+    int nthread = 128;
+
+      int nblocks = Plan->ncolblk[col];
+      int nshared = Plan->nshared;
+      op_cuda_bres_calc<<<nblocks,nthread,nshared>>>(
+         (double *)arg0.data_d, Plan->ind_maps[0],
+         (double *)arg2.data_d, Plan->ind_maps[1],
+         (double *)arg3.data_d, Plan->ind_maps[2],
+         (double *)arg4.data_d, Plan->ind_maps[3],
+         Plan->loc_maps[0],
+         Plan->loc_maps[1],
+         Plan->loc_maps[2],
+         Plan->loc_maps[3],
+         Plan->loc_maps[4],
+         (int *)arg5.data_d + core_len*arg5.dim,
+         Plan->ind_sizes,
+         Plan->ind_offs,
+         block_offset,
+         Plan->blkmap,
+         Plan->offset,
+         Plan->nelems,
+         Plan->nthrcol,
+         Plan->thrcol);
+
+      cutilSafeCall(cudaThreadSynchronize());
+      cutilCheckMsg("op_cuda_bres_calc execution failed\n");
+
+      block_offset += nblocks;
+    }
+  op_timers(&cpu_t2, &wall_t2);
+  OP_kernels[1].time     += wall_t2 - wall_t1;
+  }
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
       if(args[i].argtype == OP_ARG_DAT)
@@ -246,11 +341,9 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   // update kernel record
 
-  op_timers(&cpu_t2, &wall_t2);
   op_timing_realloc(3);
   OP_kernels[3].name      = name;
   OP_kernels[3].count    += 1;
-  OP_kernels[3].time     += wall_t2 - wall_t1;
   OP_kernels[3].transfer  += Plan->transfer;
   OP_kernels[3].transfer2 += Plan->transfer2;
 }

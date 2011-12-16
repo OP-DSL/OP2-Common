@@ -73,7 +73,6 @@ comp ( const void * a2, const void * b2 )
 
 void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 {
-
   //compute exec_length - which include the exec halo given certain conditions (MPI)
   int exec_length = OP_plan.set->size;
   for ( int m = 0; m < OP_plan.nargs; m++ )
@@ -89,7 +88,9 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
   int nblock = 0;
   for ( int col = 0; col < OP_plan.ncolors; col++ )
+  {
     nblock += OP_plan.ncolblk[col];
+  }
 
   /*
    * check total size
@@ -192,10 +193,9 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
     int m2 = 0;
     while ( inds[m2] != m )
       m2++;
-    //int set_size = OP_plan.maps[m2]->to->size;
 
-    int halo_size = (OP_plan.maps[m2]->to)->exec_size + (OP_plan.maps[m2]->to)->nonexec_size;
-
+    int halo_size = (OP_plan.maps[m2]->to)->exec_size +
+      (OP_plan.maps[m2]->to)->nonexec_size;
     int set_size = OP_plan.maps[m2]->to->size + halo_size;
 
     ntot = 0;
@@ -456,7 +456,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
       /* build the list of elements indirectly referenced in this block */
 
-      int ne = 0;               /* number of elements */
+      int ne = 0;/* number of elements */
       for ( int m2 = 0; m2 < nargs; m2++ )
       {
         if ( inds[m2] == m )
@@ -605,7 +605,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     {
       if ( blk_col[b] == -1 )
       { // color not yet assigned to block
-        int bs = MIN ( bsize, exec_length - b * bsize );
+        int bs = MIN( bsize, exec_length - b * bsize );
         uint mask = 0;
 
         for ( int m = 0; m < nargs; m++ )
@@ -616,7 +616,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
                 (set_offset + e) * maps[m]->dim]]; // set bits of mask
         }
 
-        int color = ffs ( ~mask ) - 1;  // find first bit not set
+        int color = ffs( ~mask ) - 1; // find first bit not set
         if ( color == -1 )
         { //run out of colors on this pass
           repeat = 1;
@@ -625,7 +625,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
         {
           blk_col[b] = ncolor + color;
           mask = 1 << color;
-          ncolors = MAX ( ncolors, ncolor + color + 1 );
+          ncolors = MAX( ncolors, ncolor + color + 1 );
 
           for ( int m = 0; m < nargs; m++ )
           {
@@ -668,7 +668,8 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   }
 
   for ( int c = ncolors - 1; c > 0; c-- )
-    OP_plans[ip].ncolblk[c] -= OP_plans[ip].ncolblk[c - 1]; /* undo cumsum */
+    OP_plans[ip].ncolblk[c] -= OP_plans[ip].ncolblk[c - 1]; // undo cumsum
+
 
   /* reorder blocks by color? */
 
@@ -780,17 +781,17 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
   if ( OP_diags > 1 )
   {
-    printf ( " number of blocks       = %d \n", nblocks );
-    printf ( " number of block colors = %d \n", OP_plans[ip].ncolors );
-    printf ( " maximum block size     = %d \n", bsize );
-    printf ( " average thread colors  = %.2f \n", total_colors / nblocks );
-    printf ( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
-    printf ( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
-    printf ( " data transfer (used)   = %.2f MB \n",
+    printf( " number of blocks       = %d \n", nblocks );
+    printf( " number of block colors = %d \n", OP_plans[ip].ncolors );
+    printf( " maximum block size     = %d \n", bsize );
+    printf( " average thread colors  = %.2f \n", total_colors / nblocks );
+    printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
+    printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
+    printf( " data transfer (used)   = %.2f MB \n",
         OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
-    printf ( " data transfer (total)  = %.2f MB \n",
+    printf( " data transfer (total)  = %.2f MB \n",
         OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
-    printf ( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
+    printf( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
   }
 
   /* validate plan info */

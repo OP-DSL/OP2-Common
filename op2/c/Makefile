@@ -36,9 +36,9 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC 		= icc
-  CCFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
   CPP		= icpc
-  CPPFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= $(CCFLAGS)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
@@ -47,7 +47,7 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math  -g -G
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
@@ -61,11 +61,12 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
-MPI_INC = -I$(MPI_INSTALL_PATH)/include
+MPI_HOME = $(MPI_INSTALL_PATH)
+
 
 .PHONY: clean
 
-all: core seq openmp cuda hdf5 mpi_seq mpi_cuda
+all: clean core mpi_seq mpi_cuda #seq openmp cuda hdf5
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/core/op_lib_core.o
@@ -136,7 +137,7 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/mpi/op_mpi_core.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
-	-o $(OBJ)/mpi/op_rt_support.o
+	-o $(OBJ)/core/op_rt_support.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
 	-o $(OBJ)/mpi/op_mpi_cuda_rt_support.o
@@ -151,7 +152,7 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/externlib/op_util.o
-	nvcc $(NVCCFLAGS) -I$(INC) $(MPI_INC) \
+	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_HOME)/include \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
 	-o $(OBJ)/mpi/op_mpi_cuda_kernels.o
 
