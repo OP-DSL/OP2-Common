@@ -22,34 +22,34 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -g -fPIC -DUNIX -Wall
-#  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -g -fPIC -DUNIX -Wall #-Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= /usr/bin/mpiCC
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+  CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
-  MPIFLAGS	= $(CCFLAGS)
+  MPIFLAGS	= $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
 endif
 endif
 
-VAR             = -DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=512 #\
-		  #-DOP_BLOCK_SIZE_0=128 -DOP_BLOCK_SIZE_1=128 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=128 -DOP_BLOCK_SIZE_4=512
 
 
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -use_fast_math
-#NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
+NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O0
 
+VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
+		#-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 \
+		#-DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
 #
 # partitioning software for MPI versions

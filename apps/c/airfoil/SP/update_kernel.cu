@@ -109,8 +109,8 @@ void op_par_loop_update(char const *name, op_set set,
   #ifdef OP_BLOCK_SIZE_4
     int nthread = OP_BLOCK_SIZE_4;
   #else
-    // int nthread = OP_block_size;
-    int nthread = 128;
+    int nthread = OP_block_size;
+    //int nthread = 128;
   #endif
 
   int nblocks = 200;

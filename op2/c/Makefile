@@ -27,10 +27,9 @@ CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
 
 ifeq ($(OP2_COMPILER),gnu)
   CC 		= gcc
-  CCFLAGS	= -g -std=c99 -fPIC -DUNIX -Wall
+  CCFLAGS	= -std=c99 -fPIC -DUNIX -Wall #-g
   CPP		= g++
-  CPPFLAGS	= -g -fPIC -DUNIX -Wall
-#  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -fPIC -DUNIX -Wall #-g -Wextra
   MPICPP	= /usr/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
@@ -47,7 +46,7 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
@@ -61,19 +60,19 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
-MPI_HOME = $(MPI_INSTALL_PATH)
 
 
 .PHONY: clean
 
-all: clean core mpi_seq mpi_cuda #seq openmp cuda hdf5
+all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda
 
 core: $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/core/op_lib_core.o
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/externlib/op_util.o
 
 hdf5: $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(MPICPP) $(CPPFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c $(HDF5_LIB) -o $(OBJ)/externlib/op_hdf5.o
+	$(MPICPP) $(CPPFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+	$(HDF5_LIB) -o $(OBJ)/externlib/op_hdf5.o
 
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/externlib/op_hdf5.o $(OBJ)/externlib/op_util.o
 
@@ -152,7 +151,7 @@ mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/mpi/op_mpi_hdf5.o $(OBJ)/externlib/op_util.o
-	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_HOME)/include \
+	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_INSTALL_PATH)/include \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
 	-o $(OBJ)/mpi/op_mpi_cuda_kernels.o
 

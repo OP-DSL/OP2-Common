@@ -22,15 +22,15 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -g -fPIC -DUNIX -Wall
-#  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -g -fPIC -DUNIX -Wall #-Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= /usr/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -parallel #-g #-DCOMM_PERF #-DDEBUG
+  CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
@@ -43,9 +43,12 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-#NVCCFLAGS	= -arch=sm_21 -Xptxas=-v -use_fast_math
-NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O3
-#NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
+
+NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O0
+
+VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
+		#-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 \
+		#-DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
 
 #
@@ -63,7 +66,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
-MPI_HOME = $(MPI_INSTALL_PATH)
+
 
 #
 # master to make all versions
