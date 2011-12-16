@@ -112,8 +112,8 @@ void op_par_loop_update(char const *name, op_set set,
   #ifdef OP_BLOCK_SIZE_4                                              
     int nthread = OP_BLOCK_SIZE_4;                                    
   #else                                                               
-    // int nthread = OP_block_size;                                   
-    int nthread = 128;                                                
+    int nthread = OP_block_size;                                   
+    //int nthread = 128;                                                
   #endif                                                              
                                                                       
   int nblocks = 200;                                                  
@@ -170,6 +170,7 @@ void op_par_loop_update(char const *name, op_set set,
   for (int b=0; b<maxblocks; b++)                                     
     for (int d=0; d<1; d++)                                           
       arg4h[d] = arg4h[d] + ((double *)arg4.data)[d+b*1];             
+  
   //printf("%f\n",((double *)arg4.data)[0]);         
   
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW

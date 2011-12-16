@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O2 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g #-DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
@@ -44,7 +44,7 @@ endif
 # set flags for NVCC compilation and linking
 #
 #NVCCFLAGS	= -arch=sm_21 -Xptxas=-v -use_fast_math
-NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -use_fast_math
+NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O3
 #NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 
 
@@ -63,7 +63,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
 
-MPI_INC = -I$(MPI_INSTALL_PATH)/include
+MPI_HOME = $(MPI_INSTALL_PATH)
 
 #
 # master to make all versions
@@ -89,7 +89,7 @@ airfoil_mpi_kernels_cu.o:	airfoil_mpi_kernels.cu      \
 		  bres_calc_mpi_kernel.cu  bres_calc.h \
 		  update_mpi_kernel.cu     update.h    \
 		  Makefile
-		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) $(MPI_INC) \
+		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
 		  -c -o airfoil_mpi_kernels_cu.o airfoil_mpi_kernels.cu
 		    	
 

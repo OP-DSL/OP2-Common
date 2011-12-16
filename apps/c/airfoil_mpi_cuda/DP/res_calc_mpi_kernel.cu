@@ -130,12 +130,12 @@ __global__ void op_cuda_res_calc(
                                                                         
     // store local variables                                            
                                                                         
-    int arg6_map;
-    int arg7_map;
-    if (col2>=0){
-    	arg6_map = arg6_maps[n+offset_b];                               
- 	arg7_map = arg7_maps[n+offset_b];
-    }                             
+	int arg6_map;
+	int arg7_map;
+	if (col2>=0){
+		arg6_map = arg6_maps[n+offset_b];                               
+ 		arg7_map = arg7_maps[n+offset_b];
+	}
                                                                         
     for (int col=0; col<ncolor; col++) {                                
       if (col2==col) {                                                  
@@ -185,7 +185,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       	  {
       	      if (OP_diags==1) reset_halo(args[i]);
       	      sent[i] = exchange_halo_cuda(args[i]); 
-      	      if(sent[i] == 1)wait_all_cuda(args[i]);
+//      	      if(sent[i] == 1)wait_all_cuda(args[i]);
       	  }
       }
   }
@@ -196,23 +196,42 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }                                                                     
                                                                         
   // get plan                                                           
-                                                                        
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;              
+  int block_offset;  
+  op_plan *Plan;
+  
   #ifdef OP_PART_SIZE_2                                                 
     int part_size = OP_PART_SIZE_2;                                     
   #else                                                                 
     int part_size = OP_part_size;                                       
   #endif                                                                
                                                                         
-  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+  //get offsets
+  int core_len = core_num[set->index];
+  int noncore_len = set->size + OP_import_exec_list[set->index]->size - core_len;
+
+  //process core set
+  if (core_len>0) {
+  if (OP_latency_sets[set->index].core_set == NULL) {
+	op_set core_set = (op_set)malloc(sizeof(op_set_core));
+	core_set->index = set->index;
+	core_set->name = set->name;
+	core_set->size = core_len;
+	core_set->exec_size = 0;
+	core_set->nonexec_size = 0;
+	OP_latency_sets[set->index].core_set = core_set;
+  }
+  Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,
+      0,part_size,nargs,args,ninds,inds);
                                                                         
   // initialise timers                                                  
                                                                         
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;                              
+                             
   op_timers(&cpu_t1, &wall_t1);                                         
                                                                         
   // execute plan                                                       
                                                                         
-  int block_offset = 0;                                                 
+  block_offset = 0;                                                 
                                                                         
   for (int col=0; col < Plan->ncolors; col++) {                         
                                                                         
@@ -250,8 +269,88 @@ void op_par_loop_res_calc(char const *name, op_set set,
     cutilCheckMsg("op_cuda_res_calc execution failed\n");               
                                                                         
     block_offset += nblocks;                                            
-  }                                                                     
-                      
+  }   
+                                                                  
+  op_timers(&cpu_t2, &wall_t2);                                              
+  OP_kernels[1].time     += wall_t2 - wall_t1;
+  }
+	if(ninds > 0) //indirect loop
+	  {
+	      for(int i = 0; i<nargs; i++)
+	      {
+	      	  if(args[i].argtype == OP_ARG_DAT)
+	      	  {
+	      	      if(sent[i] == 1)wait_all_cuda(args[i]);
+	      	  }
+	      }
+	  }
+
+  op_timers(&cpu_t1, &wall_t1);                                              
+
+  if (noncore_len>0) {
+  	if (OP_latency_sets[set->index].noncore_set == NULL) {
+		op_set noncore_set = (op_set)malloc(sizeof (op_set_core));
+		noncore_set->size = noncore_len;
+		noncore_set->name = set->name;
+		noncore_set->index = set->index;
+		noncore_set->exec_size = 0;
+		noncore_set->nonexec_size = 0;
+		OP_latency_sets[set->index].noncore_set = noncore_set;
+	  }
+	   Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,
+	       part_size,nargs,args,ninds,inds);
+
+	  // initialise timers                                                  
+
+	  double cpu_t1, cpu_t2, wall_t1, wall_t2;                              
+	  op_timers(&cpu_t1, &wall_t1);                                         
+
+	  // execute plan                                                       
+
+	  block_offset = 0;
+	  
+	  for (int col=0; col < Plan->ncolors; col++) {                         
+
+	  /*#ifdef OP_BLOCK_SIZE_2                                                
+	    int nthread = OP_BLOCK_SIZE_2;                                      
+	  #else                                                                 
+	    int nthread = OP_block_size;                                        
+	  #endif*/                                                                
+	  int nthread = 128;
+	  
+	    int nblocks = Plan->ncolblk[col];                                   
+	    int nshared = Plan->nshared;                                        
+	    op_cuda_res_calc<<<nblocks,nthread,nshared>>>(                      
+	       (double *)arg0.data_d, Plan->ind_maps[0],                        
+	       (double *)arg2.data_d, Plan->ind_maps[1],                        
+	       (double *)arg4.data_d, Plan->ind_maps[2],                        
+	       (double *)arg6.data_d, Plan->ind_maps[3],                        
+	       Plan->loc_maps[0],                                               
+	       Plan->loc_maps[1],                                               
+	       Plan->loc_maps[2],                                               
+	       Plan->loc_maps[3],                                               
+	       Plan->loc_maps[4],                                               
+	       Plan->loc_maps[5],                                               
+	       Plan->loc_maps[6],                                               
+	       Plan->loc_maps[7],                                               
+	       Plan->ind_sizes,                                                 
+	       Plan->ind_offs,                                                  
+	       block_offset,                                                    
+	       Plan->blkmap,                                                    
+	       Plan->offset,                                                    
+	       Plan->nelems,                                                    
+	       Plan->nthrcol,                                                   
+	       Plan->thrcol);                                                   
+
+	    cutilSafeCall(cudaThreadSynchronize());                             
+	    cutilCheckMsg("op_cuda_res_calc execution failed\n");               
+
+	    block_offset += nblocks;                                            
+	  }
+	op_timers(&cpu_t2, &wall_t2);
+	OP_kernels[1].time     += wall_t2 - wall_t1;
+	}
+
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
       if(args[i].argtype == OP_ARG_DAT)
@@ -261,12 +360,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
   // - NONE
 
   
-  // update kernel record                                               
-  op_timers(&cpu_t2, &wall_t2);                                         
+  // update kernel record                                                                       
   op_timing_realloc(2);                                                 
   OP_kernels[2].name      = name;                                       
   OP_kernels[2].count    += 1;                                          
-  OP_kernels[2].time     += wall_t2 - wall_t1;                          
   OP_kernels[2].transfer  += Plan->transfer;                            
   OP_kernels[2].transfer2 += Plan->transfer2;                           
 }                                                                       

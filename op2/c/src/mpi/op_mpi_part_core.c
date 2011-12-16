@@ -515,8 +515,11 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     }
     
     //copy pi_list.list and part_list_i to to_elems and parts
-    to_elems = (int *)xrealloc(to_elems, sizeof(int)*(count+pi_list->size));
-    parts = (int *)xrealloc(parts, sizeof(int)*(count+pi_list->size));
+    if(count+pi_list->size > 0)
+    {
+    	to_elems = (int *)xrealloc(to_elems, sizeof(int)*(count+pi_list->size));
+    	parts = (int *)xrealloc(parts, sizeof(int)*(count+pi_list->size));
+    }
     
     memcpy(&to_elems[count],(void *)&pi_list->list[0],pi_list->size*sizeof(int));
     memcpy(&parts[count],(void *)&part_list_i[0],pi_list->size*sizeof(int));
@@ -528,12 +531,12 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     
     //sort both to_elems[] and correspondingly parts[] arrays
     if(count > 0)quickSort_2(to_elems, parts, 0, count-1);
-    /* */
+
     int* found_parts;
     for(int i = 0; i<count;)
     {
     	int curr = to_elems[i];
-    	int c = -1; int cap = map->dim;
+    	int c = 0; int cap = map->dim;
     	found_parts = (int *)xmalloc(sizeof(int)*cap);   
     	
     	do{
@@ -544,25 +547,16 @@ int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
     	    }
     	    found_parts[c++] =  parts[i];
     	    i++;
+    	    if(i>=count) break;
     	} while(curr == to_elems[i]);
     	
-    	/*while(curr == to_elems[i])
-    	{
-    	    if(c>cap)
-    	    {
-    	    	cap = cap*2;
-    	    	found_parts = (int *)xrealloc(found_parts, sizeof(int)*cap);
-    	    }
-    	    found_parts[c++] =  parts[i];
-    	    i++;    	    
-    	}*/
-
-	
 	partition[curr] = find_mode(found_parts, c);
 	free(found_parts);
     }  
-    /* */
-    free(to_elems);free(parts);
+
+    if(count+pi_list->size > 0)
+    {	free(to_elems);free(parts);
+    }
     
     //check if this "from" set is an "on to" set 
     //need to check this globally on all processors
@@ -2875,7 +2869,7 @@ void op_partition_ptscotch(op_map primary_map)
     int* adj_cap = (int *)xmalloc(primary_map->to->size*sizeof(int ));
     
     for(int i = 0; i<primary_map->to->size; i++)adj_i[i] = 0;
-    for(int i = 0; i<primary_map->to->size; i++)adj_cap[i] = 4;//primary_map->dim;
+    for(int i = 0; i<primary_map->to->size; i++)adj_cap[i] = primary_map->dim;
     for(int i = 0; i<primary_map->to->size; i++)adj[i] = NULL;
     for(int i = 0; i<primary_map->to->size; i++)adj[i] = (int *)xmalloc(adj_cap[i]*sizeof(int));
     //for(int i = 0; i<primary_map->to->size; i++)adj[i] = (int *)calloc(adj_cap[i], sizeof(int));

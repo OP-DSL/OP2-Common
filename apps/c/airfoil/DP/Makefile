@@ -43,9 +43,9 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-#NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=128 -DOP_BLOCK_SIZE_2=128 -DOP_BLOCK_SIZE_3=128 -DOP_BLOCK_SIZE_4=512 -DOP_PART_SIZE_1=256 -DOP_PART_SIZE_2=128 -DOP_PART_SIZE_3=64 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -DOP_BLOCK_SIZE_0=256 -DOP_BLOCK_SIZE_1=96 -DOP_BLOCK_SIZE_2=96 -DOP_BLOCK_SIZE_3=193 -DOP_BLOCK_SIZE_4=96 -DOP_PART_SIZE_1=192 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 
-VAR	= -DOP_PART_SIZE_1=192 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64
+ 
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math  
+VAR		= -DOP_PART_SIZE_1=192 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64
 
 #NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
 

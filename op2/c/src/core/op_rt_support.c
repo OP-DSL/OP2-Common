@@ -97,8 +97,11 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
 	int nblock = 0;
 	for ( int col = 0; col < OP_plan.ncolors; col++ )
-		nblock += OP_plan.ncolblk[col];
-
+	{
+	     nblock += OP_plan.ncolblk[col];		
+	}
+	
+	//printf("nblock here = %d\n",nblock);
 	/* 
 	 * check total size
 	 */
@@ -195,15 +198,15 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
 	err = 0;
 
+	
 	for ( int m = 0; m < ninds; m++ )
 	{
 		int m2 = 0;
 		while ( inds[m2] != m )
 			m2++;
-		//int set_size = OP_plan.maps[m2]->to->size;
 		
-		int halo_size = (OP_plan.maps[m2]->to)->exec_size + (OP_plan.maps[m2]->to)->nonexec_size; 
-		
+		int halo_size = (OP_plan.maps[m2]->to)->exec_size + 
+		(OP_plan.maps[m2]->to)->nonexec_size; 
 		int set_size = OP_plan.maps[m2]->to->size + halo_size;
 
 		ntot = 0;
@@ -234,6 +237,8 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 	 *check maps (most likely source of errors)
 	 */
 
+	
+	
 	err = 0;
 
 	for ( int m = 0; m < OP_plan.nargs; m++ )
@@ -270,7 +275,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 	/* 
 	 * check thread and block coloring
 	 */
-
+	
 	return;
 }
 
@@ -543,6 +548,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 				if ( inds[m] >= 0 )
 				    for ( int e = b * bsize; e < b * bsize + bs; e++ )
 				    	work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
+				    	//work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] = 0; /* zero out color array */
 			}
 
 			for ( int e = b * bsize; e < b * bsize + bs; e++ )
@@ -588,6 +594,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 	/* colour the blocks, after initialising colors to 0 */
 
 	int * blk_col;
+	
 	blk_col = ( int * ) malloc ( nblocks * sizeof ( int ) );
 	for ( int b = 0; b < nblocks; b++ )
 		blk_col[b] = -1;
@@ -614,7 +621,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 		{
 			if ( blk_col[b] == -1 )
 			{	// color not yet assigned to block 
-				int bs = MIN ( bsize, exec_length - b * bsize );
+				int bs = MIN( bsize, exec_length - b * bsize );
 				uint mask = 0;
 
 				for ( int m = 0; m < nargs; m++ )
@@ -625,7 +632,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 						    (set_offset + e) * maps[m]->dim]]; // set bits of mask
 				}
 
-				int color = ffs ( ~mask ) - 1;	// find first bit not set 
+				int color = ffs( ~mask ) - 1;	// find first bit not set 
 				if ( color == -1 )
 				{	//run out of colors on this pass 
 					repeat = 1;
@@ -634,7 +641,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 				{
 					blk_col[b] = ncolor + color;
 					mask = 1 << color;
-					ncolors = MAX ( ncolors, ncolor + color + 1 );
+					ncolors = MAX( ncolors, ncolor + color + 1 );
 
 					for ( int m = 0; m < nargs; m++ )
 					{
@@ -654,7 +661,12 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
 
 	OP_plans[ip].ncolors = ncolors;
-
+	
+	/*for(int col = 0; col = OP_plans[ip].ncolors;col++) //should initialize to zero because calloc returns garbage!!
+	{
+	    OP_plans[ip].ncolblk[col] = 0;
+	}*/
+	
 	for ( int b = 0; b < nblocks; b++ )
 		OP_plans[ip].ncolblk[blk_col[b]]++;	// number of blocks of each color 
 
@@ -677,8 +689,9 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 	}
 
 	for ( int c = ncolors - 1; c > 0; c-- )
-		OP_plans[ip].ncolblk[c] -= OP_plans[ip].ncolblk[c - 1];	/* undo cumsum */
+		OP_plans[ip].ncolblk[c] -= OP_plans[ip].ncolblk[c - 1];	// undo cumsum
 
+    
 	/* reorder blocks by color? */
 
 	/* work out shared memory requirements */
@@ -789,19 +802,19 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
 	if ( OP_diags > 1 )
 	{
-		printf ( " number of blocks       = %d \n", nblocks );
-		printf ( " number of block colors = %d \n", OP_plans[ip].ncolors );
-		printf ( " maximum block size     = %d \n", bsize );
-		printf ( " average thread colors  = %.2f \n", total_colors / nblocks );
-		printf ( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
-		printf ( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
-		printf ( " data transfer (used)   = %.2f MB \n",
+		printf( " number of blocks       = %d \n", nblocks );
+		printf( " number of block colors = %d \n", OP_plans[ip].ncolors );
+		printf( " maximum block size     = %d \n", bsize );
+		printf( " average thread colors  = %.2f \n", total_colors / nblocks );
+		printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
+		printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
+		printf( " data transfer (used)   = %.2f MB \n",
 						 OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
-		printf ( " data transfer (total)  = %.2f MB \n",
+		printf( " data transfer (total)  = %.2f MB \n",
 						 OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
-		printf ( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
+		printf( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
 	}
-
+	
 	/* validate plan info */
 
 	op_plan_check ( OP_plans[ip], ninds, inds );
