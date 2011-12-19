@@ -56,7 +56,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_cpp.h"
-#include "op_lib_cpp.h"
+#include "op_openmp_rt_support.h"
 
 //
 // op_par_loop declarations
@@ -112,6 +112,10 @@ void op_par_loop_update(char const *, op_set,
 // main program
 
 int main(int argc, char **argv){
+
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   double  *x, *q, *qold, *adt, *res;
@@ -236,8 +240,11 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
 
-// main time-marching loop
+  //initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
 
+
+// main time-marching loop
   niter = 1000;
 
   for(int iter=1; iter<=niter; iter++) {
@@ -301,8 +308,12 @@ int main(int argc, char **argv){
     if (iter%100 == 0)
       printf(" %d  %10.5e \n",iter,rms);
   }
+  op_timers(&cpu_t2, &wall_t2);
 
   op_timing_output();
+
+  time = wall_t2-wall_t1;
+  printf("Max total runtime = %f\n",time);
 
 
 }
