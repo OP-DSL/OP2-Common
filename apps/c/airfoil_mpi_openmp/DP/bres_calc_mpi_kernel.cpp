@@ -13,10 +13,10 @@
                                                                         
 void op_x86_bres_calc(                                                  
   int    blockIdx,                                                      
-  double *ind_arg0, int *ind_arg0_maps,                                  
-  double *ind_arg1, int *ind_arg1_maps,                                  
-  double *ind_arg2, int *ind_arg2_maps,                                  
-  double *ind_arg3, int *ind_arg3_maps,                                  
+  double *ind_arg0, int *ind_arg0_maps,                                 
+  double *ind_arg1, int *ind_arg1_maps,                                 
+  double *ind_arg2, int *ind_arg2_maps,                                 
+  double *ind_arg3, int *ind_arg3_maps,                                 
   short *arg0_maps,                                                     
   short *arg1_maps,                                                     
   short *arg2_maps,                                                     
@@ -32,20 +32,19 @@ void op_x86_bres_calc(
   int   *ncolors,                                                       
   int   *colors) {                                                      
                                                                         
-  double arg4_l[4];                                                      
+  double arg4_l[4];                                                     
                                                                         
-  int   *ind_arg0_map, ind_arg0_size;                        
-  int   *ind_arg1_map, ind_arg1_size;                        
-  int   *ind_arg2_map, ind_arg2_size;                        
-  int   *ind_arg3_map, ind_arg3_size;                        
-  double *ind_arg0_s;                                         
-  double *ind_arg1_s;                                         
-  double *ind_arg2_s;                                         
-  double *ind_arg3_s;                                         
-  int    nelems2, ncolor;                                    
-  int    nelem, offset_b;                                    
+  int   *ind_arg0_map, ind_arg0_size;                                   
+  int   *ind_arg1_map, ind_arg1_size;                                   
+  int   *ind_arg2_map, ind_arg2_size;                                   
+  int   *ind_arg3_map, ind_arg3_size;                                   
+  double *ind_arg0_s;                                                   
+  double *ind_arg1_s;                                                   
+  double *ind_arg2_s;                                                   
+  double *ind_arg3_s;                                                   
+  int    nelem, offset_b;                                               
                                                                         
-  char shared[64000];                                        
+  char shared[64000];                                                   
                                                                         
   if (0==0) {                                                           
                                                                         
@@ -54,9 +53,6 @@ void op_x86_bres_calc(
     int blockId = blkmap[blockIdx + block_offset];                      
     nelem    = nelems[blockId];                                         
     offset_b = offset[blockId];                                         
-                                                                        
-    nelems2  = nelem;                                                   
-    ncolor   = ncolors[blockId];                                        
                                                                         
     ind_arg0_size = ind_arg_sizes[0+blockId*4];                         
     ind_arg1_size = ind_arg_sizes[1+blockId*4];                         
@@ -71,16 +67,14 @@ void op_x86_bres_calc(
     // set shared memory pointers                                       
                                                                         
     int nbytes = 0;                                                     
-    ind_arg0_s = (double *) &shared[nbytes];                             
-    nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2);               
-    ind_arg1_s = (double *) &shared[nbytes];                             
-    nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4);               
-    ind_arg2_s = (double *) &shared[nbytes];                             
-    nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1);               
-    ind_arg3_s = (double *) &shared[nbytes];                             
+    ind_arg0_s = (double *) &shared[nbytes];                            
+    nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2);              
+    ind_arg1_s = (double *) &shared[nbytes];                            
+    nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4);              
+    ind_arg2_s = (double *) &shared[nbytes];                            
+    nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1);              
+    ind_arg3_s = (double *) &shared[nbytes];                            
   }                                                                     
-                                                                        
-  __syncthreads(); // make sure all of above completed                  
                                                                         
   // copy indirect datasets into shared memory or zero increment        
                                                                         
@@ -98,46 +92,33 @@ void op_x86_bres_calc(
                                                                         
   for (int n=0; n<ind_arg3_size; n++)                                   
     for (int d=0; d<4; d++)                                             
-      ind_arg3_s[d+n*4] = ZERO_double;                                   
+      ind_arg3_s[d+n*4] = ZERO_double;                                  
                                                                         
-  __syncthreads();                                                      
                                                                         
   // process set elements                                               
                                                                         
-  for (int n=0; n<nelems2; n++) {                                       
-    int col2 = -1;                                                      
+  for (int n=0; n<nelem; n++) {                                         
                                                                         
-    if (n<nelem) {                                                      
+    // initialise local variables                                       
                                                                         
-      // initialise local variables                                     
+    for (int d=0; d<4; d++)                                             
+      arg4_l[d] = ZERO_double;                                          
                                                                         
-      for (int d=0; d<4; d++)                                           
-        arg4_l[d] = ZERO_double;                                         
+    // user-supplied kernel call                                        
                                                                         
-      // user-supplied kernel call                                      
-                                                                        
-      bres_calc( ind_arg0_s+arg0_maps[n+offset_b]*2,                    
-                 ind_arg0_s+arg1_maps[n+offset_b]*2,                    
-                 ind_arg1_s+arg2_maps[n+offset_b]*4,                    
-                 ind_arg2_s+arg3_maps[n+offset_b]*1,                    
-                 arg4_l,                                                
-                 arg5+(n+offset_b)*1 );                                 
-                                                                        
-      col2 = colors[n+offset_b];                                        
-    }                                                                   
+    bres_calc( ind_arg0_s+arg0_maps[n+offset_b]*2,                      
+               ind_arg0_s+arg1_maps[n+offset_b]*2,                      
+               ind_arg1_s+arg2_maps[n+offset_b]*4,                      
+               ind_arg2_s+arg3_maps[n+offset_b]*1,                      
+               arg4_l,                                                  
+               arg5+(n+offset_b)*1 );                                   
                                                                         
     // store local variables                                            
                                                                         
     int arg4_map = arg4_maps[n+offset_b];                               
                                                                         
-    for (int col=0; col<ncolor; col++) {                                
-      if (col2==col) {                                                  
-        for (int d=0; d<4; d++)                                         
-          ind_arg3_s[d+arg4_map*4] += arg4_l[d];                        
-      }                                                                 
-      __syncthreads();                                                  
-    }                                                                   
-                                                                        
+    for (int d=0; d<4; d++)                                             
+      ind_arg3_s[d+arg4_map*4] += arg4_l[d];                            
   }                                                                     
                                                                         
   // apply pointered write/increment                                    
@@ -146,7 +127,7 @@ void op_x86_bres_calc(
     for (int d=0; d<4; d++)                                             
       ind_arg3[d+ind_arg3_map[n]*4] += ind_arg3_s[d+n*4];               
                                                                         
-}                                                                       
+}                                                                 
                                                                         
                                                                         
 // host stub function                                                   
