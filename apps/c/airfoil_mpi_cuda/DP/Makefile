@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -parallel #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -83,7 +83,7 @@ airfoil_mpi_cuda: airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
 		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		  $(HDF5_LIB) -lcudart -o airfoil_mpi_cuda
+		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
 airfoil_mpi_kernels_cu.o:	airfoil_mpi_kernels.cu      \
 		  save_soln_mpi_kernel.cu  save_soln.h \

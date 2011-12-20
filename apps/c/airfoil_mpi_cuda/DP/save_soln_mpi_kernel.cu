@@ -31,6 +31,7 @@ __global__ void op_cuda_save_soln(
 
     int offset = n - tid;
     int nelems = MIN(OP_WARPSIZE,set_size-offset);
+  if (threadIdx.x/OP_WARPSIZE == blockDim.x/OP_WARPSIZE) nelems = MIN(blockDim.x-OP_WARPSIZE*(blockDim.x/OP_WARPSIZE), nelems);
 
     // copy data into shared memory, then into local
 

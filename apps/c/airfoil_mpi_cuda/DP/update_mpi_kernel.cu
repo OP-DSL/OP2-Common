@@ -37,7 +37,7 @@ __global__ void op_cuda_update(
 
     int offset = n - tid;
     int nelems = MIN(OP_WARPSIZE,set_size-offset);
-
+  if (threadIdx.x/OP_WARPSIZE == blockDim.x/OP_WARPSIZE) nelems = MIN(blockDim.x-OP_WARPSIZE*(blockDim.x/OP_WARPSIZE), nelems);
     // copy data into shared memory, then into local
 
     for (int m=0; m<4; m++)

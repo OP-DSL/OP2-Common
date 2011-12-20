@@ -46,7 +46,6 @@ void op_x86_res_calc(
   double *ind_arg1_s;
   double *ind_arg2_s;
   double *ind_arg3_s;
-  int    nelems2, ncolor;
   int    nelem, offset_b;
 
   char shared[64000];
@@ -58,9 +57,6 @@ void op_x86_res_calc(
     int blockId = blkmap[blockIdx + block_offset];
     nelem    = nelems[blockId];
     offset_b = offset[blockId];
-
-    nelems2  = nelem;
-    ncolor   = ncolors[blockId];
 
     ind_arg0_size = ind_arg_sizes[0+blockId*4];
     ind_arg1_size = ind_arg_sizes[1+blockId*4];
@@ -84,8 +80,6 @@ void op_x86_res_calc(
     ind_arg3_s = (double *) &shared[nbytes];
   }
 
-  __syncthreads(); // make sure all of above completed
-
   // copy indirect datasets into shared memory or zero increment
 
   for (int n=0; n<ind_arg0_size; n++)
@@ -104,53 +98,43 @@ void op_x86_res_calc(
     for (int d=0; d<4; d++)
       ind_arg3_s[d+n*4] = ZERO_double;
 
-  __syncthreads();
 
   // process set elements
 
-  for (int n=0; n<nelems2; n++) {
-    int col2 = -1;
+  for (int n=0; n<nelem; n++) {
 
-    if (n<nelem) {
+    // initialise local variables
 
-      // initialise local variables
+    for (int d=0; d<4; d++)
+      arg6_l[d] = ZERO_double;
+    for (int d=0; d<4; d++)
+      arg7_l[d] = ZERO_double;
 
-      for (int d=0; d<4; d++)
-        arg6_l[d] = ZERO_double;
-      for (int d=0; d<4; d++)
-        arg7_l[d] = ZERO_double;
+    // user-supplied kernel call
 
-      // user-supplied kernel call
-
-      res_calc( ind_arg0_s+arg0_maps[n+offset_b]*2,
-                ind_arg0_s+arg1_maps[n+offset_b]*2,
-                ind_arg1_s+arg2_maps[n+offset_b]*4,
-                ind_arg1_s+arg3_maps[n+offset_b]*4,
-                ind_arg2_s+arg4_maps[n+offset_b]*1,
-                ind_arg2_s+arg5_maps[n+offset_b]*1,
-                arg6_l,
-                arg7_l );
-
-      col2 = colors[n+offset_b];
-    }
+    res_calc( ind_arg0_s+arg0_maps[n+offset_b]*2,
+              ind_arg0_s+arg1_maps[n+offset_b]*2,
+              ind_arg1_s+arg2_maps[n+offset_b]*4,
+              ind_arg1_s+arg3_maps[n+offset_b]*4,
+              ind_arg2_s+arg4_maps[n+offset_b]*1,
+              ind_arg2_s+arg5_maps[n+offset_b]*1,
+              arg6_l,
+              arg7_l );
 
     // store local variables
 
     int arg6_map = arg6_maps[n+offset_b];
     int arg7_map = arg7_maps[n+offset_b];
 
-    for (int col=0; col<ncolor; col++) {
-      if (col2==col) {
-        for (int d=0; d<4; d++)
-          ind_arg3_s[d+arg6_map*4] += arg6_l[d];
-        for (int d=0; d<4; d++)
-          ind_arg3_s[d+arg7_map*4] += arg7_l[d];
-      }
-      __syncthreads();
-    }
+    for (int d=0; d<4; d++)
+      ind_arg3_s[d+arg6_map*4] += arg6_l[d];
+
+    for (int d=0; d<4; d++)
+      ind_arg3_s[d+arg7_map*4] += arg7_l[d];
   }
 
   // apply pointered write/increment
+
   for (int n=0; n<ind_arg3_size; n++)
     for (int d=0; d<4; d++)
       ind_arg3[d+ind_arg3_map[n]*4] += ind_arg3_s[d+n*4];
