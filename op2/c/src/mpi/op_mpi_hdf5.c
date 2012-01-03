@@ -291,7 +291,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
 
   /*find element size of this dat with available attributes*/
-  int dat_size = 0;
+  size_t dat_size = 0;
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   //get OID of the attribute
@@ -374,7 +374,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(double))
     {
-      printf("dat.size %d in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -387,7 +387,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(float))
     {
-      printf("dat.size %d in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -400,7 +400,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(int))
     {
-      printf("dat.size %d in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
