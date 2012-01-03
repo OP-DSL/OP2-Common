@@ -295,6 +295,9 @@ int main(int argc, char **argv){
 
     /**------------------------END I/O  -----------------------**/
     
+    /* FIXME: It's not clear to the compiler that sth. is going on behind the
+       scenes here. Hence theses variables are reported as unused */
+
     op_set nodes  = op_decl_set(nnode,  "nodes");
     op_set edges  = op_decl_set(nedge,  "edges");
     op_set bedges = op_decl_set(nbedge, "bedges");
