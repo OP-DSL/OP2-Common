@@ -41,6 +41,9 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size, int ele
     
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)
 {
@@ -54,6 +57,7 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_no
 	    arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d+exp_exec_list->size*arg.dat->size);
 }
 
-
-	
+#ifdef __cplusplus
+}
+#endif
 
