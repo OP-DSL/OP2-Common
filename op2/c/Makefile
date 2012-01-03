@@ -130,7 +130,7 @@ mpi_seq:$(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o
 	
-mpi_cuda:$(SRC)/cuda/op_cuda_decl.c $(SRC)/mpi/op_mpi_part_core.c \
+mpi_cuda:$(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
 	$(OBJ)/core/op_lib_core.o
 
