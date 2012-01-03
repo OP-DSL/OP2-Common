@@ -363,7 +363,6 @@ int exchange_halo_cuda(op_arg arg)
 	}
 	
 	
-	int set_elem_index;
 	gather_data_to_buffer(arg, exp_exec_list, exp_nonexec_list);
 	
 	cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_exec, 

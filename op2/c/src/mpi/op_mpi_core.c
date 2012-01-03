@@ -2447,7 +2447,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	    dat->size*count);
     
     	int l_size = count;
-    	int elem_size = dat->dim;
+    	size_t elem_size = dat->dim;
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
@@ -2510,7 +2510,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	    dat->size*count);
     
     	int l_size = count;
-    	int elem_size = dat->dim;
+    	size_t elem_size = dat->dim;
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
@@ -2573,7 +2573,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     	    dat->size*count);
     
     	int l_size = count;
-    	int elem_size = dat->dim;
+    	size_t elem_size = dat->dim;
     	int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     	int* displs = (int *) xmalloc(comm_size*sizeof(int));
     	int disp = 0;
