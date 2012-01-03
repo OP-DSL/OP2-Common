@@ -71,11 +71,9 @@ float alpha;
 int main(int argc, char **argv)
 {
   int   nnode, nedge, n, e;
-  float dx;
 
   nnode = (NN-1)*(NN-1);
   nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
-  dx    = 1.0f / ((float) NN);
 
   int    *pp = (int *)malloc(sizeof(int)*2*nedge);
 

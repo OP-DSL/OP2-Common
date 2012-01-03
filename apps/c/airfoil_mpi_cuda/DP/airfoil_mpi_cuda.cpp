@@ -1,31 +1,31 @@
 /*
-  Open source copyright declaration based on BSD open source template:
-  http://www.opensource.org/licenses/bsd-license.php
-
-* Copyright (c) 2009-2011, Mike Giles
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*     * Redistributions of source code must retain the above copyright
-*       notice, this list of conditions and the following disclaimer.
-*     * Redistributions in binary form must reproduce the above copyright
-*       notice, this list of conditions and the following disclaimer in the
-*       documentation and/or other materials provided with the distribution.
-*     * The name of Mike Giles may not be used to endorse or promote products
-*       derived from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Open source copyright declaration based on BSD open source template:
+ * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * Copyright (c) 2009-2011, Mike Giles
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 //
 //     Nonlinear airfoil lift calculation
@@ -118,6 +118,7 @@ void op_par_loop_update(char const *, op_set,
                         op_arg,
                         op_arg );
 
+
 //
 //user declared functions
 //
@@ -183,6 +184,13 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   free(displs);
 }
 
+void check_scan(int items_received, int items_expected) {
+  if(items_received != items_expected) {
+    printf("error reading from new_grid.dat\n");
+    exit(-1);
+  }
+}
+
 //
 // main program
 //
@@ -220,16 +228,14 @@ int main(int argc, char **argv)
 
   int   g_nnode,g_ncell,g_nedge,g_nbedge;
 
-  if (fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge) != 4) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
-  }
+  check_scan(fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge), 4);
 
-  int *g_becell, *g_ecell, *g_bound, *g_bedge, *g_edge, *g_cell;
-  double *g_x,*g_q, *g_qold, *g_adt, *g_res;
+  int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0, *g_cell = 0;
+  double *g_x = 0, *g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
 
   // set constants
 
-  if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+  if(my_rank == MPI_ROOT) printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -267,22 +273,22 @@ int main(int argc, char **argv)
     g_adt      = (double *) malloc(  g_ncell*sizeof(double));
 
     for (int n=0; n<g_nnode; n++){
-      fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]);
+      check_scan(fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]), 2);
     }
 
     for (int n=0; n<g_ncell; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
-          &g_cell[4*n+2], &g_cell[4*n+3]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
+            &g_cell[4*n+2], &g_cell[4*n+3]), 4);
     }
 
     for (int n=0; n<g_nedge; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_edge[2*n],&g_edge[2*n+1],
-          &g_ecell[2*n],&g_ecell[2*n+1]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_edge[2*n],&g_edge[2*n+1],
+            &g_ecell[2*n],&g_ecell[2*n+1]), 4);
     }
 
     for (int n=0; n<g_nbedge; n++) {
-      fscanf(fp,"%d %d %d %d \n",&g_bedge[2*n],&g_bedge[2*n+1],
-          &g_becell[n],&g_bound[n]);
+      check_scan(fscanf(fp,"%d %d %d %d \n",&g_bedge[2*n],&g_bedge[2*n+1],
+            &g_becell[n],&g_bound[n]), 4);
     }
 
     //initialise flow field and residual
@@ -344,7 +350,11 @@ int main(int argc, char **argv)
     free(g_bedge);
     free(g_becell);
     free(g_bound);
-    free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
+    free(g_x );
+    free(g_q);
+    free(g_qold);
+    free(g_adt);
+    free(g_res);
   }
   op_timers(&cpu_t2, &wall_t2);
   time = wall_t2-wall_t1;

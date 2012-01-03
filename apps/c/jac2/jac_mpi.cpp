@@ -188,11 +188,10 @@ int main(int argc, char **argv)
 
   /**------------------------BEGIN I/O and PARTITIONING ---------------------**/
 
-  int g_nnode, g_nedge, g_dx, g_n, g_e;
+  int g_nnode, g_nedge, g_n, g_e;
 
   g_nnode = (NN-1)*(NN-1);
   g_nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
-  g_dx    = 1.0f / ((float) NN);
 
   int *g_pp = 0;
   float *g_r = 0, *g_u = 0, *g_du = 0;
