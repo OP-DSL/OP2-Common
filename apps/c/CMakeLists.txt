@@ -28,6 +28,7 @@ if(OP2_FOUND)
     airfoil/DP
     airfoil/SP
     airfoil_hdf5/DP
+    airfoil_mpi_cuda/DP
     airfoil_mpi_openmp/DP
     jac1/DP
     jac1/SP
