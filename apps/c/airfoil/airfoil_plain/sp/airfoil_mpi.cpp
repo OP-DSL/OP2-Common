@@ -369,32 +369,26 @@ int main(int argc, char **argv)
     for(int k=0; k<2; k++) {
 
       //    calculate area/timstep
+
       op_par_loop(adt_calc,"adt_calc",cells,
-          op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
-          op_arg_dat(p_x,   1,pcell, 2,"float",OP_READ ),
-          op_arg_dat(p_x,   2,pcell, 2,"float",OP_READ ),
-          op_arg_dat(p_x,   3,pcell, 2,"float",OP_READ ),
-          op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
-          op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
+                  op_arg_dat(p_x,  -4,pcell, 2,"float",OP_READ ),
+                  op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
+                  op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
 
       //    calculate flux residual
+
       op_par_loop(res_calc,"res_calc",edges,
-          op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
-          op_arg_dat(p_x,    1,pedge, 2,"float",OP_READ),
-          op_arg_dat(p_q,    0,pecell,4,"float",OP_READ),
-          op_arg_dat(p_q,    1,pecell,4,"float",OP_READ),
-          op_arg_dat(p_adt,  0,pecell,1,"float",OP_READ),
-          op_arg_dat(p_adt,  1,pecell,1,"float",OP_READ),
-          op_arg_dat(p_res,  0,pecell,4,"float",OP_INC ),
-          op_arg_dat(p_res,  1,pecell,4,"float",OP_INC ));
+                  op_arg_dat(p_x,   -2,pedge, 2,"float",OP_READ),
+                  op_arg_dat(p_q,   -2,pecell,4,"float",OP_READ),
+                  op_arg_dat(p_adt, -2,pecell,1,"float",OP_READ),
+                  op_arg_dat(p_res, -2,pecell,4,"float",OP_INC ));
 
       op_par_loop(bres_calc,"bres_calc",bedges,
-          op_arg_dat(p_x,     0,pbedge, 2,"float",OP_READ),
-          op_arg_dat(p_x,     1,pbedge, 2,"float",OP_READ),
-          op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
-          op_arg_dat(p_adt,   0,pbecell,1,"float",OP_READ),
-          op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
-          op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
+                  op_arg_dat(p_x,    -2,pbedge, 2,"float",OP_READ),
+                  op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
+                  op_arg_dat(p_adt,   0,pbecell,1,"float",OP_READ),
+                  op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
+                  op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
 
       //    update flow field
 
