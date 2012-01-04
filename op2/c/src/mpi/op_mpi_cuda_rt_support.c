@@ -325,9 +325,6 @@ mvReductArraysToHost ( int reduct_bytes )
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-extern void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
-    halo_list exp_nonexec_list);
-
 int exchange_halo_cuda(op_arg arg)
 {
   op_dat dat = arg.dat;

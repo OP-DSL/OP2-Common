@@ -62,5 +62,16 @@ extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** Gather halo data in buffer on the device **/
+void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* __OP_LIB_MPI_H */
 

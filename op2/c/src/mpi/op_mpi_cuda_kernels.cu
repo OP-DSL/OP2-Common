@@ -29,7 +29,6 @@
 
 #include <op_lib_mpi.h>
 
-
 __global__ void export_halo_gather(int* list, char * dat, int copy_size, int elem_size, char * export_buffer)
 {
     int id = blockIdx.x*blockDim.x+threadIdx.x;
@@ -40,10 +39,6 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size, int ele
     }
 
 }
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)
 {
@@ -56,8 +51,4 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_no
     export_halo_gather<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index],
       arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d+exp_exec_list->size*arg.dat->size);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
