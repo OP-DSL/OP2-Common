@@ -36,7 +36,10 @@ if(OP2_FOUND)
     )
 
   # Add each OP2 app directory
-  foreach (app_dir ${OP2_APPS})
-    add_subdirectory(${app_dir})
+  foreach (APP_DIR ${OP2_APPS})
+    option(OP2_WITH_${APP_DIR} "Build the ${APP_DIR} apps" ON)
+    if(OP2_WITH_${APP_DIR})
+      add_subdirectory(${APP_DIR})
+    endif()
   endforeach()
 endif()
