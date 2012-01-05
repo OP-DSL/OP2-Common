@@ -58,6 +58,8 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_cpp.h"
 #include "op_seq.h"
 
+#include "op_rt_support.h" //only included for the timer
+
 //
 // op_par_loop declarations
 //
@@ -118,6 +120,9 @@ int main(int argc, char **argv){
 
   int    nnode,ncell,nedge,nbedge,niter;
   float  rms;
+
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in grid
 
@@ -236,6 +241,9 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
 
+//initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
+
 // main time-marching loop
 
   niter = 1000;
@@ -302,6 +310,8 @@ int main(int argc, char **argv){
       printf(" %d  %10.5e \n",iter,rms);
   }
 
+  op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
+  printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 }
 
