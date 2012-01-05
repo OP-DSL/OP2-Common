@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-g -DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -43,13 +43,11 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -use_fast_math #-g -G -O0
+ 
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 
-VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
-		#-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 \
-		#-DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
-		
-		
+VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 -DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
+
 #
 # partitioning software for MPI versions
 #
@@ -104,7 +102,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 		bres_calc_kernel.cu bres_calc.h \
 		update_kernel.cu    update.h    \
                 Makefile
-		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) \
 		-c -o airfoil_kernels_cu.o \
 		airfoil_kernels.cu
 
