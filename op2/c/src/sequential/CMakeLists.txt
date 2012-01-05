@@ -32,8 +32,9 @@
 # Sequential library
 if(OP2_WITH_MATRICES)
   include_directories(${PETSC_INCLUDE_DIRS})
+  set(COMMON_SRC ${COMMON_SRC} ../core/op_dummy_singlenode.c)
 endif()
-add_library(op2_seq ${COMMON_SRC} ${RT_SRC} op_seq.c op_mat_seq.cpp ../core/op_dummy_singlenode.c)
+add_library(op2_seq ${COMMON_SRC} ${RT_SRC} op_seq.c op_mat_seq.cpp)
 if(OP2_WITH_MATRICES)
   target_link_libraries(op2_seq ${PETSC_LIBRARIES})
 endif()
