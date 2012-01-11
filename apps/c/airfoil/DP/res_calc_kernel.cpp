@@ -45,7 +45,7 @@ void op_x86_res_calc(
   double *ind_arg3_s;
   int    nelem, offset_b;
 
-  char shared[64000];
+  char shared[128000];// 64000];  //this size should not be staticly fixed
 
   if (0==0) {
 
