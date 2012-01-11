@@ -25,7 +25,8 @@ __global__ void op_cuda_adt_calc(
   int   *offset,                                                        
   int   *nelems,                                                        
   int   *ncolors,                                                       
-  int   *colors) {                                                      
+  int   *colors,
+  int    nblocks) {
                                                                         
                                                                         
   __shared__ int   *ind_arg0_map, ind_arg0_size;                        
@@ -34,11 +35,13 @@ __global__ void op_cuda_adt_calc(
                                                                         
   extern __shared__ char shared[];                                      
                                                                         
+  if (blockIdx.x+blockIdx.y*gridDim.x >= nblocks) return;                                                                 
+
   if (threadIdx.x==0) {                                                 
                                                                         
     // get sizes and shift pointers and direct-mapped data              
                                                                         
-    int blockId = blkmap[blockIdx.x + block_offset];                    
+    int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];                  
                                                                         
     nelem    = nelems[blockId];                                         
     offset_b = offset[blockId];                                         
@@ -127,7 +130,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     int nthread = OP_block_size;                                        
   #endif                                                                
                                                                         
-    int nblocks = Plan->ncolblk[col];                                   
+    dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col], Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
     int nshared = Plan->nshared;                                        
     op_cuda_adt_calc<<<nblocks,nthread,nshared>>>(                      
        (double *)arg0.data_d, Plan->ind_maps[0],                        
@@ -144,12 +147,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
        Plan->offset,                                                    
        Plan->nelems,                                                    
        Plan->nthrcol,                                                   
-       Plan->thrcol);                                                   
+       Plan->thrcol,
+	   Plan->ncolblk[col]);                                             
                                                                         
     cutilSafeCall(cudaThreadSynchronize());                             
     cutilCheckMsg("op_cuda_adt_calc execution failed\n");               
                                                                         
-    block_offset += nblocks;                                            
+    block_offset += Plan->ncolblk[col];                      
   }                                                                     
                                                                         
   // update kernel record                                               
