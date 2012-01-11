@@ -32,7 +32,7 @@ void op_x86_adt_calc(
   double *ind_arg0_s;                                                   
   int    nelem, offset_b;                                               
                                                                         
-  char shared[64000];                                                   
+  char shared[128000];//64000];                                                   
                                                                         
   if (0==0) {                                                           
                                                                         
