@@ -55,15 +55,11 @@ void op_x86_adt_calc(
     ind_arg0_s = (double *) &shared[nbytes];
   }
 
-  __syncthreads(); // make sure all of above completed
-
   // copy indirect datasets into shared memory or zero increment
 
   for (int n=0; n<ind_arg0_size; n++)
     for (int d=0; d<2; d++)
       ind_arg0_s[d+n*2] = ind_arg0[d+ind_arg0_map[n]*2];
-
-  __syncthreads();
 
   // process set elements
 
@@ -99,7 +95,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   int    inds[6] = {0,0,0,0,-1,-1};
 
   int sent[6] = {0,0,0,0,0,0};
-
   if(ninds > 0) //indirect loop
   {
       for(int i = 0; i<nargs; i++)
@@ -107,8 +102,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
           if(args[i].argtype == OP_ARG_DAT)
           {
               if (OP_diags==1) reset_halo(args[i]);
-              sent[0] = exchange_halo(args[i]);
-              if(sent[0] == 1)wait_all(args[i]);
+              sent[i] = exchange_halo(args[i]);
+              //if(sent[i] == 1) wait_all(args[i]);
           }
       }
   }
@@ -116,6 +111,10 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: adt_calc \n");
   }
+
+  int block_offset = 0;
+  op_plan *Plan;
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // get plan
 
@@ -126,22 +125,36 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   #endif
 
 
-  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+  //get offsets
+  int core_len = core_num[set->index];
+  int noncore_len = set->size + OP_import_exec_list[set->index]->size- core_len;
 
-  // initialise timers
+  //process core set
+  if (core_len>0) {
+      if (OP_latency_sets[set->index].core_set == NULL) {
+      op_set core_set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+      core_set->index = set->index;
+      core_set->name = set->name;
+      core_set->exec_size = 0;
+      core_set->nonexec_size = 0;
+      core_set->size = core_len;
+      OP_latency_sets[set->index].core_set = core_set;
+      }
+      Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,0,
+          part_size,nargs,args,ninds,inds);
 
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+    // initialise timers
+      op_timers(&cpu_t1, &wall_t1);
 
-  // set number of threads
+      // set number of threads
 
-#ifdef _OPENMP
-  int nthreads = omp_get_max_threads( );
-#else
-  int nthreads = 1;
-#endif
+      #ifdef _OPENMP
+      int nthreads = omp_get_max_threads( );
+      #else
+      int nthreads = 1;
+      #endif
 
-  // execute plan
+      // execute plan
 
   int block_offset = 0;
 
@@ -169,7 +182,79 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
     block_offset += nblocks;
   }
+  op_timers(&cpu_t2, &wall_t2);
+    OP_kernels[1].time     += wall_t2 - wall_t1;
+    OP_kernels[1].transfer  += Plan->transfer;
+    OP_kernels[1].transfer2 += Plan->transfer2;
+  }
 
+  if(ninds > 0) //indirect loop
+  {
+      for(int i = 0; i<nargs; i++)
+      {
+          if(args[i].argtype == OP_ARG_DAT)
+          {
+              if(sent[i] == 1)wait_all(args[i]);
+          }
+      }
+  }
+
+  if (noncore_len > 0) {
+
+    if(OP_latency_sets[set->index].noncore_set == NULL)
+    {
+        op_set noncore_set = (op_set)malloc(sizeof(op_set_core));
+        noncore_set->index = set->index;
+        noncore_set->name = set->name;
+        noncore_set->exec_size = 0;
+        noncore_set->nonexec_size = 0;
+        noncore_set->size = noncore_len;
+        OP_latency_sets[set->index].noncore_set = noncore_set;
+    }
+
+    Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,
+        part_size,nargs,args,ninds,inds);
+
+    op_timers(&cpu_t1, &wall_t1);
+    // set number of threads
+  #ifdef _OPENMP
+      int nthreads = omp_get_max_threads( );
+  #else
+      int nthreads = 1;
+  #endif
+
+    // execute plan
+    block_offset = 0;
+
+    for (int col=0; col < Plan->ncolors; col++) {
+        int nblocks = Plan->ncolblk[col];
+
+        #pragma omp parallel for
+        for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
+        op_x86_adt_calc( blockIdx,
+          (double *)arg0.data, Plan->ind_maps[0],
+          Plan->loc_maps[0],
+          Plan->loc_maps[1],
+          Plan->loc_maps[2],
+          Plan->loc_maps[3],
+          (double *)arg4.data + core_len*arg4.dim,
+          (double *)arg5.data + core_len*arg5.dim,
+          Plan->ind_sizes,
+          Plan->ind_offs,
+          block_offset,
+          Plan->blkmap,
+          Plan->offset,
+          Plan->nelems,
+          Plan->nthrcol,
+          Plan->thrcol);
+
+        block_offset += nblocks;
+    }
+  op_timers(&cpu_t2, &wall_t2);
+  OP_kernels[1].time     += wall_t2 - wall_t1;
+  OP_kernels[1].transfer  += Plan->transfer;
+    OP_kernels[1].transfer2 += Plan->transfer2;
+  }
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
@@ -181,13 +266,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
 
   // update kernel record
-
-  op_timers(&cpu_t2, &wall_t2);
   op_timing_realloc(1);
   OP_kernels[1].name      = name;
   OP_kernels[1].count    += 1;
-  OP_kernels[1].time     += wall_t2 - wall_t1;
-  OP_kernels[1].transfer  += Plan->transfer;
-  OP_kernels[1].transfer2 += Plan->transfer2;
 }
 

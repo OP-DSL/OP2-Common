@@ -154,8 +154,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
           if(args[i].argtype == OP_ARG_DAT)
           {
               if (OP_diags==1) reset_halo(args[i]);
-              sent[0] = exchange_halo(args[i]);
-              if(sent[0] == 1)wait_all(args[i]);
+              sent[i] = exchange_halo(args[i]);
+              //if(sent[i] == 1)wait_all(args[i]);
           }
       }
   }
@@ -172,12 +172,10 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     int part_size = OP_part_size;
   #endif
 
-  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
-
-  // initialise timers
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_plan *Plan;
+  int block_offset;
 
   // set number of threads
 
@@ -187,37 +185,129 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   int nthreads = 1;
 #endif
 
-  // execute plan
+  //get offsets
+  int core_len = core_num[set->index];
+  int noncore_len = set->size + OP_import_exec_list[set->index]->size - core_len;
 
-  int block_offset = 0;
+  if(core_len >0){
+  //process core set
+    if (OP_latency_sets[set->index].core_set == NULL) {
+        op_set core_set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+        core_set->index = set->index;
+        core_set->name = set->name;
+        core_set->size = core_len;
+        core_set->exec_size = 0;
+        core_set->nonexec_size = 0;
+        OP_latency_sets[set->index].core_set = core_set;
+    }
 
-  for (int col=0; col < Plan->ncolors; col++) {
-    int nblocks = Plan->ncolblk[col];
+    Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,0,part_size,nargs,args,ninds,inds);
 
-#pragma omp parallel for
-    for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
-     op_x86_bres_calc( blockIdx,
-       (double *)arg0.data, Plan->ind_maps[0],
-       (double *)arg2.data, Plan->ind_maps[1],
-       (double *)arg3.data, Plan->ind_maps[2],
-       (double *)arg4.data, Plan->ind_maps[3],
-       Plan->loc_maps[0],
-       Plan->loc_maps[1],
-       Plan->loc_maps[2],
-       Plan->loc_maps[3],
-       Plan->loc_maps[4],
-       (int *)arg5.data,
-       Plan->ind_sizes,
-       Plan->ind_offs,
-       block_offset,
-       Plan->blkmap,
-       Plan->offset,
-       Plan->nelems,
-       Plan->nthrcol,
-       Plan->thrcol);
+    // initialise timers
 
-    block_offset += nblocks;
+
+    op_timers(&cpu_t1, &wall_t1);
+
+    // execute plan
+
+    block_offset = 0;
+
+    for (int col=0; col < Plan->ncolors; col++) {
+        int nblocks = Plan->ncolblk[col];
+
+        #pragma omp parallel for
+        for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
+        op_x86_bres_calc( blockIdx,
+          (double *)arg0.data, Plan->ind_maps[0],
+          (double *)arg2.data, Plan->ind_maps[1],
+          (double *)arg3.data, Plan->ind_maps[2],
+          (double *)arg4.data, Plan->ind_maps[3],
+          Plan->loc_maps[0],
+          Plan->loc_maps[1],
+          Plan->loc_maps[2],
+          Plan->loc_maps[3],
+          Plan->loc_maps[4],
+          (int *)arg5.data,
+          Plan->ind_sizes,
+          Plan->ind_offs,
+          block_offset,
+          Plan->blkmap,
+          Plan->offset,
+          Plan->nelems,
+          Plan->nthrcol,
+          Plan->thrcol);
+
+        block_offset += nblocks;
+    }
+  op_timers(&cpu_t2, &wall_t2);
+    OP_kernels[3].time     += wall_t2 - wall_t1;
+    OP_kernels[3].transfer  += Plan->transfer;
+    OP_kernels[3].transfer2 += Plan->transfer2;
   }
+
+  if(ninds > 0) //indirect loop
+  {
+      for(int i = 0; i<nargs; i++)
+      {
+          if(args[i].argtype == OP_ARG_DAT)
+          {
+              if(sent[i] == 1)wait_all(args[i]);
+          }
+      }
+  }
+
+  if (noncore_len>0) {
+    if (OP_latency_sets[set->index].noncore_set == NULL) {
+    op_set noncore_set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+    noncore_set->size = noncore_len;
+    noncore_set->name = set->name;
+    noncore_set->index = set->index;
+    noncore_set->exec_size = 0;
+    noncore_set->nonexec_size = 0;
+    OP_latency_sets[set->index].noncore_set = noncore_set;
+    }
+     Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,part_size,nargs,args,ninds,inds);
+
+  // initialise timers
+    op_timers(&cpu_t1, &wall_t1);
+     // execute plan
+
+    block_offset = 0;
+
+    for (int col=0; col < Plan->ncolors; col++) {
+        int nblocks = Plan->ncolblk[col];
+
+        #pragma omp parallel for
+        for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
+        op_x86_bres_calc( blockIdx,
+          (double *)arg0.data, Plan->ind_maps[0],
+          (double *)arg2.data, Plan->ind_maps[1],
+          (double *)arg3.data, Plan->ind_maps[2],
+          (double *)arg4.data, Plan->ind_maps[3],
+          Plan->loc_maps[0],
+          Plan->loc_maps[1],
+          Plan->loc_maps[2],
+          Plan->loc_maps[3],
+          Plan->loc_maps[4],
+          (int *)arg5.data + core_len*arg5.dim,
+          Plan->ind_sizes,
+          Plan->ind_offs,
+          block_offset,
+          Plan->blkmap,
+          Plan->offset,
+          Plan->nelems,
+          Plan->nthrcol,
+          Plan->thrcol);
+
+        block_offset += nblocks;
+    }
+  op_timers(&cpu_t2, &wall_t2);
+    OP_kernels[3].time     += wall_t2 - wall_t1;
+    OP_kernels[3].transfer  += Plan->transfer;
+    OP_kernels[3].transfer2 += Plan->transfer2;
+
+  }
+
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
@@ -229,13 +319,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
 
   // update kernel record
-
-  op_timers(&cpu_t2, &wall_t2);
   op_timing_realloc(3);
   OP_kernels[3].name      = name;
   OP_kernels[3].count    += 1;
-  OP_kernels[3].time     += wall_t2 - wall_t1;
-  OP_kernels[3].transfer  += Plan->transfer;
-  OP_kernels[3].transfer2 += Plan->transfer2;
 }
 

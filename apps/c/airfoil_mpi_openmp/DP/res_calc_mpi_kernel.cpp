@@ -48,7 +48,7 @@ void op_x86_res_calc(
   double *ind_arg3_s;
   int    nelem, offset_b;
 
-  char shared[64000];
+  char shared[128000];
 
   if (0==0) {
 
@@ -169,7 +169,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
           {
               if (OP_diags==1) reset_halo(args[i]);
               sent[i] = exchange_halo(args[i]);
-              if(sent[i] == 1)wait_all(args[i]);
+              //if(sent[i] == 1)wait_all(args[i]);
           }
       }
   }
@@ -179,6 +179,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
   // get plan
+  int block_offset;
+  op_plan *Plan;
 
   #ifdef OP_PART_SIZE_2
     int part_size = OP_PART_SIZE_2;
@@ -186,53 +188,144 @@ void op_par_loop_res_calc(char const *name, op_set set,
     int part_size = OP_part_size;
   #endif
 
-  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
-
-  // initialise timers
+  //get offsets
+  int core_len = core_num[set->index];
+  int noncore_len = set->size + OP_import_exec_list[set->index]->size - core_len;
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
 
-  // set number of threads
+  //process core set
+  if (core_len>0) {
+      if (OP_latency_sets[set->index].core_set == NULL) {
+  op_set core_set = (op_set)malloc(sizeof(op_set_core));
+  core_set->index = set->index;
+  core_set->name = set->name;
+  core_set->size = core_len;
+  core_set->exec_size = 0;
+  core_set->nonexec_size = 0;
+  OP_latency_sets[set->index].core_set = core_set;
+      }
+      Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,
+          0,part_size,nargs,args,ninds,inds);
 
-#ifdef _OPENMP
-  int nthreads = omp_get_max_threads( );
-#else
-  int nthreads = 1;
-#endif
+    op_timers(&cpu_t1, &wall_t1);
 
-  // execute plan
-  int block_offset = 0;
+      // set number of threads
+      #ifdef _OPENMP
+        int nthreads = omp_get_max_threads( );
+      #else
+        int nthreads = 1;
+      #endif
 
-  for (int col=0; col < Plan->ncolors; col++) {
-    int nblocks = Plan->ncolblk[col];
+      // execute plan
+      int block_offset = 0;
 
-#pragma omp parallel for
-    for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
-     op_x86_res_calc( blockIdx,
-       (double *)arg0.data, Plan->ind_maps[0],
-       (double *)arg2.data, Plan->ind_maps[1],
-       (double *)arg4.data, Plan->ind_maps[2],
-       (double *)arg6.data, Plan->ind_maps[3],
-       Plan->loc_maps[0],
-       Plan->loc_maps[1],
-       Plan->loc_maps[2],
-       Plan->loc_maps[3],
-       Plan->loc_maps[4],
-       Plan->loc_maps[5],
-       Plan->loc_maps[6],
-       Plan->loc_maps[7],
-       Plan->ind_sizes,
-       Plan->ind_offs,
-       block_offset,
-       Plan->blkmap,
-       Plan->offset,
-       Plan->nelems,
-       Plan->nthrcol,
-       Plan->thrcol);
+      for(int col=0; col < Plan->ncolors; col++) {
+          int nblocks = Plan->ncolblk[col];
 
-    block_offset += nblocks;
+          #pragma omp parallel for
+          for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
+          op_x86_res_calc( blockIdx,
+              (double *)arg0.data, Plan->ind_maps[0],
+              (double *)arg2.data, Plan->ind_maps[1],
+              (double *)arg4.data, Plan->ind_maps[2],
+              (double *)arg6.data, Plan->ind_maps[3],
+              Plan->loc_maps[0],
+              Plan->loc_maps[1],
+              Plan->loc_maps[2],
+              Plan->loc_maps[3],
+      Plan->loc_maps[4],
+      Plan->loc_maps[5],
+      Plan->loc_maps[6],
+      Plan->loc_maps[7],
+      Plan->ind_sizes,
+      Plan->ind_offs,
+      block_offset,
+      Plan->blkmap,
+      Plan->offset,
+      Plan->nelems,
+      Plan->nthrcol,
+      Plan->thrcol);
+
+      block_offset += nblocks;
+      }
+  op_timers(&cpu_t2, &wall_t2);
+    OP_kernels[2].time     += wall_t2 - wall_t1;
+    OP_kernels[2].transfer  += Plan->transfer;
+    OP_kernels[2].transfer2 += Plan->transfer2;
   }
+
+  if(ninds > 0) //indirect loop
+  {
+      for(int i = 0; i<nargs; i++)
+      {
+          if(args[i].argtype == OP_ARG_DAT)
+          {
+              if(sent[i] == 1)wait_all(args[i]);
+          }
+      }
+  }
+
+  if (noncore_len>0) {
+    if (OP_latency_sets[set->index].noncore_set == NULL) {
+    op_set noncore_set = (op_set)malloc(sizeof (op_set_core));
+    noncore_set->size = noncore_len;
+    noncore_set->name = set->name;
+    noncore_set->index = set->index;
+    noncore_set->exec_size = 0;
+    noncore_set->nonexec_size = 0;
+    OP_latency_sets[set->index].noncore_set = noncore_set;
+    }
+     Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,
+         part_size,nargs,args,ninds,inds);
+
+     op_timers(&cpu_t1, &wall_t1);
+
+     // set number of threads
+     #ifdef _OPENMP
+      int nthreads = omp_get_max_threads( );
+     #else
+      int nthreads = 1;
+     #endif
+
+     // execute plan
+     int block_offset = 0;
+
+     for (int col=0; col < Plan->ncolors; col++) {
+         int nblocks = Plan->ncolblk[col];
+
+         #pragma omp parallel for
+         for (int blockIdx=0; blockIdx<nblocks; blockIdx++)
+         op_x86_res_calc( blockIdx,
+             (double *)arg0.data, Plan->ind_maps[0],
+             (double *)arg2.data, Plan->ind_maps[1],
+             (double *)arg4.data, Plan->ind_maps[2],
+             (double *)arg6.data, Plan->ind_maps[3],
+             Plan->loc_maps[0],
+             Plan->loc_maps[1],
+             Plan->loc_maps[2],
+             Plan->loc_maps[3],
+             Plan->loc_maps[4],
+             Plan->loc_maps[5],
+             Plan->loc_maps[6],
+             Plan->loc_maps[7],
+             Plan->ind_sizes,
+             Plan->ind_offs,
+             block_offset,
+             Plan->blkmap,
+             Plan->offset,
+             Plan->nelems,
+             Plan->nthrcol,
+             Plan->thrcol);
+
+         block_offset += nblocks;
+     }
+    op_timers(&cpu_t2, &wall_t2);
+      OP_kernels[2].time     += wall_t2 - wall_t1;
+      OP_kernels[2].transfer  += Plan->transfer;
+      OP_kernels[2].transfer2 += Plan->transfer2;
+    }
+
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
@@ -243,12 +336,9 @@ void op_par_loop_res_calc(char const *name, op_set set,
   // - NONE
 
   // update kernel record
-  op_timers(&cpu_t2, &wall_t2);
-  op_timing_realloc(2);
+
+  op_timing_realloc(3);
   OP_kernels[2].name      = name;
   OP_kernels[2].count    += 1;
-  OP_kernels[2].time     += wall_t2 - wall_t1;
-  OP_kernels[2].transfer  += Plan->transfer;
-  OP_kernels[2].transfer2 += Plan->transfer2;
 }
 
