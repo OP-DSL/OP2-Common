@@ -189,6 +189,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       
       op_timers(&cpu_t2, &wall_t2);
       OP_kernels[1].time     += wall_t2 - wall_t1;
+      OP_kernels[1].transfer  += Plan->transfer;                            
+	  OP_kernels[1].transfer2 += Plan->transfer2;
   }
   
   if(ninds > 0) //indirect loop
@@ -260,6 +262,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 	  }
 	op_timers(&cpu_t2, &wall_t2);
 	OP_kernels[1].time     += wall_t2 - wall_t1;
+	OP_kernels[1].transfer  += Plan->transfer;                            
+    OP_kernels[1].transfer2 += Plan->transfer2;
 	}
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
@@ -275,8 +279,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   
   op_timing_realloc(1);                                                 
   OP_kernels[1].name      = name;                                       
-  OP_kernels[1].count    += 1;                                                                  
-  OP_kernels[1].transfer  += Plan->transfer;                            
-  OP_kernels[1].transfer2 += Plan->transfer2;                           
+  OP_kernels[1].count    += 1;                                                                                          
 }                                                                       
                                                                         
