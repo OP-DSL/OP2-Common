@@ -126,13 +126,13 @@ int main(int argc, char **argv){
   op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double",file,"p_adt");
   op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
 
-  op_decl_const2("gam",1,"double",&gam  );
-  op_decl_const2("gm1",1,"double",&gm1  );
-  op_decl_const2("cfl",1,"double",&cfl  );
-  op_decl_const2("eps",1,"double",&eps  );
-  op_decl_const2("mach",1,"double",&mach );
-  op_decl_const2("alpha",1,"double",&alpha);
-  op_decl_const2("qinf",4,"double",qinf  );
+  op_decl_const(1,"double",&gam  );
+  op_decl_const(1,"double",&gm1  );
+  op_decl_const(1,"double",&cfl  );
+  op_decl_const(1,"double",&eps  );
+  op_decl_const(1,"double",&mach );
+  op_decl_const(1,"double",&alpha);
+  op_decl_const(4,"double",qinf  );
 
   op_diagnostic_output();
   
