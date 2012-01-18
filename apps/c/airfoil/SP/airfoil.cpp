@@ -258,6 +258,7 @@ int main(int argc, char **argv){
   }
 
   op_timing_output();
+  op_exit();
 
   
 }

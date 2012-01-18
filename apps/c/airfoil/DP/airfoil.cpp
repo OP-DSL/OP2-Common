@@ -269,6 +269,7 @@ int main(int argc, char **argv){
   op_timing_output();
   printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
+  op_exit();
   
 }
 
