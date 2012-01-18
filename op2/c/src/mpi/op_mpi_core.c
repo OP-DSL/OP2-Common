@@ -46,6 +46,7 @@
 #include <mpi.h>
 
 #include <op_mpi_core.h>
+#include <op_mpi_part_core.h>
 
 
 //
@@ -2210,8 +2211,14 @@ void op_mpi_exit()
     free(op_mpi_kernel_tab[n].tot_bytes);
   }
 #endif
-}
 
+  //free memory allocated to halos
+  op_halo_destroy();
+  //return all op_dats, op_maps back to original element order
+  op_partition_reverse();
+  //print each mpi process's timing info for each kernel
+  //op_mpi_timing_output();
+}
 
 /*******************************************************************************
 * Write a op_dat to a named ASCI file

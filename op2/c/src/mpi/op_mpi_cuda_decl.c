@@ -169,7 +169,8 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 void
 op_exit (  )
 {
-  op_cuda_exit (  );            // frees dat_d memory
-  op_rt_exit (  );              // frees plan memory
-  op_exit_core (  );            // frees lib core variables
+  op_mpi_exit();
+  op_cuda_exit();            // frees dat_d memory
+  op_rt_exit();              // frees plan memory
+  op_exit_core();            // frees lib core variables
 }

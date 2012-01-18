@@ -47,6 +47,7 @@
 //
 // mpi header file - included by user for user level mpi
 //
+
 #include <mpi.h>
 
 // global constants
@@ -60,127 +61,126 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_mpi.h"
 #include "op_lib_cpp.h"
 
-
 //
 //hdf5 header
 //
-#include "hdf5.h"
 
+#include "hdf5.h"
 
 //
 // kernel routines for parallel loops
 //
+
 #include "save_soln.h"
 #include "adt_calc.h"
 #include "res_calc.h"
 #include "bres_calc.h"
 #include "update.h"
 
-
 //
 // op_par_loop declarations
 //
 
 void op_par_loop_save_soln(char const *, op_set,
-  op_arg,
-  op_arg );
+                           op_arg,
+                           op_arg );
 
 void op_par_loop_adt_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg );
 
 void op_par_loop_res_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg,
+                          op_arg );
 
 void op_par_loop_bres_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+                           op_arg,
+                           op_arg,
+                           op_arg,
+                           op_arg,
+                           op_arg,
+                           op_arg );
 
 void op_par_loop_update(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
-
+                        op_arg,
+                        op_arg,
+                        op_arg,
+                        op_arg,
+                        op_arg );
 
 //
 //user declared functions
 //
+
 int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
-      int local_size = global_size/mpi_comm_size;
-      int remainder = (int)fmod(global_size,mpi_comm_size);
+  int local_size = global_size/mpi_comm_size;
+  int remainder = (int)fmod(global_size,mpi_comm_size);
 
-      if (mpi_rank < remainder)
-      {
-          local_size = local_size + 1;
+  if (mpi_rank < remainder)
+  {
+    local_size = local_size + 1;
 
-      }
-      return local_size;
+  }
+  return local_size;
 }
 
 void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
+                          int l_size, int elem_size)
 {
-      int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-      int* displs = (int *) malloc(comm_size*sizeof(int));
-      int disp = 0;
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
 
-      for(int i = 0; i<comm_size; i++)
-      {
-          sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
-      }
-      for(int i = 0; i<comm_size; i++)
-      {
-          displs[i] =   disp;
-          disp = disp + sendcnts[i];
-      }
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
 
-      MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
-          l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
+      l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
 
-      free(sendcnts);
-      free(displs);
+  free(sendcnts);
+  free(displs);
 }
 
 void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
+                       int l_size, int elem_size)
 {
-      int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-      int* displs = (int *) malloc(comm_size*sizeof(int));
-      int disp = 0;
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
 
-      for(int i = 0; i<comm_size; i++)
-      {
-          sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
-      }
-      for(int i = 0; i<comm_size; i++)
-      {
-          displs[i] =   disp;
-          disp = disp + sendcnts[i];
-      }
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
 
-      MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array,
-          l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD );
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array,
+      l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD );
 
-      free(sendcnts);
-      free(displs);
+  free(sendcnts);
+  free(displs);
 }
 
 void check_scan(int items_received, int items_expected) {
@@ -190,10 +190,10 @@ void check_scan(int items_received, int items_expected) {
   }
 }
 
-
 //
 // main program
 //
+
 int main(int argc, char **argv)
 {
   int my_rank;
@@ -478,12 +478,6 @@ int main(int argc, char **argv)
   //output the result dat array to files
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
-
-  //free memory allocated to halos
-  op_halo_destroy();
-
-  //return all op_dats, op_maps back to original element order
-  op_partition_reverse();
 
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();

@@ -67,7 +67,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 # master to make all versions
 #
 
-all: airfoil_mpi_openmp
+all: clean airfoil_mpi_openmp
 
 #
 # mpi with openmp-nodes version
