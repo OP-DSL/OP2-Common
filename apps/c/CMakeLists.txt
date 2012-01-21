@@ -25,3 +25,20 @@ if(OP2_FOUND)
     endif()
   endforeach()
 endif()
+
+# FIXME: Can CMake provide the library path name variable?
+if (APPLE)
+  set(OS_LIBRARY_PATH_NAME "DYLD_LIBRARY_PATH")
+else()
+  set(OS_LIBRARY_PATH_NAME "LD_LIBRARY_PATH")
+endif()
+
+if(CUDA_FOUND)
+  get_filename_component(CUDA_LIB_DIR ${CUDA_CUDART_LIBRARY} PATH CACHE)
+else()
+  set(CUDA_LIB_DIR '')
+endif()
+
+# Create the op2.conf configuration file
+set(OP2_DATA_DIR ${CMAKE_SOURCE_DIR}/../data)
+configure_file(${OP2_CMAKE_DIR}/op2.conf.in "${OP2_APPS_DIR}/op2.conf" @ONLY)
