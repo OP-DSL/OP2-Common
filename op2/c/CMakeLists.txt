@@ -133,7 +133,7 @@ set(INSTALLATION_CMAKE_DIR lib/CMake/op2 CACHE PATH
 # Make relative paths absolute (needed later on)
 foreach(p LIB BIN INCLUDE APPS CMAKE)
   set(var INSTALLATION_${p}_DIR)
-  if(NOT IS_ABSOLUTE "${${var}}")
+  if(${var} AND NOT IS_ABSOLUTE "${${var}}")
     set(${var} "${CMAKE_INSTALL_PREFIX}/${${var}}")
   endif()
 endforeach()
