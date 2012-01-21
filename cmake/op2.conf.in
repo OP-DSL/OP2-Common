@@ -1,0 +1,10 @@
+# - Environment for OP2
+# It defines the following variables
+#  @OS_LIBRARY_PATH_NAME@ - shared objects load path
+#
+# This file has been automatically generated.
+
+export @OS_LIBRARY_PATH_NAME@=@OP2_LIB_DIR@:@CUDA_LIB_DIR@:$@OS_LIBRARY_PATH_NAME@
+
+ln -sf @OP2_DATA_DIR@/new_grid.dat
+ln -sf @OP2_DATA_DIR@/new_grid.h5
