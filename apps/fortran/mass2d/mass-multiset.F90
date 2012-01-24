@@ -5,7 +5,7 @@ module mass
 contains
   subroutine mass_kernel(A, x, i, j, q)
     real, intent(out) :: A
-    real, dimension(2,2), intent(in) :: x
+    real, dimension(3,2), intent(in) :: x
     integer, intent(in) :: i, j, q
 
     real, dimension(2,2) :: J
@@ -13,10 +13,10 @@ contains
     real :: detJ
 
     ! Calculate Jacobian
-    double J(1,1) = x(1,0) - x(0,0)
-    double J(1,2) = x(2,0) - x(0,0)
-    double J(2,1) = x(1,1) - x(0,1)
-    double J(2,2) = x(2,1) - x(0,1)
+    double J(1,1) = x(2,1) - x(1,1)
+    double J(1,2) = x(3,1) - x(1,1)
+    double J(2,1) = x(2,2) - x(1,2)
+    double J(2,2) = x(3,2) - x(1,2)
 
     ! Calculate determinant of Jacobian
     detJ = J(1,1)*J(2,2) - J(1,2)*(2,1)
