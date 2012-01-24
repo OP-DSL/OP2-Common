@@ -53,6 +53,7 @@ set(OP2_AERO_APPS
   )
 set(OP2_MATRIX_APPS
   laplace1d
+  mass2d
   )
 
 include(common.cmake)
