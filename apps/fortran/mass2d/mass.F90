@@ -4,7 +4,7 @@ module mass
   real, parameter :: PI = 4 * atan(1.0d0)
 contains
   subroutine mass_kernel(A, x)
-    real, dimension(3,3), intent(out) :: A
+    real, dimension(3,3), intent(inout) :: A
     real, dimension(3,2), intent(in) :: x
 
     integer :: i, j, q
