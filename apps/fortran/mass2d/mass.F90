@@ -33,7 +33,7 @@ contains
     do i=1,3
       do j=1,3
         do q=1,3
-          A(i,j) += CG1(i,q) * CG1(j,q) * detJ * w(q);
+          A(i,j) = A(i,j) + CG1(i,q) * CG1(j,q) * detJ * w(q);
         end do
       end do
     end do
