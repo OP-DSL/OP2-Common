@@ -67,7 +67,13 @@ op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * da
  * names in the program
  */
 
-void op_decl_const_char ( int dim, char const * type, int typeSize, char * data, char const * name ) {}
+void op_decl_const_char ( int dim, char const * type, int typeSize, char * data, char const * name ) {
+  (void)dim;
+  (void)type;
+  (void)typeSize;
+  (void)data;
+  (void)name;
+}
 
 
 op_arg op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
@@ -82,7 +88,9 @@ op_arg op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
 }
 
 
-void op_fetch_data ( op_dat a ) {}
+void op_fetch_data ( op_dat a ) {
+  (void)a;
+}
 
 
 void op_exit ()

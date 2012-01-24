@@ -1,31 +1,31 @@
 /*
-  Open source copyright declaration based on BSD open source template:
-  http://www.opensource.org/licenses/bsd-license.php
+   Open source copyright declaration based on BSD open source template:
+http://www.opensource.org/licenses/bsd-license.php
 
-* Copyright (c) 2009, Mike Giles
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*     * Redistributions of source code must retain the above copyright
-*       notice, this list of conditions and the following disclaimer.
-*     * Redistributions in binary form must reproduce the above copyright
-*       notice, this list of conditions and the following disclaimer in the
-*       documentation and/or other materials provided with the distribution.
-*     * The name of Mike Giles may not be used to endorse or promote products
-*       derived from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Copyright (c) 2009, Mike Giles
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 
 /*
@@ -79,16 +79,16 @@ op_mpi_buffer *OP_mpi_buffer_list;
 
 
 /*array to holding the index of the final element
-that can be computed without halo exchanges for each set
+  that can be computed without halo exchanges for each set
 
-0 to core_num[set->index] - no halo exchange needed
-core_num[set->index] to n<set->size - halo exchange needed
-*/
+  0 to core_num[set->index] - no halo exchange needed
+  core_num[set->index] to n<set->size - halo exchange needed
+  */
 int *core_num;
 
 
 /*table holding MPI performance of each loop
-(accessed via a hash of loop name) */
+  (accessed via a hash of loop name) */
 op_mpi_kernel op_mpi_kernel_tab[HASHSIZE];
 
 //
@@ -105,8 +105,8 @@ int** orig_part_range = NULL;
 
 
 /*******************************************************************************
-* Routine to declare partition information for a given set
-*******************************************************************************/
+ * Routine to declare partition information for a given set
+ *******************************************************************************/
 
 void decl_partition(op_set set, int* g_index, int* partition)
 {
@@ -120,11 +120,12 @@ void decl_partition(op_set set, int* g_index, int* partition)
 }
 
 /*******************************************************************************
-* Routine to get partition range on all mpi ranks for all sets
-*******************************************************************************/
+ * Routine to get partition range on all mpi ranks for all sets
+ *******************************************************************************/
 
 void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
 {
+  (void)my_rank;
   for(int s=0; s<OP_set_index; s++) {
     op_set set=OP_set_list[s];
 
@@ -139,7 +140,7 @@ void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
       disp = disp + sizes[i] - 1;
       part_range[set->index][2*i+1] = disp;
       disp++;
-#if DEBUG
+#ifdef DEBUG
       if(my_rank == MPI_ROOT)
         printf("range of %10s in rank %d: %d-%d\n",set->name,i,
             part_range[set->index][2*i], part_range[set->index][2*i+1]);
@@ -150,9 +151,9 @@ void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
 }
 
 /*******************************************************************************
-* Routine to get partition (i.e. mpi rank) where global_index is located and
-* its local index
-*******************************************************************************/
+ * Routine to get partition (i.e. mpi rank) where global_index is located and
+ * its local index
+ *******************************************************************************/
 
 int get_partition(int global_index, int* part_range, int* local_index,
                   int comm_size)
@@ -170,14 +171,15 @@ int get_partition(int global_index, int* part_range, int* local_index,
 }
 
 /*******************************************************************************
-* Routine to convert a local index in to a global index
-*******************************************************************************/
+ * Routine to convert a local index in to a global index
+ *******************************************************************************/
 
 int get_global_index(int local_index, int partition, int* part_range,
                      int comm_size)
 {
+  (void)comm_size;
   int g_index = part_range[2*partition]+local_index;
-#if DEBUG
+#ifdef DEBUG
   if(g_index > part_range[2*(comm_size-1)+1])
     printf("Global index larger than set size\n");
 #endif
@@ -186,11 +188,11 @@ int get_global_index(int local_index, int partition, int* part_range,
 
 
 /*******************************************************************************
-* Routine to find the MPI neighbors given a halo list
-*******************************************************************************/
+ * Routine to find the MPI neighbors given a halo list
+ *******************************************************************************/
 
 void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
-  int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm)
+                        int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm)
 {
   int* temp = (int*)xmalloc(comm_size*sizeof(int));
   int* r_temp = (int*)xmalloc(comm_size*comm_size*sizeof(int));
@@ -225,17 +227,17 @@ void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
 }
 
 /*******************************************************************************
-* Routine to create a generic halo list
-* (used in both import and export list creation)
-*******************************************************************************/
+ * Routine to create a generic halo list
+ * (used in both import and export list creation)
+ *******************************************************************************/
 
 void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
     int* total, int* temp_list, int size, int comm_size, int my_rank)
 {
+  (void)my_rank;
   int index = 0;
   int total_size = 0;
   if(size < 0)printf("problem\n");
-
   //negative values set as an initialisation
   for(int r = 0;r<comm_size;r++)
   {
@@ -277,8 +279,8 @@ void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
 }
 
 /*******************************************************************************
-* Routine to create an export list
-*******************************************************************************/
+ * Routine to create an export list
+ *******************************************************************************/
 
 void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
     int comm_size, int my_rank)
@@ -305,13 +307,14 @@ void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
 }
 
 /*******************************************************************************
-* Routine to create an import list
-*******************************************************************************/
+ * Routine to create an import list
+ *******************************************************************************/
 
 void create_import_list(op_set set, int* temp_list, halo_list h_list,
                         int total_size, int* ranks, int* sizes, int ranks_size,
                         int comm_size, int my_rank)
 {
+  (void)my_rank;
   int* disps = (int *)xmalloc(comm_size*sizeof(int));
   disps[0] = 0;
   for(int i=0; i<ranks_size; i++)
@@ -329,30 +332,30 @@ void create_import_list(op_set set, int* temp_list, halo_list h_list,
 }
 
 /*******************************************************************************
-* Routine to create an nonexec-import list (only a wrapper)
-*******************************************************************************/
+ * Routine to create an nonexec-import list (only a wrapper)
+ *******************************************************************************/
 
-void create_nonexec_import_list(op_set set, int* temp_list, halo_list h_list,
-            int size, int comm_size, int my_rank)
+static void create_nonexec_import_list(op_set set, int* temp_list, halo_list h_list,
+                                       int size, int comm_size, int my_rank)
 {
   create_export_list(set, temp_list, h_list, size, comm_size, my_rank);
 }
 
 /*******************************************************************************
-* Routine to create an nonexec-export list (only a wrapper)
-*******************************************************************************/
+ * Routine to create an nonexec-export list (only a wrapper)
+ *******************************************************************************/
 
-void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_list,
-            int total_size, int* ranks, int* sizes,
-            int ranks_size, int comm_size, int my_rank)
+static void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_list,
+                                       int total_size, int* ranks, int* sizes,
+                                       int ranks_size, int comm_size, int my_rank)
 {
   create_import_list(set, temp_list, h_list, total_size, ranks, sizes,
       ranks_size, comm_size, my_rank);
 }
 
 /*******************************************************************************
-* Check if a given op_map is an on-to map from the from-set to the to_set
-*******************************************************************************/
+ * Check if a given op_map is an on-to map from the from-set to the to_set
+ *******************************************************************************/
 
 int is_onto_map(op_map map)
 {
@@ -506,8 +509,8 @@ int is_onto_map(op_map map)
 }
 
 /*******************************************************************************
-* Main MPI halo creation routine
-*******************************************************************************/
+ * Main MPI halo creation routine
+ *******************************************************************************/
 
 void op_halo_create()
 {
@@ -1531,8 +1534,8 @@ void op_halo_destroy()
 }
 
 /*******************************************************************************
-* Main MPI Halo Exchange Function
-*******************************************************************************/
+ * Main MPI Halo Exchange Function
+ *******************************************************************************/
 
 int exchange_halo(op_arg arg)
 {
@@ -1651,8 +1654,8 @@ int exchange_halo(op_arg arg)
 
 
 /*******************************************************************************
-* MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
-*******************************************************************************/
+ * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
+ *******************************************************************************/
 void wait_all(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1667,8 +1670,8 @@ void wait_all(op_arg arg)
 }
 
 /*******************************************************************************
-* Routine to set the dirty bit for an MPI Halo after halo exchange
-*******************************************************************************/
+ * Routine to set the dirty bit for an MPI Halo after halo exchange
+ *******************************************************************************/
 void set_dirtybit(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1678,8 +1681,8 @@ void set_dirtybit(op_arg arg)
 }
 
 /*******************************************************************************
-* MPI Global reduce of an op_arg
-*******************************************************************************/
+ * MPI Global reduce of an op_arg
+ *******************************************************************************/
 void global_reduce(op_arg *arg)
 {
   if(strcmp("double",arg->type)==0)
@@ -1751,8 +1754,8 @@ void global_reduce(op_arg *arg)
 }
 
 /*******************************************************************************
-* Routine to get a copy of the data held in a distributed op_dat
-*******************************************************************************/
+ * Routine to get a copy of the data held in a distributed op_dat
+ *******************************************************************************/
 
 op_dat op_mpi_get_data(op_dat dat)
 {
@@ -1988,11 +1991,12 @@ op_dat op_mpi_get_data(op_dat dat)
 }
 
 /*******************************************************************************
-* Routine to put (modify) a the data held in a distributed op_dat
-*******************************************************************************/
+ * Routine to put (modify) a the data held in a distributed op_dat
+ *******************************************************************************/
 
 void op_mpi_put_data(op_dat dat)
 {
+  (void)dat;
   //the op_dat in parameter list is modified
   //need the orig_part_range and OP_part_list
 
@@ -2003,8 +2007,8 @@ void op_mpi_put_data(op_dat dat)
 }
 
 /*******************************************************************************
-* Debug/Diagnostics Routine to initialise import halo data to NaN
-*******************************************************************************/
+ * Debug/Diagnostics Routine to initialise import halo data to NaN
+ *******************************************************************************/
 void reset_halo(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2030,8 +2034,8 @@ void reset_halo(op_arg arg)
 }
 
 /*******************************************************************************
-* Routine to output performance measures
-*******************************************************************************/
+ * Routine to output performance measures
+ *******************************************************************************/
 
 void op_mpi_timing_output()
 {
@@ -2045,7 +2049,7 @@ void op_mpi_timing_output()
   double tot_time;
   double avg_time;
 
-#if COMM_PERF
+#ifdef COMM_PERF
 
   printf("\n\n___________________________________\n");
   printf("Performance information on rank %d\n", my_rank);
@@ -2110,8 +2114,8 @@ void op_mpi_timing_output()
 }
 
 /*******************************************************************************
-* Routine to measure timing for an op_par_loop / kernel
-*******************************************************************************/
+ * Routine to measure timing for an op_par_loop / kernel
+ *******************************************************************************/
 
 int op_mpi_perf_time(const char* name, double time)
 {
@@ -2130,8 +2134,8 @@ int op_mpi_perf_time(const char* name, double time)
 }
 
 /*******************************************************************************
-* Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
-*******************************************************************************/
+ * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
+ *******************************************************************************/
 void op_mpi_perf_comm(int kernel_index, op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2198,13 +2202,13 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
 }
 
 /*******************************************************************************
-* Routine to exit an op2 mpi application -
-*******************************************************************************/
+ * Routine to exit an op2 mpi application -
+ *******************************************************************************/
 
 void op_mpi_exit()
 {
   //cleanup performance data - need to do this in some op_mpi_exit() routine
-#if COMM_PERF
+#ifdef COMM_PERF
   for (int n=0; n<HASHSIZE; n++) {
     free(op_mpi_kernel_tab[n].op_dat_indices);
     free(op_mpi_kernel_tab[n].tot_count);
@@ -2221,8 +2225,8 @@ void op_mpi_exit()
 }
 
 /*******************************************************************************
-* Write a op_dat to a named ASCI file
-*******************************************************************************/
+ * Write a op_dat to a named ASCI file
+ *******************************************************************************/
 
 void print_dat_tofile(op_dat dat, const char *file_name)
 {
@@ -2265,6 +2269,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
     if(rank==MPI_ROOT) g_array = (double *) xmalloc(elem_size*g_size*sizeof(double));
     MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
         displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
+
 
     if(rank==MPI_ROOT)
     {
@@ -2433,8 +2438,8 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 }
 
 /*******************************************************************************
-* Write a op_dat to a named Binary file
-*******************************************************************************/
+ * Write a op_dat to a named Binary file
+ *******************************************************************************/
 void print_dat_tobinfile(op_dat dat, const char *file_name)
 {
   //create new communicator for output
