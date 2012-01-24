@@ -88,7 +88,7 @@ program main
   ! Assemble matrix
   call op_par_loop(mass_kernel, (elements, 3, 3, 3) &
        op_arg(mat, op_i(1), elem_node, op_i(2), elem_node, op_i(3), OP_ID, OP_INC), &
-       op_arg(xn, 0, elem_node, OP_READ))
+       op_arg(xn, -3, elem_node, OP_READ))
 
   ! Tidy up
   deallocate(p_elem_node)
