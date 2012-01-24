@@ -144,6 +144,8 @@ void cutilDeviceInit ( int argc, char ** argv)
 //void cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
 void cutilDeviceInit( int argc, char ** argv)
 {
+  (void)argc;
+  (void)argv;
   int deviceCount;
   cutilSafeCall ( cudaGetDeviceCount ( &deviceCount ) );
   if ( deviceCount == 0 )

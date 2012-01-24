@@ -228,7 +228,11 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
 void
 op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
-
+  (void)dim;
+  (void)type;
+  (void)typeSize;
+  (void)data;
+  (void)name;
 }
 
 void
@@ -439,7 +443,7 @@ op_timing_output (  )
 		{
 			if ( OP_kernels[n].count > 0 )
 			{
-				if ( OP_kernels[n].transfer2 == 0.0f )
+				if ( OP_kernels[n].transfer2 < 1e-8f )
 					printf ( " %6d  %8.4f %8.4f            %s \n",
 									 OP_kernels[n].count,
 									 OP_kernels[n].time,
@@ -476,7 +480,7 @@ op_timing_output_2_file ( const char * outputFileName )
 		{
 			if ( OP_kernels[n].count > 0 )
 			{
-				if ( OP_kernels[n].transfer2 == 0.0f )
+				if ( OP_kernels[n].transfer2 < 1e-8f )
         {
           totalKernelTime += OP_kernels[n].time;
 					fprintf ( outputFile, " %6d  %8.4f %8.4f            %s \n",
