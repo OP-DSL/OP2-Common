@@ -4,7 +4,7 @@ module mass
   real, parameter :: PI = 4 * atan(1.0d0)
 contains
   subroutine mass_kernel(A, x, i, j, q)
-    real, intent(out) :: A
+    real, intent(inout) :: A
     real, dimension(3,2), intent(in) :: x
     integer, intent(in) :: i, j, q
 
@@ -30,7 +30,7 @@ contains
              (/ 0.166667, 0.166667, 0.666667 /) /)
 
     ! Local assembly
-    A += CG1(i,q) * CG1(j,q) * detJ * w(q);
+    A = A + CG1(i,q) * CG1(j,q) * detJ * w(q);
 
   end subroutine mass_kernel
 end module mass
