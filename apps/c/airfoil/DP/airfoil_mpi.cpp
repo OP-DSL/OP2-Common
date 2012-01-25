@@ -150,6 +150,29 @@ void check_scan(int items_received, int items_expected) {
   }
 }
 
+#ifndef OP2_PARTITION 
+
+    //partition with PTScotch
+    #ifdef PTSCOTCH
+    	//#define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping 
+    #else
+    	#define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch Support ...  reverting to trivial block partitioning** \n\n");
+    #endif
+    
+    //partition with ParMetis
+    #ifdef PARMETIS /** uncomment one below**/
+    	// #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
+    	// #define OP2_PARTITION op_partition_random(cells); //a set
+    	#define OP2_PARTITION op_partition_kway(pecell); //a mapping
+    	// #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
+    	// #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/    
+    #else
+    	#define OP2_PARTITION printf("\n **OP2 backend libraries built without ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+    #endif
+    
+
+#endif
+
 //
 // main program
 //
@@ -352,15 +375,10 @@ int main(int argc, char **argv){
 
     op_diagnostic_output();
 
-    //partition with ParMetis
-    //op_partition_geom(p_x);
-    //op_partition_random(cells);
-    //op_partition_kway(pecell);
-    //op_partition_geomkway(p_x, pcell);
-    //op_partition_meshkway(pcell);  //not working !!    
-    
-    //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
+    // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice, 
+    //or make -B yourChoice. No spaces!
+    OP2_PARTITION;
+
     
     //create halos
     op_halo_create();    
