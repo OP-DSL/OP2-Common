@@ -1,10 +1,10 @@
-void mass(float A[9], float *x)
+void mass(double A[9], double *x)
 {
     int i, j, q;
-    float J[2][2];
-    float detJ;
-    const float w[3]= {0.166667, 0.166667, 0.166667};
-    const float CG1[3][3] = {{0.666667, 0.166667, 0.166667},
+    double J[2][2];
+    double detJ;
+    const double w[3]= {0.166667, 0.166667, 0.166667};
+    const double CG1[3][3] = {{0.666667, 0.166667, 0.166667},
                              {0.166667, 0.666667, 0.166667},
                              {0.166667, 0.166667, 0.666667}};
 
