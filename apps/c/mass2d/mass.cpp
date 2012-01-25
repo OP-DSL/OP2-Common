@@ -40,11 +40,11 @@ int main(int argc, char **argv)
     op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
 
     op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
-    op_mat mat = op_decl_mat(sparsity, 3, "double", sizeof(double), "mat");
+    op_mat mat = op_decl_mat(sparsity, 1, "double", sizeof(double), "mat");
     op_dat xn = op_decl_dat(nodes, 2, "double", p_xn, "xn");
 
     op_par_loop(mass, "sum", elements,
-                op_arg_mat(mat, -3, elem_node, -3, elem_node, 3, "double", OP_INC),
+                op_arg_mat(mat, -3, elem_node, -3, elem_node, 1, "double", OP_INC),
                 op_arg_dat(xn, -3, elem_node, 2, "double", OP_READ));
 
     free(p_elem_node);
