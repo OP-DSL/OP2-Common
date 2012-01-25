@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "op_seq.h"
+#include "op_seq_mat.h"
 #include "op_lib_cpp.h"
 #include "mass.h"
 
@@ -11,9 +11,9 @@
 int main(int argc, char **argv)
 {
     int *p_elem_node;
-    float *p_xn;
+    double *p_xn;
     int i;
-    float val;
+    double val;
 
     op_init(argc, argv, 5);
 
@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     p_elem_node[4] = 3;
     p_elem_node[5] = 1;
 
-    p_xn = (float *)malloc(2 * NUM_NODES * sizeof(float));
+    p_xn = (double *)malloc(2 * NUM_NODES * sizeof(double));
     p_xn[0] = 0.f;
     p_xn[1] = 0.f;
     p_xn[2] = 1.f;
@@ -39,14 +39,13 @@ int main(int argc, char **argv)
     op_set elements = op_decl_set(NUM_ELE, "elements");
     op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
 
-    op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node);
-    op_mat mat = op_decl_mat(sparsity);
-    op_dat xn = op_decl_dat(nodes, 2, "float", p_xn, "xn");
+    op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
+    op_mat mat = op_decl_mat(sparsity, 3, "double", sizeof(double), "mat");
+    op_dat xn = op_decl_dat(nodes, 2, "double", p_xn, "xn");
 
-    op_zero(mat);
     op_par_loop(mass, "sum", elements,
-                op_arg_mat(mat, -3, elem_node, -3, elem_node, OP_INC),
-                op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ));
+                op_arg_mat(mat, -3, elem_node, -3, elem_node, 3, "double", OP_INC),
+                op_arg_dat(xn, -3, elem_node, 2, "double", OP_READ));
 
     free(p_elem_node);
     free(p_xn);
