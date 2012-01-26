@@ -26,14 +26,14 @@ int main(int argc, char **argv)
     p_elem_node[5] = 1;
 
     p_xn = (double *)malloc(2 * NUM_NODES * sizeof(double));
-    p_xn[0] = 0.f;
-    p_xn[1] = 0.f;
-    p_xn[2] = 1.f;
-    p_xn[3] = 0.f;
-    p_xn[4] = 1.f;
-    p_xn[5] = 1.f;
-    p_xn[6] = 0.f;
-    p_xn[7] = 1.f;
+    p_xn[0] = 0.0f;
+    p_xn[1] = 0.0f;
+    p_xn[2] = 2.0f;
+    p_xn[3] = 0.0f;
+    p_xn[4] = 1.0f;
+    p_xn[5] = 1.0f;
+    p_xn[6] = 0.0f;
+    p_xn[7] = 1.5f;
 
     op_set nodes = op_decl_set(NUM_NODES, "nodes");
     op_set elements = op_decl_set(NUM_ELE, "elements");
