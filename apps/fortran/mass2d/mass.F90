@@ -72,9 +72,9 @@ program main
 
   ! Create coordinates
   p_xn(1) = (/ 0.0, 0.0 /)
-  p_xn(2) = (/ 1.0, 0.0 /)
+  p_xn(2) = (/ 2.0, 0.0 /)
   p_xn(3) = (/ 1.0, 1.0 /)
-  p_xn(4) = (/ 0.0, 1.0 /)
+  p_xn(4) = (/ 0.0, 1.5 /)
 
   ! Initialise OP2 data structures
   call op_decl_set(num_nodes, nodes, "nodes")
