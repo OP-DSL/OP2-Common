@@ -56,13 +56,27 @@
  * run-time type-checking routines
  */
 
-inline int type_error (const double * a, const char *type ) { return strcmp ( type, "double" ); }
-inline int type_error (const float  * a, const char *type ) { return strcmp ( type, "float" ); }
-inline int type_error (const int    * a, const char *type ) { return strcmp ( type, "int"   ); }
-inline int type_error (const uint   * a, const char *type ) { return strcmp ( type, "uint"  ); }
-inline int type_error (const ll     * a, const char *type ) { return strcmp ( type, "ll"    ); }
-inline int type_error (const ull    * a, const char *type ) { return strcmp ( type, "ull"   ); }
-inline int type_error (const bool   * a, const char *type ) { return strcmp ( type, "bool"  ); }
+inline int type_error (const double * a, const char *type ) {
+  (void)a; return strcmp ( type, "double" );
+}
+inline int type_error (const float  * a, const char *type ) {
+  (void)a; return strcmp ( type, "float" );
+}
+inline int type_error (const int    * a, const char *type ) {
+  (void)a; return strcmp ( type, "int"   );
+}
+inline int type_error (const uint   * a, const char *type ) {
+  (void)a; return strcmp ( type, "uint"  );
+}
+inline int type_error (const ll     * a, const char *type ) {
+  (void)a; return strcmp ( type, "ll"    );
+}
+inline int type_error (const ull    * a, const char *type ) {
+  (void)a; return strcmp ( type, "ull"   );
+}
+inline int type_error (const bool   * a, const char *type ) {
+  (void)a; return strcmp ( type, "bool"  );
+}
 
 /*
  * add in user's datatypes
@@ -111,6 +125,21 @@ op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 
 template < class T >
 op_dat op_decl_dat ( op_set set, int dim, char const *type,
+					 T * data, char const * name );
+
+template < class T >
+void op_decl_const2 ( char const * name, int dim, char const *type, T * data );
+
+template < class T >
+void op_decl_const ( int dim, char const * type, T * data );
+
+template < class T >
+op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc );
+
+/* Implementation */
+
+template < class T >
+op_dat op_decl_dat ( op_set set, int dim, char const *type,
 					 T * data, char const * name )
 {
 
@@ -137,6 +166,7 @@ void op_decl_const2 ( char const * name, int dim, char const *type, T * data )
 template < class T >
 void op_decl_const ( int dim, char const * type, T * data )
 {
+  (void)dim;
   if ( type_error ( data, type ) )
   {
     printf ( "incorrect type specified for constant in op_decl_const" );

@@ -55,7 +55,7 @@
 #endif
 
 //parmetis header
-#if PARMETIS
+#ifdef PARMETIS
 #include <parmetis.h>
 #endif
 
@@ -1641,7 +1641,7 @@ void op_partition_reverse()
 
 
 
-#if PARMETIS
+#ifdef PARMETIS
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set 
  * Using its XYZ Geometry Data
