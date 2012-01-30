@@ -55,7 +55,7 @@
 #endif
 
 //parmetis header
-#if PARMETIS
+#ifdef PARMETIS
 #include <parmetis.h>
 #endif
 
@@ -1611,7 +1611,7 @@ void op_partition_reverse()
   if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);
 }
 
-#if PARMETIS
+#ifdef PARMETIS
 
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
