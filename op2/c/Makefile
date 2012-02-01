@@ -5,6 +5,7 @@
 # PARMETIS_INSTALL_PATH
 # PTSCOTCH_INSTALL_PATH
 # HDF5_INSTALL_PATH
+# MPI_INSTALL_PATH
 #
 # OP2_COMPILER (gnu,intel,etc)
 #
@@ -35,7 +36,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC 		= icc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -g -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
   CPP		= icpc
   CPPFLAGS	= $(CCFLAGS)
   MPICPP	= mpiCC
@@ -46,7 +47,7 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS	= -g -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
 PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \

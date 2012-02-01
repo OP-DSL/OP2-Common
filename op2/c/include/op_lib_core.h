@@ -198,6 +198,8 @@ void op_timing_output_2_file ( const char * );
 
 void op_timing_realloc ( int );
 
+void op_timers ( double *cpu, double *et );
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,7 +22,7 @@
  * This file implements the OP2 core library functions used by *any*
  * OP2 implementation
  */
-
+#include <sys/time.h>
 #include "op_lib_core.h"
 
 /*
@@ -241,12 +241,14 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_map_index; i++ )
   {
+    free ( OP_map_list[i]->map );
     free ( OP_map_list[i] );
   }
   free ( OP_map_list );
 
   for ( int i = 0; i < OP_dat_index; i++ )
   {
+    free ( OP_dat_list[i]->data );
     free ( OP_dat_list[i] );
   }
   free ( OP_dat_list );
@@ -494,6 +496,14 @@ op_timing_output_2_file ( const char * outputFileName )
   fclose ( outputFile );
 }
 
+void
+op_timers ( double * cpu, double * et )
+{
+  struct timeval t;
+
+  gettimeofday ( &t, ( struct timezone * ) 0 );
+  *et = t.tv_sec + t.tv_usec * 1.0e-6;
+}
 
 
 void

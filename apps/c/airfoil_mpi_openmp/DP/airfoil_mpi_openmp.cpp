@@ -480,7 +480,8 @@ int main(int argc, char **argv)
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
   //print each mpi process's timing info for each kernel
-  op_mpi_timing_output();
+  op_timing_output();
+
   //print total time for niter interations
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);

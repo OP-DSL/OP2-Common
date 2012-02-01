@@ -58,7 +58,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_cpp.h"
 #include "op_seq.h"
 
-#include "op_rt_support.h" //only included for the timer
+
 
 //
 // op_par_loop declarations

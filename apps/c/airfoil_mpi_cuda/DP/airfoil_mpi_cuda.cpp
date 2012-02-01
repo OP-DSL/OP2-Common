@@ -495,6 +495,8 @@ int main(int argc, char **argv)
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
+  //op_timing_output();
+
   //print total time for niter interations
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
