@@ -45,7 +45,7 @@ void op_x86_res_calc(
   double *ind_arg3_s;                                                   
   int    nelem, offset_b;                                               
                                                                         
-  char shared[64000];                                                   
+  char shared[128000];                                                   
                                                                         
   if (0==0) {                                                           
                                                                         

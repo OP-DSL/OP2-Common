@@ -39,7 +39,7 @@
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
-#include <op_rt_support.h>
+//#include <op_rt_support.h>
 #include <op_util.h>
 
 //mpi header
@@ -2086,7 +2086,7 @@ void op_mpi_timing_output()
     
     if(my_rank == MPI_ROOT)
     {
-    	printf("Kernel        Count   Max time(sec)   Avg time(sec)  \n");
+    	printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
     for (int n=0; n<HASHSIZE; n++) {
     	MPI_Reduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
@@ -2219,6 +2219,7 @@ void op_mpi_exit()
     //print each mpi process's timing info for each kernel
     //op_mpi_timing_output();
 }
+
 
 
 /*******************************************************************************

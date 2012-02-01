@@ -57,9 +57,9 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib_mpi.h"
-#include "op_lib_cpp.h"
 
+#include "op_lib_cpp.h"
+#include "op_lib_mpi.h"
 
 //
 // kernel routines for parallel loops
@@ -455,6 +455,9 @@ int main(int argc, char **argv){
     //output the result dat array to files 
     //print_dat_tofile(temp, "out_grid.dat"); //ASCI
     //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
+    
+    
+    //op_mpi_timing_output();
     
     //print total time for niter interations
     time = wall_t2-wall_t1;

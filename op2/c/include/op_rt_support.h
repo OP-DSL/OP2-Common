@@ -59,8 +59,6 @@ op_plan * op_plan_get_offset ( char const * name, op_set set, int set_offset, in
 
 void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
 
-void op_timers ( double *cpu, double *et );
-
 void op_rt_exit ();
 
 #ifdef __cplusplus
