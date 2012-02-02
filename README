@@ -1,10 +1,14 @@
-
 This is the OP2 base directory providing:
 
-1. An implementation of the OP2 C and Fortran APIs ("op2" directory)
+1. An implementation of the user and run-time OP2 C and Fortran APIs ("op2" directory)
 
-2. Application examples in C and Fortran ("apps" directory)
+2. Application examples in C and Fortran ("apps" directory).
+These are examples of what kind of code an OP2 compiler should produce in order to use correctly this
+OP2 run-time library. In addition, it also contains the corresponding input files for sequential execution.
 
 3. Translators for C and Fortran ("translator" directory)
 
 4. Documentation ("doc" directory)
+
+This repository should not be confused with the OP2 compiler, which can be found at:
+https://github.com/abetts155/OP2_ROSE_Fortran
