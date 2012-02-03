@@ -12,8 +12,6 @@ int main(int argc, char **argv)
 {
     int *p_elem_node;
     double *p_xn;
-    int i;
-    double val;
 
     op_init(argc, argv, 5);
 
