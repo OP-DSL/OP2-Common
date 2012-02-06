@@ -15,6 +15,13 @@ message(STATUS "Checking for optional packages...")
 
 set(OP2_MPI_INCLUDE_DIRS)
 
+if(OP2_WITH_OPENMP)
+  find_package(OpenMP)
+  if(OPENMP_FOUND)
+    message(STATUS "OpenMP found")
+  endif()
+endif()
+
 if(OP2_WITH_HDF5)
   if(NOT BUILD_SHARED_LIBS)
     set(HDF5_USE_STATIC_LIBRARIES)
@@ -66,7 +73,7 @@ if(OP2_WITH_SEQ)
   add_subdirectory(sequential)
 endif()
 
-if(OP2_WITH_OPENMP)
+if(OP2_WITH_OPENMP AND OPENMP_FOUND)
   message(STATUS "Configuring OP2 OpenMP library")
   add_subdirectory(openmp)
 endif()

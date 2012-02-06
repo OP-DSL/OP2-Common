@@ -20,6 +20,8 @@ if (TARGET op2_hdf5)
     add_executable(airfoil_hdf5_dp_openmp airfoil_op.cpp airfoil_kernels.cpp
       save_soln.h adt_calc.h res_calc.h bres_calc.h update.h)
     target_link_libraries(airfoil_hdf5_dp_openmp op2_openmp op2_hdf5)
+    set_target_properties(airfoil_hdf5_dp_openmp PROPERTIES COMPILE_FLAGS
+      "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
     install(TARGETS airfoil_hdf5_dp_openmp RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
   endif()
 

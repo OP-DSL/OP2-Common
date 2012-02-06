@@ -12,5 +12,7 @@ if (TARGET op2_mpi)
   add_executable(airfoil_mpi_openmp_dp airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp
     save_soln.h adt_calc.h res_calc.h bres_calc.h update.h)
   target_link_libraries(airfoil_mpi_openmp_dp op2_mpi)
+  set_target_properties(airfoil_mpi_openmp_dp PROPERTIES COMPILE_FLAGS
+    "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
   install(TARGETS airfoil_mpi_openmp_dp RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
 endif()
