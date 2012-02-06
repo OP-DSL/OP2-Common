@@ -63,6 +63,17 @@ else()
   message(FATAL_ERROR "C99 support for the C compiler is required.")
 endif()
 
+# Flags specific to intel compilers
+# ignore remark #981: operands are evaluated in unspecified order
+set(OP2_INTEL_FLAGS "-wd981" CACHE STRING
+  "Flags specifically for Intel compilers")
+if(CMAKE_C_COMPILER_ID STREQUAL "Intel")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OP2_INTEL_FLAGS}")
+endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OP2_INTEL_FLAGS}")
+endif()
+
 CHECK_C_COMPILER_FLAG(-pipe HAVE_PIPE)
 if (HAVE_PIPE)
   set(OP2_C_DEVELOPER_FLAGS "-pipe ${OP2_C_DEVELOPER_FLAGS}")
