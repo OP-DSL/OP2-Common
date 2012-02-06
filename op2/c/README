@@ -37,6 +37,25 @@ For custom builds, there are several options:
 3. Edit the cache file build/CMakeCache.txt with a text editor and re-run
    cmake.
 
+If CMake does not automatically detect installation paths of dependencies, set
+them as follows:
+
+* CUDA: set CUDA_TOOLKIT_ROOT_DIR if CUDA was not found and CUDA_BIN_PATH to
+  override
+
+* HDF5: set HDF5_ROOT if HDF5 was not FOUND
+
+* MPI: CMake tries to extract the MPI library and include directories from the
+  MPI compiler it finds in the path. If detection fails or you want to
+  override what CMake found, set both MPI_INCLUDE_PATH and MPI_LIBRARY to
+  disable auto detection.
+
+* ParMETIS: set PARMETIS_DIR if not found. If you have a non-standard layout
+  for your ParMETIS installation, i.e. the libraries are not in lib and
+  headers in include, specify PARMETIS_LIB_DIR and/or PARMETIS_INCLUDE_DIR
+
+* SCOTCH: set SCOTCH_DIR if not found
+
 Regular Makefile build
 ----------------------
 
