@@ -16,6 +16,8 @@ endif()
 if (TARGET op2_openmp)
   add_executable(jac1_sp_openmp jac_op.cpp jac_kernels.cpp res.h update.h)
   target_link_libraries(jac1_sp_openmp op2_openmp)
+  set_target_properties(jac1_sp_openmp PROPERTIES COMPILE_FLAGS
+    "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
   install(TARGETS jac1_sp_openmp RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
 endif()
 
