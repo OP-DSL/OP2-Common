@@ -213,23 +213,14 @@ contains
     type(op_set) :: set
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    type(c_ptr) :: setCPtr = C_NULL_PTR
-    type(op_set_core), pointer :: setFPtr
-
-
-    if ( present ( opname ) .eqv. .false. ) then
-      set%setCPtr = op_decl_set_F ( setsize, fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      set%setCPtr = op_decl_set_F ( setsize, opname//char(0) )
 #endif
-
-      set%setCPtr = op_decl_set_F ( setsize, cName )
+    else
+      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
@@ -245,18 +236,14 @@ contains
     type(op_map) :: map
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//char(0) )
 #endif
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), cName )
+    else
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -272,23 +259,16 @@ contains
     type(op_dat) :: data
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
-    type(c_ptr) :: dataCPtr = C_NULL_PTR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opname//char(0) )
 #endif
-
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), cName )
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -303,22 +283,16 @@ contains
     type(op_dat) :: data
     character(len=*), optional :: opname
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
-    type(c_ptr) :: dataCPtr = C_NULL_PTR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opname//char(0) )
 #endif
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), cName )
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -352,15 +326,11 @@ contains
     integer(kind=c_int), value :: constdim
     integer(4), dimension(*), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_integer_4
@@ -370,15 +340,11 @@ contains
     integer(kind=c_int), value :: constdim
     real(8), dimension(*), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_real_8
@@ -388,15 +354,11 @@ contains
     integer(kind=c_int), value :: constdim
     integer(4), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_integer_4
@@ -406,15 +368,11 @@ contains
     integer(kind=c_int), value :: constdim
     real(8), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_real_8
