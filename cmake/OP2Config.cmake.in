@@ -15,8 +15,9 @@ if(NOT OP2_FOUND)
   set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
 
   # Compiler flags
-  set(CMAKE_CXX_FLAGS "@CMAKE_CXX_FLAGS@" CACHE STRING "C++ compiler flags.")
-  set(CMAKE_C_FLAGS "@CMAKE_C_FLAGS@" CACHE STRING "C compiler flags.")
+  # We cannnot set CMAKE_C(XX)_FLAGS directly since they already exist in cache
+  set(OP2_CXX_FLAGS "@CMAKE_CXX_FLAGS@" CACHE STRING "C++ compiler flags.")
+  set(OP2_C_FLAGS "@CMAKE_C_FLAGS@" CACHE STRING "C compiler flags.")
 
   # OpenMP flags
   set(OpenMP_C_FLAGS "@OpenMP_C_FLAGS@" CACHE STRING "OpenMP C compiler flags.")
