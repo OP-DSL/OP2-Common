@@ -43,7 +43,10 @@ if(OP2_WITH_CUDA)
     # These need to be separated by semicolon
     set(OP2_NVCC_FLAGS -O3;-arch=sm_20;-Xptxas;-dlcm=ca;-Xptxas=-v;-use_fast_math
       CACHE STRING "Flags used by NVCC during all build types.")
+    set(OP2_NVCC_DEVELOPER_FLAGS -g;-G;-Xcompiler=-O2;-Xcompiler=-g;-Xcompiler=-Wall;-Xcompiler=-pipe
+      CACHE STRING "Flags used by NVCC during developer builds.")
     set(CUDA_NVCC_FLAGS ${OP2_NVCC_FLAGS})
+    set(CUDA_NVCC_FLAGS_DEVELOPER ${OP2_NVCC_DEVELOPER_FLAGS})
   endif()
 endif()
 
