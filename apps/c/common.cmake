@@ -1,6 +1,10 @@
 # Load OP2 configuration (Set OP2_DIR to the directory containing OP2Config.cmake)
 find_package(OP2 REQUIRED)
 
+# Import compiler flags for all build types
+set(CMAKE_CXX_FLAGS ${OP2_CXX_FLAGS})
+set(CMAKE_C_FLAGS ${OP2_C_FLAGS})
+
 # Default build type (can be overridden by user)
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
