@@ -28,6 +28,11 @@ if(NOT OP2_FOUND)
   set(CMAKE_C_FLAGS_DEVELOPER "@CMAKE_C_FLAGS_DEVELOPER@" CACHE STRING
     "Flags used by the compiler during development.")
 
+  # NVCC flags
+  set(CUDA_PROPAGATE_HOST_FLAGS @CUDA_PROPAGATE_HOST_FLAGS@ CACHE STRING
+    "Propage C/CXX_FLAGS and friends to the host compiler via -Xcompile.")
+  set(CUDA_NVCC_FLAGS @OP2_NVCC_FLAGS@ CACHE STRING "NVCC compiler flags.")
+
   # Include directories
   set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
   set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")

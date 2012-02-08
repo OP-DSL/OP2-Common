@@ -38,6 +38,12 @@ if(OP2_WITH_CUDA)
   find_package(CUDA)
   if(CUDA_FOUND)
     message(STATUS "CUDA found")
+    # Do not propagate C/CXX flags to nvcc
+    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+    # These need to be separated by semicolon
+    set(OP2_NVCC_FLAGS -O3;-arch=sm_20;-Xptxas;-dlcm=ca;-Xptxas=-v;-use_fast_math
+      CACHE STRING "Flags used by NVCC during all build types.")
+    set(CUDA_NVCC_FLAGS ${OP2_NVCC_FLAGS})
   endif()
 endif()
 
