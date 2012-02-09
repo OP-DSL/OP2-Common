@@ -143,7 +143,7 @@ set(INSTALLATION_LIB_DIR lib CACHE PATH "Library installation directory.")
 set(INSTALLATION_INCLUDE_DIR include CACHE PATH
   "C/C++ header installation directory.")
 set(INSTALLATION_APPS_DIR apps CACHE PATH "Apps installation directory.")
-set(INSTALLATION_CMAKE_DIR lib/CMake/op2 CACHE PATH
+set(INSTALLATION_CMAKE_DIR lib/op2 CACHE PATH
     "Installation directory for CMake files")
 
 # Make relative paths absolute (needed later on)

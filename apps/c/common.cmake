@@ -1,5 +1,7 @@
 # Load OP2 configuration (Set OP2_DIR to the directory containing OP2Config.cmake)
-find_package(OP2 REQUIRED)
+find_package(OP2 REQUIRED PATHS
+  ${OP2-APPS_SOURCE_DIR}/../../op2/c/build
+  ${CMAKE_INSTALL_PREFIX}/lib/op2)
 
 # Import compiler flags for all build types
 set(CMAKE_CXX_FLAGS ${OP2_CXX_FLAGS})
