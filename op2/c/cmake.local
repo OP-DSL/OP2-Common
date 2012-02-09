@@ -12,6 +12,7 @@ mkdir -p build && cd build &&
 (
   cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR \
         -DCMAKE_BUILD_TYPE=Developer \
+        -DOP2_VERBOSE_CONFIGURE=ON \
         -DINSTALLATION_APPS_DIR='' \
         $CMAKE_EXTRA_ARGS \
         .. &&
