@@ -139,10 +139,10 @@ int main(int argc, char **argv){
   eps = 0.05f;
 
   float mach  = 0.4f;
-  float alpha = 3.0f*atan(1.0f)/45.0f;
+  float alpha = 3.0f*atanf(1.0f)/45.0f;
   float p     = 1.0f;
   float r     = 1.0f;
-  float u     = sqrt(gam*p/r)*mach;
+  float u     = sqrtf(gam*p/r)*mach;
   float e     = p/(r*gm1) + 0.5f*u*u;
 
   qinf[0] = r;
@@ -251,7 +251,7 @@ int main(int argc, char **argv){
 
 //  print iteration history
 
-    rms = sqrt(rms/(float) ncell);
+    rms = sqrtf(rms/(float) ncell);
 
     if (iter%100 == 0)
       printf(" %d  %10.5e \n",iter,rms);
