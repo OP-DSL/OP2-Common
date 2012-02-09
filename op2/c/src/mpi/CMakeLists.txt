@@ -1,8 +1,13 @@
+set(MPI_SRC op_mpi_part_core.c op_mpi_core.c)
+if(OP2_WITH_HDF5)
+  set(MPI_SRC ${MPI_SRC} op_mpi_hdf5.c)
+endif()
+
 # MPI library
 add_definitions(${OP2_MPI_DEFINITIONS})
 include_directories(${OP2_MPI_INCLUDE_DIRS})
-add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} op_mpi_decl.c op_mpi_part_core.c op_mpi_core.c op_mpi_hdf5.c)
-target_link_libraries(op2_mpi ${HDF5_LIBRARIES} ${PARMETIS_LIBRARIES} ${SCOTCH_LIBRARIES} ${MPI_LIBRARIES})
+add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_decl.c)
+target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES})
 
 # Add all targets to the build-tree export set
 export(TARGETS op2_mpi
@@ -19,9 +24,9 @@ install(TARGETS op2_mpi
 if(OP2_WITH_CUDA AND CUDA_FOUND)
   include_directories(${CUDA_INCLUDE_DIRS})
 
-  cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC}
-    op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu op_mpi_cuda_rt_support.c op_mpi_part_core.c op_mpi_core.c op_mpi_hdf5.c)
-  target_link_libraries(op2_mpi_cuda ${HDF5_LIBRARIES} ${PARMETIS_LIBRARIES} ${SCOTCH_LIBRARIES} ${MPI_LIBRARIES})
+  cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
+    op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu op_mpi_cuda_rt_support.c)
+  target_link_libraries(op2_mpi_cuda ${OP2_MPI_LIBRARIES})
 
   # Add all targets to the build-tree export set
   export(TARGETS op2_mpi_cuda
