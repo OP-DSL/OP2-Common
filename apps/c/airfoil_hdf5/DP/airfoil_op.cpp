@@ -112,9 +112,6 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv){
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
-
   int    niter;
   double  rms;
 
