@@ -64,7 +64,7 @@ if(OP2_WITH_MPI)
     message(STATUS "MPI found")
     set(OP2_MPI_INCLUDE_DIRS ${MPI_INCLUDE_PATH} ${OP2_MPI_INCLUDE_DIRS})
     set(OP2_MPI_LIBRARIES ${MPI_LIBRARIES} ${OP2_MPI_LIBRARIES})
-    if(OP2_VERBOSE_CONFIGURE)
+    if(CMAKE_VERBOSE_CONFIGURE)
       set(SCOTCH_DEBUG TRUE)
     endif()
     # Parallel graph partitioner: Try PTScotch first, fall back to ParMETIS

@@ -18,14 +18,9 @@ set(OP2_VERSION
 # General configuration
 
 # Set location of our FindFoo.cmake modules
-set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/../../cmake" CACHE INTERNAL "")
+set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/../../cmake" CACHE INTERNAL
+  "OP2 CMake utilities directory")
 set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
-
-# Disable verbose make output by default
-set(CMAKE_VERBOSE_MAKEFILE OFF)
-
-# Disable verbose configure output by default
-set(OP2_VERBOSE_CONFIGURE OFF)
 
 # Set CMake options, see `cmake --help-policy CMP000x`
 if (COMMAND cmake_policy)
@@ -44,6 +39,7 @@ option(OP2_WITH_HDF5     "Build an HDF5 version of the OP2 library."       ON)
 option(OP2_WITH_MPI      "Build an MPI version of the OP2 library."        ON)
 option(OP2_WITH_CUDA     "Build a NVIDIA CUDA version of the OP2 library." ON)
 option(BUILD_SHARED_LIBS "Build OP2 with shared libraries."                ON)
+option(CMAKE_VERBOSE_CONFIGURE "Enable verbose configuration output."     OFF)
 
 #------------------------------------------------------------------------------
 # Compiler flags
