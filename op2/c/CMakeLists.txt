@@ -21,8 +21,11 @@ set(OP2_VERSION
 set(OP2_CMAKE_DIR "${OP2_SOURCE_DIR}/../../cmake" CACHE INTERNAL "")
 set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
 
-# Set verbose output while testing CMake
-set(CMAKE_VERBOSE_MAKEFILE FALSE)
+# Disable verbose make output by default
+set(CMAKE_VERBOSE_MAKEFILE OFF)
+
+# Disable verbose configure output by default
+set(OP2_VERBOSE_CONFIGURE OFF)
 
 # Set CMake options, see `cmake --help-policy CMP000x`
 if (COMMAND cmake_policy)
