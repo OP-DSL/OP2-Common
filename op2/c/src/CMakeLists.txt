@@ -110,18 +110,12 @@ endif()
 export(TARGETS ${OP2_TARGETS_BUILT}
   FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
 
-# Export the package for use from the build-tree
-# (this registers the build-tree with a global CMake-registry)
-export(PACKAGE OP2)
-
 # Create the OP2Config.cmake and OP2ConfigVersion files
 configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
   "${PROJECT_BINARY_DIR}/OP2Config.cmake" @ONLY)
-install(FILES
-  "${PROJECT_BINARY_DIR}/OP2Config.cmake"
+install(FILES "${PROJECT_BINARY_DIR}/OP2Config.cmake"
   DESTINATION "${INSTALLATION_CMAKE_DIR}")
 
 # Install the export set for use with the install-tree
-install(EXPORT OP2LibraryDepends DESTINATION
-  "${INSTALLATION_CMAKE_DIR}"
+install(EXPORT OP2LibraryDepends DESTINATION "${INSTALLATION_CMAKE_DIR}"
   COMPONENT dev)
