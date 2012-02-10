@@ -135,6 +135,13 @@ set(CMAKE_CXX_FLAGS_DEVELOPER ${OP2_CXX_DEVELOPER_FLAGS} CACHE STRING
   "Flags used by the compiler during development.")
 
 #------------------------------------------------------------------------------
+# Custom user definitions
+
+set(OP2_USER_DEFINITIONS "${OP2_USER_DEFINITIONS}" CACHE STRING
+  "Space separated list of custom preprocessor definitions -DVAR=FOO.")
+add_definitions(${OP2_USER_DEFINITIONS})
+
+#------------------------------------------------------------------------------
 # Installation directories
 
 set(INSTALLATION_BIN_DIR bin CACHE PATH "Binary installation directory.")
