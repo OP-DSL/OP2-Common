@@ -508,10 +508,11 @@ op_timing_output_2_file ( const char * outputFileName )
 void
 op_timers ( double * cpu, double * et )
 {
-	struct timeval t;
+  (void)cpu;
+  struct timeval t;
 
-	gettimeofday ( &t, ( struct timezone * ) 0 );
-	*et = t.tv_sec + t.tv_usec * 1.0e-6;
+  gettimeofday ( &t, ( struct timezone * ) 0 );
+  *et = t.tv_sec + t.tv_usec * 1.0e-6;
 }
 
 

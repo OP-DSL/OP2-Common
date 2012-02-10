@@ -39,7 +39,6 @@ http://www.opensource.org/licenses/bsd-license.php
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
-//#include <op_rt_support.h>
 #include <op_util.h>
 
 //mpi header

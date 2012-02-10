@@ -59,7 +59,7 @@ op_plan * op_plan_get_offset ( char const * name, op_set set, int set_offset, in
 
 void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
 
-void op_rt_exit ();
+void op_rt_exit ( void );
 
 #ifdef __cplusplus
 }
