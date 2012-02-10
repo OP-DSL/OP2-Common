@@ -503,6 +503,7 @@ op_timing_output_2_file ( const char * outputFileName )
 void
 op_timers ( double * cpu, double * et )
 {
+  (void)cpu;
   struct timeval t;
 
   gettimeofday ( &t, ( struct timezone * ) 0 );

@@ -36,17 +36,6 @@ op_rt_exit (  )
   free ( OP_plans );
 }
 
-
-/*void
-op_timers ( double * cpu, double * et )
-{
-  (void)cpu;
-  struct timeval t;
-
-  gettimeofday ( &t, ( struct timezone * ) 0 );
-  *et = t.tv_sec + t.tv_usec * 1.0e-6;
-}*/
-
 /*
  * comparison function for integer quicksort in op_plan
  */
