@@ -37,6 +37,10 @@ if(NOT OP2_FOUND)
   set(CUDA_NVCC_FLAGS_DEVELOPER @OP2_NVCC_DEVELOPER_FLAGS@
     CACHE STRING "Flags used by NVCC during developer builds.")
 
+  # User definitions
+  set(OP2_USER_DEFINITIONS @OP2_USER_DEFINITIONS@ CACHE STRING
+    "Space separated list of custom preprocessor definitions -DVAR=FOO.")
+
   # Include directories
   set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
   set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
