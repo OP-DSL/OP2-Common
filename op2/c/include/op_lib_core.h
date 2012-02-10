@@ -53,12 +53,11 @@ typedef long long ll;
 typedef unsigned long long ull;
 
 /*
- * OP diagnostics level
+ * OP2 global state variables
  */
 
-extern int OP_diags;
-
 /*
+ * OP diagnostics level
    0            none
    1 or above   error-checking
    2 or above   info on plan construction
@@ -66,6 +65,10 @@ extern int OP_diags;
    4 or above   report use of old plans
    7 or above   report positive checks in op_plan_check
 */
+
+extern int OP_diags;
+
+extern int OP_cache_line_size;
 
 /*
  * enum list for op_par_loop
@@ -172,7 +175,7 @@ extern "C" {
 
 void op_init_core ( int, char **, int );
 
-void op_exit_core ( );
+void op_exit_core ( void );
 
 op_set op_decl_set_core ( int, char const * );
 
@@ -190,9 +193,9 @@ op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * 
 
 op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
 
-void op_diagnostic_output ( );
+void op_diagnostic_output ( void );
 
-void op_timing_output ( );
+void op_timing_output ( void );
 
 void op_timing_output_2_file ( const char * );
 

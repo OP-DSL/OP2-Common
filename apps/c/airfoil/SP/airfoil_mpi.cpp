@@ -81,7 +81,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //user declared functions
 //
 
-int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   int local_size = global_size/mpi_comm_size;
   int remainder = (int)fmod(global_size,mpi_comm_size);
@@ -94,8 +94,8 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
   return local_size;
 }
 
-void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
+static void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size,
+                                int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -118,8 +118,8 @@ void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_si
   free(displs);
 }
 
-void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
+static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
+                              int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -142,7 +142,7 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   free(displs);
 }
 
-void check_scan(int items_received, int items_expected) {
+static void check_scan(int items_received, int items_expected) {
   if(items_received != items_expected) {
     printf("error reading from new_grid.dat\n");
     exit(-1);
@@ -218,10 +218,10 @@ int main(int argc, char **argv)
   eps = 0.05f;
 
   float mach  = 0.4f;
-  float alpha = 3.0f*atan(1.0f)/45.0f;
+  float alpha = 3.0f*atanf(1.0f)/45.0f;
   float p     = 1.0f;
   float r     = 1.0f;
-  float u     = sqrt(gam*p/r)*mach;
+  float u     = sqrtf(gam*p/r)*mach;
   float e     = p/(r*gm1) + 0.5f*u*u;
 
   qinf[0] = r;
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
     //print iteration history
     if(my_rank==MPI_ROOT)
     {
-      rms = sqrt(rms/(float) g_ncell);
+      rms = sqrtf(rms/(float) g_ncell);
       if (iter%100 == 0)
         printf("%d  %10.5e \n",iter,rms);
     }

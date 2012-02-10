@@ -71,10 +71,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv){
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
-
-  int    nnode,ncell,nedge,nbedge,niter;
+  int    niter;
   double  rms;
 
   //timer

@@ -81,49 +81,49 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-void op_par_loop_save_soln(char const *, op_set,
-                           op_arg,
-                           op_arg );
+extern void op_par_loop_save_soln(char const *, op_set,
+                                  op_arg,
+                                  op_arg);
 
-void op_par_loop_adt_calc(char const *, op_set,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg );
+extern void op_par_loop_adt_calc(char const *, op_set,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg );
 
-void op_par_loop_res_calc(char const *, op_set,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg,
-                          op_arg );
+extern void op_par_loop_res_calc(char const *, op_set,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg );
 
-void op_par_loop_bres_calc(char const *, op_set,
-                           op_arg,
-                           op_arg,
-                           op_arg,
-                           op_arg,
-                           op_arg,
-                           op_arg );
+extern void op_par_loop_bres_calc(char const *, op_set,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg );
 
-void op_par_loop_update(char const *, op_set,
-                        op_arg,
-                        op_arg,
-                        op_arg,
-                        op_arg,
-                        op_arg );
+extern void op_par_loop_update(char const *, op_set,
+                               op_arg,
+                               op_arg,
+                               op_arg,
+                               op_arg,
+                               op_arg );
 
 
 //
 //user declared functions
 //
 
-int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   int local_size = global_size/mpi_comm_size;
   int remainder = (int)fmod(global_size,mpi_comm_size);
@@ -136,8 +136,8 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
   return local_size;
 }
 
-void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-                          int l_size, int elem_size)
+static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
+                                 int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -160,8 +160,8 @@ void scatter_double_array(double* g_array, double* l_array, int comm_size, int g
   free(displs);
 }
 
-void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-                       int l_size, int elem_size)
+static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
+                              int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -184,7 +184,7 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   free(displs);
 }
 
-void check_scan(int items_received, int items_expected) {
+static void check_scan(int items_received, int items_expected) {
   if(items_received != items_expected) {
     printf("error reading from new_grid.dat\n");
     exit(-1);
