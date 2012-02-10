@@ -299,6 +299,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 *******************************************************************************/
 void op_write_hdf5(char const * file_name)
 {
-    
+  (void)file_name;
 }
 

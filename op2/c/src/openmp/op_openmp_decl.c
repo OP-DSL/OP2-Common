@@ -58,6 +58,7 @@ op_decl_dat ( op_set set, int dim, char const * type, int size, char * data, cha
 void
 op_fetch_data ( op_dat dat )
 {
+  (void)dat;
 }
 
 /*
@@ -67,6 +68,11 @@ op_fetch_data ( op_dat dat )
 void
 op_decl_const_char ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
+  (void)dim;
+  (void)type;
+  (void)typeSize;
+  (void)data;
+  (void)name;
 }
 
 op_plan *

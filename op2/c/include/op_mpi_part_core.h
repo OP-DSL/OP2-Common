@@ -50,7 +50,7 @@ extern "C" {
 void op_partition_random(op_set primary_set);
 
  
-#if PARMETIS
+#ifdef PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
 *******************************************************************************/
@@ -64,7 +64,7 @@ void op_partition_meshkway(op_map primary_map);
 #endif
 
 
-#if PTSCOTCH
+#ifdef PTSCOTCH
 /*******************************************************************************
 * PT-SCOTCH wrapper prototypes
 *******************************************************************************/

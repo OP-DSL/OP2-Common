@@ -96,6 +96,8 @@ __cutilCheckMsg ( const char * errorMessage, const char * file,
 void
 cutilDeviceInit ( int argc, char ** argv )
 {
+  (void)argc;
+  (void)argv;
   int deviceCount;
   cutilSafeCall ( cudaGetDeviceCount ( &deviceCount ) );
   if ( deviceCount == 0 )
