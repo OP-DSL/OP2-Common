@@ -29,4 +29,5 @@ if (NOT OP2_APPS_DIR)
 endif()
 
 include_directories(${OP2_INCLUDE_DIRS})
+add_definitions(${OP2_USER_DEFINITIONS})
 
