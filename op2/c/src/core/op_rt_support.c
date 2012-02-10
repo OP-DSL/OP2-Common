@@ -9,11 +9,9 @@
 
 
 
-#include <sys/time.h>
+
 #include "op_rt_support.h"
 
-
-extern int OP_cache_line_size;
 
 /* 
  * Global variables
@@ -47,21 +45,11 @@ op_rt_exit (  )
 	free ( OP_plans );
 }
 
-
-void
-op_timers ( double * cpu, double * et )
-{
-	struct timeval t;
-
-	gettimeofday ( &t, ( struct timezone * ) 0 );
-	*et = t.tv_sec + t.tv_usec * 1.0e-6;
-}
-
 /* 
  * comparison function for integer quicksort in op_plan
  */
 
-int
+static int
 comp ( const void * a2, const void * b2 )
 {
 	int *a = ( int * ) a2;
@@ -484,16 +472,16 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
 			qsort(work2, ne, sizeof(int), comp);
 
-			int e = 0;
+			int nde = 0;
 			int p = 0;
 			while ( p < ne )
 			{
-				work2[e] = work2[p];
-				while ( p < ne && work2[p] == work2[e] )
+				work2[nde] = work2[p];
+				while ( p < ne && work2[p] == work2[nde] )
 					p++;
-				e++;
+				nde++;
 			}
-			ne = e;	/* number of distinct elements */
+			ne = nde;	/* number of distinct elements */
 
 			/* 
 			   if (OP_diags > 5) { printf(" indirection set %d: ",m); for (int e=0; e<ne; e++) printf("
@@ -513,7 +501,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 				if ( inds[m2] == m )
 				{
 					for ( int e = b * bsize; e < b * bsize + bs; e++ ) 
-						OP_plans[ip].loc_maps[m2][e] = work[m][maps[m2]->map[idxs[m2] + (set_offset + e) * maps[m2]->dim]];
+						OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + (set_offset + e) * maps[m2]->dim]]);
 				}
 			}
 

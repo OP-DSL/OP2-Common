@@ -22,7 +22,7 @@
  * This file implements the OP2 core library functions used by *any*
  * OP2 implementation
  */
-
+#include <sys/time.h>
 #include "op_lib_core.h"
 
 /* 
@@ -228,7 +228,11 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
 void
 op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
-
+  (void)dim;
+  (void)type;
+  (void)typeSize;
+  (void)data;
+  (void)name;
 }
 
 void
@@ -245,12 +249,14 @@ op_exit_core (  )
 
 	for ( int i = 0; i < OP_map_index; i++ )
 	{
+	    	free ( OP_map_list[i]->map );
 		free ( OP_map_list[i] );
 	}
 	free ( OP_map_list );
 
 	for ( int i = 0; i < OP_dat_index; i++ )
 	{
+	    	free ( OP_dat_list[i]->data );
 		free ( OP_dat_list[i] );
 	}
 	free ( OP_dat_list );
@@ -437,7 +443,7 @@ op_timing_output (  )
 		{
 			if ( OP_kernels[n].count > 0 )
 			{
-				if ( OP_kernels[n].transfer2 == 0.0f )
+				if ( OP_kernels[n].transfer2 < 1e-8f )
 					printf ( " %6d  %8.4f %8.4f            %s \n",
 									 OP_kernels[n].count,
 									 OP_kernels[n].time,
@@ -474,7 +480,7 @@ op_timing_output_2_file ( const char * outputFileName )
 		{
 			if ( OP_kernels[n].count > 0 )
 			{
-				if ( OP_kernels[n].transfer2 == 0.0f )
+				if ( OP_kernels[n].transfer2 < 1e-8f )
         {
           totalKernelTime += OP_kernels[n].time;
 					fprintf ( outputFile, " %6d  %8.4f %8.4f            %s \n",
@@ -499,6 +505,15 @@ op_timing_output_2_file ( const char * outputFileName )
   fclose ( outputFile );
 }
 
+void
+op_timers ( double * cpu, double * et )
+{
+  (void)cpu;
+  struct timeval t;
+
+  gettimeofday ( &t, ( struct timezone * ) 0 );
+  *et = t.tv_sec + t.tv_usec * 1.0e-6;
+}
 
 
 void

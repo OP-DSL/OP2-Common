@@ -5,6 +5,7 @@
 # PARMETIS_INSTALL_PATH
 # PTSCOTCH_INSTALL_PATH
 # HDF5_INSTALL_PATH
+# MPI_INSTALL_PATH
 #
 # OP2_COMPILER (gnu,intel,etc)
 #
@@ -35,7 +36,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC 		= icc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -g -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
   CPP		= icpc
   CPPFLAGS	= $(CCFLAGS) 
   MPICPP	= mpiCC
@@ -46,16 +47,17 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS	= -g -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
-PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
-PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
-	       -L$(PARMETIS_INSTALL_PATH) -lmetis
+PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)/include
+PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)/lib
+PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH) -DPARMETIS
+PARMETIS_LIB = -L$(PARMETIS_LIB_PATH) -lparmetis -lmetis
 
 PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
+PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
 PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH) -DPTSCOTCH
-PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-               -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
@@ -77,7 +79,7 @@ hdf5: $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/externlib/op_hdf5.o $(OBJ)/externlib/op_util.o
 	
 
-seq: $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/core/op_lib_core.o
+seq: core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/core/op_lib_core.o
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
 	$(CPP) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/core/op_rt_support.o
 	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/core/op_lib_core.o $(OBJ)/core/op_rt_support.o

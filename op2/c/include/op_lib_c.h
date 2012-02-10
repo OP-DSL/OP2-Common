@@ -56,6 +56,8 @@ op_arg op_arg_gbl ( char *, int, char const *, op_access );
 
 void op_fetch_data ( op_dat );
 
+
+
 void op_exit (  );
 
 #ifdef __cplusplus
@@ -64,3 +66,5 @@ void op_exit (  );
 
 #endif /* __OP_LIB_C_H */
 
+
+#include "op_rt_support.h"

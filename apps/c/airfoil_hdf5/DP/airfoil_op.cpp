@@ -57,7 +57,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_cpp.h"
 #include "op_hdf5.h"
 
-#include "op_rt_support.h" //only included for the timer
 
 //
 // op_par_loop declarations
@@ -112,9 +111,6 @@ void op_par_loop_update(char const *, op_set,
 // main program
 
 int main(int argc, char **argv){
-
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
 
   int    niter;
   double  rms;

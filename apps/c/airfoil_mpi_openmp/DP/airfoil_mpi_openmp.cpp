@@ -81,21 +81,11 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-void op_par_loop_save_soln(char const *, op_set,
+extern void op_par_loop_save_soln(char const *, op_set,
   op_arg,
   op_arg );
 
-void op_par_loop_adt_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
-
-void op_par_loop_res_calc(char const *, op_set,
-  op_arg,
-  op_arg,
+extern void op_par_loop_adt_calc(char const *, op_set,
   op_arg,
   op_arg,
   op_arg,
@@ -103,7 +93,9 @@ void op_par_loop_res_calc(char const *, op_set,
   op_arg,
   op_arg );
 
-void op_par_loop_bres_calc(char const *, op_set,
+extern void op_par_loop_res_calc(char const *, op_set,
+  op_arg,
+  op_arg,
   op_arg,
   op_arg,
   op_arg,
@@ -111,7 +103,15 @@ void op_par_loop_bres_calc(char const *, op_set,
   op_arg,
   op_arg );
 
-void op_par_loop_update(char const *, op_set,
+extern void op_par_loop_bres_calc(char const *, op_set,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg );
+
+extern void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg,
@@ -122,7 +122,7 @@ void op_par_loop_update(char const *, op_set,
 //
 //user declared functions
 //
-int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   	  int local_size = global_size/mpi_comm_size;
   	  int remainder = (int)fmod(global_size,mpi_comm_size);
@@ -135,7 +135,7 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
   	  return local_size;
 }
 
-void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size, 
+static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size, 
 	int l_size, int elem_size)
 {
   	  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
@@ -159,7 +159,7 @@ void scatter_double_array(double* g_array, double* l_array, int comm_size, int g
   	  free(displs);
 }
 
-void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size, 
+static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size, 
 	int l_size, int elem_size)
 {
   	  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
@@ -183,13 +183,32 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   	  free(displs);
 }
 
-void check_scan(int items_received, int items_expected) {
+static void check_scan(int items_received, int items_expected) {
   if(items_received != items_expected) {
     printf("error reading from new_grid.dat\n");
     exit(-1);
   }
 }
 
+#ifndef OP2_PARTITION
+
+  //partition with PTScotch
+  #ifdef PTSCOTCH
+    #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping 
+  #else //ifdef PTSCOTCH
+    //partition with ParMetis
+    #ifdef PARMETIS /** uncomment one below**/
+      // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
+      // #define OP2_PARTITION op_partition_random(cells); //a set
+      #define OP2_PARTITION op_partition_kway(pecell); //a mapping
+      // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
+      // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/    
+    #else //ifdef PARMETIS
+      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+    #endif //ifdef PARMETIS
+  #endif //ifdef PTSCOTCH
+
+#endif //ifndef OP2_PARTITION 
 
 //
 // main program
@@ -393,29 +412,23 @@ int main(int argc, char **argv){
 
     op_diagnostic_output();
 
-    //partition with ParMetis
-    //op_partition_geom(p_x);
-    //op_partition_random(cells);
-    //op_partition_kway(pecell);
-    //op_partition_geomkway(p_x, pcell);
-    //op_partition_meshkway(pcell);  //not working !!    
-    
-    //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
-    
+    // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice, 
+    //or make -B yourChoice. No spaces!
+    OP2_PARTITION;
+
     //create halos
     op_halo_create();    
-    
+
     //initialise timers for total execution wall time
     op_timers(&cpu_t1, &wall_t1); 
-    
+
     niter = 1000;
     for(int iter=1; iter<=niter; iter++) {
-    	
-    	//save old flow solution
-    	op_par_loop_save_soln("save_soln", cells,
-    	    op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_READ ),
-    	    op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_WRITE));
+
+      //save old flow solution
+      op_par_loop_save_soln("save_soln", cells,
+          op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_READ ),
+          op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_WRITE));
 
     	//  predictor/corrector update loop
 
@@ -479,6 +492,8 @@ int main(int argc, char **argv){
     //print_dat_tofile(temp, "out_grid.dat"); //ASCI
     //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
+    op_timing_output();
+    
     //print total time for niter interations
     time = wall_t2-wall_t1;
     MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);

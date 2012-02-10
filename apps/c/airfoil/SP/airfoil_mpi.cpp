@@ -82,7 +82,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 //user declared functions
 //
-int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   	  int local_size = global_size/mpi_comm_size;
   	  int remainder = (int)fmod(global_size,mpi_comm_size);
@@ -95,7 +95,7 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
   	  return local_size;
 }
 
-void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size, 
+static void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size, 
 	int l_size, int elem_size)
 {
   	  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
@@ -119,7 +119,7 @@ void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_si
   	  free(displs);
 }
 
-void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size, 
+static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size, 
 	int l_size, int elem_size)
 {
   	  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
@@ -143,13 +143,32 @@ void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
   	  free(displs);
 }
 
-void check_scan(int items_received, int items_expected) {
+static void check_scan(int items_received, int items_expected) {
   if(items_received != items_expected) {
     printf("error reading from new_grid.dat\n");
     exit(-1);
   }
 }
 
+#ifndef OP2_PARTITION
+
+  //partition with PTScotch
+  #ifdef PTSCOTCH
+    #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping 
+  #else //ifdef PTSCOTCH
+    //partition with ParMetis
+    #ifdef PARMETIS /** uncomment one below**/
+      // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
+      // #define OP2_PARTITION op_partition_random(cells); //a set
+      #define OP2_PARTITION op_partition_kway(pecell); //a mapping
+      // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
+      // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/    
+    #else //ifdef PARMETIS
+      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+    #endif //ifdef PARMETIS
+  #endif //ifdef PTSCOTCH
+
+#endif //ifndef OP2_PARTITION 
 
 //
 // main program
@@ -200,10 +219,10 @@ int main(int argc, char **argv){
     eps = 0.05f;
 
     float mach  = 0.4f;
-    float alpha = 3.0f*atan(1.0f)/45.0f;  
+    float alpha = 3.0f*atanf(1.0f)/45.0f;  
     float p     = 1.0f;
     float r     = 1.0f;
-    float u     = sqrt(gam*p/r)*mach;
+    float u     = sqrtf(gam*p/r)*mach;
     float e     = p/(r*gm1) + 0.5f*u*u;
 
     qinf[0] = r;
@@ -347,15 +366,9 @@ int main(int argc, char **argv){
 
     op_diagnostic_output();
 
-    //partition with ParMetis
-    //op_partition_geom(p_x);
-    //op_partition_random(cells);
-    //op_partition_kway(pecell);
-    //op_partition_geomkway(p_x, pcell);
-    //op_partition_meshkway(pcell);  //not working !!    
-    
-    //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
+    // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice, 
+    //or make -B yourChoice. No spaces!
+    OP2_PARTITION;
     
     //create halos
     op_halo_create();
@@ -419,7 +432,7 @@ int main(int argc, char **argv){
         //print iteration history
         if(my_rank==MPI_ROOT)
         {
-            rms = sqrt(rms/(float) g_ncell);
+            rms = sqrtf(rms/(float) g_ncell);
             if (iter%100 == 0)
             	printf("%d  %10.5e \n",iter,rms);
         }
@@ -442,7 +455,4 @@ int main(int argc, char **argv){
     op_exit();
     MPI_Finalize();   //user mpi finalize
 }
-
- 
-
 

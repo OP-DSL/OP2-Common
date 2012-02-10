@@ -82,6 +82,26 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_mpi_seq.h"
 
 
+#ifndef OP2_PARTITION
+
+  //partition with PTScotch
+  #ifdef PTSCOTCH
+    #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping 
+  #else //ifdef PTSCOTCH
+    //partition with ParMetis
+    #ifdef PARMETIS /** uncomment one below**/
+      // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
+      // #define OP2_PARTITION op_partition_random(cells); //a set
+      #define OP2_PARTITION op_partition_kway(pecell); //a mapping
+      // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
+      // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/    
+    #else //ifdef PARMETIS
+      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+    #endif //ifdef PARMETIS
+  #endif //ifdef PTSCOTCH
+
+#endif //ifndef OP2_PARTITION 
+
 //
 // main program
 //
@@ -170,16 +190,11 @@ int main(int argc, char **argv){
     //do an h5diff between new_grid_writeback.h5 and new_grid.h5 to 
     //compare two hdf5 files 
     op_write_hdf5("new_grid_out.h5");
-    
-    //partition with ParMetis
-    //op_partition_geom(p_x);
-    //op_partition_random(cells);
-    //op_partition_kway(pecell);
-    //op_partition_geomkway(p_x, pcell);
-        
-    //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
-    
+
+    // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice, 
+    //or make -B yourChoice. No spaces!
+    OP2_PARTITION;
+
     //create halos
     op_halo_create();    
     
@@ -269,7 +284,4 @@ int main(int argc, char **argv){
     op_exit();
     MPI_Finalize();   //user mpi finalize
 }
-
- 
-
 
