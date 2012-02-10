@@ -190,6 +190,25 @@ void check_scan(int items_received, int items_expected) {
   }
 }
 
+#ifndef OP2_PARTITION
+
+  //partition with PTScotch
+  #ifdef PTSCOTCH
+    #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping 
+  #else //ifdef PTSCOTCH
+    //partition with ParMetis
+    #ifdef PARMETIS /** uncomment one below**/
+      // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
+      // #define OP2_PARTITION op_partition_random(cells); //a set
+      #define OP2_PARTITION op_partition_kway(pecell); //a mapping
+      // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
+      // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/    
+    #else //ifdef PARMETIS
+      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+    #endif //ifdef PARMETIS
+  #endif //ifdef PTSCOTCH
+
+#endif //ifndef OP2_PARTITION 
 
 //
 // main program
@@ -393,29 +412,23 @@ int main(int argc, char **argv){
 
     op_diagnostic_output();
 
-    //partition with ParMetis
-    //op_partition_geom(p_x);
-    //op_partition_random(cells);
-    //op_partition_kway(pecell);
-    //op_partition_geomkway(p_x, pcell);
-    //op_partition_meshkway(pcell);  //not working !!    
-    
-    //partition with PT-Scotch
-    op_partition_ptscotch(pecell);
-    
+    // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice, 
+    //or make -B yourChoice. No spaces!
+    OP2_PARTITION;
+
     //create halos
     op_halo_create();    
-    
+
     //initialise timers for total execution wall time
     op_timers(&cpu_t1, &wall_t1); 
-    
+
     niter = 1000;
     for(int iter=1; iter<=niter; iter++) {
-    	
-    	//save old flow solution
-    	op_par_loop_save_soln("save_soln", cells,
-    	    op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_READ ),
-    	    op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_WRITE));
+
+      //save old flow solution
+      op_par_loop_save_soln("save_soln", cells,
+          op_arg_dat(p_q,   -1,OP_ID, 4,"double",OP_READ ),
+          op_arg_dat(p_qold,-1,OP_ID, 4,"double",OP_WRITE));
 
     	//  predictor/corrector update loop
 
