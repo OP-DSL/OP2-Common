@@ -50,7 +50,7 @@ op_arg * generatePlanInputData ( char name[],
                                  int argsType[]
                                )
 {
-  int i, generatedPlanIndex = ERR_INDEX;
+  int i;
 
   op_dat_core * planDatArgs = calloc ( argsNumber, sizeof ( op_dat_core ) );
   op_map_core * planMaps = calloc ( argsNumber, sizeof ( op_map_core ) );
@@ -73,11 +73,9 @@ op_arg * generatePlanInputData ( char name[],
   for ( i = 0; i < argsNumber; i++ )
   {
     op_map_core * tmp;
-    int j;
 
     if ( inds[i] >= 0 ) /* another magic number !!! */
     {
-      int iter;
       tmp = OP_map_list[maps[i]];
       planMaps[i] = *tmp;
     }
@@ -183,10 +181,13 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
   /* generate the input arguments for the plan function */
   op_arg * planArguments = generatePlanInputData ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType );
 
-  /* call the C OP2 core function (we don't need anything else for openmp */
+  /* call the C OP2 core function (we don't need anything else for openmp
+   * FIXME: We're passing an offset of 0 since we're running on a single node.
+   * Is that always going to be correct? */
   generatedPlan = op_plan_core ( name,
                                  iterationSet,
                                  partitionSize,
+                                 0,
                                  argsNumber,
                                  planArguments,
                                  indsNumber,
