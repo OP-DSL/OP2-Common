@@ -1,10 +1,16 @@
 ! This file defines the module used by all OP2 back-ends (e.g. CUDA and openmp)
-! and it makes use of the proper implementation in C (e.g. op_cuda_decl.c or op_openmp_decl.cpp)
+! and it makes use of the proper implementation in C
+! (e.g. op_cuda_decl.c or op_openmp_decl.cpp)
+
+! It defines the interoperable data types between OP2 C and Fortran
+! and it defines the Fortran interface for declaration routines
 
 module OP2_Fortran_Declarations
 
   use, intrinsic :: ISO_C_BINDING
+#ifdef OP2_WITH_CUDAFOR
   use cudafor
+#endif
 
   integer, parameter :: MAX_NAME_LEN = 100
   integer, parameter :: BSIZE_DEFAULT = 256
@@ -55,7 +61,11 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) ::    dim   ! dimension of data
     integer(kind=c_int) ::    size  ! size of each element in dataset
     type(c_ptr) ::            dat   ! data on host
+#ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::         dat_d ! data on device
+#else
+    type(c_ptr) ::            dat_d ! data on device
+#endif
     type(c_ptr) ::            type  ! data type
     type(c_ptr) ::            name  ! data name
 
@@ -154,11 +164,11 @@ module OP2_Fortran_Declarations
 
     type(c_ptr) function op_decl_gbl_f ( dataIn, dataDim, dataSize, name ) BIND(C,name='op_decl_gbl_f')
 
-        use, intrinsic :: ISO_C_BINDING
+      use, intrinsic :: ISO_C_BINDING
 
-        type(c_ptr), intent(in) :: dataIn
-        integer(kind=c_int), value, intent(in) :: dataDim, dataSize
-        character(kind=c_char,len=1) :: name
+      type(c_ptr), intent(in) :: dataIn
+      integer(kind=c_int), value, intent(in) :: dataDim, dataSize
+      character(kind=c_char,len=1) :: name
 
     end function op_decl_gbl_f
 
@@ -169,6 +179,13 @@ module OP2_Fortran_Declarations
       type(op_dat_core) :: opdat
 
     end subroutine op_fetch_data_f
+
+    subroutine op_timers_f ( cpu, et ) BIND(C,name='op_timers')
+      use, intrinsic :: ISO_C_BINDING
+
+      real(kind=c_double) :: cpu, et
+
+    end subroutine op_timers_f
 
   end interface
 
@@ -182,7 +199,7 @@ module OP2_Fortran_Declarations
 
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
-                   & op_decl_const_scalar_real_8
+    & op_decl_const_scalar_real_8
   end interface op_decl_const
 
 contains
@@ -195,9 +212,11 @@ contains
     ! local variables
     integer(4) :: argc = 0
 
+#ifdef OP2_WITH_CUDAFOR
     integer(4) :: setDevReturnVal = -1
     integer(4) :: devPropRetVal = -1
     type(cudadeviceprop) :: deviceProperties
+#endif
 
     type (op_map_core), pointer :: idPtr
     type (op_map_core), pointer :: gblPtr
@@ -218,12 +237,14 @@ contains
 
     call op_init_core ( argc, C_NULL_PTR, diags )
 
+#ifdef OP2_WITH_CUDAFOR
     ! support for GTX
-    setDevReturnVal = cudaSetDevice ( 2 )
+    setDevReturnVal = cudaSetDevice ( 3 )
 
-    devPropRetVal = cudaGetDeviceProperties ( deviceProperties, 2 )
+    devPropRetVal = cudaGetDeviceProperties ( deviceProperties, 3 )
 
     print *, 'Using: ', deviceProperties%name
+#endif
 
   end subroutine op_init
 
@@ -233,23 +254,14 @@ contains
     type(op_set) :: set
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    type(c_ptr) :: setCPtr = C_NULL_PTR
-    type(op_set_core), pointer :: setFPtr
-
-
-    if ( present ( opname ) .eqv. .false. ) then
-      set%setCPtr = op_decl_set_F ( setsize, fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      set%setCPtr = op_decl_set_F ( setsize, opname//char(0) )
 #endif
-
-      set%setCPtr = op_decl_set_F ( setsize, cName )
+    else
+      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
@@ -265,18 +277,14 @@ contains
     type(op_map) :: map
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//char(0) )
 #endif
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), cName )
+    else
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -292,23 +300,16 @@ contains
     type(op_dat) :: data
     character(len=*), optional :: opName
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
-    type(c_ptr) :: dataCPtr = C_NULL_PTR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opname//char(0) )
 #endif
-
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), cName )
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -323,22 +324,16 @@ contains
     type(op_dat) :: data
     character(len=*), optional :: opname
 
-    character(kind=c_char,len = len ( opname ) + 1) :: cName
-
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
-    type(c_ptr) :: dataCPtr = C_NULL_PTR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), fakeName )
-    else
+    if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
-      cName = C_CHAR_''//opName//C_NULL_CHAR
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
 #else
-      cname = opname//char(0)
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opname//char(0) )
 #endif
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), cName )
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -352,13 +347,8 @@ contains
     type(op_dat) :: gblData
     integer, intent(in) :: gbldim
 
-    ! unused name
+    ! FIXME: should this be double?
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
-
-    ! unsed op_set
-    type(op_set_core), dimension(:), allocatable, target :: unusedSet
-
-    type(c_ptr) :: gblCPtr = C_NULL_PTR
 
     gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 8, type )
 
@@ -371,15 +361,11 @@ contains
     integer(kind=c_int), value :: constdim
     integer(4), dimension(*), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_integer_4
@@ -389,15 +375,11 @@ contains
     integer(kind=c_int), value :: constdim
     real(8), dimension(*), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_real_8
@@ -407,15 +389,11 @@ contains
     integer(kind=c_int), value :: constdim
     integer(4), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_integer_4
@@ -425,15 +403,11 @@ contains
     integer(kind=c_int), value :: constdim
     real(8), intent(in), target :: dat
     character(len=*), optional :: opname
-    character(len=len(opname)+1) :: cname
 
-    character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
-    if ( present ( opname ) .eqv. .false. ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), fakeName )
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      cname = opname//char(0)
-      call op_decl_const_F ( constdim, c_loc ( dat ), cname )
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_real_8
@@ -445,6 +419,16 @@ contains
     call op_fetch_data_f ( opdat%dataPtr)
 
   end subroutine op_fetch_data
+
+  subroutine op_timers ( et )
+
+    real(kind=c_double) :: et
+
+    real(kind=c_double) :: cpu = 0
+
+    call op_timers_f ( cpu, et )
+
+  end subroutine op_timers
 
 end module OP2_Fortran_Declarations
 
