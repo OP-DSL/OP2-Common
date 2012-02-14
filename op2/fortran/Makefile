@@ -23,7 +23,7 @@ NVCC = nvcc
 PGF = pgfortran
 
 CFLAGS = -Wall -Werror -pedantic -pipe -ansi -std=c99 -O3
-FFLAGS = -J$(F_OP2_MOD) -O4
+FFLAGS = -J$(F_OP2_MOD) -O4 -Wall -Werror -pedantic -pipe
 PGFFLAGS = -module $(F_OP2_MOD) -Mcuda=cuda3.1 -Minform=inform -O4 -DOP2_WITH_CUDAFOR
 NVCCFLAGS = -O4
 
