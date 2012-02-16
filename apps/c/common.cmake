@@ -8,6 +8,17 @@ if (NOT OP2_APPS_DIR)
   set(OP2_APPS_DIR ${CMAKE_INSTALL_PREFIX}/bin)
 endif()
 
+option(OP2_BUILD_SP "Build a single precision versions of the OP2 applications."  ON)
+option(OP2_BUILD_DP "Build a double precision versions of the OP2 applications."  ON)
+
+set(OP2_BUILD_VARIANTS)
+if(OP2_BUILD_SP)
+  list(APPEND OP2_BUILD_VARIANTS sp)
+endif()
+if(OP2_BUILD_DP)
+  list(APPEND OP2_BUILD_VARIANTS dp)
+endif()
+
 # The following should not be set when called from the all apps build
 if(NOT OP2_ALL_APPS)
   # Import compiler flags for all build types
