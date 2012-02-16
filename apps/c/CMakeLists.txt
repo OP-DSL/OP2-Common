@@ -9,20 +9,18 @@ unset(OP2_ALL_APPS)
 
 if(OP2_FOUND)
   set(OP2_APPS
-    airfoil/DP
-    airfoil/SP
-    airfoil_hdf5/DP
-    airfoil_mpi_cuda/DP
-    airfoil_mpi_openmp/DP
-    jac1/DP
-    jac1/SP
+    airfoil
+    airfoil_hdf5
+    airfoil_mpi_cuda
+    airfoil_mpi_openmp
+    jac1
     jac2
     )
 
   # Add each OP2 app directory
   foreach (APP_DIR ${OP2_APPS})
-    option(OP2_WITH_${APP_DIR} "Build the ${APP_DIR} apps" ON)
-    if(OP2_WITH_${APP_DIR})
+    option(OP2_BUILD_${APP_DIR} "Build the ${APP_DIR} apps" ON)
+    if(OP2_BUILD_${APP_DIR})
       add_subdirectory(${APP_DIR})
     endif()
   endforeach()
