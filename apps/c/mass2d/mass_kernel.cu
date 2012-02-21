@@ -2,7 +2,6 @@
 #include "op_cuda_rt_support.h"
 __device__
 #include "mass_cuda.h"
-#define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 
 __global__ void op_cuda_mass(float *mat_data,
                              int *rowptr,
@@ -55,16 +54,19 @@ __global__ void op_cuda_mass(float *mat_data,
     int mapj = map_s[n*map_dim + j];
     entry = 0.0f;
     // Compute a single matrix entry
+    // Probably best if q is iterated over in the kernel, but iterate
+    // over it in the parallel loop as an example.
     mass(&entry, (float (*)[2])(data_s + n*map_dim*dim), i, j, q);
     // Insert matrix entry into global matrix.
     // find column offset
     int offset;
-    for (offset = rowptr[mapi]; offset < rowptr[mapi+1]; offset++ ) {
-      if ( colptr[offset] == mapj )
-  break;
+    for (int p = rowptr[mapi]; p < rowptr[mapi+1]; p++ ) {
+      if ( colptr[p] == mapj )
+        offset = p;
     }
     // To avoid these atomics we'd have to do colour-order traversal
-    // of the elements.
+    // of the elements.  And, if q is iterated over here, warp-level
+    // reductions.
     atomicAdd(mat_data + offset, entry);
   }
 }
@@ -79,22 +81,36 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
                            sizeof(int) * arg_dat.map->dim * elements->size,
                            cudaMemcpyHostToDevice));
 
-  int nelems_h[2] = {1,1};
+  int nthread = 128;
+  int nblocks = 128;
+  int nblock = 128;
+  int nelems_h[nblock];
   int *nelems_d;
   cutilSafeCall(cudaMalloc((void **)&nelems_d,
-         2 * sizeof(int)));
+         nblock * sizeof(int)));
 
-  cutilSafeCall(cudaMemcpy(nelems_d, nelems_h, 2 * sizeof(int),
-         cudaMemcpyHostToDevice));
+  for ( int i = 0; i < nblock; i++ ) {
+      nelems_h[i] = elements->size / nblock;
+  }
+  // Fix up leftovers
+  for ( int i = 0; i < elements->size - nblock * (elements->size/nblock); i++ ) {
+      nelems_h[i]++;
+  }
 
-  int boffset_h[2] = {0,1};
+  int boffset_h[nblock];
   int *boffset_d;
-  cutilSafeCall(cudaMalloc((void **)&boffset_d, 2 * sizeof(int)));
-  cutilSafeCall(cudaMemcpy(boffset_d, boffset_h, 2 * sizeof(int),
+
+  boffset_h[0] = 0;
+  for ( int i = 1; i < nblock; i++ ) {
+      boffset_h[i] = boffset_h[i-1] + nelems_h[i-1];
+  }
+  cutilSafeCall(cudaMemcpy(nelems_d, nelems_h, nblock * sizeof(int),
          cudaMemcpyHostToDevice));
 
-  int nthread = 32;
-  int nblocks = 128;
+  cutilSafeCall(cudaMalloc((void **)&boffset_d, nblock * sizeof(int)));
+  cutilSafeCall(cudaMemcpy(boffset_d, boffset_h, nblock * sizeof(int),
+         cudaMemcpyHostToDevice));
+
   int nshared;
 
   // This all needs to be wrapped in cuda versions of op_decl_sparsity
@@ -118,7 +134,7 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
     + nelems_h[0] * arg_dat.map->dim * sizeof(int);
 
 
-  op_cuda_mass<<<nthread, nblocks, nshared>>>(data_d,
+  op_cuda_mass<<<nblocks, nthread, nshared>>>(data_d,
                                               rowptr_d,
                                               colptr_d,
                                               nrow,
@@ -126,24 +142,24 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
                                               arg_dat.map->dim,
                                               nelems_d,
                                               boffset_d,
-                                              2,
+                                              nblock,
                                               (float *)arg_dat.data_d,
                                               arg_dat.dat->dim);
 
-  // Copy matrix back and print, to check we got it right.
-
-  float *mat_h = (float *)malloc(sizeof(float) * nnz);
-  cutilSafeCall(cudaMemcpy(mat_h, data_d, sizeof(float) * nnz,
-         cudaMemcpyDeviceToHost));
-
-  for ( int i = 0; i < nrow; i++ ) {
-    printf("Row %d: ", i);
-    for ( int j = sparsity->rowptr[i]; j < sparsity->rowptr[i+1]; j++ )
-      printf("(%d, %g) ", sparsity->colidx[j], mat_h[j]);
-    printf("\n");
+  // Print out resulting matrix if it comes from 2-element problem
+  if ( elements->size == 2 ) {
+      float *mat_h = (float *)malloc(nnz * sizeof(float));
+      cutilSafeCall(cudaMemcpy(mat_h, data_d, nnz * sizeof(float),
+                               cudaMemcpyDeviceToHost));
+      for ( int i = 0; i < nrow; i++ ) {
+          printf("row %d: ", i);
+          for ( int j = sparsity->rowptr[i]; j < sparsity->rowptr[i+1]; j++ ) {
+              printf("(%d, %g) ", sparsity->colidx[j], mat_h[j]);
+          }
+          printf("\n");
+      }
+      free(mat_h);
   }
-  free(mat_h);
-
   cutilSafeCall(cudaFree(data_d));
   cutilSafeCall(cudaFree(rowptr_d));
   cutilSafeCall(cudaFree(colptr_d));
