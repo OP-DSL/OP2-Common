@@ -1,6 +1,5 @@
-void mass(float A[3][3], float x[3][2])
+void mass(float *A, float x[3][2], int i, int j, int q)
 {
-  int i, j, q;
   float J[2][2];
   float detJ;
   const float w[3]= {0.166667, 0.166667, 0.166667};
@@ -15,10 +14,5 @@ void mass(float A[3][3], float x[3][2])
 
   detJ = J[0][0] * J[1][1] - J[0][1] * J[1][0];
 
-  for ( i = 0; i < 3; i++ ) {
-    for ( j = 0; j < 3; j++ ) {
-      for ( q = 0; q < 3; q++ )
-        A[i][j] += CG1[i][q] * CG1[j][q] * detJ * w[q];
-    }
-  }
+  *A += CG1[i][q] * CG1[j][q] * detJ * w[q];
 }
