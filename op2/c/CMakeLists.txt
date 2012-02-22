@@ -12,13 +12,15 @@ set(OP2_CMAKE_DIR "${CMAKE_SOURCE_DIR}/../../cmake" CACHE INTERNAL
 set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
 
 # Set CMake options, see `cmake --help-policy CMP000x`
-if (COMMAND cmake_policy)
-  # Libraries linked via full path no longer produce linker search paths.
-  cmake_policy(SET CMP0003 NEW)
-  # Silently strip whitespace from target_link_libraries
-  cmake_policy(SET CMP0004 OLD)
-  # always prefer files from CMAKE_MODULE_PATH over files from the CMake
-  # modules directory
+# Libraries linked via full path no longer produce linker search paths.
+cmake_policy(SET CMP0003 NEW)
+# Silently strip whitespace from target_link_libraries
+cmake_policy(SET CMP0004 OLD)
+if(POLICY CMP0017)
+  # Always prefer files from CMAKE_MODULE_PATH over files from the CMake
+  # modules directory.
+  # This is necessary to make overriding the platfrom-specific compiler
+  # flags work.
   cmake_policy(SET CMP0017 OLD)
 endif()
 
