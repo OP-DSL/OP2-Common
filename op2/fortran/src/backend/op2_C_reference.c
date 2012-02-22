@@ -10,10 +10,10 @@
 #include <string.h>
 #include <math.h>
 
-#include <op_lib_core.h>
+#include "../../include/op2_C_reference.h"
 
 
-void arg_set ( int displacement, /* set element */
+static void arg_set ( int displacement, /* set element */
 			   op_dat arg,
 			   int itemSel, /* map field to be used */
 			   op_map mapIn,
