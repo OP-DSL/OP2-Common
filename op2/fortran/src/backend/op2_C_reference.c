@@ -10,14 +10,14 @@
 #include <string.h>
 #include <math.h>
 
-#include <op_lib_core.h>
+#include "../../include/op2_C_reference.h"
 
 
-void arg_set ( int displacement, /* set element */
-               op_dat arg,
-               int itemSel, /* map field to be used */
-               op_map mapIn,
-               char ** p_arg )
+static void arg_set ( int displacement, /* set element */
+                      op_dat arg,
+                      int itemSel, /* map field to be used */
+                      op_map mapIn,
+                      char ** p_arg )
 {
   int n2;
 
@@ -37,8 +37,6 @@ void arg_set ( int displacement, /* set element */
 
   *p_arg = (char *) ( arg->data + n2 * arg->size );
 }
-
-
 
 void op_par_loop_2 ( void (*subroutineName)(char *, char *), op_set set,
                      op_dat dat0, int itemSel0, op_map map0, op_access access0,

@@ -134,4 +134,7 @@ f_rt_support: $(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 clean:
 	-rm -if $(F_OP2_OBJ)/*.o
 	-rm -if $(F_OP2_LIB)/*.a
-	-rm -
+	-rm -if $(F_OP2_SRC)/*~
+	-rm -if $(F_OP2_SRC)/backend/*~
+	-rm -if $(F_OP2_MOD)/*.mod
+	-rm -if $(F_OP2)/*~

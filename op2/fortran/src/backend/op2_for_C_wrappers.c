@@ -1,6 +1,3 @@
-
-#include <string.h>
-
 /*
  * This source file implements all the functions needed
  * to call C core library functions from Fortran
@@ -9,16 +6,11 @@
  * Fortran specific core library functions
  */
 
-#include <op_lib_c.h>
-#include <op_lib_core.h>
+#include <string.h>
 
-/*
- * In all Fortran callers we build name and type strings with the '\0' character
- * at the end. Here we copy them, because in the callers they are allocated onto
- * the stack. An alternative to this is to use dynamic memory allocation of F90
- * to guarantee persistence of name and type strings in the callers.
- */
-//extern "C"
+#include <op_lib_c.h>
+#include "../../include/op2_for_C_wrappers.h"
+
 op_set op_decl_set_f ( int size, char const * name )
 {
 
@@ -29,7 +21,6 @@ op_set op_decl_set_f ( int size, char const * name )
   return op_decl_set ( size, heapName );
 }
 
-//extern "C"
 op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name )
 {
 
@@ -40,7 +31,6 @@ op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** ima
   return op_decl_map ( from, to, dim, *imap, heapName );
 }
 
-//extern "C"
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
                        int size, char ** data, char const *name )
 {
@@ -53,7 +43,6 @@ op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
   return op_decl_dat ( set, dim, typeName, size, *data, heapName );
 }
 
-//extern "C"
 op_map_core * op_decl_null_map ( )
 {
   /* must allocate op_set_core instead of op_set, because the latter is actually a pointer to the former */
@@ -74,7 +63,6 @@ op_map_core * op_decl_null_map ( )
   return map;
 }
 
-//extern "C"
 void op_decl_const_f ( int dim, void **dat, char const *name )
 {
   if ( dim <= 0 )
@@ -103,3 +91,4 @@ op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
 
   return dataOut;
 }
+
