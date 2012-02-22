@@ -41,10 +41,10 @@ module OP2_Fortran_RT_Support
 
   end type op_plan
 
-	interface
+  interface
 
-		! C wrapper to plan function for Fortran (cPlan function)                         
-		type(c_ptr) function FortranPlanCallerCUDA ( name, &
+    ! C wrapper to plan function for Fortran (cPlan function)                         
+    type(c_ptr) function FortranPlanCallerCUDA ( name, &
                                                & setId, &
                                                & argsNumber, &
                                                & args, &
@@ -55,26 +55,26 @@ module OP2_Fortran_RT_Support
                                                & inds, &
                                                & argsType, &
                                                & partitionSize ) &
-							& BIND(C,name='FortranPlanCallerCUDA')                            
+              & BIND(C,name='FortranPlanCallerCUDA')                            
 
-			use, intrinsic :: ISO_C_BINDING
+      use, intrinsic :: ISO_C_BINDING
 
-			character(kind=c_char) :: name(*) ! name of kernel
-			integer(kind=c_int), value :: setId ! position in OP_set_list of the related set
-			integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-			integer(kind=c_int) :: args(*) ! positions in OP_dat_list of arguments to op_par_loop
-			integer(kind=c_int) :: idxs(*) ! array of indexes to maps
-			integer(kind=c_int) :: maps(*) ! positions in OP_map_list of arguments to op_par_loop
-			integer(kind=c_int) :: accs(*) ! access flags to arguments
-			integer(kind=c_int), value :: indsNumber ! number of arguments accessed indirectly via a map
+      character(kind=c_char) :: name(*) ! name of kernel
+      integer(kind=c_int), value :: setId ! position in OP_set_list of the related set
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      integer(kind=c_int) :: args(*) ! positions in OP_dat_list of arguments to op_par_loop
+      integer(kind=c_int) :: idxs(*) ! array of indexes to maps
+      integer(kind=c_int) :: maps(*) ! positions in OP_map_list of arguments to op_par_loop
+      integer(kind=c_int) :: accs(*) ! access flags to arguments
+      integer(kind=c_int), value :: indsNumber ! number of arguments accessed indirectly via a map
 
-			! indexes for indirectly accessed arguments (same indrectly accessed argument = same index)
-			integer(kind=c_int), dimension(*) :: inds
+      ! indexes for indirectly accessed arguments (same indrectly accessed argument = same index)
+      integer(kind=c_int), dimension(*) :: inds
 
       integer(kind=c_int) :: argsType(*)
       integer(kind=c_int), value :: partitionSize
 
-		end function FortranPlanCallerCUDA
+    end function FortranPlanCallerCUDA
 
     ! C wrapper to plan function for Fortran (cPlan function)
     type(c_ptr) function cplan_OpenMP ( name, &
@@ -109,7 +109,7 @@ module OP2_Fortran_RT_Support
 
     end function cplan_OpenMP
 
-	end interface
+  end interface
 
 end module OP2_Fortran_RT_Support
 
