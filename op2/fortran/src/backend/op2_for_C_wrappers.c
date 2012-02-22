@@ -13,7 +13,6 @@
 
 op_set op_decl_set_f ( int size, char const * name )
 {
-
   char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
 
   strncpy ( heapName, name, strlen ( name ) );
@@ -21,15 +20,16 @@ op_set op_decl_set_f ( int size, char const * name )
   return op_decl_set ( size, heapName );
 }
 
+
 op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name )
 {
-
   char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
 
   strncpy ( heapName, name, strlen ( name ) );
 
   return op_decl_map ( from, to, dim, *imap, heapName );
 }
+
 
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
                        int size, char ** data, char const *name )
@@ -42,6 +42,7 @@ op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
 
   return op_decl_dat ( set, dim, typeName, size, *data, heapName );
 }
+
 
 op_map_core * op_decl_null_map ( )
 {
@@ -63,6 +64,7 @@ op_map_core * op_decl_null_map ( )
   return map;
 }
 
+
 void op_decl_const_f ( int dim, void **dat, char const *name )
 {
   (void)dat;
@@ -73,6 +75,7 @@ void op_decl_const_f ( int dim, void **dat, char const *name )
     exit ( -1 );
   }
 }
+
 
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
 {

@@ -3,7 +3,7 @@
 
 module OP2_Fortran_Declarations
 
-use, intrinsic :: ISO_C_BINDING
+  use, intrinsic :: ISO_C_BINDING
 
   integer, parameter :: MAX_NAME_LEN = 100
 
@@ -50,7 +50,6 @@ contains
 
   end subroutine op_decl_set
 
-
   subroutine op_decl_map ( from , to, dim, dat, outmap, mapname )
     type(op_set) :: from, to
     integer :: dim
@@ -75,7 +74,6 @@ contains
     character(kind=c_char,len=*) :: datname
   end subroutine op_decl_dat_integer_4
 
-
   subroutine op_decl_gbl_real_8 ( dat, dim, data)
     real(8), dimension(:) :: dat
     integer :: dim
@@ -89,11 +87,11 @@ contains
 
     external subroutineName
 
-!   interface
-!     subroutine subroutineName ( d0, d1 )
-!       real(8), dimension(*) :: d0, d1
-!     end subroutine
-!   end interface
+  !  interface
+  !    subroutine subroutineName ( d0, d1 )
+  !      real(8), dimension(*) :: d0, d1
+  !    end subroutine
+  !  end interface
     type(op_set) :: set
     type(op_dat) :: data0, data1
     integer:: itemSel0, itemSel1, access0, access1
@@ -110,10 +108,10 @@ contains
                          & )
 
     external subroutineName
-!   interface
-!     subroutine subroutineName ( d0, d1, d2, d3, d4 )
-!     end subroutine
-!   end interface
+  !  interface
+  !    subroutine subroutineName ( d0, d1, d2, d3, d4 )
+  !    end subroutine
+  !  end interface
 
     type(op_set) :: set
     type(op_dat) :: data0, data1, data2, data3, data4
@@ -122,7 +120,6 @@ contains
     type(op_map) :: map0, map1, map2, map3, map4
 
   end subroutine op_par_loop_5
-
 
   subroutine op_par_loop_6 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
@@ -134,10 +131,10 @@ contains
                          & )
 
     external subroutineName
-!   interface
-!     subroutine subroutineName ( d0, d1, d2, d3, d4, d5 )
-!     end subroutine
-!   end interface
+  !  interface
+  !    subroutine subroutineName ( d0, d1, d2, d3, d4, d5 )
+  !    end subroutine
+  !  end interface
 
     type(op_set) :: set
     type(op_dat) :: data0, data1, data2, data3, data4, data5
@@ -146,7 +143,6 @@ contains
     type(op_map) :: map0, map1, map2, map3, map4, map5
 
   end subroutine op_par_loop_6
-
 
   subroutine op_par_loop_8 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
@@ -160,10 +156,10 @@ contains
                          & )
 
     external subroutineName
-!   interface
-!     subroutine subroutineName ( d0, d1, d2, d3, d4, d5, d6, d7 )
-!     end subroutine
-!   end interface
+  !  interface
+  !    subroutine subroutineName ( d0, d1, d2, d3, d4, d5, d6, d7 )
+  !    end subroutine
+  !  end interface
 
     type(op_set) :: set
     type(op_dat) :: data0, data1, data2, data3, data4, data5, data6, data7

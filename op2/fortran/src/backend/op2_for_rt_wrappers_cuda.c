@@ -14,11 +14,6 @@
 /*
  * Wrapper for Fortran to plan function for OP2 --> CUDA
  */
-
-
-
-
-
 op_plan * FortranPlanCallerCUDA ( char name[],
                                   int setId,
                                   int argsNumber,
@@ -32,7 +27,6 @@ op_plan * FortranPlanCallerCUDA ( char name[],
                                   int partitionSize
                                 )
 {
-
   op_plan * generatedPlan = NULL;
   op_set_core * iterationSet =  OP_set_list[setId];
 
@@ -58,3 +52,4 @@ op_plan * FortranPlanCallerCUDA ( char name[],
 
   return generatedPlan;
 }
+

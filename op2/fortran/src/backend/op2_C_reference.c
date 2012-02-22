@@ -1,9 +1,7 @@
-
 /*
  * This file implements the reference (sequential) version of op_par_loop calls
  * to be used in Fortran
  */
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -84,10 +82,10 @@ void op_par_loop_5 ( void (*subroutineName)(char *, char *, char *, char *, char
     arg_set ( i, dat3, itemSel3, map3, &ptr3 );
     arg_set ( i, dat4, itemSel4, map4, &ptr4 );
 
-
     (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4 );
   }
 }
+
 
 void op_par_loop_6 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *), op_set set,
                      op_dat dat0, int itemSel0, op_map map0, op_access access0,
@@ -124,6 +122,7 @@ void op_par_loop_6 ( void (*subroutineName)(char *, char *, char *, char *, char
   }
 }
 
+
 void op_par_loop_8 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
                      op_dat dat0, int itemSel0, op_map map0, op_access access0,
                      op_dat dat1, int itemSel1, op_map map1, op_access access1,
@@ -159,11 +158,11 @@ void op_par_loop_8 ( void (*subroutineName)(char *, char *, char *, char *, char
     arg_set ( i, dat6, itemSel6, map6, &ptr6 );
     arg_set ( i, dat7, itemSel7, map7, &ptr7 );
 
-
     (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4, ptr5, ptr6, ptr7 );
 
   }
 }
+
 
 void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
                       op_dat dat0, int itemSel0, op_map map0, op_access access0,
@@ -211,7 +210,6 @@ void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, cha
     arg_set ( i, dat9, itemSel9, map9, &ptr9 );
     arg_set ( i, dat10, itemSel10, map10, &ptr10 );
     arg_set ( i, dat11, itemSel11, map11, &ptr11 );
-
 
     (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4, ptr5, ptr6, ptr7, ptr8, ptr9, ptr10, ptr11 );
 

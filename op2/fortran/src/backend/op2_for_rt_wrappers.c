@@ -158,7 +158,6 @@ op_arg * generatePlanInputData ( char name[],
 /*
  * Wrapper for Fortran to plan function for OP2 --> OpenMP
  */
-
 op_plan * FortranPlanCallerOpenMP ( char name[],
                                     int setId,
                                     int argsNumber,
@@ -200,3 +199,4 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
 
   return generatedPlan;
 }
+

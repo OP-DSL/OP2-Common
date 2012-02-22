@@ -1,7 +1,7 @@
 ! This file defines the module used by all OP2 back-ends (e.g. CUDA and openmp)
 ! and it makes use of the proper implementation in C
 ! (e.g. op_cuda_decl.c or op_openmp_decl.cpp)
-
+!
 ! It defines the interoperable data types between OP2 C and Fortran
 ! and it defines the Fortran interface for declaration routines
 

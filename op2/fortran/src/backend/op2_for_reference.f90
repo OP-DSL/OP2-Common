@@ -29,6 +29,7 @@ module OP2_Fortran_Reference
 
     end subroutine op_par_loop_2_f
 
+
     subroutine op_par_loop_5_F ( subroutineName, set, &
                                & data0, itemSel0, map0, access0, &
                                & data1, itemSel1, map1, access1, &
@@ -80,6 +81,7 @@ module OP2_Fortran_Reference
       type(op_map_core) :: map0, map1, map2, map3, map4, map5
 
     end subroutine op_par_loop_6_F
+
 
     subroutine op_par_loop_8_F ( subroutineName, set, &
                                & data0, itemSel0, map0, access0, &
@@ -148,9 +150,9 @@ module OP2_Fortran_Reference
   contains
 
   subroutine op_par_loop_2 ( subroutineName, set, &
-                           & data0, itemSel0, map0, access0, &
-                           & data1, itemSel1, map1, access1 &
-                         & )
+                             & data0, itemSel0, map0, access0, &
+                             & data1, itemSel1, map1, access1 &
+                           & )
 
     external subroutineName
 
@@ -173,6 +175,7 @@ module OP2_Fortran_Reference
                        & )
 
   end subroutine op_par_loop_2
+
 
   subroutine op_par_loop_5 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
@@ -293,3 +296,4 @@ module OP2_Fortran_Reference
   end subroutine op_par_loop_8
 
 end module OP2_Fortran_Reference
+
