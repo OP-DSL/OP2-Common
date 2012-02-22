@@ -83,7 +83,8 @@ find_library(PTSCOTCHERR_LIBRARY
 set(SCOTCH_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
 # Try compiling and running test program if not cross-compiling
-if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES AND NOT CMAKE_CROSSCOMPILING)
+if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES
+    AND NOT (CMAKE_CROSSCOMPILING OR OP2_SKIP_PTSCOTCH_TEST))
   if (SCOTCH_DEBUG)
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
                    "location of ptscotch.h: ${SCOTCH_INCLUDE_DIRS}/ptscotch.h")
@@ -259,7 +260,7 @@ int main() {
   endif()
 endif()
 # When cross compiling assume tests have run successfully
-if (CMAKE_CROSSCOMPILING)
+if (CMAKE_CROSSCOMPILING OR OP2_SKIP_PTSCOTCH_TEST)
   set(SCOTCH_TEST_RUNS TRUE)
 endif()
 
