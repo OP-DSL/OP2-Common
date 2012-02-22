@@ -258,6 +258,10 @@ int main() {
     endif()
   endif()
 endif()
+# When cross compiling assume tests have run successfully
+if (CMAKE_CROSSCOMPILING)
+  set(SCOTCH_TEST_RUNS TRUE)
+endif()
 
 # Standard package handling
 include(FindPackageHandleStandardArgs)
