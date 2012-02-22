@@ -1,11 +1,11 @@
-
-
 ! Module declaring the plan data structure for CUDA.
 ! The difference with the plain data structure definition
 ! is in the device pointers used for some structures.
 ! This may change in the future to reflect a common
 ! pointer data structure which will relieve us
 ! from distinguishing
+
+#ifdef OP2_WITH_CUDAFOR
 
 module Plan_CUDA
 
@@ -44,5 +44,7 @@ module Plan_CUDA
 
   end type op_plan_cuda
 
-
 end module Plan_CUDA
+
+#endif
+

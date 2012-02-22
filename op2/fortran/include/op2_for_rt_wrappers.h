@@ -3,7 +3,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 op_arg * generatePlanInputData ( char name[],
                                  int setId,
@@ -14,7 +14,7 @@ op_arg * generatePlanInputData ( char name[],
                                  int accs[],
                                  int indsNumber,
                                  int inds[],
-                                 int argsType[]               
+                                 int argsType[]
                                );
 
 op_plan * FortranPlanCallerOpenMP ( char name[],

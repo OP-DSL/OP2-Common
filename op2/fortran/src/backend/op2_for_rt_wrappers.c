@@ -19,7 +19,6 @@
 #define FOP_MIN 6
 
 
-
 /*
  * Small utility for transforming Fortran OP2 access codes into C OP2 access codes
  */
@@ -48,7 +47,7 @@ op_arg * generatePlanInputData ( char name[],
                                  int accs[],
                                  int indsNumber,
                                  int inds[],
-                                 int argsType[]               
+                                 int argsType[]
                                )
 {
   (void)name;
@@ -59,7 +58,7 @@ op_arg * generatePlanInputData ( char name[],
 
   op_dat_core * planDatArgs = calloc ( argsNumber, sizeof ( op_dat_core ) );
   op_map_core * planMaps = calloc ( argsNumber, sizeof ( op_map_core ) );
-  int * planDims = calloc ( argsNumber, sizeof ( int ) ); 
+  int * planDims = calloc ( argsNumber, sizeof ( int ) );
   char ** planTypes = calloc ( argsNumber, sizeof ( char * ) );
   op_access * planAccs = calloc ( argsNumber, sizeof ( op_access ) );
   op_arg * planArguments;
@@ -90,7 +89,7 @@ op_arg * generatePlanInputData ( char name[],
       op_map_core * falseMap = (op_map_core *) calloc ( 1, sizeof ( op_map_core ) ); //OP_ID;
       falseMap->index = -1;
       planMaps[i] = *falseMap;
-      
+
     }
   }
 
@@ -137,7 +136,7 @@ op_arg * generatePlanInputData ( char name[],
     planArguments[i].data_d = planDatArgs[i].data_d;
     planArguments[i].type = planDatArgs[i].type;
     planArguments[i].acc = planAccs[i];
-    
+
     switch ( argsType[i] )
     {
     case F_OP_ARG_DAT :
@@ -151,7 +150,7 @@ op_arg * generatePlanInputData ( char name[],
       exit ( 0 );
     }
   }
-  
+
   return planArguments;
 }
 
@@ -159,7 +158,6 @@ op_arg * generatePlanInputData ( char name[],
 /*
  * Wrapper for Fortran to plan function for OP2 --> OpenMP
  */
-
 op_plan * FortranPlanCallerOpenMP ( char name[],
                                     int setId,
                                     int argsNumber,
@@ -175,14 +173,14 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
 {
   op_plan * generatedPlan = NULL;
   op_set_core * iterationSet =  OP_set_list[setId];
-  
+
   if ( iterationSet == NULL )
   {
      /* TO DO: treat this as an error to be returned to the caller */
     printf ( "bad set index\n" );
     exit ( -1 );
   }
-  
+
   /* generate the input arguments for the plan function */
   op_arg * planArguments = generatePlanInputData ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType );
 
@@ -201,3 +199,4 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
 
   return generatedPlan;
 }
+

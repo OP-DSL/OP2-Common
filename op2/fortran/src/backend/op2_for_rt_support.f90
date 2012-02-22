@@ -1,6 +1,6 @@
 ! This module defines the interoperable data structures of the OP2 RT support
 ! (i.e. plan struct) and defines the interface for the C plan function
-  
+
 module OP2_Fortran_RT_Support
 
   use, intrinsic :: ISO_C_BINDING
@@ -11,7 +11,7 @@ module OP2_Fortran_RT_Support
   type, BIND(C) :: op_plan
 
     ! input arguments
-    type(c_ptr) ::                            name  
+    type(c_ptr) ::                            name
     type(c_ptr) ::                            set
     integer(kind=c_int) ::                    nargs, ninds, part_size
     type(c_ptr) ::                            in_maps
@@ -43,7 +43,7 @@ module OP2_Fortran_RT_Support
 
   interface
 
-    ! C wrapper to plan function for Fortran (cPlan function)                         
+    ! C wrapper to plan function for Fortran (cPlan function)
     type(c_ptr) function FortranPlanCallerCUDA ( name, &
                                                & setId, &
                                                & argsNumber, &
@@ -55,7 +55,7 @@ module OP2_Fortran_RT_Support
                                                & inds, &
                                                & argsType, &
                                                & partitionSize ) &
-              & BIND(C,name='FortranPlanCallerCUDA')                            
+              & BIND(C,name='FortranPlanCallerCUDA')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -112,5 +112,4 @@ module OP2_Fortran_RT_Support
   end interface
 
 end module OP2_Fortran_RT_Support
-
 

@@ -14,11 +14,6 @@
 /*
  * Wrapper for Fortran to plan function for OP2 --> CUDA
  */
-
-
-
-
-
 op_plan * FortranPlanCallerCUDA ( char name[],
                                   int setId,
                                   int argsNumber,
@@ -32,20 +27,19 @@ op_plan * FortranPlanCallerCUDA ( char name[],
                                   int partitionSize
                                 )
 {
-  
   op_plan * generatedPlan = NULL;
   op_set_core * iterationSet =  OP_set_list[setId];
-  
+
   if ( iterationSet == NULL )
   {
      /* TO DO: treat this as an error to be returned to the caller */
     printf ( "bad set index\n" );
     exit ( -1 );
   }
-  
+
   /* generate the input arguments for the plan function */
   op_arg * planArguments = generatePlanInputData ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType );
-  
+
   /* call the C OP2 function including CUDA movement of data */
   generatedPlan = op_plan_get ( name,
                                 iterationSet,
@@ -58,3 +52,4 @@ op_plan * FortranPlanCallerCUDA ( char name[],
 
   return generatedPlan;
 }
+

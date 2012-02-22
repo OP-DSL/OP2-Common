@@ -9,9 +9,9 @@ module OP2_Fortran_Reference
 
         ! debug C functions (to obtain similar output file that can be diff-ed
     subroutine op_par_loop_2_f ( subroutineName, set, &
-                             & data0, itemSel0, map0, access0, &
-                             & data1, itemSel1, map1, access1  &
-                           & ) BIND(C,name='op_par_loop_2')
+                               & data0, itemSel0, map0, access0, &
+                               & data1, itemSel1, map1, access1  &
+                             & ) BIND(C,name='op_par_loop_2')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -29,13 +29,14 @@ module OP2_Fortran_Reference
 
     end subroutine op_par_loop_2_f
 
+
     subroutine op_par_loop_5_F ( subroutineName, set, &
-                             & data0, itemSel0, map0, access0, &
-                             & data1, itemSel1, map1, access1, &
-                             & data2, itemSel2, map2, access2, &
-                             & data3, itemSel3, map3, access3, &
-                             & data4, itemSel4, map4, access4 &
-                           & ) BIND(C,name='op_par_loop_5')
+                               & data0, itemSel0, map0, access0, &
+                               & data1, itemSel1, map1, access1, &
+                               & data2, itemSel2, map2, access2, &
+                               & data3, itemSel3, map3, access3, &
+                               & data4, itemSel4, map4, access4 &
+                             & ) BIND(C,name='op_par_loop_5')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -56,13 +57,13 @@ module OP2_Fortran_Reference
 
 
     subroutine op_par_loop_6_F ( subroutineName, set, &
-                             & data0, itemSel0, map0, access0, &
-                             & data1, itemSel1, map1, access1, &
-                             & data2, itemSel2, map2, access2, &
-                             & data3, itemSel3, map3, access3, &
-                             & data4, itemSel4, map4, access4, &
-                             & data5, itemSel5, map5, access5  &
-                           & ) BIND(C,name='op_par_loop_6')
+                               & data0, itemSel0, map0, access0, &
+                               & data1, itemSel1, map1, access1, &
+                               & data2, itemSel2, map2, access2, &
+                               & data3, itemSel3, map3, access3, &
+                               & data4, itemSel4, map4, access4, &
+                               & data5, itemSel5, map5, access5  &
+                             & ) BIND(C,name='op_par_loop_6')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -81,16 +82,17 @@ module OP2_Fortran_Reference
 
     end subroutine op_par_loop_6_F
 
+
     subroutine op_par_loop_8_F ( subroutineName, set, &
-                             & data0, itemSel0, map0, access0, &
-                             & data1, itemSel1, map1, access1, &
-                             & data2, itemSel2, map2, access2, &
-                             & data3, itemSel3, map3, access3, &
-                             & data4, itemSel4, map4, access4, &
-                             & data5, itemSel5, map5, access5, &
-                             & data6, itemSel6, map6, access6, &
-                             & data7, itemSel7, map7, access7  &
-                           & ) BIND(C,name='op_par_loop_8')
+                               & data0, itemSel0, map0, access0, &
+                               & data1, itemSel1, map1, access1, &
+                               & data2, itemSel2, map2, access2, &
+                               & data3, itemSel3, map3, access3, &
+                               & data4, itemSel4, map4, access4, &
+                               & data5, itemSel5, map5, access5, &
+                               & data6, itemSel6, map6, access6, &
+                               & data7, itemSel7, map7, access7  &
+                             & ) BIND(C,name='op_par_loop_8')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -149,9 +151,9 @@ module OP2_Fortran_Reference
   contains
 
   subroutine op_par_loop_2 ( subroutineName, set, &
-                           & data0, itemSel0, map0, access0, &
-                           & data1, itemSel1, map1, access1 &
-                         & )
+                             & data0, itemSel0, map0, access0, &
+                             & data1, itemSel1, map1, access1 &
+                           & )
 
     external subroutineName
 
@@ -174,6 +176,7 @@ module OP2_Fortran_Reference
                      & )
 
   end subroutine op_par_loop_2
+
 
   subroutine op_par_loop_5 ( subroutineName, set, &
                              & data0, itemSel0, map0, access0, &
@@ -252,15 +255,15 @@ module OP2_Fortran_Reference
 
 
   subroutine op_par_loop_8 ( subroutineName, set, &
-                             & data0, itemSel0, map0, access0, &
-                             & data1, itemSel1, map1, access1, &
-                             & data2, itemSel2, map2, access2, &
-                             & data3, itemSel3, map3, access3, &
-                             & data4, itemSel4, map4, access4, &
-                             & data5, itemSel5, map5, access5, &
-                             & data6, itemSel6, map6, access6, &
-                             & data7, itemSel7, map7, access7  &
-                           & )
+                           & data0, itemSel0, map0, access0, &
+                           & data1, itemSel1, map1, access1, &
+                           & data2, itemSel2, map2, access2, &
+                           & data3, itemSel3, map3, access3, &
+                           & data4, itemSel4, map4, access4, &
+                           & data5, itemSel5, map5, access5, &
+                           & data6, itemSel6, map6, access6, &
+                           & data7, itemSel7, map7, access7  &
+                         & )
 
     external subroutineName
 !     type(c_funptr) :: subroutineName
@@ -295,5 +298,5 @@ module OP2_Fortran_Reference
 
     end subroutine op_par_loop_8
 
-
 end module OP2_Fortran_Reference
+

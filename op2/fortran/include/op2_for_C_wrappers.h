@@ -10,7 +10,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 /*
  * In all Fortran callers we build name and type strings with the '\0' character
@@ -23,7 +23,7 @@ op_set op_decl_set_f ( int size, char const * name );
 op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name );
 
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
-											 int size, char ** data, char const *name );
+                       int size, char ** data, char const *name );
 
 op_map_core * op_decl_null_map ( );
 
