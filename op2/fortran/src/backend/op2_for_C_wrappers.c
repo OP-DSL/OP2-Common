@@ -68,6 +68,8 @@ op_map_core * op_decl_null_map ( )
 
 void op_decl_const_f ( int dim, void **dat, char const *name )
 {
+  (void)dat;
+
   if ( dim <= 0 )
 	{
     printf ( "op_decl_const error -- negative/zero dimension for const: %s\n", name );
