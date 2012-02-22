@@ -1,3 +1,4 @@
+message("-- Setting PGI CXX compiler options")
 include(Compiler/PGI)
 __compiler_pgi(CXX)
 set(CMAKE_CXX_FLAGS_MINSIZEREL_INIT "${CMAKE_CXX_FLAGS_MINSIZEREL_INIT} -DNDEBUG")

@@ -1,3 +1,4 @@
+message("-- Setting PGI C compiler options")
 include(Compiler/PGI)
 __compiler_pgi(C)
 SET(CMAKE_C_FLAGS_INIT "${CMAKE_C_FLAGS_INIT} -c99")
