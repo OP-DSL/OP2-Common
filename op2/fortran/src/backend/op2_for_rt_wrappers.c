@@ -1,7 +1,8 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_lib_c.h>
-//#include <op_cuda_rt_support.h>
+
+#include "../../include/op2_for_rt_wrappers.h"
 
 /* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
 #define F_OP_ARG_DAT 0
@@ -21,7 +22,7 @@
 /*
  * Small utility for transforming Fortran OP2 access codes into C OP2 access codes
  */
-op_access getAccFromIntCode ( int accCode )
+static op_access getAccFromIntCode ( int accCode )
 {
   switch ( accCode ) {
   case FOP_READ:
@@ -37,7 +38,6 @@ op_access getAccFromIntCode ( int accCode )
   }
 }
 
-
 op_arg * generatePlanInputData ( char name[],
                                  int setId,
                                  int argsNumber,
@@ -50,6 +50,10 @@ op_arg * generatePlanInputData ( char name[],
                                  int argsType[]
                                )
 {
+  (void)name;
+  (void)setId;
+  (void)indsNumber;
+
   int i;
 
   op_dat_core * planDatArgs = calloc ( argsNumber, sizeof ( op_dat_core ) );
