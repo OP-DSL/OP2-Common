@@ -27,7 +27,8 @@ if (MPI_FOUND)
   set(PARMETIS_LIBRARIES ${PARMETIS_LIBRARY} ${METIS_LIBRARY})
 
   # Try compiling and running test program if not cross-compiling
-  if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY AND NOT CMAKE_CROSSCOMPILING)
+  if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY
+      AND NOT (CMAKE_CROSSCOMPILING OR OP2_SKIP_PARMETIS_TEST))
 
     # Set flags for building test program
     set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
@@ -55,7 +56,7 @@ int main()
 
   endif()
   # When cross compiling assume tests have run successfully
-  if (CMAKE_CROSSCOMPILING)
+  if (CMAKE_CROSSCOMPILING OR OP2_SKIP_PARMETIS_TEST)
     set(PARMETIS_TEST_RUNS TRUE)
   endif()
 endif()
