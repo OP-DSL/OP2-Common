@@ -4,6 +4,12 @@
 #  PARMETIS_FOUND        - system has ParMETIS
 #  PARMETIS_INCLUDE_DIRS - include directories for ParMETIS
 #  PARMETIS_LIBRARIES    - libraries for ParMETIS
+#
+# Variables used by this module, they can change the default behaviour and
+# need to be set before calling find_package:
+#
+#  PARMETIS_SKIP_TESTS   - Skip tests building and running a test
+#                          executable linked against ParMETIS libraries
 
 #=============================================================================
 # Copyright (C) 2010 Garth N. Wells, Anders Logg and Johannes Ring
@@ -57,7 +63,7 @@ if (MPI_FOUND)
 
   # Try compiling and running test program if not cross-compiling
   if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY
-      AND NOT (CMAKE_CROSSCOMPILING OR OP2_SKIP_PARMETIS_TEST))
+      AND NOT (CMAKE_CROSSCOMPILING OR PARMETIS_SKIP_TESTS))
 
     # Set flags for building test program
     set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
@@ -85,7 +91,7 @@ int main()
 
   endif()
   # When cross compiling assume tests have run successfully
-  if (CMAKE_CROSSCOMPILING OR OP2_SKIP_PARMETIS_TEST)
+  if (CMAKE_CROSSCOMPILING OR PARMETIS_SKIP_TESTS)
     set(PARMETIS_TEST_RUNS TRUE)
   endif()
 endif()
