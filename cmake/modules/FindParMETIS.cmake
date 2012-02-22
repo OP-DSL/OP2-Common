@@ -54,6 +54,10 @@ int main()
 " PARMETIS_TEST_RUNS)
 
   endif()
+  # When cross compiling assume tests have run successfully
+  if (CMAKE_CROSSCOMPILING)
+    set(PARMETIS_TEST_RUNS TRUE)
+  endif()
 endif()
 
 # Standard package handling
