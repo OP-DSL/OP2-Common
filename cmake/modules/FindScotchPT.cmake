@@ -12,7 +12,8 @@
 #  SCOTCH_DEBUG        - Set this to TRUE to enable debugging output
 #                        of FindScotchPT.cmake if you are having problems.
 #                        Please enable this before filing any bug reports.
-
+#  SCOTCH_SKIP_TESTS   - Skip tests building and running a test
+#                        executable linked against PTScotch libraries
 set(ScotchPT_FOUND 0)
 
 message(STATUS "Checking for package 'SCOTCH-PT'")
@@ -55,7 +56,7 @@ set(SCOTCH_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
 # Try compiling and running test program if not cross-compiling
 if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES
-    AND NOT (CMAKE_CROSSCOMPILING OR OP2_SKIP_PTSCOTCH_TEST))
+    AND NOT (CMAKE_CROSSCOMPILING OR SCOTCH_SKIP_TESTS))
   if (SCOTCH_DEBUG)
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
                    "location of ptscotch.h: ${SCOTCH_INCLUDE_DIRS}/ptscotch.h")
@@ -231,7 +232,7 @@ int main() {
   endif()
 endif()
 # When cross compiling assume tests have run successfully
-if (CMAKE_CROSSCOMPILING OR OP2_SKIP_PTSCOTCH_TEST)
+if (CMAKE_CROSSCOMPILING OR SCOTCH_SKIP_TESTS)
   set(SCOTCH_TEST_RUNS TRUE)
 endif()
 
