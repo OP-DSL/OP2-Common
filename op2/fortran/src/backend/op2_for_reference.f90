@@ -7,7 +7,7 @@ module OP2_Fortran_Reference
 
   interface
 
-    ! debug C functions (to obtain similar output file that can be diff-ed
+        ! debug C functions (to obtain similar output file that can be diff-ed
     subroutine op_par_loop_2_f ( subroutineName, set, &
                                & data0, itemSel0, map0, access0, &
                                & data1, itemSel1, map1, access1  &
@@ -53,6 +53,7 @@ module OP2_Fortran_Reference
       type(op_map_core) :: map0, map1, map2, map3, map4
 
     end subroutine op_par_loop_5_F
+
 
     subroutine op_par_loop_6_F ( subroutineName, set, &
                                & data0, itemSel0, map0, access0, &
@@ -144,7 +145,7 @@ module OP2_Fortran_Reference
 
   end interface
 
-contains
+  contains
 
   subroutine op_par_loop_2 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
@@ -209,7 +210,6 @@ contains
 
   end subroutine op_par_loop_5
 
-
   subroutine op_par_loop_6 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
                            & data1, itemSel1, map1, access1, &
@@ -247,7 +247,6 @@ contains
                        & )
 
   end subroutine op_par_loop_6
-
 
   subroutine op_par_loop_8 ( subroutineName, set, &
                            & data0, itemSel0, map0, access0, &
