@@ -7,8 +7,9 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_lib_c.h>
-#include <op2_for_rt_wrappers.h>
 #include <op_cuda_rt_support.h>
+
+#include "../../include/op2_for_rt_wrappers.h"
 
 /*
  * Wrapper for Fortran to plan function for OP2 --> CUDA
