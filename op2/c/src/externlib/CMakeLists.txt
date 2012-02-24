@@ -4,8 +4,8 @@ add_definitions(${HDF5_DEFINITIONS})
 add_library(op2_hdf5 ${COMMON_SRC} ${UTIL_SRC} op_hdf5.c)
 target_link_libraries(op2_hdf5 ${HDF5_LIBRARIES})
 
-# Add all targets to the build-tree export set
-export(TARGETS op2_hdf5
+# Add target to the build-tree export set
+export(TARGETS op2_hdf5 APPEND
   FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
 
 # Install
