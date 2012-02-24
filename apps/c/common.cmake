@@ -55,4 +55,7 @@ if(NOT OP2_ALL_APPS)
   include_directories(${OP2_INCLUDE_DIRS})
   add_definitions(${OP2_USER_DEFINITIONS})
 
+  find_file(GRID_FILE new_grid.dat PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../data)
+  find_file(GRID_FILE_HDF5 new_grid.h5 PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../data)
+
 endif()

@@ -15,4 +15,5 @@ if (TARGET op2_mpi AND OP2_BUILD_DP)
   set_target_properties(airfoil_mpi_openmp_dp PROPERTIES COMPILE_FLAGS
     "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
   install(TARGETS airfoil_mpi_openmp_dp RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
+  install(FILES ${GRID_FILE} DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeInputFiles)
 endif()
