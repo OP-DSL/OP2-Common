@@ -160,8 +160,6 @@ export(PACKAGE OP2)
 
 # Set directory from where to import target export set
 set(OP2_CONF_DIR ${INSTALLATION_CMAKE_DIR})
-# Set the installation rpath to the library install directory
-set(OP2_INSTALL_RPATH ${INSTALLATION_LIB_DIR})
 configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
   "${PROJECT_BINARY_DIR}/install/OP2Config.cmake" @ONLY)
 
