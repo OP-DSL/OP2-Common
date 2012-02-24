@@ -50,9 +50,6 @@ if(NOT OP2_FOUND)
   # Shared library build?
   set(BUILD_SHARED_LIBS @BUILD_SHARED_LIBS@)
 
-  # CMake scripts directory
-  set(OP2_CMAKE_DIR "@OP2_CMAKE_DIR@" CACHE PATH "Source directory for CMake scripts")
-
   # Installation directories
   set(OP2_BIN_DIR "@INSTALLATION_BIN_DIR@" CACHE PATH "Binary installation directory.")
   set(OP2_LIB_DIR "@INSTALLATION_LIB_DIR@" CACHE PATH "Library installation directory.")
