@@ -98,8 +98,3 @@ include_directories(${OP2_SOURCE_DIR}/include)
 # OP2 source directories
 
 add_subdirectory(src)
-
-# Store the current build directory in the CMake user package registry.
-# This helps dependent projects find and use a package from the current
-# project's build tree without help from the user
-export(PACKAGE OP2)

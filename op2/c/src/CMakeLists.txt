@@ -126,14 +126,28 @@ if(OP2_WITH_CUDA)
 endif()
 
 #------------------------------------------------------------------------------
-# Export configuration
+# Export configuration to build tree
 
-# Create the OP2Config.cmake and OP2ConfigVersion files
+# Create the build tree OP2Config.cmake files
+set(OP2_CONF_DIR ${PROJECT_BINARY_DIR})
 configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
   "${PROJECT_BINARY_DIR}/OP2Config.cmake" @ONLY)
-install(FILES "${PROJECT_BINARY_DIR}/OP2Config.cmake"
-  DESTINATION "${INSTALLATION_CMAKE_DIR}")
 
-# Install the export set for use with the install-tree
+# Store the current build directory in the CMake user package registry.
+# This helps dependent projects find and use a package from the current
+# project's build tree without help from the user
+export(PACKAGE OP2)
+
+#------------------------------------------------------------------------------
+# Export configuration to install tree
+
+# Create the install tree OP2Config.cmake files
+set(OP2_CONF_DIR ${INSTALLATION_CMAKE_DIR})
+configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
+  "${PROJECT_BINARY_DIR}/install/OP2Config.cmake" @ONLY)
+
+# Install the configuration and export set for use with the install-tree
+install(FILES "${PROJECT_BINARY_DIR}/install/OP2Config.cmake"
+  DESTINATION "${INSTALLATION_CMAKE_DIR}")
 install(EXPORT OP2LibraryDepends DESTINATION "${INSTALLATION_CMAKE_DIR}"
   COMPONENT dev)
