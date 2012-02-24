@@ -25,8 +25,6 @@ if(NOT OP2_ALL_APPS)
   if(BUILD_SHARED_LIBS)
     option(USE_INSTALL_RPATH "Set rpath for installed applications." ON)
     if(USE_INSTALL_RPATH)
-      # rpath
-      set(CMAKE_INSTALL_RPATH "${OP2_INSTALL_RPATH}")
       # Append directories in the linker search path of the imported libraries to
       # the rpath. This makes the installed apps also find libraries in the OP2
       # build tree without having to set LD_LIBRARY_PATH.
