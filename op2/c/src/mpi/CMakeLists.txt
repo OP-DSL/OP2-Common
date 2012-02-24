@@ -9,8 +9,8 @@ include_directories(${OP2_MPI_INCLUDE_DIRS})
 add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_decl.c)
 target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES})
 
-# Add all targets to the build-tree export set
-export(TARGETS op2_mpi
+# Add target to the build-tree export set
+export(TARGETS op2_mpi APPEND
   FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
 
 # Install
@@ -28,8 +28,8 @@ if(OP2_WITH_CUDA AND CUDA_FOUND)
     op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu op_mpi_cuda_rt_support.c)
   target_link_libraries(op2_mpi_cuda ${OP2_MPI_LIBRARIES})
 
-  # Add all targets to the build-tree export set
-  export(TARGETS op2_mpi_cuda
+  # Add target to the build-tree export set
+  export(TARGETS op2_mpi_cuda APPEND
     FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
 
   # Install

@@ -128,10 +128,6 @@ endif()
 #------------------------------------------------------------------------------
 # Export configuration
 
-# Add all targets to the build-tree export set
-export(TARGETS ${OP2_TARGETS_BUILT}
-  FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
-
 # Create the OP2Config.cmake and OP2ConfigVersion files
 configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
   "${PROJECT_BINARY_DIR}/OP2Config.cmake" @ONLY)
