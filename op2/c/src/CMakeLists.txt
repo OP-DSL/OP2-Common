@@ -98,6 +98,14 @@ set(RT_SRC "${OP2_SOURCE_DIR}/src/core/op_rt_support.c")
 #------------------------------------------------------------------------------
 # Configuration
 
+# Set rpath to use on installation if desired
+if(USE_INSTALL_RPATH)
+  # Append directories in the linker search path of the built libraries to
+  # the rpath. This makes the installed libraries also find libraries in non-
+  # standard locations without having to set LD_LIBRARY_PATH
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
 set(OP2_TARGETS_EXPORT_SET OP2LibraryDepends)
 # Reset build-tree export set
 export(TARGETS FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
@@ -149,7 +157,11 @@ export(PACKAGE OP2)
 # Export configuration to install tree
 
 # Create the install tree OP2Config.cmake files
+
+# Set directory from where to import target export set
 set(OP2_CONF_DIR ${INSTALLATION_CMAKE_DIR})
+# Set the installation rpath to the library install directory
+set(OP2_INSTALL_RPATH ${INSTALLATION_LIB_DIR})
 configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
   "${PROJECT_BINARY_DIR}/install/OP2Config.cmake" @ONLY)
 
