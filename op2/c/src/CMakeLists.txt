@@ -1,14 +1,4 @@
 #------------------------------------------------------------------------------
-# Common source files
-
-# Core library sources
-set(COMMON_SRC "${OP2_SOURCE_DIR}/src/core/op_lib_core.c")
-# Utility sources
-set(UTIL_SRC "${OP2_SOURCE_DIR}/src/externlib/op_util.c")
-# Runtime support sources
-set(RT_SRC "${OP2_SOURCE_DIR}/src/core/op_rt_support.c")
-
-#------------------------------------------------------------------------------
 # Check for packages
 
 message(STATUS "Checking for optional packages...")
@@ -96,9 +86,25 @@ if(OP2_WITH_MPI)
 endif()
 
 #------------------------------------------------------------------------------
-# Configure targets
+# Common source files
+
+# Core library sources
+set(COMMON_SRC "${OP2_SOURCE_DIR}/src/core/op_lib_core.c")
+# Utility sources
+set(UTIL_SRC "${OP2_SOURCE_DIR}/src/externlib/op_util.c")
+# Runtime support sources
+set(RT_SRC "${OP2_SOURCE_DIR}/src/core/op_rt_support.c")
+
+#------------------------------------------------------------------------------
+# Configuration
 
 set(OP2_TARGETS_EXPORT_SET OP2LibraryDepends)
+# Reset build-tree export set
+export(TARGETS FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
+
+#------------------------------------------------------------------------------
+# Configure targets
+
 message(STATUS "Configuring targets...")
 
 if(OP2_WITH_SEQ)
