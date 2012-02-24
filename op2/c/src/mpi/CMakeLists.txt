@@ -11,11 +11,11 @@ target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES})
 
 # Add target to the build-tree export set
 export(TARGETS op2_mpi APPEND
-  FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
+  FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
 
 # Install
 install(TARGETS op2_mpi
-  EXPORT OP2LibraryDepends
+  EXPORT ${OP2_TARGETS_EXPORT_SET}
   LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
   ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
 )
@@ -30,11 +30,11 @@ if(OP2_WITH_CUDA AND CUDA_FOUND)
 
   # Add target to the build-tree export set
   export(TARGETS op2_mpi_cuda APPEND
-    FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
+    FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
 
   # Install
   install(TARGETS op2_mpi_cuda
-    EXPORT OP2LibraryDepends
+    EXPORT ${OP2_TARGETS_EXPORT_SET}
     LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
     ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
     )

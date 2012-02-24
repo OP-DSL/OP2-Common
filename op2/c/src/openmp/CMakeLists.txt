@@ -5,11 +5,11 @@ set(CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
 
 # Add target to the build-tree export set
 export(TARGETS op2_openmp APPEND
-  FILE "${PROJECT_BINARY_DIR}/OP2LibraryDepends.cmake")
+  FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
 
 # Install
 install(TARGETS op2_openmp
-  EXPORT OP2LibraryDepends
+  EXPORT ${OP2_TARGETS_EXPORT_SET}
   LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
   ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
 )

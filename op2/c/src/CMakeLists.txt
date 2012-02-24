@@ -98,6 +98,7 @@ endif()
 #------------------------------------------------------------------------------
 # Configure targets
 
+set(OP2_TARGETS_EXPORT_SET OP2LibraryDepends)
 message(STATUS "Configuring targets...")
 
 if(OP2_WITH_SEQ)
@@ -149,5 +150,5 @@ configure_file(${OP2_CMAKE_DIR}/OP2Config.cmake.in
 # Install the configuration and export set for use with the install-tree
 install(FILES "${PROJECT_BINARY_DIR}/install/OP2Config.cmake"
   DESTINATION "${INSTALLATION_CMAKE_DIR}")
-install(EXPORT OP2LibraryDepends DESTINATION "${INSTALLATION_CMAKE_DIR}"
+install(EXPORT ${OP2_TARGETS_EXPORT_SET} DESTINATION "${INSTALLATION_CMAKE_DIR}"
   COMPONENT dev)
