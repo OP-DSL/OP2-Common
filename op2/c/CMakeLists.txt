@@ -46,6 +46,9 @@ option(OP2_WITH_PTSCOTCH "Use PTScotch for partitioning in parallel."      ON)
 option(OP2_WITH_PARMETIS "Use ParMETIS for partitioning in parallel."      ON)
 option(OP2_WITH_CUDA     "Build a NVIDIA CUDA version of the OP2 library." ON)
 option(BUILD_SHARED_LIBS "Build OP2 with shared libraries."                ON)
+if(BUILD_SHARED_LIBS)
+  option(USE_INSTALL_RPATH "Set rpath for installed shared libraries."     ON)
+endif()
 option(CMAKE_VERBOSE_CONFIGURE "Enable verbose configuration output."     OFF)
 
 #------------------------------------------------------------------------------

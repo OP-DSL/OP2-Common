@@ -21,6 +21,19 @@ endif()
 
 # The following should not be set when called from the all apps build
 if(NOT OP2_ALL_APPS)
+
+  if(BUILD_SHARED_LIBS)
+    option(USE_INSTALL_RPATH "Set rpath for installed applications." ON)
+    if(USE_INSTALL_RPATH)
+      # rpath
+      set(CMAKE_INSTALL_RPATH "${OP2_INSTALL_RPATH}")
+      # Append directories in the linker search path of the imported libraries to
+      # the rpath. This makes the installed apps also find libraries in the OP2
+      # build tree without having to set LD_LIBRARY_PATH.
+      set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    endif()
+  endif()
+
   # Import compiler flags for all build types
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OP2_CXX_FLAGS}")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OP2_C_FLAGS}")
@@ -43,4 +56,5 @@ if(NOT OP2_ALL_APPS)
 
   include_directories(${OP2_INCLUDE_DIRS})
   add_definitions(${OP2_USER_DEFINITIONS})
+
 endif()

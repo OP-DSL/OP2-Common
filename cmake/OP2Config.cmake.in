@@ -8,6 +8,8 @@
 
 if(NOT OP2_FOUND)
 
+  message("-- Loading OP2 configuration from @OP2_CONF_DIR@")
+
   # Package found
   set(OP2_FOUND TRUE)
 
@@ -44,6 +46,10 @@ if(NOT OP2_FOUND)
   # Include directories
   set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
   set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
+
+  # Shared library build?
+  set(BUILD_SHARED_LIBS @BUILD_SHARED_LIBS@)
+  set(OP2_INSTALL_RPATH @OP2_INSTALL_RPATH@)
 
   # CMake scripts directory
   set(OP2_CMAKE_DIR "@OP2_CMAKE_DIR@" CACHE PATH "Source directory for CMake scripts")
