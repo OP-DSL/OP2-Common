@@ -241,8 +241,6 @@ use constantVarsCuda
 
       res_calc_count = res_calc_count + 1
 
-
-
 !      call op_par_loop_8 ( res_calc, edges, &
 !                         & p_x,    1, pedge,  OP_READ, &
 !                         & p_x,    2, pedge,  OP_READ, &
@@ -253,7 +251,6 @@ use constantVarsCuda
 !                         & p_res,  1, pecell, OP_INC,  &
 !                         & p_res,  2, pecell, OP_INC   &
 !                      & )
-
 
       bres_calc_info = op_par_loop_bres_calc ( brescalcName, bedges, &
                                              & p_x,      1, pbedge,  OP_READ, &
@@ -281,7 +278,6 @@ use constantVarsCuda
       ! update flow field
 
       rms(1) = 0.0
-
 
       update_info%kernelTime = 0
       update_info%hostTime = 0
@@ -325,6 +321,10 @@ use constantVarsCuda
 
     end if
 
+    if ( mod ( niter, 100 ) .eq. 0 ) then
+      print '(i4,es12.5)', niter, rms(1)
+    end if
+
   end do ! external loop
 
   istat = cudaEventRecord ( stopEvent, 0 )
@@ -366,11 +366,22 @@ use constantVarsCuda
   write(*,*) 'Average time for host bres calc (ms): ', (bres_calc_host_time / real(bres_calc_count))
   write(*,*) 'Average time for host update (ms): ', (update_host_time / real(update_count))
 
+! retDebug = openfile ( C_CHAR_"ittimes.txt"//C_NULL_CHAR )
+
+! do debugiter = 1, iterationNumber
+
+!   datad = iterationFullTimes(debugiter)
+!   retDebug = writeRealToFile ( datad )
+! end do
+
+! retDebug = closefile ()
+
   call op_fetch_data ( p_q )
 
-  retDebug = openfile ( C_CHAR_"/work/cbertoll/OP2-Common/apps/fortran/airfoil/hand-made/cuda/q.txt"//C_NULL_CHAR )
+  retDebug = openfile ( C_CHAR_"q.txt"//C_NULL_CHAR )
 
   do debugiter = 1, 4*ncell
+
     datad = q(debugiter)
     retDebug = writeRealToFile ( datad )
   end do

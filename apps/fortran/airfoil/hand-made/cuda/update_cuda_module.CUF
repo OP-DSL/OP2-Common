@@ -82,8 +82,6 @@ contains
         temp(startOffset + tid ) = temp(startOffset + tid ) + temp(startOffset + (tid + d) )
       end if
 
-!     d = d / 2
-
       d = ishft ( d, -1 )
     end do
 
@@ -172,7 +170,6 @@ contains
     ! debug
 !   integer(4) :: outofbound = 0
 
-
     ! automatic shared memory
     real(8), shared :: autoshared(0:*)
 
@@ -251,7 +248,6 @@ contains
 
       end do
 
-
       ! user-supplied kernel call
 
       ! implements:
@@ -268,7 +264,6 @@ contains
                   & arg4_l  &
                 & )
 
-
       ! copy back into shared memory, then to device
 
       ! implements:
@@ -281,7 +276,6 @@ contains
         autoshared ( argSDisplacement + ( m + tid * 4 ) ) = arg1_l(m)
 
       end do
-
 
       ! implements:
       ! for (int m=0; m<4; m++)
@@ -305,7 +299,6 @@ contains
 
       end do
 
-
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg2[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];
@@ -326,8 +319,6 @@ contains
     ! implements:
     ! for(int d=0; d<1; d++) op_reduction<OP_INC>(&arg4[d+blockIdx.x*1],arg4_l[d]);
 
-
-
     do d = 0, 0
 
       call reduct_update ( parg4 ( d + (blockidx%x -1) * 1 : d + (blockidx%x -1) * 1 ), arg4_l(d), warpSizeOP2, redStartOffset )
@@ -343,7 +334,6 @@ contains
 !     parg4 ( 0 + (blockidx%x -1) * 1 ) = -200.0
 !
 !   end if
-
 
   end subroutine op_cuda_update
 
@@ -496,7 +486,6 @@ contains
 
     reductSize = max ( reductSize, 8 )
 
-
     if ( isKernelInputDataGenerated .eq. .false. ) then
 
       isKernelInputDataGenerated = .true.
@@ -600,7 +589,6 @@ contains
     ! copy back reduction variable, from device to host
     redArrayHost = redArrayDev
 
-
 !    print *, 'printing out host array'
 !    summed = 0
 !    do i = 1, reductItems
@@ -611,8 +599,6 @@ contains
 !    end do
 !print *, summed
 !    stop
-
-
 
     ! 2. reduct the host array to the single user variable
     ! implements:
@@ -635,7 +621,6 @@ contains
     istat = cudaEventRecord ( stopKernelTime, 0 )
     istat = cudaEventSynchronize ( stopKernelTime )
     istat = cudaEventElapsedTime ( op_par_loop_update%kernelTime, startKernelTime, stopKernelTime )
-
 
     istat = cudaEventRecord ( startHostTime, 0 )
 

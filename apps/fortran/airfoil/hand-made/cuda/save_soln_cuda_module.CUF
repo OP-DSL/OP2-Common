@@ -1,10 +1,9 @@
 module save_soln_cuda_module
 
-use OP2_Fortran_Declarations
-use cudaConfigurationParams
-use OP2Profiling
-use cudafor
-
+  use OP2_Fortran_Declarations
+  use cudaConfigurationParams
+  use OP2Profiling
+  use cudafor
 
   type varSizes_save_soln
 
@@ -207,16 +206,11 @@ contains
     type(op_map_core), pointer :: map0, map1
     type(op_dat_core), pointer :: arg0, arg1
 
-    ! used for mallocs and memcpys
-!   integer(4) :: data0Size, data1Size
-
     ! define and compute grid and block sizes and other variables (unused in this case)
     real(8), dimension(:), allocatable, device :: argument0
     real(8), dimension(:), allocatable, device :: argument1
 
     type(op_set_core), pointer :: arg0Set, arg1Set
-
-!   type(varSizes_save_soln), device :: argSizes
 
     integer(4) :: nblocks = 200
     integer(4) :: nthreads = 128
@@ -250,7 +244,6 @@ contains
     arg0 => arg0In%dataPtr
     arg1 => arg1In%dataPtr
 
-
     warpSizeOP2 = OP_WARP_SIZE
 
     ! this is mandatory, otherwise nshared will become 4096 from the previous invocation!!
@@ -260,7 +253,6 @@ contains
 
     nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
     nshared = max ( nshared, 8 * 4 ) ! 8 = sizeof(double) => real(8)
-
 
     offsetS = nshared * OP_WARP_SIZE
 
@@ -282,7 +274,6 @@ contains
 
     call c_f_pointer ( arg0%dat_d, argument0, (/data0Size/) )
     call c_f_pointer ( arg1%dat_d, argument1, (/data1Size/) )
-
 
     istat = cudaEventRecord ( stopHostTime, 0 )
     istat = cudaEventSynchronize ( stopHostTime )
@@ -321,3 +312,4 @@ contains
   end function op_par_loop_save_soln
 
 end module save_soln_cuda_module
+

@@ -19,7 +19,6 @@ contains
 
     integer(4) :: n, m
 
-
     gam = 1.4
     gm1 = gam - 1.0
     cfl = 0.9
@@ -217,7 +216,6 @@ contains
   !
   !end subroutine bres_calc
 
-
   !subroutine update ( qold, q, res, adt, rms ) BIND(C)
   !
   ! implicit none
@@ -245,3 +243,4 @@ contains
   !end subroutine update
 
 end module airfoil_seq
+

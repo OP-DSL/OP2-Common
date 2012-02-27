@@ -6,5 +6,4 @@ and
 
 BLOCK_SIZE_ENV
 
-
 Optimal values for these variables are 64 and 64 or 128 and 128.
