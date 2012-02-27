@@ -542,3 +542,25 @@ op_timing_realloc ( int kernel )
 		OP_kern_max = OP_kern_max_new;
 	}
 }
+
+void
+op_dump_dat ( op_dat data )
+{
+  fflush (stdout);
+
+  if ( data != NULL ) {
+    if ( strncmp ( "real", data->type, 4 ) == 0 ) {
+      for ( int i = 0; i < data->dim * data->set->size; i++ )
+        printf ( "%lf\n", ((double *) data->data)[i] );
+    } else if ( strncmp ( "integer", data->type, 7 ) == 0 ) {
+      for ( int i = 0; i < data->dim * data->set->size; i++ )        
+        printf ( "%d\n", data->data[i] );
+    } else {
+      printf ( "Unsupported type for dumping %s\n", data->type );
+      exit ( 0 );
+    }
+  }
+
+  fflush (stdout);
+}
+

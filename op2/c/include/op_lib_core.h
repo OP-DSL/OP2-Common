@@ -203,6 +203,8 @@ void op_timing_realloc ( int );
 
 void op_timers ( double *cpu, double *et );
 
+void op_dump_dat ( op_dat data );
+
 #ifdef __cplusplus
 }
 #endif
