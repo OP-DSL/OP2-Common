@@ -27,9 +27,9 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/* 
+/*
  * op_mpi_util.h
- * 
+ *
  * Header file for the parallel I/O functions in op_mpi_hdf5.c
  *
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
@@ -40,7 +40,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 op_set op_decl_set_hdf5(char const *file, char const *name);
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name);
@@ -52,3 +52,4 @@ void op_write_hdf5(char const * file_name);
 #endif
 
 #endif /* __OP_HDF5_H */
+

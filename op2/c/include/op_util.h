@@ -27,9 +27,9 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/* 
+/*
  * op_mpi_util.h
- * 
+ *
  * Header file for the utility functions used in op_util.c
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
@@ -40,7 +40,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 /** Define hash table size for holding MPI op_par_loop performance measures **/
 #define HASHSIZE 50

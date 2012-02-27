@@ -1,7 +1,7 @@
 #ifndef __OP_CUDA_REDUCTION_H
 #define __OP_CUDA_REDUCTION_H
 
-/* 
+/*
  * This file provides an optimised implementation for reduction of OP2 global variables.
  * It is separated from the op_cuda_rt_support.h file because the reduction code
  * is based on C++ templates, while the other file only includes C routines.
@@ -9,12 +9,11 @@
 
 #include <cuda.h>
 
-
-/* 
+/*
  * reduction routine for arbitrary datatypes
  */
 
-template < op_access reduction, class T > 
+template < op_access reduction, class T >
 __inline__ __device__ void op_reduction( volatile T * dat_g, T dat_l )
 {
   extern __shared__ volatile T temp[];
@@ -93,7 +92,7 @@ __inline__ __device__ void op_reduction( volatile T * dat_g, T dat_l )
           case OP_MAX:
             if ( dat_t > dat_l ) dat_l = dat_t;
             break;
-	}
+  }
 
         temp[tid] = dat_l;
       }
@@ -117,13 +116,13 @@ __inline__ __device__ void op_reduction( volatile T * dat_g, T dat_l )
   }
 }
 
-/* 
+/*
  * reduction routine for arbitrary datatypes
  * (alternative version using just one warp)
  *
  */
 
-template < op_access reduction, class T > 
+template < op_access reduction, class T >
 __inline__ __device__ void op_reduction_alt ( volatile T * dat_g, T dat_l )
 {
   extern __shared__ volatile T temp[];

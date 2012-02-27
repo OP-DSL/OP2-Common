@@ -27,12 +27,11 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
-/* 
+/*
  * op_mpi_part_core.h
- * 
+ *
  * Headder file for the OP2 Distributed memory (MPI) Partitioning wrapper routines,
- * data migration and support utility functions 
+ * data migration and support utility functions
  *
  * written by: Gihan R. Mudalige, (Started 07-04-2011)
  */
@@ -42,14 +41,13 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
- 
+#endif
+
 /*******************************************************************************
 * Random partitioning wrapper prototype
 *******************************************************************************/
 void op_partition_random(op_set primary_set);
 
- 
 #ifdef PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
@@ -62,7 +60,6 @@ void op_partition_geomkway(op_dat coords, op_map primary_map);
 
 void op_partition_meshkway(op_map primary_map);
 #endif
-
 
 #ifdef PTSCOTCH
 /*******************************************************************************

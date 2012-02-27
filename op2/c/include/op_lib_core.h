@@ -29,7 +29,7 @@
 
 /*
  * This header file declares all types and functions required
- * by *any* OP2 implementation, i.e. independently of the 
+ * by *any* OP2 implementation, i.e. independently of the
  * back-end and the target languages.
  * It is typically used by language or back-end specific
  * top level OP2 libraries
@@ -38,11 +38,11 @@
 #ifndef __OP_LIB_CORE_H
 #define __OP_LIB_CORE_H
 
-#include <stdlib.h>                                                         
-#include <stdio.h>                                                          
-#include <string.h>                                                         
-#include <strings.h>                                                         
-#include <math.h>                                                           
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <math.h>
 
 /*
  * essential typedefs
@@ -52,7 +52,7 @@ typedef unsigned int uint;
 typedef long long ll;
 typedef unsigned long long ull;
 
-/* 
+/*
  * OP2 global state variables
  */
 
@@ -127,7 +127,7 @@ typedef struct
   op_dat      dat;    /* dataset */
   op_map      map;    /* indirect mapping */
   int         dim,    /* dimension of data */
-              idx,    
+              idx,
               size;   /* size (for sequential execution) */
   char       *data,   /* data on host */
              *data_d; /* data on device (for CUDA execution) */
@@ -167,7 +167,7 @@ typedef struct
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 /*
  * Core lib function prototypes
@@ -195,7 +195,7 @@ op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
 
 void op_diagnostic_output ( void );
 
-void op_timing_output ( void ); 
+void op_timing_output ( void );
 
 void op_timing_output_2_file ( const char * );
 

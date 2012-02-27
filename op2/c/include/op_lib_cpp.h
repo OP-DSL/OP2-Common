@@ -32,7 +32,7 @@
  * the case of C++ programs, integrating the missing part
  * of the OP2 C interface (implemented in op_lib_c.h).
  * The definitions used here are specifically using C++
- * abstractions and cannot be used by Fortran without 
+ * abstractions and cannot be used by Fortran without
  * a special briding library.
  */
 
@@ -45,8 +45,6 @@
 
 #include <op_lib_core.h>
 #include <op_lib_c.h>
-
-
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -143,9 +141,9 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
 					 T * data, char const * name )
 {
 
-  if ( type_error ( data, type ) ) 
+  if ( type_error ( data, type ) )
   {
-    printf ( "incorrect type specified for dataset \"%s\" \n", name ); 
+    printf ( "incorrect type specified for dataset \"%s\" \n", name );
     exit ( 1 );
   }
 
@@ -159,7 +157,7 @@ void op_decl_const2 ( char const * name, int dim, char const *type, T * data )
   {
     printf ( "incorrect type specified for constant \"%s\" \n", name ); exit ( 1 );
   }
-  
+
   op_decl_const_char ( dim, type, sizeof ( T ), (char *) data, name );
 }
 

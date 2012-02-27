@@ -1,6 +1,6 @@
 /*
-  Open source copyright declaration based on BSD open source template:
-  http://www.opensource.org/licenses/bsd-license.php
+Open source copyright declaration based on BSD open source template:
+http://www.opensource.org/licenses/bsd-license.php
 
 * Copyright (c) 2009, Mike Giles
 * All rights reserved.
@@ -29,46 +29,42 @@
 
 
 /* 
- * op_mpi_core.h
- * 
- * Headder file for the OP2 Distributed memory (MPI) halo creation, 
- * halo exchange and support utility routines/functions 
- *
- * written by: Gihan R. Mudalige, (Started 01-03-2011)
- */
+* op_mpi_core.h
+* 
+* Headder file for the OP2 Distributed memory (MPI) halo creation, 
+* halo exchange and support utility routines/functions 
+*
+* written by: Gihan R. Mudalige, (Started 01-03-2011)
+*/
 
 #ifndef __OP_MPI_CORE_H
 #define __OP_MPI_CORE_H
 
 #include <mpi.h>
- 
+
 /** Define the root MPI process **/
 #ifdef MPI_ROOT
 #undef MPI_ROOT
 #endif
 #define MPI_ROOT 0
 
-
-
 /*******************************************************************************
 * MPI halo list data type
 *******************************************************************************/
 typedef struct {
- op_set set;        //set related to this list
- int    size;       //number of elements in this list                                
- int    *ranks;     //MPI ranks to be exported to or imported from
- int    ranks_size; //number of MPI neighbors 
-                    //to be exported to or imported from
- int    *disps;     //displacements for the starting point of each 
-                    //rank's element list 
- int    *sizes;     //number of elements exported to or imported 
-                    //from each ranks
- int    *list;      //the list of all elements 
+op_set set;        //set related to this list
+int    size;       //number of elements in this list                                
+int    *ranks;     //MPI ranks to be exported to or imported from
+int    ranks_size; //number of MPI neighbors 
+//to be exported to or imported from
+int    *disps;     //displacements for the starting point of each 
+//rank's element list 
+int    *sizes;     //number of elements exported to or imported 
+//from each ranks
+int    *list;      //the list of all elements 
 } halo_list_core;
 
 typedef halo_list_core * halo_list;
-
-
 
 /*******************************************************************************
 * Data structures related to MPI level partitioning
@@ -76,12 +72,12 @@ typedef halo_list_core * halo_list;
 //struct to hold the partition information for each set
 typedef struct
 {
-  op_set set;   //set to which this partition info blongs to 
-  int *g_index; //global index of each element held in 
-                //this MPI process
-  int *elem_part;//partition to which each element belongs
-  int is_partitioned; //indicates if this set is partitioned 
-                      //1 if partitioned 0 if not
+op_set set;   //set to which this partition info blongs to 
+int *g_index; //global index of each element held in 
+//this MPI process
+int *elem_part;//partition to which each element belongs
+int is_partitioned; //indicates if this set is partitioned 
+//1 if partitioned 0 if not
 } part_core;
 
 typedef part_core *part;
@@ -90,63 +86,55 @@ typedef part_core *part;
 * Data structure to hold sets for latency hiding
 *******************************************************************************/
 typedef struct {
-	op_set core_set;
-	op_set noncore_set;
+op_set core_set;
+op_set noncore_set;
 } set_part_core;
-
 
 /*******************************************************************************
 * Data Type to hold MPI performance measures
 *******************************************************************************/
 typedef struct 
 {
-  char const  *name;   // name of kernel 
-  double      time;    //total time spent in this 
-                       //kernel (compute+comm-overlapping)
-  int         count;   //number of times this kernel is called
-  int*        op_dat_indices;  //array to hold op_dat index of 
-                               //each op_dat used in MPI halo 
-                               //exports for this kernel
-  int         num_indices; //number of op_dat indices
-  int*        tot_count;   //total number of times this op_dat was 
-                           //halo exported within this kernel
-  int*        tot_bytes;   //total number of bytes halo exported 
-                           //for this op_dat in this kernel  
+char const  *name;   // name of kernel 
+double      time;    //total time spent in this 
+//kernel (compute+comm-overlapping)
+int         count;   //number of times this kernel is called
+int*        op_dat_indices;  //array to hold op_dat index of 
+//each op_dat used in MPI halo 
+//exports for this kernel
+int         num_indices; //number of op_dat indices
+int*        tot_count;   //total number of times this op_dat was 
+//halo exported within this kernel
+int*        tot_bytes;   //total number of bytes halo exported 
+//for this op_dat in this kernel  
 } op_mpi_kernel;
-
-
 
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
 *******************************************************************************/
 typedef struct {
- int         dat_index;    //index of the op_dat to which this buffer belongs
- char        *buf_exec;    //buffer holding exec halo to be exported;
- char        *buf_nonexec; //buffer holding nonexec halo to be exported;
- MPI_Request *s_req;       //pointed to hold the MPI_Reqest for sends
- MPI_Request *r_req;       //pointed to hold the MPI_Reqest for receives
- int         s_num_req;    //number of send MPI_Reqests in flight at a given 
-                           //time for this op_dat
- int         r_num_req;    //number of receive MPI_Reqests in flight at a given  
-                           //time for this op_dat
+int         dat_index;    //index of the op_dat to which this buffer belongs
+char        *buf_exec;    //buffer holding exec halo to be exported;
+char        *buf_nonexec; //buffer holding nonexec halo to be exported;
+MPI_Request *s_req;       //pointed to hold the MPI_Reqest for sends
+MPI_Request *r_req;       //pointed to hold the MPI_Reqest for receives
+int         s_num_req;    //number of send MPI_Reqests in flight at a given 
+//time for this op_dat
+int         r_num_req;    //number of receive MPI_Reqests in flight at a given  
+//time for this op_dat
 } op_mpi_buffer_core;
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
-
 
 /** extern variables **/
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
 
-
 /** export list on the device **/
 
 extern int** export_exec_list_d;
 extern int** export_nonexec_list_d;
-
-
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -164,20 +152,18 @@ int get_partition(int global_index, int* part_range, int* local_index, int comm_
 int get_global_index(int local_index, int partition, int* part_range, int comm_size);
 
 void find_neighbors_set(halo_list List, int* neighbors, int* sizes, 
-	int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm);
+int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm);
 
 void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size, 
-    int* total, int* temp_list, int size, int comm_size, int my_rank);
+int* total, int* temp_list, int size, int comm_size, int my_rank);
 
 void create_export_list(op_set set, int* temp_list, halo_list h_list, int size, 
-    int comm_size, int my_rank);
+int comm_size, int my_rank);
 
 void create_import_list(op_set set, int* temp_list, halo_list h_list, int total_size, 
-    int* ranks, int* sizes, int ranks_size, int comm_size, int my_rank);
+int* ranks, int* sizes, int ranks_size, int comm_size, int my_rank);
 
 int is_onto_map(op_map map);
-
-
 
 /*******************************************************************************
 * Core MPI lib function prototypes

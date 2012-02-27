@@ -18,7 +18,7 @@ typedef struct {
   op_dat      *dats;
   int         *idxs;
   op_access   *accs;
-  
+
   /* execution plan */
   int        *nthrcol;   /* number of thread colors for each block */
   int        *thrcol;    /* thread colors */
@@ -43,11 +43,10 @@ typedef struct {
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
                              int *, op_map *, int *, char const **, op_access *, int, int * );
-
 
 op_plan * op_plan_core ( char const *, op_set, int, int, int, op_arg *, int, int * );
 
