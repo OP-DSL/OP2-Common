@@ -68,6 +68,7 @@ void __cutilCheckMsg( const char * errorMessage, const char * file, const int li
 void cutilDeviceInit( int argc, char ** argv);
 
 void cutilDeviceInit_mpi( int argc, char ** argv, int mpi_rank);
+
 /*
  * routines to move arrays to/from GPU device
  */

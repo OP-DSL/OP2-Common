@@ -9,7 +9,6 @@
 
 #include <cuda.h>
 
-
 /*
  * reduction routine for arbitrary datatypes
  */

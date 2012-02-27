@@ -27,7 +27,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /*
  * op_mpi_seq.h
  *
@@ -43,15 +42,13 @@
 #ifndef __OP_MPI_SEQ_H
 #define __OP_MPI_SEQ_H
 
+#include <op_lib_core.h>
+#include <op_rt_support.h>
+
 /*******************************************************************************
 * Random partitioning wrapper prototype
 *******************************************************************************/
 void op_partition_random(op_set primary_set);
-
-
-#include <op_lib_core.h>
-#include <op_rt_support.h>
-
 
 void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
@@ -62,7 +59,6 @@ void op_arg_set(int n, op_arg arg, char **p_arg){
 
   *p_arg = arg.data + n2*arg.size;
 }
-
 
 op_arg* blank_arg(op_arg *arg)
 {
@@ -155,7 +151,6 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
     kernel( (T0 *)p_arg0,  (T1 *)p_arg1);
   }
 
-
   //(2) over exec halo (blank out global parameters to avoid double counting)
   for (int n=set->size; n<exec_length; n++) {
     op_arg_set(n,*(blank_arg(&arg0)),&p_arg0 );
@@ -247,7 +242,6 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
     exec_length = set->size + OP_import_exec_list[set->index]->size;
   else if (arg3.idx != -1 && arg3.acc != OP_READ)
     exec_length = set->size + OP_import_exec_list[set->index]->size;
-
 
   // loop over set elements
   //(1) over core partition
@@ -671,8 +665,6 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       printf(" kernel routine with indirection: %s \n",name);
   }
 
-
-
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers(&cpu_t1, &wall_t1);
@@ -763,7 +755,6 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
         (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
   }
-
 
   //(2) over exec halo (blank out global parameters to avoid double counting)
   for (int n=set->size; n<exec_length; n++) {

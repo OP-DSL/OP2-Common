@@ -27,7 +27,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 /*
  * op_mpi_part_core.h
  *
@@ -51,6 +50,7 @@ extern "C" {
 void op_partition_random(op_set primary_set);
 
 #ifdef PARMETIS
+
 /*******************************************************************************
 * ParMetis wrapper prototypes
 *******************************************************************************/
@@ -62,14 +62,17 @@ void op_partition_kway(op_map primary_map);
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
 void op_partition_meshkway(op_map primary_map);
+
 #endif
 
-
 #ifdef PTSCOTCH
+
 /*******************************************************************************
 * PT-SCOTCH wrapper prototypes
 *******************************************************************************/
+
 void op_partition_ptscotch(op_map primary_map);
+
 #endif
 
 /*******************************************************************************
