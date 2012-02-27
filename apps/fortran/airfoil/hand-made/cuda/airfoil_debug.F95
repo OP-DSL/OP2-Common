@@ -7,36 +7,36 @@ module AirfoilDebug
   use, intrinsic :: ISO_C_BINDING
 
   interface
-  
-			! debug C functions (to obtain similar output file that can be diff-ed
-			integer(KIND=C_INT) function openfile ( filename ) BIND(C)
 
-				use, intrinsic :: ISO_C_BINDING
-				character(c_char), dimension(20) :: filename
+      ! debug C functions (to obtain similar output file that can be diff-ed
+      integer(KIND=C_INT) function openfile ( filename ) BIND(C)
 
-			end function openfile
+        use, intrinsic :: ISO_C_BINDING
+        character(c_char), dimension(20) :: filename
 
-			integer(KIND=C_INT) function closefile ( ) BIND(C)
+      end function openfile
 
-					use, intrinsic :: ISO_C_BINDING
+      integer(KIND=C_INT) function closefile ( ) BIND(C)
 
-			end function closefile
+          use, intrinsic :: ISO_C_BINDING
 
-			integer(KIND=C_INT) function writerealtofile ( dataw ) BIND(C)
-	
-				use, intrinsic :: ISO_C_BINDING
+      end function closefile
 
-				real(c_double) :: dataw
-	
-			end function writerealtofile
+      integer(KIND=C_INT) function writerealtofile ( dataw ) BIND(C)
 
-			integer(KIND=C_INT) function writeinttofile ( dataw ) BIND(C)
-	
-				use, intrinsic :: ISO_C_BINDING
+        use, intrinsic :: ISO_C_BINDING
 
-				integer(c_int) :: dataw
-	
-			end function writeinttofile
+        real(c_double) :: dataw
+
+      end function writerealtofile
+
+      integer(KIND=C_INT) function writeinttofile ( dataw ) BIND(C)
+
+        use, intrinsic :: ISO_C_BINDING
+
+        integer(c_int) :: dataw
+
+      end function writeinttofile
 
   end interface
 

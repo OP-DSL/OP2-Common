@@ -23,7 +23,7 @@ module bres_calc_cuda_module
 		integer(4) :: parg2MapsSize
 		integer(4) :: parg3MapsSize
 		integer(4) :: parg4MapsSize
-		integer(4) :: parg5DatDSize		
+		integer(4) :: parg5DatDSize
 		integer(4) :: pindArgSizesSize
 		integer(4) :: pindArgOffsSize
 		integer(4) :: pblkMapSize
@@ -31,7 +31,7 @@ module bres_calc_cuda_module
 		integer(4) :: pNelemsSize
 		integer(4) :: pNcolorsSize
 		integer(4) :: pColorsSize
-		
+
 	end type varSizes_bres_calc
 
   real(8), constant :: bres_calc_gam, &
@@ -42,7 +42,7 @@ module bres_calc_cuda_module
 											 bres_calc_alpha, &
 											 bres_calc_air_const, &
 											 bres_calc_qinf(4)
-	
+
 
 	! logical that tells if the input data to the kernel has been already generated
 	! by previous calls to this same op_par_loop function
@@ -56,7 +56,7 @@ module bres_calc_cuda_module
 !	type(op_plan), pointer :: actualPlan
 
 
-!	integer, pointer, dimension(:) :: ncolblk	
+!	integer, pointer, dimension(:) :: ncolblk
 !	integer, pointer, dimension(:) :: pnindirect
 !	type(c_devptr), pointer, dimension(:) :: pindMaps
 !	integer(4), dimension(1) :: pindMapsSize ! (just one array of pointers (i.e. other arrays))
@@ -110,7 +110,7 @@ module bres_calc_cuda_module
 			bres_calc_cfl = 0.900000
 			bres_calc_eps = 0.050000
 			bres_calc_alpha = 0.052360
-			
+
 !			bres_calc_gam = 1.4
 !			bres_calc_gm1 = 1.4 - 1.0 ! the first operand was a reference to the gam variable...not accepted by Fortran CUDA
 !			bres_calc_cfl = 0.9
@@ -127,9 +127,9 @@ module bres_calc_cuda_module
 			bres_calc_qinf(2) = 0.473286 ! r * u
 			bres_calc_qinf(3) = 0.000000 ! 0.0
 			bres_calc_qinf(4) = 2.612000 ! r * e
-		
-		end subroutine bres_calc_initialiseConstants	
-		
+
+		end subroutine bres_calc_initialiseConstants
+
 		attributes(device) subroutine bres_calc ( x1, x2, q1, adt1, res1, bound )
 
 			implicit none
@@ -182,11 +182,11 @@ module bres_calc_cuda_module
 
 				f = 0.5 * (vol1*(q1(4)+p1)     + vol2*(bres_calc_qinf(4)+p2)    ) + mu*(q1(4)-bres_calc_qinf(4));
 				res1(4) = res1(4) + f;
-			
+
 			end if
 
 		end subroutine bres_calc
-	
+
 		attributes(global) subroutine op_cuda_bres_calc ( argSizes, &
 																											pindArg0, &
 																											pindArg0Maps, &
@@ -211,12 +211,12 @@ module bres_calc_cuda_module
 																											& pncolors, &
 																											& pcolors &
 																									& )
-			
+
 			implicit none
-			
+
 			type(varSizes_bres_calc), device :: argSizes
 			integer(4), value :: blockOffset
-			
+
 			real(8), dimension(0:(argSizes%pindArg0Size)-1), device :: pindArg0
 			integer(4), dimension(0:(argSizes%pindArg0MapsSize)-1), device :: pindArg0Maps
 
@@ -236,7 +236,7 @@ module bres_calc_cuda_module
 			integer(2), dimension(0:(argSizes%parg4MapsSize)-1), device :: parg4Maps
 
 			integer(4), dimension(0:(argSizes%parg5DatDSize-1)), device :: parg5DatD
-			
+
 			integer(4), dimension(0:(argSizes%pindArgSizesSize)-1), device :: pindArgSizes
 			integer(4), dimension(0:(argSizes%pindArgOffsSize)-1), device :: pindArgOffs
 			integer(4), dimension(0:(argSizes%pblkMapSize)-1), device :: pblkMap
@@ -245,11 +245,11 @@ module bres_calc_cuda_module
 			integer(4), dimension(0:(argSizes%pNcolorsSize)-1), device :: pncolors
 			integer(4), dimension(0:(argSizes%pColorsSize)-1), device :: pcolors
 
-			
+
 			! the following variables are used to keep temporary values for OP_INC data (4-th parameter to op_par_loop)
 			real(8), dimension(0:3) :: arg4_l
 
-			
+
 			integer(4), shared :: ind_arg0_size
 			integer(4), shared :: ind_arg1_size
 			integer(4), shared :: ind_arg2_size
@@ -263,21 +263,21 @@ module bres_calc_cuda_module
 
 
 			! the following shared variable is allocated by the kernel call (nshared parameter)
-			! in case of op_dats with different base data type, we can declare multiple 
+			! in case of op_dats with different base data type, we can declare multiple
 			! myshared with different types, all related to the same address, and then properly
 			! access them
-			real(8), shared :: myshared(0:*)			
-			
+			real(8), shared :: myshared(0:*)
+
 			integer :: nbytes0, nbytes1, nbytes2, nbytes3
 
 			integer(4) :: n, moduled, whileBound, col2, iterInit, i
 			integer(4) :: inRoundUp0, inRoundUp1, inRoundUp2, inRoundUp3
-			
+
 			integer(2) :: arg4_map ! this has the value of a position in parg4Maps which is an array of shorts
 			integer(4) :: col
-		
-			if ( (threadidx%x -1) .eq. 0 ) then 
-				
+
+			if ( (threadidx%x -1) .eq. 0 ) then
+
 				! get sizes and shift pointers and direct-mapped data
 
 				blockId = pblkmap((blockidx%x-1) + blockOffset )
@@ -288,35 +288,35 @@ module bres_calc_cuda_module
 				nelems2  = blockdim%x * ( 1 + ( nelem - 1 ) / blockdim%x )
 				ncolor   = pncolors(blockId)
 
-				! ind_arg0_size = ind_arg_sizes[0+blockId*4];                                   
-				! ind_arg1_size = ind_arg_sizes[1+blockId*4];                                   
-				! ind_arg2_size = ind_arg_sizes[2+blockId*4];                                   
-				! ind_arg3_size = ind_arg_sizes[3+blockId*4];                                   
+				! ind_arg0_size = ind_arg_sizes[0+blockId*4];
+				! ind_arg1_size = ind_arg_sizes[1+blockId*4];
+				! ind_arg2_size = ind_arg_sizes[2+blockId*4];
+				! ind_arg3_size = ind_arg_sizes[3+blockId*4];
 
-				! in the *4 expression, 4 is equal to indsNumber 
+				! in the *4 expression, 4 is equal to indsNumber
 				ind_arg0_size = pindArgSizes(0 + blockId * 4)
 				ind_arg1_size = pindArgSizes(1 + blockId * 4)
 				ind_arg2_size = pindArgSizes(2 + blockId * 4)
 				ind_arg3_size = pindArgSizes(3 + blockId * 4)
 
-				! ind_arg0_map = ind_arg0_maps + ind_arg_offs[0+blockId*4];                     
-				! ind_arg1_map = ind_arg1_maps + ind_arg_offs[1+blockId*4];                     
-				! ind_arg2_map = ind_arg2_maps + ind_arg_offs[2+blockId*4];                     
-				! ind_arg3_map = ind_arg3_maps + ind_arg_offs[3+blockId*4];                     
+				! ind_arg0_map = ind_arg0_maps + ind_arg_offs[0+blockId*4];
+				! ind_arg1_map = ind_arg1_maps + ind_arg_offs[1+blockId*4];
+				! ind_arg2_map = ind_arg2_maps + ind_arg_offs[2+blockId*4];
+				! ind_arg3_map = ind_arg3_maps + ind_arg_offs[3+blockId*4];
 
-				! // set shared memory pointers                                                 
+				! // set shared memory pointers
 
-				! int nbytes = 0;                                                               
-				! ind_arg0_s = (double *) &shared[nbytes];                                       
-				! nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2);                         
-				! ind_arg1_s = (double *) &shared[nbytes];                                       
-				! nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4);                         
-				! ind_arg2_s = (double *) &shared[nbytes];                                       
-				! nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1);                         
+				! int nbytes = 0;
+				! ind_arg0_s = (double *) &shared[nbytes];
+				! nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2);
+				! ind_arg1_s = (double *) &shared[nbytes];
+				! nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4);
+				! ind_arg2_s = (double *) &shared[nbytes];
+				! nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1);
 				! ind_arg3_s = (double *) &shared[nbytes];
-				
-			end if				
-			
+
+			end if
+
 			! make sure all of above completed
 			call syncthreads()
 
@@ -338,13 +338,13 @@ module bres_calc_cuda_module
 			do while ( n .lt. whileBound )
 				! nbytes = 0 => 0 + ..
 				moduled = mod ( n, 2 )
-				
+
 				! remember that:
 				!				ind_arg0_map = ind_arg0_maps + ind_arg_offs[0+blockId*4];
 				! and:
 				!				ind_arg0_s = (double *) &shared[nbytes];
 				myshared(nbytes0 + n) = pindArg0(moduled  + ( pindArg0Maps ( 0 + (pindArgOffs( 0 + blockId * 4 )) + ( n / 2 ) ) ) * 2)
-				
+
 				n = n + (blockdim%x)
 			end do
 
@@ -364,11 +364,11 @@ module bres_calc_cuda_module
 				!				nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2); == nbytes1
 				!				ind_arg1_s = (double *) &shared[nbytes];
 				myshared(nbytes1 + n) = pindArg1(moduled  + ( pindArg1Maps ( 0 + pindArgOffs( 1 + blockId * 4 ) + ( n / 4 ) ) ) * 4)
-				
+
 				n = n + (blockdim%x)
-			end do									           
-					
-			! implements:                                                                      
+			end do
+
+			! implements:
 			! for (int n=threadIdx.x; n<ind_arg2_size*1; n+=blockDim.x)
 			!		ind_arg2_s[n] = ind_arg2[n%1+ind_arg2_map[n/1]*1];
 			n = (threadidx%x-1)
@@ -383,10 +383,10 @@ module bres_calc_cuda_module
 				!				nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4); == nbytes2
 				!				ind_arg2_s = (double *) &shared[nbytes];
 				myshared(nbytes2 + n) = pindArg2(moduled  + ( pindArg2Maps ( 0 + pindArgOffs( 2 + blockId * 4 ) + ( n / 1 ) ) ) * 1)
-				
+
 				n = n + (blockdim%x)
-			end do			
-			
+			end do
+
 
 			! implements:
 			! for (int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x)
@@ -404,23 +404,23 @@ module bres_calc_cuda_module
 				!				ind_arg3_s = (double *) &shared[nbytes];
 				myshared(nbytes3 + n) = 0
 				!pindArg3(moduled  + ( pindArg3Maps ( 0 + pindArgOffs( 3 + blockId * 4 ) ) + ( n / 2 ) ) )
-				
+
 				n = n + (blockdim%x)
 			end do
-																																 
+
 			! make sure all of above completed
 			call syncthreads()
-																																								
+
 			! for (int n=threadIdx.x; n<nelems2; n+=blockDim.x) {
 			!		int col2 = -1;
 
 			n = (threadidx%x-1)
 			do while ( n .lt. nelems2 )
 				col2 = -1
-			
+
 				!   if (n<nelem) {
 				if ( n < nelem ) then
-					
+
 					! initialise local variables
 					do iterInit = 0, 3
 						arg4_l(iterInit) = 0
@@ -440,8 +440,8 @@ module bres_calc_cuda_module
 													 myshared ( nbytes2 + parg3Maps (n + offset_b) * 1 : (nbytes2 + parg3Maps(n + offset_b) * 1) + 1 ), &
 													 arg4_l, &
 													 parg5DatD( (n + offset_b) * 1 : (n + offset_b) * 1 + 1) &
-												 )	
-																									 
+												 )
+
 					! col2 = colors[n+offset_b];
 					col2 = pcolors(n + offset_b )
 
@@ -460,26 +460,26 @@ module bres_calc_cuda_module
 					!  __syncthreads();
 					! }
 					do col = 0, ncolor-1
-				
+
 						if ( col2 .eq. col ) then
-											
+
 							! for (int d=0; d<4; d++)
 							do iterInit = 0, 3
 
 								myshared(nbytes3 + iterInit + arg4_map*4 ) = myshared(nbytes3 + iterInit + arg4_map*4 ) + arg4_l(iterInit)
 
 							end do
-						
+
 						end if
-						
+
 						! make sure all of above completed
-						call syncthreads()				
+						call syncthreads()
 					end do
-					
+
 				n = n + (blockdim%x)
 
 			end do
-			
+
 			! apply pointered write/increment
 
 			! implements:
@@ -487,9 +487,9 @@ module bres_calc_cuda_module
 			!		ind_arg3[n%4+ind_arg3_map[n/4]*4] += ind_arg3_s[n];
 			n = (threadidx%x-1)
 			do while ( n < ind_arg3_size*4 )
-				
+
 				moduled = mod ( n, 4 )
-				
+
 				! remember that:
 				! ind_arg3_map = ind_arg3_maps + ind_arg_offs[3+blockId*4];
 				! and that:
@@ -497,17 +497,17 @@ module bres_calc_cuda_module
 			 !ind_arg3[n%4+ind_arg3_map[n/4]*4]
 			 !pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 )
 				pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 ) = pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 ) + myshared(nbytes3 + n)
-				
+
 				n = n + (blockdim%x)
-			end do			
+			end do
 
 !			pindArg3 ( 0 ) = bres_calc_qinf(1)
 !			pindArg3 ( 1 ) = bres_calc_qinf(2)
 !			pindArg3 ( 2 ) = bres_calc_qinf(3)
 !			pindArg3 ( 3 ) = bres_calc_qinf(4)
-			
+
 		end subroutine op_cuda_bres_calc
-	
+
 		attributes(host) function op_par_loop_bres_calc ( subroutineName, setIn, &
 																											& arg0In,   idx0, map0In, access0, &
 																											& arg1In,   idx1, map1In, access1, &
@@ -518,70 +518,70 @@ module bres_calc_cuda_module
 																										& )
 
 
-				! use directives	
+				! use directives
 				use, intrinsic :: ISO_C_BINDING
 				use cudafor
 
-				! mandatory	
+				! mandatory
 				implicit none
-				
+
 				type(profInfo) :: op_par_loop_bres_calc
-	
+
 				! formal arguments
 				character(kind=c_char,len=*), intent(in) :: subroutineName
-	
+
 				! data set on which we loop
 				type(op_set), intent(in) :: setIn
 
 				! data ids used in the function
 				type(op_dat) :: arg0In, arg1In, arg2In, arg3In, arg4In, arg5In
-	
+
 				! index to be used in first and second pointers
 				integer(4), intent(in) :: idx0, idx1, idx2, idx3, idx4, idx5
-	
+
 				! ptr ids for indirect access to data
 				type(op_map) :: map0In, map1In, map2In, map3In, map4In, map5In
-	
+
 				! access values for arguments
 				integer(4), intent(in) :: access0, access1, access2, access3, access4, access5
 
-        ! local variables			
+        ! local variables
         type(op_set_core), pointer :: set
         type(op_map_core), pointer :: map0, map1, map2, map3, map4, map5
-        type(op_dat_core), pointer :: arg0, arg1, arg2, arg3, arg4, arg5      
+        type(op_dat_core), pointer :: arg0, arg1, arg2, arg3, arg4, arg5
 
-				! Compiler: variables used to invoke cplan 
+				! Compiler: variables used to invoke cplan
 				integer(4) :: args(6), idxs(6), maps(6), accs(6), inds(6), argsType(6)
 				integer(4) :: argsNumber, indsNumber
         integer(4) :: partitionSize
 
 !				! returned plan address by cplan and plan functions
 !				type(c_ptr) :: planRet
-!	
+!
 !				! variable for storing the actual OP Plan
 				type(op_plan_cuda), pointer :: actualPlan
-		
+
 				! iteration and offset variables to implement plan execution
 				integer(4) :: blockOffset, col
 
 				! configuration variables for main kernel call
 				integer(4) :: nblocks, nthread, nshared
-				
+
 				! iteration variables
 				integer(4) :: i, m, iter
 
 				! value returned by thread synchronisation function
 				integer(4) :: threadsynchret
-	
+
 				! Fortran variable for Host variable
 				integer, pointer, dimension(:) :: ncolblk
-	
+
 				integer, pointer, dimension(:) :: pnindirect
 
 !				! ind_maps is an array of device pointers allocated on the host memory
 				type(c_devptr), pointer, dimension(:) :: pindMaps
 				integer(4), dimension(1) :: pindMapsSize ! (just one array of pointers (i.e. other arrays))
-!									
+!
 !				! as many pindMapsI as the positions of pindMaps (4 in this case = indsNumber )
 				integer, allocatable, device, dimension(:) :: pindMaps1
 				integer(4) :: pindMaps1Size
@@ -612,22 +612,22 @@ module bres_calc_cuda_module
 !
 				integer, device, allocatable, dimension(:) :: pindSizes
 				integer(4) :: pindSizesSize
-!	
+!
 				integer, device, allocatable, dimension(:) :: pindOffs
 				integer(4) :: pindOffsSize
-!				
+!
 				integer, device, allocatable, dimension(:) :: pblkMap
 				integer(4) :: pblkMapSize
-!				
+!
 				integer, device, allocatable, dimension(:) :: poffset
 				integer(4) :: poffsetSize
-!				
+!
 				integer, device, allocatable, dimension(:) :: pnelems
 				integer(4) :: pnelemsSize
-!				
+!
 				integer, device, allocatable, dimension(:) :: pnthrcol
 				integer(4) :: pnthrcolSize
-!				
+!
 				integer, device, allocatable, dimension(:) :: pthrcol
 				integer(4) :: pthrcolSize
 !
@@ -643,11 +643,11 @@ module bres_calc_cuda_module
 				integer(4), dimension(:), allocatable, device :: argument5
 
 				type(op_set_core), pointer :: arg0Set, arg2Set, arg3Set, arg4Set, arg5Set
-!				
+!
 !				! sizes of variables passed to kernel are all encapsulated inside a single struct
 !				type(varSizes_bres_calc), device :: argSizes
-!				
-	
+!
+
 				! profiling
 				integer :: istat
 				type (cudaEvent) :: startKernelTime, stopKernelTime, startHostTime, stopHostTime
@@ -658,12 +658,12 @@ module bres_calc_cuda_module
 				istat = cudaEventCreate(stopKernelTime)
 				istat = cudaEventCreate(startHostTime)
 				istat = cudaEventCreate(stopHostTime)
-				
+
 				istat = cudaEventRecord ( startHostTime, 0 )
 
         ! initialising arguments
         set => setIn%setPtr
-        
+
         map0 => map0In%mapPtr
         map1 => map1In%mapPtr
         map2 => map2In%mapPtr
@@ -680,7 +680,7 @@ module bres_calc_cuda_module
 
 
 				if ( isKernelInputDataGenerated .eq. .false. ) then
-					
+
 !					isKernelInputDataGenerated = .true.
 
 					! filling up variables for building the plan
@@ -690,18 +690,18 @@ module bres_calc_cuda_module
 					args(4) = arg3%index
 					args(5) = arg4%index
 					args(6) = arg5%index
-				
+
 					idxs(1) = idx0
 					idxs(2) = idx1
 					idxs(3) = idx2
 					idxs(4) = idx3
 					idxs(5) = idx4
 					idxs(6) = idx5
-					
+
 					! when passing from OP2 Fortran to OP2 C++ we have to decrement the idx values (not 1->N, but 0->N-1)
 					! except -1 which indicates OP_ID or OP_GBL
 					do iter = 1, 6
-						if ( idxs(iter) /= -1 ) idxs(iter) = idxs(iter) - 1 
+						if ( idxs(iter) /= -1 ) idxs(iter) = idxs(iter) - 1
 					end do
 
 					maps(1) = map0%index
@@ -722,7 +722,7 @@ module bres_calc_cuda_module
 					! Compiler: generate this information by analysing the arguments
 					argsNumber = 6
 					indsNumber = 4 ! warning: this means the number of op_dat accessed indirectly, not the number of arguments!!
-				
+
 					inds(1) = 0
 					inds(2) = 0
 					inds(3) = 1
@@ -767,9 +767,9 @@ module bres_calc_cuda_module
           end if
 
 #ifdef OP_PART_SIZE_1
-      partitionSize = OP_PART_SIZE_1
+          partitionSize = OP_PART_SIZE_1
 #else
-      partitionSize = 0
+          partitionSize = 0
 #endif
           ! get the plan
           planRet = FortranPlanCallerCUDA ( subroutineName, &
@@ -784,14 +784,14 @@ module bres_calc_cuda_module
                                & argsType, &
                                & partitionSize &
                             &  )
-              
-					
+
+
 					call bres_calc_initialiseConstants()
 
 				end if
-				
+
 					! stage in of input arguments (transfer pointers + copy from host to device memory)
-		
+
 					! 1. transfer C pointers to Fortran pointers
 					call c_f_pointer ( arg0%set, arg0Set )
 					arg0Size = arg0%dim * arg0set%size
@@ -800,7 +800,7 @@ module bres_calc_cuda_module
 					call c_f_pointer ( arg2%set, arg2Set )
 					arg2Size = arg2%dim * arg2set%size
 					call c_f_pointer ( arg2%dat_d, argument2, (/arg2Size/) )
-					
+
 					call c_f_pointer ( arg3%set, arg3Set )
 					arg3Size = arg3%dim * arg3set%size
 					call c_f_pointer ( arg3%dat_d, argument3, (/arg3Size/) )
@@ -808,57 +808,57 @@ module bres_calc_cuda_module
 					call c_f_pointer ( arg4%set, arg4Set )
 					arg4Size = arg4%dim * arg4set%size
 					call c_f_pointer ( arg4%dat_d, argument4, (/arg4Size/) )
-					
+
 					call c_f_pointer ( arg5%set, arg5Set )
 					arg5Size = arg5%dim * arg5set%size
 					call c_f_pointer ( arg5%dat_d, argument5, (/arg5Size/) )
-				
-				
+
+
 									! convert arguments and plan data to Fortran pointers (not a copy!)
 					! Typically, first compute size, then transform pointer
-					
+
 					! transform the returned C pointer to a type(op_plan) variable
-					call c_f_pointer ( planRet, actualPlan )		
-					
+					call c_f_pointer ( planRet, actualPlan )
+
 					! convert nindirect  used to generate the pindMapsSize array of sizes
 					call c_f_pointer ( actualPlan%nindirect, pnindirect, (/indsNumber/) )
-						
+
 					! convert pindMaps: there are indsNumber ind_maps
 					call c_f_pointer ( actualPlan%ind_maps, pindMaps, (/indsNumber/) )
-					
+
 					! convert first position of the pindMaps array (the size is stored in the corresponding pnindirect position)
 					call c_f_pointer ( pindMaps(1), pindMaps1, pnindirect(1) )
 					call c_f_pointer ( pindMaps(2), pindMaps2, pnindirect(2) )
 					call c_f_pointer ( pindMaps(3), pindMaps3, pnindirect(3) )
 					call c_f_pointer ( pindMaps(4), pindMaps4, pnindirect(4) )
-							
+
 					! must be done for all indirect pointers: in this case 4 different arguments are accessed indirectly
-					
+
 					! convert maps in op_plan: there are argsNumber maps
 					call c_f_pointer ( actualPlan%maps, pmaps, (/argsNumber/) )
-					
+
 					! convert positions in pmaps (only if the corresponding inds position is >= 0 (see op_support.cpp))
 					! can't do a do-loop because I can't generate variable names
 					if ( inds(1) .ge. 0 ) then
 						pmaps1Size = set%size
 						call c_f_pointer ( pmaps(1), pmaps1, (/pmaps1Size/) )
 					end if
-					
+
 					if ( inds(2) .ge. 0 ) then
 						pmaps2Size = set%size
 						call c_f_pointer ( pmaps(2), pmaps2, (/pmaps2Size/) )
 					end if
-					
+
 					if ( inds(3) .ge. 0 ) then
 						pmaps3Size = set%size
 						call c_f_pointer ( pmaps(3), pmaps3, (/pmaps3Size/) )
 					end if
-					
+
 					if ( inds(4) .ge. 0 ) then
 						pmaps4Size = set%size
 						call c_f_pointer ( pmaps(4), pmaps4, (/pmaps4Size/) )
 					end if
-					
+
 					if ( inds(5) .ge. 0 ) then
 						pmaps5Size = set%size
 						call c_f_pointer ( pmaps(5), pmaps5, (/pmaps5Size/) )
@@ -872,23 +872,23 @@ module bres_calc_cuda_module
 
 					! converting ncolblk field to fortran variable
 					call c_f_pointer ( actualPlan%ncolblk, ncolblk, (/set%size/) )
-					
+
 					! ind_sizes field has nblocks*indsNumber size
 					pindSizesSize = actualPlan%nblocks * indsNumber
 					call c_f_pointer ( actualPlan%ind_sizes, pindSizes, (/pindSizesSize/) )
-						
+
 					! ind_offset field has the same dimension of ind_sizes
 					pindOffsSize = pindSizesSize
 					call c_f_pointer ( actualPlan%ind_offs, pindOffs, (/pindOffsSize/) )
-						
+
 					! blkmap field has dimension nblocks
 					pblkMapSize = actualPlan%nblocks
 					call c_f_pointer ( actualPlan%blkmap, pblkMap, (/pblkMapSize/) )
-						
+
 					! offset field has dimension nblocks
 					poffsetSize = actualPlan%nblocks
 					call c_f_pointer ( actualPlan%offset, poffset, (/poffsetSize/) )
-					
+
 					! nelems field has dimension nblocks
 					pnelemsSize = actualPlan%nblocks
 					call c_f_pointer ( actualPlan%nelems, pnelems, (/pnelemsSize/) )
@@ -896,17 +896,17 @@ module bres_calc_cuda_module
 					! nthrcol field has dimension nblocks
 					pnthrcolSize = actualPlan%nblocks
 					call c_f_pointer ( actualPlan%nthrcol, pnthrcol, (/pnthrcolSize/) )
-					
+
 					! thrcol field has dimension set%size
 					pthrcolSize = set%size
 					call c_f_pointer ( actualPlan%thrcol, pthrcol, (/pthrcolSize/) )
 
 					blockOffset = 0
 
-				
-				
+
+
 				if ( isKernelInputDataGenerated .eq. .false. ) then
-					
+
 					isKernelInputDataGenerated = .true.
 
 					! sizes are compacted in a single struct, to save parameter space (notice that names are
@@ -932,11 +932,10 @@ module bres_calc_cuda_module
 					argSizes%pNelemsSize = pnelemsSize
 					argSizes%pNcolorsSize = pnthrcolSize
 					argSizes%pColorsSize = pthrcolSize
-					
-				end if
 
-				
-				istat = cudaEventRecord ( stopHostTime, 0 )
+        end if
+
+        istat = cudaEventRecord ( stopHostTime, 0 )
 				istat = cudaEventSynchronize ( stopHostTime )
 				istat = cudaEventElapsedTime ( tmpHostTime, startHostTime, stopHostTime )
 
@@ -944,18 +943,17 @@ module bres_calc_cuda_module
 				op_par_loop_bres_calc%hostTime = op_par_loop_bres_calc%hostTime + tmpHostTime
 				tmpHostTime = 0
 
-
 #ifdef OP_BLOCK_SIZE_1
-     nthread = OP_BLOCK_SIZE_1
-#else                                                                 
-     nthread = FOP_BLOCK_SIZE
+        nthread = OP_BLOCK_SIZE_1
+#else
+        nthread = FOP_BLOCK_SIZE
 #endif
 
 				istat = cudaEventRecord ( startKernelTime, 0 )
-				
+
 				! execute the plan
 				do col = 0, (actualPlan%ncolors-1)
-					
+
 					nblocks = ncolblk(col+1) !+1 is needed because ncolblk is indexed from 1:set%size and not from 0:set%size-1
 !					nthread = FOP_BLOCK_SIZE
 					nshared = actualPlan%nshared
@@ -983,12 +981,12 @@ module bres_calc_cuda_module
 																																		 pnthrcol, &
 																																		 pthrcol &
 																																	 )
-																																		
+
 					! wait for the threads on device to terminate execution
 					threadSynchRet = cudaThreadSynchronize()
-				
+
 					blockOffset = blockOffset + nblocks
-				
+
 				end do
 
 				istat = cudaEventRecord ( stopKernelTime, 0 )
@@ -1001,7 +999,7 @@ module bres_calc_cuda_module
 				istat = cudaEventSynchronize ( stopHostTime )
 				istat = cudaEventElapsedTime ( tmpHostTime, startHostTime, stopHostTime )
 
-				op_par_loop_bres_calc%hostTime = op_par_loop_bres_calc%hostTime + tmpHostTime	
+				op_par_loop_bres_calc%hostTime = op_par_loop_bres_calc%hostTime + tmpHostTime
 
 		end function op_par_loop_bres_calc
 

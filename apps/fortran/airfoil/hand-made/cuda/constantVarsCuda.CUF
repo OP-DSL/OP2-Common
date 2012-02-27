@@ -1,16 +1,12 @@
 module constantVarsCuda
 
-	use cudafor
-	
-	! don't know how to make this work for all other modules...
-	! could try to add a kernel implementation here, just calling the initialise constants?
+  use cudafor
+
+  ! don't know how to make this work for all other modules...
+  ! could try to add a kernel implementation here, just calling the initialise constants?
 
 !  real(8), constant :: gam, gm1, cfl, eps, mach, alpha, air_const, qinf(4)
 
+! contains
 
-!	contains
-	
-	
-		
-		
 end module constantVarsCuda
