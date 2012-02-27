@@ -11,18 +11,8 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
   ! file identifier (10 is arbitrary)
   integer(4), parameter :: FILE_ID = 10
 
-
-  character(len=MAX_PWD_LEN) :: currDir
-  !call get_environment_variable ( "WORK", currDir )
-  call get_environment_variable ( "PWD", currDir )
-
-  print *, currDir
-
-  currDir = trim(currDir) //  '/new_grid.dat'
-
   ! open file
-
-  open ( FILE_ID, file = currDir )
+  open ( FILE_ID, file = 'new_grid.dat' )
 
   ! first line includes number of cells, nodes, edges and bedges
   read ( FILE_ID, "(1x,I6,1x,I6,1x,I7,1x,I4)" ) nnode, ncell, nedge, nbedge
@@ -30,7 +20,6 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
   ! not closing file because it will be used below
 
 end subroutine getSetSizes
-
 
 ! fill up arrays from file
 subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )

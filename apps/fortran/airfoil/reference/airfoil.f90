@@ -21,17 +21,14 @@ use AirfoilDebug
   real(c_double) :: datad
   integer(4) :: debugiter
 
-
   integer(4), parameter :: maxnode = 9900
   integer(4), parameter :: maxcell = (9702+1)
   integer(4), parameter :: maxedge = 19502
 
   integer(4), parameter :: iterationNumber = 1000
 
-
   integer(4) :: nnode, ncell, nbedge, nedge, niter
   real(8) :: ncellr
-
 
   ! profiling
   real :: startTime, endTime
@@ -54,8 +51,6 @@ use AirfoilDebug
   type(c_ptr) :: c_edge, c_ecell, c_bedge, c_becell, c_cell, c_bound, c_x, c_q, c_qold, c_adt, c_res, c_rms
 
   ! names of sets, maps and dats
-! character(kind=c_char,len=7) :: fakeName = C_CHAR_'NONAME'//C_NULL_CHAR
-
   character(len=5) :: nodesName = 'nodes'
   character(len=5) :: edgesName = 'edges'
   character(len=6) :: bedgesName = 'bedges'
@@ -205,18 +200,22 @@ use AirfoilDebug
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
 
+    if ( mod ( niter, 100 ) .eq. 0 ) then
+      print '(i4,es12.5)', niter, rms(1)
+    end if
+
   end do ! external loop
 
   ! uncomment to get execution time
   ! call cpu_time ( endTime )
   ! write (*,*), 'Time elapsed is ', endTime - startTime, ' seconds'
 
-! DEBUG: the following set of commands write the Q array (the actual result) to the file name below
-! Change the file name to a proper absolute path.
-!
-! Uncomment to obtain the result
-!
-  retdebug = openfile ( c_char_"/data/carlo/q-seq.txt"//c_null_char )
+  ! DEBUG: the following set of commands write the Q array (the actual result) to the file name below
+  ! Change the file name to a proper absolute path.
+  !
+  ! Uncomment to obtain the result
+  !
+  retdebug = openfile ( c_char_"q-seq.txt"//c_null_char )
 
   do debugiter = 1, 4*ncell
     datad = q(debugiter)

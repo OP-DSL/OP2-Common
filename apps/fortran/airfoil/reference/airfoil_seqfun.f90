@@ -48,7 +48,6 @@ contains
 
   end subroutine initialise_flow_field
 
-
   ! save old solution
   subroutine save_soln ( q, qold )
 
@@ -68,7 +67,6 @@ contains
     end do
 
   end subroutine save_soln
-
 
   subroutine adt_calc ( x1, x2, x3, x4, q, adt )
 
@@ -162,7 +160,6 @@ contains
 
   end subroutine res_calc
 
-
   subroutine bres_calc ( x1, x2, q1, adt1, res1, bound )
 
     implicit none
@@ -219,7 +216,6 @@ contains
     end if
 
   end subroutine bres_calc
-
 
   subroutine update ( qold, q, res, adt, rms )
 

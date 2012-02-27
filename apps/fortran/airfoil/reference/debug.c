@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "debug.h"
+
 // warning: only one file at time!!!
 static FILE * myfile;
 
@@ -14,7 +16,7 @@ int openfile ( const char filename[] )
   return 0;
 }
 
-int closefile ( const char filename[] )
+int closefile ( )
 {
   fclose ( myfile );
 
@@ -36,3 +38,4 @@ int writeinttofile ( int * value )
 
   return 0;
 }
+
