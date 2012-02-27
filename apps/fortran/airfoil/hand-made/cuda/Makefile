@@ -1,11 +1,14 @@
+PART_SIZE_ENV ?= 64
+BLOCK_SIZE_ENV ?= 64
+
 FC = pgfortran
 CC = pgcc
 
 IC_OPT = -lcudart -use_fast_math -O3
-FC_OPT = -Mcuda=cuda3.1 -Minform=inform -fast -Mcuda=fastmath -Mpreprocess -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DOP_BLOCK_SIZE_1=$(BLOCK_SIZE_ENV) -O4
+FC_OPT = -Mcuda=cuda4.0 -Minform=inform -fast -Mcuda=fastmath -Mpreprocess -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DOP_BLOCK_SIZE_1=$(BLOCK_SIZE_ENV) -O4
 
 F_OP2_LIB = $(OP2)/fortran/lib
-F_OP2_MOD = $(OP2)/fortran/mod
+F_OP2_MOD = $(OP2)/fortran/mod/pgi
 
 
 # the following generates corresponding intermediate C CUDA code
