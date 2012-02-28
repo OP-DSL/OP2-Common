@@ -6,9 +6,14 @@
 #  SCOTCH_LIBARIES     - libraries for SCOTCH
 #  SCOTCH_VERSION      - version for SCOTCH
 #
-# Variables used by this module, they can change the default behaviour and
+# Variables used by this module. They can change the default behaviour and
 # need to be set before calling find_package:
 #
+#  SCOTCH_DIR          - Prefix directory of the Scotch installation
+#  SCOTCH_INCLUDE_DIR  - Include directory of the Scotch installation
+#                        (set only if different from ${SCOTCH_DIR}/include)
+#  SCOTCH_LIB_DIR      - Library directory of the Scotch installation
+#                        (set only if different from ${SCOTCH_DIR}/lib)
 #  SCOTCH_DEBUG        - Set this to TRUE to enable debugging output
 #                        of FindScotchPT.cmake if you are having problems.
 #                        Please enable this before filing any bug reports.
@@ -54,27 +59,31 @@ message(STATUS "Checking for package 'SCOTCH-PT'")
 # Check for header file
 find_path(SCOTCH_INCLUDE_DIRS scotch.h ptscotch.h
   HINTS ${SCOTCH_DIR}/include $ENV{SCOTCH_DIR}/include
+    ${SCOTCH_INCLUDE_DIR} $ENV{SCOTCH_INCLUDE_DIR}
   PATH_SUFFIXES scotch
   DOC "Directory where the SCOTCH-PT header is located"
 )
 
 # Check for scotch
 find_library(SCOTCH_LIBRARY
- NAMES scotch scotch${SCOTCH_LIB_SUFFIX}
- HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
- DOC "The SCOTCH library"
+  NAMES scotch scotch${SCOTCH_LIB_SUFFIX}
+  HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
+    ${SCOTCH_LIB_DIR} $ENV{SCOTCH_LIB_DIR}
+  DOC "The SCOTCH library"
 )
 
 find_library(SCOTCHERR_LIBRARY
- NAMES scotcherr scotcherr${SCOTCH_LIB_SUFFIX}
- HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
- DOC "The SCOTCH-ERROR library"
+  NAMES scotcherr scotcherr${SCOTCH_LIB_SUFFIX}
+  HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
+    ${SCOTCH_LIB_DIR} $ENV{SCOTCH_LIB_DIR}
+  DOC "The SCOTCH-ERROR library"
 )
 
 # Check for ptscotch
 find_library(PTSCOTCH_LIBRARY
   NAMES ptscotch ptscotch${SCOTCH_LIB_SUFFIX}
   HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
+    ${SCOTCH_LIB_DIR} $ENV{SCOTCH_LIB_DIR}
   DOC "The PTSCOTCH library"
 )
 
@@ -82,6 +91,7 @@ find_library(PTSCOTCH_LIBRARY
 find_library(PTSCOTCHERR_LIBRARY
   NAMES ptscotcherr ptscotcherr${SCOTCH_LIB_SUFFIX}
   HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
+    ${SCOTCH_LIB_DIR} $ENV{SCOTCH_LIB_DIR}
   DOC "The PTSCOTCH-ERROR library"
 )
 

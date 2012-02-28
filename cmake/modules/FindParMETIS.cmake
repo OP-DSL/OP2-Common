@@ -5,9 +5,14 @@
 #  PARMETIS_INCLUDE_DIRS - include directories for ParMETIS
 #  PARMETIS_LIBRARIES    - libraries for ParMETIS
 #
-# Variables used by this module, they can change the default behaviour and
+# Variables used by this module. They can change the default behaviour and
 # need to be set before calling find_package:
 #
+#  PARMETIS_DIR          - Prefix directory of the ParMETIS installation
+#  PARMETIS_INCLUDE_DIR  - Include directory of the ParMETIS installation
+#                          (set only if different from ${PARMETIS_DIR}/include)
+#  PARMETIS_LIB_DIR      - Library directory of the ParMETIS installation
+#                          (set only if different from ${PARMETIS_DIR}/lib)
 #  PARMETIS_SKIP_TESTS   - Skip tests building and running a test
 #                          executable linked against ParMETIS libraries
 #  PARMETIS_LIB_SUFFIX   - Also search for non-standard library names with the
