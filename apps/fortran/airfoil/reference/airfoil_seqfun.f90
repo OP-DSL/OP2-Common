@@ -228,11 +228,9 @@ subroutine update ( qold, q, res, adt, rms )
   real(8), dimension(*) :: adt
   real(8), dimension(*) :: rms
 
-  real(8) :: del, adti, debug
+  real(8) :: del, adti
 
   integer(4) :: i
-
-! debug = 0
 
   adti = 1.0 / adt(1)
 
