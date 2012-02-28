@@ -22,7 +22,7 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
 end subroutine getSetSizes
 
 ! fill up arrays from file
-subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
+subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x )
 
   implicit none
 
@@ -38,15 +38,10 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, b
   integer(4), dimension( nbedge ) :: bound
 
   real(8), dimension( 2 * nnode ) :: x
-  real(8), dimension( 4 * ncell ) :: q
-  real(8), dimension( 4 * ncell ) :: qold
-  real(8), dimension( 4 * ncell ) :: res
-  real(8), dimension( ncell ) :: adt
 
   ! file identifier (10 is arbitrary)
   integer(4), parameter :: FILE_ID = 10
-
-  integer(4) :: i, f_array
+  integer(4) i
 
   ! the file is already open and the pointer in file is already at the correct position
 

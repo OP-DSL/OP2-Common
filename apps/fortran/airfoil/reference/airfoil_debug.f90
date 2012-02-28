@@ -11,7 +11,7 @@ module AirfoilDebug
     integer(KIND=C_INT) function openfile ( filename ) BIND(C)
 
       use, intrinsic :: ISO_C_BINDING
-      character(c_char), dimension(20) :: filename
+      character(kind=c_char), dimension(*) :: filename
 
     end function openfile
 

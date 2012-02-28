@@ -13,11 +13,10 @@ use AirfoilDebug
 
   intrinsic :: sqrt, real
 
-  integer(4) :: iter, k, i
+  integer(4) :: iter, k
 
   ! debug variables
-  integer(c_int) :: retDebug, dataSize
-  character(kind=c_char) :: debfilename(20)
+  integer(c_int) :: retDebug
   real(c_double) :: datad
   integer(4) :: debugiter
 
@@ -31,9 +30,7 @@ use AirfoilDebug
   real(8) :: ncellr
 
   ! profiling
-  real :: startTime, endTime
-
-  type(c_funptr) :: save_soln_cptr
+  !real :: startTime, endTime
 
   ! integer references (valid inside the OP2 library) for op_set
   type(op_set) :: nodes, edges, bedges, cells
@@ -47,8 +44,6 @@ use AirfoilDebug
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, rms
-
-  type(c_ptr) :: c_edge, c_ecell, c_bedge, c_becell, c_cell, c_bound, c_x, c_q, c_qold, c_adt, c_res, c_rms
 
   ! names of sets, maps and dats
   character(len=5) :: nodesName = 'nodes'
@@ -91,7 +86,7 @@ use AirfoilDebug
 
 
   ! fill up arrays from file
-  call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
+  call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x )
 
   ! set constants and initialise flow field and residual
   call initialise_flow_field ( ncell, q, res )
@@ -195,6 +190,7 @@ use AirfoilDebug
                          & p_rms,  -1, OP_GBL, OP_INC    &
                        & )
 
+
     end do ! internal loop
 
     ncellr = real ( ncell )
@@ -218,6 +214,7 @@ use AirfoilDebug
   retdebug = openfile ( c_char_"q-seq.txt"//c_null_char )
 
   do debugiter = 1, 4*ncell
+
     datad = q(debugiter)
     retdebug = writerealtofile ( datad )
   end do
