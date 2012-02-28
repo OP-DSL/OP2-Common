@@ -14,6 +14,8 @@
 #                        Please enable this before filing any bug reports.
 #  SCOTCH_SKIP_TESTS   - Skip tests building and running a test
 #                        executable linked against PTScotch libraries
+#  SCOTCH_LIB_SUFFIX   - Also search for non-standard library names with the
+#                        given suffix appended
 
 #=============================================================================
 # Copyright (C) 2010-2011 Garth N. Wells, Johannes Ring, Anders Logg and
@@ -58,27 +60,27 @@ find_path(SCOTCH_INCLUDE_DIRS scotch.h ptscotch.h
 
 # Check for scotch
 find_library(SCOTCH_LIBRARY
- NAMES scotch
+ NAMES scotch scotch${SCOTCH_LIB_SUFFIX}
  HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
  DOC "The SCOTCH library"
 )
 
 find_library(SCOTCHERR_LIBRARY
- NAMES scotcherr
+ NAMES scotcherr scotcherr${SCOTCH_LIB_SUFFIX}
  HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
  DOC "The SCOTCH-ERROR library"
 )
 
 # Check for ptscotch
 find_library(PTSCOTCH_LIBRARY
-  NAMES ptscotch
+  NAMES ptscotch ptscotch${SCOTCH_LIB_SUFFIX}
   HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
   DOC "The PTSCOTCH library"
 )
 
 # Check for ptscotcherr
 find_library(PTSCOTCHERR_LIBRARY
-  NAMES ptscotcherr
+  NAMES ptscotcherr ptscotcherr${SCOTCH_LIB_SUFFIX}
   HINTS ${SCOTCH_DIR}/lib $ENV{SCOTCH_DIR}/lib
   DOC "The PTSCOTCH-ERROR library"
 )
