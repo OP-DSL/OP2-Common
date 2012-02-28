@@ -10,6 +10,8 @@
 #
 #  PARMETIS_SKIP_TESTS   - Skip tests building and running a test
 #                          executable linked against ParMETIS libraries
+#  PARMETIS_LIB_SUFFIX   - Also search for non-standard library names with the
+#                          given suffix appended
 
 #=============================================================================
 # Copyright (C) 2010 Garth N. Wells, Anders Logg and Johannes Ring
@@ -47,13 +49,15 @@ if (MPI_FOUND)
     DOC "Directory where the ParMETIS header files are located"
   )
 
-  find_library(PARMETIS_LIBRARY parmetis
+  find_library(PARMETIS_LIBRARY
+    NAMES parmetis parmetis${PARMETIS_LIB_SUFFIX}
     HINTS ${PARMETIS_LIB_DIR} ${PARMETIS_DIR}/lib
     $ENV{PARMETIS_DIR}/lib $ENV{PARMETIS_DIR} $ENV{PARMETIS_LIB_DIR}
     DOC "Directory where the ParMETIS library is located"
   )
 
-  find_library(METIS_LIBRARY metis
+  find_library(METIS_LIBRARY
+    NAMES metis metis${PARMETIS_LIB_SUFFIX}
     HINTS ${PARMETIS_LIB_DIR} ${PARMETIS_DIR}/lib
     $ENV{PARMETIS_DIR}/lib $ENV{PARMETIS_DIR} $ENV{PARMETIS_LIB_DIR}
     DOC "Directory where the METIS library is located"
