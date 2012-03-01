@@ -32,12 +32,18 @@ if(NOT OP2_FOUND)
     "Flags used by the compiler during development.")
 
   # NVCC flags
-  set(CUDA_PROPAGATE_HOST_FLAGS @CUDA_PROPAGATE_HOST_FLAGS@ CACHE STRING
-    "Propage C/CXX_FLAGS and friends to the host compiler via -Xcompile.")
-  set(CUDA_NVCC_FLAGS @OP2_NVCC_FLAGS@
-    CACHE STRING "Flags used by NVCC during all build types.")
-  set(CUDA_NVCC_FLAGS_DEVELOPER @OP2_NVCC_DEVELOPER_FLAGS@
-    CACHE STRING "Flags used by NVCC during developer builds.")
+  option(CUDA_PROPAGATE_HOST_FLAGS
+    "Propage C/CXX_FLAGS and friends to the host compiler via -Xcompile."
+    @CUDA_PROPAGATE_HOST_FLAGS@)
+  set(CUDA_NVCC_FLAGS @CUDA_NVCC_FLAGS@
+    CACHE STRING "Flags used by NVCC during all build types
+      (semi-colon delimit multiple arguments).")
+  set(CUDA_NVCC_FLAGS_RELEASE @CUDA_NVCC_FLAGS_RELEASE@
+    CACHE STRING "Flags used by NVCC during release builds
+      (semi-colon delimit multiple arguments).")
+  set(CUDA_NVCC_FLAGS_DEVELOPER @CUDA_NVCC_FLAGS_DEVELOPER@
+    CACHE STRING "Flags used by NVCC during developer builds
+      (semi-colon delimit multiple arguments).")
 
   # User definitions
   set(OP2_USER_DEFINITIONS @OP2_USER_DEFINITIONS@ CACHE STRING
