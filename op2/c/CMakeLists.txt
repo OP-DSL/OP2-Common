@@ -7,7 +7,9 @@ cmake_minimum_required(VERSION 2.8)
 # General configuration
 
 # Set location of our FindFoo.cmake modules
-set(OP2_CMAKE_DIR "${CMAKE_SOURCE_DIR}/../../cmake" CACHE INTERNAL
+find_path(OP2_CMAKE_DIR modules PATHS "${CMAKE_SOURCE_DIR}/../../cmake"
+  NO_DEFAULT_PATH)
+set(OP2_CMAKE_DIR ${OP2_CMAKE_DIR} CACHE INTERNAL
   "OP2 CMake utilities directory")
 set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
 
