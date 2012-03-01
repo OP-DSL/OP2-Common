@@ -11,7 +11,8 @@ find_path(OP2_CMAKE_DIR modules PATHS "${CMAKE_SOURCE_DIR}/../../cmake"
   NO_DEFAULT_PATH)
 set(OP2_CMAKE_DIR ${OP2_CMAKE_DIR} CACHE INTERNAL
   "OP2 CMake utilities directory")
-set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules")
+set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules" CACHE FILEPATH
+  "Search path for CMake scripts and modules")
 
 # Set CMake options, see `cmake --help-policy CMP000x`
 # Libraries linked via full path no longer produce linker search paths.
