@@ -31,18 +31,25 @@ if(OP2_WITH_HDF5)
 endif()
 
 if(OP2_WITH_CUDA)
+  ## Override CUDA default cache variables
+  # These need to be separated by semicolon
+  set(CUDA_NVCC_FLAGS -arch=sm_20;-Xptxas;-dlcm=ca;-Xptxas=-v
+    CACHE STRING "Flags used by NVCC during release builds
+      (semi-colon delimit multiple arguments).")
+  set(CUDA_NVCC_FLAGS_RELEASE -O3;-use_fast_math
+    CACHE STRING "Flags used by NVCC during all build types
+      (semi-colon delimit multiple arguments).")
+  # FIXME: This assumes a GNU host compiler for nvcc
+  set(CUDA_NVCC_FLAGS_DEVELOPER -g;-G;-Xcompiler=-O2;-Xcompiler=-g;-Xcompiler=-Wall;-Xcompiler=-pipe
+    CACHE STRING "Flags used by NVCC during developer builds
+      (semi-colon delimit multiple arguments).")
+  # Do not propagate C/CXX flags to nvcc by default
+  option(CUDA_PROPAGATE_HOST_FLAGS
+    "Propage C/CXX_FLAGS and friends to the host compiler via -Xcompile" OFF)
+
   find_package(CUDA)
   if(CUDA_FOUND)
     message(STATUS "CUDA found")
-    # Do not propagate C/CXX flags to nvcc
-    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    # These need to be separated by semicolon
-    set(OP2_NVCC_FLAGS -O3;-arch=sm_20;-Xptxas;-dlcm=ca;-Xptxas=-v;-use_fast_math
-      CACHE STRING "Flags used by NVCC during all build types.")
-    set(OP2_NVCC_DEVELOPER_FLAGS -g;-G;-Xcompiler=-O2;-Xcompiler=-g;-Xcompiler=-Wall;-Xcompiler=-pipe
-      CACHE STRING "Flags used by NVCC during developer builds.")
-    set(CUDA_NVCC_FLAGS ${OP2_NVCC_FLAGS})
-    set(CUDA_NVCC_FLAGS_DEVELOPER ${OP2_NVCC_DEVELOPER_FLAGS})
   else()
     set(OP2_WITH_CUDA OFF)
   endif()
