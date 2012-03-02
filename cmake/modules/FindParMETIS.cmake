@@ -102,7 +102,4 @@ endif()
 
 # Standard package handling
 find_package_handle_standard_args(ParMETIS
-                                  "ParMETIS could not be found/configured."
-                                  PARMETIS_LIBRARIES
-                                  PARMETIS_TEST_RUNS
-                                  PARMETIS_INCLUDE_DIRS)
+  REQUIRED_VARS PARMETIS_LIBRARIES PARMETIS_INCLUDE_DIRS PARMETIS_TEST_RUNS)
