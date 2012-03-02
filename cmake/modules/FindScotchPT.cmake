@@ -64,6 +64,22 @@ find_path(SCOTCH_INCLUDE_DIRS scotch.h ptscotch.h
   DOC "Directory where the SCOTCH-PT header is located"
 )
 
+# Get Scotch version
+if(SCOTCH_INCLUDE_DIRS AND EXISTS "${SCOTCH_INCLUDE_DIRS}/scotch.h")
+  set(version_pattern "^#define[\t ]+SCOTCH_(VERSION|RELEASE|PATCHLEVEL)[\t ]+([0-9\\.]+)$")
+  file(STRINGS "${SCOTCH_INCLUDE_DIRS}/scotch.h" scotch_version REGEX ${version_pattern})
+
+  foreach(match ${scotch_version})
+    if(SCOTCH_VERSION_STRING)
+      set(SCOTCH_VERSION_STRING "${SCOTCH_VERSION_STRING}.")
+    endif()
+    string(REGEX REPLACE ${version_pattern} "${SCOTCH_VERSION_STRING}\\2" SCOTCH_VERSION_STRING ${match})
+    set(SCOTCH_${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
+  endforeach()
+  unset(scotch_version)
+  unset(version_pattern)
+endif()
+
 # Check for scotch
 find_library(SCOTCH_LIBRARY
   NAMES scotch scotch${SCOTCH_LIB_SUFFIX}
