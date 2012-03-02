@@ -17,7 +17,7 @@
 #  SCOTCH_DEBUG        - Set this to TRUE to enable debugging output
 #                        of FindScotchPT.cmake if you are having problems.
 #                        Please enable this before filing any bug reports.
-#  SCOTCH_SKIP_TESTS   - Skip tests building and running a test
+#  SCOTCH_TEST_RUNS    - Skip tests building and running a test
 #                        executable linked against PTScotch libraries
 #  SCOTCH_LIB_SUFFIX   - Also search for non-standard library names with the
 #                        given suffix appended
@@ -63,22 +63,6 @@ find_path(SCOTCH_INCLUDE_DIRS scotch.h ptscotch.h
   DOC "Directory where the SCOTCH-PT header is located"
 )
 
-# Get Scotch version
-if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIRS AND EXISTS "${SCOTCH_INCLUDE_DIRS}/scotch.h")
-  set(version_pattern "^#define[\t ]+SCOTCH_(VERSION|RELEASE|PATCHLEVEL)[\t ]+([0-9\\.]+)$")
-  file(STRINGS "${SCOTCH_INCLUDE_DIRS}/scotch.h" scotch_version REGEX ${version_pattern})
-
-  foreach(match ${scotch_version})
-    if(SCOTCH_VERSION_STRING)
-      set(SCOTCH_VERSION_STRING "${SCOTCH_VERSION_STRING}.")
-    endif()
-    string(REGEX REPLACE ${version_pattern} "${SCOTCH_VERSION_STRING}\\2" SCOTCH_VERSION_STRING ${match})
-    set(SCOTCH_${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
-  endforeach()
-  unset(scotch_version)
-  unset(version_pattern)
-endif()
-
 # Check for scotch
 find_library(SCOTCH_LIBRARY
   NAMES scotch scotch${SCOTCH_LIB_SUFFIX}
@@ -110,11 +94,28 @@ find_library(PTSCOTCHERR_LIBRARY
   DOC "The PTSCOTCH-ERROR library"
 )
 
+# Get Scotch version
+if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIRS AND EXISTS "${SCOTCH_INCLUDE_DIRS}/scotch.h")
+  set(version_pattern "^#define[\t ]+SCOTCH_(VERSION|RELEASE|PATCHLEVEL)[\t ]+([0-9\\.]+)$")
+  file(STRINGS "${SCOTCH_INCLUDE_DIRS}/scotch.h" scotch_version REGEX ${version_pattern})
+
+  foreach(match ${scotch_version})
+    if(SCOTCH_VERSION_STRING)
+      set(SCOTCH_VERSION_STRING "${SCOTCH_VERSION_STRING}.")
+    endif()
+    string(REGEX REPLACE ${version_pattern} "${SCOTCH_VERSION_STRING}\\2" SCOTCH_VERSION_STRING ${match})
+    set(SCOTCH_${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
+  endforeach()
+  unset(scotch_version)
+  unset(version_pattern)
+endif()
+
 set(SCOTCH_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
 # Try compiling and running test program if not cross-compiling
 if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES
-    AND NOT (CMAKE_CROSSCOMPILING OR SCOTCH_SKIP_TESTS))
+    AND NOT (CMAKE_CROSSCOMPILING OR SCOTCH_TEST_RUNS))
+
   if (SCOTCH_DEBUG)
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
                    "location of ptscotch.h: ${SCOTCH_INCLUDE_DIRS}/ptscotch.h")
@@ -176,7 +177,7 @@ int main() {
 }
 ")
 
-    message(STATUS "Performing test SCOTCH_TEST_RUNS")
+    message(STATUS "Test building and running executable linked against PTScotch")
     try_run(
       SCOTCH_TEST_LIB_EXITCODE
       SCOTCH_TEST_LIB_COMPILED
@@ -191,10 +192,10 @@ int main() {
       )
 
     if (SCOTCH_TEST_LIB_COMPILED AND SCOTCH_TEST_LIB_EXITCODE EQUAL 0)
-      message(STATUS "Performing test SCOTCH_TEST_RUNS - Success")
+      message(STATUS "Test building and running executable linked against PTScotch - Success")
       set(SCOTCH_TEST_RUNS TRUE)
     else()
-      message(STATUS "Performing test SCOTCH_TEST_RUNS - Failed")
+      message(STATUS "Test building and running executable linked against PTScotch - Failed")
       if (SCOTCH_DEBUG)
         # Output some variables
         message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
@@ -218,7 +219,7 @@ int main() {
         set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${ZLIB_INCLUDE_DIRS})
         set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${ZLIB_LIBRARIES})
 
-        message(STATUS "Performing test SCOTCH_ZLIB_TEST_RUNS")
+        message(STATUS "Test building and running executable linked against PTScotch and zlib")
         try_run(
           SCOTCH_ZLIB_TEST_LIB_EXITCODE
           SCOTCH_ZLIB_TEST_LIB_COMPILED
@@ -234,12 +235,12 @@ int main() {
 
         # Add zlib flags if required and set test run to 'true'
         if (SCOTCH_ZLIB_TEST_LIB_COMPILED AND SCOTCH_ZLIB_TEST_LIB_EXITCODE EQUAL 0)
-          message(STATUS "Performing test SCOTCH_ZLIB_TEST_RUNS - Success")
+          message(STATUS "Test building and running executable linked against PTScotch and zlib - Success")
           set(SCOTCH_INCLUDE_DIRS ${SCOTCH_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
           set(SCOTCH_LIBRARIES ${SCOTCH_LIBRARIES} ${ZLIB_LIBRARIES})
           set(SCOTCH_TEST_RUNS TRUE)
         else()
-          message(STATUS "Performing test SCOTCH_ZLIB_TEST_RUNS - Failed")
+          message(STATUS "Test building and running executable linked against PTScotch and zlib - Failed")
           if (SCOTCH_DEBUG)
             message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
                            "SCOTCH_ZLIB_TEST_LIB_COMPILED = ${SCOTCH_ZLIB_TEST_LIB_COMPILED}")
@@ -255,10 +256,7 @@ int main() {
       endif()
     endif()
   endif()
-endif()
-# When cross compiling assume tests have run successfully
-if (CMAKE_CROSSCOMPILING OR SCOTCH_SKIP_TESTS)
-  set(SCOTCH_TEST_RUNS TRUE)
+  set(SCOTCH_TEST_RUNS ${SCOTCH_TEST_RUNS} CACHE INTERNAL "Scotch tests ran successfully")
 endif()
 
 # Standard package handling
