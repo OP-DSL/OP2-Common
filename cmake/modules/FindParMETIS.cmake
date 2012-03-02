@@ -13,7 +13,7 @@
 #                          (set only if different from ${PARMETIS_DIR}/include)
 #  PARMETIS_LIB_DIR      - Library directory of the ParMETIS installation
 #                          (set only if different from ${PARMETIS_DIR}/lib)
-#  PARMETIS_SKIP_TESTS   - Skip tests building and running a test
+#  PARMETIS_TEST_RUNS    - Skip tests building and running a test
 #                          executable linked against ParMETIS libraries
 #  PARMETIS_LIB_SUFFIX   - Also search for non-standard library names with the
 #                          given suffix appended
@@ -70,8 +70,7 @@ find_library(METIS_LIBRARY
 set(PARMETIS_LIBRARIES ${PARMETIS_LIBRARY} ${METIS_LIBRARY})
 
 # Try compiling and running test program if not cross-compiling
-if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY
-    AND NOT (CMAKE_CROSSCOMPILING OR PARMETIS_SKIP_TESTS))
+if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY)
 
   find_package(MPI QUIET)
   if(MPI_FOUND)
@@ -99,10 +98,6 @@ int main()
 }
 " PARMETIS_TEST_RUNS)
   endif()
-endif()
-# When cross compiling assume tests have run successfully
-if (CMAKE_CROSSCOMPILING OR PARMETIS_SKIP_TESTS)
-  set(PARMETIS_TEST_RUNS TRUE)
 endif()
 
 # Standard package handling
