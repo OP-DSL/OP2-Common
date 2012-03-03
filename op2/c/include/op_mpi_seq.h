@@ -50,7 +50,7 @@
 *******************************************************************************/
 void op_partition_random(op_set primary_set);
 
-void op_arg_set(int n, op_arg arg, char **p_arg){
+inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
   if (arg.map==NULL)         // identity mapping, or global data
     n2 = n;
@@ -60,7 +60,7 @@ void op_arg_set(int n, op_arg arg, char **p_arg){
   *p_arg = arg.data + n2*arg.size;
 }
 
-op_arg* blank_arg(op_arg *arg)
+inline op_arg* blank_arg(op_arg *arg)
 {
   op_arg *junck = NULL;
   if(arg->argtype == OP_ARG_GBL && //this argument is OP_GBL and
