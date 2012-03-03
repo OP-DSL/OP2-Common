@@ -8,7 +8,7 @@
 
 #include "op_lib_core.h"
 
-void op_arg_set(int n, op_arg arg, char **p_arg){
+inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
   if (arg.map==NULL)         // identity mapping, or global data
     n2 = n;
