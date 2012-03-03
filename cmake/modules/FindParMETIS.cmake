@@ -67,6 +67,22 @@ find_library(METIS_LIBRARY
   DOC "Directory where the METIS library is located"
 )
 
+# Get ParMETIS version
+if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIRS AND EXISTS "${PARMETIS_INCLUDE_DIRS}/parmetis.h")
+  set(version_pattern "^#define[\t ]+PARMETIS_(MAJOR|MINOR)_VERSION[\t ]+([0-9\\.]+)$")
+  file(STRINGS "${PARMETIS_INCLUDE_DIRS}/parmetis.h" parmetis_version REGEX ${version_pattern})
+
+  foreach(match ${parmetis_version})
+    if(PARMETIS_VERSION_STRING)
+      set(PARMETIS_VERSION_STRING "${PARMETIS_VERSION_STRING}.")
+    endif()
+    string(REGEX REPLACE ${version_pattern} "${PARMETIS_VERSION_STRING}\\2" PARMETIS_VERSION_STRING ${match})
+    set(PARMETIS_VERSION_${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
+  endforeach()
+  unset(parmetis_version)
+  unset(version_pattern)
+endif()
+
 set(PARMETIS_LIBRARIES ${PARMETIS_LIBRARY} ${METIS_LIBRARY})
 
 # Try compiling and running test program if not cross-compiling
@@ -102,4 +118,5 @@ endif()
 
 # Standard package handling
 find_package_handle_standard_args(ParMETIS
-  REQUIRED_VARS PARMETIS_LIBRARIES PARMETIS_INCLUDE_DIRS PARMETIS_TEST_RUNS)
+  REQUIRED_VARS PARMETIS_LIBRARIES PARMETIS_INCLUDE_DIRS PARMETIS_TEST_RUNS
+  VERSION_VAR PARMETIS_VERSION_STRING)
