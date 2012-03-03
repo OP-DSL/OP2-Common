@@ -262,5 +262,5 @@ endif()
 # Standard package handling
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SCOTCH
-  "SCOTCH could not be found. Be sure to set SCOTCH_DIR."
-  SCOTCH_LIBRARIES SCOTCH_INCLUDE_DIRS SCOTCH_TEST_RUNS)
+  REQUIRED_VARS SCOTCH_LIBRARIES SCOTCH_INCLUDE_DIRS SCOTCH_TEST_RUNS
+  VERSION_VAR SCOTCH_VERSION_STRING)
