@@ -83,18 +83,19 @@ if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIR AND EXISTS "${PARMETIS_I
   unset(version_pattern)
 endif()
 
-# Try compiling and running test program if not cross-compiling
+# Try compiling and running test program
 if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
 
-  find_package(MPI QUIET)
-  if(MPI_FOUND)
-    # Set flags for building test program
-    set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
-    set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
+  # Test requires MPI
+  find_package(MPI QUIET REQUIRED)
 
-    # Build and run test program
-    include(CheckCXXSourceRuns)
-    check_cxx_source_runs("
+  # Set flags for building test program
+  set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
+  set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
+
+  # Build and run test program
+  include(CheckCXXSourceRuns)
+  check_cxx_source_runs("
 #include <mpi.h>
 #include <parmetis.h>
 
@@ -111,7 +112,6 @@ int main()
   return 0;
 }
 " PARMETIS_TEST_RUNS)
-  endif()
 endif()
 
 # Standard package handling
