@@ -48,22 +48,22 @@
 #=============================================================================
 
 find_path(PARMETIS_INCLUDE_DIRS parmetis.h
-  HINTS ${PARMETIS_INCLUDE_DIR} ${PARMETIS_DIR}/include
-    $ENV{PARMETIS_DIR}/include $ENV{PARMETIS_DIR} $ENV{PARMETIS_INCLUDE_DIR}
+  HINTS ${PARMETIS_INCLUDE_DIR} ENV PARMETIS_INCLUDE_DIR ${PARMETIS_DIR} ENV PARMETIS_DIR
+  PATH_SUFFIXES include
   DOC "Directory where the ParMETIS header files are located"
 )
 
 find_library(PARMETIS_LIBRARY
   NAMES parmetis parmetis${PARMETIS_LIB_SUFFIX}
-  HINTS ${PARMETIS_LIB_DIR} ${PARMETIS_DIR}/lib
-    $ENV{PARMETIS_DIR}/lib $ENV{PARMETIS_DIR} $ENV{PARMETIS_LIB_DIR}
+  HINTS ${PARMETIS_LIB_DIR} ENV PARMETIS_LIB_DIR ${PARMETIS_DIR} ENV PARMETIS_DIR
+  PATH_SUFFIXES lib
   DOC "Directory where the ParMETIS library is located"
 )
 
 find_library(METIS_LIBRARY
   NAMES metis metis${PARMETIS_LIB_SUFFIX}
-  HINTS ${PARMETIS_LIB_DIR} ${PARMETIS_DIR}/lib
-    $ENV{PARMETIS_DIR}/lib $ENV{PARMETIS_DIR} $ENV{PARMETIS_LIB_DIR}
+  HINTS ${PARMETIS_LIB_DIR} ENV PARMETIS_LIB_DIR ${PARMETIS_DIR} ENV PARMETIS_DIR
+  PATH_SUFFIXES lib
   DOC "Directory where the METIS library is located"
 )
 
