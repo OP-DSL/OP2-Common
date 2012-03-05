@@ -31,8 +31,6 @@
 #include <algorithm>
 #include <iostream>
 #include <iterator>
-#include <set>
-#include <vector>
 
 #include <petscksp.h>
 
@@ -43,35 +41,6 @@ op_sparsity op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
   assert(rowmap && colmap);
   op_sparsity sparsity = op_decl_sparsity_core(rowmap, colmap, name);
 
-  // Create and populate auxiliary data structure: for each element of the from
-  // set, for each row pointed to by the row map, add all columns pointed to by
-  // the col map
-  std::vector< std::set< int > > s(sparsity->nrows);
-  for ( int e = 0; e < rowmap->from->size; ++e ) {
-    for ( int i = 0; i < rowmap->dim; ++i ) {
-      int row = rowmap->map[i + e*rowmap->dim];
-      s[row].insert( colmap->map + e*colmap->dim, colmap->map + (e+1)*colmap->dim );
-    }
-  }
-
-  // Create final sparsity structure
-  int *nnz = (int*)malloc(sparsity->nrows * sizeof(int));
-  int *rowptr = (int*)malloc((sparsity->nrows+1) * sizeof(int));
-  rowptr[0] = 0;
-  for ( size_t row = 0; row < sparsity->nrows; ++row ) {
-    nnz[row] = s[row].size();
-    rowptr[row+1] = rowptr[row] + nnz[row];
-    if ( sparsity->max_nonzeros < s[row].size() )
-      sparsity->max_nonzeros = s[row].size();
-  }
-  int *colidx = (int*)malloc(rowptr[sparsity->nrows] * sizeof(int));
-  for ( size_t row = 0; row < sparsity->nrows; ++row ) {
-    std::copy(s[row].begin(), s[row].end(), colidx + rowptr[row]);
-  }
-
-  sparsity->nnz = nnz;
-  sparsity->rowptr = rowptr;
-  sparsity->colidx = colidx;
   return sparsity;
 }
 
