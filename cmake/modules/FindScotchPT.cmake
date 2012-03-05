@@ -110,9 +110,8 @@ if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIR AND EXISTS "${SCOTCH_INCLUDE
   unset(version_pattern)
 endif()
 
-# Try compiling and running test program if not cross-compiling
-if (SCOTCH_INCLUDE_DIR AND SCOTCH_LIBRARY
-    AND NOT (CMAKE_CROSSCOMPILING OR SCOTCH_TEST_RUNS))
+# Try compiling and running test program
+if (SCOTCH_INCLUDE_DIR AND PTSCOTCH_LIBRARY AND PTSCOTCHERR_LIBRARY)
 
   if (SCOTCH_DEBUG)
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
@@ -123,24 +122,20 @@ if (SCOTCH_INCLUDE_DIR AND SCOTCH_LIBRARY
                    "location of libptscotcherr: ${PTSCOTCHERR_LIBRARY}")
   endif()
 
-  # Set flags for building test program
-  set(CMAKE_REQUIRED_INCLUDES ${SCOTCH_INCLUDE_DIR})
-  set(CMAKE_REQUIRED_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
+  # Test requires MPI
+  find_package(MPI QUIET REQUIRED)
 
-  # Add MPI variables if MPI has been found
-  if (MPI_FOUND)
-    set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${MPI_INCLUDE_PATH})
-    set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${MPI_LIBRARIES})
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${MPI_COMPILE_FLAGS}")
-  endif()
+  # Set flags for building test program
+  set(CMAKE_REQUIRED_INCLUDES ${SCOTCH_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
+  set(CMAKE_REQUIRED_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY} ${MPI_LIBRARIES})
+  set(CMAKE_REQUIRED_FLAGS ${MPI_COMPILE_FLAGS})
 
   # PT-SCOTCH was first introduced in SCOTCH version 5.0
   # FIXME: parallel graph partitioning features in PT-SCOTCH was first
   #        introduced in 5.1. Do we require version 5.1?
   if (NOT ${SCOTCH_VERSION} VERSION_LESS "5.0")
-    set(SCOTCH_TEST_LIB_CPP
-      "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/scotch_test_lib.cpp")
-    file(WRITE ${SCOTCH_TEST_LIB_CPP} "
+    include(CheckCXXSourceRuns)
+    set(SCOTCH_CXX_TEST_SOURCE "
 #include <sys/types.h>
 #include <stdio.h>
 #include <mpi.h>
@@ -174,87 +169,28 @@ int main() {
   return 0;
 }
 ")
-
-    message(STATUS "Test building and running executable linked against PTScotch")
-    try_run(
-      SCOTCH_TEST_LIB_EXITCODE
-      SCOTCH_TEST_LIB_COMPILED
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${SCOTCH_TEST_LIB_CPP}
-      CMAKE_FLAGS
-        "-DINCLUDE_DIRECTORIES:STRING=${CMAKE_REQUIRED_INCLUDES}"
-        "-DLINK_LIBRARIES:STRING=${CMAKE_REQUIRED_LIBRARIES}"
-      COMPILE_DEFINITIONS ${CMAKE_REQUIRED_FLAGS}
-      COMPILE_OUTPUT_VARIABLE SCOTCH_TEST_LIB_COMPILE_OUTPUT
-      RUN_OUTPUT_VARIABLE SCOTCH_TEST_LIB_OUTPUT
-      )
-
-    if (SCOTCH_TEST_LIB_COMPILED AND SCOTCH_TEST_LIB_EXITCODE EQUAL 0)
-      message(STATUS "Test building and running executable linked against PTScotch - Success")
-      set(SCOTCH_TEST_RUNS TRUE)
-    else()
-      message(STATUS "Test building and running executable linked against PTScotch - Failed")
-      if (SCOTCH_DEBUG)
-        # Output some variables
-        message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                       "SCOTCH_TEST_LIB_COMPILED = ${SCOTCH_TEST_LIB_COMPILED}")
-        message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                       "SCOTCH_TEST_LIB_COMPILE_OUTPUT = ${SCOTCH_TEST_LIB_COMPILE_OUTPUT}")
-        message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                       "SCOTCH_TEST_LIB_EXITCODE = ${SCOTCH_TEST_LIB_EXITCODE}")
-        message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                       "SCOTCH_TEST_LIB_OUTPUT = ${SCOTCH_TEST_LIB_OUTPUT}")
-      endif()
-    endif()
+    check_cxx_source_runs("${SCOTCH_CXX_TEST_SOURCE}" SCOTCH_TEST_RUNS)
 
     # If program does not run, try adding zlib library and test again
     if(NOT SCOTCH_TEST_RUNS)
-      if (NOT ZLIB_FOUND)
-        find_package(ZLIB QUIET)
-      endif()
+      find_package(ZLIB QUIET)
 
       if (ZLIB_INCLUDE_DIRS AND ZLIB_LIBRARIES)
         set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${ZLIB_INCLUDE_DIRS})
         set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${ZLIB_LIBRARIES})
-
-        message(STATUS "Test building and running executable linked against PTScotch and zlib")
-        try_run(
-          SCOTCH_ZLIB_TEST_LIB_EXITCODE
-          SCOTCH_ZLIB_TEST_LIB_COMPILED
-          ${CMAKE_CURRENT_BINARY_DIR}
-          ${SCOTCH_TEST_LIB_CPP}
-          CMAKE_FLAGS
-            "-DINCLUDE_DIRECTORIES:STRING=${CMAKE_REQUIRED_INCLUDES}"
-            "-DLINK_LIBRARIES:STRING=${CMAKE_REQUIRED_LIBRARIES}"
-          COMPILE_DEFINITIONS ${CMAKE_REQUIRED_FLAGS}
-          COMPILE_OUTPUT_VARIABLE SCOTCH_ZLIB_TEST_LIB_COMPILE_OUTPUT
-          RUN_OUTPUT_VARIABLE SCOTCH_ZLIB_TEST_LIB_OUTPUT
-          )
+        check_cxx_source_runs("${SCOTCH_CXX_TEST_SOURCE}" SCOTCH_ZLIB_TEST_RUNS)
 
         # Add zlib flags if required and set test run to 'true'
-        if (SCOTCH_ZLIB_TEST_LIB_COMPILED AND SCOTCH_ZLIB_TEST_LIB_EXITCODE EQUAL 0)
-          message(STATUS "Test building and running executable linked against PTScotch and zlib - Success")
+        if (SCOTCH_ZLIB_TEST_RUNS)
           set(SCOTCH_INCLUDE_DIR ${SCOTCH_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS})
           set(SCOTCH_EXTRA_LIBRARY ${ZLIB_LIBRARIES})
-          set(SCOTCH_TEST_RUNS TRUE)
-        else()
-          message(STATUS "Test building and running executable linked against PTScotch and zlib - Failed")
-          if (SCOTCH_DEBUG)
-            message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                           "SCOTCH_ZLIB_TEST_LIB_COMPILED = ${SCOTCH_ZLIB_TEST_LIB_COMPILED}")
-            message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                           "SCOTCH_ZLIB_TEST_LIB_COMPILE_OUTPUT = ${SCOTCH_ZLIB_TEST_LIB_COMPILE_OUTPUT}")
-            message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                           "SCOTCH_TEST_LIB_EXITCODE = ${SCOTCH_TEST_LIB_EXITCODE}")
-            message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                           "SCOTCH_TEST_LIB_OUTPUT = ${SCOTCH_TEST_LIB_OUTPUT}")
-          endif()
+          # Flag test as successful and do not re-run
+          set(SCOTCH_TEST_RUNS 1 CACHE INTERNAL "Test SCOTCH_TEST_RUNS")
         endif()
 
       endif()
     endif()
   endif()
-  set(SCOTCH_TEST_RUNS ${SCOTCH_TEST_RUNS} CACHE INTERNAL "Scotch tests ran successfully")
 endif()
 
 # Standard package handling
