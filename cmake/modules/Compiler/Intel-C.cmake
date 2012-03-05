@@ -1,4 +1,4 @@
-message("-- Setting Intel C compiler options")
+message(STATUS "Setting Intel C compiler options")
 include(Compiler/Intel)
 __compiler_intel(C)
 
