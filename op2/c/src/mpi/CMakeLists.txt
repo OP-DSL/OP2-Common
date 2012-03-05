@@ -21,7 +21,10 @@ install(TARGETS op2_mpi
 )
 
 # MPI-CUDA library
-if(OP2_WITH_CUDA AND CUDA_FOUND)
+# FIXME: Need to explicitly check for MPI_INCLUDE_PATH since MPI compiler
+# wrapper could be used for the host code and MPI_FOUND is true already when
+# an MPI compiler wrapper was found - which can't be used for CUDA sources
+if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
   include_directories(${CUDA_INCLUDE_DIRS})
 
   cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
