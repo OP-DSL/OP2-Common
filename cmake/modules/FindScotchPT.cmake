@@ -3,7 +3,7 @@
 #
 #  SCOTCH_FOUND        - system has found SCOTCH
 #  SCOTCH_INCLUDE_DIRS - include directories for SCOTCH
-#  SCOTCH_LIBARIES     - libraries for SCOTCH
+#  SCOTCH_LIBRARIES    - libraries for SCOTCH
 #  SCOTCH_VERSION      - version for SCOTCH
 #
 # Variables used by this module. They can change the default behaviour and
@@ -52,12 +52,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #=============================================================================
 
-set(ScotchPT_FOUND 0)
-
-message(STATUS "Checking for package 'SCOTCH-PT'")
+if (SCOTCH_DEBUG)
+  message(STATUS "Checking for package 'SCOTCH-PT'")
+endif()
 
 # Check for header file
-find_path(SCOTCH_INCLUDE_DIRS scotch.h ptscotch.h
+find_path(SCOTCH_INCLUDE_DIR scotch.h ptscotch.h
   HINTS ${SCOTCH_DIR}/include $ENV{SCOTCH_DIR}/include
     ${SCOTCH_INCLUDE_DIR} $ENV{SCOTCH_INCLUDE_DIR}
   PATH_SUFFIXES scotch
@@ -96,9 +96,9 @@ find_library(PTSCOTCHERR_LIBRARY
 )
 
 # Get Scotch version
-if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIRS AND EXISTS "${SCOTCH_INCLUDE_DIRS}/scotch.h")
+if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIR AND EXISTS "${SCOTCH_INCLUDE_DIR}/scotch.h")
   set(version_pattern "^#define[\t ]+SCOTCH_(VERSION|RELEASE|PATCHLEVEL)[\t ]+([0-9\\.]+)$")
-  file(STRINGS "${SCOTCH_INCLUDE_DIRS}/scotch.h" scotch_version REGEX ${version_pattern})
+  file(STRINGS "${SCOTCH_INCLUDE_DIR}/scotch.h" scotch_version REGEX ${version_pattern})
 
   foreach(match ${scotch_version})
     if(SCOTCH_VERSION_STRING)
@@ -111,15 +111,13 @@ if(NOT SCOTCH_VERSION_STRING AND SCOTCH_INCLUDE_DIRS AND EXISTS "${SCOTCH_INCLUD
   unset(version_pattern)
 endif()
 
-set(SCOTCH_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
-
 # Try compiling and running test program if not cross-compiling
-if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES
+if (SCOTCH_INCLUDE_DIR AND SCOTCH_LIBRARY
     AND NOT (CMAKE_CROSSCOMPILING OR SCOTCH_TEST_RUNS))
 
   if (SCOTCH_DEBUG)
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
-                   "location of ptscotch.h: ${SCOTCH_INCLUDE_DIRS}/ptscotch.h")
+                   "location of ptscotch.h: ${SCOTCH_INCLUDE_DIR}/ptscotch.h")
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
                    "location of libptscotch: ${PTSCOTCH_LIBRARY}")
     message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
@@ -127,8 +125,8 @@ if (SCOTCH_INCLUDE_DIRS AND SCOTCH_LIBRARIES
   endif()
 
   # Set flags for building test program
-  set(CMAKE_REQUIRED_INCLUDES ${SCOTCH_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${SCOTCH_LIBRARIES})
+  set(CMAKE_REQUIRED_INCLUDES ${SCOTCH_INCLUDE_DIR})
+  set(CMAKE_REQUIRED_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
   # Add MPI variables if MPI has been found
   if (MPI_FOUND)
@@ -213,7 +211,7 @@ int main() {
     # If program does not run, try adding zlib library and test again
     if(NOT SCOTCH_TEST_RUNS)
       if (NOT ZLIB_FOUND)
-        find_package(ZLIB)
+        find_package(ZLIB QUIET)
       endif()
 
       if (ZLIB_INCLUDE_DIRS AND ZLIB_LIBRARIES)
@@ -237,8 +235,8 @@ int main() {
         # Add zlib flags if required and set test run to 'true'
         if (SCOTCH_ZLIB_TEST_LIB_COMPILED AND SCOTCH_ZLIB_TEST_LIB_EXITCODE EQUAL 0)
           message(STATUS "Test building and running executable linked against PTScotch and zlib - Success")
-          set(SCOTCH_INCLUDE_DIRS ${SCOTCH_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
-          set(SCOTCH_LIBRARIES ${SCOTCH_LIBRARIES} ${ZLIB_LIBRARIES})
+          set(SCOTCH_INCLUDE_DIR ${SCOTCH_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS})
+          set(SCOTCH_EXTRA_LIBRARY ${ZLIB_LIBRARIES})
           set(SCOTCH_TEST_RUNS TRUE)
         else()
           message(STATUS "Test building and running executable linked against PTScotch and zlib - Failed")
@@ -263,5 +261,12 @@ endif()
 # Standard package handling
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SCOTCH
-  REQUIRED_VARS SCOTCH_LIBRARIES SCOTCH_INCLUDE_DIRS SCOTCH_TEST_RUNS
+  REQUIRED_VARS PTSCOTCH_LIBRARY PTSCOTCHERR_LIBRARY SCOTCH_INCLUDE_DIR SCOTCH_TEST_RUNS
   VERSION_VAR SCOTCH_VERSION_STRING)
+
+if(SCOTCH_FOUND)
+  set(SCOTCH_LIBRARIES ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY} ${SCOTCH_EXTRA_LIBRARY})
+  set(SCOTCH_INCLUDE_DIRS ${SCOTCH_INCLUDE_DIR})
+endif()
+
+mark_as_advanced(PTSCOTCH_LIBRARY PTSCOTCHERR_LIBRARY SCOTCH_LIBRARY SCOTCHERR_LIBRARY SCOTCH_EXTRA_LIBRARY SCOTCH_INCLUDE_DIR)
