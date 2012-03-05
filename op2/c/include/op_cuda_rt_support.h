@@ -90,6 +90,7 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size );
 
 void op_fetch_data ( op_dat dat );
 
+void op_callocDevice ( void ** data, int size );
 /*
  * Plan interface for generated code: the implementation changes depending
  * on the actual back-end libraries (e.g. cuda or openmp) and it is

@@ -138,7 +138,16 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
   cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
-void op_fetch_data ( op_dat dat )
+void
+op_callocDevice ( void ** data, int size )
+{
+  cutilSafeCall (cudaMalloc (data, size));
+  cutilSafeCall (cudaThreadSynchronize ());
+  cutilSafeCall (cudaMemset (*data, 0, size));
+}
+
+void
+op_fetch_data ( op_dat dat )
 {
 
   //transpose data
@@ -231,6 +240,17 @@ void op_cuda_exit ( )
   {
 		cutilSafeCall (cudaFree((item->dat)->data_d));
 	}
+
+  for ( int i = 0; i < OP_mat_index; i++ )
+  {
+    cutilSafeCall ( cudaFree ( OP_mat_list[i]->data ) );
+  }
+
+  for ( int i = 0; i < OP_sparsity_index; i++ )
+  {
+    cutilSafeCall ( cudaFree ( OP_sparsity_list[i]->rowptr ) );
+    cutilSafeCall ( cudaFree ( OP_sparsity_list[i]->colidx ) );
+  }
 
   for ( int ip = 0; ip < OP_plan_index; ip++ )
   {
