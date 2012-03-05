@@ -103,6 +103,34 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
   return dat;
 }
 
+op_sparsity
+op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
+{
+  op_sparsity sparsity = op_decl_sparsity_core ( rowmap, colmap, name );
+
+  op_mvHostToDevice ( (void **)&(sparsity->rowptr),
+                      sizeof(int) * (sparsity->nrows + 1) );
+
+  op_mvHostToDevice ( (void **)&(sparsity->colidx),
+                      sizeof(int) * (sparsity->total_nz));
+
+  return sparsity;
+}
+
+op_mat
+op_decl_mat ( op_sparsity sparsity, int dim, char const * type,
+              int type_size, char const * name )
+{
+  op_mat mat = op_decl_mat_core ( sparsity->rowmap->to, sparsity->colmap->to,
+                                  dim, type, type_size, name );
+
+  mat->sparsity = sparsity;
+  op_callocDevice( (void **)&(mat->data),
+                   type_size * mat->sparsity->total_nz );
+
+  return mat;
+}
+
 op_set
 op_decl_set ( int size, char const * name )
 {
@@ -120,6 +148,13 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
              op_access acc )
 {
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+}
+
+op_arg
+op_arg_mat ( op_mat mat, int idx1, op_map map1, int idx2, op_map map2, int dim,
+             char const * type, op_access acc )
+{
+  return op_arg_mat_core ( mat, idx1, map1, idx2, map2, dim, type, acc );
 }
 
 op_arg

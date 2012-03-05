@@ -1,4 +1,4 @@
-void mass(float *A, float x[3][2], int i, int j, int q)
+void mass(float *A, float *x[2], int i, int j)
 {
   float J[2][2];
   float detJ;
@@ -14,5 +14,6 @@ void mass(float *A, float x[3][2], int i, int j, int q)
 
   detJ = J[0][0] * J[1][1] - J[0][1] * J[1][0];
 
-  *A += CG1[i][q] * CG1[j][q] * detJ * w[q];
+  for ( int q = 0; q < 3; q++ )
+    *A += CG1[i][q] * CG1[j][q] * detJ * w[q];
 }

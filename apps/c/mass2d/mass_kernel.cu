@@ -19,6 +19,7 @@ __global__ void op_cuda_mass(float *mat_data,
 
   __shared__ float *data_s;
   __shared__ int *map_s;
+  float *data_vec[3];
   if ( blockIdx.x >= nblocks ) return;
 
   int nelem = nelems[blockIdx.x];
@@ -37,26 +38,28 @@ __global__ void op_cuda_mass(float *mat_data,
   // slop for 16-byte alignment)
   for ( int n = threadIdx.x; n < nelem; n+= blockDim.x ) {
     for ( int k = 0; k < map_dim; k++ ) {
-      data_s[dim*(n * map_dim + k)] = data[dim*map[(n+boffset)*map_dim + k]];
-      data_s[dim*(n * map_dim + k) + 1] = data[dim*map[(n+boffset)*map_dim + k] + 1];
-      map_s[n * map_dim + k] = map[(n + boffset)*map_dim + k];
+        map_s[n * map_dim + k] = map[(n + boffset)*map_dim + k];
     }
+  }
+
+  for ( int n = threadIdx.x; n < nelem * map_dim * 2; n+=blockDim.x ) {
+      data_s[n] = data[n%2 + map_s[n/2]*2];
   }
   __syncthreads();
   float entry;
-  for ( int k = threadIdx.x; k < nelem * 3 * 3 * 3; k+=blockDim.x ) {
-    // k == q + 3*j + 9*i + 27*n
-    int n = k / 27;
-    int i = (k - 27*n) / 9;
-    int j = (k - 27*n - 9*i) / 3;
-    int q = k - 27*n - 9*i - 3*j;
+  for ( int k = threadIdx.x; k < nelem * 3 * 3; k+=blockDim.x ) {
+    // k == j + 3*i + 9*n
+    int n = k / 9;
+    int i = (k - 9*n) / 3;
+    int j = (k - 9*n - 3*i);
     int mapi = map_s[n*map_dim + i];
     int mapj = map_s[n*map_dim + j];
-    entry = 0.0f;
+    data_vec[0] = data_s + n * map_dim * dim;
+    data_vec[1] = data_s + n * map_dim * dim + 1 * dim;
+    data_vec[2] = data_s + n * map_dim * dim + 2 * dim;
     // Compute a single matrix entry
-    // Probably best if q is iterated over in the kernel, but iterate
-    // over it in the parallel loop as an example.
-    mass(&entry, (float (*)[2])(data_s + n*map_dim*dim), i, j, q);
+    entry = 0.0f;
+    mass(&entry, data_vec, i, j);
     // Insert matrix entry into global matrix.
     // find column offset
     int offset;
@@ -71,7 +74,7 @@ __global__ void op_cuda_mass(float *mat_data,
   }
 }
 
-void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
+void op_par_loop_mass(const char *name, op_set elements, op_arg arg_mat,
                      op_arg arg_dat)
 {
   int *map_d;
@@ -82,8 +85,8 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
                            cudaMemcpyHostToDevice));
 
   int nthread = 128;
-  int nblocks = 128;
-  int nblock = 128;
+  int nblocks = 1;
+  int nblock = 1;
   int nelems_h[nblock];
   int *nelems_d;
   cutilSafeCall(cudaMalloc((void **)&nelems_d,
@@ -113,30 +116,16 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
 
   int nshared;
 
-  // This all needs to be wrapped in cuda versions of op_decl_sparsity
-  // and op_decl_mat
-  int *rowptr_d;
+  op_sparsity sparsity = arg_mat.mat->sparsity;
   int nrow = sparsity->nrows;
-  int nnz = sparsity->rowptr[nrow];
-  cutilSafeCall(cudaMalloc((void **)&rowptr_d, (nrow+1) * sizeof(int)));
-  cutilSafeCall(cudaMemcpy(rowptr_d, sparsity->rowptr, (nrow+1) * sizeof(int),
-                           cudaMemcpyHostToDevice));
-
-  int *colptr_d;
-  cutilSafeCall(cudaMalloc((void **)&colptr_d, nnz * sizeof(int)));
-  cutilSafeCall(cudaMemcpy(colptr_d, sparsity->colidx, nnz * sizeof(int),
-                           cudaMemcpyHostToDevice));
-  float *data_d;
-  cutilSafeCall(cudaMalloc((void **)&data_d, nnz * sizeof(float)));
-  cutilSafeCall(cudaMemset(data_d, 0, nnz * sizeof(float)));
-
+  int nnz = sparsity->total_nz;
   nshared = nelems_h[0] * arg_dat.map->dim * arg_dat.dat->dim * sizeof(float)
     + nelems_h[0] * arg_dat.map->dim * sizeof(int);
 
 
-  op_cuda_mass<<<nblocks, nthread, nshared>>>(data_d,
-                                              rowptr_d,
-                                              colptr_d,
+  op_cuda_mass<<<nblocks, nthread, nshared>>>((float *)arg_mat.mat->data,
+                                              sparsity->rowptr,
+                                              sparsity->colidx,
                                               nrow,
                                               map_d,
                                               arg_dat.map->dim,
@@ -149,21 +138,14 @@ void op_par_loop_mass(const char *name, op_set elements, op_sparsity sparsity,
   // Print out resulting matrix if it comes from 2-element problem
   if ( elements->size == 2 ) {
       float *mat_h = (float *)malloc(nnz * sizeof(float));
-      cutilSafeCall(cudaMemcpy(mat_h, data_d, nnz * sizeof(float),
+      cutilSafeCall(cudaMemcpy(mat_h, arg_mat.mat->data, nnz * sizeof(float),
                                cudaMemcpyDeviceToHost));
-      for ( int i = 0; i < nrow; i++ ) {
-          printf("row %d: ", i);
-          for ( int j = sparsity->rowptr[i]; j < sparsity->rowptr[i+1]; j++ ) {
-              printf("(%d, %g) ", sparsity->colidx[j], mat_h[j]);
-          }
-          printf("\n");
+      for ( int i = 0; i < nnz; i++ ) {
+  printf("%g ", mat_h[i]);
       }
+      printf("\n");
       free(mat_h);
   }
-  cutilSafeCall(cudaFree(data_d));
-  cutilSafeCall(cudaFree(rowptr_d));
-  cutilSafeCall(cudaFree(colptr_d));
-  cutilSafeCall(cudaFree(map_d));
   cutilSafeCall(cudaFree(boffset_d));
   cutilSafeCall(cudaFree(nelems_d));
 }

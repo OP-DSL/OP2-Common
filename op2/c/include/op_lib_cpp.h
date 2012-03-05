@@ -111,6 +111,8 @@ extern int OP_set_index,  OP_set_max,
 extern op_set    * OP_set_list;
 extern op_map    * OP_map_list;
 extern op_dat    * OP_dat_list;
+extern op_mat    * OP_mat_list;
+extern op_sparsity * OP_sparsity_list;
 extern op_kernel * OP_kernels;
 
 

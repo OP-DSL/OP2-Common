@@ -337,6 +337,7 @@ op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
   sparsity->colidx = NULL;
   sparsity->max_nonzeros = 0;
 
+  op_build_sparsity_pattern ( rowmap, colmap, sparsity );
   OP_sparsity_list[OP_sparsity_index++] = sparsity;
 
   return sparsity;
