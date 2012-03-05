@@ -137,6 +137,7 @@ typedef struct {
   size_t nrows;       /* number of rows */
   size_t ncols;       /* number of columns */
   int    *nnz;        /* vector of number of nonzeros per row */
+  int    total_nz;    /* total nonzeros in the pattern sum(nnz) */
   int    *rowptr;     /* csr row pointer (accumulation of nnz) */
   int    *colidx;     /* csr column indices for each row */
   size_t max_nonzeros;/* maximum number of nonzeros per row */
@@ -155,6 +156,8 @@ typedef struct
   void*       mat;    /* handle to matrix object from 3rd party library */
   char const *type,   /* datatype */
              *name;   /* name of matrix */
+  op_sparsity sparsity;         /* sparsity structure */
+  char       *data;   /* matrix entries (device) */
 } op_mat_core;
 
 typedef op_mat_core * op_mat;
@@ -245,6 +248,8 @@ int op_free_dat_temp_core ( op_dat );
 op_mat op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name );
 
 op_sparsity op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name );
+
+void op_build_sparsity_pattern ( op_map rowmap, op_map colmap, op_sparsity sparsity );
 
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
