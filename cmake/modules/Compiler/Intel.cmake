@@ -19,6 +19,7 @@ macro(__compiler_intel lang)
   # ignore remark #981: operands are evaluated in unspecified order
   set(CMAKE_${lang}_FLAGS_DEVELOPER "-O2 -g -Wall -Werror -wd981" CACHE STRING
     "Flags used by the compiler during Developer builds.")
+  mark_as_advanced(CMAKE_${lang}_FLAGS_DEVELOPER)
 
   # Preprocessing and assembly rules.
   set(CMAKE_${lang}_CREATE_PREPROCESSED_SOURCE "<CMAKE_${lang}_COMPILER> <DEFINES> <FLAGS> -E <SOURCE> > <PREPROCESSED_SOURCE>")
