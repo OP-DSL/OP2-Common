@@ -47,7 +47,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #=============================================================================
 
-find_path(PARMETIS_INCLUDE_DIRS parmetis.h
+find_path(PARMETIS_INCLUDE_DIR parmetis.h
   HINTS ${PARMETIS_INCLUDE_DIR} ENV PARMETIS_INCLUDE_DIR ${PARMETIS_DIR} ENV PARMETIS_DIR
   PATH_SUFFIXES include
   DOC "Directory where the ParMETIS header files are located"
@@ -68,9 +68,9 @@ find_library(METIS_LIBRARY
 )
 
 # Get ParMETIS version
-if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIRS AND EXISTS "${PARMETIS_INCLUDE_DIRS}/parmetis.h")
+if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIR AND EXISTS "${PARMETIS_INCLUDE_DIR}/parmetis.h")
   set(version_pattern "^#define[\t ]+PARMETIS_(MAJOR|MINOR)_VERSION[\t ]+([0-9\\.]+)$")
-  file(STRINGS "${PARMETIS_INCLUDE_DIRS}/parmetis.h" parmetis_version REGEX ${version_pattern})
+  file(STRINGS "${PARMETIS_INCLUDE_DIR}/parmetis.h" parmetis_version REGEX ${version_pattern})
 
   foreach(match ${parmetis_version})
     if(PARMETIS_VERSION_STRING)
@@ -83,16 +83,14 @@ if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIRS AND EXISTS "${PARMETIS_
   unset(version_pattern)
 endif()
 
-set(PARMETIS_LIBRARIES ${PARMETIS_LIBRARY} ${METIS_LIBRARY})
-
 # Try compiling and running test program if not cross-compiling
-if (PARMETIS_INCLUDE_DIRS AND PARMETIS_LIBRARY AND METIS_LIBRARY)
+if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
 
   find_package(MPI QUIET)
   if(MPI_FOUND)
     # Set flags for building test program
-    set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
-    set(CMAKE_REQUIRED_LIBRARIES ${PARMETIS_LIBRARIES}  ${MPI_LIBRARIES})
+    set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
+    set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
 
     # Build and run test program
     include(CheckCXXSourceRuns)
@@ -118,5 +116,12 @@ endif()
 
 # Standard package handling
 find_package_handle_standard_args(ParMETIS
-  REQUIRED_VARS PARMETIS_LIBRARIES PARMETIS_INCLUDE_DIRS PARMETIS_TEST_RUNS
+  REQUIRED_VARS PARMETIS_LIBRARY PARMETIS_INCLUDE_DIR PARMETIS_TEST_RUNS
   VERSION_VAR PARMETIS_VERSION_STRING)
+
+if(PARMETIS_FOUND)
+  set(PARMETIS_LIBRARIES ${PARMETIS_LIBRARY} ${METIS_LIBRARY})
+  set(PARMETIS_INCLUDE_DIRS ${PARMETIS_INCLUDE_DIR})
+endif()
+
+mark_as_advanced(PARMETIS_INCLUDE_DIR PARMETIS_LIBRARY METIS_LIBRARY)
