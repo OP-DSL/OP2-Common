@@ -1,14 +1,19 @@
-This is the OP2 base directory providing:
+OP2 is an API with associated libraries and preprocessors to generate
+parallel executables for applications on unstructured grids.
 
-1. An implementation of the user and run-time OP2 C and Fortran APIs ("op2" directory)
+This repository contains the implementation of the OP2 run-time
+library and structured as follows:
+|
+`- op2: Implementation of the user and run-time OP2 C and Fortran APIs
+|
+`- apps: Application examples in C and Fortran
+|  These are examples of target code an OP2 compiler should produce in
+|  order to correctly use the OP2 run-time library. In addition, it
+|  also contains the corresponding input files for sequential execution.
+|
+`- translator: Source-to-source translators for C and Fortran
+|
+`- doc: Documentation
 
-2. Application examples in C and Fortran ("apps" directory).
-These are examples of what kind of code an OP2 compiler should produce in order to use correctly this
-OP2 run-time library. In addition, it also contains the corresponding input files for sequential execution.
-
-3. Translators for C and Fortran ("translator" directory)
-
-4. Documentation ("doc" directory)
-
-This repository should not be confused with the OP2 compiler, which can be found at:
-https://github.com/abetts155/OP2_ROSE_Fortran
+This repository should not be confused with the OP2 compiler, which
+can be found at: https://github.com/abetts155/OP2_ROSE_Fortran
