@@ -535,7 +535,8 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
   arg.map = map;
   arg.dim = dim;
   arg.idx = idx;
-
+  arg.idx2 = -1;
+  arg.map2 = NULL;
   arg.size = dat->size;
   arg.data = dat->data;
   arg.data_d = dat->data_d;
@@ -595,6 +596,8 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.dim = dim;
   arg.idx = -1;
   arg.size = dim*size;
+  arg.idx2 = -1;
+  arg.map2 = NULL;
   arg.data = data;
   arg.type = typ;
   arg.acc = acc;
