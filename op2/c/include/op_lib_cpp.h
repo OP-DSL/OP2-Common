@@ -117,6 +117,7 @@ extern op_kernel * OP_kernels;
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 
 
+
 /*
  * templates for handling datasets and constants
  */

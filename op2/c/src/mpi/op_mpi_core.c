@@ -2651,6 +2651,22 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
 }
 
 
+/*******************************************************************************
+ * Get the global size of a set 
+ *******************************************************************************/
+int op_get_size(op_set set)
+{
+    int my_rank, comm_size;
+    MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+    MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+    int* sizes = (int *)malloc(sizeof(int)*comm_size);
+    int g_size = 0;
+    MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+    for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
+    free(sizes);
+    
+    return g_size;
+}
 
 
 

@@ -178,8 +178,6 @@ int main(int argc, char **argv){
   
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;                                        
-  double time;
-  double max_time;
   
   int *pp;
   float *r, *u, *du;
@@ -309,7 +307,8 @@ int main(int argc, char **argv){
   //create halos
   op_halo_create();
   
-  //initialise timers for total execution wall time                                                         
+  //initialise timers for total execution wall time   
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t1, &wall_t1); 
   
 
@@ -337,6 +336,7 @@ int main(int argc, char **argv){
     	printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
   }
   
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
   
   //get results data array
@@ -353,10 +353,9 @@ int main(int argc, char **argv){
     
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
+
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);  
+  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",wall_t2-wall_t1);  
   
   MPI_Finalize();   //user mpi finalize
 }

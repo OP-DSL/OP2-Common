@@ -127,6 +127,14 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 
+void op_printf(const char* format, ...)
+{
+    va_list argptr;
+    va_start(argptr, format);
+    vfprintf(stderr, format, argptr);
+    va_end(argptr);
+}
+
 
 void op_exit()
 {

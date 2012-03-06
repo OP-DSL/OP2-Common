@@ -163,6 +163,18 @@ op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
 }
 
 
+void op_printf(const char* format, ...)
+{
+    int my_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+    if(my_rank==MPI_ROOT)
+    {
+    	va_list argptr;
+    	va_start(argptr, format);
+    	vfprintf(stderr, format, argptr);
+    	va_end(argptr);
+    }
+}
 
 
 // 

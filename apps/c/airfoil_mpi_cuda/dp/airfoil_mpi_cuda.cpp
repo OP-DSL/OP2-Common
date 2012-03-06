@@ -223,8 +223,6 @@ int main(int argc, char **argv){
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   double  *x, *q, *qold, *adt, *res;
@@ -234,6 +232,7 @@ int main(int argc, char **argv){
 
   /**------------------------BEGIN I/O and PARTITIONING -------------------**/
 
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t1, &wall_t1);
 
   /* read in grid from disk on root processor */
@@ -373,10 +372,10 @@ int main(int argc, char **argv){
     free(g_adt);
     free(g_res);
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time);
+  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",wall_t2-wall_t1);
 
   /**------------------------END I/O and PARTITIONING -----------------------**/
 
@@ -434,6 +433,7 @@ int main(int argc, char **argv){
 
 
   //initialise timers for total execution wall time
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t1, &wall_t1);
 
   niter = 1000;
@@ -497,6 +497,7 @@ int main(int argc, char **argv){
     }
 
   }
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
@@ -509,9 +510,8 @@ int main(int argc, char **argv){
   //op_timing_output();
   
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  //if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
   op_exit();
   MPI_Finalize();   //user mpi finalize

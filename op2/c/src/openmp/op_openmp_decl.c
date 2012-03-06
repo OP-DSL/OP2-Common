@@ -90,6 +90,15 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
     return op_plan_core ( name, set, set_offset, part_size, nargs, args, ninds, inds );
 }
 
+
+void op_printf(const char* format, ...)
+{
+    va_list argptr;
+    va_start(argptr, format);
+    vfprintf(stderr, format, argptr);
+    va_end(argptr);
+}
+
 void
 op_exit (  )
 {

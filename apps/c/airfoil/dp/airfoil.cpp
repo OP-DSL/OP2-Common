@@ -262,12 +262,12 @@ int main(int argc, char **argv){
     rms = sqrt(rms/(double) ncell);
 
     if (iter%100 == 0)
-      printf(" %d  %10.5e \n",iter,rms);
+      op_printf(" %d  %10.5e \n",iter,rms);
   }
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-  printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
   op_exit();
   
