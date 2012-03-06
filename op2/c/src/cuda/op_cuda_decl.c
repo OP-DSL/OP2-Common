@@ -39,6 +39,7 @@
 #include <cuda_runtime_api.h>
 
 #include <op_lib_c.h>
+#include <op_lib_mat.h>
 #include <op_cuda_rt_support.h>
 #include <op_rt_support.h>
 
