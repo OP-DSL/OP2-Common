@@ -87,6 +87,14 @@ void op_fetch_data ( op_dat a ) {
   (void)a;
 }
 
+void op_printf(const char* format, ...)
+{
+  va_list argptr;
+  va_start(argptr, format);
+  vprintf(format, argptr);
+  va_end(argptr);
+}
+
 void op_exit ()
 {
   op_exit_core ();

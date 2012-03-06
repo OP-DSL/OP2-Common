@@ -53,7 +53,6 @@ float alpha;
 //
 
 #include "op_lib_cpp.h"
-#include "op_seq.h"
 
 //
 // op_par_loop declarations

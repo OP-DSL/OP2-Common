@@ -77,17 +77,20 @@ int main(int argc, char **argv)
   int    nnode,ncell,nedge,nbedge,niter;
   float  rms;
 
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+
   // read in grid
 
-  printf("reading in grid \n");
+  op_printf("reading in grid \n");
 
   FILE *fp;
   if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
   if (fscanf(fp,"%d %d %d %d \n",&nnode, &ncell, &nedge, &nbedge) != 4) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
+    op_printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
   cell   = (int *) malloc(4*ncell*sizeof(int));
@@ -105,28 +108,28 @@ int main(int argc, char **argv)
 
   for (int n=0; n<nnode; n++) {
     if (fscanf(fp,"%f %f \n",&x[2*n], &x[2*n+1]) != 2) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
   for (int n=0; n<ncell; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
                                    &cell[4*n+2], &cell[4*n+3]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
   for (int n=0; n<nedge; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&edge[2*n], &edge[2*n+1],
                                    &ecell[2*n],&ecell[2*n+1]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
   for (int n=0; n<nbedge; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&bedge[2*n],&bedge[2*n+1],
                                    &becell[n], &bound[n]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
@@ -134,7 +137,7 @@ int main(int argc, char **argv)
 
   // set constants and initialise flow field and residual
 
-  printf("initialising flow field \n");
+  op_printf("initialising flow field \n");
 
   gam = 1.4f;
   gm1 = gam - 1.0f;
@@ -193,6 +196,9 @@ int main(int argc, char **argv)
   op_decl_const(4,"float",qinf  );
 
   op_diagnostic_output();
+
+  //initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
 
@@ -257,11 +263,13 @@ int main(int argc, char **argv)
     rms = sqrtf(rms/(float) ncell);
 
     if (iter%100 == 0)
-      printf(" %d  %10.5e \n",iter,rms);
+      op_printf(" %d  %10.5e \n",iter,rms);
   }
 
+  op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-  op_exit();
+  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
+  op_exit();
 }
 

@@ -149,6 +149,19 @@ op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
+void op_printf(const char* format, ...)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+    vprintf(format, argptr);
+    va_end(argptr);
+  }
+}
+
 //
 // This function is defined in the generated master kernel file
 // so that it is possible to check on the runtime size of the

@@ -90,6 +90,20 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
   return op_plan_core ( name, set, set_offset, part_size, nargs, args, ninds, inds );
 }
 
+
+void op_printf(const char* format, ...)
+{
+    int my_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+    if(my_rank==MPI_ROOT)
+    {
+      va_list argptr;
+      va_start(argptr, format);
+      vprintf(format, argptr);
+      va_end(argptr);
+    }
+}
+
 void op_exit()
 {
   op_mpi_exit();

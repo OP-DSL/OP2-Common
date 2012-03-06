@@ -90,6 +90,8 @@ void op_fetch_data ( op_dat );
 
 void op_exit (  );
 
+void op_printf(const char* format, ...);
+
 #ifdef __cplusplus
 }
 #endif

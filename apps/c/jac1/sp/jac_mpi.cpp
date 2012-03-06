@@ -156,8 +156,6 @@ int main(int argc, char **argv)
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int *pp;
   float *A, *r, *u, *du;
@@ -174,9 +172,9 @@ int main(int argc, char **argv)
   int *g_pp = 0;
   float *g_A = 0, *g_r = 0, *g_u = 0, *g_du = 0;
 
-  if(my_rank == MPI_ROOT) {
-    printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
+  op_printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
+  if(my_rank == MPI_ROOT) {
     g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
 
     g_A  = (float *)malloc(sizeof(float)*g_nedge);
@@ -225,7 +223,7 @@ int main(int argc, char **argv)
   /* Compute local sizes */
   nnode = compute_local_size (g_nnode, comm_size, my_rank);
   nedge = compute_local_size (g_nedge, comm_size, my_rank);
-  printf("Number of nodes, edges on process %d = %d, %d\n"
+  op_printf("Number of nodes, edges on process %d = %d, %d\n"
       ,my_rank,nnode,nedge);
 
   /*Allocate memory to hold local sets, mapping tables and data*/
@@ -283,6 +281,7 @@ int main(int argc, char **argv)
   op_halo_create();
 
   //initialise timers for total execution wall time
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t1, &wall_t1);
 
   // main iteration loop
@@ -305,10 +304,10 @@ int main(int argc, char **argv)
         op_arg_gbl(&u_sum,1,"float",OP_INC),
         op_arg_gbl(&u_max,1,"float",OP_MAX));
 
-    if(my_rank == MPI_ROOT)
-      printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
+    op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
@@ -326,9 +325,7 @@ int main(int argc, char **argv)
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
   MPI_Finalize();   //user mpi finalize
 }
