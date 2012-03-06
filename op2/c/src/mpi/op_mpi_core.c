@@ -30,11 +30,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* 
+/*
  * op_mpi_core.c
- * 
- * Implements the OP2 Distributed memory (MPI) halo creation, halo exchange and 
- * support utility routines/functions 
+ *
+ * Implements the OP2 Distributed memory (MPI) halo creation, halo exchange and
+ * support utility routines/functions
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
@@ -49,84 +49,82 @@
 #include <op_mpi_core.h>
 #include <op_mpi_part_core.h>
 
-
-
-
-
 //
 //MPI Communicator for halo creation and exchange
 //
-MPI_Comm OP_MPI_WORLD;
 
+MPI_Comm OP_MPI_WORLD;
 
 //
 //MPI Halo related global variables
 //
+
 halo_list *OP_export_exec_list;//EEH list
 halo_list *OP_import_exec_list;//IEH list
 
 halo_list *OP_import_nonexec_list;//INH list
-halo_list *OP_export_nonexec_list;//ENH list 
+halo_list *OP_export_nonexec_list;//ENH list
 
 set_part_core *OP_latency_sets; // set_offset
 
 //
 //global array to hold dirty_bits for op_dats
 //
+
 int* dirtybit;
 
 //
 //halo exchange buffers for each op_dat
 //
+
 op_mpi_buffer *OP_mpi_buffer_list;
 
-
-/*array to holding the index of the final element 
+/*array to holding the index of the final element
   that can be computed without halo exchanges for each set
 
   0 to core_num[set->index] - no halo exchange needed
-  core_num[set->index] to n<set->size - halo exchange needed 
+  core_num[set->index] to n<set->size - halo exchange needed
   */
-int *core_num; 
 
+int *core_num;
 
-/*table holding MPI performance of each loop 
+/*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
+
 op_mpi_kernel op_mpi_kernel_tab[HASHSIZE];
 
 //
 //global variables to hold partition information on an MPI rank
 //
+
 int OP_part_index = 0;
 part *OP_part_list;
-
 
 //
 //Save original partition ranges
 //
+
 int** orig_part_range = NULL;
-
-
-
 
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
+
 void decl_partition(op_set set, int* g_index, int* partition)
-{    
+{
   part p = (part) xmalloc(sizeof(part_core));
   p->set = set;
   p->g_index = g_index;
   p->elem_part = partition;
   p->is_partitioned = 0;
   OP_part_list[set->index] = p;
-  OP_part_index++;	  
+  OP_part_index++;
 }
-
 
 /*******************************************************************************
  * Routine to get partition range on all mpi ranks for all sets
  *******************************************************************************/
+
 void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
 {
   (void)my_rank;
@@ -151,19 +149,20 @@ void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
 #endif
     }
     free(sizes);
-  }	
+  }
 }
 
 /*******************************************************************************
- * Routine to get partition (i.e. mpi rank) where global_index is located and 
+ * Routine to get partition (i.e. mpi rank) where global_index is located and
  * its local index
  *******************************************************************************/
-int get_partition(int global_index, int* part_range, int* local_index, 
+
+int get_partition(int global_index, int* part_range, int* local_index,
     int comm_size)
 {
   for(int i = 0; i<comm_size; i++)
   {
-    if (global_index >= part_range[2*i] && 
+    if (global_index >= part_range[2*i] &&
         global_index <= part_range[2*i+1])
     {
       *local_index = global_index -  part_range[2*i];
@@ -176,30 +175,31 @@ int get_partition(int global_index, int* part_range, int* local_index,
 /*******************************************************************************
  * Routine to convert a local index in to a global index
  *******************************************************************************/
-int get_global_index(int local_index, int partition, int* part_range, 
+
+int get_global_index(int local_index, int partition, int* part_range,
     int comm_size)
 {
   (void)comm_size;
   int g_index = part_range[2*partition]+local_index;
 #ifdef DEBUG
-  if(g_index > part_range[2*(comm_size-1)+1]) 
+  if(g_index > part_range[2*(comm_size-1)+1])
     printf("Global index larger than set size\n");
 #endif
   return g_index;
 }
 
-
 /*******************************************************************************
  * Routine to find the MPI neighbors given a halo list
  *******************************************************************************/
-void find_neighbors_set(halo_list List, int* neighbors, int* sizes, 
+
+void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
     int* ranks_size, int my_rank, int comm_size, MPI_Comm Comm)
 {
   int* temp = (int*)xmalloc(comm_size*sizeof(int));
   int* r_temp = (int*)xmalloc(comm_size*comm_size*sizeof(int));
 
   for(int r = 0;r<comm_size*comm_size;r++)r_temp[r] = -99;
-  for(int r = 0;r<comm_size;r++)temp[r] = -99;    
+  for(int r = 0;r<comm_size;r++)temp[r] = -99;
 
   int n = 0;
 
@@ -220,7 +220,7 @@ void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
         neighbors[n] = i;
         sizes[n] = r_temp[i*comm_size+my_rank];
         n++;
-      }    
+      }
     }
   }
   *ranks_size = n;
@@ -228,10 +228,11 @@ void find_neighbors_set(halo_list List, int* neighbors, int* sizes,
 }
 
 /*******************************************************************************
- * Routine to create a generic halo list 
+ * Routine to create a generic halo list
  * (used in both import and export list creation)
  *******************************************************************************/
-void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size, 
+
+void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
     int* total, int* temp_list, int size, int comm_size, int my_rank)
 {
   (void)my_rank;
@@ -252,7 +253,7 @@ void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
     for(int i = 0;i<size;i=i+2)
     {
       if(temp_list[i]==r)
-        temp[sizes[index]++] = temp_list[i+1];    	    	
+        temp[sizes[index]++] = temp_list[i+1];
     }
     if(sizes[index]>0)
     {
@@ -281,7 +282,8 @@ void create_list(int* list, int* ranks, int* disps, int* sizes, int* ranks_size,
 /*******************************************************************************
  * Routine to create an export list
  *******************************************************************************/
-void create_export_list(op_set set, int* temp_list, halo_list h_list, int size, 
+
+void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
     int comm_size, int my_rank)
 {
   int* ranks = (int *)xmalloc(comm_size*sizeof(int));
@@ -290,7 +292,7 @@ void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
   int* sizes = (int *)xmalloc(comm_size*sizeof(int));
 
   int ranks_size = 0;
-  int total_size = 0;  
+  int total_size = 0;
 
   create_list(list, ranks, disps, sizes, &ranks_size, &total_size,
       temp_list, size, comm_size, my_rank);
@@ -308,8 +310,9 @@ void create_export_list(op_set set, int* temp_list, halo_list h_list, int size,
 /*******************************************************************************
  * Routine to create an import list
  *******************************************************************************/
-void create_import_list(op_set set, int* temp_list, halo_list h_list, 
-    int total_size, int* ranks, int* sizes, int ranks_size, 
+
+void create_import_list(op_set set, int* temp_list, halo_list h_list,
+    int total_size, int* ranks, int* sizes, int ranks_size,
     int comm_size, int my_rank)
 {
   (void)my_rank;
@@ -317,7 +320,7 @@ void create_import_list(op_set set, int* temp_list, halo_list h_list,
   disps[0] = 0;
   for(int i=0; i<ranks_size; i++)
   {
-    if(i>0)disps[i] = disps[i-1]+sizes[i-1]; 	
+    if(i>0)disps[i] = disps[i-1]+sizes[i-1];
   }
 
   h_list->set = set;
@@ -332,7 +335,8 @@ void create_import_list(op_set set, int* temp_list, halo_list h_list,
 /*******************************************************************************
  * Routine to create an nonexec-import list (only a wrapper)
  *******************************************************************************/
-static void create_nonexec_import_list(op_set set, int* temp_list, halo_list h_list, 
+
+static void create_nonexec_import_list(op_set set, int* temp_list, halo_list h_list,
     int size, int comm_size, int my_rank)
 {
   create_export_list(set, temp_list, h_list, size, comm_size, my_rank);
@@ -341,8 +345,9 @@ static void create_nonexec_import_list(op_set set, int* temp_list, halo_list h_l
 /*******************************************************************************
  * Routine to create an nonexec-export list (only a wrapper)
  *******************************************************************************/
+
 static void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_list,
-    int total_size, int* ranks, int* sizes, 
+    int total_size, int* ranks, int* sizes,
     int ranks_size, int comm_size, int my_rank)
 {
   create_import_list(set, temp_list, h_list, total_size, ranks, sizes,
@@ -352,9 +357,10 @@ static void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_l
 /*******************************************************************************
  * Check if a given op_map is an on-to map from the from-set to the to_set
  *******************************************************************************/
+
 int is_onto_map(op_map map)
 {
-  //create new communicator 
+  //create new communicator
   int my_rank, comm_size;
   MPI_Comm OP_CHECK_WORLD;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_CHECK_WORLD);
@@ -370,17 +376,17 @@ int is_onto_map(op_map map)
   memcpy(to_elem_copy,(void *)map->map,map->from->size*map->dim*sizeof(int));
 
   //sort and remove duplicates from to_elem_copy
-  quickSort(to_elem_copy, 0, map->from->size*map->dim - 1); 
+  quickSort(to_elem_copy, 0, map->from->size*map->dim - 1);
   int to_elem_copy_size = removeDups(to_elem_copy, map->from->size*map->dim);
   to_elem_copy = (int *)xrealloc(to_elem_copy,to_elem_copy_size*sizeof(int));
 
   //go through the to-set element range that this local MPI process holds
-  //and collect the to-set elements not found in to_elem_copy 
+  //and collect the to-set elements not found in to_elem_copy
   int cap = 100; int count = 0;
   int* not_found = (int *)xmalloc(sizeof(int)*cap);
   for(int i = 0; i < map->to->size; i++)
   {
-    int g_index = get_global_index(i, my_rank, 
+    int g_index = get_global_index(i, my_rank,
         part_range[map->to->index], comm_size);
     if(binary_search(to_elem_copy, i, 0, to_elem_copy_size-1) < 0)
     {
@@ -388,10 +394,10 @@ int is_onto_map(op_map map)
       if(count >= cap)
       {
         cap = cap*2;
-        not_found = (int *)xrealloc(not_found, cap*sizeof(int));    	    		
+        not_found = (int *)xrealloc(not_found, cap*sizeof(int));
       }
       not_found[count++] = g_index;
-    }    	
+    }
   }
 
   //
@@ -436,22 +442,22 @@ int is_onto_map(op_map map)
   }
 
   //see if any element in the global_not_found is found in the local map-copy
-  //and add it to a "found" list  
+  //and add it to a "found" list
   cap = 100; count = 0;
   int* found = (int *)xmalloc(sizeof(int)*cap);
   for(int i = 0; i < g_count; i++)
   {
-    if(binary_search(to_elem_copy, global_not_found[i], 0, 
+    if(binary_search(to_elem_copy, global_not_found[i], 0,
           to_elem_copy_size-1) >= 0)
     {
       //add to found list
       if(count >= cap)
       {
         cap = cap*2;
-        found = (int *)xrealloc(found, cap*sizeof(int));    	    		
+        found = (int *)xrealloc(found, cap*sizeof(int));
       }
       found[count++] = global_not_found[i];
-    }    	
+    }
   }
   free(global_not_found);
 
@@ -489,24 +495,24 @@ int is_onto_map(op_map map)
     global_found = (int *)xrealloc(global_found, g_found_count*sizeof(int));
   }
 
-  //if the global_found list size is smaller than the globla_not_found list size 
+  //if the global_found list size is smaller than the globla_not_found list size
   //then map is not an on_to map
   int result = 0;
   if(g_found_count == g_count)
     result = 1;
 
-  free(global_found);free(displs);  
+  free(global_found);free(displs);
   for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
   MPI_Comm_free(&OP_CHECK_WORLD);
   free(to_elem_copy);
 
-  return result;   
+  return result;
 }
-
 
 /*******************************************************************************
  * Main MPI halo creation routine
  *******************************************************************************/
+
 void op_halo_create()
 {
   //declare timers
@@ -527,7 +533,7 @@ void op_halo_create()
 
   //save this partition range information if it is not already saved during
   //a call to some partitioning routine
-  if(orig_part_range == NULL) 
+  if(orig_part_range == NULL)
   {
     orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
     for(int s = 0; s< OP_set_index; s++)
@@ -537,7 +543,7 @@ void op_halo_create()
       for(int j = 0; j<comm_size; j++){
         orig_part_range[set->index][2*j] = part_range[set->index][2*j];
         orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
-      }	
+      }
     }
   }
 
@@ -552,7 +558,7 @@ void op_halo_create()
   /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
 
-  //declare temporaty scratch variables to hold set export lists and mapping 
+  //declare temporaty scratch variables to hold set export lists and mapping
   //table export lists
   int s_i;
   int* set_list;
@@ -571,11 +577,11 @@ void op_halo_create()
       for(int m=0; m<OP_map_index; m++) { //for each maping table
         op_map map=OP_map_list[m];
 
-        if(compare_sets(map->from,set)==1) //need to select mappings 
+        if(compare_sets(map->from,set)==1) //need to select mappings
           //FROM this set
         {
           int part, local_index;
-          for(int j=0; j<map->dim; j++) { //for each element 
+          for(int j=0; j<map->dim; j++) { //for each element
             //pointed at by this entry
             part = get_partition(map->map[e*map->dim+j],
                 part_range[map->to->index],&local_index,comm_size);
@@ -600,12 +606,12 @@ void op_halo_create()
     halo_list h_list= (halo_list)xmalloc(sizeof(halo_list_core));
     create_export_list(set,set_list, h_list, s_i, comm_size, my_rank);
     OP_export_exec_list[set->index] = h_list;
-    free(set_list);//free temp list    	
+    free(set_list);//free temp list
   }
 
   /*---- STEP 2 - construct import lists for mappings and execute sets------*/
 
-  OP_import_exec_list = (halo_list *)xmalloc(OP_set_index*sizeof(halo_list));        
+  OP_import_exec_list = (halo_list *)xmalloc(OP_set_index*sizeof(halo_list));
 
   int *neighbors, *sizes;
   int ranks_size;
@@ -654,9 +660,9 @@ void op_halo_create()
     //create import lists
     //printf("creating importlist with number of neighbors %d\n",ranks_size);
     halo_list h_list= (halo_list)xmalloc(sizeof(halo_list_core));
-    create_import_list(set, temp, h_list, index,neighbors, sizes, 
+    create_import_list(set, temp, h_list, index,neighbors, sizes,
         ranks_size, comm_size, my_rank);
-    OP_import_exec_list[set->index] = h_list; 
+    OP_import_exec_list[set->index] = h_list;
   }
 
 
@@ -684,7 +690,7 @@ void op_halo_create()
       }
       //printf("\n export from %d to %d map %10s, number of elements of size %d | sending:\n ",
       //    my_rank,e_list.ranks[i],map.name,e_list.sizes[i]);
-      MPI_Isend(sbuf[i],  map->dim*e_list->sizes[i],  MPI_INT, 
+      MPI_Isend(sbuf[i],  map->dim*e_list->sizes[i],  MPI_INT,
           e_list->ranks[i], m, OP_MPI_WORLD, &request_send[i]);
     }
 
@@ -704,7 +710,7 @@ void op_halo_create()
     }
 
     MPI_Waitall(e_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
-    for(int i=0; i < e_list->ranks_size; i++) free(sbuf[i]); free(sbuf);    	
+    for(int i=0; i < e_list->ranks_size; i++) free(sbuf[i]); free(sbuf);
   }
 
   /*-- STEP 4 - Create import lists for non-execute set elements using mapping
@@ -715,16 +721,16 @@ void op_halo_create()
 
   //declare temporaty scratch variables to hold non-exec set export lists
   s_i = 0;
-  set_list = NULL;  
+  set_list = NULL;
   cap_s = 1000; //keep track of the temp array capacity
 
   for(int s=0; s<OP_set_index; s++) { //for each set
     op_set set=OP_set_list[s];
-    halo_list exec_set_list=OP_import_exec_list[set->index];   
+    halo_list exec_set_list=OP_import_exec_list[set->index];
 
     //create a temporaty scratch space to hold nonexec export list for this set
     s_i = 0;
-    set_list = (int *)xmalloc(cap_s*sizeof(int)); 
+    set_list = (int *)xmalloc(cap_s*sizeof(int));
 
     for(int m=0; m<OP_map_index; m++) { //for each maping table
       op_map map=OP_map_list[m];
@@ -738,7 +744,7 @@ void op_halo_create()
         {
           int part;
           int local_index;
-          for(int j=0; j < map->dim; j++) { //for each element pointed 
+          for(int j=0; j < map->dim; j++) { //for each element pointed
             //at by this entry
             part = get_partition(map->map[e*map->dim+j],
                 part_range[map->to->index],&local_index,comm_size);
@@ -765,7 +771,7 @@ void op_halo_create()
               }
 
               if(found < 0){
-                // not in this partition and not found in 
+                // not in this partition and not found in
                 //exec list
                 //add to non-execute set_list
                 set_list[s_i++] = part;
@@ -781,7 +787,7 @@ void op_halo_create()
     //printf("creating non-exec import list of size %d\n",s_i);
     halo_list h_list= (halo_list)xmalloc(sizeof(halo_list_core));
     create_nonexec_import_list(set,set_list, h_list, s_i, comm_size, my_rank);
-    free(set_list);//free temp list      
+    free(set_list);//free temp list
     OP_import_nonexec_list[set->index] = h_list;
   }
 
@@ -797,7 +803,7 @@ void op_halo_create()
     sizes = (int* )xmalloc(comm_size*sizeof(int));
 
     halo_list list=OP_import_nonexec_list[set->index];
-    find_neighbors_set(list,neighbors,sizes,&ranks_size,my_rank, 
+    find_neighbors_set(list,neighbors,sizes,&ranks_size,my_rank,
         comm_size, OP_MPI_WORLD);
 
     MPI_Request request_send[list->ranks_size];
@@ -808,10 +814,10 @@ void op_halo_create()
       //    my_rank,list->ranks[i],set->name,list->sizes[i]);
       int* sbuf = &list->list[list->disps[i]];
       MPI_Isend( sbuf,  list->sizes[i],  MPI_INT, list->ranks[i], s,
-          OP_MPI_WORLD, &request_send[i] );  
+          OP_MPI_WORLD, &request_send[i] );
     }
 
-    for(int i=0; i< ranks_size; i++) cap = cap + sizes[i];     	     
+    for(int i=0; i< ranks_size; i++) cap = cap + sizes[i];
     int* temp = (int* )xmalloc(cap*sizeof(int));
 
     //export this list to those neighbors
@@ -831,7 +837,7 @@ void op_halo_create()
     //create import lists
     //printf("creating nonexec set export list with number of neighbors %d\n",ranks_size);
     halo_list h_list= (halo_list)xmalloc(sizeof(halo_list_core));
-    create_nonexec_export_list(set, temp, h_list, index, neighbors, sizes, 
+    create_nonexec_export_list(set, temp, h_list, index, neighbors, sizes,
         ranks_size, comm_size, my_rank);
     OP_export_nonexec_list[set->index] = h_list;
   }
@@ -867,14 +873,14 @@ void op_halo_create()
           }
           //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
           //    my_rank,e_list->ranks[i],dat->name,e_list->sizes[i]);
-          MPI_Isend(sbuf[i],  dat->size*e_list->sizes[i],  
+          MPI_Isend(sbuf[i],  dat->size*e_list->sizes[i],
               MPI_CHAR, e_list->ranks[i],
               d, OP_MPI_WORLD, &request_send[i]);
         }
 
         //prepare space for the incomming data - realloc each
         //data array in each mpi process
-        OP_dat_list[dat->index]->data = 
+        OP_dat_list[dat->index]->data =
           (char *)xrealloc(OP_dat_list[dat->index]->data,
               (set->size+i_list->size)*dat->size);
 
@@ -882,14 +888,14 @@ void op_halo_create()
         for(int i=0; i<i_list->ranks_size; i++) {
           MPI_Recv(&(OP_dat_list[dat->index]->
                 data[init+i_list->disps[i]*dat->size]),
-              dat->size*i_list->sizes[i], 
+              dat->size*i_list->sizes[i],
               MPI_CHAR, i_list->ranks[i], d,
               OP_MPI_WORLD, MPI_STATUSES_IGNORE);
         }
 
-        MPI_Waitall(e_list->ranks_size,request_send, 
+        MPI_Waitall(e_list->ranks_size,request_send,
             MPI_STATUSES_IGNORE );
-        for(int i=0; i<e_list->ranks_size; i++) free(sbuf[i]); 
+        for(int i=0; i<e_list->ranks_size; i++) free(sbuf[i]);
         free(sbuf);
         //printf("imported on to %d data %10s, number of elements of size %d | recieving:\n ",
         //	  my_rank, dat->name, i_list->size);
@@ -908,7 +914,7 @@ void op_halo_create()
     for(int d=0; d<OP_dat_index; d++){
       op_dat dat=OP_dat_list[d];
 
-      if(compare_sets(set,dat->set)==1)//if this data array is 
+      if(compare_sets(set,dat->set)==1)//if this data array is
         //defined on this set
       {
         //printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
@@ -925,16 +931,16 @@ void op_halo_create()
             memcpy(&sbuf[i][j*dat->size],
                 (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
           }
-          MPI_Isend(sbuf[i],  dat->size*e_list->sizes[i],  
+          MPI_Isend(sbuf[i],  dat->size*e_list->sizes[i],
               MPI_CHAR, e_list->ranks[i],
               d, OP_MPI_WORLD, &request_send[i]);
         }
 
         //prepare space for the incomming nonexec-data - realloc each
         //data array in each mpi process
-        halo_list exec_i_list = OP_import_exec_list[set->index];      
+        halo_list exec_i_list = OP_import_exec_list[set->index];
 
-        OP_dat_list[dat->index]->data = 
+        OP_dat_list[dat->index]->data =
           (char *)xrealloc(OP_dat_list[dat->index]->data,
               (set->size+exec_i_list->size+i_list->size)*dat->size);
 
@@ -942,7 +948,7 @@ void op_halo_create()
         for(int i=0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(OP_dat_list[dat->index]->
                 data[init+i_list->disps[i]*dat->size]),
-              dat->size*i_list->sizes[i], 
+              dat->size*i_list->sizes[i],
               MPI_CHAR, i_list->ranks[i], d,
               OP_MPI_WORLD, MPI_STATUSES_IGNORE);
         }
@@ -966,7 +972,7 @@ void op_halo_create()
       op_map map=OP_map_list[m];
 
       if(compare_sets(map->to,set)==1) //need to select mappings TO this set
-      {	
+      {
         halo_list exec_set_list=OP_import_exec_list[set->index];
         halo_list nonexec_set_list=OP_import_nonexec_list[set->index];
 
@@ -976,8 +982,8 @@ void op_halo_create()
         int len = map->from->size+exec_map_list->size;
         for(int e = 0; e < len; e++)
         {
-          for(int j=0; j < map->dim; j++) { //for each element 
-            //pointed at by this entry    	    	    	
+          for(int j=0; j < map->dim; j++) { //for each element
+            //pointed at by this entry
             int part;
             int local_index = 0;
             part = get_partition(map->map[e*map->dim+j],
@@ -1004,9 +1010,9 @@ void op_halo_create()
                     local_index, exec_set_list->disps[rank1],
                     exec_set_list->disps[rank1]+
                     exec_set_list->sizes[rank1]-1);
-                if(found>=0) 
+                if(found>=0)
                 {
-                  OP_map_list[map->index]->map[e*map->dim+j] = 
+                  OP_map_list[map->index]->map[e*map->dim+j] =
                     found + map->to->size ;
                 }
               }
@@ -1016,15 +1022,15 @@ void op_halo_create()
                 found = binary_search(nonexec_set_list->list,
                     local_index, nonexec_set_list->disps[rank2],
                     nonexec_set_list->disps[rank2]+
-                    nonexec_set_list->sizes[rank2]-1);              	      	    	
+                    nonexec_set_list->sizes[rank2]-1);
                 if(found>=0)
                 {
-                  OP_map_list[map->index]->map[e*map->dim+j] = 
+                  OP_map_list[map->index]->map[e*map->dim+j] =
                     found + set->size + exec_set_list->size;
                 }
               }
 
-              if(found < 0) 
+              if(found < 0)
                 printf("ERROR: Set %10s Element %d needed on rank %d \
                     from partition %d\n",
                     set->name, local_index, my_rank, part );
@@ -1047,7 +1053,7 @@ void op_halo_create()
     op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
     halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];    	
+    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
 
     mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size)*dat->size);
     mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size)*dat->size);
@@ -1058,31 +1064,31 @@ void op_halo_create()
     mpi_buf->s_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
         (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
     mpi_buf->r_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
-        (exec_i_list->ranks_size + nonexec_i_list->ranks_size));    
+        (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
 
     mpi_buf->s_num_req = 0;
     mpi_buf->r_num_req = 0;
     mpi_buf->dat_index = dat->index;
-    OP_mpi_buffer_list[dat->index] = mpi_buf;	
+    OP_mpi_buffer_list[dat->index] = mpi_buf;
   }
 
 
   //set dirty bits of all data arrays to 0
-  //for each data array    
+  //for each data array
   dirtybit = (int *)xmalloc(OP_dat_index*sizeof(int));
 
   for(int d=0; d<OP_dat_index; d++){
-    op_dat dat=OP_dat_list[d];    	
+    op_dat dat=OP_dat_list[d];
     dirtybit[dat->index] = 0;
   }
 
 
-  /*-STEP 10 -------------------- Separate core elements------------------------*/   
+  /*-STEP 10 -------------------- Separate core elements------------------------*/
 
   core_num = (int *)xmalloc(OP_set_index*sizeof(int ));
 
   int** core_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
-  int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));    
+  int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
 
   for(int s=0; s<OP_set_index; s++) { //for each set
     op_set set=OP_set_list[s];
@@ -1097,14 +1103,14 @@ void op_halo_create()
       quickSort(exp_elems[set->index], 0, exec->size-1);
 
       int num_exp = removeDups(exp_elems[set->index], exec->size);
-      core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
+      core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int ));
       int count = 0;
       for(int e=0; e < set->size;e++){//for each elment of this set
 
         if((binary_search(exp_elems[set->index], e, 0, num_exp-1) < 0))
         {
           core_elems[set->index][count++] = e;
-        }	
+        }
       }
       quickSort(core_elems[set->index], 0, count-1);
 
@@ -1115,7 +1121,7 @@ void op_halo_create()
       for(int d=0; d<OP_dat_index; d++) { //for each set
         op_dat dat=OP_dat_list[d];
 
-        if(compare_sets(set,dat->set)==1)//if this data array is 
+        if(compare_sets(set,dat->set)==1)//if this data array is
           //defined on this set
         {
           char* new_dat = (char* )xmalloc(set->size*dat->size);
@@ -1123,24 +1129,24 @@ void op_halo_create()
           {
             memcpy(&new_dat[i*dat->size],
                 &dat->data[core_elems[set->index][i]*dat->size],
-                dat->size);  
+                dat->size);
           }
           for(int i = 0; i< num_exp; i++)
           {
             memcpy(&new_dat[(count+i)*dat->size],
                 &dat->data[exp_elems[set->index][i]*dat->size],
-                dat->size);  
-          }    	    	    
+                dat->size);
+          }
           memcpy(&dat->data[0],&new_dat[0], set->size*dat->size);
           free(new_dat);
-        }    	    
+        }
       }
 
       //for each mapping defined from this set seperate its elements
       for(int m=0; m<OP_map_index; m++) { //for each set
         op_map map=OP_map_list[m];
 
-        if(compare_sets(map->from,set)==1)//if this mapping is 
+        if(compare_sets(map->from,set)==1)//if this mapping is
           //defined from this set
         {
           int* new_map = (int *)xmalloc(set->size*map->dim*sizeof(int));
@@ -1148,15 +1154,15 @@ void op_halo_create()
           {
             memcpy(&new_map[i*map->dim],
                 &map->map[core_elems[set->index][i]*map->dim],
-                map->dim*sizeof(int));  
+                map->dim*sizeof(int));
           }
           for(int i = 0; i<num_exp; i++)
           {
             memcpy(&new_map[(count+i)*map->dim],
                 &map->map[exp_elems[set->index][i]*map->dim],
-                map->dim*sizeof(int));  
+                map->dim*sizeof(int));
           }
-          memcpy(&map->map[0],&new_map[0], 
+          memcpy(&map->map[0],&new_map[0],
               set->size*map->dim*sizeof(int));
           free(new_map);
         }
@@ -1164,36 +1170,36 @@ void op_halo_create()
 
       for(int i  = 0; i< exec->size;i++)
       {
-        int index = binary_search(exp_elems[set->index], 
-            exec->list[i], 0, num_exp-1);    	    	
-        if(index < 0) 
-          printf("Problem in seperating core elements - exec list\n");  
-        else exec->list[i] = count + index;	    	
+        int index = binary_search(exp_elems[set->index],
+            exec->list[i], 0, num_exp-1);
+        if(index < 0)
+          printf("Problem in seperating core elements - exec list\n");
+        else exec->list[i] = count + index;
       }
 
       for(int i  = 0; i< nonexec->size;i++)
       {
-        int index = binary_search(core_elems[set->index], 
+        int index = binary_search(core_elems[set->index],
             nonexec->list[i], 0, count-1);
-        if (index < 0) 
-        { 
-          index = binary_search(exp_elems[set->index], 
+        if (index < 0)
+        {
+          index = binary_search(exp_elems[set->index],
               nonexec->list[i], 0, num_exp-1);
-          if(index < 0) 
-            printf("Problem in seperating core elements - nonexec list\n"); 
+          if(index < 0)
+            printf("Problem in seperating core elements - nonexec list\n");
           else nonexec->list[i] = count + index;
         }
-        else nonexec->list[i] = index;    	    	    
-      }       	        	    
+        else nonexec->list[i] = index;
+      }
     }
-    else 
+    else
     {
-      core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int )); 
-      exp_elems[set->index] = (int *)xmalloc(0*sizeof(int )); 
+      core_elems[set->index] = (int *)xmalloc(set->size*sizeof(int ));
+      exp_elems[set->index] = (int *)xmalloc(0*sizeof(int ));
       for(int e=0; e < set->size;e++){//for each elment of this set
         core_elems[set->index][e] = e;
       }
-      core_num[set->index] = set->size;    	    
+      core_num[set->index] = set->size;
     }
   }
 
@@ -1206,7 +1212,7 @@ void op_halo_create()
     int len = map->from->size+exec_map_list->size;
     for(int e = 0; e < len; e++)
     {
-      for(int j=0; j < map->dim; j++) { //for each element pointed 
+      for(int j=0; j < map->dim; j++) { //for each element pointed
         //at by this entry
         if(map->map[e*map->dim+j] < map->to->size)
         {
@@ -1218,10 +1224,10 @@ void op_halo_create()
             index = binary_search(exp_elems[map->to->index],
                 map->map[e*map->dim+j],
                 0, (map->to->size) - (core_num[map->to->index]) -1);
-            if(index < 0) 
+            if(index < 0)
               printf("Problem in seperating core elements - \
                   renumbering map\n");
-            else OP_map_list[map->index]->map[e*map->dim+j] = 
+            else OP_map_list[map->index]->map[e*map->dim+j] =
               core_num[map->to->index] + index;
           }
           else OP_map_list[map->index]->map[e*map->dim+j] = index;
@@ -1231,12 +1237,12 @@ void op_halo_create()
   }
 
 
-  /*-STEP 11 ----------- Save the original set element indexes------------------*/   
+  /*-STEP 11 ----------- Save the original set element indexes------------------*/
 
-  //if OP_part_list is empty, (i.e. no previous partitioning done) then 
-  //create it and store the seperation of elements using core_elems 
+  //if OP_part_list is empty, (i.e. no previous partitioning done) then
+  //create it and store the seperation of elements using core_elems
   //and exp_elems
-  if(OP_part_index != OP_set_index) 
+  if(OP_part_index != OP_set_index)
   {
     //allocate memory for list
     OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
@@ -1248,48 +1254,48 @@ void op_halo_create()
       int *partition = (int *)xmalloc(sizeof(int)*set->size);
       for(int i = 0; i< set->size; i++)
       {
-        g_index[i] = get_global_index(i,my_rank, 
+        g_index[i] = get_global_index(i,my_rank,
             part_range[set->index],comm_size);
         partition[i] = my_rank;
       }
-      decl_partition(set, g_index, partition); 
+      decl_partition(set, g_index, partition);
 
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
-      memcpy(&temp[0], core_elems[set->index], 
+      memcpy(&temp[0], core_elems[set->index],
           core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index], 
+      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
           (set->size-core_num[set->index])*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
       {
-        temp[i] = OP_part_list[set->index]->g_index[temp[i]];	
+        temp[i] = OP_part_list[set->index]->g_index[temp[i]];
       }
       free(OP_part_list[set->index]->g_index);
-      OP_part_list[set->index]->g_index = temp;    	    
+      OP_part_list[set->index]->g_index = temp;
     }
   }
   else //OP_part_list exists (i.e. a partitioning has been done)
-    //update the seperation of elements  
+    //update the seperation of elements
   {
     for(int s=0; s<OP_set_index; s++) { //for each set
       op_set set=OP_set_list[s];
 
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
-      memcpy(&temp[0], core_elems[set->index], 
+      memcpy(&temp[0], core_elems[set->index],
           core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index], 
+      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
           (set->size-core_num[set->index])*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
       {
-        temp[i] = OP_part_list[set->index]->g_index[temp[i]];	
+        temp[i] = OP_part_list[set->index]->g_index[temp[i]];
       }
       free(OP_part_list[set->index]->g_index);
-      OP_part_list[set->index]->g_index = temp; 
+      OP_part_list[set->index]->g_index = temp;
     }
   }
 
@@ -1307,7 +1313,7 @@ void op_halo_create()
     set->nonexec_size = OP_import_nonexec_list[set->index]->size;
   }
 
-  /*-STEP 12 ---------- Clean up and Compute rough halo size numbers------------*/       
+  /*-STEP 12 ---------- Clean up and Compute rough halo size numbers------------*/
 
   for(int i = 0; i<OP_set_index; i++)
   {	free(part_range[i]);
@@ -1316,10 +1322,10 @@ void op_halo_create()
   free(part_range);
   free(exp_elems); free(core_elems);
 
-  op_timers(&cpu_t2, &wall_t2);  //timer stop for list create    
+  op_timers(&cpu_t2, &wall_t2);  //timer stop for list create
   //compute import/export lists creation time
   time = wall_t2-wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);    
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
   //compute avg/min/max set sizes and exec sizes accross the MPI universe
   int avg_size = 0, min_size = 0, max_size = 0;
@@ -1327,11 +1333,11 @@ void op_halo_create()
     op_set set=OP_set_list[s];
 
     //number of set elements first
-    MPI_Reduce(&set->size, &avg_size,1, MPI_INT, MPI_SUM, 
+    MPI_Reduce(&set->size, &avg_size,1, MPI_INT, MPI_SUM,
         MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&set->size, &min_size,1, MPI_INT, MPI_MIN, 
+    MPI_Reduce(&set->size, &min_size,1, MPI_INT, MPI_MIN,
         MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&set->size, &max_size,1, MPI_INT, MPI_MAX, 
+    MPI_Reduce(&set->size, &max_size,1, MPI_INT, MPI_MAX,
         MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1344,26 +1350,26 @@ void op_halo_create()
 
 
     //number of OWNED elements second
-    MPI_Reduce(&core_num[set->index], 
+    MPI_Reduce(&core_num[set->index],
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index], 
+    MPI_Reduce(&core_num[set->index],
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index], 
+    MPI_Reduce(&core_num[set->index],
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
     {
       printf("core elems         %10d %10d %10d \n",avg_size/comm_size, min_size, max_size);
-    }	    
+    }
     avg_size = 0;min_size = 0; max_size = 0;
 
 
     //number of exec halo elements third
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1373,11 +1379,11 @@ void op_halo_create()
     avg_size = 0;min_size = 0; max_size = 0;
 
     //number of non-exec halo elements fourth
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1402,11 +1408,11 @@ void op_halo_create()
     op_set set=OP_set_list[s];
 
     //number of exec halo neighbors first
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1419,11 +1425,11 @@ void op_halo_create()
     avg_size = 0;min_size = 0; max_size = 0;
 
     //number of non-exec halo neighbors second
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, 
+    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1440,7 +1446,7 @@ void op_halo_create()
   //compute average worst case halo size in Bytes
   int tot_halo_size = 0;
   for(int s = 0; s< OP_set_index; s++){
-    op_set set=OP_set_list[s];   
+    op_set set=OP_set_list[s];
 
     for(int d=0; d<OP_dat_index; d++){
       op_dat dat=OP_dat_list[d];
@@ -1455,7 +1461,7 @@ void op_halo_create()
     }
   }
   int avg_halo_size;
-  MPI_Reduce(&tot_halo_size, &avg_halo_size,1, MPI_INT, MPI_SUM, 
+  MPI_Reduce(&tot_halo_size, &avg_halo_size,1, MPI_INT, MPI_SUM,
       MPI_ROOT, OP_MPI_WORLD);
 
   //print performance results
@@ -1464,27 +1470,26 @@ void op_halo_create()
     printf("Max total halo creation time = %lf\n",max_time);
     printf("Average (worst case) Halo size = %d Bytes\n",
         avg_halo_size/comm_size);
-  }   
+  }
 }
-
-
 
 /*******************************************************************************
  * Routine to Clean-up all MPI halos(called at the end of an OP2 MPI application)
  *******************************************************************************/
+
 void op_halo_destroy()
 {
   //remove halos from op_dats
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
-    OP_dat_list[dat->index]->data = 
+    OP_dat_list[dat->index]->data =
       (char *)xrealloc(OP_dat_list[dat->index]->data,
           dat->set->size*dat->size);
   }
 
   //free lists
   for(int s = 0; s< OP_set_index; s++){
-    op_set set=OP_set_list[s]; 
+    op_set set=OP_set_list[s];
 
     free(OP_import_exec_list[set->index]->ranks);
     free(OP_import_exec_list[set->index]->disps);
@@ -1507,8 +1512,8 @@ void op_halo_destroy()
     free(OP_export_nonexec_list[set->index]->ranks);
     free(OP_export_nonexec_list[set->index]->disps);
     free(OP_export_nonexec_list[set->index]->sizes);
-    free(OP_export_nonexec_list[set->index]->list); 
-    free(OP_export_nonexec_list[set->index]);    	
+    free(OP_export_nonexec_list[set->index]->list);
+    free(OP_export_nonexec_list[set->index]);
 
   }
   free(OP_import_exec_list);free(OP_import_nonexec_list);
@@ -1527,13 +1532,13 @@ void op_halo_destroy()
   }
   free(OP_mpi_buffer_list);
 
-
-  MPI_Comm_free(&OP_MPI_WORLD); 
+  MPI_Comm_free(&OP_MPI_WORLD);
 }
 
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
+
 int exchange_halo(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1552,13 +1557,13 @@ int exchange_halo(op_arg arg)
 
     //sanity checks
     if(compare_sets(imp_exec_list->set,dat->set) == 0)
-    { 
-      printf("Error: Import list and set mismatch\n"); 
+    {
+      printf("Error: Import list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
     if(compare_sets(exp_exec_list->set,dat->set) == 0)
     {
-      printf("Error: Export list and set mismatch\n"); 
+      printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
@@ -1568,7 +1573,7 @@ int exchange_halo(op_arg arg)
       {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
         memcpy(&OP_mpi_buffer_list[dat->index]->
-            buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size], 
+            buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
       //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
@@ -1577,21 +1582,21 @@ int exchange_halo(op_arg arg)
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
-          dat->index, OP_MPI_WORLD, 
+          dat->index, OP_MPI_WORLD,
           &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);	    
+          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
     }
 
 
-    int init = dat->set->size*dat->size;	
+    int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
       //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
       //  	  my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
       MPI_Irecv(&(OP_dat_list[dat->index]->
             data[init+imp_exec_list->disps[i]*dat->size]),
-          dat->size*imp_exec_list->sizes[i], 
-          MPI_CHAR, imp_exec_list->ranks[i], 
-          dat->index, OP_MPI_WORLD, 
+          dat->size*imp_exec_list->sizes[i],
+          MPI_CHAR, imp_exec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
           &OP_mpi_buffer_list[dat->index]->
           r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
     }
@@ -1599,13 +1604,13 @@ int exchange_halo(op_arg arg)
     //-----second exchange nonexec elements related to this data array------
     //sanity checks
     if(compare_sets(imp_nonexec_list->set,dat->set) == 0)
-    { 
+    {
       printf("Error: Non-Import list and set mismatch");
-      MPI_Abort(OP_MPI_WORLD, 2);   
+      MPI_Abort(OP_MPI_WORLD, 2);
     }
     if(compare_sets(exp_nonexec_list->set,dat->set)==0)
     {
-      printf("Error: Non-Export list and set mismatch"); 
+      printf("Error: Non-Export list and set mismatch");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
@@ -1615,25 +1620,25 @@ int exchange_halo(op_arg arg)
       {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
         memcpy(&OP_mpi_buffer_list[dat->index]->
-            buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size], 
-            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);	    	
+            buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
+            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
       MPI_Isend(&OP_mpi_buffer_list[dat->index]->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
-          dat->index, OP_MPI_WORLD, 
+          dat->index, OP_MPI_WORLD,
           &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);	    	
+          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
     }
 
-    int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;	
+    int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
       MPI_Irecv(&(OP_dat_list[dat->index]->
             data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
-          dat->size*imp_nonexec_list->sizes[i], 
-          MPI_CHAR, imp_nonexec_list->ranks[i], 
-          dat->index, OP_MPI_WORLD, 
+          dat->size*imp_nonexec_list->sizes[i],
+          MPI_CHAR, imp_nonexec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
           &OP_mpi_buffer_list[dat->index]->
           r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
     }
@@ -1645,15 +1650,10 @@ int exchange_halo(op_arg arg)
 
 }
 
-
-
-
-
-
-
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
+
 void wait_all(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1670,6 +1670,7 @@ void wait_all(op_arg arg)
 /*******************************************************************************
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
+
 void set_dirtybit(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1681,6 +1682,7 @@ void set_dirtybit(op_arg arg)
 /*******************************************************************************
  * MPI Global reduce of an op_arg
  *******************************************************************************/
+
 void global_reduce(op_arg *arg)
 {
   if(strcmp("double",arg->type)==0)
@@ -1688,19 +1690,19 @@ void global_reduce(op_arg *arg)
     double result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, 
+      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
           MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, 
+      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
           MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double));;
     }
-    else if(arg->acc == OP_MIN)//global minimum              
+    else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE, 
+      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
           MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double));
     }
@@ -1710,19 +1712,19 @@ void global_reduce(op_arg *arg)
     float result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, 
+      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
           MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, 
+      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
           MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));;
     }
-    else if(arg->acc == OP_MIN)//global minimum              
+    else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT, 
+      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
           MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));
     }
@@ -1732,30 +1734,30 @@ void global_reduce(op_arg *arg)
     int result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((int *)arg->data, &result,1, MPI_INT, 
+      MPI_Reduce((int *)arg->data, &result,1, MPI_INT,
           MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT, 
+      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT,
           MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));;
     }
-    else if(arg->acc == OP_MIN)//global minimum              
+    else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT, 
+      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT,
           MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));
     }
   }
 }
 
-
 /*******************************************************************************
  * Routine to get a copy of the data held in a distributed op_dat
- *******************************************************************************/    
-op_dat op_mpi_get_data(op_dat dat) 
+ *******************************************************************************/
+
+op_dat op_mpi_get_data(op_dat dat)
 {
   //create new communicator for fetching
   int my_rank, comm_size;
@@ -1770,7 +1772,7 @@ op_dat op_mpi_get_data(op_dat dat)
   memcpy(data, dat->data, dat->set->size*dat->size);
 
   //
-  //use orig_part_range to fill in OP_part_list[set->index]->elem_part with 
+  //use orig_part_range to fill in OP_part_list[set->index]->elem_part with
   //original partitioning information
   //
   for(int i = 0; i < dat->set->size; i++)
@@ -1782,7 +1784,7 @@ op_dat op_mpi_get_data(op_dat dat)
   }
 
 
-  halo_list pe_list; 
+  halo_list pe_list;
   halo_list pi_list;
 
   //
@@ -1808,7 +1810,7 @@ op_dat op_mpi_get_data(op_dat dat)
 
   pe_list = (halo_list) xmalloc(sizeof(halo_list_core));
   create_export_list(dat->set, temp_list, pe_list, count, comm_size, my_rank);
-  free(temp_list); 
+  free(temp_list);
 
 
   //
@@ -1868,7 +1870,7 @@ op_dat op_mpi_get_data(op_dat dat)
       memcpy(&sbuf_char[i][j*dat->size],
           (void *)&data[dat->size*(index)],dat->size);
     }
-    MPI_Isend(sbuf_char[i], dat->size*pe_list->sizes[i], 
+    MPI_Isend(sbuf_char[i], dat->size*pe_list->sizes[i],
         MPI_CHAR, pe_list->ranks[i],
         dat->index, OP_MPI_WORLD, &request_send[i]);
   }
@@ -1876,15 +1878,15 @@ op_dat op_mpi_get_data(op_dat dat)
   char *rbuf_char = (char *)xmalloc(dat->size*pi_list->size);
   for(int i=0; i < pi_list->ranks_size; i++) {
     MPI_Recv(&rbuf_char[pi_list->disps[i]*dat->size],dat->size*pi_list->sizes[i],
-        MPI_CHAR, pi_list->ranks[i], dat->index, OP_MPI_WORLD, 
+        MPI_CHAR, pi_list->ranks[i], dat->index, OP_MPI_WORLD,
         MPI_STATUSES_IGNORE);
   }
 
   MPI_Waitall(pe_list->ranks_size,request_send, MPI_STATUSES_IGNORE );
-  for(int i=0; i < pe_list->ranks_size; i++) free(sbuf_char[i]); 
+  for(int i=0; i < pe_list->ranks_size; i++) free(sbuf_char[i]);
   free(sbuf_char);
 
-  //delete the data entirs that has been sent and create a 
+  //delete the data entirs that has been sent and create a
   //modified data array
   char* new_dat = (char *)xmalloc(dat->size*(dat->set->size+pi_list->size));
 
@@ -1957,9 +1959,9 @@ op_dat op_mpi_get_data(op_dat dat)
   free(rbuf);
 
   //
-  //sort elements in temporaty data according to new_g_index  
+  //sort elements in temporaty data according to new_g_index
   //
-  quickSort_dat(new_g_index,data, 0,count-1, dat->size);    
+  quickSort_dat(new_g_index,data, 0,count-1, dat->size);
 
   //cleanup
   free(pe_list->ranks);free(pe_list->disps);
@@ -1988,26 +1990,24 @@ op_dat op_mpi_get_data(op_dat dat)
   return temp_dat;
 }
 
-
-
 /*******************************************************************************
  * Routine to put (modify) a the data held in a distributed op_dat
- *******************************************************************************/     
-void op_mpi_put_data(op_dat dat) 
+ *******************************************************************************/
+
+void op_mpi_put_data(op_dat dat)
 {
   (void)dat;
   //the op_dat in parameter list is modified
   //need the orig_part_range and OP_part_list
 
-  //need to do some checks to see if the input op_dat has the same dimensions 
+  //need to do some checks to see if the input op_dat has the same dimensions
   //and other values as the internal op_dat
-
-  //1. 
 }
 
 /*******************************************************************************
- * Debug/Diagnostics Routine to initialise import halo data to NaN 
- *******************************************************************************/ 
+ * Debug/Diagnostics Routine to initialise import halo data to NaN
+ *******************************************************************************/
+
 void reset_halo(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2026,17 +2026,16 @@ void reset_halo(op_arg arg)
     for(int i = 0; i<double_count; i++) NaN[i] = (double)NAN;//0.0/0.0;
 
     int init = dat->set->size*dat->size;
-    memcpy(&(OP_dat_list[dat->index]->data[init]), NaN, 
+    memcpy(&(OP_dat_list[dat->index]->data[init]), NaN,
         dat->size*imp_exec_list->size + dat->size*imp_nonexec_list->size);
     free(NaN);
   }
 }
 
-
-
 /*******************************************************************************
- * Routine to output performance measures 
+ * Routine to output performance measures
  *******************************************************************************/
+
 void op_mpi_timing_output()
 {
   int my_rank, comm_size;
@@ -2059,8 +2058,8 @@ void op_mpi_timing_output()
       printf("-----------------------------------\n");
       printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
       printf("Count         :  %10.4d  \n", op_mpi_kernel_tab[n].count);
-      printf("tot_time(sec) :  %10.4f  \n", op_mpi_kernel_tab[n].time); 
-      printf("avg_time(sec) :  %10.4f  \n", 
+      printf("tot_time(sec) :  %10.4f  \n", op_mpi_kernel_tab[n].time);
+      printf("avg_time(sec) :  %10.4f  \n",
           op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count );
 
 
@@ -2083,10 +2082,10 @@ void op_mpi_timing_output()
       }else
       {
         printf("halo exchanges:  %10s\n","NONE");
-      }           
+      }
     }
-  } 
-  printf("___________________________________\n");    
+  }
+  printf("___________________________________\n");
 #endif
 
 
@@ -2108,17 +2107,15 @@ void op_mpi_timing_output()
           (avg_time)/comm_size);
     }
     tot_time = avg_time = 0.0;
-  }    
+  }
 
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
-
-
-
 /*******************************************************************************
- * Routine to measure timing for an op_par_loop / kernel 
+ * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
+
 int op_mpi_perf_time(const char* name, double time)
 {
   int kernel_index = op2_hash(name);
@@ -2136,8 +2133,9 @@ int op_mpi_perf_time(const char* name, double time)
 }
 
 /*******************************************************************************
- * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel 
+ * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
+
 void op_mpi_perf_comm(int kernel_index, op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2157,56 +2155,56 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
     op_mpi_kernel_tab[kernel_index].tot_bytes = (int *)xmalloc(1*sizeof(int));
 
     //clear first
-    op_mpi_kernel_tab[kernel_index].tot_count[num_indices] = 0;    	
+    op_mpi_kernel_tab[kernel_index].tot_count[num_indices] = 0;
     op_mpi_kernel_tab[kernel_index].tot_bytes[num_indices] = 0;
 
     op_mpi_kernel_tab[kernel_index].op_dat_indices[num_indices] = dat->index;
     op_mpi_kernel_tab[kernel_index].tot_count[num_indices] += 1;
     op_mpi_kernel_tab[kernel_index].tot_bytes[num_indices] += tot_halo_size;
 
-    op_mpi_kernel_tab[kernel_index].num_indices++;    	
+    op_mpi_kernel_tab[kernel_index].num_indices++;
   }
-  else 
+  else
   {
     int index = linear_search(op_mpi_kernel_tab[kernel_index].op_dat_indices,
-        dat->index, 0, num_indices-1); 
+        dat->index, 0, num_indices-1);
 
     if(index < 0)
     {
-      op_mpi_kernel_tab[kernel_index].op_dat_indices = 
-        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].op_dat_indices, 
+      op_mpi_kernel_tab[kernel_index].op_dat_indices =
+        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].op_dat_indices,
             (num_indices+1)*sizeof(int));
 
-      op_mpi_kernel_tab[kernel_index].tot_count = 
-        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].tot_count, 
+      op_mpi_kernel_tab[kernel_index].tot_count =
+        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].tot_count,
             (num_indices+1)*sizeof(int));
 
-      op_mpi_kernel_tab[kernel_index].tot_bytes = 
-        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].tot_bytes, 
+      op_mpi_kernel_tab[kernel_index].tot_bytes =
+        (int *)xrealloc(op_mpi_kernel_tab[kernel_index].tot_bytes,
             (num_indices+1)*sizeof(int));
 
       //clear first
-      op_mpi_kernel_tab[kernel_index].tot_count[num_indices] = 0;    	
+      op_mpi_kernel_tab[kernel_index].tot_count[num_indices] = 0;
       op_mpi_kernel_tab[kernel_index].tot_bytes[num_indices] = 0;
 
       op_mpi_kernel_tab[kernel_index].op_dat_indices[num_indices] = dat->index;
       op_mpi_kernel_tab[kernel_index].tot_count[num_indices] += 1;
       op_mpi_kernel_tab[kernel_index].tot_bytes[num_indices] += tot_halo_size;
 
-      op_mpi_kernel_tab[kernel_index].num_indices++;     	    
+      op_mpi_kernel_tab[kernel_index].num_indices++;
     }
     else
     {
       op_mpi_kernel_tab[kernel_index].tot_count[index] += 1;
-      op_mpi_kernel_tab[kernel_index].tot_bytes[index] += tot_halo_size;    	    
-    }    	
-  }    
+      op_mpi_kernel_tab[kernel_index].tot_bytes[index] += tot_halo_size;
+    }
+  }
 }
 
-
 /*******************************************************************************
- * Routine to exit an op2 mpi application - 
+ * Routine to exit an op2 mpi application -
  *******************************************************************************/
+
 void op_mpi_exit()
 {
   //cleanup performance data - need to do this in some op_mpi_exit() routine
@@ -2219,18 +2217,17 @@ void op_mpi_exit()
 #endif
 
   //free memory allocated to halos
-  op_halo_destroy(); 
+  op_halo_destroy();
   //return all op_dats, op_maps back to original element order
-  op_partition_reverse(); 
+  op_partition_reverse();
   //print each mpi process's timing info for each kernel
   //op_mpi_timing_output();
 }
 
-
-
 /*******************************************************************************
  * Write a op_dat to a named ASCI file
  *******************************************************************************/
+
 void print_dat_tofile(op_dat dat, const char *file_name)
 {
   //create new communicator for output
@@ -2433,7 +2430,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
   }
   else
   {
-    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);	
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
   }
 
   MPI_Comm_free(&OP_MPI_IO_WORLD);
@@ -2441,8 +2438,9 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 }
 
 /*******************************************************************************
- * Write a op_dat to a named Binary file 
+ * Write a op_dat to a named Binary file
  *******************************************************************************/
+
 void print_dat_tobinfile(op_dat dat, const char *file_name)
 {
   //create new communicator for output
@@ -2458,7 +2456,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   if(strcmp(dat->type,"double") == 0)
   {
     double *l_array  = (double *) xmalloc(dat->dim*(count)*sizeof(double));
-    memcpy(l_array, (void *)&(dat->data[0]), 
+    memcpy(l_array, (void *)&(dat->data[0]),
         dat->size*count);
 
     int l_size = count;
@@ -2470,11 +2468,11 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
-    int g_size = 0;    
+    int g_size = 0;
     for(int i = 0; i<comm_size; i++)
     {
       g_size += recevcnts[i];
-      recevcnts[i] =   elem_size*recevcnts[i];	
+      recevcnts[i] =   elem_size*recevcnts[i];
     }
     for(int i = 0; i<comm_size; i++)
     {
@@ -2482,7 +2480,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
       disp = disp + recevcnts[i];
     }
     if(rank==MPI_ROOT) g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
-    MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts, 
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_DOUBLE, g_array, recevcnts,
         displs, MPI_DOUBLE, MPI_ROOT, OP_MPI_IO_WORLD);
 
 
@@ -2490,27 +2488,27 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     {
       FILE *fp;
       if ( (fp = fopen(file_name,"wb")) == NULL) {
-        printf("can't open file %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       if (fwrite(&g_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
       if (fwrite(&elem_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       for(int i = 0; i< g_size; i++)
       {
         if (fwrite( &g_array[i*elem_size], sizeof(double), elem_size, fp ) < elem_size)
         {
-          printf("error writing to %s\n",file_name); 
-          MPI_Abort(OP_MPI_IO_WORLD, -1);  
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
         }
       }
       fclose(fp);
@@ -2521,7 +2519,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   else if(strcmp(dat->type,"float") == 0)
   {
     float *l_array  = (float *) xmalloc(dat->dim*(count)*sizeof(float));
-    memcpy(l_array, (void *)&(dat->data[0]), 
+    memcpy(l_array, (void *)&(dat->data[0]),
         dat->size*count);
 
     int l_size = count;
@@ -2533,11 +2531,11 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
-    int g_size = 0;    
+    int g_size = 0;
     for(int i = 0; i<comm_size; i++)
     {
       g_size += recevcnts[i];
-      recevcnts[i] =   elem_size*recevcnts[i];	
+      recevcnts[i] =   elem_size*recevcnts[i];
     }
     for(int i = 0; i<comm_size; i++)
     {
@@ -2545,7 +2543,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
       disp = disp + recevcnts[i];
     }
     if(rank==MPI_ROOT) g_array  = (float *) xmalloc(elem_size*g_size*sizeof(float));
-    MPI_Gatherv(l_array, l_size*elem_size, MPI_FLOAT, g_array, recevcnts, 
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_FLOAT, g_array, recevcnts,
         displs, MPI_FLOAT, MPI_ROOT, OP_MPI_IO_WORLD);
 
 
@@ -2553,27 +2551,27 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
     {
       FILE *fp;
       if ( (fp = fopen(file_name,"wb")) == NULL) {
-        printf("can't open file %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       if (fwrite(&g_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
       if (fwrite(&elem_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       for(int i = 0; i< g_size; i++)
       {
         if (fwrite( &g_array[i*elem_size], sizeof(float), elem_size, fp ) < elem_size)
         {
-          printf("error writing to %s\n",file_name); 
-          MPI_Abort(OP_MPI_IO_WORLD, -1);  
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
         }
       }
       fclose(fp);
@@ -2584,7 +2582,7 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   else if(strcmp(dat->type,"int") == 0)
   {
     int *l_array  = (int *) xmalloc(dat->dim*(count)*sizeof(int));
-    memcpy(l_array, (void *)&(dat->data[0]), 
+    memcpy(l_array, (void *)&(dat->data[0]),
         dat->size*count);
 
     int l_size = count;
@@ -2596,11 +2594,11 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
-    int g_size = 0;    
+    int g_size = 0;
     for(int i = 0; i<comm_size; i++)
     {
       g_size += recevcnts[i];
-      recevcnts[i] =   elem_size*recevcnts[i];	
+      recevcnts[i] =   elem_size*recevcnts[i];
     }
     for(int i = 0; i<comm_size; i++)
     {
@@ -2608,34 +2606,34 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
       disp = disp + recevcnts[i];
     }
     if(rank==MPI_ROOT) g_array  = (int *) xmalloc(elem_size*g_size*sizeof(int));
-    MPI_Gatherv(l_array, l_size*elem_size, MPI_INT, g_array, recevcnts, 
-        displs, MPI_INT, MPI_ROOT, OP_MPI_IO_WORLD);    
+    MPI_Gatherv(l_array, l_size*elem_size, MPI_INT, g_array, recevcnts,
+        displs, MPI_INT, MPI_ROOT, OP_MPI_IO_WORLD);
 
     if(rank==MPI_ROOT)
     {
       FILE *fp;
       if ( (fp = fopen(file_name,"wb")) == NULL) {
-        printf("can't open file %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("can't open file %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       if (fwrite(&g_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
       if (fwrite(&elem_size, sizeof(int),1, fp)<1)
       {
-        printf("error writing to %s\n",file_name); 
-        MPI_Abort(OP_MPI_IO_WORLD, -1);  
+        printf("error writing to %s\n",file_name);
+        MPI_Abort(OP_MPI_IO_WORLD, -1);
       }
 
       for(int i = 0; i< g_size; i++)
       {
         if (fwrite( &g_array[i*elem_size], sizeof(int), elem_size, fp ) < elem_size)
         {
-          printf("error writing to %s\n",file_name); 
-          MPI_Abort(OP_MPI_IO_WORLD, -1);  
+          printf("error writing to %s\n",file_name);
+          MPI_Abort(OP_MPI_IO_WORLD, -1);
         }
       }
       fclose(fp);
@@ -2645,14 +2643,9 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   }
   else
   {
-    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);	
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
   }
 
   MPI_Comm_free(&OP_MPI_IO_WORLD);
-
 }
-
-
-
-
 

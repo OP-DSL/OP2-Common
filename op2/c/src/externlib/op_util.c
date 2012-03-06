@@ -30,26 +30,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* 
+/*
  * op_mpi_util.c
- * 
+ *
  * Some utility functions for the OP2 Distributed memory (MPI) implementation
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
- 
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h> 
+#include <math.h>
 
 #include <op_lib_core.h>
 #include <op_util.h>
 
-
 /*******************************************************************************
 * compute local size from global size
 *******************************************************************************/
+
 int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   int local_size = global_size/mpi_comm_size;
@@ -65,10 +65,11 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 /*******************************************************************************
 * Wrapper for malloc from www.gnu.org/
 *******************************************************************************/
+
 void* xmalloc (size_t size)
 {
     if(size == 0) return (void *)NULL;
-    
+
     register void *value = malloc (size);
     if (value == 0) printf("Virtual memory exhausted at malloc\n");
     return value;
@@ -77,32 +78,33 @@ void* xmalloc (size_t size)
 /*******************************************************************************
 * Wrapper for realloc from www.gnu.org/
 *******************************************************************************/
+
 void* xrealloc (void *ptr, size_t size)
 {
     if(size == 0) return (void *)NULL;
-    
+
     register void *value = realloc (ptr, size);
     if (value == 0) printf ("Virtual memory exhausted at realloc\n");
     return value;
 }
 
-
 /*******************************************************************************
 * Compare two op_sets and return 1 if they are identical
 *******************************************************************************/
+
 int compare_sets(op_set set1, op_set set2)
 {
     if(set1->size == set2->size && set1->index == set2->index &&
     	strcmp(set1->name,set2->name)==0 )
     return 1;
     else return 0;
-	
-}
 
+}
 
 /*******************************************************************************
 * Simple hash function for a char string
 *******************************************************************************/
+
 unsigned op2_hash(const char *s)
 {
     unsigned hashval;
@@ -111,10 +113,10 @@ unsigned op2_hash(const char *s)
     return hashval % HASHSIZE;
 }
 
-
 /*******************************************************************************
 * Return the index of the min value in an array
 *******************************************************************************/
+
 int min(int array[], int size)
 {
     int min = 99;
@@ -127,18 +129,18 @@ int min(int array[], int size)
     	    min = array[i];
     	}
     }
-    return index;        
+    return index;
 }
 
-
 /*******************************************************************************
-* Binary search an array for a given value 
+* Binary search an array for a given value
 *******************************************************************************/
-int binary_search(int a[], int value, int low, int high) 
+
+int binary_search(int a[], int value, int low, int high)
 {
    if (high < low)
            return -1; // not found
-       
+
    int mid = low + (high - low) / 2;
    if (a[mid] > value)
            return binary_search(a, value, low, mid-1);
@@ -149,9 +151,10 @@ int binary_search(int a[], int value, int low, int high)
 }
 
 /*******************************************************************************
-* Linear search an array for a given value 
+* Linear search an array for a given value
 *******************************************************************************/
-int linear_search(int a[], int value, int low, int high) 
+
+int linear_search(int a[], int value, int low, int high)
 {
     for(int i = low; i<=high; i++)
     {
@@ -161,15 +164,16 @@ int linear_search(int a[], int value, int low, int high)
 }
 
 /*******************************************************************************
-* Quicksort an array 
+* Quicksort an array
 *******************************************************************************/
-void quickSort(int arr[], int left, int right) 
+
+void quickSort(int arr[], int left, int right)
 {
     int i = left;
     int j = right;
     int tmp;
     int pivot = arr[(left + right) / 2];
-    
+
     // partition
     while (i <= j) {
     	while (arr[i] < pivot)i++;
@@ -188,17 +192,17 @@ void quickSort(int arr[], int left, int right)
     	quickSort(arr, i, right);
 }
 
-
 /*******************************************************************************
 * Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
 *******************************************************************************/
-void quickSort_2(int arr1[], int arr2[], int left, int right) 
+
+void quickSort_2(int arr1[], int arr2[], int left, int right)
 {
     int i = left;
     int j = right;
     int tmp1,tmp2;
     int pivot = arr1[(left + right) / 2];
-    
+
     // partition
     while (i <= j) {
     	while (arr1[i] < pivot)i++;
@@ -207,10 +211,10 @@ void quickSort_2(int arr1[], int arr2[], int left, int right)
     	    	tmp1 = arr1[i];
     	    	arr1[i] = arr1[j];
     	    	arr1[j] = tmp1;
-    	    	
+
     	    	tmp2 = arr2[i];
     	    	arr2[i] = arr2[j];
-    	    	arr2[j] = tmp2;    	    	
+    	    	arr2[j] = tmp2;
     	    	i++; j--;
             }
     };
@@ -221,17 +225,17 @@ void quickSort_2(int arr1[], int arr2[], int left, int right)
     	quickSort_2(arr1, arr2, i, right);
 }
 
-
 /*******************************************************************************
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
-void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size) 
+
+void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 {
     int i = left, j = right;
-    int tmp; 
+    int tmp;
     char* tmp_dat = (char *)xmalloc(sizeof(char)*elem_size);
     int pivot = arr[(left + right) / 2];
-    
+
     // partition
     while (i <= j) {
     	while (arr[i] < pivot)i++;
@@ -240,17 +244,17 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
     	    	tmp = arr[i];
     	    	arr[i] = arr[j];
     	    	arr[j] = tmp;
-    	    	
+
     	    	//tmp_dat = dat[i];
     	    	memcpy(tmp_dat,(void *)&dat[i*elem_size],elem_size);
     	    	//dat[i] = dat[j];
     	    	memcpy(&dat[i*elem_size],(void *)&dat[j*elem_size],elem_size);
     	    	//dat[j] = tmp_dat;
-    	    	memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);    	    	
+    	    	memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);
     	    	i++; j--;
             }
     };
-    
+
     // recursion
     if (left < j)
     	quickSort_dat(arr, dat, left, j, elem_size);
@@ -262,13 +266,14 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 /*******************************************************************************
 * Quick sort arr and organise map[] elements according to the sorted arr order
 *******************************************************************************/
-void quickSort_map(int arr[], int map[], int left, int right, int dim) 
+
+void quickSort_map(int arr[], int map[], int left, int right, int dim)
 {
     int i = left, j = right;
-    int tmp; 
+    int tmp;
     int* tmp_map = (int *)xmalloc(sizeof(int)*dim);
     int pivot = arr[(left + right) / 2];
-    
+
     // partition
     while (i <= j) {
     	while (arr[i] < pivot)i++;
@@ -277,17 +282,17 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
     	    	tmp = arr[i];
     	    	arr[i] = arr[j];
     	    	arr[j] = tmp;
-    	    	
+
     	    	//tmp_dat = dat[i];
     	    	memcpy(tmp_map,(void *)&map[i*dim],dim*sizeof(int));
     	    	//dat[i] = dat[j];
     	    	memcpy(&map[i*dim],(void *)&map[j*dim],dim*sizeof(int));
     	    	//dat[j] = tmp_dat;
-    	    	memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));    	    	
+    	    	memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));
     	    	i++; j--;
             }
     };
-    
+
     // recursion
     if (left < j)
     	quickSort_map(arr, map, left, j, dim);
@@ -296,14 +301,14 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
     free(tmp_map);
 }
 
-
 /*******************************************************************************
 * Remove duplicates in an array
 *******************************************************************************/
+
 int removeDups(int a[], int array_size)
 {
     int i, j;
-    j = 0; 
+    j = 0;
     // Remove the duplicates ...
     for (i = 1; i < array_size; i++)
     {
@@ -317,6 +322,4 @@ int removeDups(int a[], int array_size)
     array_size = (j + 1);
     return array_size;
 }
-
-
 

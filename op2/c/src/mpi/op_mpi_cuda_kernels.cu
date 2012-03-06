@@ -40,18 +40,17 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size, int ele
     	    export_buffer[id*elem_size+i]=dat[list[id]*elem_size+i];
     	}
     }
-    
 }
 
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)
 {
     int threads = 192;
     int blocks = 1+((exp_exec_list->size-1)/192);
-    export_halo_gather<<<blocks,threads>>>(export_exec_list_d[arg.dat->set->index], 
+    export_halo_gather<<<blocks,threads>>>(export_exec_list_d[arg.dat->set->index],
 	    arg.data_d, exp_exec_list->size, arg.dat->size, arg.dat->buffer_d);
-	
+
     int blocks2 = 1+((exp_nonexec_list->size-1)/192);
-    export_halo_gather<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index], 
+    export_halo_gather<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index],
 	    arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d+exp_exec_list->size*arg.dat->size);
 }
 

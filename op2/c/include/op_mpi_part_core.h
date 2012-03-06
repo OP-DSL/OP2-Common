@@ -49,12 +49,14 @@ extern "C" {
 /*******************************************************************************
 * Random partitioning wrapper prototype
 *******************************************************************************/
+
 void op_partition_random(op_set primary_set);
 
 #ifdef PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
 *******************************************************************************/
+
 void op_partition_geom(op_dat coords);
 
 void op_partition_kway(op_map primary_map);
@@ -68,12 +70,14 @@ void op_partition_meshkway(op_map primary_map);
 /*******************************************************************************
 * PT-SCOTCH wrapper prototypes
 *******************************************************************************/
+
 void op_partition_ptscotch(op_map primary_map);
 #endif
 
 /*******************************************************************************
 * Other partitioning related routine prototypes
 *******************************************************************************/
+
 void op_partition_reverse();
 
 #ifdef __cplusplus

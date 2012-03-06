@@ -32,7 +32,7 @@
 
 //
 // This file implements the OP2 user-level functions for the CUDA backend
-// 
+//
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -61,7 +61,7 @@ op_init ( int argc, char ** argv, int diags )
 
   cutilDeviceInit ( argc, argv );
 
-// 
+//
 // The following call is only made in the C version of OP2,
 // as it causes memory trashing when called from Fortran.
 // \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
@@ -112,7 +112,7 @@ op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
-// 
+//
 // This function is defined in the generated master kernel file
 // so that it is possible to check on the runtime size of the
 // data in cases where it is not known at compile time
@@ -128,11 +128,10 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
-
-
 void op_exit()
 {
   op_cuda_exit();            // frees dat_d memory
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
 }
+

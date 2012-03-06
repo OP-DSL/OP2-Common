@@ -54,14 +54,14 @@
 
 // Small re-declaration to avoid using struct in the C version.
 // This is due to the different way in which C and C++ see structs
-   
+
 typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 // arrays for global constants and reductions
 
 int OP_consts_bytes = 0,
     OP_reduct_bytes = 0;
-    
+
 char * OP_consts_h,
      * OP_consts_d,
      * OP_reduct_h,
@@ -114,7 +114,6 @@ cutilDeviceInit ( int argc, char ** argv )
   printf ( "\n Using CUDA device: %s\n", deviceProp.name );
   cutilSafeCall ( cudaSetDevice ( 0 ) );
 }
-
 
 //
 // routines to move arrays to/from GPU device
@@ -206,7 +205,6 @@ op_cuda_exit ( )
   cudaThreadExit ( );
 }
 
-
 //
 // routines to resize constant/reduct arrays, if necessary
 //
@@ -272,3 +270,4 @@ mvReductArraysToHost ( int reduct_bytes )
                                cudaMemcpyDeviceToHost ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
+

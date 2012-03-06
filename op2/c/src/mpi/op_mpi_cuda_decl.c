@@ -32,7 +32,7 @@
 
 //
 // This file implements the OP2 user-level functions for the CUDA backend
-// 
+//
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -42,7 +42,7 @@
 #include <op_cuda_rt_support.h>
 #include <op_rt_support.h>
 
-#include <op_lib_c.h> 
+#include <op_lib_c.h>
 #include <op_util.h>
 #include <op_lib_mpi.h>
 
@@ -65,7 +65,7 @@ op_init ( int argc, char ** argv, int diags)
 
   cutilDeviceInit( argc, argv);
 
-// 
+//
 // The following call is only made in the C version of OP2,
 // as it causes memory trashing when called from Fortran.
 // \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
@@ -90,53 +90,41 @@ op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
   return dat;
 }
 
-
 void op_mv_halo_device(op_set set, op_dat dat)
 {
+  int set_size = set->size + OP_import_exec_list[set->index]->size +
+	OP_import_nonexec_list[set->index]->size;
 
-  int set_size = set->size + OP_import_exec_list[set->index]->size + 
-	OP_import_nonexec_list[set->index]->size; 
-		
   op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
                       ( void ** ) &( dat->data ), dat->size * set_size );
-  
-  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ), 
-      dat->size * (OP_export_exec_list[set->index]->size + 
+
+  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
+      dat->size * (OP_export_exec_list[set->index]->size +
       OP_export_nonexec_list[set->index]->size) ));
-  
-
 }
-
-
 
 void op_mv_halo_list_device()
 {
-
   export_exec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
-  
+
   for(int s=0; s<OP_set_index; s++) { //for each set
       op_set set=OP_set_list[s];
-    	
+
       op_cpHostToDevice ( ( void ** ) &( export_exec_list_d[set->index] ),
-                      ( void ** ) &(OP_export_exec_list[set->index]->list), 
+                      ( void ** ) &(OP_export_exec_list[set->index]->list),
                       OP_export_exec_list[set->index]->size * sizeof(int) );
-    	    
   }
-  
+
   export_nonexec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
-  
+
   for(int s=0; s<OP_set_index; s++) { //for each set
       op_set set=OP_set_list[s];
-    	
+
       op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_d[set->index] ),
-                      ( void ** ) &(OP_export_nonexec_list[set->index]->list), 
+                      ( void ** ) &(OP_export_nonexec_list[set->index]->list),
                       OP_export_nonexec_list[set->index]->size * sizeof(int) );
-    	    
   }
-  
 }
-
-
 
 op_set op_decl_set(int size, char const * name )
 {
@@ -147,9 +135,6 @@ op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * nam
 {
   return op_decl_map_core ( from, to, dim, imap, name );
 }
-
-
-
 
 op_arg
 op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
@@ -164,10 +149,7 @@ op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
-
-
-
-// 
+//
 // This function is defined in the generated master kernel file
 // so that it is possible to check on the runtime size of the
 // data in cases where it is not known at compile time
@@ -191,3 +173,4 @@ op_exit (  )
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
 }
+

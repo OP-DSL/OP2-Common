@@ -53,7 +53,8 @@
 *******************************************************************************/
 void op_partition_random(op_set primary_set);
 
-inline void op_arg_set(int n, op_arg arg, char **p_arg){
+inline void op_arg_set(int n, op_arg arg, char **p_arg)
+{
   int n2;
   if (arg.map==NULL)         // identity mapping, or global data
     n2 = n;
@@ -65,7 +66,6 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg){
 
 inline op_arg* blank_arg(op_arg *arg)
 {
-
   op_arg *junck = NULL;
   if(arg->argtype == OP_ARG_GBL && //this argument is OP_GBL and
      arg->acc != OP_READ)	   //OP_INC or OP_MAX/MIN
@@ -76,17 +76,17 @@ inline op_arg* blank_arg(op_arg *arg)
   {
       return arg;
   }
-
 }
 
 /*******************************************************************************
 * op_par_loop template for 2 arguments
 *******************************************************************************/
+
 template < class T0, class T1 >
 void op_par_loop(void (*kernel)( T0*, T1* ),
   char const * name, op_set set,
-  op_arg arg0, op_arg arg1 ) {
-
+  op_arg arg0, op_arg arg1 )
+{
   char *p_arg0, *p_arg1;
   int exec_length = 0;
 
@@ -181,7 +181,6 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
   if(sent[1] == 1)op_mpi_perf_comm(k_i, arg1);
   #endif
-
 }
 
 /*******************************************************************************
@@ -190,8 +189,8 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 template < class T0, class T1, class T2, class T3 >
 void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
   char const * name, op_set set,
-  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3) {
-
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3)
+{
   char *p_arg0, *p_arg1, *p_arg2, *p_arg3;
   int exec_length = 0;
   int sent[4] = {0,0,0,0};
@@ -321,8 +320,8 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
                                  T4* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
-  op_arg arg4 ) {
-
+  op_arg arg4 )
+{
   char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
        *p_arg4;
   int exec_length = 0;
@@ -470,8 +469,8 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
                                  T4*, T5* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
-  op_arg arg4, op_arg arg5 ) {
-
+  op_arg arg4, op_arg arg5 )
+{
   char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
        *p_arg4, *p_arg5;
   int exec_length = 0;
@@ -635,8 +634,8 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
                                  T4*, T5*, T6*, T7* ),
   char const * name, op_set set,
   op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
-  op_arg arg4, op_arg arg5, op_arg arg6, op_arg arg7 ) {
-
+  op_arg arg4, op_arg arg5, op_arg arg6, op_arg arg7 )
+{
   char *p_arg0, *p_arg1, *p_arg2, *p_arg3,
        *p_arg4, *p_arg5, *p_arg6, *p_arg7;
   int exec_length = 0;

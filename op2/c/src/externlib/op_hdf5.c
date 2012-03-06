@@ -30,10 +30,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* 
+/*
  * op_mpi_core.c
- * 
- * Implements the HDF5 based I/O routines for the OP2 single node 
+ *
+ * Implements the HDF5 based I/O routines for the OP2 single node
  * backe end
  *
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
@@ -53,45 +53,45 @@
 #include <op_hdf5.h>
 #include <op_util.h> //just to include xmalloc routine
 
-
 /*******************************************************************************
 * Routine to write an op_set to an already open hdf5 file
 *******************************************************************************/
+
 op_set op_decl_set_hdf5(char const *file, char const *name)
 {
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
-    hid_t	dset_id; //dataset identifier	
-    
-    file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT); 
-    
+    hid_t	dset_id; //dataset identifier
+
+    file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-    
+
     int l_size = 0;
     //read data
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &l_size);
-    
+
     H5Dclose(dset_id);
     H5Fclose(file_id);
-        
+
     return op_decl_set(l_size,  name);
 }
-
 
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
 *******************************************************************************/
+
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name)
 {
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
-    hid_t	dset_id; //dataset identifier	
+    hid_t	dset_id; //dataset identifier
     hid_t       dataspace; //data space identifier
 
-    file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT ); 
-    
-    
+    file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT );
+
+
     /*find total size of this map by reading attributes*/
     int g_size;
     //open existing data set
@@ -110,8 +110,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     	    g_size,file,from->size);
     	exit(2);
     }
-    
-    
+
+
     /*find dim with available attributes*/
     int map_dim = 0;
     //open existing data set
@@ -127,7 +127,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     	printf("map.dim %d in file %s and dim %d do not match\n",map_dim,file,dim);
     	exit(2);
     }
-    
+
     /*find type with available attributes*/
     dataspace= H5Screate(H5S_SCALAR);
     hid_t  atype = H5Tcopy(H5T_C_S1);
@@ -142,11 +142,11 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     H5Aclose(attr);
     H5Sclose(dataspace);
     H5Dclose(dset_id);
-    
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
     dataspace = H5Dget_space(dset_id);
-    
+
     //initialize data buffer and read data
     int* map;
     if(strcmp(typ,"int") == 0)
@@ -164,33 +164,33 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     	map = (int *)xmalloc(sizeof(long long)*g_size*dim);
     	H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, map);
     }
-    else 
+    else
     {
     	printf("Unknown type in file %s for map %s\n",file, name);
     	exit(2);
     }
-    
+
     H5Sclose(dataspace);
-    H5Dclose(dset_id);	
+    H5Dclose(dset_id);
     H5Fclose(file_id);
-    
+
     return op_decl_map(from, to, dim, map, name);
 }
-
 
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
 *******************************************************************************/
+
 op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name)
 {
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
-    hid_t	dset_id; //dataset identifier	
+    hid_t	dset_id; //dataset identifier
     hid_t       dataspace; //data space identifier
     hid_t attr;		//attribute identifier
-    
+
     file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
-    
+
     /*find element size of this dat with available attributes*/
     size_t dat_size = 0;
     //open existing data set
@@ -201,8 +201,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Aread(attr,H5T_NATIVE_INT,&dat_size);
     H5Aclose(attr);
     H5Dclose(dset_id);
-        
-    /*find dim with available attributes*/ 
+
+    /*find dim with available attributes*/
     int dat_dim = 0;
     //open existing data set
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -217,7 +217,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	printf("dat.dim %d in file %s and dim %d do not match\n",dat_dim,file,dim);
     	exit(2);
     }
-    
+
     /*find type with available attributes*/
     dataspace= H5Screate(H5S_SCALAR);
     hid_t  atype = H5Tcopy(H5T_C_S1);
@@ -237,18 +237,18 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     	exit(2);
     }
-    
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
     dataspace = H5Dget_space(dset_id);
-    
+
     //initialize data buffer and read in data
     char* data;
     if(strcmp(type,"double") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(double));
     	H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-    	
+
     	if(dat_size != dim*sizeof(double))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
@@ -256,49 +256,49 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	}
     	else
     	    dat_size = sizeof(double);
-    	
+
     }else if(strcmp(type,"float") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(float));
     	H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-    	
-    	if(dat_size != dim*sizeof(float)) 
+
+    	if(dat_size != dim*sizeof(float))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
     	    exit(2);
     	}
     	else
     	    dat_size = sizeof(float);
-    	
+
     }else if(strcmp(type,"int") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(int));
     	H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-    	
-    	if(dat_size != dim*sizeof(int)) 
+
+    	if(dat_size != dim*sizeof(int))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
     	    exit(2);
     	}
     	else
-    	    dat_size = sizeof(int);    	
-    }else 
+    	    dat_size = sizeof(int);
+    }else
     {
     	printf("unknown type\n");
     	exit(2);
     }
-    
+
     H5Sclose(dataspace);
     H5Dclose(dset_id);
     H5Fclose(file_id);
-    
-    return op_decl_dat(set, dim, type, dat_size, data, name );   
-}
 
+    return op_decl_dat(set, dim, type, dat_size, data, name );
+}
 
 /*******************************************************************************
 * Routine to write all to a named hdf5 file
 *******************************************************************************/
+
 void op_write_hdf5(char const * file_name)
 {
   (void)file_name;
