@@ -141,8 +141,6 @@ void cutilDeviceInit ( int argc, char ** argv)
 }
 */
 
-
-
 //void cutilDeviceInit_mpi( int argc, char ** argv, int my_rank )
 void cutilDeviceInit( int argc, char ** argv)
 {
@@ -168,9 +166,7 @@ void cutilDeviceInit( int argc, char ** argv)
   cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
 
   printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
-  //cutilSafeCall ( cudaSetDevice ( my_rank ) );
 }
-
 
 //
 // routines to move arrays to/from GPU device
@@ -459,3 +455,4 @@ void wait_all_cuda(op_arg arg)
 
   cutilSafeCall(cudaThreadSynchronize ());
 }
+

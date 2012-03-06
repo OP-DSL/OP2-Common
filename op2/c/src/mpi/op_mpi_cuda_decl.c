@@ -90,7 +90,6 @@ op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
   return dat;
 }
 
-
 void op_mv_halo_device(op_set set, op_dat dat)
 {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
@@ -114,7 +113,6 @@ void op_mv_halo_list_device()
       op_cpHostToDevice ( ( void ** ) &( export_exec_list_d[set->index] ),
                       ( void ** ) &(OP_export_exec_list[set->index]->list),
                       OP_export_exec_list[set->index]->size * sizeof(int) );
-
   }
 
   export_nonexec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
@@ -125,7 +123,6 @@ void op_mv_halo_list_device()
       op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_d[set->index] ),
                       ( void ** ) &(OP_export_nonexec_list[set->index]->list),
                       OP_export_nonexec_list[set->index]->size * sizeof(int) );
-
   }
 }
 
@@ -176,3 +173,4 @@ op_exit (  )
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
 }
+

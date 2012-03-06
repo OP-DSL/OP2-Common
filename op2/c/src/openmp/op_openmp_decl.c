@@ -80,8 +80,7 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_get_offset ( name, set, 0, part_size,
-    nargs, args, ninds, inds );
+  return op_plan_get_offset ( name, set, 0, part_size, nargs, args, ninds, inds );
 }
 
 op_plan *
@@ -109,13 +108,11 @@ op_decl_set ( int size, char const *name )
   return op_decl_set_core ( size, name );
 }
 
-
 op_map
 op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * name )
 {
   return op_decl_map_core ( from, to, dim, imap, name );
 }
-
 
 op_arg
 op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
@@ -123,9 +120,9 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_acc
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
-
 op_arg
 op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
 {
   return op_arg_gbl ( data, dim, type, acc );
 }
+

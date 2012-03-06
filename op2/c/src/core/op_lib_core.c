@@ -258,14 +258,14 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_map_index; i++ )
   {
-    free ( OP_map_list[i]->map );
+        free ( OP_map_list[i]->map );
     free ( OP_map_list[i] );
   }
   free ( OP_map_list );
 
   for ( int i = 0; i < OP_dat_index; i++ )
   {
-    free ( OP_dat_list[i]->data );
+        free ( OP_dat_list[i]->data );
     free ( OP_dat_list[i] );
   }
   free ( OP_dat_list );
@@ -522,7 +522,6 @@ op_timers ( double * cpu, double * et )
   gettimeofday ( &t, ( struct timezone * ) 0 );
   *et = t.tv_sec + t.tv_usec * 1.0e-6;
 }
-
 
 void
 op_timing_realloc ( int kernel )

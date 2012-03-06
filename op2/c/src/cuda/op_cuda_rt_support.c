@@ -115,7 +115,6 @@ cutilDeviceInit ( int argc, char ** argv )
   cutilSafeCall ( cudaSetDevice ( 0 ) );
 }
 
-
 //
 // routines to move arrays to/from GPU device
 //
@@ -206,7 +205,6 @@ op_cuda_exit ( )
   cudaThreadExit ( );
 }
 
-
 //
 // routines to resize constant/reduct arrays, if necessary
 //
@@ -272,3 +270,4 @@ mvReductArraysToHost ( int reduct_bytes )
                                cudaMemcpyDeviceToHost ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
+

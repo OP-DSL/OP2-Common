@@ -42,8 +42,8 @@
 /*
  * Global variables
  */
-int OP_plan_index = 0, OP_plan_max = 0;
 
+int OP_plan_index = 0, OP_plan_max = 0;
 op_plan * OP_plans;
 
 void
@@ -207,6 +207,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
   err = 0;
 
+
   for ( int m = 0; m < ninds; m++ )
   {
     int m2 = 0;
@@ -245,6 +246,8 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
    *check maps (most likely source of errors)
    */
 
+
+
   err = 0;
 
   for ( int m = 0; m < OP_plan.nargs; m++ )
@@ -277,14 +280,12 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
     printf ( " *** OP_plan_check: maps     OK \n" );
   }
 
-
   /*
    * check thread and block coloring
    */
 
   return;
 }
-
 
 /*
  * OP plan construction
@@ -293,16 +294,16 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_size,
                       int nargs, op_arg *args, int ninds, int *inds )
 {
-  //set exec length
-  int exec_length = set->size;
-  for(int i = 0; i< nargs; i++)
-  {
-    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    //set exec length
+    int exec_length = set->size;
+    for(int i = 0; i< nargs; i++)
     {
-      exec_length += set->exec_size;
-      break;
+      if(args[i].idx != -1 && args[i].acc != OP_READ )
+      {
+          exec_length += set->exec_size;
+          break;
+      }
     }
-  }
 
   /* first look for an existing execution plan */
 
@@ -591,7 +592,6 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     //if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
 
     /* reorder elements by color? */
-
   }
 
 
@@ -614,7 +614,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     {
       if ( inds[m] >= 0 )
       {
-        int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
+          int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
         for ( int e = 0; e < to_size; e++ )
           work[inds[m]][e] = 0; // zero out color arrays
       }
@@ -807,9 +807,9 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
-        OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
+             OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
     printf( " data transfer (total)  = %.2f MB \n",
-        OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
+             OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
     printf( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
   }
 

@@ -40,7 +40,6 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size, int ele
           export_buffer[id*elem_size+i]=dat[list[id]*elem_size+i];
       }
     }
-
 }
 
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)

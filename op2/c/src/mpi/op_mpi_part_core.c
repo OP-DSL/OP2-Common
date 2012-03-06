@@ -39,7 +39,6 @@
  * written by: Gihan R. Mudalige, (Started 07-04-2011)
  */
 
-
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -61,12 +60,8 @@
 #include <parmetis.h>
 #endif
 
-
-
 #include <op_mpi_core.h>
 #include <op_mpi_part_core.h>
-
-
 
 //
 //MPI Communicator for partitioning
@@ -91,6 +86,7 @@ static int frequencyof(int value, int* array, int size)
 /*******************************************************************************
  * Utility function to find the mode of a set of numbers in an array
  *******************************************************************************/
+
 static int find_mode(int* array, int size)
 {
   int count = 0, mode = array[0], current;
@@ -109,6 +105,7 @@ static int find_mode(int* array, int size)
 /*******************************************************************************
  * Utility function to see if a target op_set is held in an op_set array
  *******************************************************************************/
+
 static int compare_all_sets(op_set target_set, op_set other_sets[], int size)
 {
   for(int i = 0; i < size; i++)
@@ -122,6 +119,7 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size)
  * Special routine to create export list during partitioning map->to set
  * from map_>from set in partition_to_set()
  *******************************************************************************/
+
 static int* create_exp_list_2(op_set set, int* temp_list, halo_list h_list,
     int* part_list, int size, int comm_size, int my_rank)
 {
@@ -195,6 +193,7 @@ static int* create_exp_list_2(op_set set, int* temp_list, halo_list h_list,
  * Special routine to create import list during partitioning map->to set
  * from map_>from set in partition_to_set()
  *******************************************************************************/
+
 static void create_imp_list_2(op_set set, int* temp_list, halo_list h_list,
     int total_size, int* ranks, int* sizes, int ranks_size, int comm_size,
     int my_rank)
@@ -381,8 +380,8 @@ static int partition_from_set(op_map map, int my_rank, int comm_size, int** part
 }
 
 /*******************************************************************************
-* Routine to use the partitioned map->from set to partition the map->to set
-*******************************************************************************/
+ * Routine to use the partitioned map->from set to partition the map->to set
+ *******************************************************************************/
 
 static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_range)
 {
@@ -610,8 +609,8 @@ static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_r
 }
 
 /*******************************************************************************
-* Routine to partition all secondary sets using primary set partition
-*******************************************************************************/
+ * Routine to partition all secondary sets using primary set partition
+ *******************************************************************************/
 
 static void partition_all(op_set primary_set, int my_rank, int comm_size)
 {
@@ -723,8 +722,8 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
 }
 
 /*******************************************************************************
-* Routine to renumber mapping table entries with new partition's indexes
-*******************************************************************************/
+ * Routine to renumber mapping table entries with new partition's indexes
+ *******************************************************************************/
 
 static void renumber_maps(int my_rank, int comm_size)
 {
@@ -900,8 +899,8 @@ static void renumber_maps(int my_rank, int comm_size)
 }
 
 /*******************************************************************************
-* Routine to reverse the renumbering of mapping tables
-*******************************************************************************/
+ * Routine to reverse the renumbering of mapping tables
+ *******************************************************************************/
 
 static void reverse_renumber_maps(int my_rank, int comm_size)
 {
@@ -3007,7 +3006,6 @@ void op_partition_ptscotch(op_map primary_map)
   //SCOTCH_stratDgraphMapBuild(&straptr, SCOTCH_STRATQUALITY/*SCOTCH_STRATSCALABILITY*/,
   //comm_size, comm_size, 1.05);
 
-
   //partition the graph
   SCOTCH_dgraphPart(grafptr, comm_size, &straptr, partloctab);
   free(edgeloctab);free(vertloctab);
@@ -3050,8 +3048,6 @@ void op_partition_ptscotch(op_map primary_map)
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if(my_rank==MPI_ROOT)printf("Max total PT-Scotch partitioning time = %lf\n",max_time);
-
-
 }
 
 #endif

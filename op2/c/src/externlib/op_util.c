@@ -46,10 +46,10 @@
 #include <op_lib_core.h>
 #include <op_util.h>
 
-
 /*******************************************************************************
 * compute local size from global size
 *******************************************************************************/
+
 int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
 {
   int local_size = global_size/mpi_comm_size;
@@ -111,7 +111,6 @@ unsigned op2_hash(const char *s)
     hashval = *s + 31 * hashval;
   return hashval % HASHSIZE;
 }
-
 
 /*******************************************************************************
 * Return the index of the min value in an array
@@ -266,6 +265,7 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 /*******************************************************************************
 * Quick sort arr and organise map[] elements according to the sorted arr order
 *******************************************************************************/
+
 void quickSort_map(int arr[], int map[], int left, int right, int dim)
 {
   int i = left, j = right;

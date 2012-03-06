@@ -49,17 +49,16 @@
 #include <op_mpi_core.h>
 #include <op_mpi_part_core.h>
 
-
 //
 //MPI Communicator for halo creation and exchange
 //
 
 MPI_Comm OP_MPI_WORLD;
 
-
 //
 //MPI Halo related global variables
 //
+
 halo_list *OP_export_exec_list;//EEH list
 halo_list *OP_import_exec_list;//IEH list
 
@@ -71,13 +70,14 @@ set_part_core *OP_latency_sets; // set_offset
 //
 //global array to hold dirty_bits for op_dats
 //
+
 int* dirtybit;
 
 //
 //halo exchange buffers for each op_dat
 //
-op_mpi_buffer *OP_mpi_buffer_list;
 
+op_mpi_buffer *OP_mpi_buffer_list;
 
 /*array to holding the index of the final element
   that can be computed without halo exchanges for each set
@@ -85,25 +85,26 @@ op_mpi_buffer *OP_mpi_buffer_list;
   0 to core_num[set->index] - no halo exchange needed
   core_num[set->index] to n<set->size - halo exchange needed
   */
-int *core_num;
 
+int *core_num;
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
+
 op_mpi_kernel op_mpi_kernel_tab[HASHSIZE];
 
 //
 //global variables to hold partition information on an MPI rank
 //
+
 int OP_part_index = 0;
 part *OP_part_list;
-
 
 //
 //Save original partition ranges
 //
-int** orig_part_range = NULL;
 
+int** orig_part_range = NULL;
 
 /*******************************************************************************
  * Routine to declare partition information for a given set
@@ -186,7 +187,6 @@ int get_global_index(int local_index, int partition, int* part_range,
 #endif
   return g_index;
 }
-
 
 /*******************************************************************************
  * Routine to find the MPI neighbors given a halo list
@@ -1473,8 +1473,8 @@ void op_halo_create()
 }
 
 /*******************************************************************************
-* Routine to Clean-up all MPI halos(called at the end of an OP2 MPI application)
-*******************************************************************************/
+ * Routine to Clean-up all MPI halos(called at the end of an OP2 MPI application)
+ *******************************************************************************/
 
 void op_halo_destroy()
 {
@@ -1648,15 +1648,10 @@ int exchange_halo(op_arg arg)
 
 }
 
-
-
-
-
-
-
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
+
 void wait_all(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1673,6 +1668,7 @@ void wait_all(op_arg arg)
 /*******************************************************************************
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
+
 void set_dirtybit(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -1684,6 +1680,7 @@ void set_dirtybit(op_arg arg)
 /*******************************************************************************
  * MPI Global reduce of an op_arg
  *******************************************************************************/
+
 void global_reduce(op_arg *arg)
 {
   if(strcmp("double",arg->type)==0)
@@ -2003,13 +2000,12 @@ void op_mpi_put_data(op_dat dat)
 
   //need to do some checks to see if the input op_dat has the same dimensions
   //and other values as the internal op_dat
-
-  //1.
 }
 
 /*******************************************************************************
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
+
 void reset_halo(op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2137,6 +2133,7 @@ int op_mpi_perf_time(const char* name, double time)
 /*******************************************************************************
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
+
 void op_mpi_perf_comm(int kernel_index, op_arg arg)
 {
   op_dat dat = arg.dat;
@@ -2441,6 +2438,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
 /*******************************************************************************
  * Write a op_dat to a named Binary file
  *******************************************************************************/
+
 void print_dat_tobinfile(op_dat dat, const char *file_name)
 {
   //create new communicator for output

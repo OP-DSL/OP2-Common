@@ -177,7 +177,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   return op_decl_map(from, to, dim, map, name);
 }
 
-
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
 *******************************************************************************/
