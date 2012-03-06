@@ -19,8 +19,8 @@
 #                          given suffix appended
 
 #=============================================================================
-# Copyright (C) 2010 Garth N. Wells, Anders Logg and Johannes Ring
-# All rights reserved.
+# Copyright (C) 2010-2012 Garth N. Wells, Anders Logg, Johannes Ring
+# and Florian Rathgeber. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
