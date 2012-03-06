@@ -1,0 +1,71 @@
+# - Build details for OP2
+# It defines the following variables
+#  OP2_INCLUDE_DIRS - include directories for OP2
+#
+# This file has been automatically generated.
+
+# Do nothing if the configuration has already been loaded
+
+if(NOT OP2_FOUND)
+
+  message("-- Loading OP2 configuration from @OP2_CONF_DIR@")
+
+  # Package found
+  set(OP2_FOUND TRUE)
+
+  # Compiler defintions
+  set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
+
+  # Compiler flags
+  # We cannnot set CMAKE_C(XX)_FLAGS directly since they already exist in cache
+  set(OP2_CXX_FLAGS "@CMAKE_CXX_FLAGS@" CACHE STRING "C++ compiler flags.")
+  set(OP2_C_FLAGS "@CMAKE_C_FLAGS@" CACHE STRING "C compiler flags.")
+
+  # OpenMP flags
+  set(OpenMP_C_FLAGS "@OpenMP_C_FLAGS@" CACHE STRING "OpenMP C compiler flags.")
+  set(OpenMP_CXX_FLAGS "@OpenMP_CXX_FLAGS@" CACHE STRING "OpenMP C++ compiler flags.")
+
+  # Developer flags
+  set(CMAKE_CXX_FLAGS_DEVELOPER "@CMAKE_CXX_FLAGS_DEVELOPER@" CACHE STRING
+    "Flags used by the compiler during development.")
+  set(CMAKE_C_FLAGS_DEVELOPER "@CMAKE_C_FLAGS_DEVELOPER@" CACHE STRING
+    "Flags used by the compiler during development.")
+
+  # NVCC flags
+  option(CUDA_PROPAGATE_HOST_FLAGS
+    "Propage C/CXX_FLAGS and friends to the host compiler via -Xcompile."
+    @CUDA_PROPAGATE_HOST_FLAGS@)
+  set(CUDA_NVCC_FLAGS @CUDA_NVCC_FLAGS@
+    CACHE STRING "Flags used by NVCC during all build types
+      (semi-colon delimit multiple arguments).")
+  set(CUDA_NVCC_FLAGS_RELEASE @CUDA_NVCC_FLAGS_RELEASE@
+    CACHE STRING "Flags used by NVCC during release builds
+      (semi-colon delimit multiple arguments).")
+  set(CUDA_NVCC_FLAGS_DEVELOPER @CUDA_NVCC_FLAGS_DEVELOPER@
+    CACHE STRING "Flags used by NVCC during developer builds
+      (semi-colon delimit multiple arguments).")
+
+  # User definitions
+  set(OP2_USER_DEFINITIONS @OP2_USER_DEFINITIONS@ CACHE STRING
+    "Space separated list of custom preprocessor definitions -DVAR=FOO.")
+
+  # Include directories
+  set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
+  set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
+
+  # Shared library build?
+  set(BUILD_SHARED_LIBS @BUILD_SHARED_LIBS@)
+
+  # Installation directories
+  set(OP2_BIN_DIR "@INSTALLATION_BIN_DIR@" CACHE PATH "Binary installation directory.")
+  set(OP2_LIB_DIR "@INSTALLATION_LIB_DIR@" CACHE PATH "Library installation directory.")
+  set(OP2_APPS_DIR "@INSTALLATION_APPS_DIR@" CACHE PATH "Apps installation directory.")
+
+  include("@OP2_CONF_DIR@/OP2LibraryDepends.cmake")
+
+  # Version
+  set(OP2_VERSION_MAJOR "@OP2_VERSION_MAJOR@")
+  set(OP2_VERSION_MINOR "@OP2_VERSION_MINOR@")
+  set(OP2_VERSION_MICRO "@OP2_VERSION_MICRO@")
+  set(OP2_VERSION_STR   "@OP2_VERSION@")
+endif()
