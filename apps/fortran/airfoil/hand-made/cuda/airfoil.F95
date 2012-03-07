@@ -140,7 +140,6 @@ use constantVarsCuda
   call op_decl_map ( bedges, cells, 1, becell, pbecell, pecellName )
   call op_decl_map ( cells, nodes, 4, cell, pcell, pcellName )
 
-
   call op_decl_dat ( bedges, 1, bound, p_bound, boundName )
   call op_decl_dat ( nodes, 2, x, p_x, xName )
   call op_decl_dat ( cells, 4, q, p_q, qName )
