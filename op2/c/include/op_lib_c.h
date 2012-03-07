@@ -90,6 +90,8 @@ void op_fetch_data ( op_dat );
 
 void op_exit (  );
 
+int op_get_size(op_set set);
+
 void op_printf(const char* format, ...);
 
 #ifdef __cplusplus

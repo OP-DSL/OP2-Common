@@ -147,17 +147,17 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int *pp;
   double *A, *r, *u, *du;
@@ -255,10 +255,6 @@ int main(int argc, char **argv)
 
   /**------------------------END I/O and PARTITIONING ---------------------**/
 
-  // OP initialisation
-
-  op_init(argc,argv,2);
-
   // declare sets, pointers, and datasets
 
   op_set nodes = op_decl_set(nnode,"nodes");
@@ -317,19 +313,13 @@ int main(int argc, char **argv)
 
   //output the result dat array to files
   print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  print_dat_tobinfile(temp, "out_grid.bin"); //Binary
-
-  //free memory allocated to halos
-  op_halo_destroy();
-  //return all op_dats, op_maps back to original element order
-  op_partition_reverse();
+  //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
-
-  MPI_Finalize();   //user mpi finalize
+  op_exit();
 }
 

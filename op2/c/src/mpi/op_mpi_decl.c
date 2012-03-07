@@ -49,6 +49,12 @@
 
 void op_init ( int argc, char ** argv, int diags )
 {
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+    MPI_Init(&argc, &argv);
+  }
   op_init_core ( argc, argv, diags );
 }
 
@@ -93,15 +99,15 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
 
 void op_printf(const char* format, ...)
 {
-    int my_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-    if(my_rank==MPI_ROOT)
-    {
-      va_list argptr;
-      va_start(argptr, format);
-      vprintf(format, argptr);
-      va_end(argptr);
-    }
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+    vprintf(format, argptr);
+    va_end(argptr);
+  }
 }
 
 void op_exit()
@@ -109,6 +115,11 @@ void op_exit()
   op_mpi_exit();
   op_rt_exit();
   op_exit_core();
+
+  int flag = 0;
+  MPI_Finalized(&flag);
+  if(!flag)
+    MPI_Finalize();
 }
 
 /*

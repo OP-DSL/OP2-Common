@@ -87,6 +87,11 @@ void op_fetch_data ( op_dat a ) {
   (void)a;
 }
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
 void op_printf(const char* format, ...)
 {
   va_list argptr;

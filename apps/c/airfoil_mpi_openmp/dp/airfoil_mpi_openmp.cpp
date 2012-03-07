@@ -222,10 +222,12 @@ static void check_scan(int items_received, int items_expected)
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
@@ -362,9 +364,9 @@ int main(int argc, char **argv)
   scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
   scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
   if(my_rank == MPI_ROOT) {
-    /*Freeing memory allocated to gloabal arrays on rank 0
-      after scattering to all processes*/
     free(g_cell);
     free(g_edge);
     free(g_ecell);
@@ -383,10 +385,6 @@ int main(int argc, char **argv)
   op_printf("Max total file read time = %f\n", wall_t2-wall_t1);
 
   /**------------------------END I/O and PARTITIONING -----------------------**/
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -503,6 +501,5 @@ int main(int argc, char **argv)
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

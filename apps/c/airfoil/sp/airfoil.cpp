@@ -71,6 +71,9 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   float  *x, *q, *qold, *adt, *res;
 
@@ -81,7 +84,6 @@ int main(int argc, char **argv)
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in grid
-
   op_printf("reading in grid \n");
 
   FILE *fp;
@@ -163,10 +165,6 @@ int main(int argc, char **argv)
     }
   }
 
-  // OP initialisation
-
-  op_init(argc,argv,2);
-
   // declare sets, pointers, datasets and global constants
 
   op_set nodes  = op_decl_set(nnode,  "nodes");
@@ -209,8 +207,8 @@ int main(int argc, char **argv)
     // save old flow solution
 
     op_par_loop(save_soln,"save_soln", cells,
-                op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
-                op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
+      op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
+      op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
 
     // predictor/corrector update loop
 
@@ -219,49 +217,47 @@ int main(int argc, char **argv)
       // calculate area/timstep
 
       op_par_loop(adt_calc,"adt_calc",cells,
-                  op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   1,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   2,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_x,   3,pcell, 2,"float",OP_READ ),
-                  op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
-                  op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
+          op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
+          op_arg_dat(p_x,   1,pcell, 2,"float",OP_READ ),
+          op_arg_dat(p_x,   2,pcell, 2,"float",OP_READ ),
+          op_arg_dat(p_x,   3,pcell, 2,"float",OP_READ ),
+          op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
+          op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
 
       // calculate flux residual
 
       op_par_loop(res_calc,"res_calc",edges,
-                  op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
-                  op_arg_dat(p_x,    1,pedge, 2,"float",OP_READ),
-                  op_arg_dat(p_q,    0,pecell,4,"float",OP_READ),
-                  op_arg_dat(p_q,    1,pecell,4,"float",OP_READ),
-                  op_arg_dat(p_adt,  0,pecell,1,"float",OP_READ),
-                  op_arg_dat(p_adt,  1,pecell,1,"float",OP_READ),
-                  op_arg_dat(p_res,  0,pecell,4,"float",OP_INC ),
-                  op_arg_dat(p_res,  1,pecell,4,"float",OP_INC ));
+          op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
+          op_arg_dat(p_x,    1,pedge, 2,"float",OP_READ),
+          op_arg_dat(p_q,    0,pecell,4,"float",OP_READ),
+          op_arg_dat(p_q,    1,pecell,4,"float",OP_READ),
+          op_arg_dat(p_adt,  0,pecell,1,"float",OP_READ),
+          op_arg_dat(p_adt,  1,pecell,1,"float",OP_READ),
+          op_arg_dat(p_res,  0,pecell,4,"float",OP_INC ),
+          op_arg_dat(p_res,  1,pecell,4,"float",OP_INC ));
 
       op_par_loop(bres_calc,"bres_calc",bedges,
-                  op_arg_dat(p_x,     0,pbedge, 2,"float",OP_READ),
-                  op_arg_dat(p_x,     1,pbedge, 2,"float",OP_READ),
-                  op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
-                  op_arg_dat(p_adt,   0,pbecell,1,"float",OP_READ),
-                  op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
-                  op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
+          op_arg_dat(p_x,     0,pbedge, 2,"float",OP_READ),
+          op_arg_dat(p_x,     1,pbedge, 2,"float",OP_READ),
+          op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
+          op_arg_dat(p_adt,   0,pbecell,1,"float",OP_READ),
+          op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
+          op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
 
       // update flow field
 
       rms = 0.0;
 
       op_par_loop(update,"update",cells,
-                  op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_READ ),
-                  op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_WRITE),
-                  op_arg_dat(p_res, -1,OP_ID, 4,"float",OP_RW   ),
-                  op_arg_dat(p_adt, -1,OP_ID, 1,"float",OP_READ ),
-                  op_arg_gbl(&rms,1,"float",OP_INC));
+          op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_READ ),
+          op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_WRITE),
+          op_arg_dat(p_res, -1,OP_ID, 4,"float",OP_RW   ),
+          op_arg_dat(p_adt, -1,OP_ID, 1,"float",OP_READ ),
+          op_arg_gbl(&rms,1,"float",OP_INC));
     }
 
     // print iteration history
-
-    rms = sqrtf(rms/(float) ncell);
-
+    rms = sqrtf(rms/(float) op_get_size(cells));
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
   }

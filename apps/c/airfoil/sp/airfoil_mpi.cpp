@@ -92,7 +92,6 @@ static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank 
   if (mpi_rank < remainder)
   {
     local_size = local_size + 1;
-
   }
   return local_size;
 }
@@ -181,10 +180,12 @@ static void check_scan(int items_received, int items_expected)
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
@@ -307,7 +308,6 @@ int main(int argc, char **argv)
   res    = (float *) malloc(4*ncell*sizeof(float));
   adt    = (float *) malloc(  ncell*sizeof(float));
 
-
   /* scatter sets, mappings and data on sets*/
   scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
   scatter_int_array(g_edge, edge, comm_size, g_nedge,nedge, 2);
@@ -322,9 +322,9 @@ int main(int argc, char **argv)
   scatter_float_array(g_res, res, comm_size, g_ncell,ncell, 4);
   scatter_float_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
   if(my_rank == MPI_ROOT) {
-    /*Freeing memory allocated to gloabal arrays on rank 0
-      after scattering to all processes*/
     free(g_cell);
     free(g_edge);
     free(g_ecell);
@@ -340,13 +340,9 @@ int main(int argc, char **argv)
 
   MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
-  op_printf("Max total file read time = %f\n",wall_t2-wall_t1);
+  op_printf("Max total file read time = %f\n", wall_t2-wall_t1);
 
   /**------------------------END I/O and PARTITIONING -----------------------**/
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -461,8 +457,6 @@ int main(int argc, char **argv)
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
-
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

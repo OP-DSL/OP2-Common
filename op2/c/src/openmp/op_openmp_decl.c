@@ -91,19 +91,23 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
 }
 
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
 void op_printf(const char* format, ...)
 {
-    va_list argptr;
-    va_start(argptr, format);
-    vprintf(format, argptr);
-    va_end(argptr);
+  va_list argptr;
+  va_start(argptr, format);
+  vprintf(format, argptr);
+  va_end(argptr);
 }
 
 void
 op_exit (  )
 {
   op_rt_exit (  );
-
   op_exit_core (  );
 }
 

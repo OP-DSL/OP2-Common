@@ -114,12 +114,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv)
 {
-  int my_rank;
-  int comm_size;
-
-  MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+  // OP initialisation
+  op_init(argc,argv,2);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -149,9 +145,6 @@ int main(int argc, char **argv)
   qinf[1] = r*u;
   qinf[2] = 0.0f;
   qinf[3] = r*e;
-
-  // OP initialisation
-  op_init(argc,argv,2);
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
@@ -205,10 +198,6 @@ int main(int argc, char **argv)
   op_halo_create();
 
   int g_ncell = op_get_size(cells);
-  //int* sizes = (int *)malloc(sizeof(int)*comm_size);
-  //MPI_Allgather(&cells->size, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
-  //for(int i = 0; i<comm_size; i++)g_ncell = g_ncell + sizes[i];
-  //free(sizes);
 
   //initialise timers for total execution wall time
   MPI_Barrier(MPI_COMM_WORLD);
@@ -285,6 +274,5 @@ int main(int argc, char **argv)
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

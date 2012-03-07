@@ -128,6 +128,11 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
 void op_printf(const char* format, ...)
 {
   va_list argptr;
