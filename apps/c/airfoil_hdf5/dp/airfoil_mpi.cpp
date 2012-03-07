@@ -107,13 +107,9 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 int main(int argc, char **argv){
     
-    int my_rank;
-    int comm_size;
-	
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-	
+    // OP initialisation
+    op_init(argc,argv,2);
+    
     //timer
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
   
@@ -124,7 +120,7 @@ int main(int argc, char **argv){
     op_timers(&cpu_t1, &wall_t1);
     
     // set constants
-    if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+    op_printf("initialising flow field\n");
     gam = 1.4f;
     gm1 = gam - 1.0f;
     cfl = 0.9f;
@@ -142,9 +138,6 @@ int main(int argc, char **argv){
     qinf[2] = 0.0f;
     qinf[3] = r*e;
 	
-    // OP initialisation
-    op_init(argc,argv,2);
-
     /**------------------------BEGIN Parallel I/O -------------------**/
     
     char file[] = "new_grid.h5";//"new_grid-26mil.h5";//"new_grid.h5";
@@ -172,7 +165,7 @@ int main(int argc, char **argv){
     
     MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t2, &wall_t2); 
-    if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",wall_t2-wall_t1); 
+    op_printf("Max total file read time = %f\n",wall_t2-wall_t1); 
 
     op_decl_const(1,"double",&gam  );
     op_decl_const(1,"double",&gm1  );
@@ -197,10 +190,6 @@ int main(int argc, char **argv){
     op_halo_create();    
     
     int g_ncell = op_get_size(cells);
-    //int* sizes = (int *)malloc(sizeof(int)*comm_size);
-    //MPI_Allgather(&cells->size, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
-    //for(int i = 0; i<comm_size; i++)g_ncell = g_ncell + sizes[i];
-    //free(sizes);
     
     //initialise timers for total execution wall time
     MPI_Barrier(MPI_COMM_WORLD);
@@ -259,13 +248,9 @@ int main(int argc, char **argv){
            
         }
         //print iteration history
-        if(my_rank==MPI_ROOT)
-        {
-            rms = sqrt(rms/(double) g_ncell);
-            if (iter%100 == 0)
-            	printf("%d  %10.5e \n",iter,rms);
-        }
-        
+        rms = sqrt(rms/(double) g_ncell);
+        if (iter%100 == 0)
+            op_printf("%d  %10.5e \n",iter,rms);        
     }
     MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t2, &wall_t2);
@@ -277,9 +262,7 @@ int main(int argc, char **argv){
     // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
 
     //print total time for niter interations
-    if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",wall_t2-wall_t1);    
-    
+    op_printf("Max total runtime = %f\n",wall_t2-wall_t1);    
     op_exit();
-    MPI_Finalize();   //user mpi finalize
 }
 

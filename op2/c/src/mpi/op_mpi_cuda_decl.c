@@ -51,6 +51,14 @@
 void
 op_init ( int argc, char ** argv, int diags)
 {
+  
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+      MPI_Init(&argc, &argv);
+  }  
+    
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020
@@ -75,6 +83,8 @@ op_init ( int argc, char ** argv, int diags)
 #endif
 
   printf ( "\n 16/48 L1/shared \n" );
+  
+  
 }
 
 op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
@@ -200,4 +210,9 @@ op_exit (  )
   op_cuda_exit();            // frees dat_d memory
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
+  
+  int flag = 0;
+    MPI_Finalized(&flag);
+  if(!flag)
+      MPI_Finalize();
 }

@@ -18,7 +18,13 @@
 
 void op_init ( int argc, char ** argv, int diags )
 {
-	op_init_core ( argc, argv, diags );
+    int flag = 0;
+    MPI_Initialized(&flag);
+    if(!flag)
+    {
+    	MPI_Init(&argc, &argv);
+    }
+    op_init_core ( argc, argv, diags );
 }
 
 op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * data, char const *name )
@@ -78,6 +84,11 @@ void op_exit()
     op_mpi_exit();
     op_rt_exit();
     op_exit_core();
+    
+    int flag = 0;
+    MPI_Finalized(&flag);
+    if(!flag)
+    	MPI_Finalize();
 }
 
 /* 

@@ -175,13 +175,7 @@ static void check_scan(int items_received, int items_expected) {
 //
 int main(int argc, char **argv){
     
-    int my_rank;
-    int comm_size;
-	
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-	
+
     //timer
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
@@ -191,6 +185,15 @@ int main(int argc, char **argv){
     int    nnode,ncell,nedge,nbedge,niter;
     double  rms;
 
+    // OP initialisation
+    op_init(argc,argv,2);
+
+    //MPI for user I/O 
+    int my_rank;
+    int comm_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+    
   
     /**------------------------BEGIN I/O and PARTITIONING -------------------**/
     
@@ -338,10 +341,7 @@ int main(int argc, char **argv){
     
     /**------------------------END I/O and PARTITIONING -----------------------**/
   
-    // OP initialisation
-
-    op_init(argc,argv,2);
-
+    
     // declare sets, pointers, datasets and global constants
 
     op_set nodes  = op_decl_set(nnode,  "nodes");
@@ -455,9 +455,8 @@ int main(int argc, char **argv){
     
     //print total time for niter interations
     op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
-    
     op_exit();
-    MPI_Finalize();   //user mpi finalize
+    
 }
 
  
