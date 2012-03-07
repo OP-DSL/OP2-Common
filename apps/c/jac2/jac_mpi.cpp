@@ -46,6 +46,7 @@
 //
 // mpi header file - included by user for user level mpi
 //
+
 #include <mpi.h>
 
 // global constants
@@ -114,7 +115,7 @@ static void scatter_float_array(float* g_array, float* l_array, int comm_size, i
 }
 
 void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
+                          int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -161,7 +162,6 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
   free(displs);
 }
 
-
 // define problem size
 
 #define NN       6
@@ -200,8 +200,7 @@ int main(int argc, char **argv)
   float *g_r = 0, *g_u = 0, *g_du = 0;
   double *g_A = 0;
 
-  if(my_rank == MPI_ROOT)
-  {
+  if(my_rank == MPI_ROOT) {
     printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
     g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
@@ -270,9 +269,9 @@ int main(int argc, char **argv)
   scatter_float_array(g_u, u, comm_size, g_nnode,nnode, 1);
   scatter_float_array(g_du, du, comm_size, g_nnode,nnode, 1);
 
-  if(my_rank == MPI_ROOT)
-  {     /*Freeing memory allocated to gloabal arrays on rank 0
-          after scattering to all processes*/
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
+  if(my_rank == MPI_ROOT) {
     free(g_pp);
     free(g_A);
     free(g_r);
@@ -313,7 +312,6 @@ int main(int argc, char **argv)
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
-
 
   // main iteration loop
 
@@ -362,3 +360,4 @@ int main(int argc, char **argv)
 
   MPI_Finalize();   //user mpi finalize
 }
+

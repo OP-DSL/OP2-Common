@@ -138,12 +138,10 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
   free(displs);
 }
 
-
 // define problem size
 
 #define NN       6
 #define NITER    2
-
 
 // main program
 
@@ -176,8 +174,7 @@ int main(int argc, char **argv)
   int *g_pp = 0;
   float *g_A = 0, *g_r = 0, *g_u = 0, *g_du = 0;
 
-  if(my_rank == MPI_ROOT)
-  {
+  if(my_rank == MPI_ROOT) {
     printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
     g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
@@ -246,9 +243,9 @@ int main(int argc, char **argv)
   scatter_float_array(g_u, u, comm_size, g_nnode,nnode, 1);
   scatter_float_array(g_du, du, comm_size, g_nnode,nnode, 1);
 
-  if(my_rank == MPI_ROOT)
-  {     /*Freeing memory allocated to gloabal arrays on rank 0
-          after scattering to all processes*/
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
+  if(my_rank == MPI_ROOT) {
     free(g_pp);
     free(g_A);
     free(g_r);
@@ -287,7 +284,6 @@ int main(int argc, char **argv)
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
-
 
   // main iteration loop
 
@@ -336,3 +332,4 @@ int main(int argc, char **argv)
 
   MPI_Finalize();   //user mpi finalize
 }
+

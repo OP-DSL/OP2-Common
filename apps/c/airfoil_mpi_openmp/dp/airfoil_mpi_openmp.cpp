@@ -61,8 +61,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib_mpi.h"
 #include "op_lib_cpp.h"
+#include "op_lib_mpi.h"
 
 //
 //hdf5 header
@@ -186,12 +186,15 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
   free(displs);
 }
 
-static void check_scan(int items_received, int items_expected) {
+static void check_scan(int items_received, int items_expected)
+{
   if(items_received != items_expected) {
     printf("error reading from new_grid.dat\n");
     exit(-1);
   }
 }
+
+// Specify partitioning routine depending on partitioner available
 
 #ifndef OP2_PARTITION
 
@@ -237,7 +240,6 @@ int main(int argc, char **argv)
   int    nnode,ncell,nedge,nbedge,niter;
   double  rms;
 
-
   /**------------------------BEGIN I/O and PARTITIONING -------------------**/
 
   op_timers(&cpu_t1, &wall_t1);
@@ -245,7 +247,7 @@ int main(int argc, char **argv)
   /* read in grid from disk on root processor */
   FILE *fp;
 
-  if ( (fp = fopen("new_grid.dat","r")) == NULL) { //new_grid-26mil.dat
+  if ( (fp = fopen("new_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -276,8 +278,7 @@ int main(int argc, char **argv)
   qinf[2] = 0.0f;
   qinf[3] = r*e;
 
-  if(my_rank == MPI_ROOT)
-  {
+  if(my_rank == MPI_ROOT) {
     printf("reading in grid \n");
     printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
         ,g_nnode,g_ncell,g_nedge,g_nbedge);
@@ -290,10 +291,10 @@ int main(int argc, char **argv)
     g_bound  = (int *) malloc(  g_nbedge*sizeof(int));
 
     g_x      = (double *) malloc(2*g_nnode*sizeof(double));
-    g_q        = (double *) malloc(4*g_ncell*sizeof(double));
-    g_qold     = (double *) malloc(4*g_ncell*sizeof(double));
-    g_res      = (double *) malloc(4*g_ncell*sizeof(double));
-    g_adt      = (double *) malloc(  g_ncell*sizeof(double));
+    g_q      = (double *) malloc(4*g_ncell*sizeof(double));
+    g_qold   = (double *) malloc(4*g_ncell*sizeof(double));
+    g_res    = (double *) malloc(4*g_ncell*sizeof(double));
+    g_adt    = (double *) malloc(  g_ncell*sizeof(double));
 
     for (int n=0; n<g_nnode; n++){
       check_scan(fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]), 2);
@@ -348,7 +349,6 @@ int main(int argc, char **argv)
   res    = (double *) malloc(4*ncell*sizeof(double));
   adt    = (double *) malloc(  ncell*sizeof(double));
 
-
   /* scatter sets, mappings and data on sets*/
   scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
   scatter_int_array(g_edge, edge, comm_size, g_nedge,nedge, 2);
@@ -363,8 +363,7 @@ int main(int argc, char **argv)
   scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
   scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
-  if(my_rank == MPI_ROOT)
-  {
+  if(my_rank == MPI_ROOT) {
     /*Freeing memory allocated to gloabal arrays on rank 0
       after scattering to all processes*/
     free(g_cell);
@@ -373,8 +372,13 @@ int main(int argc, char **argv)
     free(g_bedge);
     free(g_becell);
     free(g_bound);
-    free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
+    free(g_x );
+    free(g_q);
+    free(g_qold);
+    free(g_adt);
+    free(g_res);
   }
+
   op_timers(&cpu_t2, &wall_t2);
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
@@ -476,8 +480,8 @@ int main(int argc, char **argv)
           op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
           op_arg_dat(p_adt, -1,OP_ID, 1,"double",OP_READ ),
           op_arg_gbl(&rms,1,"double",OP_INC));
-
     }
+
     //print iteration history
     if(my_rank==MPI_ROOT)
     {
@@ -485,8 +489,8 @@ int main(int argc, char **argv)
       if (iter%100 == 0)
         printf("%d  %10.5e \n",iter,rms);
     }
-
   }
+
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
@@ -496,7 +500,7 @@ int main(int argc, char **argv)
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  op_timing_output();
+  //op_mpi_timing_output();
 
   //print total time for niter interations
   time = wall_t2-wall_t1;

@@ -50,6 +50,7 @@
 //
 // mpi header file - included by user for user level mpi
 //
+
 #include <mpi.h>
 
 // global constants
@@ -60,8 +61,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib_mpi.h"
 #include "op_lib_cpp.h"
+#include "op_lib_mpi.h"
 
 //
 //hdf5 header
@@ -82,8 +83,10 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 // op_par_loop declarations
 //
+
 #include "op_mpi_seq.h"
 
+// Specify partitioning routine depending on partitioner available
 
 #ifndef OP2_PARTITION
 
@@ -129,6 +132,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t1, &wall_t1);
 
   // set constants
+
   if(my_rank == MPI_ROOT )printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
@@ -261,8 +265,8 @@ int main(int argc, char **argv)
           op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
           op_arg_dat(p_adt, -1,OP_ID, 1,"double",OP_READ ),
           op_arg_gbl(&rms,1,"double",OP_INC));
-
     }
+
     //print iteration history
     if(my_rank==MPI_ROOT)
     {
@@ -270,8 +274,8 @@ int main(int argc, char **argv)
       if (iter%100 == 0)
         printf("%d  %10.5e \n",iter,rms);
     }
-
   }
+
   op_timers(&cpu_t2, &wall_t2);
 
   //output the result dat array to files

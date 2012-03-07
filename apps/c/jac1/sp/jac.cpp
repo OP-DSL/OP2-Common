@@ -47,7 +47,6 @@
 
 float alpha;
 
-
 //
 // OP header file
 //
@@ -62,12 +61,10 @@ float alpha;
 #include "res.h"
 #include "update.h"
 
-
 // define problem size
 
 #define NN       6
 #define NITER    2
-
 
 // main program
 
@@ -111,7 +108,7 @@ int main(int argc, char **argv)
 
         if ( (i2==0) || (i2==NN) || (j2==0) || (j2==NN) ) {
           r[n] += 0.25f;
-  }
+        }
         else {
           pp[2*e]   = n;
           pp[2*e+1] = i2-1 + (j2-1)*(NN-1);
@@ -170,22 +167,12 @@ int main(int argc, char **argv)
   printf("\n  Results after %d iterations:\n\n",NITER);
 
   op_fetch_data(p_u);
-  /*
-  op_fetch_data(p_du);
-  op_fetch_data(p_r);
-  */
 
   for (int pass=0; pass<1; pass++) {
-    /*
-    if(pass==0)      printf("\narray u\n");
-    else if(pass==1) printf("\narray du\n");
-    else if(pass==2) printf("\narray r\n");
-    */
-
     for (int j=NN-1; j>0; j--) {
       for (int i=1; i<NN; i++) {
         if (pass==0)
-    printf(" %7.4f",u[i-1 + (j-1)*(NN-1)]);
+          printf(" %7.4f",u[i-1 + (j-1)*(NN-1)]);
         else if (pass==1)
           printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
         else if (pass==2)
@@ -208,3 +195,4 @@ int main(int argc, char **argv)
   free(u);
   free(du);
 }
+

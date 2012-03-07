@@ -46,6 +46,7 @@
 //
 // mpi header file - included by user for user level mpi
 //
+
 #include <mpi.h>
 
 // global constants
@@ -173,8 +174,7 @@ int main(int argc, char **argv)
   int *g_pp = 0;
   double *g_A = 0, *g_r = 0, *g_u = 0, *g_du = 0;
 
-  if(my_rank == MPI_ROOT)
-  {
+  if(my_rank == MPI_ROOT) {
     printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
     g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
@@ -243,9 +243,9 @@ int main(int argc, char **argv)
   scatter_double_array(g_u, u, comm_size, g_nnode,nnode, 1);
   scatter_double_array(g_du, du, comm_size, g_nnode,nnode, 1);
 
-  if(my_rank == MPI_ROOT)
-  {     /*Freeing memory allocated to gloabal arrays on rank 0
-          after scattering to all processes*/
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
+  if(my_rank == MPI_ROOT) {
     free(g_pp);
     free(g_A);
     free(g_r);
@@ -332,3 +332,4 @@ int main(int argc, char **argv)
 
   MPI_Finalize();   //user mpi finalize
 }
+
