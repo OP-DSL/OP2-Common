@@ -66,7 +66,7 @@ void op_par_loop_update(char const *name, op_set set,
   // initialise timers                                                
                                                                       
   double cpu_t1, cpu_t2, wall_t1, wall_t2;                            
-  op_timers(&cpu_t1, &wall_t1);                                       
+  op_timers_core(&cpu_t1, &wall_t1);                                       
                                                                       
   // set CUDA execution parameters                                    
                                                                       
@@ -142,7 +142,7 @@ void op_par_loop_update(char const *name, op_set set,
                                                                       
   // update kernel record                                             
                                                                       
-  op_timers(&cpu_t2, &wall_t2);                                       
+  op_timers_core(&cpu_t2, &wall_t2);                                       
   op_timing_realloc(1);                                               
   OP_kernels[1].name      = name;                                     
   OP_kernels[1].count    += 1;                                        

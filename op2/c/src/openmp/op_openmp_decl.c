@@ -136,6 +136,10 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_acc
 	return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
+void op_timers(double * cpu, double * et)
+{
+    op_timers_core(cpu,et);
+}
 
 op_arg
 op_arg_gbl ( char * data, int dim, const char * type, op_access acc )

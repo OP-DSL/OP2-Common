@@ -117,3 +117,9 @@ op_arg op_arg_gbl( char * data, int dim, const char * type, op_access acc )
 {
 	return op_arg_gbl ( data, dim, type, acc );
 }
+
+void op_timers(double * cpu, double * et)
+{
+    MPI_Barrier(MPI_COMM_WORLD);
+    op_timers_core(cpu,et);
+}

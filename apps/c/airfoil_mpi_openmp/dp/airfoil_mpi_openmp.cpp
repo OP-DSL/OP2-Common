@@ -236,7 +236,6 @@ int main(int argc, char **argv){
   
     /**------------------------BEGIN I/O and PARTITIONING -------------------**/
     
-    MPI_Barrier(MPI_COMM_WORLD); 
     op_timers(&cpu_t1, &wall_t1);
     
     /* read in grid from disk on root processor */
@@ -373,7 +372,6 @@ int main(int argc, char **argv){
 	free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
     }
     
-    MPI_Barrier(MPI_COMM_WORLD); 
     op_timers(&cpu_t2, &wall_t2); 
     op_printf("Max total file read time = %f\n", wall_t2-wall_t1); 
     
@@ -417,7 +415,6 @@ int main(int argc, char **argv){
     op_halo_create();    
 
     //initialise timers for total execution wall time
-    MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t1, &wall_t1); 
 
     niter = 1000;
@@ -478,7 +475,7 @@ int main(int argc, char **argv){
             op_printf("%d  %10.5e \n",iter,rms);
         
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     op_timers(&cpu_t2, &wall_t2);
     
     //get results data array

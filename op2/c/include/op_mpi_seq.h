@@ -107,7 +107,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1)//indirect loop
   {
@@ -172,7 +172,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
       global_reduce(&arg1);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -213,7 +213,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1)//indirect loop
   {
@@ -299,7 +299,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
       global_reduce(&arg3);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -346,7 +346,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 )//indirect loop
@@ -447,7 +447,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg4);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -497,7 +497,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1)//indirect loop
@@ -609,7 +609,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg5);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
 
   //update performance records
   #ifdef COMM_PERF
@@ -664,7 +664,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1 || arg6.idx != -1 || arg7.idx != -1)//indirect loop
@@ -798,7 +798,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg7);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
 
   //update performance records
   #ifdef COMM_PERF

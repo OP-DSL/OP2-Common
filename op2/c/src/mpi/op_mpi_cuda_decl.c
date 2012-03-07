@@ -186,6 +186,11 @@ void op_printf(const char* format, ...)
     }
 }
 
+void op_timers(double * cpu, double * et)
+{
+    MPI_Barrier(MPI_COMM_WORLD);
+    op_timers_core(cpu,et);
+}
 
 // 
 // This function is defined in the generated master kernel file

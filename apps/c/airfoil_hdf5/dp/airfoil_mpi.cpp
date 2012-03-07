@@ -116,7 +116,6 @@ int main(int argc, char **argv){
     int    niter;
     double  rms;
     
-    MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t1, &wall_t1);
     
     // set constants
@@ -163,7 +162,6 @@ int main(int argc, char **argv){
 
     /**------------------------END Parallel I/O  -----------------------**/
     
-    MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t2, &wall_t2); 
     op_printf("Max total file read time = %f\n",wall_t2-wall_t1); 
 
@@ -192,7 +190,6 @@ int main(int argc, char **argv){
     int g_ncell = op_get_size(cells);
     
     //initialise timers for total execution wall time
-    MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t1, &wall_t1); 
     
     niter = 1000;
@@ -252,7 +249,7 @@ int main(int argc, char **argv){
         if (iter%100 == 0)
             op_printf("%d  %10.5e \n",iter,rms);        
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     op_timers(&cpu_t2, &wall_t2);
        
     //output the result dat array to files 

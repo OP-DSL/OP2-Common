@@ -373,7 +373,6 @@ int main(int argc, char **argv){
     
     
     //initialise timers for total execution wall time
-    MPI_Barrier(MPI_COMM_WORLD);
     op_timers(&cpu_t1, &wall_t1); 
     
     niter = 1000;
@@ -434,7 +433,7 @@ int main(int argc, char **argv){
             op_printf("%d  %10.5e \n",iter,rms);
         
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     op_timers(&cpu_t2, &wall_t2);
     
     //get results data array
