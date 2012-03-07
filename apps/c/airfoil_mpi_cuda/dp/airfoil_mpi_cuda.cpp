@@ -2,7 +2,10 @@
  * Open source copyright declaration based on BSD open source template:
  * http://www.opensource.org/licenses/bsd-license.php
  *
- * Copyright (c) 2009-2011, Mike Giles
+ * This file is part of the OP2 distribution.
+ *
+ * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
+ * the main source directory for a full list of copyright holders.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
