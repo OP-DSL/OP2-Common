@@ -25,4 +25,3 @@ inline void adt_calc(double *x1,double *x2,double *x3,double *x4,double *q,doubl
   *adt = (*adt) / cfl;
 }
 
-

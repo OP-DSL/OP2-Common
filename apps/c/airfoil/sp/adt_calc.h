@@ -25,4 +25,3 @@ inline void adt_calc(float *x1,float *x2,float *x3,float *x4,float *q,float *adt
   *adt = (*adt) / cfl;
 }
 
-

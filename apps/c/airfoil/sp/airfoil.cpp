@@ -69,8 +69,8 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 // main program
 
-int main(int argc, char **argv){
-
+int main(int argc, char **argv)
+{
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   float  *x, *q, *qold, *adt, *res;
 
@@ -142,7 +142,7 @@ int main(int argc, char **argv){
   eps = 0.05f;
 
   float mach  = 0.4f;
-  float alpha = 3.0f*atanf(1.0f)/45.0f;  
+  float alpha = 3.0f*atanf(1.0f)/45.0f;
   float p     = 1.0f;
   float r     = 1.0f;
   float u     = sqrtf(gam*p/r)*mach;
@@ -194,23 +194,23 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
 
-// main time-marching loop
+  // main time-marching loop
 
   niter = 1000;
 
   for(int iter=1; iter<=niter; iter++) {
 
-//  save old flow solution
+    // save old flow solution
 
     op_par_loop(save_soln,"save_soln", cells,
                 op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
                 op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
 
-//  predictor/corrector update loop
+    // predictor/corrector update loop
 
     for(int k=0; k<2; k++) {
 
-//    calculate area/timstep
+      // calculate area/timstep
 
       op_par_loop(adt_calc,"adt_calc",cells,
                   op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
@@ -220,7 +220,7 @@ int main(int argc, char **argv){
                   op_arg_dat(p_q,  -1,OP_ID, 4,"float",OP_READ ),
                   op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
 
-//    calculate flux residual
+      // calculate flux residual
 
       op_par_loop(res_calc,"res_calc",edges,
                   op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
@@ -240,7 +240,7 @@ int main(int argc, char **argv){
                   op_arg_dat(p_res,   0,pbecell,4,"float",OP_INC ),
                   op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
 
-//    update flow field
+      // update flow field
 
       rms = 0.0;
 
@@ -252,7 +252,7 @@ int main(int argc, char **argv){
                   op_arg_gbl(&rms,1,"float",OP_INC));
     }
 
-//  print iteration history
+    // print iteration history
 
     rms = sqrtf(rms/(float) ncell);
 
@@ -263,6 +263,5 @@ int main(int argc, char **argv){
   op_timing_output();
   op_exit();
 
-  
 }
 

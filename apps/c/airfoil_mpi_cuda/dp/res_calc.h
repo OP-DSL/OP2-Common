@@ -28,3 +28,4 @@ inline void res_calc(double *x1,  double *x2,  double *q1,  double *q2,
   res1[3] += f;
   res2[3] -= f;
 }
+
