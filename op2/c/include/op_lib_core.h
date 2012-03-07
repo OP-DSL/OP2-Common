@@ -204,7 +204,7 @@ void op_timing_output_2_file ( const char * );
 
 void op_timing_realloc ( int );
 
-void op_timers ( double *cpu, double *et );
+void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 

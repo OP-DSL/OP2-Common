@@ -100,6 +100,11 @@ void op_printf(const char* format, ...)
   va_end(argptr);
 }
 
+void op_timers(double * cpu, double * et)
+{
+    op_timers_core(cpu,et);
+}
+
 void op_exit ()
 {
   op_exit_core ();

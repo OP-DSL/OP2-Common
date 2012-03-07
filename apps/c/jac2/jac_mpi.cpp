@@ -307,7 +307,6 @@ int main(int argc, char **argv)
   op_halo_create();
 
   //initialise timers for total execution wall time
-  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t1, &wall_t1);
 
   // main iteration loop
@@ -333,7 +332,6 @@ int main(int argc, char **argv)
     op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array

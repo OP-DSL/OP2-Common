@@ -94,6 +94,8 @@ int op_get_size(op_set set);
 
 void op_printf(const char* format, ...);
 
+void op_timers( double *cpu, double *et );
+
 #ifdef __cplusplus
 }
 #endif
