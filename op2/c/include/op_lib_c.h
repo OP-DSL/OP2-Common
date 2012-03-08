@@ -103,3 +103,5 @@ void op_timers( double *cpu, double *et );
 #endif /* __OP_LIB_C_H */
 
 #include "op_rt_support.h"
+
+#include "op_hdf5.h"

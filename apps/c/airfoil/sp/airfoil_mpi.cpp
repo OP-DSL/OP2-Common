@@ -147,7 +147,7 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
 static void check_scan(int items_received, int items_expected)
 {
   if(items_received != items_expected) {
-    printf("error reading from new_grid.dat\n");
+    op_printf("error reading from new_grid.dat\n");
     exit(-1);
   }
 }
