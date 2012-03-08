@@ -1,37 +1,39 @@
 /*
-  Open source copyright declaration based on BSD open source template:
-  http://www.opensource.org/licenses/bsd-license.php
+ * Open source copyright declaration based on BSD open source template:
+ * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * This file is part of the OP2 distribution.
+ *
+ * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
+ * the main source directory for a full list of copyright holders.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-* Copyright (c) 2009, Mike Giles
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*     * Redistributions of source code must retain the above copyright
-*       notice, this list of conditions and the following disclaimer.
-*     * Redistributions in binary form must reproduce the above copyright
-*       notice, this list of conditions and the following disclaimer in the
-*       documentation and/or other materials provided with the distribution.
-*     * The name of Mike Giles may not be used to endorse or promote products
-*       derived from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
-/* 
+/*
  * op_mpi_core.c
- * 
- * Implements the HDF5 based parallel I/O routines for the OP2 Distributed memory 
+ *
+ * Implements the HDF5 based parallel I/O routines for the OP2 Distributed memory
  * backe end
  *
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
@@ -55,95 +57,94 @@
 #include <op_mpi_core.h>
 #include <op_hdf5.h>
 
-
-
 //
 //MPI Communicator for parallel I/O
 //
-MPI_Comm OP_MPI_HDF5_WORLD;
 
+MPI_Comm OP_MPI_HDF5_WORLD;
 
 /*******************************************************************************
 * Routine to write an op_set to an already open hdf5 file
 *******************************************************************************/
+
 op_set op_decl_set_hdf5(char const *file, char const *name)
 {
-    //create new communicator 
+    //create new communicator
     int my_rank, comm_size;
     MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
     MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
     MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
-    
+
     //MPI variables
     MPI_Info info  = MPI_INFO_NULL;
-    
+
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
     hid_t	plist_id;  //property list identifier
-    hid_t	dset_id; //dataset identifier	
-    
+    hid_t	dset_id; //dataset identifier
+
     //Set up file access property list with parallel I/O access
     plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
-    
-    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id ); 
+
+    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id );
     H5Pclose(plist_id);
-    
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-    
+
     //Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-	
+
     int g_size = 0;
     //read data
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, &g_size);
-    
+
     H5Pclose(plist_id);
     H5Dclose(dset_id);
-    
+
     H5Fclose(file_id);
-    
+
     //calculate local size of set for this mpi process
     int l_size = compute_local_size (g_size, comm_size, my_rank);
     MPI_Comm_free(&OP_MPI_HDF5_WORLD);
-        
+
     return op_decl_set(l_size,  name);
 }
-
 
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
 *******************************************************************************/
+
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name)
 {
-    //create new communicator 
+    //create new communicator
     int my_rank, comm_size;
     MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
     MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
     MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
-    
+
     //MPI variables
     MPI_Info info  = MPI_INFO_NULL;
-    
+
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
     hid_t	plist_id;  //property list identifier
-    hid_t	dset_id; //dataset identifier	
+    hid_t	dset_id; //dataset identifier
     hid_t       dataspace; //data space identifier
     hid_t       memspace; //memory space identifier
-    
-    hsize_t	count[2]; //hyperslab selection parameters 
+
+    hsize_t	count[2]; //hyperslab selection parameters
     hsize_t	offset[2];
-    
+
     //Set up file access property list with parallel I/O access
     plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
-    
-    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id ); 
+
+    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id );
     H5Pclose(plist_id);
-    
+
     /*find total size of this map by reading attributes*/
     int g_size;
     //open existing data set
@@ -154,7 +155,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     H5Aread(attr,H5T_NATIVE_INT,&g_size);
     H5Aclose(attr);
     H5Dclose(dset_id);
-    
+
     //calculate local size of set for this mpi process
     int l_size = compute_local_size (g_size, comm_size, my_rank);
 
@@ -165,7 +166,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     	    l_size,file,from->size, my_rank);
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
-    
+
     /*find dim with available attributes*/
     int map_dim = 0;
     //open existing data set
@@ -180,8 +181,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     {
     	printf("map.dim %d in file %s and dim %d do not match\n",map_dim,file,dim);
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-    }    
-    
+    }
+
     /*find type with available attributes*/
     dataspace= H5Screate(H5S_SCALAR);
     hid_t  atype = H5Tcopy(H5T_C_S1);
@@ -196,9 +197,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     H5Aclose(attr);
     H5Sclose(dataspace);
     H5Dclose(dset_id);
-    
+
     /*read in map in hyperslabs*/
-    
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
 
@@ -208,21 +209,21 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     MPI_Allgather(&l_size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
     free(sizes);
-    
+
     count[0] = l_size;
     count[1] = dim;
     offset[0] = disp;
     offset[1] = 0;
     memspace = H5Screate_simple(2, count, NULL);
-    
+
     //Select hyperslab in the file.
     dataspace = H5Dget_space(dset_id);
     H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
-  
+
     //Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-    
+
     //initialize data buffer and read data
     int* map = 0;
     if(strcmp(typ,"int") == 0)
@@ -240,57 +241,57 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     	map = (int *)xmalloc(sizeof(long)*l_size*dim);
     	H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
     }
-    else 
+    else
     {
     	printf("unknown type\n");
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
-    
+
     H5Pclose(plist_id);
     H5Sclose(memspace);
     H5Sclose(dataspace);
-    H5Dclose(dset_id);	
-    
+    H5Dclose(dset_id);
+
     H5Fclose(file_id);
     MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
     return op_decl_map(from, to, dim, map, name);
 }
 
-
 /*******************************************************************************
 * Routine to write an op_map to an already open hdf5 file
 *******************************************************************************/
+
 op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name)
 {
-    //create new communicator 
+    //create new communicator
     int my_rank, comm_size;
     MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
     MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
     MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
-    
+
     //MPI variables
     MPI_Info info  = MPI_INFO_NULL;
-    
+
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
     hid_t	plist_id;  //property list identifier
-    hid_t	dset_id; //dataset identifier	
+    hid_t	dset_id; //dataset identifier
     hid_t       dataspace; //data space identifier
     hid_t       memspace; //memory space identifier
 
-    hsize_t	count[2]; //hyperslab selection parameters 
+    hsize_t	count[2]; //hyperslab selection parameters
     hsize_t	offset[2];
     hid_t attr;		//attribute identifier
-    
+
     //Set up file access property list with parallel I/O access
     plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
-    
-    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id ); 
+
+    file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id );
     H5Pclose(plist_id);
-    
-    
+
+
     /*find element size of this dat with available attributes*/
     size_t dat_size = 0;
     //open existing data set
@@ -301,8 +302,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Aread(attr,H5T_NATIVE_INT,&dat_size);
     H5Aclose(attr);
     H5Dclose(dset_id);
-        
-    
+
+
     /*find dim with available attributes*/
     int dat_dim = 0;
     //open existing data set
@@ -318,7 +319,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	printf("dat.dim %d in file %s and dim %d do not match\n",dat_dim,file,dim);
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
-    
+
     /*find type with available attributes*/
     dataspace= H5Screate(H5S_SCALAR);
     hid_t  atype = H5Tcopy(H5T_C_S1);
@@ -338,41 +339,41 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
-    
-    
+
+
     /*read in dat in hyperslabs*/
-    
+
     //Create the dataset with default properties and close dataspace.
     dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-    
+
     //Each process defines dataset in memory and reads from a hyperslab in the file.
     int disp = 0;
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     MPI_Allgather(&(set->size), 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
     free(sizes);
-    
+
     count[0] = set->size;
     count[1] = dim;
     offset[0] = disp;
     offset[1] = 0;
     memspace = H5Screate_simple(2, count, NULL);
-    
+
     //Select hyperslab in the file.
     dataspace = H5Dget_space(dset_id);
     H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
-  
+
     //Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-    
+
     //initialize data buffer and read in data
     char* data = 0;
     if(strcmp(type,"double") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(double));
     	H5Dread(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, data);
-    	
+
     	if(dat_size != dim*sizeof(double))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
@@ -380,91 +381,91 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     	}
     	else
     	    dat_size = sizeof(double);
-    	
+
     }else if(strcmp(type,"float") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(float));
     	H5Dread(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, data);
-    	
-    	if(dat_size != dim*sizeof(float)) 
+
+    	if(dat_size != dim*sizeof(float))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
     	    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     	}
     	else
     	    dat_size = sizeof(float);
-    	
+
     }else if(strcmp(type,"int") == 0)
     {
     	data = (char *)xmalloc(set->size*dim*sizeof(int));
     	H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, data);
-    	
-    	if(dat_size != dim*sizeof(int)) 
+
+    	if(dat_size != dim*sizeof(int))
     	{
     	    printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
     	    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     	}
     	else
-    	    dat_size = sizeof(int);    	
-    }else 
+    	    dat_size = sizeof(int);
+    }else
     {
     	printf("unknown type\n");
     	MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
-    
+
     H5Pclose(plist_id);
     H5Sclose(memspace);
     H5Sclose(dataspace);
     H5Dclose(dset_id);
-    
+
     H5Fclose(file_id);
     MPI_Comm_free(&OP_MPI_HDF5_WORLD);
-    
-    return op_decl_dat(set, dim, type, dat_size, data, name );    
-}
 
+    return op_decl_dat(set, dim, type, dat_size, data, name );
+}
 
 /*******************************************************************************
 * Routine to write all to a named hdf5 file
 *******************************************************************************/
+
 void op_write_hdf5(char const * file_name)
 {
     printf("Writing to %s\n",file_name);
-    
+
     //declare timers
     double cpu_t1, cpu_t2, wall_t1, wall_t2;
     double time;
     double max_time;
     op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
-    
-    //create new communicator 
+
+    //create new communicator
     int my_rank, comm_size;
     MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
     MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
     MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
-    
+
     //MPI variables
     MPI_Info info  = MPI_INFO_NULL;
-    
+
     //HDF5 APIs definitions
     hid_t       file_id; //file identifier
     hid_t	plist_id;  //property list identifier
-    hid_t	dset_id = 0; //dataset identifier	
+    hid_t	dset_id = 0; //dataset identifier
     hid_t       dataspace; //data space identifier
     hid_t       memspace; //memory space identifier
-    
+
     hsize_t     dimsf[2]; // dataset dimensions
-    hsize_t	count[2]; //hyperslab selection parameters 
+    hsize_t	count[2]; //hyperslab selection parameters
     hsize_t	offset[2];
-    
+
     //Set up file access property list with parallel I/O access
     plist_id = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);    
-    
+    H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
+
     //Create a new file collectively and release property list identifier.
     file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
     H5Pclose(plist_id);
-    
+
     /*loop over all the op_sets and write them to file*/
     for(int s=0; s<OP_set_index; s++) {
       op_set set=OP_set_list[s];
@@ -492,8 +493,8 @@ void op_write_hdf5(char const * file_name)
       H5Pclose(plist_id);
       H5Dclose(dset_id);
     }
-    
-    
+
+
     /*loop over all the op_maps and write them to file*/
     for(int m=0; m<OP_map_index; m++) {
       op_map map=OP_map_list[m];
@@ -507,7 +508,7 @@ void op_write_hdf5(char const * file_name)
       //Create the dataspace for the dataset.
       dimsf[0] = g_size;
       dimsf[1] = map->dim;
-      dataspace = H5Screate_simple(2, dimsf, NULL);	
+      dataspace = H5Screate_simple(2, dimsf, NULL);
 
       //Create the dataset with default properties and close dataspace.
       if(sizeof(map->map[0]) == sizeof(int))
@@ -547,7 +548,7 @@ void op_write_hdf5(char const * file_name)
       else if(sizeof(map->map[0]) == sizeof(long))
         H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, map->map);
       else if(sizeof(map->map[0]) == sizeof(long long))
-        H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map->map);	    
+        H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map->map);
 
       H5Pclose(plist_id);
       H5Sclose(memspace);
@@ -565,19 +566,19 @@ void op_write_hdf5(char const * file_name)
       dataspace = H5Screate_simple(1, &dims, NULL);
 
       //Create an int attribute - size
-      hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace, 
+      hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT);
-      //Write the attribute data. 
+      //Write the attribute data.
       H5Awrite(attribute, H5T_NATIVE_INT, &g_size);
-      //Close the attribute. 
+      //Close the attribute.
       H5Aclose(attribute);
 
       //Create an int attribute - dimension
-      attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace, 
+      attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT);
-      //Write the attribute data. 
+      //Write the attribute data.
       H5Awrite(attribute, H5T_NATIVE_INT, &map->dim);
-      //Close the attribute. 
+      //Close the attribute.
       H5Aclose(attribute);
       H5Sclose(dataspace);
 
@@ -585,8 +586,8 @@ void op_write_hdf5(char const * file_name)
       dataspace= H5Screate(H5S_SCALAR);
       hid_t atype = H5Tcopy(H5T_C_S1);
       H5Tset_size(atype, 10);
-      attribute = H5Acreate(dset_id, "type", atype, dataspace, 
-          H5P_DEFAULT, H5P_DEFAULT);    	
+      attribute = H5Acreate(dset_id, "type", atype, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT);
 
       if(sizeof(map->map[0]) == sizeof(int))
         H5Awrite(attribute, atype, "int");
@@ -595,13 +596,13 @@ void op_write_hdf5(char const * file_name)
       if(sizeof(map->map[0]) == sizeof(long long))
         H5Awrite(attribute, atype, "long long");
 
-      H5Aclose(attribute);	
+      H5Aclose(attribute);
       //Close the dataspace
       H5Sclose(dataspace);
-      //Close to the dataset. 
+      //Close to the dataset.
       H5Dclose(dset_id);
     }
-        
+
     /*loop over all the op_dats and write them to file*/
     for(int d=0; d<OP_dat_index; d++) {
       op_dat dat=OP_dat_list[d];
@@ -615,7 +616,7 @@ void op_write_hdf5(char const * file_name)
       //Create the dataspace for the dataset.
       dimsf[0] = g_size;
       dimsf[1] = dat->dim;
-      dataspace = H5Screate_simple(2, dimsf, NULL);	
+      dataspace = H5Screate_simple(2, dimsf, NULL);
 
       //Create the dataset with default properties and close dataspace.
       if(strcmp(dat->type,"double")==0)
@@ -674,17 +675,17 @@ void op_write_hdf5(char const * file_name)
       dataspace = H5Screate_simple(1, &dims, NULL);
 
       //Create an int attribute - size
-      hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace, 
+      hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT);
-      //Write the attribute data. 
+      //Write the attribute data.
       H5Awrite(attribute, H5T_NATIVE_INT, &dat->size);
-      //Close the attribute. 
+      //Close the attribute.
       H5Aclose(attribute);
 
       //Create an int attribute - dimension
-      attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace, 
+      attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT);
-      //Write the attribute data. 
+      //Write the attribute data.
       H5Awrite(attribute, H5T_NATIVE_INT, &dat->dim);
       H5Aclose(attribute);
       H5Sclose(dataspace);
@@ -693,28 +694,28 @@ void op_write_hdf5(char const * file_name)
       dataspace= H5Screate(H5S_SCALAR);
       hid_t atype = H5Tcopy(H5T_C_S1);
       H5Tset_size(atype, 10);
-      attribute = H5Acreate(dset_id, "type", atype, dataspace, 
+      attribute = H5Acreate(dset_id, "type", atype, dataspace,
           H5P_DEFAULT, H5P_DEFAULT);
-      H5Awrite(attribute, atype, dat->type); 
+      H5Awrite(attribute, atype, dat->type);
       H5Aclose(attribute);
 
       //Close the dataspace.
       H5Sclose(dataspace);
       H5Dclose(dset_id);
-    }   
-    
+    }
+
     H5Fclose(file_id);
-    
+
     op_timers(&cpu_t2, &wall_t2);  //timer stop for hdf5 file write
     //compute import/export lists creation time
     time = wall_t2-wall_t1;
-    MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_HDF5_WORLD);   
+    MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_HDF5_WORLD);
     //print performance results
     if(my_rank == MPI_ROOT)
     {
     	printf("Max hdf5 file write time = %lf\n\n",max_time);
     }
-    MPI_Comm_free(&OP_MPI_HDF5_WORLD); 
-    
+    MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+
 }
 

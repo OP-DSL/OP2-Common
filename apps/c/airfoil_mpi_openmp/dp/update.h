@@ -10,3 +10,4 @@ inline void update(double *qold, double *q, double *res, double *adt, double *rm
     *rms  += del*del;
   }
 }
+

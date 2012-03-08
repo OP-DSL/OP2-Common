@@ -1,31 +1,44 @@
-/* 
-   Open source copyright declaration based on BSD open source template:
-   http://www.opensource.org/licenses/bsd-license.php
+/*
+ * Open source copyright declaration based on BSD open source template:
+ * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * This file is part of the OP2 distribution.
+ *
+ * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
+ * the main source directory for a full list of copyright holders.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-   * Copyright (c) 2009-2011, Mike Giles * All rights reserved. * * Redistribution and use in
-   source and binary forms, with or without * modification, are permitted provided that the
-   following conditions are met: * * Redistributions of source code must retain the above copyright
-   * notice, this list of conditions and the following disclaimer. * * Redistributions in binary
-   form must reproduce the above copyright * notice, this list of conditions and the following
-   disclaimer in the * documentation and/or other materials provided with the distribution. * * The
-   name of Mike Giles may not be used to endorse or promote products * derived from this software
-   without specific prior written permission. * * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS''
-   AND ANY * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED * WARRANTIES
-   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE * DISCLAIMED. IN NO EVENT SHALL Mike
-   Giles BE LIABLE FOR ANY * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-   DAMAGES * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; * LOSS OF
-   USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND * ON ANY THEORY OF LIABILITY, 
-   WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-   ANY WAY OUT OF THE USE OF THIS * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/* 
+/*
  * This file implements the OP2 core library functions used by *any*
  * OP2 implementation
  */
+
 #include <sys/time.h>
 #include "op_lib_core.h"
 
-/* 
+/*
  * OP2 global state variables
  */
 
@@ -39,7 +52,7 @@ int OP_set_index = 0, OP_set_max = 0,
     OP_dat_index = 0, OP_dat_max = 0,
     OP_kern_max = 0;
 
-/* 
+/*
  * Lists of sets, maps and dats declared in OP2 programs
  */
 
@@ -48,7 +61,7 @@ op_map * OP_map_list;
 op_dat * OP_dat_list;
 op_kernel * OP_kernels;
 
-/* 
+/*
  * OP core functions: these must be called by back-end specific functions
  */
 
@@ -66,7 +79,7 @@ void
 
 	for ( int n = 1; n < argc; n++ )
 	{
-    
+
 		if ( strncmp ( argv[n], "OP_BLOCK_SIZE=", 14 ) == 0 )
 		{
 			OP_block_size = atoi ( argv[n] + 14 );
@@ -78,20 +91,19 @@ void
 			OP_part_size = atoi ( argv[n] + 13 );
 			printf ( "\n OP_part_size  = %d \n", OP_part_size );
 		}
-		
+
 		if ( strncmp ( argv[n], "OP_CACHE_LINE_SIZE=", 19 ) == 0 )
 		{
 			OP_cache_line_size = atoi ( argv[n] + 19 );
 			printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
 		}
-		
+
 	}
 }
 
 op_set
 op_decl_set_core ( int size, char const * name )
 {
-
 	if ( size <= 0 )
 	{
 		printf ( " op_decl_set error -- negative/zero size for set: %s\n", name );
@@ -102,13 +114,13 @@ op_decl_set_core ( int size, char const * name )
 	{
 		OP_set_max += 10;
 		OP_set_list = ( op_set * ) realloc ( OP_set_list, OP_set_max * sizeof ( op_set ) );
-		
+
     if ( OP_set_list == NULL )
 		{
 			printf ( " op_decl_set error -- error reallocating memory\n" );
 			exit ( -1 );
 		}
-		
+
 	}
 
 	op_set set = ( op_set ) malloc ( sizeof ( op_set_core ) );
@@ -125,7 +137,6 @@ op_decl_set_core ( int size, char const * name )
 op_map
 op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * name )
 {
-
   if ( from == NULL )
 	{
 		printf ( " op_decl_map error -- invalid 'from' set for map %s\n", name );
@@ -186,7 +197,6 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
 op_dat
 op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data, char const * name )
 {
-
 	if ( set == NULL )
 	{
 		printf ( "op_decl_dat error -- invalid set for data: %s\n", name );
@@ -238,7 +248,6 @@ op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char
 void
 op_exit_core (  )
 {
-
 	// free storage and pointers for sets, maps and data
 
 	for ( int i = 0; i < OP_set_index; i++ )
@@ -291,7 +300,6 @@ op_err_print ( const char * error_string, int m, const char * name )
 void
 op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 {
-
 	/* error checking for op_arg_dat */
 
 	if ( arg.argtype == OP_ARG_DAT )
@@ -393,9 +401,9 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
 	return arg;
 }
 
-/* 
+/*
  * diagnostic routines
- */ 
+ */
 
 void
 op_diagnostic_output (  )
@@ -464,14 +472,14 @@ op_timing_output_2_file ( const char * outputFileName )
 {
   FILE * outputFile = NULL;
   float totalKernelTime = 0.0f;
-  
+
   outputFile = fopen ( outputFileName, "w+" );
   if ( outputFile == NULL )
   {
     printf ( "Bad output file\n" );
     exit ( 1 );
   }
-   
+
 	if ( OP_kern_max > 0 )
 	{
 		fprintf ( outputFile, "\n  count     time     GB/s     GB/s   kernel name " );
@@ -501,7 +509,7 @@ op_timing_output_2_file ( const char * outputFileName )
 		}
     fprintf ( outputFile, "Total kernel time = %f\n", totalKernelTime );
 	}
-  
+
   fclose ( outputFile );
 }
 
@@ -514,7 +522,6 @@ op_timers ( double * cpu, double * et )
   gettimeofday ( &t, ( struct timezone * ) 0 );
   *et = t.tv_sec + t.tv_usec * 1.0e-6;
 }
-
 
 void
 op_timing_realloc ( int kernel )
@@ -553,7 +560,7 @@ op_dump_dat ( op_dat data )
       for ( int i = 0; i < data->dim * data->set->size; i++ )
         printf ( "%lf\n", ((double *) data->data)[i] );
     } else if ( strncmp ( "integer", data->type, 7 ) == 0 ) {
-      for ( int i = 0; i < data->dim * data->set->size; i++ )        
+      for ( int i = 0; i < data->dim * data->set->size; i++ )
         printf ( "%d\n", data->data[i] );
     } else {
       printf ( "Unsupported type for dumping %s\n", data->type );
