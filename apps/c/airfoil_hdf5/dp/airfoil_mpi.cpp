@@ -65,12 +65,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_mpi.h"
 
 //
-//hdf5 header
-//
-
-#include "hdf5.h"
-
-//
 // kernel routines for parallel loops
 //
 
@@ -102,7 +96,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
       // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
       // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/
     #else //ifdef PARMETIS
-      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+      #define OP2_PARTITION op_printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
     #endif //ifdef PARMETIS
   #endif //ifdef PTSCOTCH
 
@@ -114,17 +108,11 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv)
 {
-  int my_rank;
-  int comm_size;
-
-  MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+  // OP initialisation
+  op_init(argc,argv,2);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int    niter;
   double  rms;
@@ -132,8 +120,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t1, &wall_t1);
 
   // set constants
-
-  if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+  op_printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -151,12 +138,9 @@ int main(int argc, char **argv)
   qinf[2] = 0.0f;
   qinf[3] = r*e;
 
-  // OP initialisation
-  op_init(argc,argv,2);
-
   /**------------------------BEGIN Parallel I/O -------------------**/
 
-  char file[] = "new_grid.h5";
+  char file[] = "new_grid.h5";//"new_grid-26mil.h5";//"new_grid.h5";
 
   // declare sets, pointers, datasets and global constants - reading in from file
   op_set nodes  = op_decl_set_hdf5(file, "nodes");
@@ -180,9 +164,7 @@ int main(int argc, char **argv)
   /**------------------------END Parallel I/O  -----------------------**/
 
   op_timers(&cpu_t2, &wall_t2);
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time);
+  op_printf("Max total file read time = %f\n",wall_t2-wall_t1);
 
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
@@ -206,11 +188,7 @@ int main(int argc, char **argv)
   //create halos
   op_halo_create();
 
-  int g_ncell = 0;
-  int* sizes = (int *)malloc(sizeof(int)*comm_size);
-  MPI_Allgather(&cells->size, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
-  for(int i = 0; i<comm_size; i++)g_ncell = g_ncell + sizes[i];
-  free(sizes);
+  int g_ncell = op_get_size(cells);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -268,12 +246,9 @@ int main(int argc, char **argv)
     }
 
     //print iteration history
-    if(my_rank==MPI_ROOT)
-    {
-      rms = sqrt(rms/(double) g_ncell);
-      if (iter%100 == 0)
-        printf("%d  %10.5e \n",iter,rms);
-    }
+    rms = sqrt(rms/(double) g_ncell);
+    if (iter%100 == 0)
+      op_printf("%d  %10.5e \n",iter,rms);
   }
 
   op_timers(&cpu_t2, &wall_t2);
@@ -285,11 +260,7 @@ int main(int argc, char **argv)
   // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
 
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
-
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

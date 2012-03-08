@@ -50,9 +50,17 @@
 // CUDA-specific OP2 functions
 //
 
-void
+  void
 op_init ( int argc, char ** argv, int diags)
 {
+
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+    MPI_Init(&argc, &argv);
+  }
+
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020
@@ -65,22 +73,24 @@ op_init ( int argc, char ** argv, int diags)
 
   cutilDeviceInit( argc, argv);
 
-//
-// The following call is only made in the C version of OP2,
-// as it causes memory trashing when called from Fortran.
-// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
-// for this file when implementing C OP2.
-//
+  //
+  // The following call is only made in the C version of OP2,
+  // as it causes memory trashing when called from Fortran.
+  // \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
+  // for this file when implementing C OP2.
+  //
 
 #ifdef SET_CUDA_CACHE_CONFIG
   cutilSafeCall ( cudaThreadSetCacheConfig ( cudaFuncCachePreferShared ) );
 #endif
 
   printf ( "\n 16/48 L1/shared \n" );
+
+
 }
 
 op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
-              char * data, char const * name )
+    char * data, char const * name )
 {
   op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
@@ -93,14 +103,14 @@ op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
 void op_mv_halo_device(op_set set, op_dat dat)
 {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
-	OP_import_nonexec_list[set->index]->size;
+    OP_import_nonexec_list[set->index]->size;
 
   op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                      ( void ** ) &( dat->data ), dat->size * set_size );
+      ( void ** ) &( dat->data ), dat->size * set_size );
 
   cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
-      dat->size * (OP_export_exec_list[set->index]->size +
-      OP_export_nonexec_list[set->index]->size) ));
+        dat->size * (OP_export_exec_list[set->index]->size +
+          OP_export_nonexec_list[set->index]->size) ));
 }
 
 void op_mv_halo_list_device()
@@ -108,21 +118,21 @@ void op_mv_halo_list_device()
   export_exec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
 
   for(int s=0; s<OP_set_index; s++) { //for each set
-      op_set set=OP_set_list[s];
+    op_set set=OP_set_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( export_exec_list_d[set->index] ),
-                      ( void ** ) &(OP_export_exec_list[set->index]->list),
-                      OP_export_exec_list[set->index]->size * sizeof(int) );
+    op_cpHostToDevice ( ( void ** ) &( export_exec_list_d[set->index] ),
+        ( void ** ) &(OP_export_exec_list[set->index]->list),
+        OP_export_exec_list[set->index]->size * sizeof(int) );
   }
 
   export_nonexec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
 
   for(int s=0; s<OP_set_index; s++) { //for each set
-      op_set set=OP_set_list[s];
+    op_set set=OP_set_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_d[set->index] ),
-                      ( void ** ) &(OP_export_nonexec_list[set->index]->list),
-                      OP_export_nonexec_list[set->index]->size * sizeof(int) );
+    op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_d[set->index] ),
+        ( void ** ) &(OP_export_nonexec_list[set->index]->list),
+        OP_export_nonexec_list[set->index]->size * sizeof(int) );
   }
 }
 
@@ -136,17 +146,36 @@ op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * nam
   return op_decl_map_core ( from, to, dim, imap, name );
 }
 
-op_arg
+  op_arg
 op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
-             op_access acc )
+    op_access acc )
 {
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
-op_arg
+  op_arg
 op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
 {
   return op_arg_gbl ( data, dim, type, acc );
+}
+
+void op_printf(const char* format, ...)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+    vfprintf(stderr, format, argptr);
+    va_end(argptr);
+  }
+}
+
+void op_timers(double * cpu, double * et)
+{
+  MPI_Barrier(MPI_COMM_WORLD);
+  op_timers_core(cpu,et);
 }
 
 //
@@ -172,5 +201,10 @@ op_exit (  )
   op_cuda_exit();            // frees dat_d memory
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
+
+  int flag = 0;
+    MPI_Finalized(&flag);
+  if(!flag)
+      MPI_Finalize();
 }
 

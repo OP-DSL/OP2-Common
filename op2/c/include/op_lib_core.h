@@ -45,6 +45,7 @@
 #include <string.h>
 #include <strings.h>
 #include <math.h>
+#include <stdarg.h>
 
 /*
  * essential typedefs
@@ -118,7 +119,7 @@ typedef struct
              *data_d; /* data on device (GPU) */
   char const *type,   /* datatype */
              *name;   /* name of dataset */
-  char*	     buffer_d; /* buffer for MPI halo sends on the devidce */
+  char*      buffer_d; /* buffer for MPI halo sends on the devidce */
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
@@ -203,7 +204,7 @@ void op_timing_output_2_file ( const char * );
 
 void op_timing_realloc ( int );
 
-void op_timers ( double *cpu, double *et );
+void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 

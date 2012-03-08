@@ -203,10 +203,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   
   	Plan = op_plan_get_offset(name,OP_latency_sets[set->index].core_set,0,part_size,nargs,args,ninds,inds);
                                                                         
-  	// initialise timers                                                  
-                                                                        
-                              
-  	op_timers(&cpu_t1, &wall_t1);                                         
+  	// initialise timers     
+  	op_timers_core(&cpu_t1, &wall_t1);                                         
                                                                         
   	// execute plan                                                       
                                                                         
@@ -239,7 +237,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
                                                                         
   	    block_offset += nblocks;                                            
   	}
-	op_timers(&cpu_t2, &wall_t2);
+	op_timers_core(&cpu_t2, &wall_t2);
     OP_kernels[3].time     += wall_t2 - wall_t1;         
     OP_kernels[3].transfer  += Plan->transfer;                            
     OP_kernels[3].transfer2 += Plan->transfer2;     
@@ -269,7 +267,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 	   Plan = op_plan_get_offset(name,OP_latency_sets[set->index].noncore_set,core_len,part_size,nargs,args,ninds,inds);
 
 	// initialise timers        
-  	op_timers(&cpu_t1, &wall_t1);
+  	op_timers_core(&cpu_t1, &wall_t1);
 	   // execute plan                                                       
                                                                         
   	block_offset = 0;  
@@ -301,7 +299,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
                                                                         
   	    block_offset += nblocks;                                            
   	}
-	op_timers(&cpu_t2, &wall_t2);
+	op_timers_core(&cpu_t2, &wall_t2);
     OP_kernels[3].time     += wall_t2 - wall_t1;     
     OP_kernels[3].transfer  += Plan->transfer;                            
     OP_kernels[3].transfer2 += Plan->transfer2;     

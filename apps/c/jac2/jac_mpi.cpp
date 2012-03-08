@@ -91,7 +91,7 @@ static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank 
 }
 
 static void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size,
-	int l_size, int elem_size)
+  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -115,7 +115,7 @@ static void scatter_float_array(float* g_array, float* l_array, int comm_size, i
 }
 
 void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-	int l_size, int elem_size)
+  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -139,7 +139,7 @@ void scatter_double_array(double* g_array, double* l_array, int comm_size, int g
 }
 
 static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-	int l_size, int elem_size)
+  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -171,17 +171,17 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int *pp;
   float *r, *u, *du;
@@ -200,9 +200,9 @@ int main(int argc, char **argv)
   float *g_r = 0, *g_u = 0, *g_du = 0;
   double *g_A = 0;
 
-  if(my_rank == MPI_ROOT) {
-    printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
+  op_printf("Global number of nodes, edges = %d, %d\n",g_nnode,g_nedge);
 
+  if(my_rank == MPI_ROOT) {
     g_pp = (int *)malloc(sizeof(int)*2*g_nedge);
 
     g_A  = (double *)malloc(sizeof(double)*g_nedge);
@@ -251,7 +251,7 @@ int main(int argc, char **argv)
   /* Compute local sizes */
   nnode = compute_local_size (g_nnode, comm_size, my_rank);
   nedge = compute_local_size (g_nedge, comm_size, my_rank);
-  printf("Number of nodes, edges on process %d = %d, %d\n"
+  op_printf("Number of nodes, edges on process %d = %d, %d\n"
       ,my_rank,nnode,nedge);
 
   /*Allocate memory to hold local sets, mapping tables and data*/
@@ -280,10 +280,6 @@ int main(int argc, char **argv)
   }
 
   /**------------------------END I/O and PARTITIONING ---------------------**/
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, and datasets
 
@@ -334,7 +330,7 @@ int main(int argc, char **argv)
         op_arg_gbl(&u_max,1,"float",OP_MAX));
 
     if(my_rank == MPI_ROOT)
-      printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
+      op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/g_nnode));
   }
 
   op_timers(&cpu_t2, &wall_t2);
@@ -344,20 +340,13 @@ int main(int argc, char **argv)
 
   //output the result dat array to files
   print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  print_dat_tobinfile(temp, "out_grid.bin"); //Binary
-
-  //free memory allocated to halos
-  op_halo_destroy();
-  //return all op_dats, op_maps back to original element order
-  op_partition_reverse();
+  //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
   //print each mpi process's timing info for each kernel
   op_mpi_timing_output();
-  //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
 
-  MPI_Finalize();   //user mpi finalize
+  //print total time for niter interations
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  op_exit();
 }
 

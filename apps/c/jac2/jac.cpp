@@ -70,6 +70,9 @@ float alpha;
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,5);
+
   int   nnode, nedge, n, e;
   float dx;
 
@@ -136,10 +139,6 @@ int main(int argc, char **argv)
     }
   }
 
-  // OP initialisation
-
-  op_init(argc,argv,5);
-
   // declare sets, pointers, and datasets
 
   op_set nodes = op_decl_set(nnode, "nodes");
@@ -178,12 +177,12 @@ int main(int argc, char **argv)
         op_arg_dat(p_u,  -1,OP_ID, 2,"float",OP_INC ),
         op_arg_gbl(&u_sum,1,"float",OP_INC),
         op_arg_gbl(&u_max,1,"float",OP_MAX));
-    printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
+    op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
   // print out results
 
-  printf("\n  Results after %d iterations:\n\n",NITER);
+  op_printf("\n  Results after %d iterations:\n\n",NITER);
 
   op_fetch_data(p_u);
 
@@ -191,27 +190,17 @@ int main(int argc, char **argv)
     for (int j=NN-1; j>0; j--) {
       for (int i=1; i<NN; i++) {
         if (pass==0)
-          printf(" %7.4f",u[2*(i-1 + (j-1)*(NN-1))]);
+          op_printf(" %7.4f",u[2*(i-1 + (j-1)*(NN-1))]);
         else if (pass==1)
-          printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
+          op_printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
         else if (pass==2)
-          printf(" %7.4f",r[2*(i-1 + (j-1)*(NN-1))]);
+          op_printf(" %7.4f",r[2*(i-1 + (j-1)*(NN-1))]);
       }
-      printf("\n");
+      op_printf("\n");
     }
-    printf("\n");
+    op_printf("\n");
   }
 
   op_timing_output();
-
   op_exit();
-
-  // free allocated arrays
-
-  free(pp);
-  free(A);
-  free(r);
-  free(u);
-  free(du);
 }
-

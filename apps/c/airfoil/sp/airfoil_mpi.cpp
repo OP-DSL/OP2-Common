@@ -169,7 +169,7 @@ static void check_scan(int items_received, int items_expected)
       // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
       // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/
     #else //ifdef PARMETIS
-      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+      #define OP2_PARTITION op_printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
     #endif //ifdef PARMETIS
   #endif //ifdef PTSCOTCH
 
@@ -181,17 +181,17 @@ static void check_scan(int items_received, int items_expected)
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //user mpi for I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   float  *x, *q, *qold, *adt, *res;
@@ -201,13 +201,11 @@ int main(int argc, char **argv)
 
   /**------------------------BEGIN I/O and PARTITIONING -------------------**/
 
-  op_timers(&cpu_t1, &wall_t1);
-
   /* read in grid from disk on root processor */
   FILE *fp;
 
   if ( (fp = fopen("new_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
   int   g_nnode,g_ncell,g_nedge,g_nbedge;
@@ -219,7 +217,7 @@ int main(int argc, char **argv)
 
   // set constants
 
-  if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+  op_printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -237,11 +235,11 @@ int main(int argc, char **argv)
   qinf[2] = 0.0f;
   qinf[3] = r*e;
 
-  if(my_rank == MPI_ROOT) {
-    printf("reading in grid \n");
-    printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
-        ,g_nnode,g_ncell,g_nedge,g_nbedge);
+  op_printf("reading in grid \n");
+  op_printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
+      ,g_nnode,g_ncell,g_nedge,g_nbedge);
 
+  if(my_rank == MPI_ROOT) {
     g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
     g_edge   = (int *) malloc(2*g_nedge*sizeof(int));
     g_ecell  = (int *) malloc(2*g_nedge*sizeof(int));
@@ -286,12 +284,12 @@ int main(int argc, char **argv)
 
   fclose(fp);
 
-  nnode = compute_local_size (g_nnode, comm_size, my_rank);
-  ncell = compute_local_size (g_ncell, comm_size, my_rank);
-  nedge = compute_local_size (g_nedge, comm_size, my_rank);
+  nnode  = compute_local_size (g_nnode, comm_size, my_rank);
+  ncell  = compute_local_size (g_ncell, comm_size, my_rank);
+  nedge  = compute_local_size (g_nedge, comm_size, my_rank);
   nbedge = compute_local_size (g_nbedge, comm_size, my_rank);
 
-  printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
+  op_printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
       ,my_rank,nnode,ncell,nedge,nbedge);
 
   /*Allocate memory to hold local sets, mapping tables and data*/
@@ -334,16 +332,7 @@ int main(int argc, char **argv)
     free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
   }
 
-  op_timers(&cpu_t2, &wall_t2);
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time);
-
   /**------------------------END I/O and PARTITIONING -----------------------**/
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -435,34 +424,26 @@ int main(int argc, char **argv)
           op_arg_dat(p_res, -1,OP_ID, 4,"float",OP_RW   ),
           op_arg_dat(p_adt, -1,OP_ID, 1,"float",OP_READ ),
           op_arg_gbl(&rms,1,"float",OP_INC));
+
     }
 
     //print iteration history
-    if(my_rank==MPI_ROOT)
-    {
-      rms = sqrtf(rms/(float) g_ncell);
-      if (iter%100 == 0)
-        printf("%d  %10.5e \n",iter,rms);
-    }
+    rms = sqrtf(rms/(float) g_ncell);
+    if (iter%100 == 0)
+      op_printf("%d  %10.5e \n",iter,rms);
   }
 
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
-  //op_dat temp = op_mpi_get_data(p_q);
+  op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  //op_mpi_timing_output();
-
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
-
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

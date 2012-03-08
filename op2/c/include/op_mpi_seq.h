@@ -68,7 +68,7 @@ inline op_arg* blank_arg(op_arg *arg)
 {
   op_arg *junck = NULL;
   if(arg->argtype == OP_ARG_GBL && //this argument is OP_GBL and
-     arg->acc != OP_READ)	   //OP_INC or OP_MAX/MIN
+     arg->acc != OP_READ)    //OP_INC or OP_MAX/MIN
   {
       return junck;
   }
@@ -110,13 +110,13 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1)//indirect loop
   {
       if (OP_diags==1) {
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
       }
 
       //for each indirect data set
@@ -148,11 +148,11 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   if(arg1.argtype == OP_ARG_DAT) if(sent[1] == 1 )wait_all(arg1);
 
   for (int n=core_num[set->index]; n<set->size; n++) {
-      	  op_arg_set(n,arg0 ,&p_arg0 );
-      	  op_arg_set(n,arg1 ,&p_arg1 );
+          op_arg_set(n,arg0 ,&p_arg0 );
+          op_arg_set(n,arg1 ,&p_arg1 );
 
-      	  // call kernel function, passing in pointers to data
-      	  kernel( (T0 *)p_arg0,  (T1 *)p_arg1);
+          // call kernel function, passing in pointers to data
+          kernel( (T0 *)p_arg0,  (T1 *)p_arg1);
   }
 
   //(2) over exec halo (blank out global parameters to avoid double counting)
@@ -175,7 +175,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
       global_reduce(&arg1);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -215,15 +215,15 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1)//indirect loop
   {
       if (OP_diags==1) {
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-      	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-      	  if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
+          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
+          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
       }
 
       //for each indirect data set
@@ -301,7 +301,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*),
       global_reduce(&arg3);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -348,17 +348,17 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 )//indirect loop
   {
       if (OP_diags==1) {
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-      	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-      	  if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
-      	  if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
+          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
+          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
+          if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
       }
 
       //for each indirect data set
@@ -413,7 +413,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
       // call kernel function, passing in pointers to data
       kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-      	  (T4 *)p_arg4);
+          (T4 *)p_arg4);
   }
 
   //(2) over exec halo (blank out global parameters to avoid double counting)
@@ -426,7 +426,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
        // call kernel function, passing in pointers to data
        kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-       	     (T4 *)p_arg4);
+             (T4 *)p_arg4);
   }
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
@@ -449,7 +449,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg4);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #ifdef COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   if(sent[0] == 1)op_mpi_perf_comm(k_i, arg0);
@@ -499,18 +499,18 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1)//indirect loop
   {
       if (OP_diags==1) {
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-      	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-      	  if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
-      	  if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
-      	  if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
+          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
+          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
+          if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
+          if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
       }
 
       //for each indirect data set
@@ -585,7 +585,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
        // call kernel function, passing in pointers to data
        kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-       	     (T4 *)p_arg4,  (T5 *)p_arg5);
+             (T4 *)p_arg4,  (T5 *)p_arg5);
   }
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
@@ -611,7 +611,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg5);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
 
   //update performance records
   #ifdef COMM_PERF
@@ -666,20 +666,20 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if(arg0.idx != -1 || arg1.idx != -1 || arg2.idx != -1 || arg3.idx != -1 ||
      arg4.idx != -1 || arg5.idx != -1 || arg6.idx != -1 || arg7.idx != -1)//indirect loop
   {
       if (OP_diags==1) {
-      	  if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
-      	  if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
-      	  if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
-      	  if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
-      	  if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
-      	  if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
-      	  if(arg6.argtype == OP_ARG_DAT) reset_halo(arg6);
-      	  if(arg7.argtype == OP_ARG_DAT) reset_halo(arg7);
+          if(arg0.argtype == OP_ARG_DAT) reset_halo(arg0);
+          if(arg1.argtype == OP_ARG_DAT) reset_halo(arg1);
+          if(arg2.argtype == OP_ARG_DAT) reset_halo(arg2);
+          if(arg3.argtype == OP_ARG_DAT) reset_halo(arg3);
+          if(arg4.argtype == OP_ARG_DAT) reset_halo(arg4);
+          if(arg5.argtype == OP_ARG_DAT) reset_halo(arg5);
+          if(arg6.argtype == OP_ARG_DAT) reset_halo(arg6);
+          if(arg7.argtype == OP_ARG_DAT) reset_halo(arg7);
       }
 
       //for each indirect data set
@@ -716,18 +716,18 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   // loop over set elements
   //(1) over core partition
     for (int n=0; n<core_num[set->index]; n++) {
-    	op_arg_set(n,arg0 ,&p_arg0 );
-    	op_arg_set(n,arg1 ,&p_arg1 );
-    	op_arg_set(n,arg2 ,&p_arg2 );
-    	op_arg_set(n,arg3 ,&p_arg3 );
-    	op_arg_set(n,arg4 ,&p_arg4 );
-    	op_arg_set(n,arg5 ,&p_arg5 );
-    	op_arg_set(n,arg6 ,&p_arg6 );
-    	op_arg_set(n,arg7 ,&p_arg7 );
+      op_arg_set(n,arg0 ,&p_arg0 );
+      op_arg_set(n,arg1 ,&p_arg1 );
+      op_arg_set(n,arg2 ,&p_arg2 );
+      op_arg_set(n,arg3 ,&p_arg3 );
+      op_arg_set(n,arg4 ,&p_arg4 );
+      op_arg_set(n,arg5 ,&p_arg5 );
+      op_arg_set(n,arg6 ,&p_arg6 );
+      op_arg_set(n,arg7 ,&p_arg7 );
 
-    	// call kernel function, passing in pointers to data
-    	kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-    	    (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
+      // call kernel function, passing in pointers to data
+      kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
+          (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
   }
 
   //wait for comms to complete
@@ -752,7 +752,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
       // call kernel function, passing in pointers to data
       kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-      	  (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
+          (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
   }
 
   //(2) over exec halo (blank out global parameters to avoid double counting)
@@ -768,7 +768,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
        // call kernel function, passing in pointers to data
        kernel( (T0 *)p_arg0,  (T1 *)p_arg1,  (T2 *)p_arg2,  (T3 *)p_arg3,
-       	     (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
+             (T4 *)p_arg4,  (T5 *)p_arg5,  (T6 *)p_arg6,  (T7 *)p_arg7 );
   }
 
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
@@ -800,7 +800,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
       global_reduce(&arg7);
 
   //update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
 
   //update performance records
   #ifdef COMM_PERF

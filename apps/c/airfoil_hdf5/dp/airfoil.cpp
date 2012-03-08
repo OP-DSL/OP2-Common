@@ -56,7 +56,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_lib_cpp.h"
 #include "op_seq.h"
-#include "op_hdf5.h"
 
 //
 // kernel routines for parallel loops
@@ -72,6 +71,9 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
   int    niter;
   double  rms;
 
@@ -79,7 +81,7 @@ int main(int argc, char **argv)
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // set constants and initialise flow field and residual
-  printf("initialising flow field \n");
+  op_printf("initialising flow field \n");
 
   gam = 1.4f;
   gm1 = gam - 1.0f;
@@ -87,7 +89,7 @@ int main(int argc, char **argv)
   eps = 0.05f;
 
   double mach  = 0.4f;
-  double alpha = 3.0f*atan(1.0f)/45.0f;  
+  double alpha = 3.0f*atan(1.0f)/45.0f;
   double p     = 1.0f;
   double r     = 1.0f;
   double u     = sqrt(gam*p/r)*mach;
@@ -97,10 +99,6 @@ int main(int argc, char **argv)
   qinf[1] = r*u;
   qinf[2] = 0.0f;
   qinf[3] = r*e;
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   char file[] = "new_grid.h5";//"new_grid-26mil.h5";
 
@@ -134,8 +132,10 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
+  int g_ncell = op_get_size(cells);
+
   //initialise timers for total execution wall time
-  op_timers(&cpu_t1, &wall_t1); 
+  op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
 
@@ -197,15 +197,15 @@ int main(int argc, char **argv)
 
     //  print iteration history
 
-    rms = sqrt(rms/(double) cells->size);
+    rms = sqrt(rms/(double)g_ncell);
 
     if (iter%100 == 0)
-      printf(" %d  %10.5e \n",iter,rms);
+      op_printf(" %d  %10.5e \n",iter,rms);
   }
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-  printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
   op_exit();
 }
 

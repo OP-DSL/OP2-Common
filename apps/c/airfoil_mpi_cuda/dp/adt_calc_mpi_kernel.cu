@@ -148,7 +148,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       	  part_size,nargs,args,ninds,inds);
                                                                         
       // initialise timers        
-      op_timers(&cpu_t1, &wall_t1);                                         
+      op_timers_core(&cpu_t1, &wall_t1);                                         
                                                                         
       // execute plan                                                       
                                                                         
@@ -187,7 +187,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 	  block_offset += Plan->ncolblk[col];
       }
       
-      op_timers(&cpu_t2, &wall_t2);
+      op_timers_core(&cpu_t2, &wall_t2);
       OP_kernels[1].time     += wall_t2 - wall_t1;
       OP_kernels[1].transfer  += Plan->transfer;                            
 	  OP_kernels[1].transfer2 += Plan->transfer2;
@@ -204,7 +204,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       }
   }
 
-  op_timers(&cpu_t1, &wall_t1);                                              
+                                        
   
   if (noncore_len>0) {
   	if(OP_latency_sets[set->index].noncore_set == NULL) {
@@ -221,7 +221,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   	    core_len,part_size,nargs,args,ninds,inds);
 
   	// initialise timers
-  	op_timers(&cpu_t1, &wall_t1);                                         
+  	op_timers_core(&cpu_t1, &wall_t1);                                         
 
   	// execute plan
   	block_offset = 0;
@@ -260,7 +260,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
 	    block_offset += Plan->ncolblk[col];                                          
 	  }
-	op_timers(&cpu_t2, &wall_t2);
+	op_timers_core(&cpu_t2, &wall_t2);
 	OP_kernels[1].time     += wall_t2 - wall_t1;
 	OP_kernels[1].transfer  += Plan->transfer;                            
     OP_kernels[1].transfer2 += Plan->transfer2;

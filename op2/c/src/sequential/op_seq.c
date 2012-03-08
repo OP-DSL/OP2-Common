@@ -75,20 +75,38 @@ void op_decl_const_char ( int dim, char const * type, int typeSize, char * data,
 
 op_arg op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
 {
-	return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+  return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
 op_arg op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
 {
-	return op_arg_gbl ( data, dim, type, acc );
+  return op_arg_gbl ( data, dim, type, acc );
 }
 
 void op_fetch_data ( op_dat a ) {
   (void)a;
 }
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
+void op_printf(const char* format, ...)
+{
+  va_list argptr;
+  va_start(argptr, format);
+  vfprintf(stderr, format, argptr);
+  va_end(argptr);
+}
+
+void op_timers(double * cpu, double * et)
+{
+  op_timers_core(cpu,et);
+}
+
 void op_exit ()
 {
-	op_exit_core ();
+  op_exit_core ();
 }
 

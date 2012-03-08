@@ -117,13 +117,14 @@ extern op_kernel * OP_kernels;
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 
 
+
 /*
  * templates for handling datasets and constants
  */
 
 template < class T >
 op_dat op_decl_dat ( op_set set, int dim, char const *type,
-					 T * data, char const * name );
+           T * data, char const * name );
 
 template < class T >
 void op_decl_const2 ( char const * name, int dim, char const *type, T * data );
@@ -138,7 +139,7 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc );
 
 template < class T >
 op_dat op_decl_dat ( op_set set, int dim, char const *type,
-					 T * data, char const * name )
+           T * data, char const * name )
 {
 
   if ( type_error ( data, type ) )

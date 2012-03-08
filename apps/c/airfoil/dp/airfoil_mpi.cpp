@@ -92,13 +92,12 @@ static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank 
   if (mpi_rank < remainder)
   {
     local_size = local_size + 1;
-
   }
   return local_size;
 }
 
 static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-	int l_size, int elem_size)
+  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -122,7 +121,7 @@ static void scatter_double_array(double* g_array, double* l_array, int comm_size
 }
 
 static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-	int l_size, int elem_size)
+  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
   int* displs = (int *) malloc(comm_size*sizeof(int));
@@ -169,7 +168,7 @@ static void check_scan(int items_received, int items_expected)
       // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
       // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/
     #else //ifdef PARMETIS
-      #define OP2_PARTITION printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
+      #define OP2_PARTITION op_printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
     #endif //ifdef PARMETIS
   #endif //ifdef PTSCOTCH
 
@@ -181,17 +180,17 @@ static void check_scan(int items_received, int items_expected)
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
   double  *x, *q, *qold, *adt, *res;
@@ -207,7 +206,7 @@ int main(int argc, char **argv)
   FILE *fp;
 
   if ( (fp = fopen("new_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
   int   g_nnode,g_ncell,g_nedge,g_nbedge;
@@ -219,7 +218,7 @@ int main(int argc, char **argv)
 
   // set constants
 
-  if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+  op_printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -237,10 +236,11 @@ int main(int argc, char **argv)
   qinf[2] = 0.0f;
   qinf[3] = r*e;
 
+  op_printf("reading in grid \n");
+  op_printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
+      ,g_nnode,g_ncell,g_nedge,g_nbedge);
+
   if(my_rank == MPI_ROOT) {
-    printf("reading in grid \n");
-    printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
-        ,g_nnode,g_ncell,g_nedge,g_nbedge);
 
     g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
     g_edge   = (int *) malloc(2*g_nedge*sizeof(int));
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
   nedge = compute_local_size (g_nedge, comm_size, my_rank);
   nbedge = compute_local_size (g_nbedge, comm_size, my_rank);
 
-  printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
+  op_printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
       ,my_rank,nnode,ncell,nedge,nbedge);
 
   /*Allocate memory to hold local sets, mapping tables and data*/
@@ -322,9 +322,9 @@ int main(int argc, char **argv)
   scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
   scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
   if(my_rank == MPI_ROOT) {
-    /*Freeing memory allocated to gloabal arrays on rank 0
-      after scattering to all processes*/
     free(g_cell);
     free(g_edge);
     free(g_ecell);
@@ -339,15 +339,9 @@ int main(int argc, char **argv)
   }
 
   op_timers(&cpu_t2, &wall_t2);
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total file read time = %f\n",max_time);
+  op_printf("Max total file read time = %f\n",wall_t2-wall_t1);
 
   /**------------------------END I/O and PARTITIONING -----------------------**/
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -442,12 +436,9 @@ int main(int argc, char **argv)
     }
 
     //print iteration history
-    if(my_rank==MPI_ROOT)
-    {
-      rms = sqrt(rms/(double) g_ncell);
-      if (iter%100 == 0)
-        printf("%d  %10.5e \n",iter,rms);
-    }
+    rms = sqrt(rms/(double) g_ncell);
+    if (iter%100 == 0)
+      op_printf("%d  %10.5e \n",iter,rms);
   }
 
   op_timers(&cpu_t2, &wall_t2);
@@ -462,11 +453,6 @@ int main(int argc, char **argv)
   //op_mpi_timing_output();
 
   //print total time for niter interations
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, MPI_COMM_WORLD);
-  if(my_rank==MPI_ROOT)printf("Max total runtime = %f\n",max_time);
-
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
-

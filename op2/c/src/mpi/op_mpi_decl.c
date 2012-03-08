@@ -49,12 +49,18 @@
 
 void op_init ( int argc, char ** argv, int diags )
 {
-	op_init_core ( argc, argv, diags );
+    int flag = 0;
+    MPI_Initialized(&flag);
+    if(!flag)
+    {
+      MPI_Init(&argc, &argv);
+    }
+    op_init_core ( argc, argv, diags );
 }
 
 op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
-	return op_decl_dat_core ( set, dim, type, size, data, name );
+  return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
 void op_fetch_data ( op_dat dat )
@@ -79,8 +85,8 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-	return op_plan_get_offset ( name, set, 0, part_size,
-		nargs, args, ninds, inds );
+  return op_plan_get_offset ( name, set, 0, part_size,
+    nargs, args, ninds, inds );
 }
 
 op_plan *
@@ -90,11 +96,30 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
     return op_plan_core ( name, set, set_offset, part_size, nargs, args, ninds, inds );
 }
 
+
+void op_printf(const char* format, ...)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+    vfprintf(stderr, format, argptr);
+    va_end(argptr);
+  }
+}
+
 void op_exit()
 {
-    op_mpi_exit();
-    op_rt_exit();
-    op_exit_core();
+  op_mpi_exit();
+  op_rt_exit();
+  op_exit_core();
+
+  int flag = 0;
+  MPI_Finalized(&flag);
+  if(!flag)
+    MPI_Finalize();
 }
 
 /*
@@ -103,21 +128,27 @@ void op_exit()
 
 op_set op_decl_set(int size, char const *name )
 {
-	return op_decl_set_core ( size, name );
+  return op_decl_set_core ( size, name );
 }
 
 op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * name )
 {
-	return op_decl_map_core ( from, to, dim, imap, name );
+  return op_decl_map_core ( from, to, dim, imap, name );
 }
 
 op_arg op_arg_dat( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
 {
-	return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+  return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
 op_arg op_arg_gbl( char * data, int dim, const char * type, op_access acc )
 {
-	return op_arg_gbl ( data, dim, type, acc );
+  return op_arg_gbl ( data, dim, type, acc );
+}
+
+void op_timers(double * cpu, double * et)
+{
+  MPI_Barrier(MPI_COMM_WORLD);
+  op_timers_core(cpu,et);
 }
 

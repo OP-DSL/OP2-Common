@@ -702,7 +702,7 @@ void op_halo_create()
     int init = map->dim*(map->from->size);
     for(int i=0; i<i_list->ranks_size; i++) {
       //printf("\n imported on to %d map %10s, number of elements of size %d | recieving: ",
-      //	  my_rank, map->name, i_list->size);
+      //    my_rank, map->name, i_list->size);
       MPI_Recv(&(OP_map_list[map->index]->
             map[init+i_list->disps[i]*map->dim]),
           map->dim*i_list->sizes[i], MPI_INT, i_list->ranks[i], m,
@@ -898,7 +898,7 @@ void op_halo_create()
         for(int i=0; i<e_list->ranks_size; i++) free(sbuf[i]);
         free(sbuf);
         //printf("imported on to %d data %10s, number of elements of size %d | recieving:\n ",
-        //	  my_rank, dat->name, i_list->size);
+        //    my_rank, dat->name, i_list->size);
       }
     }
   }
@@ -1316,7 +1316,7 @@ void op_halo_create()
   /*-STEP 12 ---------- Clean up and Compute rough halo size numbers------------*/
 
   for(int i = 0; i<OP_set_index; i++)
-  {	free(part_range[i]);
+  { free(part_range[i]);
     free(core_elems[i]); free(exp_elems[i]);
   }
   free(part_range);
@@ -1577,7 +1577,7 @@ int exchange_halo(op_arg arg)
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
       //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //  	      my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
+      //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
       MPI_Isend(&OP_mpi_buffer_list[dat->index]->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
@@ -1591,7 +1591,7 @@ int exchange_halo(op_arg arg)
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
       //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-      //  	  my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
+      //      my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
       MPI_Irecv(&(OP_dat_list[dat->index]->
             data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
@@ -2647,5 +2647,23 @@ void print_dat_tobinfile(op_dat dat, const char *file_name)
   }
 
   MPI_Comm_free(&OP_MPI_IO_WORLD);
+}
+
+/*******************************************************************************
+ * Get the global size of a set
+ *******************************************************************************/
+
+int op_get_size(op_set set)
+{
+  int my_rank, comm_size;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  int* sizes = (int *)malloc(sizeof(int)*comm_size);
+  int g_size = 0;
+  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+  for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
+  free(sizes);
+
+  return g_size;
 }
 

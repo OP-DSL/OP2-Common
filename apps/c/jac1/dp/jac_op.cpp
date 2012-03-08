@@ -54,7 +54,7 @@ double alpha;
 //
 
 #include "op_lib_cpp.h"
-#include "op_seq.h"
+
 
 //
 // op_par_loop declarations
@@ -91,8 +91,10 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv){
 
+  // OP initialisation
+  op_init(argc,argv,5);
+  
   int   nnode, nedge, n, e;
-
   nnode = (NN-1)*(NN-1);
   nedge = (NN-1)*(NN-1) + 4*(NN-1)*(NN-2);
 
@@ -140,10 +142,6 @@ int main(int argc, char **argv){
     }
   }
 
-  // OP initialisation
-
-  op_init(argc,argv,5);
-
   // declare sets, pointers, and datasets
 
   op_set nodes = op_decl_set(nnode, "nodes");
@@ -180,12 +178,12 @@ int main(int argc, char **argv){
                op_arg_dat(p_u,-1,OP_ID,1,"double",OP_INC),
                op_arg_gbl(&u_sum,1,"double",OP_INC),
                op_arg_gbl(&u_max,1,"double",OP_MAX));
-    printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
+    op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
   // print out results
 
-  printf("\n  Results after %d iterations:\n\n",NITER);
+  op_printf("\n  Results after %d iterations:\n\n",NITER);
 
   op_fetch_data(p_u);
   /*
@@ -203,26 +201,24 @@ int main(int argc, char **argv){
     for (int j=NN-1; j>0; j--) {
       for (int i=1; i<NN; i++) {
         if (pass==0)
-	  printf(" %7.4f",u[i-1 + (j-1)*(NN-1)]);
+	  op_printf(" %7.4f",u[i-1 + (j-1)*(NN-1)]);
         else if (pass==1)
-          printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
+          op_printf(" %7.4f",du[i-1 + (j-1)*(NN-1)]);
         else if (pass==2)
-          printf(" %7.4f",r[i-1 + (j-1)*(NN-1)]);
+          op_printf(" %7.4f",r[i-1 + (j-1)*(NN-1)]);
       }
-      printf("\n");
+      op_printf("\n");
     }
-    printf("\n");
+    op_printf("\n");
   }
 
   op_timing_output();
-
   op_exit();
 
-  // free allocated arrays
-
-  free(pp);
-  free(A);
-  free(r);
-  free(u);
-  free(du);
+  //free allocated arrays - no need to free, freed in op_exit()
+  //free(pp);
+  //free(A);
+  //free(r);
+  //free(u);
+  //free(du);
 }
