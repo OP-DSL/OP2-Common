@@ -216,12 +216,5 @@ int main(int argc, char **argv){
   op_timing_output();
 
   op_exit();
-
-  // free allocated arrays
-
-  free(pp);
-  free(A);
-  free(r);
-  free(u);
-  free(du);
 }
+
