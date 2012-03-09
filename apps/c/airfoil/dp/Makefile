@@ -53,11 +53,11 @@ NVCCFLAGS	= -g -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 # partitioning software for MPI versions
 #
 
-PARMETIS_INC 	= -I$(PARMETIS_INSTALL_PATH) -DPARMETIS
+PARMETIS_INC 	= -I$(PARMETIS_INSTALL_PATH) -DHAVE_PARMETIS
 PARMETIS_LIB 	= -L$(PARMETIS_INSTALL_PATH) -lparmetis \
 	       	  -L$(PARMETIS_INSTALL_PATH) -lmetis
 
-PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DPTSCOTCH
+PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
