@@ -137,6 +137,9 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/core/op_rt_support.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	-c $(SRC)/cuda/op_cuda_rt_support.c \
+	-o $(OBJ)/mpi/op_cuda_rt_support.o
+	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
 	-o $(OBJ)/mpi/op_mpi_cuda_rt_support.o
 	$(MPICPP) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
@@ -157,6 +160,7 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/mpi/op_mpi_core.o \
 	$(OBJ)/mpi/op_mpi_part_core.o \
 	$(OBJ)/core/op_lib_core.o $(OBJ)/mpi/op_rt_support.o \
+	$(OBJ)/mpi/op_cuda_rt_support.o \
 	$(OBJ)/mpi/op_mpi_cuda_rt_support.o $(OBJ)/mpi/op_mpi_cuda_decl.o \
 	$(OBJ)/externlib/op_util.o \
 	$(OBJ)/mpi/op_mpi_hdf5.o \
