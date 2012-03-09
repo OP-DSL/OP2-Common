@@ -111,7 +111,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     exit(2);
   }
 
-
   /*find dim with available attributes*/
   int map_dim = 0;
   //open existing data set

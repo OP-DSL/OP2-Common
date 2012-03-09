@@ -294,16 +294,16 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_size,
                       int nargs, op_arg *args, int ninds, int *inds )
 {
-    //set exec length
-    int exec_length = set->size;
-    for(int i = 0; i< nargs; i++)
+  //set exec length
+  int exec_length = set->size;
+  for(int i = 0; i< nargs; i++)
+  {
+    if(args[i].idx != -1 && args[i].acc != OP_READ )
     {
-      if(args[i].idx != -1 && args[i].acc != OP_READ )
-      {
-          exec_length += set->exec_size;
-          break;
-      }
+      exec_length += set->exec_size;
+      break;
     }
+  }
 
   /* first look for an existing execution plan */
 
@@ -441,7 +441,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   int * nindirect = OP_plans[ip].nindirect;
 
   /* allocate working arrays */
-
+  //printf("ninds = %d\n",ninds);
   uint **work;
   work = (uint **)malloc(ninds * sizeof(uint *));
 
@@ -466,8 +466,8 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   {
     int bs = MIN ( bsize, exec_length - b * bsize );/****/
 
-    offset[b] = b * bsize;      /* offset for block */
-    nelems[b] = bs;             /* size of block */
+    offset[b] = b * bsize;  /* offset for block */
+    nelems[b] = bs;   /* size of block */
 
     /* loop over indirection sets */
 
@@ -554,6 +554,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
         if ( inds[m] >= 0 )
           for ( int e = b * bsize; e < b * bsize + bs; e++ )
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
+        //work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] = 0; /* zero out color array */
       }
 
       for ( int e = b * bsize; e < b * bsize + bs; e++ )
@@ -563,7 +564,8 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]]; /* set bits of mask */
+              mask |= work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]]; /* set bits of mask
+              */
 
           int color = ffs ( ~mask ) - 1;  /* find first bit not set */
           if ( color == -1 )
@@ -598,6 +600,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   /* colour the blocks, after initialising colors to 0 */
 
   int * blk_col;
+
   blk_col = ( int * ) malloc ( nblocks * sizeof ( int ) );
   for ( int b = 0; b < nblocks; b++ )
     blk_col[b] = -1;
@@ -614,7 +617,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     {
       if ( inds[m] >= 0 )
       {
-          int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
+        int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
         for ( int e = 0; e < to_size; e++ )
           work[inds[m]][e] = 0; // zero out color arrays
       }
@@ -664,6 +667,11 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
 
   OP_plans[ip].ncolors = ncolors;
+
+  /*for(int col = 0; col = OP_plans[ip].ncolors;col++) //should initialize to zero because calloc returns garbage!!
+    {
+    OP_plans[ip].ncolblk[col] = 0;
+    }*/
 
   for ( int b = 0; b < nblocks; b++ )
     OP_plans[ip].ncolblk[blk_col[b]]++; // number of blocks of each color
@@ -807,9 +815,9 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
-             OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
+        OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
     printf( " data transfer (total)  = %.2f MB \n",
-             OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
+        OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
     printf( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
   }
 

@@ -494,7 +494,6 @@ void op_write_hdf5(char const * file_name)
     H5Dclose(dset_id);
   }
 
-
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
@@ -522,7 +521,6 @@ void op_write_hdf5(char const * file_name)
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     H5Sclose(dataspace);
-
 
     //Each process defines dataset in memory and writes it to a hyperslab
     //in the file.
@@ -717,3 +715,4 @@ void op_write_hdf5(char const * file_name)
   }
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
+

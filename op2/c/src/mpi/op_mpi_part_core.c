@@ -550,7 +550,8 @@ static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_r
   }
 
   if(count+pi_list->size > 0)
-  { free(to_elems);free(parts);
+  {
+    free(to_elems);free(parts);
   }
 
   //check if this "from" set is an "on to" set
