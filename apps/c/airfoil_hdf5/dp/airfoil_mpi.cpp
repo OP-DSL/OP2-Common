@@ -86,20 +86,20 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #ifndef OP2_PARTITION
 
   //partition with PTScotch
-  #ifdef PTSCOTCH
+  #ifdef HAVE_PTSCOTCH
     #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping
-  #else //ifdef PTSCOTCH
+  #else //ifdef HAVE_PTSCOTCH
     //partition with ParMetis
-    #ifdef PARMETIS /** uncomment one below**/
+    #ifdef HAVE_PARMETIS /** uncomment one below**/
       // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
       // #define OP2_PARTITION op_partition_random(cells); //a set
       #define OP2_PARTITION op_partition_kway(pecell); //a mapping
       // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
       // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/
-    #else //ifdef PARMETIS
+    #else //ifdef HAVE_PARMETIS
       #define OP2_PARTITION op_printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
-    #endif //ifdef PARMETIS
-  #endif //ifdef PTSCOTCH
+    #endif //ifdef HAVE_PARMETIS
+  #endif //ifdef HAVE_PTSCOTCH
 
 #endif //ifndef OP2_PARTITION
 

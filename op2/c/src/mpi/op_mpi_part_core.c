@@ -51,12 +51,12 @@
 #include <mpi.h>
 
 //ptscotch header
-#ifdef PTSCOTCH
+#ifdef HAVE_PTSCOTCH
 #include <ptscotch.h>
 #endif
 
 //parmetis header
-#ifdef PARMETIS
+#ifdef HAVE_PARMETIS
 #include <parmetis.h>
 #endif
 
@@ -1612,7 +1612,7 @@ void op_partition_reverse()
   if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);
 }
 
-#ifdef PARMETIS
+#ifdef HAVE_PARMETIS
 
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
@@ -2674,7 +2674,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
 
 #endif
 
-#ifdef PTSCOTCH
+#ifdef HAVE_PTSCOTCH
 
 void op_partition_ptscotch(op_map primary_map)
 {
