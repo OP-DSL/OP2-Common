@@ -59,7 +59,7 @@ if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
   include_directories(${CUDA_INCLUDE_DIRS})
 
   cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
-    op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu op_mpi_cuda_rt_support.c)
+    op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu ../cuda/op_cuda_rt_support.c op_mpi_cuda_rt_support.c)
   target_link_libraries(op2_mpi_cuda ${OP2_MPI_LIBRARIES})
 
   # Add target to the build-tree export set
