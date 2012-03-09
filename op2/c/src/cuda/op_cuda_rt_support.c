@@ -71,56 +71,55 @@ char * OP_consts_h,
 // CUDA utility functions
 //
 
-void
-__cudaSafeCall ( cudaError_t err, const char * file, const int line )
+void __cudaSafeCall ( cudaError_t err, const char * file, const int line )
 {
-  if ( cudaSuccess != err )
-  {
-    printf ( "%s(%i) : cutilSafeCall() Runtime API error : %s.\n",
-             file, line, cudaGetErrorString ( err ) );
+  if ( cudaSuccess != err ) {
+    fprintf ( stderr, "%s(%i) : cutilSafeCall() Runtime API error : %s.\n",
+              file, line, cudaGetErrorString ( err ) );
     exit ( -1 );
   }
 }
 
-void
-__cutilCheckMsg ( const char * errorMessage, const char * file,
-                  const int line )
+void __cutilCheckMsg ( const char * errorMessage, const char * file,
+                       const int line )
 {
   cudaError_t err = cudaGetLastError (  );
-  if ( cudaSuccess != err )
-  {
-    printf ( "%s(%i) : cutilCheckMsg() error : %s : %s.\n",
-             file, line, errorMessage, cudaGetErrorString ( err ) );
+  if ( cudaSuccess != err ) {
+    fprintf ( stderr, "%s(%i) : cutilCheckMsg() error : %s : %s.\n",
+              file, line, errorMessage, cudaGetErrorString ( err ) );
     exit ( -1 );
   }
 }
 
-void
-cutilDeviceInit ( int argc, char ** argv )
+void cutilDeviceInit( int argc, char ** argv )
 {
   (void)argc;
   (void)argv;
+
   int deviceCount;
-  cutilSafeCall ( cudaGetDeviceCount ( &deviceCount ) );
-  if ( deviceCount == 0 )
-  {
+  cutilSafeCall( cudaGetDeviceCount ( &deviceCount ) );
+  if ( deviceCount == 0 ) {
     printf ( "cutil error: no devices supporting CUDA\n" );
     exit ( -1 );
   }
 
-  cudaDeviceProp_t deviceProp;
-  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, 0 ) );
+  // Test we have access to a device
+  float *test;
+  cutilSafeCall( cudaMalloc((void **)&test, sizeof(float)) );
+  cudaFree(test);
 
-  printf ( "\n Using CUDA device: %s\n", deviceProp.name );
-  cutilSafeCall ( cudaSetDevice ( 0 ) );
+  int deviceId = -1;
+  cudaGetDevice(&deviceId);
+  cudaDeviceProp_t deviceProp;
+  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
+  printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
 }
 
 //
 // routines to move arrays to/from GPU device
 //
 
-void
-op_mvHostToDevice ( void ** map, int size )
+void op_mvHostToDevice ( void ** map, int size )
 {
   void *tmp;
   cutilSafeCall ( cudaMalloc ( &tmp, size ) );
@@ -131,8 +130,7 @@ op_mvHostToDevice ( void ** map, int size )
   *map = tmp;
 }
 
-void
-op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
+void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
 {
   cutilSafeCall ( cudaMalloc ( data_d, size ) );
   cutilSafeCall ( cudaMemcpy ( *data_d, *data_h, size,
@@ -140,8 +138,7 @@ op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-void
-op_fetch_data ( op_dat dat )
+void op_fetch_data ( op_dat dat )
 {
   cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
                                dat->size * dat->set->size,
@@ -149,23 +146,22 @@ op_fetch_data ( op_dat dat )
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-op_plan *
-op_plan_get ( char const * name, op_set set, int part_size,
-              int nargs, op_arg * args, int ninds, int *inds )
+op_plan * op_plan_get ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int *inds )
 {
 	return op_plan_get_offset ( name, set, 0, part_size,
-		nargs, args, ninds, inds );
+		                          nargs, args, ninds, inds );
 }
 
-op_plan *
-op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_size,
-              int nargs, op_arg * args, int ninds, int *inds )
+op_plan * op_plan_get_offset ( char const * name, op_set set, int set_offset,
+                               int part_size, int nargs, op_arg * args,
+                               int ninds, int *inds )
 {
   op_plan *plan = op_plan_core ( name, set, set_offset, part_size,
                                  nargs, args, ninds, inds );
+  int set_size = plan->set->size + plan->set->exec_size +  plan->set->nonexec_size;
 
-  if ( plan->count == 1 )
-  {
+  if ( plan->count == 1 ) {
     for ( int m = 0; m < ninds; m++ )
       op_mvHostToDevice ( ( void ** ) &( plan->ind_maps[m] ),
                           sizeof ( int ) * plan->nindirect[m] );
@@ -173,7 +169,7 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
     for ( int m = 0; m < nargs; m++ )
       if ( plan->loc_maps[m] != NULL )
         op_mvHostToDevice ( ( void ** ) &( plan->loc_maps[m] ),
-                            sizeof ( short ) * plan->set->size );
+                            sizeof ( short ) * set_size );
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),
                           sizeof ( int ) * plan->nblocks * plan->ninds );
@@ -182,7 +178,7 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
     op_mvHostToDevice ( ( void ** ) &( plan->nthrcol ),
                           sizeof ( int ) * plan->nblocks );
     op_mvHostToDevice ( ( void ** ) &( plan->thrcol ),
-                          sizeof ( int ) * plan->set->size );
+                          sizeof ( int ) * set_size );
     op_mvHostToDevice ( ( void ** ) &( plan->offset ),
                           sizeof ( int ) * plan->nblocks );
     op_mvHostToDevice ( ( void ** ) &( plan->nelems ),
@@ -194,11 +190,9 @@ op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_siz
   return plan;
 }
 
-void
-op_cuda_exit ( )
+void op_cuda_exit ( )
 {
-  for ( int i = 0; i < OP_dat_index; i++ )
-  {
+  for ( int i = 0; i < OP_dat_index; i++ ) {
     cutilSafeCall ( cudaFree ( OP_dat_list[i]->data_d ) );
   }
 
@@ -209,13 +203,10 @@ op_cuda_exit ( )
 // routines to resize constant/reduct arrays, if necessary
 //
 
-void
-reallocConstArrays ( int consts_bytes )
+void reallocConstArrays ( int consts_bytes )
 {
-  if ( consts_bytes > OP_consts_bytes )
-  {
-    if ( OP_consts_bytes > 0 )
-    {
+  if ( consts_bytes > OP_consts_bytes ) {
+    if ( OP_consts_bytes > 0 ) {
       free ( OP_consts_h );
       cutilSafeCall ( cudaFree ( OP_consts_d ) );
     }
@@ -226,13 +217,10 @@ reallocConstArrays ( int consts_bytes )
   }
 }
 
-void
-reallocReductArrays ( int reduct_bytes )
+void reallocReductArrays ( int reduct_bytes )
 {
-  if ( reduct_bytes > OP_reduct_bytes )
-  {
-    if ( OP_reduct_bytes > 0 )
-    {
+  if ( reduct_bytes > OP_reduct_bytes ) {
+    if ( OP_reduct_bytes > 0 ) {
       free ( OP_reduct_h );
       cutilSafeCall ( cudaFree ( OP_reduct_d ) );
     }
@@ -247,24 +235,21 @@ reallocReductArrays ( int reduct_bytes )
 // routines to move constant/reduct arrays
 //
 
-void
-mvConstArraysToDevice ( int consts_bytes )
+void mvConstArraysToDevice ( int consts_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_consts_d, OP_consts_h, consts_bytes,
                                cudaMemcpyHostToDevice ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-void
-mvReductArraysToDevice ( int reduct_bytes )
+void mvReductArraysToDevice ( int reduct_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_reduct_d, OP_reduct_h, reduct_bytes,
                                cudaMemcpyHostToDevice ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
-void
-mvReductArraysToHost ( int reduct_bytes )
+void mvReductArraysToHost ( int reduct_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_reduct_h, OP_reduct_d, reduct_bytes,
                                cudaMemcpyDeviceToHost ) );

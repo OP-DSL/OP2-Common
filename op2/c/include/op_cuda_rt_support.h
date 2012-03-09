@@ -63,7 +63,6 @@ extern char * OP_consts_h,
             * OP_reduct_h,
             * OP_reduct_d;
 
-
 extern void __syncthreads (  );
 
 /*
@@ -101,7 +100,7 @@ void op_fetch_data ( op_dat dat );
  * (e.g. op_plan_core)
  */
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
-											  int nargs, op_arg * args, int ninds, int * inds );
+                        int nargs, op_arg * args, int ninds, int * inds );
 
 void op_cuda_exit (  );
 
