@@ -559,7 +559,8 @@ static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_r
   }
 
   if(count+pi_list->size > 0)
-  {	free(to_elems);free(parts);
+  {
+    free(to_elems);free(parts);
   }
 
   //check if this "from" set is an "on to" set
@@ -692,7 +693,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           if( partition_from_set(map, my_rank, comm_size, part_range) > 0)
           {
             //printf("On rank %d: Using map %s to partitioned from set %s using set %s\n",
-            //	   my_rank, map->name,map->from->name,map->to->name);
+            //     my_rank, map->name,map->from->name,map->to->name);
             all_partitioned_sets[sets_partitioned++] = map->from;
             all_used_maps[maps_used++] = map->index;
             break;
@@ -707,7 +708,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           if( partition_to_set(map, my_rank, comm_size, part_range) > 0)
           {
             //printf("On rank %d: Using map %s to partitioned to set %s using set %s\n",
-            //	   my_rank, map->name,map->to->name,map->from->name);
+            //     my_rank, map->name,map->to->name,map->from->name);
             all_partitioned_sets[sets_partitioned++] = map->to;
             all_used_maps[maps_used++] = map->index;
             break;
@@ -1234,7 +1235,7 @@ static void migrate_all(int my_rank, int comm_size)
         char *rbuf = (char *)xmalloc(dat->size*imp->size);
         for(int i=0; i<imp->ranks_size; i++) {
           //printf("imported on to %d data %10s, number of elements of size %d | recieving:\n ",
-          //	  my_rank, dat->name, imp->size);
+          //    my_rank, dat->name, imp->size);
           MPI_Recv(&rbuf[imp->disps[i]*dat->size],dat->size*imp->sizes[i],
               MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD, MPI_STATUSES_IGNORE);
         }
@@ -1311,7 +1312,7 @@ static void migrate_all(int my_rank, int comm_size)
         //receive mapping table entirs from relevant mpi processes
         for(int i=0; i < imp->ranks_size; i++) {
           //printf("\n imported on to %d map %10s, number of elements of size %d | recieving: ",
-          //	  my_rank, map->name, imp->size);
+          //    my_rank, map->name, imp->size);
           MPI_Recv(&rbuf[imp->disps[i]*map->dim],
               map->dim*imp->sizes[i],
               MPI_INT, imp->ranks[i], m,
@@ -2087,7 +2088,7 @@ void op_partition_kway(op_map primary_map)
   free(imp_list);free(exp_list);
 
   if(my_rank==MPI_ROOT)
-  {	printf("-----------------------------------------------------------\n");
+  { printf("-----------------------------------------------------------\n");
     printf("ParMETIS_V3_PartKway Output\n");
     printf("-----------------------------------------------------------\n");
   }
@@ -2472,7 +2473,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
   free(imp_list);free(exp_list);
 
   if(my_rank==MPI_ROOT)
-  {	printf("-----------------------------------------------------------\n");
+  { printf("-----------------------------------------------------------\n");
     printf("ParMETIS_V3_PartGeomKway Output\n");
     printf("-----------------------------------------------------------\n");
   }
@@ -2629,7 +2630,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
     }
   }
   //memcpy(&eind[0], primary_map->map,
-  //	(primary_map->from->size)*primary_map->dim*sizeof(int));
+  //  (primary_map->from->size)*primary_map->dim*sizeof(int));
 
   idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*primary_map->to->size);
   for(int i = 0; i < primary_map->to->size; i++){ partition[i] = -99; }
@@ -2649,7 +2650,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
   int ncommonnodes = 1;
 
   if(my_rank==MPI_ROOT)
-  {	printf("-----------------------------------------------------------\n");
+  { printf("-----------------------------------------------------------\n");
     printf("ParMETIS_V3_PartMeshKway Output\n");
     printf("-----------------------------------------------------------\n");
   }

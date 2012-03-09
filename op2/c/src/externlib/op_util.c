@@ -95,7 +95,7 @@ void* xrealloc (void *ptr, size_t size)
 int compare_sets(op_set set1, op_set set2)
 {
     if(set1->size == set2->size && set1->index == set2->index &&
-    	strcmp(set1->name,set2->name)==0 )
+      strcmp(set1->name,set2->name)==0 )
     return 1;
     else return 0;
 
@@ -109,7 +109,7 @@ unsigned op2_hash(const char *s)
 {
     unsigned hashval;
     for (hashval = 0; *s != '\0'; s++)
-    	hashval = *s + 31 * hashval;
+      hashval = *s + 31 * hashval;
     return hashval % HASHSIZE;
 }
 
@@ -123,11 +123,11 @@ int min(int array[], int size)
     int index = -1;
     for(int i=0; i<size; i++)
     {
-    	if(array[i]<min)
-    	{
-    	    index = i;
-    	    min = array[i];
-    	}
+      if(array[i]<min)
+      {
+          index = i;
+          min = array[i];
+      }
     }
     return index;
 }
@@ -158,7 +158,7 @@ int linear_search(int a[], int value, int low, int high)
 {
     for(int i = low; i<=high; i++)
     {
-    	if (a[i] == value) return i;
+      if (a[i] == value) return i;
     }
     return -1;
 }
@@ -176,20 +176,20 @@ void quickSort(int arr[], int left, int right)
 
     // partition
     while (i <= j) {
-    	while (arr[i] < pivot)i++;
-    	    while (arr[j] > pivot)j--;
-    	    if (i <= j) {
-    	    	tmp = arr[i];
-    	    	arr[i] = arr[j];
-    	    	arr[j] = tmp;
-    	    	i++; j--;
+      while (arr[i] < pivot)i++;
+          while (arr[j] > pivot)j--;
+          if (i <= j) {
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+            i++; j--;
             }
     };
     // recursion
     if (left < j)
-    	quickSort(arr, left, j);
+      quickSort(arr, left, j);
     if (i < right)
-    	quickSort(arr, i, right);
+      quickSort(arr, i, right);
 }
 
 /*******************************************************************************
@@ -205,24 +205,24 @@ void quickSort_2(int arr1[], int arr2[], int left, int right)
 
     // partition
     while (i <= j) {
-    	while (arr1[i] < pivot)i++;
-    	    while (arr1[j] > pivot)j--;
-    	    if (i <= j) {
-    	    	tmp1 = arr1[i];
-    	    	arr1[i] = arr1[j];
-    	    	arr1[j] = tmp1;
+      while (arr1[i] < pivot)i++;
+          while (arr1[j] > pivot)j--;
+          if (i <= j) {
+            tmp1 = arr1[i];
+            arr1[i] = arr1[j];
+            arr1[j] = tmp1;
 
-    	    	tmp2 = arr2[i];
-    	    	arr2[i] = arr2[j];
-    	    	arr2[j] = tmp2;
-    	    	i++; j--;
+            tmp2 = arr2[i];
+            arr2[i] = arr2[j];
+            arr2[j] = tmp2;
+            i++; j--;
             }
     };
     // recursion
     if (left < j)
-    	quickSort_2(arr1, arr2, left, j);
+      quickSort_2(arr1, arr2, left, j);
     if (i < right)
-    	quickSort_2(arr1, arr2, i, right);
+      quickSort_2(arr1, arr2, i, right);
 }
 
 /*******************************************************************************
@@ -238,28 +238,28 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 
     // partition
     while (i <= j) {
-    	while (arr[i] < pivot)i++;
-    	    while (arr[j] > pivot)j--;
-    	    if (i <= j) {
-    	    	tmp = arr[i];
-    	    	arr[i] = arr[j];
-    	    	arr[j] = tmp;
+      while (arr[i] < pivot)i++;
+          while (arr[j] > pivot)j--;
+          if (i <= j) {
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
 
-    	    	//tmp_dat = dat[i];
-    	    	memcpy(tmp_dat,(void *)&dat[i*elem_size],elem_size);
-    	    	//dat[i] = dat[j];
-    	    	memcpy(&dat[i*elem_size],(void *)&dat[j*elem_size],elem_size);
-    	    	//dat[j] = tmp_dat;
-    	    	memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);
-    	    	i++; j--;
+            //tmp_dat = dat[i];
+            memcpy(tmp_dat,(void *)&dat[i*elem_size],elem_size);
+            //dat[i] = dat[j];
+            memcpy(&dat[i*elem_size],(void *)&dat[j*elem_size],elem_size);
+            //dat[j] = tmp_dat;
+            memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);
+            i++; j--;
             }
     };
 
     // recursion
     if (left < j)
-    	quickSort_dat(arr, dat, left, j, elem_size);
+      quickSort_dat(arr, dat, left, j, elem_size);
     if (i < right)
-    	quickSort_dat(arr, dat, i, right, elem_size);
+      quickSort_dat(arr, dat, i, right, elem_size);
     free(tmp_dat);
 }
 
@@ -276,28 +276,28 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
 
     // partition
     while (i <= j) {
-    	while (arr[i] < pivot)i++;
-    	    while (arr[j] > pivot)j--;
-    	    if (i <= j) {
-    	    	tmp = arr[i];
-    	    	arr[i] = arr[j];
-    	    	arr[j] = tmp;
+      while (arr[i] < pivot)i++;
+          while (arr[j] > pivot)j--;
+          if (i <= j) {
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
 
-    	    	//tmp_dat = dat[i];
-    	    	memcpy(tmp_map,(void *)&map[i*dim],dim*sizeof(int));
-    	    	//dat[i] = dat[j];
-    	    	memcpy(&map[i*dim],(void *)&map[j*dim],dim*sizeof(int));
-    	    	//dat[j] = tmp_dat;
-    	    	memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));
-    	    	i++; j--;
+            //tmp_dat = dat[i];
+            memcpy(tmp_map,(void *)&map[i*dim],dim*sizeof(int));
+            //dat[i] = dat[j];
+            memcpy(&map[i*dim],(void *)&map[j*dim],dim*sizeof(int));
+            //dat[j] = tmp_dat;
+            memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));
+            i++; j--;
             }
     };
 
     // recursion
     if (left < j)
-    	quickSort_map(arr, map, left, j, dim);
+      quickSort_map(arr, map, left, j, dim);
     if (i < right)
-    	quickSort_map(arr, map, i, right, dim);
+      quickSort_map(arr, map, i, right, dim);
     free(tmp_map);
 }
 
@@ -312,11 +312,11 @@ int removeDups(int a[], int array_size)
     // Remove the duplicates ...
     for (i = 1; i < array_size; i++)
     {
-	if (a[i] != a[j])
-	{
-	    j++;
-	    a[j] = a[i]; // Move it to the front
-	}
+  if (a[i] != a[j])
+  {
+      j++;
+      a[j] = a[i]; // Move it to the front
+  }
     }
     // The new array size..
     array_size = (j + 1);
