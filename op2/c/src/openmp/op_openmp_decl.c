@@ -62,33 +62,6 @@ op_fetch_data ( op_dat dat )
   (void)dat;
 }
 
-void exchange_halo(op_arg* arg) {
-  (void)arg;
-}
-
-void wait_all(op_arg* arg) {
-  (void)arg;
-}
-
-void set_dirtybit(op_arg* arg) {
-  (void)arg;
-}
-
-void global_reduce(op_arg* arg) {
-  (void)arg;
-}
-
-int op_mpi_perf_time(const char* name, double time) {
-  return 0;
-}
-
-void op_mpi_perf_comm(int kernel_index, op_arg arg) {
-  (void)arg;
-}
-
-void reset_halo(op_arg* arg) {
-  (void)arg;
-}
 
 /*
  * No specific action is required for constants in OpenMP

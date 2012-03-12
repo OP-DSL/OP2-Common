@@ -56,7 +56,7 @@ extern set_part_core *OP_latency_sets;
 
 extern int* dirtybit;
 extern op_mpi_buffer *OP_mpi_buffer_list;
-extern int *core_num;
+//extern int *core_num;
 
 extern int OP_part_index;
 extern part *OP_part_list;

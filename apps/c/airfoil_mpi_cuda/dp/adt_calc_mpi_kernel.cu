@@ -99,7 +99,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   int    ninds   = 1;                                                   
   int    inds[6] = {0,0,0,0,-1,-1};                                     
            
-  int sent[6] = {0,0,0,0,0,0}; //array to set if halo is exchanged
   if(ninds > 0) //indirect loop
   {
       for(int i = 0; i<nargs; i++)
@@ -107,8 +106,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       	  if(args[i].argtype == OP_ARG_DAT)
       	  {
       	      if (OP_diags==1) reset_halo(&args[i]);
-      	      sent[i] = exchange_halo_cuda(&args[i]); 
-      	      //if(sent[i] == 1)wait_all_cuda(args[i]);
+      	      exchange_halo(&args[i]); 
+      	      //wait_all(&args[i]);
       	  }
       }
   }
@@ -130,7 +129,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   #endif                                                                
   
   //get offsets
-  int core_len = core_num[set->index];
+  int core_len = set->core_size;
   int noncore_len = set->size + OP_import_exec_list[set->index]->size - core_len;
 
   //process core set
@@ -199,7 +198,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       {
       	  if(args[i].argtype == OP_ARG_DAT)
       	  {
-      	      if(sent[i] == 1)wait_all_cuda(args[i]);
+      	      wait_all(&args[i]);
       	  }
       }
   }
