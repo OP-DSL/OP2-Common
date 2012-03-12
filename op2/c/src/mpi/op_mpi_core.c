@@ -85,8 +85,9 @@ op_mpi_buffer *OP_mpi_buffer_list;
   0 to core_num[set->index] - no halo exchange needed
   core_num[set->index] to n<set->size - halo exchange needed
   */
+//int *core_num;
 
-int *core_num;
+
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
@@ -1084,8 +1085,6 @@ void op_halo_create()
 
   /*-STEP 10 -------------------- Separate core elements------------------------*/
 
-  core_num = (int *)xmalloc(OP_set_index*sizeof(int ));
-
   int** core_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
   int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
 
@@ -1114,7 +1113,7 @@ void op_halo_create()
       quickSort(core_elems[set->index], 0, count-1);
 
       if(count+num_exp != set->size) printf("sizes not equal\n");
-      core_num[set->index] = count;
+      set->core_size = count;
 
       //for each data array defined on this set seperate its elements
       for(int d=0; d<OP_dat_index; d++) { //for each set
@@ -1198,7 +1197,7 @@ void op_halo_create()
       for(int e=0; e < set->size;e++){//for each elment of this set
         core_elems[set->index][e] = e;
       }
-      core_num[set->index] = set->size;
+      set->core_size = set->size;
     }
   }
 
@@ -1217,17 +1216,17 @@ void op_halo_create()
         {
           int index = binary_search(core_elems[map->to->index],
               map->map[e*map->dim+j],
-              0, core_num[map->to->index]-1);
+              0, map->to->core_size-1);
           if(index < 0)
           {
             index = binary_search(exp_elems[map->to->index],
                 map->map[e*map->dim+j],
-                0, (map->to->size) - (core_num[map->to->index]) -1);
+                0, (map->to->size) - (map->to->core_size) -1);
             if(index < 0)
               printf("Problem in seperating core elements - \
                   renumbering map\n");
             else OP_map_list[map->index]->map[e*map->dim+j] =
-              core_num[map->to->index] + index;
+              map->to->core_size + index;
           }
           else OP_map_list[map->index]->map[e*map->dim+j] = index;
         }
@@ -1262,9 +1261,9 @@ void op_halo_create()
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
       memcpy(&temp[0], core_elems[set->index],
-          core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
-          (set->size-core_num[set->index])*sizeof(int));
+          set->core_size*sizeof(int));
+      memcpy(&temp[set->core_size], exp_elems[set->index],
+          (set->size - set->core_size)*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
@@ -1284,9 +1283,9 @@ void op_halo_create()
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
       memcpy(&temp[0], core_elems[set->index],
-          core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
-          (set->size-core_num[set->index])*sizeof(int));
+          set->core_size*sizeof(int));
+      memcpy(&temp[set->core_size], exp_elems[set->index],
+          (set->size - set->core_size)*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
@@ -1349,11 +1348,11 @@ void op_halo_create()
 
 
     //number of OWNED elements second
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1538,12 +1537,13 @@ void op_halo_destroy()
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
-int exchange_halo(op_arg arg)
+int exchange_halo(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if((arg.idx != -1) && (arg.acc == OP_READ || arg.acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1))
+  if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
+     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
+     (dirtybit[dat->index] == 1))
   {
     //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
@@ -1642,6 +1642,7 @@ int exchange_halo(op_arg arg)
     }
     //clear dirty bit
     dirtybit[dat->index] = 0;
+    arg->sent = 1;
     return 1;
   }
   return 0;
@@ -1652,28 +1653,34 @@ int exchange_halo(op_arg arg)
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
 
-void wait_all(op_arg arg)
+void wait_all(op_arg* arg)
 {
-  op_dat dat = arg.dat;
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
+  if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
+  {
+    op_dat dat = arg->dat;
+    MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
       OP_mpi_buffer_list[dat->index]->s_req,
       MPI_STATUSES_IGNORE );
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
+    MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
       OP_mpi_buffer_list[dat->index]->r_req,
       MPI_STATUSES_IGNORE );
-  OP_mpi_buffer_list[dat->index]->s_num_req = 0;
-  OP_mpi_buffer_list[dat->index]->r_num_req = 0;
+    OP_mpi_buffer_list[dat->index]->s_num_req = 0;
+    OP_mpi_buffer_list[dat->index]->r_num_req = 0;
+  }
+
+  //arg->sent = 0;
 }
 
 /*******************************************************************************
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
-void set_dirtybit(op_arg arg)
+void set_dirtybit(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if(arg.acc == OP_INC || arg.acc == OP_WRITE || arg.acc == OP_RW)
+  if((arg->argtype == OP_ARG_DAT) &&
+    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
     dirtybit[dat->index] = 1;
 }
 
@@ -2006,12 +2013,13 @@ void op_mpi_put_data(op_dat dat)
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
 
-void reset_halo(op_arg arg)
+void reset_halo(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if((arg.idx != -1) && (arg.acc == OP_READ || arg.acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1))
+  if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
+    (arg->acc == OP_READ || arg->acc == OP_RW ) &&
+    (dirtybit[dat->index] == 1))
   {
     //printf("Resetting Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];

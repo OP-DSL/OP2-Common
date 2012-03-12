@@ -46,7 +46,7 @@ print:
 endif
 endif
 
-NVCCFLAGS	= -g -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
