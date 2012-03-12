@@ -87,7 +87,11 @@ op_mpi_buffer *OP_mpi_buffer_list;
   */
 //int *core_num;
 
-
+//
+// define external functions (in op_mpi_(cuda)_rt_support.c)
+//
+void exchange_halo(op_arg* arg);
+void wait_all(op_arg* arg);
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
@@ -2092,6 +2096,42 @@ void op_mpi_exit()
   //print each mpi process's timing info for each kernel
   //op_mpi_timing_output();
 }
+
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
+  int size = set->size;
+  for (int n=0; n<nargs; n++) {
+    exchange_halo(&args[n]);
+    set_dirtybit(&args[n]);
+    if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
+  }
+  return size;
+}
+
+void op_mpi_wait_all(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    wait_all(&args[n]);
+  }
+}
+
+void op_mpi_reset_halos(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    reset_halo(&args[n]);
+  }
+}
+
+void op_mpi_global_reduction(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    global_reduce(&args[n]);
+  }
+}
+
+#if COMM_PERF
+void op_mpi_perf_comms(int k_i, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    op_mpi_perf_comm(k_i, &args[n]);
+  }
+}
+#endif
 
 /*******************************************************************************
  * Write a op_dat to a named ASCI file
