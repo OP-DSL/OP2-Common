@@ -91,6 +91,7 @@ typedef struct
   int         size;         /* number of elements in set */
   char const *name;         /* name of set */
 // for MPI support
+  int         core_size;      /* number of core elements in an mpi process*/
   int         exec_size;    /* number of additional imported elements to be executed */
   int         nonexec_size; /* number of additional imported elements that are not executed */
 } op_set_core;
@@ -137,6 +138,8 @@ typedef struct
   char const *type;   /* datatype */
   op_access   acc;
   op_arg_type argtype;
+  int         sent;   /* flag to indicate if this argument has
+                         data in flight under non-blocking MPI comms*/
 } op_arg;
 
 
