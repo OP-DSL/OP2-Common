@@ -71,7 +71,7 @@ set_part_core *OP_latency_sets; // set_offset
 //global array to hold dirty_bits for op_dats
 //
 
-int* dirtybit;
+//int* dirtybit;
 
 //
 //halo exchange buffers for each op_dat
@@ -1079,11 +1079,11 @@ void op_halo_create()
 
   //set dirty bits of all data arrays to 0
   //for each data array
-  dirtybit = (int *)xmalloc(OP_dat_index*sizeof(int));
+  //dirtybit = (int *)xmalloc(OP_dat_index*sizeof(int));
 
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
-    dirtybit[dat->index] = 0;
+    dat->dirtybit= 0;
   }
 
 
@@ -1547,7 +1547,7 @@ void set_dirtybit(op_arg* arg)
 
   if((arg->argtype == OP_ARG_DAT) &&
     (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
-    dirtybit[dat->index] = 1;
+    dat->dirtybit = 1;
 }
 
 /*******************************************************************************
@@ -1885,7 +1885,7 @@ void reset_halo(op_arg* arg)
 
   if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
-    (dirtybit[dat->index] == 1))
+    (dat->dirtybit == 1))
   {
     //printf("Resetting Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
