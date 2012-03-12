@@ -26,20 +26,20 @@ CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
 #
 
 ifeq ($(OP2_COMPILER),gnu)
-  CC				?= gcc
-  CCFLAGS		?= -std=c99 -fPIC -DUNIX -Wall #-g
-  CXX				?= g++
-  CPPFLAGS	?= -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX		?= /usr/bin/mpiCC
-  MPIFLAGS	?= $(CPPFLAGS)
+	CC       := gcc
+	CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+	CXX      := g++
+	CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
+	MPICXX   := /usr/bin/mpiCC
+	MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-  CC				?= icc
-  CCFLAGS		?= -g -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
-  CXX				?= icpc
-  CPPFLAGS	?= $(CCFLAGS)
-  MPICXX		?= mpiCC
-  MPIFLAGS	?= $(CPPFLAGS)
+	CC       := icc
+	CCFLAGS  := -g -O3 -vec-report -xSSE4.2 #-g #-DCOMM_PERF #-DDEBUG
+	CXX      := icpc
+	CXXFLAGS := $(CCFLAGS)
+	MPICXX   := mpiCC
+	MPIFLAGS := $(CXXFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
@@ -69,18 +69,18 @@ mklib:
 	@mkdir -p $(LIB) $(OBJ)
 
 core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(MPICXX) $(CPPFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+	$(MPICXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
 	$(HDF5_LIB) -o $(OBJ)/op_hdf5.o
 
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/op_hdf5.o $(OBJ)/op_util.o
 
 seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
@@ -88,17 +88,17 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 
 	$(CXX) -DSET_CUDA_CACHE_CONFIG $(FLAGS) $(CUDA_INC) -I$(INC) \
 	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/op_cuda_decl.o
-	$(CXX) $(CPPFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
+	$(CXX) $(CXXFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
-	$(CXX) $(CPPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
