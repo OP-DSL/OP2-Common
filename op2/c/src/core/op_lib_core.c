@@ -386,6 +386,9 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
   arg.type = typ;
   arg.acc = acc;
 
+  /*initialize to 0 states no-mpi messages inflight for this arg*/
+  arg.sent = 0;
+
   return arg;
 }
 
@@ -408,6 +411,9 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
   /* setting default values for remaining fields */
   arg.index = -1;
   arg.data_d = NULL;
+
+  /*not used in global args*/
+  arg.sent = 0;
 
   return arg;
 }
