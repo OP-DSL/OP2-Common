@@ -211,20 +211,18 @@ void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 
-void exchange_halo(op_arg* arg);
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
-void wait_all(op_arg* arg);
+void op_mpi_wait_all(int nargs, op_arg *args);
 
-void set_dirtybit(op_arg* arg);
+void op_mpi_global_reduction(int nargs, op_arg *args);
 
-void global_reduce(op_arg* arg);
+void op_mpi_reset_halos(int nargs, op_arg *args);
 
+#if COMM_PERF
 int op_mpi_perf_time(const char* name, double time);
-
-void op_mpi_perf_comm(int kernel_index, op_arg arg);
-
-void reset_halo(op_arg* arg);
-
+inline void op_mpi_perf_comms(int k_i, op_arg *args);
+#endif
 
 #ifdef __cplusplus
 }
