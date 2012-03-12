@@ -33,36 +33,6 @@ inline void op_args_check(op_set set, int nargs, op_arg *args,
     op_arg_check(set,n,args[n],ninds,name);
 }
 
-inline int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  int size = set->size;
-  for (int n=0; n<nargs; n++) {
-    if(args[n].argtype == OP_ARG_DAT) {exchange_halo(&args[n]);  set_dirtybit(&args[n]);}
-    if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
-  }
-  return size;
-}
-
-inline void op_mpi_wait_all(int nargs, op_arg *args) {
-  for (int n=0; n<nargs; n++) {
-    if(args[n].argtype == OP_ARG_DAT) wait_all(&args[n]);
-  }
-}
-
-inline void op_mpi_global_reduction(int nargs, op_arg *args) {
-  for (int n=0; n<nargs; n++) {
-    if(args[n].argtype == OP_ARG_GBL) global_reduce(&args[n]);
-  }
-}
-
-#if COMM_PERF
-inline void op_mpi_perf_comms(int k_i, op_arg *args) {
-  for (int n=0; n<nargs; n++) {
-    op_mpi_perf_comm(k_i, &args[n]);
-  }
-}
-#endif
-
-
 //
 // op_par_loop routine for 1 arguments
 //
