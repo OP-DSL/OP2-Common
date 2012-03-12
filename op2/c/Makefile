@@ -103,7 +103,7 @@ openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
-mpi_seq: mklib $(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
+mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
 	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
 
@@ -113,6 +113,8 @@ mpi_seq: mklib $(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_rt_support.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_decl.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
+	-o $(OBJ)/op_mpi_rt_support.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
@@ -125,6 +127,7 @@ mpi_seq: mklib $(INC)/op_mpi_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_part_core.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
 	$(OBJ)/op_mpi_decl.o \
+	$(OBJ)/op_mpi_rt_support.o \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o
 

@@ -62,7 +62,7 @@
 int** export_exec_list_d;
 int** export_nonexec_list_d;
 
-int exchange_halo_cuda(op_arg* arg)
+void exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -161,12 +161,10 @@ int exchange_halo_cuda(op_arg* arg)
     //clear dirty bit
     dirtybit[dat->index] = 0;
     arg->sent = 1;
-    return 1;
   }
-  return 0;
 }
 
-void wait_all_cuda(op_arg* arg)
+void wait_all(op_arg* arg)
 {
   if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
