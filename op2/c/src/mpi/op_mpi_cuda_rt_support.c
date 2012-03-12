@@ -68,7 +68,7 @@ void exchange_halo(op_arg* arg)
 
   if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1)) {
+      (dat->dirtybit == 1)) {
 
     //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
@@ -159,7 +159,7 @@ void exchange_halo(op_arg* arg)
     }
 
     //clear dirty bit
-    dirtybit[dat->index] = 0;
+    dat->dirtybit = 0;
     arg->sent = 1;
   }
 }
