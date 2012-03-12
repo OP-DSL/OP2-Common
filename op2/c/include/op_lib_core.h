@@ -211,6 +211,21 @@ void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 
+void exchange_halo(op_arg* arg);
+
+void wait_all(op_arg* arg);
+
+void set_dirtybit(op_arg* arg);
+
+void global_reduce(op_arg* arg);
+
+int op_mpi_perf_time(const char* name, double time);
+
+void op_mpi_perf_comm(int kernel_index, op_arg arg);
+
+void reset_halo(op_arg* arg);
+
+
 #ifdef __cplusplus
 }
 #endif

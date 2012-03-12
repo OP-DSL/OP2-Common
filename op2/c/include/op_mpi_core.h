@@ -218,35 +218,17 @@ void op_halo_create();
 
 void op_halo_destroy();
 
-int exchange_halo(op_arg* arg);
-
-int exchange_halo_cuda(op_arg* arg);
-
-void wait_all(op_arg* arg);
-
-void wait_all_cuda(op_arg* arg); //need to change -- or delete
-
-void set_dirtybit(op_arg* arg);
-
 op_dat op_mpi_get_data(op_dat dat);
-
-void global_reduce(op_arg* arg);
 
 void op_mpi_timing_output();
 
 void op_mpi_exit();
-
-int op_mpi_perf_time(const char* name, double time);
-
-void op_mpi_perf_comm(int kernel_index, op_arg arg);
 
 void print_dat_tofile(op_dat dat, const char *file_name);
 
 void print_dat_tobinfile(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
-
-void reset_halo(op_arg* arg);
 
 void op_mv_halo_device(op_set set, op_dat dat); //may need to be put in a seperate headder file
 
