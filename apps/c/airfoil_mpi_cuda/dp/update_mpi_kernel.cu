@@ -176,7 +176,7 @@ void op_par_loop_update(char const *name, op_set set,
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
       if(args[i].argtype == OP_ARG_DAT)
-        set_dirtybit(args[i]);
+        set_dirtybit(&args[i]);
 
   //performe any global operations
   //for(int i = 0; i<nargs; i++)

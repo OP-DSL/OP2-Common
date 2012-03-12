@@ -106,8 +106,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       {
           if(args[i].argtype == OP_ARG_DAT)
           {
-              if (OP_diags==1) reset_halo(args[i]);
-              sent[i] = exchange_halo_cuda(args[i]);
+              if (OP_diags==1) reset_halo(&args[i]);
+              sent[i] = exchange_halo_cuda(&args[i]);
               //if(sent[i] == 1)wait_all_cuda(args[i]);
           }
       }
@@ -269,7 +269,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
   for(int i = 0; i<nargs; i++)
       if(args[i].argtype == OP_ARG_DAT)
-        set_dirtybit(args[i]);
+        set_dirtybit(&args[i]);
 
   //performe any global operations
   // - NONE

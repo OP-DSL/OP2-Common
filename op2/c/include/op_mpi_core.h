@@ -220,11 +220,11 @@ void op_halo_destroy();
 
 int exchange_halo(op_arg* arg);
 
-int exchange_halo_cuda(op_arg arg);
+int exchange_halo_cuda(op_arg* arg);
 
 void wait_all(op_arg* arg);
 
-void wait_all_cuda(op_arg arg); //need to change -- or delete
+void wait_all_cuda(op_arg* arg); //need to change -- or delete
 
 void set_dirtybit(op_arg* arg);
 
