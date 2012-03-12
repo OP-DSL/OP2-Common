@@ -78,7 +78,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-#include "op_mpi_seq.h"
+#include "op_seq.h"
 
 //
 //user declared functions
