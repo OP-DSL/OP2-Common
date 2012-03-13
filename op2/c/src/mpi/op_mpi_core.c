@@ -71,21 +71,11 @@ set_part_core *OP_latency_sets; // set_offset
 //global array to hold dirty_bits for op_dats
 //
 
-//int* dirtybit;
-
 //
 //halo exchange buffers for each op_dat
 //
 
 op_mpi_buffer *OP_mpi_buffer_list;
-
-/*array to holding the index of the final element
-  that can be computed without halo exchanges for each set
-
-  0 to core_num[set->index] - no halo exchange needed
-  core_num[set->index] to n<set->size - halo exchange needed
-  */
-//int *core_num;
 
 //
 // define external functions (in op_mpi_(cuda)_rt_support.c)
@@ -1079,7 +1069,6 @@ void op_halo_create()
 
   //set dirty bits of all data arrays to 0
   //for each data array
-  //dirtybit = (int *)xmalloc(OP_dat_index*sizeof(int));
 
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
