@@ -121,7 +121,7 @@ typedef struct
   char const *type,   /* datatype */
              *name;   /* name of dataset */
   char*      buffer_d; /* buffer for MPI halo sends on the devidce */
-  int				 dirtybit; /* flag to indicate MPI halo exchange is needed*/
+  int        dirtybit; /* flag to indicate MPI halo exchange is needed*/
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
@@ -219,6 +219,8 @@ void op_mpi_wait_all(int nargs, op_arg *args);
 void op_mpi_global_reduction(int nargs, op_arg *args);
 
 void op_mpi_reset_halos(int nargs, op_arg *args);
+
+void op_mpi_barrier();
 
 #if COMM_PERF
 int op_mpi_perf_time(const char* name, double time);
