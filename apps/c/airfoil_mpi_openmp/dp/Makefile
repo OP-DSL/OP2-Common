@@ -30,10 +30,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= -O0 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 -g -DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
-  MPIFLAGS	= $(CCFLAGS)
+  MPIFLAGS	= $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
