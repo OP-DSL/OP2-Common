@@ -30,13 +30,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//
-// This file implements the general, non-CUDA run-time support functions
-//
-
-//
-// header files
-//
+/*
+ * op_mpi_rt_support.c
+ *
+ * Implements the OP2 Distributed memory (MPI) halo exchange and
+ * support routines/functions
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
+ */
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -67,9 +68,8 @@
 // //
 // //global array to hold dirty_bits for op_dats
 // //
-//
-// int* dirtybit;
-//
+
+
 // //
 // //halo exchange buffers for each op_dat
 // //
