@@ -220,6 +220,8 @@ void op_mpi_global_reduction(int nargs, op_arg *args);
 
 void op_mpi_reset_halos(int nargs, op_arg *args);
 
+void op_mpi_barrier();
+
 #if COMM_PERF
 int op_mpi_perf_time(const char* name, double time);
 inline void op_mpi_perf_comms(int k_i, op_arg *args);

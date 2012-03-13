@@ -192,7 +192,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int block_offset = 0;
 
       for(int col=0; col < Plan->ncolors; col++) {
-    if (col == Plan->core_colors) {
+    if (col == Plan->ncolors_core) {
       op_mpi_wait_all(nargs,args);
     }
           int nblocks = Plan->ncolblk[col];

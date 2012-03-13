@@ -74,13 +74,13 @@ all: clean airfoil_mpi_openmp
 #
 
 airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
-		    save_soln_mpi_kernel.cpp  save_soln.h \
-		    adt_calc_mpi_kernel.cpp   adt_calc.h  \
-		    res_calc_mpi_kernel.cpp   res_calc.h  \
-		    bres_calc_mpi_kernel.cpp  bres_calc.h \
-		    update_mpi_kernel.cpp     update.h    \
+		    save_soln_kernel.cpp  save_soln.h \
+		    adt_calc_kernel.cpp   adt_calc.h  \
+		    res_calc_kernel.cpp   res_calc.h  \
+		    bres_calc_kernel.cpp  bres_calc.h \
+		    update_kernel.cpp     update.h    \
 		    Makefile
-		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
+		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		    $(HDF5_LIB) -o airfoil_mpi_openmp

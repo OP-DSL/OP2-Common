@@ -2109,8 +2109,12 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_global_reduction(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    if (args[n].argtype == OP_ARG_GBL) global_reduce(&args[n]);
+    if (args[n].argtype == OP_ARG_GBL && args[n].acc!=OP_READ) global_reduce(&args[n]);
   }
+}
+
+void op_mpi_barrier() {
+
 }
 
 #if COMM_PERF

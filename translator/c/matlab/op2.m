@@ -374,7 +374,7 @@ for narg = 1: nargin
     loc_old = loc-1;
 
     if (~isempty(find(loc==loc_header)))
-      fprintf(fid,'"op_lib.h"\n\n');
+      fprintf(fid,' "op_lib_cpp.h"\n\n');
       fprintf(fid,'//\n// op_par_loop declarations\n//\n');
 
       for k=1:nkernels

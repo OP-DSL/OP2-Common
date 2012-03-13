@@ -80,7 +80,7 @@ all: clean airfoil_mpi_cuda
 
 airfoil_mpi_cuda: airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
 		  Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
@@ -93,7 +93,7 @@ airfoil_mpi_kernels_cu.o:	airfoil_mpi_kernels.cu      \
 		  update_mpi_kernel.cu     update.h    \
 		  Makefile
 		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
-		  -c -o airfoil_mpi_kernels_cu.o airfoil_mpi_kernels.cu
+		  -c -o airfoil_kernels_cu.o airfoil_kernels.cu
 
 
 #
