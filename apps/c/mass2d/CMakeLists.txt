@@ -1,19 +1,11 @@
-project(OP2-Mass2D)
+project(OP2-Mass2d)
 
 # Require CMake 2.8
 cmake_minimum_required(VERSION 2.8)
 
-# Load OP2 configuration (Set OP2_DIR to the directory containing OP2Config.cmake)
-find_package(OP2 REQUIRED)
+include(../common.cmake)
 
-# Default build type (can be overridden by user)
-if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-    "Choose the type of build, options are: Debug MinSizeRel Release RelWithDebInfo." FORCE)
-endif()
-
-include_directories(${OP2_INCLUDE_DIRS})
-
+set(KERNEL_HEADERS mass.h)
 # simple sequential version
 if (TARGET op2_seq)
   add_executable(mass2d_seq mass.cpp)
