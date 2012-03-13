@@ -31,7 +31,7 @@
  */
 
 //
-// This file implements the CUDA-specific run-time support functions
+// This file implements the MPI+CUDA-specific run-time support functions
 //
 
 //
