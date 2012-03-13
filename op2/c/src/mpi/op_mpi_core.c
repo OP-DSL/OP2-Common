@@ -2120,7 +2120,7 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_global_reduction(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    global_reduce(&args[n]);
+    if (args[n].argtype == OP_ARG_GBL) global_reduce(&args[n]);
   }
 }
 

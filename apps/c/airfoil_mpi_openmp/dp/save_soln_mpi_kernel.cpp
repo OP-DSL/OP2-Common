@@ -39,7 +39,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
   int ninds   = 0;
   int nargs   = 2;
   op_arg args[2] = {arg0,arg1};
-
+  op_mpi_halo_exchanges(set, nargs, args);
   if (OP_diags>2) {
     printf(" kernel routine w/o indirection:  save_soln \n");
   }
@@ -67,11 +67,6 @@ void op_par_loop_save_soln(char const *name, op_set set,
                       (double *) arg1.data,
                       start, finish );
   }
-
-  //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
-  for(int i = 0; i<nargs; i++)
-      if(args[i].argtype == OP_ARG_DAT)
-        set_dirtybit(&args[i]);
 
   //performe any global operations
   // - NONE
