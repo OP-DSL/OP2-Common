@@ -359,7 +359,10 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   int bsize = part_size;        // blocksize
   if ( bsize == 0 )
     bsize = ( 48 * 1024 / ( 64 * maxbytes ) ) * 64;
-  int nblocks = ( exec_length - 1 ) / bsize + 1;
+  //int nblocks = ( exec_length - 1 ) / bsize + 1;
+  int nblocks = 0;
+  if (set->core_size != 0) nblocks += ( set->core_size - 1 ) / bsize + 1;
+  if (set->core_size != exec_length) nblocks += ( exec_length - set->core_size - 1 ) / bsize + 1;
 
   /* enlarge OP_plans array if needed */
 
@@ -463,11 +466,22 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
   float total_colors = 0;
 
+  int prev_offset = 0;
+  int next_offset = 0;
+
   for ( int b = 0; b < nblocks; b++ )
   {
-    int bs = MIN ( bsize, exec_length - b * bsize );/****/
+  prev_offset = next_offset;
+  if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+    next_offset = set->core_size;
+  } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
+    next_offset = exec_length;
+  } else {
+    next_offset = prev_offset + bsize;
+  }
+  int bs = next_offset-prev_offset;
 
-    offset[b] = b * bsize;  /* offset for block */
+    offset[b] = prev_offset;  /* offset for block */
     nelems[b] = bs;   /* size of block */
 
     /* loop over indirection sets */
@@ -482,7 +496,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
       {
         if ( inds[m2] == m )
         {
-          for ( int e = set_offset + b * bsize; e < set_offset + b * bsize + bs; e++ )
+          for ( int e = set_offset + prev_offset; e < set_offset + next_offset; e++ )
             work2[ne++] = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
         }
       }
@@ -519,7 +533,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
       {
         if ( inds[m2] == m )
         {
-          for ( int e = b * bsize; e < b * bsize + bs; e++ )
+          for ( int e = prev_offset; e < next_offset; e++ )
             OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + (set_offset + e) * maps[m2]->dim]]);
         }
       }
@@ -539,7 +553,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
     /* now colour main set elements */
 
-    for ( int e = b * bsize; e < b * bsize + bs; e++ )
+    for ( int e = prev_offset; e < next_offset; e++ )
       OP_plans[ip].thrcol[e] = -1;
 
     int repeat = 1;
@@ -553,12 +567,12 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
       for ( int m = 0; m < nargs; m++ )
       {
         if ( inds[m] >= 0 )
-          for ( int e = b * bsize; e < b * bsize + bs; e++ )
+          for ( int e = prev_offset; e < next_offset; e++ )
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
         //work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] = 0; /* zero out color array */
       }
 
-      for ( int e = b * bsize; e < b * bsize + bs; e++ )
+      for ( int e = prev_offset; e < next_offset; e++ )
       {
         if ( OP_plans[ip].thrcol[e] == -1 )
         {
@@ -623,18 +637,30 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
           work[inds[m]][e] = 0; // zero out color arrays
       }
     }
-
+  prev_offset = 0;
+  next_offset = 0;
     for ( int b = 0; b < nblocks; b++ )
     {
+      prev_offset = next_offset;
+      if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+        next_offset = set->core_size;
+      } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
+        next_offset = exec_length;
+      } else {
+        next_offset = prev_offset + bsize;
+      }
       if ( blk_col[b] == -1 )
       { // color not yet assigned to block
-        int bs = MIN( bsize, exec_length - b * bsize );
         uint mask = 0;
+    if (prev_offset >= set->core_size) { //should not use block colors from the core set when doing the non_core ones
+      for (int shifter = 0; shifter < ncolors; shifter++) mask |= 1<<shifter;
+      if (prev_offset == set->core_size) OP_plans[ip].core_colors = ncolors;
+    }
 
         for ( int m = 0; m < nargs; m++ )
         {
           if ( inds[m] >= 0 && accs[m] == OP_INC )
-            for ( int e = b * bsize; e < b * bsize + bs; e++ )
+            for ( int e = prev_offset; e < next_offset; e++ )
               mask |= work[inds[m]][maps[m]->map[idxs[m] +
                 (set_offset + e) * maps[m]->dim]]; // set bits of mask
         }
@@ -653,7 +679,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
           for ( int m = 0; m < nargs; m++ )
           {
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              for ( int e = b * bsize; e < b * bsize + bs; e++ )
+              for ( int e = prev_offset; e < next_offset; e++ )
                 work[inds[m]][maps[m]->map[idxs[m] +
                   (set_offset+e) * maps[m]->dim]] |= mask;
           }

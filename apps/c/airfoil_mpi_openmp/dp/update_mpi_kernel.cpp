@@ -50,7 +50,7 @@ void op_par_loop_update(char const *name, op_set set,
   op_arg args[5] = {arg0,arg1,arg2,arg3,arg4};
   
   double *arg4h = (double *)arg4.data;                            
-                                                                
+  op_mpi_halo_exchanges(set, nargs, args);                                                              
   if (OP_diags>2) {                                             
     printf(" kernel routine w/o indirection:  update \n");      
   }                                                             
@@ -93,15 +93,7 @@ void op_par_loop_update(char const *name, op_set set,
   for (int thr=0; thr<nthreads; thr++)                          
     for(int d=0; d<1; d++) arg4h[d] += arg4_l[d+thr*64];        
      
-  //set dirty bit on direct/indirect datasets with access OP_INC,OP_WRITE, OP_RW
-  for(int i = 0; i<nargs; i++)
-      if(args[i].argtype == OP_ARG_DAT)
-      	set_dirtybit(&args[i]);
-  
-  //performe any global operations
-  for(int i = 0; i<nargs; i++)
-      if(args[i].argtype == OP_ARG_GBL) 
-      	global_reduce(&args[i]);
+  op_mpi_global_reduction(nargs, args);
   
 
 
