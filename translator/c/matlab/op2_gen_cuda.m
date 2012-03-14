@@ -728,24 +728,22 @@ for nk = 1:length(kernels)
           line = '        ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);';
         end
         file = strvcat(file,rep(line,m));
-        %line = '  op_mpi_reduce(DIM,ARGh);';
-        %file = strvcat(file,' ',rep(line,m));
+        line = '  op_mpi_reduce(&ARG,ARGh);';
+        file = strvcat(file,' ',rep(line,m));
       end
     end
   end
   file = strvcat(file, ' ','  }',' ');
-  file = strvcat(file,' ','  op_mpi_global_reduction(nargs, args);');
+  %file = strvcat(file,' ','  op_mpi_global_reduction(nargs, args);');
 
 %
 % update kernel record
 %
 
-  if (ninds == 0)
-      file = strvcat(file,' ',['  op_timing_realloc(' num2str(nk-1) ');                       ']);
-  end
   file = strvcat(file,' ','  // update kernel record',' ',...
      '  op_mpi_barrier();                                           ',...
      '  op_timers(&cpu_t2, &wall_t2);                               ',...
+    ['  op_timing_realloc(' num2str(nk-1) ');                       '],...
     ['  OP_kernels[' num2str(nk-1) '].name      = name;             '],...
     ['  OP_kernels[' num2str(nk-1) '].count    += 1;                '],...
     ['  OP_kernels[' num2str(nk-1) '].time     += wall_t2 - wall_t1;']);
