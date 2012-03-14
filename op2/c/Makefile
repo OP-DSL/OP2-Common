@@ -104,7 +104,7 @@ openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
-	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
+	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
 
 mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
