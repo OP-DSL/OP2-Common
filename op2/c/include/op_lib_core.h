@@ -214,11 +214,17 @@ void op_dump_dat ( op_dat data );
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
-void op_mpi_wait_all(int nargs, op_arg *args);
+void op_mpi_wait_all(int nargs, op_arg* args);
 
-void op_mpi_global_reduction(int nargs, op_arg *args);
+void op_mpi_global_reduction(int nargs, op_arg* args);
 
-void op_mpi_reset_halos(int nargs, op_arg *args);
+void op_mpi_reset_halos(int nargs, op_arg* args);
+
+void op_mpi_reduce_float(op_arg *args, float* data);
+
+void op_mpi_reduce_double(op_arg *args, double* data);
+
+void op_mpi_reduce_int(op_arg *args, int* data);
 
 void op_mpi_barrier();
 
@@ -230,6 +236,8 @@ inline void op_mpi_perf_comms(int k_i, op_arg *args);
 #ifdef __cplusplus
 }
 #endif
+
+
 
 #endif /* __OP_LIB_CORE_H */
 
