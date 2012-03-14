@@ -73,7 +73,7 @@ all: clean airfoil_mpi_openmp
 # mpi with openmp-nodes version
 #
 
-airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
+airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    save_soln_kernel.cpp  save_soln.h \
 		    adt_calc_kernel.cpp   adt_calc.h  \
 		    res_calc_kernel.cpp   res_calc.h  \
