@@ -81,7 +81,7 @@ inline int type_error (const bool   * a, const char *type ) {
  */
 
 #ifdef OP_USER_DATATYPES
-#include <OP_USER_DATATYPES>
+#include "op_user_datatypes.h"
 #endif
 
 /*
