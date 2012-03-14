@@ -64,3 +64,16 @@ void op_mpi_perf_comms(int k_i, op_arg *args) {
   (void *)args;
 }
 #endif
+
+void op_mpi_reduce_float(op_arg* args, float* data){
+  (void *)args;
+}
+
+void op_mpi_reduce_double(op_arg* args, double* data){
+  (void *)args;
+}
+
+void op_mpi_reduce_int(op_arg* args, int* data){
+  (void *)args;
+}
+

@@ -1540,6 +1540,16 @@ void set_dirtybit(op_arg* arg)
     dat->dirtybit = 1;
 }
 
+
+
+void op_mpi_reduce_float(op_arg* args, float* data){ }
+
+void op_mpi_reduce_double(op_arg* args, double* data){ }
+
+void op_mpi_reduce_int(op_arg* args, int* data){ }
+
+
+
 /*******************************************************************************
  * MPI Global reduce of an op_arg
  *******************************************************************************/
@@ -1559,7 +1569,7 @@ void global_reduce(op_arg *arg)
     {
       MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
           MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double));;
+      memcpy(arg->data, &result, sizeof(double));
     }
     else if(arg->acc == OP_MIN)//global minimum
     {

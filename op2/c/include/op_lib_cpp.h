@@ -182,5 +182,32 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
     return op_arg_gbl_core ( ( char * ) data, dim, type, acc );
 }
 
+
+//
+// wrapper functions to handle MPI global reductions
+//
+
+inline void op_mpi_reduce(op_arg* args, float *data)
+{
+	op_mpi_reduce_float(args,data);
+}
+
+inline void op_mpi_reduce(op_arg* args, double *data)
+{
+	op_mpi_reduce_double(args,data);
+}
+
+inline void op_mpi_reduce(op_arg* args, int *data)
+{
+	op_mpi_reduce_int(args,data);
+}
+
+
+template <class T>
+void op_mpi_reduce(op_arg* args, T* data)
+{
+
+}
+
 #endif /* __OP_LIB_CPP_H */
 
