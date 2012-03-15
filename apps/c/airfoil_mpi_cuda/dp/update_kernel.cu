@@ -107,7 +107,7 @@ void op_par_loop_update(char const *name, op_set set,
   // initialise timers
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   if (set->size >0) {
 
@@ -176,6 +176,7 @@ void op_par_loop_update(char const *name, op_set set,
       for (int d=0; d<1; d++)
         arg4h[d] = arg4h[d] + ((double *)arg4.data)[d+b*1];
 
+  arg4.data = (char *)arg4h;
   op_mpi_reduce(&arg4,arg4h);
 
   }
@@ -183,8 +184,7 @@ void op_par_loop_update(char const *name, op_set set,
 
   // update kernel record
 
-  op_mpi_barrier();
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   op_timing_realloc(4);
   OP_kernels[4].name      = name;
   OP_kernels[4].count    += 1;

@@ -40,7 +40,7 @@ include(../airfoil-common.cmake)
 if (TARGET op2_mpi AND OP2_BUILD_DP)
   add_definitions(${OP2_MPI_DEFINITIONS})
   include_directories(${OP2_MPI_INCLUDE_DIRS})
-  add_executable(airfoil_mpi_openmp_dp dp/airfoil_mpi_openmp.cpp dp/airfoil_mpi_kernels.cpp
+  add_executable(airfoil_mpi_openmp_dp dp/airfoil_mpi_openmp.cpp dp/airfoil_kernels.cpp
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
   add_dependencies(airfoil_mpi_openmp_dp grid)
   target_link_libraries(airfoil_mpi_openmp_dp op2_mpi)
