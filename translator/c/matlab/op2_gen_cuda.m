@@ -728,6 +728,8 @@ for nk = 1:length(kernels)
           line = '        ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);';
         end
         file = strvcat(file,rep(line,m));
+		line = '  ARG.data = (char *)ARGh;';
+        file = strvcat(file,' ',rep(line,m));
         line = '  op_mpi_reduce(&ARG,ARGh);';
         file = strvcat(file,' ',rep(line,m));
       end
