@@ -1541,11 +1541,83 @@ void set_dirtybit(op_arg* arg)
 
 
 
-void op_mpi_reduce_float(op_arg* args, float* data){ }
+void op_mpi_reduce_float(op_arg* arg, float* data)
+{
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    float result;
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Reduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Reduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Reduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+    }
+  }
+}
 
-void op_mpi_reduce_double(op_arg* args, double* data){ }
+void op_mpi_reduce_double(op_arg* arg, double* data)
+{
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    double result;
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Reduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Reduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Reduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+    }
+  }
+}
 
-void op_mpi_reduce_int(op_arg* args, int* data){ }
+void op_mpi_reduce_int(op_arg* arg, int* data)
+{
+  int result;
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Reduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Reduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Reduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+    }
+  }
+}
 
 
 

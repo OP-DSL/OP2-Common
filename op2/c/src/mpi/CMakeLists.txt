@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(MPI_SRC op_mpi_part_core.c op_mpi_core.c)
+set(MPI_SRC op_mpi_part_core.c op_mpi_core.c op_mpi_rt_support.c)
 if(OP2_WITH_HDF5)
   set(MPI_SRC ${MPI_SRC} op_mpi_hdf5.c)
 endif()
