@@ -77,7 +77,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
   // initialise timers                                                    
                                                                           
   double cpu_t1, cpu_t2, wall_t1, wall_t2;                                
-  op_timers(&cpu_t1, &wall_t1);                                           
+  op_timers_core(&cpu_t1, &wall_t1);                                           
                                                                           
   if (set->size >0) {                                                     
                                                                           
