@@ -394,7 +394,7 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
 }
 
 op_arg
-op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
+op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access acc )
 {
   op_arg arg;
 
@@ -402,7 +402,7 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, op_access acc )
 
   arg.dat = NULL;
   arg.map = NULL;
-  arg.dim = dim;
+  arg.dim = dim*size;
   arg.idx = -1;
   arg.size = 0;
   arg.data = data;

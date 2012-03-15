@@ -198,7 +198,7 @@ void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
-op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
+op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 
 void op_diagnostic_output ( void );
 
