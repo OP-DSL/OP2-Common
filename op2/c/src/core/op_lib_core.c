@@ -126,7 +126,7 @@ op_decl_set_core ( int size, char const * name )
   op_set set = ( op_set ) malloc ( sizeof ( op_set_core ) );
   set->index = OP_set_index;
   set->size = size;
-  set->core_size = size;
+  set->core_size = 0;//size;
   set->name = name;
   set->exec_size = 0;
   set->nonexec_size = 0;
@@ -391,9 +391,9 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
 
   arg.dat = NULL;
   arg.map = NULL;
-  arg.dim = dim*size;
+  arg.dim = dim;
   arg.idx = -1;
-  arg.size = 0;
+  arg.size = dim*size;
   arg.data = data;
   arg.type = typ;
   arg.acc = acc;

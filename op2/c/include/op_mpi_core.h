@@ -234,6 +234,10 @@ void op_mv_halo_device(op_set set, op_dat dat); //may need to be put in a sepera
 
 void op_mv_halo_list_device(); //may need to be put in a seperate headder file
 
+void global_reduce(op_arg* arg);
+
+//void global_reduce(op_arg *arg);
+
 #ifdef __cplusplus
 }
 #endif

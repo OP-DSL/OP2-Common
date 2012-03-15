@@ -28,9 +28,8 @@ ifeq ($(OP2_COMPILER),gnu)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-  CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-g #-DCOMM_PERF #-DDEBUG
-  CPPFLAGS 	= $(CCFLAGS)
+	CPP		= icpc
+  CPPFLAGS	= -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
@@ -46,7 +45,7 @@ endif
 
 NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O0
 
-VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
+#VAR		= -DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
 		#-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 \
 		#-DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -78,11 +77,10 @@ all: clean airfoil_mpi_cuda
 # mpi with openmp-nodes version
 #
 
-airfoil_cuda: airfoil_mpi_cuda.cpp airfoil_kernels_cu.o \
-		  Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_cuda.cpp airfoil_kernels_cu.o \
+airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_cu.o Makefile
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-		  $(OP2_LIB) -lop2_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
