@@ -62,7 +62,7 @@ void op_par_loop(void (*kernel)( T0* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -87,7 +87,7 @@ void op_par_loop(void (*kernel)( T0* ),
 
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -124,7 +124,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -150,7 +150,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);
   op_mpi_reduce(&arg1,(T1 *)p_a[1]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -187,7 +187,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -214,7 +214,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
   op_mpi_reduce(&arg1,(T1 *)p_a[1]);
   op_mpi_reduce(&arg2,(T2 *)p_a[2]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -251,7 +251,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -279,7 +279,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
   op_mpi_reduce(&arg2,(T2 *)p_a[2]);
   op_mpi_reduce(&arg3,(T3 *)p_a[3]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -320,7 +320,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -350,7 +350,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg3,(T3 *)p_a[3]);
   op_mpi_reduce(&arg4,(T4 *)p_a[4]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -391,7 +391,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -422,7 +422,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg4,(T4 *)p_a[4]);
   op_mpi_reduce(&arg5,(T5 *)p_a[5]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -463,7 +463,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -495,7 +495,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg5,(T5 *)p_a[5]);
   op_mpi_reduce(&arg6,(T6 *)p_a[6]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -536,7 +536,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -569,7 +569,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg6,(T6 *)p_a[6]);
   op_mpi_reduce(&arg7,(T7 *)p_a[7]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -614,7 +614,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -649,7 +649,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg7,(T7 *)p_a[7]);
   op_mpi_reduce(&arg8,(T8 *)p_a[8]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
@@ -694,7 +694,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers(&cpu_t1, &wall_t1);
+  op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
 
@@ -730,7 +730,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
   op_mpi_reduce(&arg8,(T8 *)p_a[8]);
   op_mpi_reduce(&arg9,(T9 *)p_a[9]);
   // update timer record
-  op_timers(&cpu_t2, &wall_t2);
+  op_timers_core(&cpu_t2, &wall_t2);
   #if COMM_PERF
   int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, args);
