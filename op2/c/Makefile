@@ -20,7 +20,7 @@ LIB = lib
 OBJ = obj
 
 CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
-
+OPENCL_INC = -I$(OPENCL_INSTALL_PATH)/include
 #
 # compiler settings
 #
@@ -63,7 +63,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda
+all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda opencl
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
@@ -172,6 +172,16 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_mpi_hdf5.o \
 	$(OBJ)/op_mpi_cuda_kernels.o
 
+tuner: mklib core $(INC)/op_lib_tuner.h $(SRC)/opencl/op_lib_tuner.c $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/opencl/op_lib_tuner.c -o $(OBJ)/op_lib_tuner.o
+	ar -r $(LIB)/libop2_tuner.a $(OBJ)/op_lib_tuner.o $(OBJ)/op_lib_core.o
+
+opencl: mklib core $(INC)/op_opencl_rt_support.h $(SRC)/opencl/op_opencl_decl.cpp $(SRC)/opencl/op_opencl_rt_support.cpp $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -I$(OPENCL_INC) -c $(SRC)/opencl/op_opencl_decl.cpp -o $(OBJ)/op_opencl_decl.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -I$(OPENCL_INC) -c $(SRC)/opencl/op_opencl_rt_support.cpp -o $(OBJ)/op_opencl_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	ar -r $(LIB)/libop2_opencl.a $(OBJ)/op_opencl_decl.o $(OBJ)/op_opencl_rt_support.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
+
 clean:
 	-rm -if $(OBJ)/*.o
 	-rm -if $(OBJ)/*~
@@ -182,5 +192,6 @@ clean:
 	-rm -if $(SRC)/openmp/*~
 	-rm -if $(SRC)/mpi/*~
 	-rm -if $(SRC)/externlib/*~
+	 rm -if $(SRC)/opencl/*~
 	-rm -if $(INC)/*~
 	-rm -if *~
