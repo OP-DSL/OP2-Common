@@ -1,3 +1,5 @@
+#ifndef __OP_LIB_TUNER_H
+#define __OP_LIB_TUNER_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,6 +24,11 @@ typedef struct {
   int   active;
 } op_tuner;
 
+struct node {
+  op_tuner *OP_tuner;
+  struct node * next;
+};
+
 /*
  * method declarations necessary for the op_tuner.
  * variables necessary for the tuners.
@@ -30,12 +37,14 @@ typedef struct {
  */
 
 extern int OP_cache_line_size;
-extern op_tuner* OP_tuners;
-extern op_tuner* OP_global_tuner;
+//extern node *head, *current;
+//extern op_tuner* OP_global_tuner;
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 op_tuner * op_tuner_core(char const *);
 
 op_tuner * op_tuner_get(char const *);
@@ -47,4 +56,6 @@ op_tuner * op_create_global_tuner();
 op_tuner * op_get_global_tuner();
 #ifdef __cplusplus
 }
+#endif
+
 #endif

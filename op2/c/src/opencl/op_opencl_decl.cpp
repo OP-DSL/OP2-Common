@@ -1,17 +1,29 @@
 #include "op_opencl_rt_support.h"
 
-int OP_plan_index = 0;
+/*int OP_plan_index = 0;
 op_plan * OP_plans;
-
+*/
 //
 // OpenCL-specific OP2 functions
 //
-
+/*
 void op_init( int argc, char **argv, int diags ){
   op_init_core( argc, argv, diags );
-
+  OP_plan_index = 0;
   OpenCLDeviceInit( argc, argv );
 
+}
+*/
+op_dat
+op_decl_dat ( op_set set, int dim, char const *type, int size,
+              char * data, char const * name )
+{
+  op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
+
+  op_cpHostToDevice ( ( cl_mem* ) &( dat->data_d ),
+                      ( void ** ) &( dat->data ), dat->size * set->size );
+
+  return dat;
 }
 
 op_dat op_decl_dat_char( op_set set, int dim, char const *type,
@@ -22,6 +34,26 @@ op_dat op_decl_dat_char( op_set set, int dim, char const *type,
   return dat;
 }
 
+op_set
+op_decl_set ( int size, char const * name )
+{
+  return op_decl_set_core ( size, name );
+}
+
+op_map
+op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * name )
+{
+  return op_decl_map_core ( from, to, dim, imap, name );
+}
+
+op_arg
+op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
+             op_access acc )
+{
+  return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+}
+
+/*
 op_plan *op_plan_get( char const *name, op_set set, int part_size,
                      int nargs, op_arg *args, int ninds, int *inds ){
   return op_plan_get_offset( name, set, 0, part_size, nargs, args, ninds, inds);
@@ -82,7 +114,7 @@ op_plan *op_plan_get_offset( char const * name, op_set set, int set_offset, int 
 
   }
   return plan;
-}
+}*/
 
 void op_exit( ){
   cl_int ciErrNum;

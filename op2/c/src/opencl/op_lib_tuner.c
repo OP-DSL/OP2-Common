@@ -1,6 +1,7 @@
 #include "op_lib_tuner.h"
 
-op_tuner  *OP_tuners;
+//OP_tuners is represented by the following linked list
+node  *head, *current;
 op_tuner  *OP_global_tuner;
 
 ///////////////////
@@ -12,26 +13,60 @@ extern int OP_part_size, OP_block_size, OP_cache_line_size;
 
 int OP_tuner_index = 0;
 
-op_tuner* op_create_tuner(char const *name) {
-  int it = 0;
-  while(it < OP_tuner_index) {
-    if((strcmp(name, OP_tuners[it].name) == 0) ) {
-      return &OP_tuners[it];
-      }
-      ++it;
-    }
+void add_node(op_tuner* tuner) {
+  if(head == NULL) {
+    head = (node *) malloc(sizeof(node));
+    head->OP_tuner = tuner;
+    head->next = NULL;
+    current = head;
+  } else {
+    node* new_elem = (node *) malloc(sizeof(node));
+    new_elem->OP_tuner = tuner;
+    new_elem->next = NULL;
+    current->next = new_elem;
+    current = new_elem;
+  }
+}
 
-  OP_tuners = (op_tuner*) realloc(OP_tuners, (OP_tuner_index+1)*sizeof(op_tuner));
-  OP_tuners[OP_tuner_index].loop_tuner = 1;
-  OP_tuners[OP_tuner_index].name = name;
-  OP_tuners[OP_tuner_index].block_size = OP_global_tuner->block_size;
-  OP_tuners[OP_tuner_index].part_size = OP_global_tuner->part_size;
-  OP_tuners[OP_tuner_index].cache_line_size = OP_global_tuner->cache_line_size;
-  OP_tuners[OP_tuner_index].op_warpsize = 1;
-  OP_tuners[OP_tuner_index].architecture = ANY;
-  OP_tuners[OP_tuner_index].active = 1;
-  ++OP_tuner_index;
-  return &OP_tuners[OP_tuner_index-1];
+op_tuner* get_node(char const *name) {
+  node *elem = head;
+  while(elem != NULL) {
+    if(strcmp(elem->OP_tuner->name, name) == 0) {
+      return elem->OP_tuner;
+    }
+    elem = elem->next;
+  }
+  return NULL;
+}
+
+op_tuner* op_create_tuner(char const *name) {
+  op_tuner *elem = get_node(name);
+
+  if(elem != NULL) {
+    return elem;
+  }
+
+  op_tuner *tuner = (op_tuner*) malloc(sizeof(op_tuner));
+  tuner->loop_tuner = 1;
+  tuner->name = name;
+  tuner->block_size = OP_global_tuner->block_size;
+  tuner->part_size = OP_global_tuner->part_size;
+  tuner->cache_line_size = OP_global_tuner->cache_line_size;
+  tuner->op_warpsize = 1;
+  tuner->architecture = ANY;
+  tuner->active = 1;
+
+  add_node(tuner);
+
+/*  for(int a = 0; a < OP_tuner_index; ++a) {
+    if(&OP_tuners[a] != NULL) {
+      printf("OP_tuners[%d] %d name %s, block_size %d, part_size %d\n", a, &OP_tuners[a], OP_tuners[a].name, OP_tuners[a].block_size, OP_tuners[a].part_size);
+    } else {
+      printf("%d is null\n", a);
+    }
+  }*/
+
+  return tuner;
 }
 
 op_tuner* op_tuner_core(char const *name) {
@@ -39,13 +74,7 @@ op_tuner* op_tuner_core(char const *name) {
 }
 
 op_tuner* op_tuner_get(char const *name) {
-  int it = 0;
-  while(it < OP_tuner_index) {
-    if((strcmp(name, OP_tuners[it].name) == 0)) {
-      return &OP_tuners[it];
-    }
-  }
-  return NULL;
+  return get_node(name);
 }
 
 op_tuner * op_create_global_tuner() {
