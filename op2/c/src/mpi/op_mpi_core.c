@@ -2199,7 +2199,7 @@ void op_mpi_barrier() {
 
 }
 
-#if COMM_PERF
+#ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, op_arg *args) {
   for (int n=0; n<nargs; n++) {
     op_mpi_perf_comm(k_i, &args[n]);
