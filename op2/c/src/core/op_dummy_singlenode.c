@@ -65,7 +65,7 @@ void op_mpi_barrier()
 {
 }
 
-#if COMM_PERF
+#ifdef COMM_PERF
 int op_mpi_perf_time(const char* name, double time)
 {
   return 0;
