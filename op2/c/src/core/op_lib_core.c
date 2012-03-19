@@ -126,7 +126,7 @@ op_decl_set_core ( int size, char const * name )
   op_set set = ( op_set ) malloc ( sizeof ( op_set_core ) );
   set->index = OP_set_index;
   set->size = size;
-  set->core_size = 0;//size;
+  set->core_size = size;
   set->name = name;
   set->exec_size = 0;
   set->nonexec_size = 0;
