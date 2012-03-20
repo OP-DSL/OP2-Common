@@ -238,6 +238,51 @@ void global_reduce(op_arg* arg);
 
 //void global_reduce(op_arg *arg);
 
+
+
+
+/*******************************************************************************
+* Toplevel partitioning selection function - also triggers halo creation
+*******************************************************************************/
+void op_partition(const char* lib_name, const char* lib_routine,
+	op_set prime_set, op_map prime_map, op_dat coords );
+
+
+/*******************************************************************************
+* Random partitioning wrapper prototype
+*******************************************************************************/
+
+void op_partition_random(op_set primary_set);
+
+#ifdef HAVE_PARMETIS
+/*******************************************************************************
+* ParMetis wrapper prototypes
+*******************************************************************************/
+
+void op_partition_geom(op_dat coords);
+
+void op_partition_kway(op_map primary_map);
+
+void op_partition_geomkway(op_dat coords, op_map primary_map);
+
+void op_partition_meshkway(op_map primary_map); //does not work
+#endif
+
+#ifdef HAVE_PTSCOTCH
+/*******************************************************************************
+* PT-SCOTCH wrapper prototypes
+*******************************************************************************/
+
+void op_partition_ptscotch(op_map primary_map);
+#endif
+
+/*******************************************************************************
+* Other partitioning related routine prototypes
+*******************************************************************************/
+
+void op_partition_reverse();
+
+
 #ifdef __cplusplus
 }
 #endif
