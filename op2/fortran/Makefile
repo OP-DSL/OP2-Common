@@ -25,6 +25,8 @@ F_OP2_BACKEND = $(F_OP2_SRC)/backend
 # compiler settings
 #
 
+OP2_COMPILER=pgi
+
 ifeq ($(OP2_COMPILER),gnu)
   CC    = gcc
   CFLAGS = -g -O3 -std=c99 -Wall -Werror -fPIC -pedantic -pipe
