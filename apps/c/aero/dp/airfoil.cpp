@@ -65,15 +65,15 @@ double gam, gm1, gm1i, cfl, eps, mach, alpha, qinf[4], wtg1[2], xi1[2], Ng1[4], 
 
 // main program
 
-int main(int argc, char **argv){
-
+int main(int argc, char **argv)
+{
   int    *bnode, *cell;
   double  *xm;//, *q;
 
   int    nnode,ncell,nbnodes,niter;
   double  rms = 1;
 
-// read in grid
+  // read in grid
 
   printf("reading in grid \n");
 
@@ -86,10 +86,10 @@ int main(int argc, char **argv){
     printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-    bnode   = (int *) malloc(nbnodes*sizeof(int));
+  cell  = (int *) malloc(4*ncell*sizeof(int));
+  bnode = (int *) malloc(nbnodes*sizeof(int));
 
-  xm      = (double *) malloc(2*nnode*sizeof(double));
+  xm    = (double *) malloc(2*nnode*sizeof(double));
 
   for (int n=0; n<nnode; n++) {
     if (fscanf(fp,"%lf %lf \n",&xm[2*n], &xm[2*n+1]) != 2) {
@@ -99,7 +99,7 @@ int main(int argc, char **argv){
 
   for (int n=0; n<ncell; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-    &cell[4*n+2], &cell[4*n+3]) != 4) {
+          &cell[4*n+2], &cell[4*n+3]) != 4) {
       printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
@@ -163,7 +163,7 @@ int main(int argc, char **argv){
   double r     = 1.0;
   double u     = sqrt(gam*p/r)*mach;
   double e     = p/(r*gm1) + 0.5f*u*u;
-    mfan = 1.0;
+  mfan = 1.0;
 
   qinf[0] = r;
   qinf[1] = r*u;
@@ -181,11 +181,11 @@ int main(int argc, char **argv){
   double *resm = (double *)malloc(nnode*sizeof(double));
   memset(resm,0,nnode*sizeof(double));
 
-    double *V = (double *)malloc(nnode*sizeof(double));
+  double *V = (double *)malloc(nnode*sizeof(double));
   memset(V,0,nnode*sizeof(double));
-    double *P = (double *)malloc(nnode*sizeof(double));
+  double *P = (double *)malloc(nnode*sizeof(double));
   memset(P,0,nnode*sizeof(double));
-    double *U = (double *)malloc(nnode*sizeof(double));
+  double *U = (double *)malloc(nnode*sizeof(double));
   memset(U,0,nnode*sizeof(double));
 
   // OP initialisation
@@ -212,6 +212,8 @@ int main(int argc, char **argv){
 
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
+  op_decl_const(1,"double",&gm1i  );
+  op_decl_const(1,"double",&m2  );
   op_decl_const(1,"double",&cfl  );
   op_decl_const(1,"double",&eps  );
   op_decl_const(1,"double",&mach );
@@ -234,7 +236,7 @@ int main(int argc, char **argv){
 
   // main time-marching loop
 
-  niter = 100;
+  niter = 50;
 
   for(int iter=1; iter<=niter; iter++) {
 
@@ -256,18 +258,21 @@ int main(int argc, char **argv){
 
     //c1 = R'*R;
     op_par_loop(init_cg, "init_cg", nodes,
-        op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-        op_arg_gbl(&c1, 1, "double", OP_INC),
-        op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
-        op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
-        op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
+                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
+                op_arg_gbl(&c1, 1, "double", OP_INC),
+                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
+
+    printf("\nStarting CG iteration\n");
+    printf("c1 = %10.5e\n",c1);
 
     //set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
     int iter = 0;
-    int maxiter = 1000;
-    while (res > 0.001*res0 && iter < maxiter) {
+    int maxiter = 200;
+    while (res > 0.1*res0 && iter < maxiter) {
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, OP_ALL, pcell, 1, "double", OP_INC),
@@ -309,7 +314,7 @@ int main(int argc, char **argv){
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
                   op_arg_gbl(&beta, 1, "double", OP_READ));
       c1 = c3;
-      //printf("c1 = %10.5e\n",c1);
+      printf("c1 = %10.5e\n",c1);
       res = sqrt(c1);
       iter++;
     }

@@ -43,6 +43,7 @@ for nk = 1:length(kernels)
   indaccs = kernels{nk}.indaccs;
   indtyps = kernels{nk}.indtyps;
   invinds = kernels{nk}.invinds;
+  vectorised = kernels{nk}.vectorised;
 
 %
 % set two logicals
@@ -257,14 +258,10 @@ for nk = 1:length(kernels)
   for m = 1:nargs
     line = [prefix name '( '];
     if (m~=1)
-      line ='';%blanks(length(line));
+      line = '';%blanks(length(line));
     end
     if (maps(m)==OP_GBL)
-      if (accs(m)==OP_READ)
-        line = rep([ line ' ARG,' ],m);
-      else
-        line = rep([ line ' ARG_l,' ],m);
-      end
+      line = rep([ line ' ARG,' ],m);
     elseif (maps(m)==OP_MAP & accs(m)==OP_INC && vectorised(m)==0)
       line = rep([ line ' ARG_l,' ],m);
     elseif (maps(m)==OP_MAP && vectorised(m)==0)
@@ -279,11 +276,7 @@ for nk = 1:length(kernels)
       if (ninds>0)
         line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
       else
-        if (strcmp(dims{m},'1'))
-          line = rep([ line ' ARG+n,' ],m);
-        else
-          line = rep([ line ' ARG_l,' ],m);
-        end
+        line = rep([ line ' ARG+n*DIM,' ],m);
       end
     else
       error('internal error 1')

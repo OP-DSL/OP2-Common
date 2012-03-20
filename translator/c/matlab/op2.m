@@ -277,7 +277,6 @@ for narg = 1: nargin
           rep2 = rep2 && ...
              strcmp(kernels{nk}.dims(arg),      dims(arg)) && ...
                    (kernels{nk}.maps(arg)    == maps(arg)) && ...
-             strcmp(kernels{nk}.vars{arg},      vars{arg}) && ...
              strcmp(kernels{nk}.typs{arg},      typs{arg}) && ...
                    (kernels{nk}.accs(arg)    == accs(arg)) && ...
                    (kernels{nk}.idxs(arg)    == idxs(arg)) && ...
@@ -392,12 +391,27 @@ for narg = 1: nargin
     end
 
     if (~isempty(find(loc==loc_loops)))
-      name = loop_args{find(loc==loc_loops)}.name1;
-      while (src_file(loc)~=',' || ~active(src_file(loc_old:loc)))
-        loc = loc+1;
+      prefix = strfind(src_file(1:loc),sprintf('\n'));
+      prefix = prefix(end)+1;
+      prefix = loc-prefix;
+      prefix = blanks(prefix);
+      curr_loop = find(loc==loc_loops);
+      name = loop_args{curr_loop}.name1;
+      endofcall = strfind(src_file(loc:end),';');
+      number = 1;
+      while (~active(src_file(1:loc+endofcall(number))))
+        number = number+1;
       end
-      fprintf(fid,'_%s(',name);
-      loc_old = loc+1;
+
+      fprintf(fid, '_%s(%s,%s,\n', name, loop_args{curr_loop}.name2, loop_args{curr_loop}.set);
+      line = '';
+      for arguments = 1:size(loop_args{curr_loop}.args,2)
+        line = [line prefix loop_args{curr_loop}.type{arguments} loop_args{curr_loop}.args{arguments} sprintf(',\n')];
+      end
+
+      fprintf(fid,[line(1:end-2) ');']);
+      fprintf(fid,'\n');
+      loc_old = loc + endofcall(number)+1;
     end
 
     if (~isempty(find(loc==loc_consts)))

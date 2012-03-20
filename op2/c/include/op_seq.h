@@ -30,7 +30,7 @@ inline void op_arg_copy_in(int n, op_arg arg, char **p_arg) {
 inline void op_args_set(int iter, int nargs, op_arg *args,
                         char **p_a, int halo){
   for (int n=0; n<nargs; n++)
-    if(args[n].idx == OP_ALL) op_arg_copy_in(iter, args[n], (char **)&p_a[n]);
+    if(args[n].idx == OP_ALL) op_arg_copy_in(iter, args[n], (char **)p_a[n]);
     else op_arg_set(iter, args[n], &p_a[n], halo);
 }
 

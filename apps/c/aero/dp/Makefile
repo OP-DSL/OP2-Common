@@ -30,10 +30,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O0 -vec-report -xSSE4.1 -g #-DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= -O2 -vec-report -xSSE4.1 -g #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
-  MPIFLAGS	= $(CCFLAGS)
+  MPIFLAGS	= $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
@@ -63,7 +63,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: airfoil_seq
+all: clean airfoil_openmp airfoil_cuda
 
 #
 # simple sequential version
@@ -77,13 +77,8 @@ airfoil_seq: airfoil.cpp Makefile
 #
 
 airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
-		save_soln_kernel.cpp  save_soln.h \
-		adt_calc_kernel.cpp   adt_calc.h  \
-		res_calc_kernel.cpp   res_calc.h  \
-		bres_calc_kernel.cpp  bres_calc.h \
-		update_kernel.cpp     update.h    \
                 Makefile
-		$(CPP) $(CCFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
+		$(CPP) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
 		airfoil_op.cpp airfoil_kernels.cpp -lm -lop2_openmp -o airfoil_openmp
 
 #
@@ -95,11 +90,6 @@ airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o Makefile
 		airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_cuda -o airfoil_cuda
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
-		save_soln_kernel.cu save_soln.h \
-		adt_calc_kernel.cu  adt_calc.h  \
-		res_calc_kernel.cu  res_calc.h  \
-		bres_calc_kernel.cu bres_calc.h \
-		update_kernel.cu    update.h    \
                 Makefile
 		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
 		-c -o airfoil_kernels_cu.o \
