@@ -24,6 +24,7 @@ module OP2_Fortran_RT_Support
     type(c_ptr) ::                         nthrcol ! number of thread colors for each block
     type(c_ptr) ::                         thrcol ! thread colors
     type(c_ptr) ::                         offset ! offset for primary set
+    integer(kind=c_int) ::                 set_offset ! offset inside set (for MPI back-ends)
     type(c_ptr) ::                            ind_maps ! pointers for indirect datasets
     type(c_ptr) ::                         ind_offs ! offsets for indirect datasets
     type(c_ptr) ::                         ind_sizes ! offsets for indirect datasets
