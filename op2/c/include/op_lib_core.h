@@ -228,11 +228,6 @@ void op_mpi_reduce_int(op_arg *args, int* data);
 
 void op_mpi_barrier();
 
-#ifdef COMM_PERF
-int op_mpi_perf_time(const char* name, double time);
-inline void op_mpi_perf_comms(int k_i, op_arg *args);
-#endif
-
 #ifdef __cplusplus
 }
 #endif
