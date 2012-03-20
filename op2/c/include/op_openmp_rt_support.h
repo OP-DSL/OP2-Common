@@ -44,10 +44,6 @@
 extern "C" {
 #endif
 
-/*******************************************************************************
-* Random partitioning wrapper prototype
-*******************************************************************************/
-void op_partition_random(op_set primary_set);
 
 /*
  * Plan interface for generated code: the implementation changes depending
