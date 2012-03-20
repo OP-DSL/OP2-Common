@@ -356,10 +356,10 @@ contains
 
   end subroutine op_decl_gbl_real_8
 
-  subroutine op_decl_const_integer_4 ( constdim, dat, opname )
+  subroutine op_decl_const_integer_4 ( dat, constdim, opname )
 
-    integer(kind=c_int), value :: constdim
     integer(4), dimension(*), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
     if ( present ( opname ) ) then
@@ -370,10 +370,10 @@ contains
 
   end subroutine op_decl_const_integer_4
 
-  subroutine op_decl_const_real_8 ( constdim, dat, opname )
+  subroutine op_decl_const_real_8 ( dat, constdim, opname )
 
-    integer(kind=c_int), value :: constdim
     real(8), dimension(*), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
     if ( present ( opname ) ) then
@@ -384,10 +384,10 @@ contains
 
   end subroutine op_decl_const_real_8
 
-  subroutine op_decl_const_scalar_integer_4 ( constdim, dat, opname )
+  subroutine op_decl_const_scalar_integer_4 ( dat, constdim, opname )
 
-    integer(kind=c_int), value :: constdim
     integer(4), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
     if ( present ( opname ) ) then
@@ -398,10 +398,10 @@ contains
 
   end subroutine op_decl_const_scalar_integer_4
 
-  subroutine op_decl_const_scalar_real_8 ( constdim, dat, opname )
+  subroutine op_decl_const_scalar_real_8 ( dat, constdim, opname )
 
-    integer(kind=c_int), value :: constdim
     real(8), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
     if ( present ( opname ) ) then

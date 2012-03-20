@@ -9,212 +9,73 @@
 #include <math.h>
 
 #include "../../include/op2_C_reference.h"
+#include "../../include/op2_reference_macros.h"
+
+#include <op_lib_core.h>
 
 
-static void arg_set ( int displacement, /* set element */
-         op_dat arg,
-         int itemSel, /* map field to be used */
-         op_map mapIn,
-         char ** p_arg )
+void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** p_arg )
 {
   int n2;
 
   if ( mapIn->dim == -1 ) /* global variable, no mapping at all */
-  {
-  n2 = 0;
-  }
+    {
+      n2 = 0;
+    }
 
   if ( mapIn->dim == 0 ) /* identity mapping */
-  {
-    n2 = displacement;
-  }
+    {
+      n2 = displacement;
+    }
   if ( mapIn->dim > 0 ) /* standard pointers */
-  {
-    n2 = mapIn->map[itemSel + displacement * mapIn->dim];
-  }
+    {
+      n2 = mapIn->map[itemSel + displacement * mapIn->dim];
+    }
 
   *p_arg = (char *) ( arg->data + n2 * arg->size );
 }
 
 
-void op_par_loop_2 ( void (*subroutineName)(char *, char *), op_set set,
-                     op_dat dat0, int itemSel0, op_map map0, op_access access0,
-                     op_dat dat1, int itemSel1, op_map map1, op_access access1
-                   )
-{
-  (void)access0;
-  (void)access1;
+#define CHARP_LIST(N) COMMA_LIST(N,CHARP)
+#define CHARP(x) char*
 
-  int i;
+#define CHARP_LIST_2(N) SEMI_LIST(N,CHARP2)
+#define CHARP2(x) char* ptr##x
 
-  for ( i = 0; i < set->size; i++ ) {
-    char * ptr0, * ptr1;
+#define ARG_SET_LIST(N) SEMI_LIST(N,ARGSET)
+#define ARGSET(x) arg_set(i,dat##x,itemSel##x,map##x,&ptr##x)
 
-    arg_set ( i, dat0, itemSel0, map0, &ptr0 );
-    arg_set ( i, dat1, itemSel1, map1, &ptr1 );
+#define PTR_LIST(N) COMMA_LIST(N,PTRL)
+#define PTRL(x) ptr##x
 
-    (*subroutineName) ( ptr0, ptr1 );
+#define ARG_LIST(N) COMMA_LIST(N,ARGS)
+#define ARGS(x) op_dat dat##x, int itemSel##x, op_map map##x, op_access access##x
+
+#define OP_LOOP(N) \
+  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set set, ARG_LIST(N)) { \
+    int i; \
+    for(i = 0; i<set->size; i++) { \
+      CHARP_LIST_2(N); \
+      ARG_SET_LIST(N); \
+      (*kernel)(PTR_LIST(N)); \
+    } \
   }
-}
 
+#define DUMPOPDAT_LIST(N) SEMI_LIST(N,DUMPOPDAT)
+#define DUMPOPDAT(x) dumpOpDatSequential(kernelName, dat##x, access##x, map##x)
 
-void op_par_loop_5 ( void (*subroutineName)(char *, char *, char *, char *, char *), op_set set,
-                     op_dat dat0, int itemSel0, op_map map0, op_access access0,
-                     op_dat dat1, int itemSel1, op_map map1, op_access access1,
-                     op_dat dat2, int itemSel2, op_map map2, op_access access2,
-                     op_dat dat3, int itemSel3, op_map map3, op_access access3,
-                     op_dat dat4, int itemSel4, op_map map4, op_access access4
-                   )
-{
-  (void)access0;
-  (void)access1;
-  (void)access2;
-  (void)access3;
-  (void)access4;
-
-  int i;
-
-  for ( i = 0; i < set->size; i++ ) {
-
-    char * ptr0, * ptr1, * ptr2, * ptr3, * ptr4;
-
-    arg_set ( i, dat0, itemSel0, map0, &ptr0 );
-    arg_set ( i, dat1, itemSel1, map1, &ptr1 );
-    arg_set ( i, dat2, itemSel2, map2, &ptr2 );
-    arg_set ( i, dat3, itemSel3, map3, &ptr3 );
-    arg_set ( i, dat4, itemSel4, map4, &ptr4 );
-
-    (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4 );
+#define OP_LOOP_DUMP(N) \
+  void op_par_loop_dump_##N(void (*kernel)(CHARP_LIST(N)), char * kernelName, op_set set, ARG_LIST(N)) { \
+    int i;                                                              \
+    for(i = 0; i<set->size; i++) {                                      \
+      CHARP_LIST_2(N);                                                  \
+      ARG_SET_LIST(N);                                                  \
+      (*kernel)(PTR_LIST(N));                                           \
+    }                                                                   \
+    DUMPOPDAT_LIST(N);                                                  \
   }
-}
 
-
-void op_par_loop_6 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *), op_set set,
-                     op_dat dat0, int itemSel0, op_map map0, op_access access0,
-                     op_dat dat1, int itemSel1, op_map map1, op_access access1,
-                     op_dat dat2, int itemSel2, op_map map2, op_access access2,
-                     op_dat dat3, int itemSel3, op_map map3, op_access access3,
-                     op_dat dat4, int itemSel4, op_map map4, op_access access4,
-                     op_dat dat5, int itemSel5, op_map map5, op_access access5
-                   )
-{
-  (void)access0;
-  (void)access1;
-  (void)access2;
-  (void)access3;
-  (void)access4;
-  (void)access5;
-
-  int i;
-
-  for ( i = 0; i < set->size; i++ ) {
-
-    char * ptr0, * ptr1, * ptr2, * ptr3, * ptr4, * ptr5;
-
-    arg_set ( i, dat0, itemSel0, map0, &ptr0 );
-    arg_set ( i, dat1, itemSel1, map1, &ptr1 );
-    arg_set ( i, dat2, itemSel2, map2, &ptr2 );
-    arg_set ( i, dat3, itemSel3, map3, &ptr3 );
-    arg_set ( i, dat4, itemSel4, map4, &ptr4 );
-    arg_set ( i, dat5, itemSel5, map5, &ptr5 );
-
-
-    (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4, ptr5 );
-
-  }
-}
-
-
-void op_par_loop_8 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
-                     op_dat dat0, int itemSel0, op_map map0, op_access access0,
-                     op_dat dat1, int itemSel1, op_map map1, op_access access1,
-                     op_dat dat2, int itemSel2, op_map map2, op_access access2,
-                     op_dat dat3, int itemSel3, op_map map3, op_access access3,
-                     op_dat dat4, int itemSel4, op_map map4, op_access access4,
-                     op_dat dat5, int itemSel5, op_map map5, op_access access5,
-                     op_dat dat6, int itemSel6, op_map map6, op_access access6,
-                     op_dat dat7, int itemSel7, op_map map7, op_access access7
-                   )
-{
-  (void)access0;
-  (void)access1;
-  (void)access2;
-  (void)access3;
-  (void)access4;
-  (void)access5;
-  (void)access6;
-  (void)access7;
-
-  int i;
-
-  for ( i = 0; i < set->size; i++ ) {
-
-    char * ptr0, * ptr1, * ptr2, * ptr3, * ptr4, * ptr5, * ptr6, * ptr7;
-
-    arg_set ( i, dat0, itemSel0, map0, &ptr0 );
-    arg_set ( i, dat1, itemSel1, map1, &ptr1 );
-    arg_set ( i, dat2, itemSel2, map2, &ptr2 );
-    arg_set ( i, dat3, itemSel3, map3, &ptr3 );
-    arg_set ( i, dat4, itemSel4, map4, &ptr4 );
-    arg_set ( i, dat5, itemSel5, map5, &ptr5 );
-    arg_set ( i, dat6, itemSel6, map6, &ptr6 );
-    arg_set ( i, dat7, itemSel7, map7, &ptr7 );
-
-    (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4, ptr5, ptr6, ptr7 );
-
-  }
-}
-
-
-void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
-                      op_dat dat0, int itemSel0, op_map map0, op_access access0,
-                      op_dat dat1, int itemSel1, op_map map1, op_access access1,
-                      op_dat dat2, int itemSel2, op_map map2, op_access access2,
-                      op_dat dat3, int itemSel3, op_map map3, op_access access3,
-                      op_dat dat4, int itemSel4, op_map map4, op_access access4,
-                      op_dat dat5, int itemSel5, op_map map5, op_access access5,
-                      op_dat dat6, int itemSel6, op_map map6, op_access access6,
-                      op_dat dat7, int itemSel7, op_map map7, op_access access7,
-                      op_dat dat8, int itemSel8, op_map map8, op_access access8,
-                      op_dat dat9, int itemSel9, op_map map9, op_access access9,
-                      op_dat dat10, int itemSel10, op_map map10, op_access access10,
-                      op_dat dat11, int itemSel11, op_map map11, op_access access11
-                    )
-{
-  (void)access0;
-  (void)access1;
-  (void)access2;
-  (void)access3;
-  (void)access4;
-  (void)access5;
-  (void)access6;
-  (void)access7;
-  (void)access8;
-  (void)access9;
-  (void)access10;
-  (void)access11;
-
-  int i;
-
-  for ( i = 0; i < set->size; i++ ) {
-
-    char * ptr0, * ptr1, * ptr2, * ptr3, * ptr4, * ptr5, * ptr6, * ptr7, * ptr8, * ptr9, * ptr10, * ptr11;
-
-    arg_set ( i, dat0, itemSel0, map0, &ptr0 );
-    arg_set ( i, dat1, itemSel1, map1, &ptr1 );
-    arg_set ( i, dat2, itemSel2, map2, &ptr2 );
-    arg_set ( i, dat3, itemSel3, map3, &ptr3 );
-    arg_set ( i, dat4, itemSel4, map4, &ptr4 );
-    arg_set ( i, dat5, itemSel5, map5, &ptr5 );
-    arg_set ( i, dat6, itemSel6, map6, &ptr6 );
-    arg_set ( i, dat7, itemSel7, map7, &ptr7 );
-    arg_set ( i, dat8, itemSel8, map8, &ptr8 );
-    arg_set ( i, dat9, itemSel9, map9, &ptr9 );
-    arg_set ( i, dat10, itemSel10, map10, &ptr10 );
-    arg_set ( i, dat11, itemSel11, map11, &ptr11 );
-
-    (*subroutineName) ( ptr0, ptr1, ptr2, ptr3, ptr4, ptr5, ptr6, ptr7, ptr8, ptr9, ptr10, ptr11 );
-
-  }
-}
-
+OP_LOOP(1) OP_LOOP(2)  OP_LOOP(3)  OP_LOOP(4)  OP_LOOP(5)  OP_LOOP(6)  OP_LOOP(7)  OP_LOOP(8)  OP_LOOP(9)  OP_LOOP(10)
+OP_LOOP(11) OP_LOOP(12) OP_LOOP(13) OP_LOOP(14) OP_LOOP(15) OP_LOOP(16) OP_LOOP(17) OP_LOOP(18) OP_LOOP(19) OP_LOOP(20)
+OP_LOOP(21) OP_LOOP(22) OP_LOOP(23) OP_LOOP(24) OP_LOOP(25) OP_LOOP(26) OP_LOOP(27) OP_LOOP(28) OP_LOOP(29) OP_LOOP(30)
+OP_LOOP(31) OP_LOOP(32) OP_LOOP(33) OP_LOOP(34) OP_LOOP(35) OP_LOOP(36) OP_LOOP(37) OP_LOOP(38) OP_LOOP(39) OP_LOOP(40)

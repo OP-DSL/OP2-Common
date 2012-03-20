@@ -7,59 +7,29 @@
  */
 
 #include <op_lib_core.h>
+#include "op2_reference_macros.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void op_par_loop_2 ( void (*subroutineName)(char *, char *), op_set set,
-           op_dat dat0, int itemSel0, op_map map0, op_access access0,
-           op_dat dat1, int itemSel1, op_map map1, op_access access1
-         );
 
-void op_par_loop_5 ( void (*subroutineName)(char *, char *, char *, char *, char *), op_set set,
-           op_dat dat0, int itemSel0, op_map map0, op_access access0,
-           op_dat dat1, int itemSel1, op_map map1, op_access access1,
-           op_dat dat2, int itemSel2, op_map map2, op_access access2,
-           op_dat dat3, int itemSel3, op_map map3, op_access access3,
-           op_dat dat4, int itemSel4, op_map map4, op_access access4
-         );
+void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** p_arg );
 
-void op_par_loop_6 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *), op_set set,
-            op_dat dat0, int itemSel0, op_map map0, op_access access0,
-            op_dat dat1, int itemSel1, op_map map1, op_access access1,
-            op_dat dat2, int itemSel2, op_map map2, op_access access2,
-            op_dat dat3, int itemSel3, op_map map3, op_access access3,
-            op_dat dat4, int itemSel4, op_map map4, op_access access4,
-            op_dat dat5, int itemSel5, op_map map5, op_access access5
-          );
+#define CHARP_LIST(N) COMMA_LIST(N,CHARP)
+#define CHARP(x) char*
 
-void op_par_loop_8 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
-            op_dat dat0, int itemSel0, op_map map0, op_access access0,
-            op_dat dat1, int itemSel1, op_map map1, op_access access1,
-            op_dat dat2, int itemSel2, op_map map2, op_access access2,
-            op_dat dat3, int itemSel3, op_map map3, op_access access3,
-            op_dat dat4, int itemSel4, op_map map4, op_access access4,
-            op_dat dat5, int itemSel5, op_map map5, op_access access5,
-            op_dat dat6, int itemSel6, op_map map6, op_access access6,
-            op_dat dat7, int itemSel7, op_map map7, op_access access7
-          );
+#define ARG_LIST(N) COMMA_LIST(N,ARGS)
+#define ARGS(x) op_dat dat##x, int itemSel##x, op_map map##x, op_access access##x
 
-void op_par_loop_12 ( void (*subroutineName)(char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *, char *), op_set set,
-            op_dat dat0, int itemSel0, op_map map0, op_access access0,
-            op_dat dat1, int itemSel1, op_map map1, op_access access1,
-            op_dat dat2, int itemSel2, op_map map2, op_access access2,
-            op_dat dat3, int itemSel3, op_map map3, op_access access3,
-            op_dat dat4, int itemSel4, op_map map4, op_access access4,
-            op_dat dat5, int itemSel5, op_map map5, op_access access5,
-            op_dat dat6, int itemSel6, op_map map6, op_access access6,
-            op_dat dat7, int itemSel7, op_map map7, op_access access7,
-            op_dat dat8, int itemSel8, op_map map8, op_access access8,
-            op_dat dat9, int itemSel9, op_map map9, op_access access9,
-            op_dat dat10, int itemSel10, op_map map10, op_access access10,
-            op_dat dat11, int itemSel11, op_map map11, op_access access11
-          );
+#define OP_LOOP_DEC(N) \
+  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set set, ARG_LIST(N));
 
+OP_LOOP_DEC(1) OP_LOOP_DEC(2)  OP_LOOP_DEC(3)  OP_LOOP_DEC(4)  OP_LOOP_DEC(5)  OP_LOOP_DEC(6)  OP_LOOP_DEC(7)  OP_LOOP_DEC(8)  OP_LOOP_DEC(9)  OP_LOOP_DEC(10)
+OP_LOOP_DEC(11) OP_LOOP_DEC(12) OP_LOOP_DEC(13) OP_LOOP_DEC(14) OP_LOOP_DEC(15) OP_LOOP_DEC(16) OP_LOOP_DEC(17) OP_LOOP_DEC(18) OP_LOOP_DEC(19) OP_LOOP_DEC(20)
+OP_LOOP_DEC(21) OP_LOOP_DEC(22) OP_LOOP_DEC(23) OP_LOOP_DEC(24) OP_LOOP_DEC(25) OP_LOOP_DEC(26) OP_LOOP_DEC(27) OP_LOOP_DEC(28) OP_LOOP_DEC(29) OP_LOOP_DEC(30)
+OP_LOOP_DEC(31) OP_LOOP_DEC(32) OP_LOOP_DEC(33) OP_LOOP_DEC(34) OP_LOOP_DEC(35) OP_LOOP_DEC(36) OP_LOOP_DEC(37) OP_LOOP_DEC(38) OP_LOOP_DEC(39) OP_LOOP_DEC(40)
+    
 #ifdef __cplusplus
 }
 #endif
