@@ -47,12 +47,8 @@
 #include <mpi.h>
 
 #include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
-
 #include <op_rt_support.h>
-
 #include <op_lib_mpi.h>
-#include <op_util.h>
 
 
 // //

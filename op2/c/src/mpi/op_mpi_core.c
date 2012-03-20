@@ -39,15 +39,15 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
-#include <op_lib_c.h>
+
 #include <op_lib_core.h>
+#include <op_lib_c.h>
 #include <op_util.h>
 
 //mpi header
 #include <mpi.h>
 
 #include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
 
 //
 //MPI Communicator for halo creation and exchange
