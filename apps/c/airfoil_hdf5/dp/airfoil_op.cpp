@@ -176,6 +176,11 @@ int main(int argc, char **argv)
   op_decl_const2("qinf",4,"double",qinf  );
 
   op_diagnostic_output();
+  
+  //write back original data just to compare you read the file correctly
+  //do an h5diff between new_grid_out.h5 and new_grid.h5 to
+  //compare two hdf5 files
+  op_write_hdf5("new_grid_out.h5");
 
   int g_ncell = op_get_size(cells);
 
