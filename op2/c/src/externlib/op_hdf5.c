@@ -300,6 +300,212 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
 void op_write_hdf5(char const * file_name)
 {
-  (void)file_name;
+  printf("Writing to %s\n",file_name);
+
+  //declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+  op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
+
+  //HDF5 APIs definitions
+  hid_t       file_id; //file identifier
+  hid_t dset_id; //dataset identifier
+  hid_t       dataspace; //data space identifier
+  hid_t attr;   //attribute identifier
+
+  hsize_t     dimsf[2]; // dataset dimensions
+
+  file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+	/*loop over all the op_sets and write them to file*/
+  for(int s=0; s<OP_set_index; s++) {
+    op_set set=OP_set_list[s];
+
+    //Create the dataspace for the dataset.
+    hsize_t dimsf_set[] = {1};
+    dataspace = H5Screate_simple(1, dimsf_set, NULL);
+
+    //Create the dataset with default properties and close dataspace.
+    dset_id = H5Dcreate(file_id, set->name, H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    int size = set->size;
+
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &size);
+    H5Sclose(dataspace);
+    H5Dclose(dset_id);
+  }
+
+
+  /*loop over all the op_maps and write them to file*/
+  for(int m=0; m<OP_map_index; m++) {
+    op_map map=OP_map_list[m];
+
+    //find total size of map
+    int g_size = map->from->size;
+
+    //Create the dataspace for the dataset.
+    dimsf[0] = g_size;
+    dimsf[1] = map->dim;
+    dataspace = H5Screate_simple(2, dimsf, NULL);
+
+    //Create the dataset with default properties and close dataspace.
+    if(sizeof(map->map[0]) == sizeof(int))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_INT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(sizeof(map->map[0]) == sizeof(long))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_LONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(sizeof(map->map[0]) == sizeof(long long))
+      dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_LLONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    //write data
+    if(sizeof(map->map[0]) == sizeof(int))
+      H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT, map->map);
+    else if(sizeof(map->map[0]) == sizeof(long))
+      H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, H5P_DEFAULT, map->map);
+    else if(sizeof(map->map[0]) == sizeof(long long))
+      H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT, map->map);
+
+
+    H5Sclose(dataspace);
+    H5Dclose(dset_id);
+
+    /*attach attributes to map*/
+
+    //open existing data set
+    dset_id = H5Dopen(file_id, map->name, H5P_DEFAULT);
+    //create the data space for the attribute
+    hsize_t dims = 1;
+    dataspace = H5Screate_simple(1, &dims, NULL);
+
+    //Create an int attribute - size
+    hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+    //Write the attribute data.
+    H5Awrite(attribute, H5T_NATIVE_INT, &g_size);
+    //Close the attribute.
+    H5Aclose(attribute);
+
+    //Create an int attribute - dimension
+    attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+    //Write the attribute data.
+    H5Awrite(attribute, H5T_NATIVE_INT, &map->dim);
+    //Close the attribute.
+    H5Aclose(attribute);
+    H5Sclose(dataspace);
+
+    //Create an string attribute - type
+    dataspace= H5Screate(H5S_SCALAR);
+    hid_t atype = H5Tcopy(H5T_C_S1);
+    H5Tset_size(atype, 10);
+    attribute = H5Acreate(dset_id, "type", atype, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+
+    if(sizeof(map->map[0]) == sizeof(int))
+      H5Awrite(attribute, atype, "int");
+    if(sizeof(map->map[0]) == sizeof(long))
+      H5Awrite(attribute, atype, "long");
+    if(sizeof(map->map[0]) == sizeof(long long))
+      H5Awrite(attribute, atype, "long long");
+
+    H5Aclose(attribute);
+    //Close the dataspace
+    H5Sclose(dataspace);
+    //Close to the dataset.
+    H5Dclose(dset_id);
+  }
+
+
+  /*loop over all the op_dats and write them to file*/
+  for(int d=0; d<OP_dat_index; d++) {
+    op_dat dat=OP_dat_list[d];
+
+    //find total size of map
+    int g_size = dat->set->size;
+
+    //Create the dataspace for the dataset.
+    dimsf[0] = g_size;
+    dimsf[1] = dat->dim;
+    dataspace = H5Screate_simple(2, dimsf, NULL);
+
+    //Create the dataset with default properties and close dataspace.
+    if(strcmp(dat->type,"double")==0)
+      dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(strcmp(dat->type,"float")==0)
+      dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if(strcmp(dat->type,"int")==0)
+      dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else printf("Unknown type\n");
+
+    //write data
+    if(strcmp(dat->type,"double") == 0)
+      H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
+    else if(strcmp(dat->type,"float") == 0)
+      H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
+    else if(strcmp(dat->type,"int") == 0)
+      H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
+    else printf("Unknown type\n");
+
+    H5Sclose(dataspace);
+    H5Dclose(dset_id);
+
+    /*attach attributes to dat*/
+
+    //open existing data set
+    dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
+    //create the data space for the attribute
+    hsize_t dims = 1;
+    dataspace = H5Screate_simple(1, &dims, NULL);
+
+    //Create an int attribute - size
+    hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+    //Write the attribute data.
+    H5Awrite(attribute, H5T_NATIVE_INT, &dat->size);
+    //Close the attribute.
+    H5Aclose(attribute);
+
+    //Create an int attribute - dimension
+    attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+    //Write the attribute data.
+    H5Awrite(attribute, H5T_NATIVE_INT, &dat->dim);
+    H5Aclose(attribute);
+    H5Sclose(dataspace);
+
+    //Create an string attribute - type
+    dataspace= H5Screate(H5S_SCALAR);
+    hid_t atype = H5Tcopy(H5T_C_S1);
+    H5Tset_size(atype, 10);
+    attribute = H5Acreate(dset_id, "type", atype, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(attribute, atype, dat->type);
+    H5Aclose(attribute);
+
+    //Close the dataspace.
+    H5Sclose(dataspace);
+    H5Dclose(dset_id);
+  }
+
+
+  H5Fclose(file_id);
+  op_timers(&cpu_t2, &wall_t2);  //timer stop for hdf5 file write
+
 }
 
+
+/*******************************************************************************
+* Routine to read in a constant from a named hdf5 file
+*******************************************************************************/
+void op_get_const_hdf5(char const *name, int dim, char const *type, char* data, char const *file_name)
+{
+	(void)file_name;
+}

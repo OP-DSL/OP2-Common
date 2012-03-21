@@ -152,7 +152,7 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //write back original data just to compare you read the file correctly
-  //do an h5diff between new_grid_writeback.h5 and new_grid.h5 to
+  //do an h5diff between new_grid_out.h5 and new_grid.h5 to
   //compare two hdf5 files
   op_write_hdf5("new_grid_out.h5");
 
