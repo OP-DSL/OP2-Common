@@ -856,11 +856,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   MPI_Info info  = MPI_INFO_NULL;
   
   //HDF5 APIs definitions
-  hid_t       file_id; //file identifier
-  hid_t dset_id; //dataset identifier
+  hid_t file_id;   //file identifier
+  hid_t dset_id;   //dataset identifier
   hid_t plist_id;  //property list identifier
-  hid_t       dataspace; //data space identifier
-  hid_t attr;   //attribute identifier
+  hid_t dataspace; //data space identifier
   
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);

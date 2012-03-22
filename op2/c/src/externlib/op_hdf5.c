@@ -331,15 +331,12 @@ void op_write_hdf5(char const * file_name)
   
   //declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
   op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
   
   //HDF5 APIs definitions
-  hid_t       file_id; //file identifier
-  hid_t dset_id; //dataset identifier
-  hid_t       dataspace; //data space identifier
-  hid_t attr;   //attribute identifier
+  hid_t file_id;   //file identifier
+  hid_t dset_id;   //dataset identifier
+  hid_t dataspace; //data space identifier
   
   hsize_t     dimsf[2]; // dataset dimensions
   
@@ -665,10 +662,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 	printf("Writing constant to %s\n",file_name);
 	
 	//HDF5 APIs definitions
-  hid_t       file_id; //file identifier
-  hid_t dset_id; //dataset identifier
-  hid_t       dataspace; //data space identifier
-  hid_t attr;   //attribute identifier
+  hid_t file_id;   //file identifier
+  hid_t dset_id;   //dataset identifier
+  hid_t dataspace; //data space identifier
   
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
