@@ -93,7 +93,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   //Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
 
-  //Create property list for collective dataset write.
+  //Create property list for collective dataset read.
   plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
@@ -425,9 +425,127 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 }
 
 /*******************************************************************************
+* Routine to read in a constant from a named hdf5 file
+*******************************************************************************/
+void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_data,
+  char const *file_name)
+{
+  //create new communicator
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
+
+  //MPI variables
+  MPI_Info info  = MPI_INFO_NULL;
+
+  //HDF5 APIs definitions
+  hid_t       file_id; //file identifier
+  hid_t plist_id;  //property list identifier
+  hid_t dset_id; //dataset identifier
+  hid_t       dataspace; //data space identifier
+  hid_t attr;   //attribute identifier
+
+  //Set up file access property list with parallel I/O access
+  plist_id = H5Pcreate(H5P_FILE_ACCESS);
+  H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
+
+  file_id = H5Fopen(file_name, H5F_ACC_RDONLY, plist_id);
+  H5Pclose(plist_id);
+
+  /*find dimension of this constant with available attributes*/
+  int const_dim = 0;
+
+  //open existing data set
+  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+
+  //Create property list for collective dataset read.
+  plist_id = H5Pcreate(H5P_DATASET_XFER);
+  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+  //get OID of the dim attribute
+  attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
+  //read attribute
+  H5Aread(attr,H5T_NATIVE_INT,&const_dim);
+  H5Aclose(attr);
+  H5Dclose(dset_id);
+  if(const_dim != dim)
+  {
+      printf("dim of constant %d in file %s and requested dim %d do not match\n",
+        const_dim,file_name,dim);
+      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
+
+  /*find type with available attributes*/
+  dataspace= H5Screate(H5S_SCALAR);
+  hid_t  atype = H5Tcopy(H5T_C_S1);
+  H5Tset_size(atype, 10);
+  //open existing data set
+  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  //get OID of the attribute
+  attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
+  //read attribute
+  char typ[10];
+  H5Aread(attr,atype,typ);
+  H5Aclose(attr);
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
+  if(strcmp(typ,type) != 0)
+  {
+      printf("type of constant %s in file %s and requested type %s do not match\n",
+        typ,file_name,type);
+      exit(2);
+  }
+
+  //Create the dataset with default properties and close dataspace.
+  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  dataspace = H5Dget_space(dset_id);
+
+  char* data;
+  //initialize data buffer and read data
+  if(strcmp(typ,"int") == 0)
+  {
+     data = (char *)xmalloc(sizeof(int)*const_dim);
+     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, const_data);
+  }
+  else if(strcmp(typ,"long") == 0)
+  {
+     data = (char *)xmalloc(sizeof(long)*const_dim);
+     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, plist_id, const_data);
+  }
+  else if(strcmp(typ,"long long") == 0)
+  {
+     data = (char *)xmalloc(sizeof(long long)*const_dim);
+     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, const_data);
+  }
+  else if(strcmp(typ,"float") == 0)
+  {
+     data = (char *)xmalloc(sizeof(float)*const_dim);
+     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, plist_id, const_data);
+  }
+  else if(strcmp(typ,"double") == 0)
+  {
+     data = (char *)xmalloc(sizeof(double)*const_dim);
+     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id, const_data);
+  }
+  else
+  {
+    printf("Unknown type in file %s for constant %s\n",file_name, name);
+    exit(2);
+  }
+
+  const_data = data;
+
+  H5Pclose(plist_id);
+  H5Dclose(dset_id);
+  H5Fclose(file_id);
+  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+
+}
+
+/*******************************************************************************
 * Routine to write all to a named hdf5 file
 *******************************************************************************/
-
 void op_write_hdf5(char const * file_name)
 {
   printf("Writing to %s\n",file_name);
@@ -713,6 +831,139 @@ void op_write_hdf5(char const * file_name)
   {
     printf("Max hdf5 file write time = %lf\n\n",max_time);
   }
+  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+}
+
+
+/*******************************************************************************
+* Routine to write a constant to a named hdf5 file
+*******************************************************************************/
+void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
+  char const *file_name)
+{
+  op_printf("Writing constant to %s\n",file_name);
+
+  //create new communicator
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
+
+  //MPI variables
+  MPI_Info info  = MPI_INFO_NULL;
+
+  //HDF5 APIs definitions
+  hid_t       file_id; //file identifier
+  hid_t dset_id; //dataset identifier
+  hid_t plist_id;  //property list identifier
+  hid_t       dataspace; //data space identifier
+  hid_t attr;   //attribute identifier
+
+  //Set up file access property list with parallel I/O access
+  plist_id = H5Pcreate(H5P_FILE_ACCESS);
+  H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
+
+  /* Open the existing file. */
+  file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
+  H5Pclose(plist_id);
+
+  //Create the dataspace for the dataset.
+  hsize_t dims_of_const = {dim};
+  dataspace = H5Screate_simple(1, &dims_of_const, NULL);
+
+  //Create property list for collective dataset write.
+  plist_id = H5Pcreate(H5P_DATASET_XFER);
+  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+  //Create the dataset with default properties
+  if(strcmp(type,"double")==0)
+  {
+    dset_id = H5Dcreate(file_id, name, H5T_NATIVE_DOUBLE, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, plist_id, const_data);
+  }
+  else if(strcmp(type,"float")==0)
+  {
+    dset_id = H5Dcreate(file_id, name, H5T_NATIVE_FLOAT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, plist_id, const_data);
+  }
+  else if(strcmp(type,"int")==0)
+  {
+    dset_id = H5Dcreate(file_id, name, H5T_NATIVE_INT, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, plist_id, const_data);
+
+  }
+  else if(strcmp(type,"long")==0)
+  {
+    dset_id = H5Dcreate(file_id, name, H5T_NATIVE_LONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, plist_id, const_data);
+
+  }
+  else if(strcmp(type,"long long")==0)
+  {
+    dset_id = H5Dcreate(file_id, name, H5T_NATIVE_LLONG, dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //write data
+    H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, plist_id, const_data);
+
+  }
+  else printf("Unknown type\n");
+
+  H5Pclose(plist_id);
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
+
+  /*attach attributes to constant*/
+
+  //open existing data set
+  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  //create the data space for the attribute
+  dims_of_const = 1;
+  dataspace = H5Screate_simple(1, &dims_of_const, NULL);
+
+  //Create an int attribute - dimension
+  hid_t attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace,
+    H5P_DEFAULT, H5P_DEFAULT);
+  //Write the attribute data.
+  H5Awrite(attribute, H5T_NATIVE_INT, &dim);
+  //Close the attribute.
+  H5Aclose(attribute);
+  H5Sclose(dataspace);
+
+  //Create a string attribute - type
+  dataspace= H5Screate(H5S_SCALAR);
+  hid_t atype = H5Tcopy(H5T_C_S1);
+  H5Tset_size(atype, 10);
+  attribute = H5Acreate(dset_id, "type", atype, dataspace,
+    H5P_DEFAULT, H5P_DEFAULT);
+
+  if(strcmp(type,"double") == 0)
+    H5Awrite(attribute, atype, "double");
+  else if(strcmp(type,"int") == 0)
+    H5Awrite(attribute, atype, "int");
+  else if(strcmp(type,"long") == 0)
+    H5Awrite(attribute, atype, "long");
+  else if(strcmp(type,"long long") == 0)
+    H5Awrite(attribute, atype, "long long");
+  else  if(strcmp(type,"float") == 0)
+    H5Awrite(attribute, atype, "float");
+  else {
+    printf("Unknown type %s for constant %s: cannot write constant to file\n",type, name);
+    exit(2);
+  }
+
+  H5Aclose(attribute);
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
+
+  H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
 
