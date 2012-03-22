@@ -20,6 +20,8 @@ module OP2_Fortran_Declarations
   integer(c_int) :: OP_WRITE = 2
   integer(c_int) :: OP_INC = 3
   integer(c_int) :: OP_RW = 4
+  integer(c_int) :: OP_MIN = 4
+  integer(c_int) :: OP_MAX = 5
 
   type, BIND(C) :: op_set_core
 
@@ -29,7 +31,7 @@ module OP2_Fortran_Declarations
 
   end type op_set_core
 
-  type op_set
+  type :: op_set
 
     type (op_set_core), pointer :: setPtr
     type(c_ptr)                 :: setCptr
@@ -47,7 +49,7 @@ module OP2_Fortran_Declarations
 
   end type op_map_core
 
-  type op_map
+  type :: op_map
 
     type(op_map_core), pointer :: mapPtr
     type(c_ptr) :: mapCptr
@@ -194,7 +196,7 @@ module OP2_Fortran_Declarations
   end interface op_decl_dat
 
   interface op_decl_gbl
-    module procedure op_decl_gbl_real_8 !, op_decl_gbl_integer_4 ! not needed for now
+    module procedure op_decl_gbl_real_8,  op_decl_gbl_integer_4_scalar
   end interface op_decl_gbl
 
   interface op_decl_const
@@ -355,6 +357,20 @@ contains
     call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
 
   end subroutine op_decl_gbl_real_8
+
+  subroutine op_decl_gbl_integer_4_scalar ( dat, gbldata)
+
+    integer(4), intent(in), target :: dat
+    type(op_dat) :: gblData
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), 1, 4, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_integer_4_scalar
+
 
   subroutine op_decl_const_integer_4 ( dat, constdim, opname )
 
