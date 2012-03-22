@@ -79,6 +79,13 @@ int op2_stride;
 
 int main(int argc, char **argv)
 {
+  int my_rank;
+  int comm_size;
+
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
   int    *bnode, *cell;
   double *xm;//, *q;
 
@@ -90,7 +97,7 @@ int main(int argc, char **argv)
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("../FE_grid.dat","r")) == NULL) {
+  if ( (fp = fopen("./FE_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -110,7 +117,7 @@ int main(int argc, char **argv)
 
   for (int n=0; n<ncell; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-    &cell[4*n+2], &cell[4*n+3]) != 4) {
+          &cell[4*n+2], &cell[4*n+3]) != 4) {
       printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
@@ -231,9 +238,11 @@ int main(int argc, char **argv)
 #endif
   op_decl_const(1,"int",&op2_stride  );
 
-  op_write_hdf5("FE_grid.h5");
+  op_write_hdf5("FE_grid_big.h5");
 
   op_diagnostic_output();
+  //create halos - for sanity check
+  op_halo_create();
 
   op_timing_output();
   op_exit();

@@ -48,8 +48,9 @@ int stride;
 // OP header file
 //
 
+
 #include "op_lib_cpp.h"
-#include "op_lib_cpp.h"
+#include "op_lib_mpi.h"
 
 //
 // op_par_loop declarations
@@ -140,6 +141,11 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv){
 
+
+  // OP initialisation
+
+  op_init(argc,argv,2);
+
   int    *bnode, *cell;
   double  *xm;//, *q;
 
@@ -190,14 +196,9 @@ int main(int argc, char **argv){
     mfan = 1.0;
 
 
-  char file[] = "FE_grid.h5";
-
-// OP initialisation
-
-  op_init(argc,argv,2);
-
 // declare sets, pointers, datasets and global constants
 
+  char file[] = "FE_grid.h5";
   op_set nodes  = op_decl_set_hdf5(file,  "nodes");
   op_set bnodes = op_decl_set_hdf5(file, "bedges");
   op_set cells  = op_decl_set_hdf5(file,  "cells");
@@ -213,6 +214,9 @@ int main(int argc, char **argv){
     op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
     op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
+  nnode = op_get_size(nodes);
+  ncell = op_get_size(cells);
+  nbnodes = op_get_size(bnodes);
 
   op_decl_const2("gm1",1,"double",&gm1  );
   op_decl_const2("gm1i",1,"double",&gm1i  );
@@ -237,13 +241,6 @@ int main(int argc, char **argv){
   op_decl_const2("stride",1,"int",&stride  );
 
   op_diagnostic_output();
-
-  op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
-
-  //initialise timers for total execution wall time
-  //timer
-    double cpu_t1, cpu_t2, wall_t1, wall_t2;
-    op_timers(&cpu_t1, &wall_t1);
 
 // main time-marching loop
 
@@ -356,8 +353,7 @@ int main(int argc, char **argv){
 
 
   }
-  op_timers(&cpu_t2, &wall_t2);
-  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+
   op_timing_output();
   op_exit();
 

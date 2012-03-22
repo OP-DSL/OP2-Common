@@ -45,8 +45,10 @@ int stride;
 // OP header file
 //
 
+
 #include "op_lib_cpp.h"
-#include "op_seq.h"
+#include "op_lib_mpi.h"
+
 
 //
 // kernel routines for parallel loops
@@ -62,10 +64,16 @@ int stride;
 #include "spMV.h"
 #include "update.h"
 
+#include "op_seq.h"
+
 // main program
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+
+  op_init(argc,argv,2);
+
   int    *bnode, *cell;
   double  *xm;//, *q;
 
@@ -119,9 +127,6 @@ int main(int argc, char **argv)
 
   char file[] = "FE_grid.h5";
 
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   // declare sets, pointers, datasets and global constants
 
@@ -139,6 +144,10 @@ int main(int argc, char **argv)
   op_dat p_V     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
   op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
   op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
+
+  nnode = op_get_size(nodes);
+  ncell = op_get_size(cells);
+  nbnodes = op_get_size(bnodes);
 
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
@@ -200,9 +209,6 @@ int main(int argc, char **argv)
                 op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
 
-    printf("\nStarting CG iteration\n");
-    printf("c1 = %10.5e\n",c1);
-
     //set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
@@ -250,7 +256,6 @@ int main(int argc, char **argv)
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
                   op_arg_gbl(&beta, 1, "double", OP_READ));
       c1 = c3;
-      printf("c1 = %10.5e\n",c1);
       res = sqrt(c1);
       iter++;
     }
