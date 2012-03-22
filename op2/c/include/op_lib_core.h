@@ -176,9 +176,9 @@ typedef struct
 extern "C" {
 #endif
 
-/*
+/*******************************************************************************
  * Core lib function prototypes
- */
+*******************************************************************************/
 
 void op_init_core ( int, char **, int );
 
@@ -212,6 +212,10 @@ void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 
+/*******************************************************************************
+* Core MPI lib function prototypes
+*******************************************************************************/
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
 void op_mpi_wait_all(int nargs, op_arg* args);
@@ -241,11 +245,14 @@ void op_partition(const char* lib_name, const char* lib_routine,
 
 void op_partition_reverse();
 
+#ifdef COMM_PERF
+int op_mpi_perf_time(const char* name, double time);
+inline void op_mpi_perf_comms(int k_i, op_arg *args);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
-
-
 
 #endif /* __OP_LIB_CORE_H */
 
