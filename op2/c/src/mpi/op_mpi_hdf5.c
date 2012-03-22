@@ -884,6 +884,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     //write data
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, plist_id, const_data);
+    H5Dclose(dset_id);
   }
   else if(strcmp(type,"float")==0)
   {
@@ -891,6 +892,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     //write data
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, plist_id, const_data);
+    H5Dclose(dset_id);
   }
   else if(strcmp(type,"int")==0)
   {
@@ -898,7 +900,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     //write data
     H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, plist_id, const_data);
-    
+    H5Dclose(dset_id);
   }
   else if(strcmp(type,"long")==0)
   {
@@ -906,7 +908,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     //write data
     H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, plist_id, const_data);
-    
+    H5Dclose(dset_id);
   }
   else if(strcmp(type,"long long")==0)
   {
@@ -914,13 +916,12 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     //write data
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, plist_id, const_data);
-    
+    H5Dclose(dset_id);
   }
   else printf("Unknown type\n");
   
   H5Pclose(plist_id);
 	H5Sclose(dataspace);
-  H5Dclose(dset_id);
   
   /*attach attributes to constant*/
   
