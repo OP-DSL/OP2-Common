@@ -2083,10 +2083,8 @@ int op_mpi_perf_time(const char* name, double time)
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
 
-void op_mpi_perf_comm(int kernel_index, op_arg arg)
+static void op_mpi_perf_comm(int kernel_index, op_dat dat)
 {
-  op_dat dat = arg.dat;
-
   halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
   halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
@@ -2205,9 +2203,9 @@ void op_mpi_barrier() {
 }
 
 #ifdef COMM_PERF
-void op_mpi_perf_comms(int k_i, op_arg *args) {
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    op_mpi_perf_comm(k_i, &args[n]);
+    op_mpi_perf_comm(k_i, args[n].dat);
   }
 }
 #endif
