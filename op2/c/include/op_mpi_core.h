@@ -230,9 +230,11 @@ void print_dat_tobinfile(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
-void op_mv_halo_device(op_set set, op_dat dat); //may need to be put in a seperate headder file
+/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+void op_mv_halo_device(op_set set, op_dat dat);
 
-void op_mv_halo_list_device(); //may need to be put in a seperate headder file
+/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+void op_mv_halo_list_device();
 
 void global_reduce(op_arg* arg);
 
@@ -269,7 +271,6 @@ void op_partition_meshkway(op_map primary_map); //does not work
 
 void op_partition_ptscotch(op_map primary_map);
 #endif
-
 
 #ifdef __cplusplus
 }
