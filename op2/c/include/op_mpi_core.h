@@ -238,11 +238,6 @@ void op_mv_halo_list_device();
 
 void global_reduce(op_arg* arg);
 
-#ifdef COMM_PERF
-int op_mpi_perf_time(const char* name, double time);
-inline void op_mpi_perf_comms(int k_i, op_arg *args);
-#endif
-
 
 /******************************************************************************
 * Random partitioning wrapper prototype
