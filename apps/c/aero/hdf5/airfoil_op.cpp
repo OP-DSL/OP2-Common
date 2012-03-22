@@ -214,10 +214,6 @@ int main(int argc, char **argv){
     op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
     op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
-  nnode = op_get_size(nodes);
-  ncell = op_get_size(cells);
-  nbnodes = op_get_size(bnodes);
-
   op_decl_const2("gm1",1,"double",&gm1  );
   op_decl_const2("gm1i",1,"double",&gm1i  );
     op_decl_const2("m2",1,"double",&m2  );
@@ -241,6 +237,12 @@ int main(int argc, char **argv){
   op_decl_const2("stride",1,"int",&stride  );
 
   op_diagnostic_output();
+
+  op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
+
+  nnode = op_get_size(nodes);
+  ncell = op_get_size(cells);
+  nbnodes = op_get_size(bnodes);
 
 // main time-marching loop
 

@@ -145,10 +145,6 @@ int main(int argc, char **argv)
   op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
   op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
-  nnode = op_get_size(nodes);
-  ncell = op_get_size(cells);
-  nbnodes = op_get_size(bnodes);
-
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
   op_decl_const(1,"double",&gm1i  );
@@ -175,6 +171,10 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
+
+  nnode = op_get_size(nodes);
+  ncell = op_get_size(cells);
+  nbnodes = op_get_size(bnodes);
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers(&cpu_t1, &wall_t1);
