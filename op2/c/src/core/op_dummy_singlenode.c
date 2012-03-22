@@ -68,12 +68,15 @@ void op_mpi_barrier()
 #ifdef COMM_PERF
 int op_mpi_perf_time(const char* name, double time)
 {
+  (void)name;
+  (void)time;
   return 0;
 }
 
-void op_mpi_perf_comms(int k_i, op_arg *args)
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args)
 {
   (void)k_i;
+  (void)nargs;
   (void)args;
 }
 #endif
