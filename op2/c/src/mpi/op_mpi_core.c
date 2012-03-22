@@ -1530,7 +1530,7 @@ void op_halo_destroy()
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
-void set_dirtybit(op_arg* arg)
+static void set_dirtybit(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -1543,6 +1543,7 @@ void set_dirtybit(op_arg* arg)
 
 void op_mpi_reduce_float(op_arg* arg, float* data)
 {
+  (void)data;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     float result;
@@ -1569,6 +1570,7 @@ void op_mpi_reduce_float(op_arg* arg, float* data)
 
 void op_mpi_reduce_double(op_arg* arg, double* data)
 {
+  (void)data;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     double result;
@@ -1595,6 +1597,7 @@ void op_mpi_reduce_double(op_arg* arg, double* data)
 
 void op_mpi_reduce_int(op_arg* arg, int* data)
 {
+  (void)data;
   int result;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
@@ -1950,7 +1953,7 @@ void op_mpi_put_data(op_dat dat)
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
 
-void reset_halo(op_arg* arg)
+static void reset_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -2055,6 +2058,7 @@ void op_mpi_timing_output()
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
+#ifdef COMM_PERF
 /*******************************************************************************
  * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
@@ -2143,6 +2147,7 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
     }
   }
 }
+#endif
 
 /*******************************************************************************
  * Routine to exit an op2 mpi application -
