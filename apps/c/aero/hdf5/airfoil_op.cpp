@@ -146,48 +146,6 @@ int main(int argc, char **argv){
   int    nnode,ncell,nbnodes,niter;
   double  rms = 1;
 
-// read in grid
-
-  printf("reading in grid \n");
-
-  FILE *fp;
-  if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
-  }
-
-  if (fscanf(fp,"%d %d %d \n",&nnode, &ncell, &nbnodes) != 3) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
-  }
-
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-    bnode   = (int *) malloc(nbnodes*sizeof(int));
-
-  xm      = (double *) malloc(2*nnode*sizeof(double));
-
-  for (int n=0; n<nnode; n++) {
-    if (fscanf(fp,"%lf %lf \n",&xm[2*n], &xm[2*n+1]) != 2) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
-    }
-  }
-
-  for (int n=0; n<ncell; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-    &cell[4*n+2], &cell[4*n+3]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
-    }
-  }
-
-  for (int n=0; n<nbnodes; n++) {
-    if (fscanf(fp,"%d \n",&bnode[n]) != 1) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
-    }
-  }
-
-  fclose(fp);
-
-// set constants and initialise flow field and residual
-
-  printf("initialising flow field \n");
 
   double gam = 1.4;
   gm1 = gam - 1.0;
@@ -232,31 +190,7 @@ int main(int argc, char **argv){
     mfan = 1.0;
 
 
-//  for (int n=0; n<ncell; n++) {
-//    for (int m=0; m<4; m++) {
-//      q[4*n+m] = qinf[m];
-//    }
-//  }
-
-  double *phim = (double *)malloc(nnode*sizeof(double));
-  memset(phim,0,nnode*sizeof(double));
-  for (int i = 0;i<nnode;i++) {
-    phim[i] = minf*xm[2*i];
-  }
-
-  double *K = (double *)malloc(4*4*ncell*sizeof(double));
-  memset(K,0,4*4*ncell*sizeof(double));
-  //double *Kt = (double *)malloc(4*4*ncell*sizeof(double));
-  //memset(Kt,0,4*4*ncell*sizeof(double));
-  double *resm = (double *)malloc(nnode*sizeof(double));
-  memset(resm,0,nnode*sizeof(double));
-
-    double *V = (double *)malloc(nnode*sizeof(double));
-  memset(V,0,nnode*sizeof(double));
-    double *P = (double *)malloc(nnode*sizeof(double));
-  memset(P,0,nnode*sizeof(double));
-    double *U = (double *)malloc(nnode*sizeof(double));
-  memset(U,0,nnode*sizeof(double));
+  char file[] = "FE_grid.h5";
 
 // OP initialisation
 
@@ -264,22 +198,20 @@ int main(int argc, char **argv){
 
 // declare sets, pointers, datasets and global constants
 
-  op_set nodes  = op_decl_set(nnode,  "nodes");
-  op_set bnodes = op_decl_set(nbnodes, "bedges");
-  op_set cells  = op_decl_set(ncell,  "cells");
+  op_set nodes  = op_decl_set_hdf5(file,  "nodes");
+  op_set bnodes = op_decl_set_hdf5(file, "bedges");
+  op_set cells  = op_decl_set_hdf5(file,  "cells");
 
-  op_map pbnodes  = op_decl_map(bnodes,nodes,1,bnode, "pbedge");
-  op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
+  op_map pbnodes = op_decl_map_hdf5(bnodes,nodes,1,file, "pbedge");
+  op_map pcell   = op_decl_map_hdf5(cells, nodes,4,file,  "pcell");
 
-  op_dat p_xm     = op_decl_dat(nodes ,2,"double",xm    ,"p_x");
-  op_dat p_phim  = op_decl_dat(nodes, 1, "double", phim, "p_phim");
-  op_dat p_resm  = op_decl_dat(nodes, 1, "double", resm, "p_resm");
-  op_dat p_K  = op_decl_dat(cells, 16, "double", K, "p_K");
-  //op_dat p_Kt  = op_decl_dat(cells, 16, "double", Kt, "p_Kt");
-
-  op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
-    op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
-    op_dat p_U = op_decl_dat(nodes, 1, "double", U, "p_U");
+  op_dat p_xm    = op_decl_dat_hdf5(nodes ,2,"double",  file, "p_x");
+  op_dat p_phim  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
+  op_dat p_resm  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
+  op_dat p_K     = op_decl_dat_hdf5(cells, 16, "double",file, "p_K");
+  op_dat p_V     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
+    op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
+    op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
 
   op_decl_const2("gm1",1,"double",&gm1  );
@@ -305,6 +237,13 @@ int main(int argc, char **argv){
   op_decl_const2("stride",1,"int",&stride  );
 
   op_diagnostic_output();
+
+  op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
+
+  //initialise timers for total execution wall time
+  //timer
+    double cpu_t1, cpu_t2, wall_t1, wall_t2;
+    op_timers(&cpu_t1, &wall_t1);
 
 // main time-marching loop
 
@@ -417,7 +356,8 @@ int main(int argc, char **argv){
 
 
   }
-
+  op_timers(&cpu_t2, &wall_t2);
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_timing_output();
   op_exit();
 

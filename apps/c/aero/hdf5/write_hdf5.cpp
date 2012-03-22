@@ -39,13 +39,27 @@ http://www.opensource.org/licenses/bsd-license.php
 // global constants
 
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
-int stride;
+int op2_stride;
+
+//
+// mpi header file - included by user for user level mpi
+//
+
+#include <mpi.h>
+
 //
 // OP header file
 //
 
 #include "op_lib_cpp.h"
-#include "op_seq.h"
+#include "op_lib_mpi.h"
+#include "op_util.h"
+
+//
+//hdf5 header
+//
+
+#include "hdf5.h"
 
 //
 // kernel routines for parallel loops
@@ -61,23 +75,22 @@ int stride;
 #include "spMV.h"
 #include "update.h"
 
-
 // main program
 
 int main(int argc, char **argv)
 {
   int    *bnode, *cell;
-  double  *xm;//, *q;
+  double *xm;//, *q;
 
   int    nnode,ncell,nbnodes,niter;
-  double  rms = 1;
+  double rms = 1;
 
   // read in grid
 
   printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
+  if ( (fp = fopen("../FE_grid.dat","r")) == NULL) {
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
@@ -87,7 +100,6 @@ int main(int argc, char **argv)
 
   cell  = (int *) malloc(4*ncell*sizeof(int));
   bnode = (int *) malloc(nbnodes*sizeof(int));
-
   xm    = (double *) malloc(2*nnode*sizeof(double));
 
   for (int n=0; n<nnode; n++) {
@@ -98,7 +110,7 @@ int main(int argc, char **argv)
 
   for (int n=0; n<ncell; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-          &cell[4*n+2], &cell[4*n+3]) != 4) {
+    &cell[4*n+2], &cell[4*n+3]) != 4) {
       printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
@@ -118,7 +130,6 @@ int main(int argc, char **argv)
   double gam = 1.4;
   gm1 = gam - 1.0;
   gm1i = 1.0/gm1;
-
 
   wtg1[0] = 0.5;
   wtg1[1] = 0.5;
@@ -214,107 +225,15 @@ int main(int argc, char **argv)
   op_decl_const(1,"double",&nmode  );
   op_decl_const(1,"double",&mfan  );
 #ifdef CUDA
-  stride = cells->size;
+  op2_stride = cells->size;
 #else
-  stride = 1;
+  op2_stride = 1;
 #endif
-  op_decl_const(1,"int",&stride  );
+  op_decl_const(1,"int",&op2_stride  );
+
+  op_write_hdf5("FE_grid.h5");
 
   op_diagnostic_output();
-
-  // main time-marching loop
-
-  niter = 50;
-
-  for(int iter=1; iter<=niter; iter++) {
-
-    op_par_loop(res_calc,"res_calc",cells,
-                op_arg_dat(p_xm,    OP_ALL, pcell, 2,"double",OP_READ),
-                op_arg_dat(p_phim,  OP_ALL, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
-                op_arg_dat(p_resm,  OP_ALL, pcell, 1,"double",OP_INC)
-                );
-
-    op_par_loop(dirichlet,"dirichlet",bnodes,
-                op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
-
-    double c1 = 0;
-    double c2 = 0;
-    double c3 = 0;
-    double alpha = 0;
-    double beta = 0;
-
-    //c1 = R'*R;
-    op_par_loop(init_cg, "init_cg", nodes,
-                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                op_arg_gbl(&c1, 1, "double", OP_INC),
-                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
-                op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
-                op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
-
-    printf("\nStarting CG iteration\n");
-    printf("c1 = %10.5e\n",c1);
-
-    //set up stopping conditions
-    double res0 = sqrt(c1);
-    double res = res0;
-    int iter = 0;
-    int maxiter = 200;
-    while (res > 0.1*res0 && iter < maxiter) {
-      //V = Stiffness*P
-      op_par_loop(spMV, "spMV", cells,
-                  op_arg_dat(p_V, OP_ALL, pcell, 1, "double", OP_INC),
-                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
-                  op_arg_dat(p_P, OP_ALL, pcell, 1, "double", OP_READ));
-
-      op_par_loop(dirichlet,"dirichlet",bnodes,
-                  op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
-
-      c2 = 0;
-
-      //c2 = P'*V;
-      op_par_loop(dotPV, "dotPV", nodes,
-                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_gbl(&c2, 1, "double", OP_INC));
-
-      alpha = c1/c2;
-
-      //U = U + alpha*P;
-      //resm = resm-alpha*V;
-      op_par_loop(updateUR, "updateUR", nodes,
-                  op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_INC),
-                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_INC),
-                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_RW),
-                  op_arg_gbl(&alpha, 1, "double", OP_READ));
-
-      c3 = 0;
-
-      //c3 = resm'*resm;
-      op_par_loop(dotR, "dotR", nodes,
-                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_gbl(&c3, 1, "double", OP_INC));
-      beta = c3/c1;
-      //P = beta*P+resm;
-      op_par_loop(updateP, "updateP", nodes,
-                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
-                  op_arg_gbl(&beta, 1, "double", OP_READ));
-      c1 = c3;
-      printf("c1 = %10.5e\n",c1);
-      res = sqrt(c1);
-      iter++;
-    }
-    rms = 0;
-    //phim = phim - Stiffness\Load;
-    op_par_loop(update, "update", nodes,
-                op_arg_dat(p_phim, -1, OP_ID, 1, "double", OP_RW),
-                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
-                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
-                op_arg_gbl(&rms, 1, "double", OP_INC));
-    printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
-  }
 
   op_timing_output();
   op_exit();
