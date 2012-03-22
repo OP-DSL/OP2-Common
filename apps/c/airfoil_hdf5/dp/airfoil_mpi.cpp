@@ -94,6 +94,8 @@ int main(int argc, char **argv)
 
   // set constants
   op_printf("initialising flow field\n");
+  
+  /* these constants are now read from file new_grid.h5
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -109,7 +111,7 @@ int main(int argc, char **argv)
   qinf[0] = r;
   qinf[1] = r*u;
   qinf[2] = 0.0f;
-  qinf[3] = r*e;
+  qinf[3] = r*e;*/
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
@@ -139,6 +141,14 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total file read time = %f\n",wall_t2-wall_t1);
 
+  op_get_const_hdf5("gam", 1, "double", (char *)&gam,	"new_grid.h5");
+  op_get_const_hdf5("gm1", 1, "double", (char *)&gm1,	"new_grid.h5");
+  op_get_const_hdf5("cfl", 1, "double", (char *)&cfl,	"new_grid.h5");
+  op_get_const_hdf5("eps", 1, "double", (char *)&eps,	"new_grid.h5");
+  op_get_const_hdf5("mach", 1, "double", (char *)&mach,	"new_grid.h5");
+  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,	"new_grid.h5");
+  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf,	"new_grid.h5");
+  
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
   op_decl_const(1,"double",&cfl  );
@@ -153,6 +163,14 @@ int main(int argc, char **argv)
   //do an h5diff between new_grid_out.h5 and new_grid.h5 to
   //compare two hdf5 files
   op_write_hdf5("new_grid_out.h5");
+  
+  op_write_const_hdf5("gam",1,"double",(char *)&gam,  "new_grid_out.h5");
+  op_write_const_hdf5("gm1",1,"double",(char *)&gm1,  "new_grid_out.h5");
+  op_write_const_hdf5("cfl",1,"double",(char *)&cfl,  "new_grid_out.h5");
+  op_write_const_hdf5("eps",1,"double",(char *)&eps,  "new_grid_out.h5");
+  op_write_const_hdf5("mach",1,"double",(char *)&mach,  "new_grid_out.h5");
+  op_write_const_hdf5("alpha",1,"double",(char *)&alpha,  "new_grid_out.h5");
+  op_write_const_hdf5("qinf",4,"double",(char *)qinf,  "new_grid_out.h5");
 
   //trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
