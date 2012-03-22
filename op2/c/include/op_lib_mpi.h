@@ -51,8 +51,6 @@ extern halo_list *OP_import_exec_list;//IEH list
 extern halo_list *OP_import_nonexec_list;//INH list
 extern halo_list *OP_export_nonexec_list;//ENH list
 
-extern set_part_core *OP_latency_sets;
-
 extern op_mpi_buffer *OP_mpi_buffer_list;
 
 extern int OP_part_index;
