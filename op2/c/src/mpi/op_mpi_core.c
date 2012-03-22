@@ -65,8 +65,6 @@ halo_list *OP_import_exec_list;//IEH list
 halo_list *OP_import_nonexec_list;//INH list
 halo_list *OP_export_nonexec_list;//ENH list
 
-set_part_core *OP_latency_sets; // set_offset
-
 //
 //global array to hold dirty_bits for op_dats
 //
@@ -543,12 +541,6 @@ void op_halo_create()
   }
 
   OP_export_exec_list = (halo_list *)xmalloc(OP_set_index*sizeof(halo_list));
-
-  OP_latency_sets = (set_part_core *)xmalloc(OP_set_index*sizeof(set_part_core));
-  for (int ctr = 0; ctr<OP_set_index; ctr++) {
-    OP_latency_sets[ctr].core_set = NULL;
-    OP_latency_sets[ctr].noncore_set = NULL;
-  }
 
   /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
@@ -1509,8 +1501,6 @@ void op_halo_destroy()
   }
   free(OP_import_exec_list);free(OP_import_nonexec_list);
   free(OP_export_exec_list);free(OP_export_nonexec_list);
-
-  free(OP_latency_sets);
 
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];

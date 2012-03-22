@@ -85,17 +85,8 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_get_offset ( name, set, 0, part_size,
-                              nargs, args, ninds, inds );
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
 }
-
-op_plan *
-op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_size,
-                     int nargs, op_arg * args, int ninds, int *inds )
-{
-  return op_plan_core ( name, set, set_offset, part_size, nargs, args, ninds, inds );
-}
-
 
 void op_printf(const char* format, ...)
 {

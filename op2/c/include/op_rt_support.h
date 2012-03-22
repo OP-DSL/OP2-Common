@@ -55,7 +55,6 @@ typedef struct {
   int        *nthrcol;    /* number of thread colors for each block */
   int        *thrcol;     /* thread colors */
   int        *offset;     /* offset for primary set */
-  int         set_offset; /* offset to use within the set */
   int       **ind_maps;   /* pointers for indirect datasets */
   int        *ind_offs;   /* block offsets for indirect datasets */
   int        *ind_sizes;  /* block sizes for indirect datasets */
@@ -81,12 +80,9 @@ extern "C" {
 op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
                              int *, op_map *, int *, char const **, op_access *, int, int * );
 
-op_plan * op_plan_core ( char const *, op_set, int, int, int, op_arg *, int, int * );
+op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int * );
 
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
-                        int nargs, op_arg * args, int ninds, int * inds );
-
-op_plan * op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_size,
                         int nargs, op_arg * args, int ninds, int * inds );
 
 void op_plan_check ( op_plan OP_plan, int ninds, int * inds );

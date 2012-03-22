@@ -264,7 +264,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
         {
           int p_local = OP_plan.loc_maps[m][e];
           int p_global = OP_plan.ind_maps[m2][p_local + OP_plan.ind_offs[m2 + n * ninds]];
-          err += ( p_global != map->map[OP_plan.idxs[m] + (OP_plan.set_offset+e) * map->dim] ); // set_offset
+          err += ( p_global != map->map[OP_plan.idxs[m] + e * map->dim] );
         }
         ntot += OP_plan.nelems[n];
       }
@@ -291,7 +291,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
  * OP plan construction
  */
 
-op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_size,
+op_plan *op_plan_core(char const *name, op_set set, int part_size,
                       int nargs, op_arg *args, int ninds, int *inds )
 {
   //set exec length
@@ -313,7 +313,6 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
   {
     if ( ( strcmp ( name, OP_plans[ip].name ) == 0 )
         && ( set == OP_plans[ip].set )
-        && ( set_offset == OP_plans[ip].set_offset )
         && ( nargs == OP_plans[ip].nargs )
         && ( ninds == OP_plans[ip].ninds )
         && ( part_size == OP_plans[ip].part_size ) )
@@ -420,7 +419,6 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
   OP_plans[ip].name = name;
   OP_plans[ip].set = set;
-  OP_plans[ip].set_offset = set_offset;
   OP_plans[ip].nargs = nargs;
   OP_plans[ip].ninds = ninds;
   OP_plans[ip].part_size = part_size;
@@ -495,7 +493,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
       {
         if ( inds[m2] == m )
         {
-          for ( int e = set_offset + prev_offset; e < set_offset + next_offset; e++ )
+          for ( int e = prev_offset; e < next_offset; e++ )
             work2[ne++] = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
         }
       }
@@ -533,7 +531,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
         if ( inds[m2] == m )
         {
           for ( int e = prev_offset; e < next_offset; e++ )
-            OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + (set_offset + e) * maps[m2]->dim]]);
+            OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]]);
         }
       }
 
@@ -568,7 +566,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
         if ( inds[m] >= 0 )
           for ( int e = prev_offset; e < next_offset; e++ )
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
-        //work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] = 0; /* zero out color array */
+        //work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
       }
 
       for ( int e = prev_offset; e < next_offset; e++ )
@@ -578,7 +576,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]]; /* set bits of mask
+              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; /* set bits of mask
               */
 
           int color = ffs ( ~mask ) - 1;  /* find first bit not set */
@@ -594,7 +592,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
             for ( int m = 0; m < nargs; m++ )
               if ( inds[m] >= 0 && accs[m] == OP_INC )
-                work[inds[m]][maps[m]->map[idxs[m] + (set_offset+e) * maps[m]->dim]] |= mask; /* set color bit */
+                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask; /* set color bit */
           }
         }
       }
@@ -661,7 +659,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
           if ( inds[m] >= 0 && accs[m] == OP_INC )
             for ( int e = prev_offset; e < next_offset; e++ )
               mask |= work[inds[m]][maps[m]->map[idxs[m] +
-                (set_offset + e) * maps[m]->dim]]; // set bits of mask
+                e * maps[m]->dim]]; // set bits of mask
         }
 
         int color = ffs( ~mask ) - 1; // find first bit not set
@@ -680,7 +678,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
             if ( inds[m] >= 0 && accs[m] == OP_INC )
               for ( int e = prev_offset; e < next_offset; e++ )
                 work[inds[m]][maps[m]->map[idxs[m] +
-                  (set_offset+e) * maps[m]->dim]] |= mask;
+                  e * maps[m]->dim]] |= mask;
           }
         }
       }
