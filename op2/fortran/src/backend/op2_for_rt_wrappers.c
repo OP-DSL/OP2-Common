@@ -15,13 +15,13 @@
 #define FOP_WRITE 2
 #define FOP_INC 3
 #define FOP_RW 4
-#define FOP_MAX 5
-#define FOP_MIN 6
-
+#define FOP_MIN 5
+#define FOP_MAX 6
 
 /*
  * Small utility for transforming Fortran OP2 access codes into C OP2 access codes
  */
+
 static op_access getAccFromIntCode ( int accCode )
 {
   switch ( accCode ) {
@@ -33,6 +33,10 @@ static op_access getAccFromIntCode ( int accCode )
     return OP_RW;
   case FOP_INC:
     return OP_INC;
+  case FOP_MIN:
+    return OP_MIN;
+  case FOP_MAX:
+    return OP_MAX;
   default:
     return OP_READ; //default case is treated as READ
   }
@@ -65,12 +69,16 @@ op_arg * generatePlanInputData ( char name[],
 
   planArguments = calloc ( argsNumber, sizeof ( op_arg ) );
 
-
   /* build planDatArgs variable by accessing OP_dat_list with indexes(=positions) in args */
   for ( i = 0; i < argsNumber; i++ )
   {
-    op_dat_core * tmp = OP_dat_list[args[i]];
-    planDatArgs[i] = *tmp;
+    if ( argsType[i] != F_OP_ARG_GBL )
+    {
+      op_dat_core * tmp = OP_dat_list[args[i]];
+      planDatArgs[i] = *tmp;
+    }
+    //      else
+    //  planDatArgs[i] = NULL;
   }
 
   /* build planMaps variables by accessing OP_map_list with indexes(=positions) in args */
@@ -89,27 +97,32 @@ op_arg * generatePlanInputData ( char name[],
       op_map_core * falseMap = (op_map_core *) calloc ( 1, sizeof ( op_map_core ) ); //OP_ID;
       falseMap->index = -1;
       planMaps[i] = *falseMap;
-
     }
   }
 
   /* build dimensions of data using op_dat */
   for ( i = 0; i < argsNumber; i++ )
   {
-    planDims[i] = planDatArgs[i].dim;
+    if ( argsType[i] != F_OP_ARG_GBL )
+      planDims[i] = planDatArgs[i].dim;
+    else
+      planDims[i] = -1; //difference with C side!
   }
 
   /* build op_dat data type names (allocate precise space for name and copy it) */
   for ( i = 0; i < argsNumber; i++ )
   {
-    /* obtain reference to next op_dat */
-    op_dat_core * tmpDat = OP_dat_list[args[i]];
+    if ( argsType[i] != F_OP_ARG_GBL )
+    {
+      /* obtain reference to next op_dat */
+      op_dat_core * tmpDat = OP_dat_list[args[i]];
 
-    /* allocate space and copy strings */
-    int typeNameLen = strlen ( tmpDat->type );
+      /* allocate space and copy strings */
+      int typeNameLen = strlen ( tmpDat->type );
 
-    planTypes[i] = (char * ) calloc ( typeNameLen, sizeof ( char ) );
-    strncpy ( planTypes[i], tmpDat->type, typeNameLen );
+      planTypes[i] = (char * ) calloc ( typeNameLen, sizeof ( char ) );
+      strncpy ( planTypes[i], tmpDat->type, typeNameLen );
+    }
   }
 
   /* build op_access array needed to build the plan */
@@ -122,19 +135,33 @@ op_arg * generatePlanInputData ( char name[],
   for ( i = 0; i < argsNumber; i++ )
   {
     planArguments[i].index = -1; //index is not specified nor used for now..
-    planArguments[i].dat = &(planDatArgs[i]);
+    if ( argsType[i] != F_OP_ARG_GBL )
+      planArguments[i].dat = &(planDatArgs[i]);
+    else
+      planArguments[i].dat = NULL;
 
-    if ( inds[i] >= 0  ) /* another magic number !!! */
+    if ( inds[i] >= 0 ) /* another magic number !!! */
       planArguments[i].map = &(planMaps[i]);
     else
       planArguments[i].map = NULL;
 
     planArguments[i].dim = planDims[i];
     planArguments[i].idx = idxs[i];
-    planArguments[i].size = planDatArgs[i].size;
-    planArguments[i].data = planDatArgs[i].data;
-    planArguments[i].data_d = planDatArgs[i].data_d;
-    planArguments[i].type = planDatArgs[i].type;
+    if ( argsType[i] != F_OP_ARG_GBL )
+    {
+      planArguments[i].size = planDatArgs[i].size;
+      planArguments[i].data = planDatArgs[i].data;
+      planArguments[i].data_d = planDatArgs[i].data_d;
+      planArguments[i].type = planDatArgs[i].type;
+    }
+    else
+    {
+      planArguments[i].size = 0;
+      planArguments[i].data = NULL;
+      planArguments[i].data_d = NULL;
+      planArguments[i].type = NULL;
+    }
+
     planArguments[i].acc = planAccs[i];
 
     switch ( argsType[i] )
@@ -154,10 +181,10 @@ op_arg * generatePlanInputData ( char name[],
   return planArguments;
 }
 
-
 /*
  * Wrapper for Fortran to plan function for OP2 --> OpenMP
  */
+
 op_plan * FortranPlanCallerOpenMP ( char name[],
                                     int setId,
                                     int argsNumber,

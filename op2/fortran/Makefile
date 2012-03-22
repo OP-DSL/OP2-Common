@@ -29,22 +29,20 @@ OP2_COMPILER=pgi
 
 ifeq ($(OP2_COMPILER),gnu)
   CC    = gcc
-  CFLAGS = -g -O3 -std=c99 -Wall -Werror -fPIC -pedantic -pipe
-  FC = gfortran
-  FFLAGS = -J$(F_OP2_MOD) -O4 -Wall -Werror -pedantic -pipe
+  CFLAGS = -g -std=c99 -Wall -Werror -fPIC -pedantic -pipe
+  FC = gfortran44
+  FFLAGS = -J$(F_OP2_MOD) -Wall -Werror -pedantic -pipe
   ALLTARGETS = f_reference f_openmp
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC        = icc
-  CFLAGS    = -g -O3 -std=c99 -Wall -Werror -vec-report -xSSE4.2
+  CFLAGS    = -O3 -std=c99 -Wall -Werror
   FC        = ifort
-  FFLAGS    = -module $(F_OP2_MOD)/intel -g -O3 -vec-report -xSSE4.2
-  #PGCC      = pgcc
-  #PGCFLAGS  = -c99 -fastsse -Mcuda=cuda4.0 -Minline=levels:10 -Mvect -Minfo -DNDEBUG
+  FFLAGS    = -module $(F_OP2_MOD)/intel -O3
   PGCC      = nvcc
-  PGCFLAGS  = -Xcompiler="-g -O3 -std=c99 -Wall -fPIC -pedantic -pipe"
+  PGCFLAGS  = -Xcompiler="-O4 -std=c99 -Wall -fPIC -pedantic -pipe"
   PGFC      = pgfortran
-  PGFFLAGS  = -module $(F_OP2_MOD)/pgi -Mcuda=cuda4.0 -Minform=inform -O4 -DOP2_WITH_CUDAFOR
+  PGFFLAGS  = -module $(F_OP2_MOD)/pgi -Mcuda=cuda4.0 -Minform=inform -DOP2_WITH_CUDAFOR
   ALLTARGETS = f_reference f_openmp f_cuda
 else
 print:
