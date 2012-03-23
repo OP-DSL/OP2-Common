@@ -485,11 +485,13 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( arg.map2 != NULL && ( arg.map2->from != set || arg.map2->to != arg.mat->colset ) )
       op_err_print ( "mapping error in colmap", m, name );
 
-    if ( ( arg.map == NULL && arg.idx != -1 ) || ( arg.map != NULL &&
-       ( arg.idx >= arg.map->dim || arg.idx < -1*arg.map->dim ) ) )
+    if ( ( arg.map == NULL && arg.idx != -1 ) ||
+         ( arg.map != NULL &&
+           (arg.idx < OP_I_OFFSET-arg.map->dim || (arg.idx > OP_I_OFFSET && arg.idx < -arg.map->dim) || arg.idx >= arg.map->dim ) ) )
       op_err_print ( "invalid row index", m, name );
-    if ( ( arg.map2 == NULL && arg.idx2 != -1 ) || ( arg.map2 != NULL &&
-       ( arg.idx2 >= arg.map2->dim || arg.idx2 < -1*arg.map2->dim ) ) )
+    if ( ( arg.map2 == NULL && arg.idx2 != -1 ) ||
+         ( arg.map2 != NULL &&
+           (arg.idx2 < OP_I_OFFSET-arg.map2->dim || (arg.idx2 > OP_I_OFFSET && arg.idx2 < -arg.map2->dim) || arg.idx2 >= arg.map2->dim ) ) )
       op_err_print ( "invalid col index", m, name );
 
     if ( arg.mat->dim != arg.dim )
