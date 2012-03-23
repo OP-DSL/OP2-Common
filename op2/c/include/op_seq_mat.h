@@ -32,6 +32,8 @@
 #define __OP_SEQ_H
 
 #include "op_lib_mat.h"
+#include <assert.h>
+#include <boost/type_traits.hpp>
 
 static inline void op_arg_set(int n, op_arg arg, char **p_arg){
   int n2;
@@ -49,6 +51,16 @@ static inline void copy_in(int n, op_arg arg, char **p_arg) {
       p_arg[i] = arg.data + arg.map->map[i+n*arg.map->dim]*arg.size;
 }
 
+op_itspace op_iteration_space(op_set set, int i, int j)
+{
+  op_itspace ret = (op_itspace)malloc(sizeof(op_itspace_core));
+  ret->set = set;
+  ret->ndims = 2;
+  ret->dims = (int *)malloc(ret->ndims * sizeof(int));
+  ret->dims[0] = i;
+  ret->dims[1] = j;
+  return ret;
+}
 
 //
 // op_par_loop routine for 1 arguments
@@ -120,6 +132,152 @@ void op_par_loop ( void (*kernel)( T0* ),
 
   if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+}
+
+//
+// op_par_loop routine for 1 arguments with op_iteration_space call
+//
+
+template < class T0 >
+void op_par_loop ( void (*kernel)( T0*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0 )
+{
+  char *p_arg0 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        kernel( (T0 *)p_arg0, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
 }
@@ -224,6 +382,239 @@ void op_par_loop ( void (*kernel)( T0*, T1* ),
 
   if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+}
+
+//
+// op_par_loop routine for 2 arguments with op_iteration_space call
+//
+
+template < class T0, class T1 >
+void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -359,6 +750,326 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2* ),
 
   if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+}
+
+//
+// op_par_loop routine for 3 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -525,6 +1236,413 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3* ),
 
   if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+}
+
+//
+// op_par_loop routine for 4 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2, class T3 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(sizeof(T3));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg3idxs[2];
+    if (arg3.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg3idxs[0] = 0;
+      arg3idxs[1] = 1;
+      if (arg3.idx < -1) {
+        ilt = 0;
+        iut = arg3.map->dim;
+      } else if (arg3.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg3.idx)-1];
+        if (seen_op_mat) {
+          arg3idxs[0] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        ilt = arg3.idx;
+        iut = ilt+1;
+      }
+      if (arg3.idx2 < -1) {
+        jlt = 0;
+        jut = arg3.map2->dim;
+      } else if (arg3.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg3.idx2)-1];
+        if (seen_op_mat) {
+          arg3idxs[1] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        jlt = arg3.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          ((T3 *)p_arg3)[0] = (T3)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          const int rows = arg3.map->dim;
+          const int cols = arg3.map2->dim;
+          typedef typename boost::remove_pointer<T3>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg3)[0]);
+          op_mat_addto(arg3.mat, &mat_arg,
+                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
+                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -727,6 +1845,505 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+}
+
+//
+// op_par_loop routine for 5 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2, class T3,
+           class T4 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
+                                   T4*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
+  op_arg arg4 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+    op_arg_check(set,4 ,arg4 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(sizeof(T3));
+      break;
+  }
+
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(sizeof(T4));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
+
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg3idxs[2];
+    if (arg3.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg3idxs[0] = 0;
+      arg3idxs[1] = 1;
+      if (arg3.idx < -1) {
+        ilt = 0;
+        iut = arg3.map->dim;
+      } else if (arg3.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg3.idx)-1];
+        if (seen_op_mat) {
+          arg3idxs[0] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        ilt = arg3.idx;
+        iut = ilt+1;
+      }
+      if (arg3.idx2 < -1) {
+        jlt = 0;
+        jut = arg3.map2->dim;
+      } else if (arg3.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg3.idx2)-1];
+        if (seen_op_mat) {
+          arg3idxs[1] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        jlt = arg3.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg4idxs[2];
+    if (arg4.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg4idxs[0] = 0;
+      arg4idxs[1] = 1;
+      if (arg4.idx < -1) {
+        ilt = 0;
+        iut = arg4.map->dim;
+      } else if (arg4.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg4.idx)-1];
+        if (seen_op_mat) {
+          arg4idxs[0] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        ilt = arg4.idx;
+        iut = ilt+1;
+      }
+      if (arg4.idx2 < -1) {
+        jlt = 0;
+        jut = arg4.map2->dim;
+      } else if (arg4.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg4.idx2)-1];
+        if (seen_op_mat) {
+          arg4idxs[1] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        jlt = arg4.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          ((T3 *)p_arg3)[0] = (T3)0;
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          ((T4 *)p_arg4)[0] = (T4)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
+                (T4 *)p_arg4, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          const int rows = arg3.map->dim;
+          const int cols = arg3.map2->dim;
+          typedef typename boost::remove_pointer<T3>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg3)[0]);
+          op_mat_addto(arg3.mat, &mat_arg,
+                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
+                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          const int rows = arg4.map->dim;
+          const int cols = arg4.map2->dim;
+          typedef typename boost::remove_pointer<T4>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg4)[0]);
+          op_mat_addto(arg4.mat, &mat_arg,
+                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
+                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
+
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -960,6 +2577,592 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
+}
+
+//
+// op_par_loop routine for 6 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2, class T3,
+           class T4, class T5 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
+                                   T4*, T5*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
+  op_arg arg4, op_arg arg5 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+    op_arg_check(set,4 ,arg4 ,&ninds,name);
+    op_arg_check(set,5 ,arg5 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(sizeof(T3));
+      break;
+  }
+
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(sizeof(T4));
+      break;
+  }
+
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(sizeof(T5));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
+
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
+
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg3idxs[2];
+    if (arg3.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg3idxs[0] = 0;
+      arg3idxs[1] = 1;
+      if (arg3.idx < -1) {
+        ilt = 0;
+        iut = arg3.map->dim;
+      } else if (arg3.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg3.idx)-1];
+        if (seen_op_mat) {
+          arg3idxs[0] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        ilt = arg3.idx;
+        iut = ilt+1;
+      }
+      if (arg3.idx2 < -1) {
+        jlt = 0;
+        jut = arg3.map2->dim;
+      } else if (arg3.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg3.idx2)-1];
+        if (seen_op_mat) {
+          arg3idxs[1] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        jlt = arg3.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg4idxs[2];
+    if (arg4.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg4idxs[0] = 0;
+      arg4idxs[1] = 1;
+      if (arg4.idx < -1) {
+        ilt = 0;
+        iut = arg4.map->dim;
+      } else if (arg4.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg4.idx)-1];
+        if (seen_op_mat) {
+          arg4idxs[0] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        ilt = arg4.idx;
+        iut = ilt+1;
+      }
+      if (arg4.idx2 < -1) {
+        jlt = 0;
+        jut = arg4.map2->dim;
+      } else if (arg4.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg4.idx2)-1];
+        if (seen_op_mat) {
+          arg4idxs[1] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        jlt = arg4.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg5idxs[2];
+    if (arg5.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg5idxs[0] = 0;
+      arg5idxs[1] = 1;
+      if (arg5.idx < -1) {
+        ilt = 0;
+        iut = arg5.map->dim;
+      } else if (arg5.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg5.idx)-1];
+        if (seen_op_mat) {
+          arg5idxs[0] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        ilt = arg5.idx;
+        iut = ilt+1;
+      }
+      if (arg5.idx2 < -1) {
+        jlt = 0;
+        jut = arg5.map2->dim;
+      } else if (arg5.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg5.idx2)-1];
+        if (seen_op_mat) {
+          arg5idxs[1] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        jlt = arg5.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          ((T3 *)p_arg3)[0] = (T3)0;
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          ((T4 *)p_arg4)[0] = (T4)0;
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          ((T5 *)p_arg5)[0] = (T5)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
+                (T4 *)p_arg4, (T5 *)p_arg5, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          const int rows = arg3.map->dim;
+          const int cols = arg3.map2->dim;
+          typedef typename boost::remove_pointer<T3>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg3)[0]);
+          op_mat_addto(arg3.mat, &mat_arg,
+                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
+                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          const int rows = arg4.map->dim;
+          const int cols = arg4.map2->dim;
+          typedef typename boost::remove_pointer<T4>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg4)[0]);
+          op_mat_addto(arg4.mat, &mat_arg,
+                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
+                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          const int rows = arg5.map->dim;
+          const int cols = arg5.map2->dim;
+          typedef typename boost::remove_pointer<T5>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg5)[0]);
+          op_mat_addto(arg5.mat, &mat_arg,
+                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
+                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
+
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
+
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -1224,6 +3427,679 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   if ((arg6.argtype == OP_ARG_DAT && arg6.idx < -1) || arg6.argtype == OP_ARG_MAT) free(p_arg6);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
+  if (arg6.argtype == OP_ARG_MAT) op_mat_assemble(arg6.mat);
+}
+
+//
+// op_par_loop routine for 7 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2, class T3,
+           class T4, class T5, class T6 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
+                                   T4*, T5*, T6*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
+  op_arg arg4, op_arg arg5, op_arg arg6 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0, *p_arg6 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+    op_arg_check(set,4 ,arg4 ,&ninds,name);
+    op_arg_check(set,5 ,arg5 ,&ninds,name);
+    op_arg_check(set,6 ,arg6 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(sizeof(T3));
+      break;
+  }
+
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(sizeof(T4));
+      break;
+  }
+
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(sizeof(T5));
+      break;
+  }
+
+  switch ( arg6.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg6 = arg6.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg6.idx < -1)
+        p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+      break;
+    case OP_ARG_MAT:
+      p_arg6 = (char*) malloc(sizeof(T6));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
+
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
+
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
+
+    if (arg6.argtype == OP_ARG_DAT) {
+      if (arg6.idx < -1)
+        copy_in(n, arg6, (char**)p_arg6);
+      else
+        op_arg_set(n, arg6, &p_arg6 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg3idxs[2];
+    if (arg3.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg3idxs[0] = 0;
+      arg3idxs[1] = 1;
+      if (arg3.idx < -1) {
+        ilt = 0;
+        iut = arg3.map->dim;
+      } else if (arg3.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg3.idx)-1];
+        if (seen_op_mat) {
+          arg3idxs[0] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        ilt = arg3.idx;
+        iut = ilt+1;
+      }
+      if (arg3.idx2 < -1) {
+        jlt = 0;
+        jut = arg3.map2->dim;
+      } else if (arg3.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg3.idx2)-1];
+        if (seen_op_mat) {
+          arg3idxs[1] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        jlt = arg3.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg4idxs[2];
+    if (arg4.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg4idxs[0] = 0;
+      arg4idxs[1] = 1;
+      if (arg4.idx < -1) {
+        ilt = 0;
+        iut = arg4.map->dim;
+      } else if (arg4.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg4.idx)-1];
+        if (seen_op_mat) {
+          arg4idxs[0] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        ilt = arg4.idx;
+        iut = ilt+1;
+      }
+      if (arg4.idx2 < -1) {
+        jlt = 0;
+        jut = arg4.map2->dim;
+      } else if (arg4.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg4.idx2)-1];
+        if (seen_op_mat) {
+          arg4idxs[1] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        jlt = arg4.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg5idxs[2];
+    if (arg5.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg5idxs[0] = 0;
+      arg5idxs[1] = 1;
+      if (arg5.idx < -1) {
+        ilt = 0;
+        iut = arg5.map->dim;
+      } else if (arg5.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg5.idx)-1];
+        if (seen_op_mat) {
+          arg5idxs[0] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        ilt = arg5.idx;
+        iut = ilt+1;
+      }
+      if (arg5.idx2 < -1) {
+        jlt = 0;
+        jut = arg5.map2->dim;
+      } else if (arg5.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg5.idx2)-1];
+        if (seen_op_mat) {
+          arg5idxs[1] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        jlt = arg5.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg6idxs[2];
+    if (arg6.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg6idxs[0] = 0;
+      arg6idxs[1] = 1;
+      if (arg6.idx < -1) {
+        ilt = 0;
+        iut = arg6.map->dim;
+      } else if (arg6.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg6.idx)-1];
+        if (seen_op_mat) {
+          arg6idxs[0] = op_i(arg6.idx) - 1;
+        }
+      } else {
+        ilt = arg6.idx;
+        iut = ilt+1;
+      }
+      if (arg6.idx2 < -1) {
+        jlt = 0;
+        jut = arg6.map2->dim;
+      } else if (arg6.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg6.idx2)-1];
+        if (seen_op_mat) {
+          arg6idxs[1] = op_i(arg6.idx) - 1;
+        }
+      } else {
+        jlt = arg6.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          ((T3 *)p_arg3)[0] = (T3)0;
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          ((T4 *)p_arg4)[0] = (T4)0;
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          ((T5 *)p_arg5)[0] = (T5)0;
+        }
+
+        if (arg6.argtype == OP_ARG_MAT) {
+          ((T6 *)p_arg6)[0] = (T6)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
+                (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          const int rows = arg3.map->dim;
+          const int cols = arg3.map2->dim;
+          typedef typename boost::remove_pointer<T3>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg3)[0]);
+          op_mat_addto(arg3.mat, &mat_arg,
+                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
+                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          const int rows = arg4.map->dim;
+          const int cols = arg4.map2->dim;
+          typedef typename boost::remove_pointer<T4>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg4)[0]);
+          op_mat_addto(arg4.mat, &mat_arg,
+                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
+                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          const int rows = arg5.map->dim;
+          const int cols = arg5.map2->dim;
+          typedef typename boost::remove_pointer<T5>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg5)[0]);
+          op_mat_addto(arg5.mat, &mat_arg,
+                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
+                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+        }
+
+        if (arg6.argtype == OP_ARG_MAT) {
+          const int rows = arg6.map->dim;
+          const int cols = arg6.map2->dim;
+          typedef typename boost::remove_pointer<T6>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg6)[0]);
+          op_mat_addto(arg6.mat, &mat_arg,
+                       1, arg6.map->map + n*rows + idxs[arg6idxs[0]],
+                       1, arg6.map2->map + n*cols + idxs[arg6idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
+
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
+
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
+
+  if ((arg6.argtype == OP_ARG_DAT && arg6.idx < -1) || arg6.argtype == OP_ARG_MAT) free(p_arg6);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
@@ -1519,6 +4395,766 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
 
   if ((arg7.argtype == OP_ARG_DAT && arg7.idx < -1) || arg7.argtype == OP_ARG_MAT) free(p_arg7);
 
+  // Global matrix assembly
+  if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
+  if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
+  if (arg2.argtype == OP_ARG_MAT) op_mat_assemble(arg2.mat);
+  if (arg3.argtype == OP_ARG_MAT) op_mat_assemble(arg3.mat);
+  if (arg4.argtype == OP_ARG_MAT) op_mat_assemble(arg4.mat);
+  if (arg5.argtype == OP_ARG_MAT) op_mat_assemble(arg5.mat);
+  if (arg6.argtype == OP_ARG_MAT) op_mat_assemble(arg6.mat);
+  if (arg7.argtype == OP_ARG_MAT) op_mat_assemble(arg7.mat);
+}
+
+//
+// op_par_loop routine for 8 arguments with op_iteration_space call
+//
+
+template < class T0, class T1, class T2, class T3,
+           class T4, class T5, class T6, class T7 >
+void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
+                                   T4*, T5*, T6*, T7*, int, int ),
+  char const * name, op_itspace itspace,
+  op_arg arg0, op_arg arg1, op_arg arg2, op_arg arg3,
+  op_arg arg4, op_arg arg5, op_arg arg6, op_arg arg7 )
+{
+  char *p_arg0 = 0, *p_arg1 = 0, *p_arg2 = 0, *p_arg3 = 0,
+       *p_arg4 = 0, *p_arg5 = 0, *p_arg6 = 0, *p_arg7 = 0;
+  op_set set = itspace->set;
+  // consistency checks
+
+  int ninds=0;
+
+  if (OP_diags>0) {
+    op_arg_check(set,0 ,arg0 ,&ninds,name);
+    op_arg_check(set,1 ,arg1 ,&ninds,name);
+    op_arg_check(set,2 ,arg2 ,&ninds,name);
+    op_arg_check(set,3 ,arg3 ,&ninds,name);
+    op_arg_check(set,4 ,arg4 ,&ninds,name);
+    op_arg_check(set,5 ,arg5 ,&ninds,name);
+    op_arg_check(set,6 ,arg6 ,&ninds,name);
+    op_arg_check(set,7 ,arg7 ,&ninds,name);
+  }
+
+  if (OP_diags>2) {
+    if (ninds==0)
+      printf(" kernel routine w/o indirection:  %s \n",name);
+    else
+      printf(" kernel routine with indirection: %s \n",name);
+  }
+
+  // Allocate memory for vector map indices
+
+  switch ( arg0.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg0 = arg0.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg0.idx < -1)
+        p_arg0 = (char *)malloc(arg0.map->dim*sizeof(T0));
+      break;
+    case OP_ARG_MAT:
+      p_arg0 = (char*) malloc(sizeof(T0));
+      break;
+  }
+
+  switch ( arg1.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg1 = arg1.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg1.idx < -1)
+        p_arg1 = (char *)malloc(arg1.map->dim*sizeof(T1));
+      break;
+    case OP_ARG_MAT:
+      p_arg1 = (char*) malloc(sizeof(T1));
+      break;
+  }
+
+  switch ( arg2.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg2 = arg2.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg2.idx < -1)
+        p_arg2 = (char *)malloc(arg2.map->dim*sizeof(T2));
+      break;
+    case OP_ARG_MAT:
+      p_arg2 = (char*) malloc(sizeof(T2));
+      break;
+  }
+
+  switch ( arg3.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg3 = arg3.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg3.idx < -1)
+        p_arg3 = (char *)malloc(arg3.map->dim*sizeof(T3));
+      break;
+    case OP_ARG_MAT:
+      p_arg3 = (char*) malloc(sizeof(T3));
+      break;
+  }
+
+  switch ( arg4.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg4 = arg4.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg4.idx < -1)
+        p_arg4 = (char *)malloc(arg4.map->dim*sizeof(T4));
+      break;
+    case OP_ARG_MAT:
+      p_arg4 = (char*) malloc(sizeof(T4));
+      break;
+  }
+
+  switch ( arg5.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg5 = arg5.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg5.idx < -1)
+        p_arg5 = (char *)malloc(arg5.map->dim*sizeof(T5));
+      break;
+    case OP_ARG_MAT:
+      p_arg5 = (char*) malloc(sizeof(T5));
+      break;
+  }
+
+  switch ( arg6.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg6 = arg6.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg6.idx < -1)
+        p_arg6 = (char *)malloc(arg6.map->dim*sizeof(T6));
+      break;
+    case OP_ARG_MAT:
+      p_arg6 = (char*) malloc(sizeof(T6));
+      break;
+  }
+
+  switch ( arg7.argtype ) {
+    // Globals need their pointer only set once before the loop
+    case OP_ARG_GBL:
+      p_arg7 = arg7.data;
+      break;
+    case OP_ARG_DAT:
+      if (arg7.idx < -1)
+        p_arg7 = (char *)malloc(arg7.map->dim*sizeof(T7));
+      break;
+    case OP_ARG_MAT:
+      p_arg7 = (char*) malloc(sizeof(T7));
+      break;
+  }
+
+  // loop over set elements
+
+  for (int n=0; n<set->size; n++) {
+    // Copy in of vector map indices
+
+    if (arg0.argtype == OP_ARG_DAT) {
+      if (arg0.idx < -1)
+        copy_in(n, arg0, (char**)p_arg0);
+      else
+        op_arg_set(n, arg0, &p_arg0 );
+    }
+
+    if (arg1.argtype == OP_ARG_DAT) {
+      if (arg1.idx < -1)
+        copy_in(n, arg1, (char**)p_arg1);
+      else
+        op_arg_set(n, arg1, &p_arg1 );
+    }
+
+    if (arg2.argtype == OP_ARG_DAT) {
+      if (arg2.idx < -1)
+        copy_in(n, arg2, (char**)p_arg2);
+      else
+        op_arg_set(n, arg2, &p_arg2 );
+    }
+
+    if (arg3.argtype == OP_ARG_DAT) {
+      if (arg3.idx < -1)
+        copy_in(n, arg3, (char**)p_arg3);
+      else
+        op_arg_set(n, arg3, &p_arg3 );
+    }
+
+    if (arg4.argtype == OP_ARG_DAT) {
+      if (arg4.idx < -1)
+        copy_in(n, arg4, (char**)p_arg4);
+      else
+        op_arg_set(n, arg4, &p_arg4 );
+    }
+
+    if (arg5.argtype == OP_ARG_DAT) {
+      if (arg5.idx < -1)
+        copy_in(n, arg5, (char**)p_arg5);
+      else
+        op_arg_set(n, arg5, &p_arg5 );
+    }
+
+    if (arg6.argtype == OP_ARG_DAT) {
+      if (arg6.idx < -1)
+        copy_in(n, arg6, (char**)p_arg6);
+      else
+        op_arg_set(n, arg6, &p_arg6 );
+    }
+
+    if (arg7.argtype == OP_ARG_DAT) {
+      if (arg7.idx < -1)
+        copy_in(n, arg7, (char**)p_arg7);
+      else
+        op_arg_set(n, arg7, &p_arg7 );
+    }
+
+    // call kernel function, passing in pointers to data
+    int ilower;
+    int iupper;
+    int jlower;
+    int jupper;
+    bool seen_op_mat = false;
+    int idxs[2];
+
+    int arg0idxs[2];
+    if (arg0.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg0idxs[0] = 0;
+      arg0idxs[1] = 1;
+      if (arg0.idx < -1) {
+        ilt = 0;
+        iut = arg0.map->dim;
+      } else if (arg0.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg0.idx)-1];
+        if (seen_op_mat) {
+          arg0idxs[0] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        ilt = arg0.idx;
+        iut = ilt+1;
+      }
+      if (arg0.idx2 < -1) {
+        jlt = 0;
+        jut = arg0.map2->dim;
+      } else if (arg0.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg0.idx2)-1];
+        if (seen_op_mat) {
+          arg0idxs[1] = op_i(arg0.idx) - 1;
+        }
+      } else {
+        jlt = arg0.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg1idxs[2];
+    if (arg1.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg1idxs[0] = 0;
+      arg1idxs[1] = 1;
+      if (arg1.idx < -1) {
+        ilt = 0;
+        iut = arg1.map->dim;
+      } else if (arg1.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg1.idx)-1];
+        if (seen_op_mat) {
+          arg1idxs[0] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        ilt = arg1.idx;
+        iut = ilt+1;
+      }
+      if (arg1.idx2 < -1) {
+        jlt = 0;
+        jut = arg1.map2->dim;
+      } else if (arg1.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg1.idx2)-1];
+        if (seen_op_mat) {
+          arg1idxs[1] = op_i(arg1.idx) - 1;
+        }
+      } else {
+        jlt = arg1.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg2idxs[2];
+    if (arg2.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg2idxs[0] = 0;
+      arg2idxs[1] = 1;
+      if (arg2.idx < -1) {
+        ilt = 0;
+        iut = arg2.map->dim;
+      } else if (arg2.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg2.idx)-1];
+        if (seen_op_mat) {
+          arg2idxs[0] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        ilt = arg2.idx;
+        iut = ilt+1;
+      }
+      if (arg2.idx2 < -1) {
+        jlt = 0;
+        jut = arg2.map2->dim;
+      } else if (arg2.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg2.idx2)-1];
+        if (seen_op_mat) {
+          arg2idxs[1] = op_i(arg2.idx) - 1;
+        }
+      } else {
+        jlt = arg2.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg3idxs[2];
+    if (arg3.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg3idxs[0] = 0;
+      arg3idxs[1] = 1;
+      if (arg3.idx < -1) {
+        ilt = 0;
+        iut = arg3.map->dim;
+      } else if (arg3.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg3.idx)-1];
+        if (seen_op_mat) {
+          arg3idxs[0] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        ilt = arg3.idx;
+        iut = ilt+1;
+      }
+      if (arg3.idx2 < -1) {
+        jlt = 0;
+        jut = arg3.map2->dim;
+      } else if (arg3.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg3.idx2)-1];
+        if (seen_op_mat) {
+          arg3idxs[1] = op_i(arg3.idx) - 1;
+        }
+      } else {
+        jlt = arg3.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg4idxs[2];
+    if (arg4.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg4idxs[0] = 0;
+      arg4idxs[1] = 1;
+      if (arg4.idx < -1) {
+        ilt = 0;
+        iut = arg4.map->dim;
+      } else if (arg4.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg4.idx)-1];
+        if (seen_op_mat) {
+          arg4idxs[0] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        ilt = arg4.idx;
+        iut = ilt+1;
+      }
+      if (arg4.idx2 < -1) {
+        jlt = 0;
+        jut = arg4.map2->dim;
+      } else if (arg4.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg4.idx2)-1];
+        if (seen_op_mat) {
+          arg4idxs[1] = op_i(arg4.idx) - 1;
+        }
+      } else {
+        jlt = arg4.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg5idxs[2];
+    if (arg5.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg5idxs[0] = 0;
+      arg5idxs[1] = 1;
+      if (arg5.idx < -1) {
+        ilt = 0;
+        iut = arg5.map->dim;
+      } else if (arg5.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg5.idx)-1];
+        if (seen_op_mat) {
+          arg5idxs[0] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        ilt = arg5.idx;
+        iut = ilt+1;
+      }
+      if (arg5.idx2 < -1) {
+        jlt = 0;
+        jut = arg5.map2->dim;
+      } else if (arg5.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg5.idx2)-1];
+        if (seen_op_mat) {
+          arg5idxs[1] = op_i(arg5.idx) - 1;
+        }
+      } else {
+        jlt = arg5.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg6idxs[2];
+    if (arg6.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg6idxs[0] = 0;
+      arg6idxs[1] = 1;
+      if (arg6.idx < -1) {
+        ilt = 0;
+        iut = arg6.map->dim;
+      } else if (arg6.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg6.idx)-1];
+        if (seen_op_mat) {
+          arg6idxs[0] = op_i(arg6.idx) - 1;
+        }
+      } else {
+        ilt = arg6.idx;
+        iut = ilt+1;
+      }
+      if (arg6.idx2 < -1) {
+        jlt = 0;
+        jut = arg6.map2->dim;
+      } else if (arg6.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg6.idx2)-1];
+        if (seen_op_mat) {
+          arg6idxs[1] = op_i(arg6.idx) - 1;
+        }
+      } else {
+        jlt = arg6.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+    int arg7idxs[2];
+    if (arg7.argtype == OP_ARG_MAT) {
+      int ilt;
+      int iut;
+      int jlt;
+      int jut;
+      arg7idxs[0] = 0;
+      arg7idxs[1] = 1;
+      if (arg7.idx < -1) {
+        ilt = 0;
+        iut = arg7.map->dim;
+      } else if (arg7.idx < OP_I_OFFSET) {
+        ilt = 0;
+        iut = itspace->dims[op_i(arg7.idx)-1];
+        if (seen_op_mat) {
+          arg7idxs[0] = op_i(arg7.idx) - 1;
+        }
+      } else {
+        ilt = arg7.idx;
+        iut = ilt+1;
+      }
+      if (arg7.idx2 < -1) {
+        jlt = 0;
+        jut = arg7.map2->dim;
+      } else if (arg7.idx2 < OP_I_OFFSET) {
+        jlt = 0;
+        jut = itspace->dims[op_i(arg7.idx2)-1];
+        if (seen_op_mat) {
+          arg7idxs[1] = op_i(arg7.idx) - 1;
+        }
+      } else {
+        jlt = arg7.idx2;
+        jut = jlt+1;
+      }
+      if (seen_op_mat) {
+        assert (ilt == ilower
+                && iut == iupper
+                && jlt == jlower
+                && jut == jupper);
+      } else {
+        ilower = ilt;
+        iupper = iut;
+        jlower = jlt;
+        jupper = jut;
+      }
+      seen_op_mat = true;
+    }
+
+
+    for (idxs[0] = ilower; idxs[0] < iupper; idxs[0]++) {
+      for (idxs[1] = jlower; idxs[1] < jupper; idxs[1]++ ) {
+
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          ((T0 *)p_arg0)[0] = (T0)0;
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          ((T1 *)p_arg1)[0] = (T1)0;
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          ((T2 *)p_arg2)[0] = (T2)0;
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          ((T3 *)p_arg3)[0] = (T3)0;
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          ((T4 *)p_arg4)[0] = (T4)0;
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          ((T5 *)p_arg5)[0] = (T5)0;
+        }
+
+        if (arg6.argtype == OP_ARG_MAT) {
+          ((T6 *)p_arg6)[0] = (T6)0;
+        }
+
+        if (arg7.argtype == OP_ARG_MAT) {
+          ((T7 *)p_arg7)[0] = (T7)0;
+        }
+
+        kernel( (T0 *)p_arg0, (T1 *)p_arg1, (T2 *)p_arg2, (T3 *)p_arg3,
+                (T4 *)p_arg4, (T5 *)p_arg5, (T6 *)p_arg6, (T7 *)p_arg7, idxs[0], idxs[1]);
+        // Assemble local matrix into global matrix
+
+        if (arg0.argtype == OP_ARG_MAT) {
+          const int rows = arg0.map->dim;
+          const int cols = arg0.map2->dim;
+          typedef typename boost::remove_pointer<T0>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg0)[0]);
+          op_mat_addto(arg0.mat, &mat_arg,
+                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
+                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+        }
+
+        if (arg1.argtype == OP_ARG_MAT) {
+          const int rows = arg1.map->dim;
+          const int cols = arg1.map2->dim;
+          typedef typename boost::remove_pointer<T1>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg1)[0]);
+          op_mat_addto(arg1.mat, &mat_arg,
+                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
+                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+        }
+
+        if (arg2.argtype == OP_ARG_MAT) {
+          const int rows = arg2.map->dim;
+          const int cols = arg2.map2->dim;
+          typedef typename boost::remove_pointer<T2>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg2)[0]);
+          op_mat_addto(arg2.mat, &mat_arg,
+                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
+                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+        }
+
+        if (arg3.argtype == OP_ARG_MAT) {
+          const int rows = arg3.map->dim;
+          const int cols = arg3.map2->dim;
+          typedef typename boost::remove_pointer<T3>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg3)[0]);
+          op_mat_addto(arg3.mat, &mat_arg,
+                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
+                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+        }
+
+        if (arg4.argtype == OP_ARG_MAT) {
+          const int rows = arg4.map->dim;
+          const int cols = arg4.map2->dim;
+          typedef typename boost::remove_pointer<T4>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg4)[0]);
+          op_mat_addto(arg4.mat, &mat_arg,
+                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
+                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+        }
+
+        if (arg5.argtype == OP_ARG_MAT) {
+          const int rows = arg5.map->dim;
+          const int cols = arg5.map2->dim;
+          typedef typename boost::remove_pointer<T5>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg5)[0]);
+          op_mat_addto(arg5.mat, &mat_arg,
+                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
+                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+        }
+
+        if (arg6.argtype == OP_ARG_MAT) {
+          const int rows = arg6.map->dim;
+          const int cols = arg6.map2->dim;
+          typedef typename boost::remove_pointer<T6>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg6)[0]);
+          op_mat_addto(arg6.mat, &mat_arg,
+                       1, arg6.map->map + n*rows + idxs[arg6idxs[0]],
+                       1, arg6.map2->map + n*cols + idxs[arg6idxs[1]]);
+        }
+
+        if (arg7.argtype == OP_ARG_MAT) {
+          const int rows = arg7.map->dim;
+          const int cols = arg7.map2->dim;
+          typedef typename boost::remove_pointer<T7>::type value_type;
+          double mat_arg = (double)(((value_type *)p_arg7)[0]);
+          op_mat_addto(arg7.mat, &mat_arg,
+                       1, arg7.map->map + n*rows + idxs[arg7idxs[0]],
+                       1, arg7.map2->map + n*cols + idxs[arg7idxs[1]]);
+        }
+
+      }
+    }
+  }
+
+  // Free memory for vector map indices
+
+  if ((arg0.argtype == OP_ARG_DAT && arg0.idx < -1) || arg0.argtype == OP_ARG_MAT) free(p_arg0);
+
+  if ((arg1.argtype == OP_ARG_DAT && arg1.idx < -1) || arg1.argtype == OP_ARG_MAT) free(p_arg1);
+
+  if ((arg2.argtype == OP_ARG_DAT && arg2.idx < -1) || arg2.argtype == OP_ARG_MAT) free(p_arg2);
+
+  if ((arg3.argtype == OP_ARG_DAT && arg3.idx < -1) || arg3.argtype == OP_ARG_MAT) free(p_arg3);
+
+  if ((arg4.argtype == OP_ARG_DAT && arg4.idx < -1) || arg4.argtype == OP_ARG_MAT) free(p_arg4);
+
+  if ((arg5.argtype == OP_ARG_DAT && arg5.idx < -1) || arg5.argtype == OP_ARG_MAT) free(p_arg5);
+
+  if ((arg6.argtype == OP_ARG_DAT && arg6.idx < -1) || arg6.argtype == OP_ARG_MAT) free(p_arg6);
+
+  if ((arg7.argtype == OP_ARG_DAT && arg7.idx < -1) || arg7.argtype == OP_ARG_MAT) free(p_arg7);
+
+  free(itspace->dims);
+  free(itspace);
   // Global matrix assembly
   if (arg0.argtype == OP_ARG_MAT) op_mat_assemble(arg0.mat);
   if (arg1.argtype == OP_ARG_MAT) op_mat_assemble(arg1.mat);
