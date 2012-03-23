@@ -395,6 +395,9 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_sparsity_index; i++ )
   {
+    free ( OP_sparsity_list[i]->nnz );
+    free ( OP_sparsity_list[i]->rowptr );
+    free ( OP_sparsity_list[i]->colidx );
     free ( OP_sparsity_list[i] );
   }
   free ( OP_sparsity_list );
