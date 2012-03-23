@@ -60,6 +60,7 @@ op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_s
   // Set the column indices (FIXME: benchmark if this is worth it)
   MatSeqAIJSetColumnIndices(p_mat, (PetscInt*)sparsity->colidx);
 
+  MatZeroEntries(p_mat);
   mat->mat = p_mat;
   return mat;
 }
