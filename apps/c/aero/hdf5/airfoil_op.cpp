@@ -140,8 +140,6 @@ void op_par_loop_update(char const *, op_set,
 // main program
 
 int main(int argc, char **argv){
-
-
   // OP initialisation
 
   op_init(argc,argv,2);
@@ -283,8 +281,8 @@ int main(int argc, char **argv){
                    op_arg_dat(p_V,-1,OP_ID,1,"double",OP_WRITE),
                    op_arg_dat(p_P,-1,OP_ID,1,"double",OP_WRITE));
 
-        //printf("\nStarting CG iteration\n");
-        //printf("c1 = %10.5e\n",c1);
+        printf("\nStarting CG iteration\n");
+        printf("c1 = %10.5e\n",c1);
 
         //set up stopping conditions
         double res0 = sqrt(c1);
@@ -340,7 +338,7 @@ int main(int argc, char **argv){
                        op_arg_dat(p_P,-1,OP_ID,1,"double",OP_RW),
                        op_arg_gbl(&beta,1,"double",OP_READ));
             c1 = c3;
-            //printf("c1 = %10.5e\n",c1);
+            printf("c1 = %10.5e\n",c1);
             res = sqrt(c1);
             iter++;
         }

@@ -66,7 +66,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 # master to make all versions
 #
 
-all: clean airfoil_openmp airfoil_cuda
+all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi
 
 #
 # simple sequential version
@@ -102,7 +102,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 # mpi with sequential-nodes version
 #
 
-airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h Makefile
+airfoil_mpi: airfoil_mpi.cpp Makefile
 	$(MPICPP) $(MPIFLAGS) airfoil_mpi.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi
 
