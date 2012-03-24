@@ -116,7 +116,7 @@ void op_par_loop_update(char const *name, op_set set,
 
     cutilSafeCall(cudaThreadSynchronize());
     cutilCheckMsg("op_cuda_update execution failed\n");
-
+    op_mpi_set_dirtybit(4, args);
     // transfer global reduction data back to CPU
 
     mvReductArraysToHost(reduct_bytes);

@@ -143,7 +143,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(1, args);
   // combine reduction data
 
   // update kernel record

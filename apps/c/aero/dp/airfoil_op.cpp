@@ -413,7 +413,7 @@ int main(int argc, char **argv){
                    op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_WRITE),
                    op_arg_dat(p_U,-1,OP_ID,1,"double",OP_READ),
                    op_arg_gbl(&rms,1,"double",OP_INC));
-        printf("rms = %10.5e cg iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
+        op_printf("rms = %10.5e cg iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
 
 
   }

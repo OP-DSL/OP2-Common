@@ -82,7 +82,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(3, args);
   // combine reduction data
 
   for (int thr=0; thr<nthreads; thr++)

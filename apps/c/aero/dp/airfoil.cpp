@@ -252,9 +252,6 @@ int main(int argc, char **argv)
                 op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
 
-    printf("\nStarting CG iteration\n");
-    printf("c1 = %10.5e\n",c1);
-
     //set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
@@ -302,7 +299,6 @@ int main(int argc, char **argv)
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
                   op_arg_gbl(&beta, 1, "double", OP_READ));
       c1 = c3;
-      printf("c1 = %10.5e\n",c1);
       res = sqrt(c1);
       iter++;
     }
@@ -313,7 +309,7 @@ int main(int argc, char **argv)
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&rms, 1, "double", OP_INC));
-    printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
+    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
   }
 
   op_timing_output();

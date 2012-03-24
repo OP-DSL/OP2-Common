@@ -109,7 +109,7 @@ void op_par_loop_updateUR(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(5, args);
   // update kernel record
 
   op_timers_core(&cpu_t2, &wall_t2);

@@ -229,7 +229,7 @@ void op_par_loop_spMV(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(9, args);
   // combine reduction data
 
   // update kernel record

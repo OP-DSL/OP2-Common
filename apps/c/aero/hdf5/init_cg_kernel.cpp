@@ -88,7 +88,7 @@ void op_par_loop_init_cg(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(5, args);
   // combine reduction data
 
   for (int thr=0; thr<nthreads; thr++)

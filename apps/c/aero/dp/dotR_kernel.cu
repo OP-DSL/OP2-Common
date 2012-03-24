@@ -111,6 +111,7 @@ void op_par_loop_dotR(char const *name, op_set set,
     cutilSafeCall(cudaThreadSynchronize());
     cutilCheckMsg("op_cuda_dotR execution failed\n");
 
+    op_mpi_set_dirtybit(2, args);
     // transfer global reduction data back to CPU
 
     mvReductArraysToHost(reduct_bytes);

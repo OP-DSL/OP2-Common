@@ -76,7 +76,7 @@ void op_par_loop_updateP(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(3, args);
   // combine reduction data
 
   // update kernel record

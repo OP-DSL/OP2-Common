@@ -153,7 +153,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(1, args);
   // update kernel record
 
   op_timers_core(&cpu_t2, &wall_t2);

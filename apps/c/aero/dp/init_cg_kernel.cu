@@ -121,7 +121,7 @@ void op_par_loop_init_cg(char const *name, op_set set,
     cutilCheckMsg("op_cuda_init_cg execution failed\n");
 
     // transfer global reduction data back to CPU
-
+    op_mpi_set_dirtybit(5, args);
     mvReductArraysToHost(reduct_bytes);
 
     for (int b=0; b<maxblocks; b++)

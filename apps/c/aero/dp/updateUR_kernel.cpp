@@ -82,7 +82,7 @@ void op_par_loop_updateUR(char const *name, op_set set,
 
   }
 
-
+  op_mpi_set_dirtybit(5, args);
   // combine reduction data
 
   // update kernel record
