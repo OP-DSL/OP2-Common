@@ -2164,11 +2164,24 @@ void op_mpi_exit()
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   for (int n=0; n<nargs; n++) {
-    exchange_halo(&args[n]);
-    set_dirtybit(&args[n]);
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+    	exchange_halo(&args[n]);
+    	//set_dirtybit(&args[n]);
+    }
     if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
   }
   return size;
+}
+
+void op_mpi_set_dirtybit(int nargs, op_arg *args) {
+  
+  for (int n=0; n<nargs; n++) {
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+    	set_dirtybit(&args[n]);
+    }  
+  }
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {

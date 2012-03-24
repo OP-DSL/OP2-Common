@@ -82,7 +82,9 @@ void op_par_loop(void (*kernel)( T0* ),
                                                                              
     kernel( (T0 *)p_a[0] );                                                  
   }                                                                          
-                                                                             
+  
+  op_mpi_set_dirtybit(1, args); 
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -143,8 +145,10 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
     // call kernel function, passing in pointers to data                     
                                                                              
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1] );                                   
-  }                                                                          
-                                                                             
+  }        
+  
+  op_mpi_set_dirtybit(2, args);
+                                                                               
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -206,7 +210,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
     // call kernel function, passing in pointers to data                     
                                                                              
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2] );                    
-  }                                                                          
+  }   
+  
+  op_mpi_set_dirtybit(3, args);
                                                                              
   // global reduction for MPI execution, if needed                           
                                                                              
@@ -271,7 +277,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
                                                                              
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3] );     
   }                                                                          
-                                                                             
+       
+  op_mpi_set_dirtybit(4, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -341,7 +349,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],       
             (T4 *)p_a[4] );                                                  
   }                                                                          
-                                                                             
+     
+  op_mpi_set_dirtybit(5, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -412,7 +422,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],       
             (T4 *)p_a[4],  (T5 *)p_a[5] );                                   
   }                                                                          
-                                                                             
+          
+  op_mpi_set_dirtybit(6, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -484,7 +496,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],       
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6] );                    
   }                                                                          
-                                                                             
+ 
+  op_mpi_set_dirtybit(7, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -557,7 +571,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],       
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7] );     
   }                                                                          
-                                                                             
+           
+  op_mpi_set_dirtybit(8, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -636,7 +652,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7],       
             (T8 *)p_a[8] );                                                  
   }                                                                          
-                                                                             
+    
+  op_mpi_set_dirtybit(9, args);
+  
   // global reduction for MPI execution, if needed                           
                                                                              
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);                                         
@@ -715,7 +733,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],       
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7],       
             (T8 *)p_a[8],  (T9 *)p_a[9] );                                   
-  }                                                                          
+  }           
+  
+  op_mpi_set_dirtybit(10, args);
                                                                              
   // global reduction for MPI execution, if needed                           
                                                                              
