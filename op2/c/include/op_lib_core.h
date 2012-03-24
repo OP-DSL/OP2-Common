@@ -218,6 +218,8 @@ void op_dump_dat ( op_dat data );
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
+void op_mpi_set_dirtybit(int nargs, op_arg *args);
+
 void op_mpi_wait_all(int nargs, op_arg* args);
 
 void op_mpi_global_reduction(int nargs, op_arg* args);
