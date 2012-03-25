@@ -478,6 +478,9 @@ for nk = 1:length(kernels)
     ['  OP_kernels[' num2str(nk-1) '].transfer2 += Plan->transfer2;']);
   end
   file = strvcat(file, ' ','  }',' ');
+
+  file = strvcat(file, sprintf(['  //set dirty bit on datasets touched\n',...
+						      '  op_mpi_set_dirtybit(%d, args);'],nargs));
 %
 % combine reduction data from multiple OpenMP threads
 %
