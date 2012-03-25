@@ -702,11 +702,12 @@ for nk = 1:length(kernels)
   end
 
    if (ninds>0)
-   file = strvcat(file,' ',['  op_timing_realloc(' num2str(nk-1) ');                       ']);
+   file = strvcat(file,' ',['    op_timing_realloc(' num2str(nk-1) ');                       ']);
    file = strvcat(file,...
     ['    OP_kernels[' num2str(nk-1) '].transfer  += Plan->transfer; '],...
     ['    OP_kernels[' num2str(nk-1) '].transfer2 += Plan->transfer2;']);
    end
+
 
 %
 % transfer global reduction initial data
@@ -737,7 +738,8 @@ for nk = 1:length(kernels)
   end
   file = strvcat(file, ' ','  }',' ');
   %file = strvcat(file,' ','  op_mpi_global_reduction(nargs, args);');
-
+  file = strvcat(file, sprintf(['  //set dirty bit on datasets touched\n',...
+                    '  op_mpi_set_dirtybit(%d, args);'],nargs));
 %
 % update kernel record
 %
