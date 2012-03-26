@@ -64,7 +64,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: jac_mpi jac_seq jac_openmp jac_cuda 
+all: clean jac_mpi jac_seq jac_openmp jac_cuda 
 
 
 #
@@ -81,7 +81,7 @@ jac_seq:	jac.cpp res.h update.h
 jac_openmp:	jac_op.cpp update.h res.h jac_kernels.cpp res_kernel.cpp \
 		update_kernel.cpp Makefile 
 		$(CPP) $(CPPFLAGS) $(OMPFLAGS) jac_op.cpp jac_kernels.cpp \
-		$(OP2_INC) $(OP2_LIB) -lop2_seq -o jac_openmp
+		$(OP2_INC) $(OP2_LIB) -lop2_openmp -o jac_openmp
 
 
 #
