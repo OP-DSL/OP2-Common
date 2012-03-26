@@ -192,3 +192,23 @@ void wait_all(op_arg* arg)
   }
 }
 
+void op_partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords )
+{
+  partition(lib_name, lib_routine, prime_set, prime_map, coords );
+  
+  for(int s = 0; s<OP_set_index; s++)
+  {
+    op_set set=OP_set_list[s];
+    for(int d=0; d<OP_dat_index; d++) { //for each data array
+      op_dat dat=OP_dat_list[d];
+      
+      if(dat->set->index == set->index)
+      	  op_mv_halo_device(set, dat);      
+    }
+  }
+  
+  op_mv_halo_list_device();
+ 
+}
+

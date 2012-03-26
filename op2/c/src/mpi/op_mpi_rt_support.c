@@ -209,3 +209,9 @@ void wait_all(op_arg* arg)
   //arg->sent = 0;
 }
 
+void op_partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords )
+{
+  partition(lib_name, lib_routine, prime_set, prime_map, coords );
+ 
+}

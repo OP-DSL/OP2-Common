@@ -2074,15 +2074,17 @@ int op_mpi_perf_time(const char* name, double time)
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
 
-static void op_mpi_perf_comm(int kernel_index, op_dat dat)
+void op_mpi_perf_comm(int kernel_index, op_dat dat)
 {
-  halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
-  halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
+  //printf("dat->size = %s\n",dat->set->name);
+    
+  //halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
+  //halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
 
-  int tot_halo_size = (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
+  //int tot_halo_size = (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
 
-  int num_indices = op_mpi_kernel_tab[kernel_index].num_indices;
+  /*int num_indices = op_mpi_kernel_tab[kernel_index].num_indices;
 
   if(num_indices == 0)
   {
@@ -2134,7 +2136,7 @@ static void op_mpi_perf_comm(int kernel_index, op_dat dat)
       op_mpi_kernel_tab[kernel_index].tot_count[index] += 1;
       op_mpi_kernel_tab[kernel_index].tot_bytes[index] += tot_halo_size;
     }
-  }
+  }*/
 }
 #endif
 
@@ -2209,7 +2211,7 @@ void op_mpi_barrier() {
 #ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    op_mpi_perf_comm(k_i, args[n].dat);
+    op_mpi_perf_comm(k_i, (&args[n])->dat);
   }
 }
 #endif

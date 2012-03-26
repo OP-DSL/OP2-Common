@@ -393,15 +393,6 @@ int main(int argc, char **argv)
   //trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", NULL, pecell, p_x);
 
-  op_mv_halo_device(bedges, p_bound);
-  op_mv_halo_device(nodes, p_x);
-  op_mv_halo_device(cells, p_q);
-  op_mv_halo_device(cells, p_qold);
-  op_mv_halo_device(cells, p_adt);
-  op_mv_halo_device(cells, p_res);
-
-  op_mv_halo_list_device();
-
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
