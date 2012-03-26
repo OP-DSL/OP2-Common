@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O2 -vec-report -xSSE4.1 -g #-DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= -O3 -vec-report -xSSE4.2 # -g #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
@@ -90,8 +90,8 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
 
 airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) airfoil_op.cpp airfoil_kernels_cu.o \
-		$(CUDA_INC) $(OP2_INC) $(HDF5_INC) \
-		$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda -DCUDA
+		$(CUDA_INC) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_mpi_cuda -lop2_hdf5 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_cuda -DCUDA
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
                 Makefile
