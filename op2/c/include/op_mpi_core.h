@@ -239,6 +239,9 @@ void op_mv_halo_list_device();
 void global_reduce(op_arg* arg);
 
 
+void partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords );
+
 /******************************************************************************
 * Random partitioning wrapper prototype
 *******************************************************************************/

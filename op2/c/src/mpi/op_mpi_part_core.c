@@ -3056,7 +3056,7 @@ void op_partition_ptscotch(op_map primary_map)
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
-void op_partition(const char* lib_name, const char* lib_routine,
+void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )
 {
 
