@@ -113,7 +113,8 @@ int main(int argc, char **argv)
   qinf[0] = r;
   qinf[1] = r*u;
   qinf[2] = 0.0f;
-  qinf[3] = r*e;*/
+  qinf[3] = r*e;
+  */
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
