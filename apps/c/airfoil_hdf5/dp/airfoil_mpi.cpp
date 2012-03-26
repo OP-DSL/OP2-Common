@@ -111,7 +111,8 @@ int main(int argc, char **argv)
   qinf[0] = r;
   qinf[1] = r*u;
   qinf[2] = 0.0f;
-  qinf[3] = r*e;*/
+  qinf[3] = r*e;
+  */
 
   /**------------------------BEGIN Parallel I/O -------------------**/
 
@@ -141,12 +142,12 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total file read time = %f\n",wall_t2-wall_t1);
 
-  op_get_const_hdf5("gam", 1, "double", (char *)&gam,	"new_grid.h5");
-  op_get_const_hdf5("gm1", 1, "double", (char *)&gm1,	"new_grid.h5");
-  op_get_const_hdf5("cfl", 1, "double", (char *)&cfl,	"new_grid.h5");
-  op_get_const_hdf5("eps", 1, "double", (char *)&eps,	"new_grid.h5");
+  op_get_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid.h5");
+  op_get_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid.h5");
+  op_get_const_hdf5("cfl", 1, "double", (char *)&cfl, "new_grid.h5");
+  op_get_const_hdf5("eps", 1, "double", (char *)&eps, "new_grid.h5");
   op_get_const_hdf5("mach", 1, "double", (char *)&mach,	"new_grid.h5");
-  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,	"new_grid.h5");
+  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid.h5");
   op_get_const_hdf5("qinf", 4, "double", (char *)&qinf,	"new_grid.h5");
   
   op_decl_const(1,"double",&gam  );
