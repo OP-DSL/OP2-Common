@@ -31,6 +31,9 @@ void op_decl_const_f ( int dim, void **dat, char const *name );
 
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type );
 
+int get_set_size (op_set set);
+int get_associated_set_size (op_dat dat);
+
 #ifdef __cplusplus
 }
 #endif

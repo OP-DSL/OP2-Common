@@ -189,19 +189,74 @@ module OP2_Fortran_Declarations
 
     end subroutine op_timers_f
 
+    function get_set_size ( set ) BIND(C,name='get_set_size')
+
+      use ISO_C_BINDING
+
+      integer(4) get_set_size
+
+      type(c_ptr) :: set
+
+    end function
+
+    function get_associated_set_size ( dat ) BIND(C,name='get_associated_set_size')
+
+      use ISO_C_BINDING
+
+      integer(4) get_set_size
+
+      type(c_ptr) :: dat
+
+    end function
+
+    subroutine op_get_dat ( opdat ) BIND(C,name='op_get_dat')
+
+      import :: op_dat_core
+
+      type(op_dat_core) :: opdat
+
+    end subroutine
+
+    subroutine op_put_dat ( opdat ) BIND(C,name='op_put_dat')
+
+      import :: op_dat_core
+
+      type(op_dat_core) :: opdat
+
+    end subroutine
+
   end interface
 
+  ! the two numbers at the end of the name indicate the size of the type (e.g. real(8)) and the rank (= number of dimensions)
   interface op_decl_dat
-    module procedure op_decl_dat_real_8, op_decl_dat_integer_4
+    module procedure op_decl_dat_real_8_1, &
+                   & op_decl_dat_integer_4_1, &
+       & op_decl_dat_real_8_2, &
+                   & op_decl_dat_integer_4_2, &
+       & op_decl_dat_real_8_3, &
+                   & op_decl_dat_integer_4_3
   end interface op_decl_dat
 
   interface op_decl_gbl
-    module procedure op_decl_gbl_real_8,  op_decl_gbl_integer_4_scalar
+        module procedure op_decl_gbl_real_8_0, &
+                         op_decl_gbl_real_8_1, &
+                         op_decl_gbl_real_8_2, &
+                         op_decl_gbl_real_8_3, &
+                         op_decl_gbl_integer_4_0, &
+                         op_decl_gbl_integer_4_1, &
+                         op_decl_gbl_integer_4_2, &
+                         op_decl_gbl_integer_4_3, &
+                         op_decl_gbl_logical_0_0, &
+                         op_decl_gbl_logical_1_0, &
+                         op_decl_gbl_logical_0_1
   end interface op_decl_gbl
 
   interface op_decl_const
-    module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
-    & op_decl_const_scalar_real_8
+        module procedure op_decl_const_integer_4_1, &
+                       & op_decl_const_real_8_1, &
+                       & op_decl_const_integer_4_0, &
+                       & op_decl_const_real_8_0, &
+                       & op_decl_const_logical_0
   end interface op_decl_const
 
 contains
@@ -294,11 +349,15 @@ contains
 
   end subroutine op_decl_map
 
-  subroutine op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !   declarations of op_dats    !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine op_decl_dat_real_8_1 ( set, datdim, dat, data, opname )
 
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
-    real(8), dimension(*), intent(in), target :: dat
+    real(8), dimension(:), intent(in), target :: dat
     type(op_dat) :: data
     character(len=*), optional :: opName
 
@@ -317,16 +376,16 @@ contains
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )
 
-  end subroutine op_decl_dat_real_8
+  end subroutine op_decl_dat_real_8_1
 
-  subroutine op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_integer_4_1 ( set, datdim, dat, data, opname )
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
-    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:), intent(in), target :: dat
     type(op_dat) :: data
     character(len=*), optional :: opname
 
-    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
 #ifdef GNU_FORTRAN
@@ -341,26 +400,168 @@ contains
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )
 
-  end subroutine op_decl_dat_integer_4
+  end subroutine op_decl_dat_integer_4_1
 
-  subroutine op_decl_gbl_real_8 ( dat, gbldata, gbldim )
+  subroutine op_decl_dat_real_8_2 ( set, datdim, dat, data, opname )
 
-    real(8), dimension(*), intent(in), target :: dat
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(len=*), optional :: opName
+
+    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+
+    if ( present ( opname ) ) then
+#ifdef GNU_FORTRAN
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
+#else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opname//char(0) )
+#endif
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+  end subroutine op_decl_dat_real_8_2
+
+  subroutine op_decl_dat_integer_4_2 ( set, datdim, dat, data, opname )
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(len=*), optional :: opname
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    if ( present ( opname ) ) then
+#ifdef GNU_FORTRAN
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
+#else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opname//char(0) )
+#endif
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+  end subroutine op_decl_dat_integer_4_2
+
+  subroutine op_decl_dat_real_8_3 ( set, datdim, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(len=*), optional :: opName
+
+    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+
+    if ( present ( opname ) ) then
+#ifdef GNU_FORTRAN
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
+#else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opname//char(0) )
+#endif
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+  end subroutine op_decl_dat_real_8_3
+
+  subroutine op_decl_dat_integer_4_3 ( set, datdim, dat, data, opname )
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(len=*), optional :: opname
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    if ( present ( opname ) ) then
+#ifdef GNU_FORTRAN
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
+#else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opname//char(0) )
+#endif
+    else
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+  end subroutine op_decl_dat_integer_4_3
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !   declarations of globals    !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine op_decl_gbl_real_8_0 ( dat, gbldata )
+
+    real(8), target :: dat
+    type(op_dat) :: gblData
+
+    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), 1, 8, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_real_8_0
+
+  subroutine op_decl_gbl_real_8_1 ( dat, gbldata, gbldim )
+
+    real(8), dimension(:), intent(in), target :: dat
     type(op_dat) :: gblData
     integer, intent(in) :: gbldim
 
-    ! FIXME: should this be double?
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
     gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 8, type )
 
     call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
 
-  end subroutine op_decl_gbl_real_8
+  end subroutine op_decl_gbl_real_8_1
 
-  subroutine op_decl_gbl_integer_4_scalar ( dat, gbldata)
+  subroutine op_decl_gbl_real_8_2 ( dat, gbldata, gbldim )
 
-    integer(4), intent(in), target :: dat
+    real(8), dimension(:,:), intent(in), target :: dat
+    type(op_dat) :: gblData
+    integer, intent(in) :: gbldim
+
+    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 8, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_real_8_2
+
+  subroutine op_decl_gbl_real_8_3 ( dat, gbldata, gbldim )
+
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    type(op_dat) :: gblData
+    integer, intent(in) :: gbldim
+
+    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 8, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_real_8_3
+
+  subroutine op_decl_gbl_integer_4_0 ( dat, gbldata)
+
+    integer(4), target :: dat
     type(op_dat) :: gblData
 
     character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
@@ -369,10 +570,95 @@ contains
 
     call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
 
-  end subroutine op_decl_gbl_integer_4_scalar
+  end subroutine op_decl_gbl_integer_4_0
 
+  subroutine op_decl_gbl_integer_4_1 ( dat, gbldata, gbldim)
 
-  subroutine op_decl_const_integer_4 ( dat, constdim, opname )
+    integer(4), dimension(:), target :: dat
+    type(op_dat) :: gblData
+    integer(4) :: gbldim
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 4, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_integer_4_1
+
+  subroutine op_decl_gbl_integer_4_2 ( dat, gbldata, gbldim)
+
+    integer(4), dimension(:,:), target :: dat
+    type(op_dat) :: gblData
+    integer(4) :: gbldim
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 4, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_integer_4_2
+
+  subroutine op_decl_gbl_integer_4_3 ( dat, gbldata, gbldim)
+
+    integer(4), dimension(:,:,:), target :: dat
+    type(op_dat) :: gblData
+    integer(4) :: gbldim
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'integer'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 4, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_integer_4_3
+
+  subroutine op_decl_gbl_logical_0_0 ( dat, gbldata)
+
+    logical, target :: dat
+    type(op_dat) :: gblData
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'logical'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), 1, 1, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_logical_0_0
+
+  subroutine op_decl_gbl_logical_1_0 ( dat, gbldata)
+
+    logical(1), target :: dat
+    type(op_dat) :: gblData
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'logical'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), 1, 1, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_logical_1_0
+
+  subroutine op_decl_gbl_logical_0_1 ( dat, gbldata, gbldim)
+
+    logical(kind=c_bool), dimension(:), target :: dat
+    type(op_dat) :: gblData
+    integer(4) :: gbldim
+
+    character(kind=c_char,len=8) :: type = C_CHAR_'logical'//C_NULL_CHAR
+
+    gblData%dataCPtr = op_decl_gbl_f ( c_loc ( dat ), gbldim, 1, type )
+
+    call c_f_pointer ( gblData%dataCPtr, gblData%dataPtr )
+
+  end subroutine op_decl_gbl_logical_0_1
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !   declarations of constants  !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine op_decl_const_integer_4_1 ( dat, constdim, opname )
 
     integer(4), dimension(*), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
@@ -384,9 +670,9 @@ contains
       call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
-  end subroutine op_decl_const_integer_4
+  end subroutine op_decl_const_integer_4_1
 
-  subroutine op_decl_const_real_8 ( dat, constdim, opname )
+  subroutine op_decl_const_real_8_1 ( dat, constdim, opname )
 
     real(8), dimension(*), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
@@ -398,11 +684,11 @@ contains
       call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
-  end subroutine op_decl_const_real_8
+  end subroutine op_decl_const_real_8_1
 
-  subroutine op_decl_const_scalar_integer_4 ( dat, constdim, opname )
+  subroutine op_decl_const_integer_4_0 ( dat, constdim, opname )
 
-    integer(4), intent(in), target :: dat
+    integer(4), target :: dat
     integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
@@ -412,11 +698,11 @@ contains
       call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
-  end subroutine op_decl_const_scalar_integer_4
+  end subroutine op_decl_const_integer_4_0
 
-  subroutine op_decl_const_scalar_real_8 ( dat, constdim, opname )
+  subroutine op_decl_const_real_8_0 ( dat, constdim, opname )
 
-    real(8), intent(in), target :: dat
+    real(8), target :: dat
     integer(kind=c_int), value :: constdim
     character(len=*), optional :: opname
 
@@ -426,7 +712,21 @@ contains
       call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
-  end subroutine op_decl_const_scalar_real_8
+  end subroutine op_decl_const_real_8_0
+
+  subroutine op_decl_const_logical_0 ( dat, constdim, opname )
+
+    logical, target :: dat
+    integer(kind=c_int), value :: constdim
+    character(len=*), optional :: opname
+
+    if ( present ( opname ) ) then
+      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
+    else
+      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+  end subroutine op_decl_const_logical_0
 
   subroutine op_fetch_data ( opdat )
 
