@@ -99,3 +99,32 @@ op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
   return dataOut;
 }
 
+
+/* 
+ * Utility functions: 
+ * since op_set/map/dat have become pointers, then from fortran I can't
+ * access their fields directly.
+ * These routines permit to avoid c_f_pointers in the declaration routines.
+ */
+int get_set_size (op_set set)
+{
+  return set->size;
+}
+
+int get_associated_set_size (op_dat dat)
+{
+  return dat->set->size;
+}
+
+
+/*
+ * For now implementation only for OpenMP
+ * We will then need to fix it in the C branch of the lib
+*/
+void op_get_dat ( op_dat_core * opdat )
+{
+}
+
+void op_put_dat ( op_dat_core * opdat )
+{
+}
