@@ -62,7 +62,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
                   
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include 
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 #-lz 
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz 
 
 
 #
