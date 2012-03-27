@@ -208,4 +208,7 @@ op_exit (  )
       MPI_Finalize();
 }
 
-
+void op_timing_output()
+{
+  op_timing_output_core();
+}

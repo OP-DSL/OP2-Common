@@ -458,8 +458,7 @@ op_diagnostic_output (  )
   }
 }
 
-void
-op_timing_output (  )
+void op_timing_output_core()
 {
   if ( OP_kern_max > 0 )
   {
