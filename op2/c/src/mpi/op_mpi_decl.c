@@ -145,4 +145,7 @@ void op_timers(double * cpu, double * et)
 }
 
 
-
+void op_timing_output()
+{
+   mpi_timing_output();
+}

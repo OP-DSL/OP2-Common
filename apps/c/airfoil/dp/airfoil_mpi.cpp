@@ -352,7 +352,7 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", NULL, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", NULL, NULL, p_x);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -424,7 +424,7 @@ int main(int argc, char **argv)
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  //op_mpi_timing_output();
+  op_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);

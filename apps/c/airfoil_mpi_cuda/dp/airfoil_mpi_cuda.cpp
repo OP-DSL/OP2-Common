@@ -463,7 +463,7 @@ int main(int argc, char **argv)
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  //op_mpi_timing_output();
+  op_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
