@@ -399,7 +399,7 @@ int main(int argc, char **argv)
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
-  niter = 1000;
+  niter = 10;
   for(int iter=1; iter<=niter; iter++) {
 
     //save old flow solution
@@ -466,7 +466,7 @@ int main(int argc, char **argv)
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  //op_mpi_timing_output();
+  op_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);

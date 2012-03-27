@@ -220,7 +220,7 @@ void op_halo_destroy();
 
 op_dat op_mpi_get_data(op_dat dat);
 
-void op_mpi_timing_output();
+void mpi_timing_output();
 
 void op_mpi_exit();
 

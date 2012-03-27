@@ -202,7 +202,7 @@ op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 
 void op_diagnostic_output ( void );
 
-void op_timing_output ( void );
+void op_timing_output_core ( void );
 
 void op_timing_output_2_file ( const char * );
 

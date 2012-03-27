@@ -117,3 +117,8 @@ op_plan_get ( char const * name, op_set set, int part_size,
 {
   return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
 }
+
+void op_timing_output()
+{
+   op_timing_output_core();
+}

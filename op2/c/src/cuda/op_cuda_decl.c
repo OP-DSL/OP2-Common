@@ -153,3 +153,7 @@ void op_exit()
   op_exit_core();            // frees lib core variables
 }
 
+void op_timing_output()
+{
+  op_timing_output_core();
+}

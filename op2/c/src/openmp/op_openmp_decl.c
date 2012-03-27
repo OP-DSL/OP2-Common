@@ -138,3 +138,7 @@ op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
+void op_timing_output()
+{
+   op_timing_output_core();
+}
