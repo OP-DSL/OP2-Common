@@ -38,8 +38,8 @@ x = real(z); y = imag(z);
 %I = 100;
 %J = 150;
 
-I = 400;
-J = 600;
+I = 800;
+J = 1200;
 
 xb = linspace(-3,3,3*I+1);
 yb = zeros(size(xb));

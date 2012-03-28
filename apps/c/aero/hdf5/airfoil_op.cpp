@@ -243,10 +243,10 @@ int main(int argc, char **argv){
   nnode = op_get_size(nodes);
   ncell = op_get_size(cells);
   nbnodes = op_get_size(bnodes);
-  printf("cells: %d + %d + %d stride = %d\n", cells->size, cells->exec_size,cells->nonexec_size, stride);
-  printf("p_K: %d \n", p_K->size);
-// main time-marching loop
 
+// main time-marching loop
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+    op_timers(&cpu_t1, &wall_t1);
   niter = 50;
 
   for(int iter=1; iter<=niter; iter++) {
@@ -358,7 +358,8 @@ int main(int argc, char **argv){
   }
 
   op_timing_output();
+  op_timers(&cpu_t2, &wall_t2);
+  op_printf("%f\n",wall_t2-wall_t1);
   op_exit();
-
 }
 
