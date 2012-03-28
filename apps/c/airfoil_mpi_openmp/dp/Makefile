@@ -82,7 +82,7 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    Makefile
 		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		    $(OP2_LIB) -lop2_mpi_openmp $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		    $(HDF5_LIB) -o airfoil_mpi_openmp
 		    	
 

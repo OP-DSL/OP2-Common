@@ -203,7 +203,7 @@ op_exit (  )
   op_exit_core();            // frees lib core variables
 
   int flag = 0;
-    MPI_Finalized(&flag);
+  MPI_Finalized(&flag);
   if(!flag)
       MPI_Finalize();
 }
