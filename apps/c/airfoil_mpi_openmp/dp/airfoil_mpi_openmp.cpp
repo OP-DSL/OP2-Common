@@ -397,7 +397,7 @@ int main(int argc, char **argv)
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
-  niter = 10;
+  niter = 1000;
   for(int iter=1; iter<=niter; iter++) {
 
     //save old flow solution
