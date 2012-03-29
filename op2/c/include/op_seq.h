@@ -11,8 +11,10 @@
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   *p_arg = arg.data;
 
+  char blank_args[512];// scratch space to use for blank args
+
   if (arg.argtype==OP_ARG_GBL) {
-    if (halo && (arg.acc != OP_READ)) *p_arg = NULL;
+    if (halo /*&& (arg.acc != OP_READ)*/) *p_arg = blank_args;//*p_arg = NULL;
   }
   else {
     if (arg.map==NULL)         // identity mapping
