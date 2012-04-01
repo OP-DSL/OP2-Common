@@ -1,5 +1,6 @@
-// From the MCFC identity test case - the only change is that the dt parameter
-// has been removed, so the argument lists match.
+// From the MCFC identity test case - the only changes are that the dt parameter
+// has been removed, so the argument lists match, and "double" has been changed
+// to "float".
 void mass(float* localTensor, float* c0[2], int i_r_0, int i_r_1)
 {
   const float CG1[3][6] = { {  0.09157621, 0.09157621, 0.81684757,
