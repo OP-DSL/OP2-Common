@@ -651,8 +651,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       { // color not yet assigned to block
         uint mask = 0;
     if (prev_offset >= set->core_size) { //should not use block colors from the core set when doing the non_core ones
-      for (int shifter = 0; shifter < ncolors; shifter++) mask |= 1<<shifter;
       if (prev_offset == set->core_size) OP_plans[ip].ncolors_core = ncolors;
+      for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
     }
 
         for ( int m = 0; m < nargs; m++ )
