@@ -1984,68 +1984,76 @@ void mpi_timing_output()
   double tot_time;
   double avg_time;
 
+  count = 0;
+  int tot_count = 0;
+  for (int n=0; n<HASHSIZE; n++) {
+    MPI_Allreduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
+    tot_count += count;
+  }
+
+  if(tot_count > 0)
+  {
 #ifdef COMM_PERF
 
-  printf("\n\n___________________________________\n");
-  printf("Performance information on rank %d\n", my_rank);
+    printf("\n\n___________________________________\n");
+    printf("Performance information on rank %d\n", my_rank);
 
-  for (int n=0; n<HASHSIZE; n++) {
-    if (op_mpi_kernel_tab[n].count>0) {
-      printf("-----------------------------------\n");
-      printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
-      printf("Count         :  %10.4d  \n", op_mpi_kernel_tab[n].count);
-      printf("tot_time(sec) :  %10.4f  \n", op_mpi_kernel_tab[n].time);
-      printf("avg_time(sec) :  %10.4f  \n",
-          op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count );
+    for (int n=0; n<HASHSIZE; n++) {
+      if (op_mpi_kernel_tab[n].count>0) {
+        printf("-----------------------------------\n");
+        printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
+        printf("Count         :  %10.4d  \n", op_mpi_kernel_tab[n].count);
+        printf("tot_time(sec) :  %10.4f  \n", op_mpi_kernel_tab[n].time);
+        printf("avg_time(sec) :  %10.4f  \n",
+            op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count );
 
 
-      if(op_mpi_kernel_tab[n].num_indices>0)
-      {
-        printf("halo exchanges:  ");
-        for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-          printf("%10s ",OP_dat_list[op_mpi_kernel_tab[n].op_dat_indices[i]]->name);
-        printf("\n");
-        printf("       count  :  ");
-        for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-          printf("%10d ",op_mpi_kernel_tab[n].tot_count[i]);printf("\n");
-        printf("total(Kbytes) :  ");
-        for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-          printf("%10d ",op_mpi_kernel_tab[n].tot_bytes[i]/1024);printf("\n");
-        printf("average(bytes):  ");
-        for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-          printf("%10d ",op_mpi_kernel_tab[n].tot_bytes[i]/
-              op_mpi_kernel_tab[n].tot_count[i] );printf("\n");
-      }else
-      {
-        printf("halo exchanges:  %10s\n","NONE");
+        if(op_mpi_kernel_tab[n].num_indices>0)
+        {
+          printf("halo exchanges:  ");
+          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
+            printf("%10s ",OP_dat_list[op_mpi_kernel_tab[n].op_dat_indices[i]]->name);
+          printf("\n");
+          printf("       count  :  ");
+          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
+            printf("%10d ",op_mpi_kernel_tab[n].tot_count[i]);printf("\n");
+          printf("total(Kbytes) :  ");
+          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
+            printf("%10d ",op_mpi_kernel_tab[n].tot_bytes[i]/1024);printf("\n");
+          printf("average(bytes):  ");
+          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
+            printf("%10d ",op_mpi_kernel_tab[n].tot_bytes[i]/
+                op_mpi_kernel_tab[n].tot_count[i] );printf("\n");
+        }
+        else
+        {
+          printf("halo exchanges:  %10s\n","NONE");
+        }
       }
     }
-  }
-  printf("___________________________________\n");
+    printf("___________________________________\n");
 
-
-
-  if(my_rank == MPI_ROOT)
-  {
-    printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
-  }
-  for (int n=0; n<HASHSIZE; n++) {
-    MPI_Reduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
-    MPI_Reduce(&op_mpi_kernel_tab[n].time,&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
-    MPI_Reduce(&op_mpi_kernel_tab[n].time,&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
-
-    if(my_rank == MPI_ROOT && count > 0)
+    if(my_rank == MPI_ROOT)
     {
-      printf("%-10s  %6d       %10.4f      %10.4f    \n",
-          op_mpi_kernel_tab[n].name,
-          count,
-          tot_time,
-          (avg_time)/comm_size);
+      printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
-    tot_time = avg_time = 0.0;
-  }
-#endif
+    for (int n=0; n<HASHSIZE; n++) {
+      MPI_Reduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&op_mpi_kernel_tab[n].time,&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&op_mpi_kernel_tab[n].time,&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
 
+      if(my_rank == MPI_ROOT && count > 0)
+      {
+        printf("%-10s  %6d       %10.4f      %10.4f    \n",
+            op_mpi_kernel_tab[n].name,
+            count,
+            tot_time,
+            (avg_time)/comm_size);
+      }
+      tot_time = avg_time = 0.0;
+    }
+#endif
+  }
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
