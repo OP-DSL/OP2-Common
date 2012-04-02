@@ -31,8 +31,8 @@ void mass(float* localTensor, float* c0[2], int i_r_0, int i_r_1)
                                    { -1.,-1. } } };
   const float w[6] = {  0.05497587, 0.05497587, 0.05497587, 0.11169079,
                          0.11169079, 0.11169079 };
-  float c_q0[3][2][2];
-  for(int i_g = 0; i_g < 3; i_g++)
+  float c_q0[6][2][2];
+  for(int i_g = 0; i_g < 6; i_g++)
   {
     for(int i_d_0 = 0; i_d_0 < 2; i_d_0++)
     {
@@ -46,7 +46,7 @@ void mass(float* localTensor, float* c0[2], int i_r_0, int i_r_1)
       };
     };
   };
-  for(int i_g = 0; i_g < 3; i_g++)
+  for(int i_g = 0; i_g < 6; i_g++)
   {
     float ST0 = 0.0;
     ST0 += CG1[i_r_0][i_g] * CG1[i_r_1][i_g] * (c_q0[i_g][0][0] * c_q0[i_g][1][1] + -1 * c_q0[i_g][0][1] * c_q0[i_g][1][0]);
