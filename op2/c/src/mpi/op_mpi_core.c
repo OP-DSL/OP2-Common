@@ -2022,7 +2022,7 @@ void mpi_timing_output()
     }
   }
   printf("___________________________________\n");
-#endif
+
 
 
   if(my_rank == MPI_ROOT)
@@ -2044,6 +2044,7 @@ void mpi_timing_output()
     }
     tot_time = avg_time = 0.0;
   }
+#endif
 
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
