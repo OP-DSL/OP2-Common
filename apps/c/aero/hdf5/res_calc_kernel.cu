@@ -245,7 +245,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
                       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-      int nshared = Plan->nshared;
+      int nshared = Plan->nshared[col];
         op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
            (double *)arg0.data_d, Plan->ind_maps[0],
            (double *)arg4.data_d, Plan->ind_maps[1],

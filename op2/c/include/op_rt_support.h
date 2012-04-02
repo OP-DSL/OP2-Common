@@ -66,7 +66,7 @@ typedef struct {
   int         ncolors;    /* number of block colors */
   int        *ncolblk;    /* number of blocks for each color */
   int        *blkmap;     /* block mapping */
-  int         nshared;    /* bytes of shared memory required */
+  int        *nshared;    /* bytes of shared memory required per block color */
   float       transfer;   /* bytes of data transfer per kernel call */
   float       transfer2;  /* bytes of cache line per kernel call */
   int         count;      /* number of times called */
