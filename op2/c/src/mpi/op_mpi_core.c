@@ -1975,6 +1975,7 @@ static void reset_halo(op_arg* arg)
 
 void mpi_timing_output()
 {
+    
   int my_rank, comm_size;
   MPI_Comm OP_MPI_IO_WORLD;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
@@ -1985,12 +1986,22 @@ void mpi_timing_output()
   double tot_time;
   double avg_time;
 
-#ifdef COMM_PERF
-
-  printf("\n\n___________________________________\n");
-  printf("Performance information on rank %d\n", my_rank);
-
+  count = 0;
+  int tot_count = 0;
   for (int n=0; n<HASHSIZE; n++) {
+    MPI_Allreduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
+    tot_count += count;
+  }
+  
+  if(tot_count > 0)
+  {
+      
+#ifdef COMM_PERF
+  
+    printf("\n\n___________________________________\n");
+    printf("Performance information on rank %d\n", my_rank);
+
+    for (int n=0; n<HASHSIZE; n++) {
     if (op_mpi_kernel_tab[n].count>0) {
       printf("-----------------------------------\n");
       printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
@@ -2024,8 +2035,6 @@ void mpi_timing_output()
   }
   printf("___________________________________\n");
 
-
-
   if(my_rank == MPI_ROOT)
   {
     printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
@@ -2046,7 +2055,7 @@ void mpi_timing_output()
     tot_time = avg_time = 0.0;
   }
 #endif
-
+  }
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
