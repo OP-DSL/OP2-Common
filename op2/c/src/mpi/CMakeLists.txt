@@ -75,18 +75,18 @@ if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
 endif()
 
 # MPI-OPENMP library
-add_definitions(${OP2_MPI_DEFINITIONS})
-include_directories(${OP2_MPI_INCLUDE_DIRS})
-add_library(op2_mpi_openmp ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_openmp_decl.c)
-target_link_libraries(op2_mpi_openmp ${OP2_MPI_LIBRARIES})
+#add_definitions(${OP2_MPI_DEFINITIONS})
+#include_directories(${OP2_MPI_INCLUDE_DIRS})
+#add_library(op2_mpi_openmp ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_openmp_decl.c)
+#target_link_libraries(op2_mpi_openmp ${OP2_MPI_LIBRARIES})
 
 # Add target to the build-tree export set
-export(TARGETS op2_mpi_openmp APPEND
-  FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
+#export(TARGETS op2_mpi_openmp APPEND
+#  FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
 
 # Install
-install(TARGETS op2_mpi_openmp
-  EXPORT ${OP2_TARGETS_EXPORT_SET}
-  LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
-  ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
-)
+#install(TARGETS op2_mpi_openmp
+#  EXPORT ${OP2_TARGETS_EXPORT_SET}
+#  LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
+#  ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
+#)
