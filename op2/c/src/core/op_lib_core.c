@@ -61,6 +61,8 @@ op_map * OP_map_list;
 op_dat * OP_dat_list;
 op_kernel * OP_kernels;
 
+
+
 /*
  * OP core functions: these must be called by back-end specific functions
  */
