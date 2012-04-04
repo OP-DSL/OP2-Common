@@ -34,13 +34,23 @@ op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** ima
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
                        int size, char ** data, char const *name )
 {
+  op_dat tmp;
+
   char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
   char * typeName = (char *) calloc ( strlen ( type ), sizeof ( char ) );
 
   strncpy ( heapName, name, strlen ( name ) );
   strncpy ( typeName, type, strlen ( type ) );
 
-  return op_decl_dat ( set, dim, typeName, size, *data, heapName );
+  tmp = op_decl_dat ( set, dim, typeName, size, *data, heapName );
+
+  if (tmp->set == NULL)
+    {
+      printf ("%s->set is NULL\n", heapName);
+      exit (0);
+    }
+
+  return tmp;
 }
 
 
@@ -106,13 +116,31 @@ op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
  * access their fields directly.
  * These routines permit to avoid c_f_pointers in the declaration routines.
  */
-int get_set_size (op_set set)
+int get_set_size (op_set_core * set)
 {
+  if (set == NULL)
+    {
+      printf ("Set is NULL\n");
+      exit (0);
+    }
+
   return set->size;
 }
 
-int get_associated_set_size (op_dat dat)
+int get_associated_set_size (op_dat_core * dat)
 {
+  if (dat == NULL)
+    {
+      printf ("Dat is NULL\n");
+      exit (0);
+    }
+
+  if (dat->set == NULL)
+    {
+      printf ("Set of dat is NULL\n");
+      exit (0);
+    }
+
   return dat->set->size;
 }
 
@@ -127,4 +155,99 @@ void op_get_dat ( op_dat_core * opdat )
 
 void op_put_dat ( op_dat_core * opdat )
 {
+}
+
+void dumpOpDat (op_dat_core * data, const char * fileName)
+{
+  int i;
+
+  FILE * outfile = fopen (fileName, "w+");
+
+  if (outfile == NULL) exit (0);
+
+  if ( data != NULL )
+    {
+      if ( strncmp ( "real", data->type, 4 ) == 0 )
+        for ( i = 0; i < data->dim * data->set->size; i++ )
+          fprintf (outfile, "%.10lf\n", ((double *) data->data)[i] );
+
+      else if ( strncmp ( "integer", data->type, 7 ) == 0 )
+        for ( i = 0; i < data->dim * data->set->size; i++ )
+          fprintf (outfile, "%d\n", ((int *) data->data)[i] );
+
+      else
+        {
+          printf ( "Unsupported type for dumping %s\n", data->type );
+          exit ( 0 );
+        }
+    }
+
+  fclose (outfile);
+}
+
+/* This function does not specialises w.r.t. a sequence number
+ * because of the intrinsic complexity of modifying the
+ * LOOP macro
+ */
+void dumpOpDatSequential(char * kernelName, op_dat_core * dat, op_access access, op_map_core * map)
+{
+  // OP_GBL or read only
+  if (access == OP_READ || map->dim == -1) return;
+
+  char * fileName = calloc (strlen(kernelName) + strlen(dat->name), sizeof (char));
+  sprintf (fileName, "%s_%s", kernelName, dat->name);
+
+  dumpOpDat (dat, fileName);
+}
+
+void dumpOpDatFromDevice (op_dat_core * data, const char * label, int * sequenceNumber)
+{
+  op_get_dat (data);
+
+  char * fileName = calloc (strlen(label) + log10(*sequenceNumber) + 1, sizeof (char));
+
+  sprintf (fileName, "%s_%d", label, *sequenceNumber);
+
+  printf ("Dumping %s\n", fileName);
+
+  dumpOpDat (data, fileName);
+}
+
+void dumpOpGbl (op_dat_core * data)
+{
+  int i;
+  if ( data != NULL )
+    {
+      if ( strncmp ( "real", data->type, 4 ) == 0 )
+        for ( i = 0; i < data->dim * data->set->size; i++ )
+          printf ( "%lf\n", ((double *) data->data)[i] );
+
+      else if ( strncmp ( "integer", data->type, 7 ) == 0 )
+        for ( i = 0; i < data->dim * data->set->size; i++ )
+          printf ( "%d\n", data->data[i] );
+      else
+        { 
+          printf ( "Unsupported type for dumping %s\n", data->type );
+          exit ( 0 );
+        }
+    }    
+}
+
+
+
+void dumpOpMap (op_map_core * map, const char * fileName)
+{
+  int i;
+
+  FILE * outfile = fopen (fileName, "w+");
+
+  if (outfile == NULL) exit (0);
+
+  if ( map != NULL )
+    {
+      for ( i = 0; i < map->dim * map->from->size; i++ )
+	fprintf (outfile, "%d\n", ((int *) map->map)[i] );
+    }
+
+  fclose (outfile);
 }

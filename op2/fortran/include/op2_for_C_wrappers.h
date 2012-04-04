@@ -31,8 +31,12 @@ void op_decl_const_f ( int dim, void **dat, char const *name );
 
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type );
 
-int get_set_size (op_set set);
-int get_associated_set_size (op_dat dat);
+int get_set_size (op_set_core * set);
+int get_associated_set_size (op_dat_core * dat);
+
+void dumpOpDat (op_dat_core * data, const char * fileName);
+void dumpOpDatSequential(char * kernelName, op_dat_core * dat, op_access access, op_map_core * map);
+void dumpOpDatFromDevice (op_dat_core * data, const char * label, int * sequenceNumber);
 
 #ifdef __cplusplus
 }

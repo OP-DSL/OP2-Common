@@ -104,7 +104,7 @@ void
 op_set
 op_decl_set_core ( int size, char const * name )
 {
-  if ( size <= 0 )
+  if ( size < 0 )
   {
     printf ( " op_decl_set error -- negative/zero size for set: %s\n", name );
     exit ( -1 );

@@ -14,7 +14,7 @@
 #include <op_lib_core.h>
 
 
-void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** p_arg )
+void arg_set ( int displacement, op_dat_core * arg, int itemSel, op_map_core * mapIn, char ** p_arg )
 {
   int n2;
 
@@ -30,6 +30,9 @@ void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** 
   if ( mapIn->dim > 0 ) /* standard pointers */
     {
       n2 = mapIn->map[itemSel + displacement * mapIn->dim];
+ 
+     // in fortran I have incremented all values by one..
+      n2 = n2 -1;
     }
 
   *p_arg = (char *) ( arg->data + n2 * arg->size );
@@ -48,31 +51,17 @@ void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** 
 #define PTR_LIST(N) COMMA_LIST(N,PTRL)
 #define PTRL(x) ptr##x
 
-#define ARG_LIST(N) COMMA_LIST(N,ARGS)
-#define ARGS(x) op_dat dat##x, int itemSel##x, op_map map##x, op_access access##x
+//#define ARG_LIST(N) COMMA_LIST(N,ARGS)
+//#define ARGS(x) op_dat_core * dat##x, int itemSel##x, op_map_core * map##x, op_access access##x
 
 #define OP_LOOP(N) \
-  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set set, ARG_LIST(N)) { \
-    int i; \
-    for(i = 0; i<set->size; i++) { \
-      CHARP_LIST_2(N); \
-      ARG_SET_LIST(N); \
-      (*kernel)(PTR_LIST(N)); \
-    } \
-  }
-
-#define DUMPOPDAT_LIST(N) SEMI_LIST(N,DUMPOPDAT)
-#define DUMPOPDAT(x) dumpOpDatSequential(kernelName, dat##x, access##x, map##x)
-
-#define OP_LOOP_DUMP(N) \
-  void op_par_loop_dump_##N(void (*kernel)(CHARP_LIST(N)), char * kernelName, op_set set, ARG_LIST(N)) { \
-    int i;                                                              \
-    for(i = 0; i<set->size; i++) {                                      \
-      CHARP_LIST_2(N);                                                  \
-      ARG_SET_LIST(N);                                                  \
-      (*kernel)(PTR_LIST(N));                                           \
-    }                                                                   \
-    DUMPOPDAT_LIST(N);                                                  \
+  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set_core * set, ARG_LIST(N)) { \
+    int i;								\
+    for(i = 0; i<set->size; i++) {					\
+      CHARP_LIST_2(N);							\
+      ARG_SET_LIST(N);							\
+      (*kernel)(PTR_LIST(N));						\
+    }									\
   }
 
 OP_LOOP(1) OP_LOOP(2)  OP_LOOP(3)  OP_LOOP(4)  OP_LOOP(5)  OP_LOOP(6)  OP_LOOP(7)  OP_LOOP(8)  OP_LOOP(9)  OP_LOOP(10)

@@ -25,9 +25,12 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_set_core
 
-    integer(kind=c_int) :: index  ! position in the private OP2 array of op_set_core variables
-    integer(kind=c_int) :: size ! number of elements in the set
-    type(c_ptr)         :: name ! set name
+    integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
+    integer(kind=c_int) :: size         ! number of elements in the set
+    type(c_ptr)         :: name         ! set name
+    integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
+    integer(kind=c_int) :: nonexec_size ! number of additional imported elements that are not executed
+
 
   end type op_set_core
 
@@ -58,18 +61,19 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_dat_core
 
-    integer(kind=c_int) ::    index ! position in the private OP2 array of op_dat_core variables
-    type(c_ptr) ::            set   ! set on which data is defined
-    integer(kind=c_int) ::    dim   ! dimension of data
-    integer(kind=c_int) ::    size  ! size of each element in dataset
-    type(c_ptr) ::            dat   ! data on host
+    integer(kind=c_int) ::    index    ! position in the private OP2 array of op_dat_core variables
+    type(c_ptr) ::            set      ! set on which data is defined
+    integer(kind=c_int) ::    dim      ! dimension of data
+    integer(kind=c_int) ::    size     ! size of each element in dataset
+    type(c_ptr) ::            dat      ! data on host
 #ifdef OP2_WITH_CUDAFOR
-    type(c_devptr) ::         dat_d ! data on device
+    type(c_devptr) ::         dat_d    ! data on device
 #else
-    type(c_ptr) ::            dat_d ! data on device
+    type(c_ptr) ::            dat_d    ! data on device
 #endif
-    type(c_ptr) ::            type  ! data type
-    type(c_ptr) ::            name  ! data name
+    type(c_ptr) ::            type     ! data type
+    type(c_ptr) ::            name     ! data name
+    type(c_ptr) ::            buffer_d ! buffer for MPI halo sends on the device
 
   end type op_dat_core
 
@@ -191,21 +195,21 @@ module OP2_Fortran_Declarations
 
     function get_set_size ( set ) BIND(C,name='get_set_size')
 
-      use ISO_C_BINDING
+      import :: op_set_core
 
       integer(4) get_set_size
 
-      type(c_ptr) :: set
+      type(op_set_core) :: set
 
     end function
 
-    function get_associated_set_size ( dat ) BIND(C,name='get_associated_set_size')
+    function get_associated_set_size_f ( dat ) BIND(C,name='get_associated_set_size')
 
-      use ISO_C_BINDING
+      import :: op_dat_core      
 
-      integer(4) get_set_size
+      integer(4) :: get_associated_set_size_f
 
-      type(c_ptr) :: dat
+      type(op_dat_core) :: dat
 
     end function
 
@@ -224,6 +228,34 @@ module OP2_Fortran_Declarations
       type(op_dat_core) :: opdat
 
     end subroutine
+
+   subroutine dumpOpDatFromDevice_c ( data, label, sequenceNumber ) BIND(C,name='dumpOpDatFromDevice')
+
+     import :: op_dat_core
+
+     type(op_dat_core) :: data
+     character(len=*) :: label
+     integer(4) :: sequenceNumber
+
+   end subroutine
+
+   subroutine dumpOpDat_c ( data, fileName ) BIND(C,name='dumpOpDat')
+
+     import :: op_dat_core
+
+     type(op_dat_core) :: data
+     character(len=*) :: fileName
+
+   end subroutine
+
+   subroutine dumpOpMap_c ( map, fileName ) BIND(C,name='dumpOpMap')
+
+     import :: op_map_core
+
+     type(op_map_core) :: map
+     character(len=*) :: fileName
+
+   end subroutine
 
   end interface
 
@@ -302,7 +334,6 @@ contains
 
     print *, 'Using: ', deviceProperties%name
 #endif
-
   end subroutine op_init
 
   subroutine op_decl_set ( setsize, set, opname )
@@ -745,6 +776,54 @@ contains
     call op_timers_f ( cpu, et )
 
   end subroutine op_timers
+
+  function dumpOpDat ( dat, fileName )
+
+    integer(4) :: dumpOpDat
+    type(op_dat) :: dat
+    character(len=*) :: fileName
+
+    call dumpOpDat_c ( dat%dataPtr, fileName )
+
+    dumpOpDat = 0
+
+  end function dumpOpDat
+
+  function dumpOpMap ( map, fileName )
+
+    integer(4) :: dumpOpMap
+    type(op_map) :: map
+    character(len=*) :: fileName
+
+    call dumpOpMap_c ( map%mapPtr, fileName )
+
+    dumpOpMap = 0
+
+  end function dumpOpMap
+
+  function dumpOpDatFromDevice ( dat, label, sequenceNumber )
+
+    integer(4) :: dumpOpDatFromDevice
+
+    type(op_dat) :: dat
+    character(len=*) :: label
+    integer(4) :: sequenceNumber
+
+    call dumpOpDatFromDevice_c ( dat%dataPtr, label, sequenceNumber )
+
+    dumpOpDatFromDevice = 0
+
+  end function dumpOpDatFromDevice
+
+  function get_associated_set_size ( dat )
+
+    integer(4) :: get_associated_set_size
+
+    type(op_dat) :: dat
+
+    get_associated_set_size = get_associated_set_size_f ( dat%dataPtr )
+
+  end function
 
 end module OP2_Fortran_Declarations
 
