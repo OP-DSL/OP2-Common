@@ -327,14 +327,10 @@ contains
 
     integer(kind=c_int), value, intent(in) :: setsize
     type(op_set) :: set
-    character(len=*), optional :: opName
+    character(kind=c_char,len=*), optional :: opName
 
     if ( present ( opname ) ) then
-#ifdef GNU_FORTRAN
-      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_''//opName//C_NULL_CHAR )
-#else
       set%setCPtr = op_decl_set_F ( setsize, opname//char(0) )
-#endif
     else
       set%setCPtr = op_decl_set_F ( setsize, C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
@@ -350,14 +346,10 @@ contains
     integer, intent(in) :: mapdim
     integer(4), dimension(*), intent(in), target :: dat
     type(op_map) :: map
-    character(len=*), optional :: opName
+    character(kind=c_char,len=*), optional :: opName
 
     if ( present ( opname ) ) then
-#ifdef GNU_FORTRAN
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
-#else
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//char(0) )
-#endif
+      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//C_NULL_CHAR )
     else
       map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
@@ -377,16 +369,12 @@ contains
     integer, intent(in) :: datdim
     real(8), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
-    character(len=*), optional :: opName
+    character(kind=c_char,len=*), optional :: opName
 
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
-#ifdef GNU_FORTRAN
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
-#else
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opname//char(0) )
-#endif
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
     else
       data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
@@ -401,16 +389,12 @@ contains
     integer, intent(in) :: datdim
     integer(4), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
-    character(len=*), optional :: opname
+    character(kind=c_char,len=*), optional :: opname
 
     character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
-#ifdef GNU_FORTRAN
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_''//opName//C_NULL_CHAR )
-#else
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opname//char(0) )
-#endif
+      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
     else
       data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
@@ -460,7 +444,7 @@ contains
 
     integer(4), dimension(*), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
-    character(len=*), optional :: opname
+    character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
       call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
@@ -474,7 +458,7 @@ contains
 
     real(8), dimension(*), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
-    character(len=*), optional :: opname
+    character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
       call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
@@ -488,7 +472,7 @@ contains
 
     integer(4), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
-    character(len=*), optional :: opname
+    character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
       call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
@@ -502,7 +486,7 @@ contains
 
     real(8), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
-    character(len=*), optional :: opname
+    character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
       call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
