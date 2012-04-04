@@ -194,20 +194,22 @@ module OP2_Fortran_Declarations
     end subroutine op_timers_f
 
     function get_set_size ( set ) BIND(C,name='get_set_size')
+      use, intrinsic :: ISO_C_BINDING
 
       import :: op_set_core
 
-      integer(4) get_set_size
+      integer(kind=c_int) get_set_size
 
       type(op_set_core) :: set
 
     end function
 
     function get_associated_set_size_f ( dat ) BIND(C,name='get_associated_set_size')
+      use, intrinsic :: ISO_C_BINDING
 
       import :: op_dat_core      
 
-      integer(4) :: get_associated_set_size_f
+      integer(kind=c_int) :: get_associated_set_size_f
 
       type(op_dat_core) :: dat
 
@@ -230,30 +232,33 @@ module OP2_Fortran_Declarations
     end subroutine
 
    subroutine dumpOpDatFromDevice_c ( data, label, sequenceNumber ) BIND(C,name='dumpOpDatFromDevice')
+      use, intrinsic :: ISO_C_BINDING
 
      import :: op_dat_core
 
      type(op_dat_core) :: data
-     character(len=*) :: label
-     integer(4) :: sequenceNumber
+     character(len=1,kind=c_char) :: label
+     integer(kind=c_int) :: sequenceNumber
 
    end subroutine
 
    subroutine dumpOpDat_c ( data, fileName ) BIND(C,name='dumpOpDat')
+      use, intrinsic :: ISO_C_BINDING
 
      import :: op_dat_core
 
      type(op_dat_core) :: data
-     character(len=*) :: fileName
+     character(len=1,kind=c_char) :: fileName
 
    end subroutine
 
    subroutine dumpOpMap_c ( map, fileName ) BIND(C,name='dumpOpMap')
+      use, intrinsic :: ISO_C_BINDING
 
      import :: op_map_core
 
      type(op_map_core) :: map
-     character(len=*) :: fileName
+     character(len=1,kind=c_char) :: fileName
 
    end subroutine
 
@@ -565,7 +570,7 @@ contains
 
   function get_associated_set_size ( dat )
 
-    integer(4) :: get_associated_set_size
+    integer(kind=c_int) :: get_associated_set_size
 
     type(op_dat) :: dat
 
