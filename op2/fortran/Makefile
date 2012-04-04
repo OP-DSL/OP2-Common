@@ -29,16 +29,16 @@ OP2_COMPILER=pgi
 
 ifeq ($(OP2_COMPILER),gnu)
   CC    = gcc
-  CFLAGS = -g -std=c99 -Wall -Werror -fPIC -pedantic -pipe
+  CFLAGS =  -std=c99 -Wall -Werror -fPIC -pedantic -pipe
   FC = gfortran44
   FFLAGS = -J$(F_OP2_MOD) -Wall -Werror -pedantic -pipe
   ALLTARGETS = f_reference f_openmp
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC        = icc -O3
-  CFLAGS    = -O3 -std=c99 -Wall -Werror
+  CFLAGS    = -std=c99 -Wall -Werror
   FC        = ifort -O3
-  FFLAGS    = -module $(F_OP2_MOD)/intel -O3
+  FFLAGS    = -module $(F_OP2_MOD)/intel
   PGCC      = nvcc
   PGCFLAGS  = -Xcompiler="-O4 -std=c99 -Wall -fPIC -pedantic -pipe"
   PGFC      = pgfortran

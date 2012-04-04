@@ -1,3 +1,6 @@
+#ifndef __OP2_REFERENCE_MACROS__
+#define __OP2_REFERENCE_MACROS__
+
 #define JOIN(x,y) JOIN2(x,y)
 #define JOIN2(x,y) x##y
 
@@ -90,3 +93,5 @@
 #define MAP(N,x) JOIN(SLIST_,N)(,x)
 
 #define ID(x) x
+
+#endif

@@ -20,10 +20,10 @@ void arg_set ( int displacement, op_dat arg, int itemSel, op_map mapIn, char ** 
 #define CHARP(x) char*
 
 #define ARG_LIST(N) COMMA_LIST(N,ARGS)
-#define ARGS(x) op_dat dat##x, int itemSel##x, op_map map##x, op_access access##x
+#define ARGS(x) op_dat_core * dat##x, int itemSel##x, op_map_core * map##x, op_access access##x
 
 #define OP_LOOP_DEC(N) \
-  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set set, ARG_LIST(N));
+  void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set_core * set, ARG_LIST(N));
 
 OP_LOOP_DEC(1) OP_LOOP_DEC(2)  OP_LOOP_DEC(3)  OP_LOOP_DEC(4)  OP_LOOP_DEC(5)  OP_LOOP_DEC(6)  OP_LOOP_DEC(7)  OP_LOOP_DEC(8)  OP_LOOP_DEC(9)  OP_LOOP_DEC(10)
 OP_LOOP_DEC(11) OP_LOOP_DEC(12) OP_LOOP_DEC(13) OP_LOOP_DEC(14) OP_LOOP_DEC(15) OP_LOOP_DEC(16) OP_LOOP_DEC(17) OP_LOOP_DEC(18) OP_LOOP_DEC(19) OP_LOOP_DEC(20)

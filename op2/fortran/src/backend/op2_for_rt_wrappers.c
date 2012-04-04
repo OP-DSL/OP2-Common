@@ -4,6 +4,8 @@
 
 #include "../../include/op2_for_rt_wrappers.h"
 
+extern op_plan * OP_plans;
+
 /* These numbers must corresponds to those declared in op2_for_rt_support.f90 */
 #define F_OP_ARG_DAT 0
 #define F_OP_ARG_GBL 1
@@ -140,7 +142,7 @@ op_arg * generatePlanInputData ( char name[],
     else
       planArguments[i].dat = NULL;
 
-    if ( inds[i] >= 0 ) /* another magic number !!! */
+    if ( inds[i] >= 0 ) /* Mapping exists only if not in OP_ID or OP_GBL cases */
       planArguments[i].map = &(planMaps[i]);
     else
       planArguments[i].map = NULL;
@@ -198,6 +200,8 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
                                     int partitionSize
                                   )
 {
+  int i, nameLength;
+  char * heapKernelName;
   op_plan * generatedPlan = NULL;
   op_set_core * iterationSet =  OP_set_list[setId];
 
@@ -208,13 +212,87 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
     exit ( -1 );
   }
 
+
+  /* first look for an existing execution plan */
+
+  int ip = 0, match = 0;
+  //  printf ("On fortran side kernel name = %s, plan index = %d\n", name, OP_plan_index);
+  while ( match == 0 && ip < OP_plan_index )
+    {
+      //      printf ("Plan: %s, %d, %d, %d, %d\n", OP_plans[ip].name, OP_plans[ip].set->index, OP_plans[ip].nargs, OP_plans[ip].ninds, OP_plans[ip].part_size);
+      if ( ( strcmp ( name, OP_plans[ip].name ) == 0 )
+     && ( setId == OP_plans[ip].set->index )
+     && ( argsNumber == OP_plans[ip].nargs )
+     && ( indsNumber == OP_plans[ip].ninds )
+     && ( partitionSize == OP_plans[ip].part_size ) )
+  {
+    match = 1;
+    /* for ( int m = 0; m < argsNumber; m++ ) */
+    /*   {         */
+    /*     /\* Fortran only supports an op_dat: for OP_GBL there is no associated data in the plan and for OP_ID no map *\/ */
+    /*     if ( argsType[m] != F_OP_ARG_GBL && inds[m] != -1 ) */
+    /*  { */
+    /*    match = match  */
+    /*      && ( args[m] == OP_plans[ip].dats[m]->index ) */
+    /*      && ( maps[m] == OP_plans[ip].maps[m]->index ) */
+    /*      && ( idxs[m] == OP_plans[ip].idxs[m] ) */
+    /*      && ( accs[m] == OP_plans[ip].accs[m] ); */
+    /*  } */
+    /*   } */
+  }
+      ip++;
+    }
+
+  if ( match )
+    {
+      ip--;
+      if ( OP_diags > 3 )
+  printf ( " old execution plan #%d\n", ip );
+      OP_plans[ip].count++;
+      return &( OP_plans[ip] );
+    }
+
+
   /* generate the input arguments for the plan function */
   op_arg * planArguments = generatePlanInputData ( name, setId, argsNumber, args, idxs, maps, accs, indsNumber, inds, argsType );
+
+
+  /*
+   * warning: for Hydra, we need to copy the whole mapping because we need to decrement
+   * map data read from file, but we want to allocate this memory only if we actually
+   * need a new plan
+   */
+  for ( i = 0; i < argsNumber; i++ ) {
+    op_map_core * original;
+    int j;
+
+    if ( inds[i] >= 0 ) { // indirect access: there is a map
+
+      original = OP_map_list[maps[i]];
+
+      /* now decrementing */
+      (planArguments[i].map)->map = (int *) calloc ( original->dim * original->from->size, sizeof ( int ) );
+      for ( j = 0; j < original->dim * original->from->size; j++ )
+        (planArguments[i].map)->map[j] = original->map[j] - 1;
+    }
+  }
+
+  /* store the kernel name on the heap, otherwise will be lost when exiting the caller loop */
+  nameLength = strlen(name);
+  if ( nameLength <= 0 )
+    {
+      printf ("Plan caller: bad kernel name\n");
+      exit (0);
+    }
+  heapKernelName = (char *) calloc ( nameLength+1, sizeof(char) );
+  strncpy (heapKernelName, name, nameLength);
+
+  //  printf ("Copied name: original<%s>, newone<%s> length %d\n", name, heapKernelName, nameLength);
 
   /* call the C OP2 core function (we don't need anything else for openmp
    * FIXME: We're passing an offset of 0 since we're running on a single node.
    * Is that always going to be correct? */
-  generatedPlan = op_plan_core ( name,
+  generatedPlan = op_plan_core ( heapKernelName,
                                  iterationSet,
                                  0,
                                  partitionSize,

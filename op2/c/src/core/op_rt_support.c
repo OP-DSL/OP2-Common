@@ -364,7 +364,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
 
   if ( ip == OP_plan_max )
   {
-    // printf("allocating more memory for OP_plans \n");
+    //printf("allocating more memory for OP_plans %d\n", OP_plan_max);
     OP_plan_max += 10;
     OP_plans = ( op_plan * ) realloc ( OP_plans, OP_plan_max * sizeof ( op_plan ) );
     if ( OP_plans == NULL )
