@@ -19,7 +19,7 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
 
 
   if (arg.argtype==OP_ARG_GBL) {
-    if (halo /*&& (arg.acc != OP_READ)*/) *p_arg = blank_args;//*p_arg = NULL;
+    if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;//*p_arg = NULL;
   }
   else {
     if (arg.map==NULL)         // identity mapping
@@ -29,6 +29,9 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   }
 }
 
+//using this function seems to degrade performance than calling
+//op_arg_set(iter, args[n], &p_a[n], halo); directly by unrolling the
+//loop with compilers - so currently we do not call this function
 inline void op_args_set(int iter, int nargs, op_arg *args,
                         char **p_a, int halo){
   for (int n=0; n<nargs; n++)
@@ -83,7 +86,8 @@ void op_par_loop(void (*kernel)( T0* ),
     if (n==set->core_size) op_mpi_wait_all(1,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,1,args,p_a,halo);
+    //op_args_set(n,1,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -147,7 +151,9 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
     if (n==set->core_size) op_mpi_wait_all(2,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,2,args,p_a,halo);
+    //op_args_set(n,2,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -212,7 +218,11 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
     if (n==set->core_size) op_mpi_wait_all(3,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,3,args,p_a,halo);
+    //op_args_set(n,3,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[3], halo);
+
 
     // call kernel function, passing in pointers to data
 
@@ -278,7 +288,11 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
     if (n==set->core_size) op_mpi_wait_all(4,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,4,args,p_a,halo);
+    //op_args_set(n,4,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -349,7 +363,12 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(5,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,5,args,p_a,halo);
+    //op_args_set(n,5,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -422,7 +441,13 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(6,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,6,args,p_a,halo);
+    //op_args_set(n,6,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
+    op_arg_set(n, arg5, &p_a[5], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -496,7 +521,14 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(7,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,7,args,p_a,halo);
+    //op_args_set(n,7,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
+    op_arg_set(n, arg5, &p_a[5], halo);
+    op_arg_set(n, arg6, &p_a[6], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -571,7 +603,15 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(8,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,8,args,p_a,halo);
+    //op_args_set(n,8,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
+    op_arg_set(n, arg5, &p_a[5], halo);
+    op_arg_set(n, arg6, &p_a[6], halo);
+    op_arg_set(n, arg7, &p_a[7], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -651,7 +691,16 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(9,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,9,args,p_a,halo);
+    //op_args_set(n,9,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
+    op_arg_set(n, arg5, &p_a[5], halo);
+    op_arg_set(n, arg6, &p_a[6], halo);
+    op_arg_set(n, arg7, &p_a[7], halo);
+    op_arg_set(n, arg8, &p_a[8], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -733,7 +782,17 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(10,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,10,args,p_a,halo);
+    //op_args_set(n,10,args,p_a,halo);
+    op_arg_set(n, arg0, &p_a[0], halo);
+    op_arg_set(n, arg1, &p_a[1], halo);
+    op_arg_set(n, arg2, &p_a[2], halo);
+    op_arg_set(n, arg3, &p_a[3], halo);
+    op_arg_set(n, arg4, &p_a[4], halo);
+    op_arg_set(n, arg5, &p_a[5], halo);
+    op_arg_set(n, arg6, &p_a[6], halo);
+    op_arg_set(n, arg7, &p_a[7], halo);
+    op_arg_set(n, arg8, &p_a[8], halo);
+    op_arg_set(n, arg9, &p_a[9], halo);
 
     // call kernel function, passing in pointers to data
 
@@ -741,6 +800,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7],
             (T8 *)p_a[8],  (T9 *)p_a[9] );
   }
+
 
   op_mpi_set_dirtybit(10, args);
 
