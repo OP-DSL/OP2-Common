@@ -115,8 +115,6 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
     for (int col=0; col < Plan->ncolors; col++) {
 
-      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs,args);
-
     #ifdef OP_BLOCK_SIZE_1
       int nthread = OP_BLOCK_SIZE_1;
     #else
@@ -125,6 +123,9 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
                       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
+    if (col==Plan->ncolors_core) {
+    op_mpi_wait_all(nargs,args);
+    }
       if (Plan->ncolblk[col] > 0) {
       int nshared = Plan->nshared[col];
         op_cuda_dirichlet<<<nblocks,nthread,nshared>>>(

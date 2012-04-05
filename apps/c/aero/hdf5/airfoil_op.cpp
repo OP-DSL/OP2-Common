@@ -230,7 +230,7 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
 
-  op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
+  op_partition("PARMETIS", "GEOMKWAY", cells, pcell, p_xm);
 
   #ifdef CUDA
   stride = cells->size + cells->exec_size + cells->nonexec_size;

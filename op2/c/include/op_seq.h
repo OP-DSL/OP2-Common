@@ -85,7 +85,8 @@ void op_par_loop(void (*kernel)( T0* ),
     if (n==set->core_size) op_mpi_wait_all(1,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,1,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -159,7 +160,10 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
     if (n==set->core_size) op_mpi_wait_all(2,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,2,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -240,7 +244,12 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
     if (n==set->core_size) op_mpi_wait_all(3,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,3,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -328,7 +337,14 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
     if (n==set->core_size) op_mpi_wait_all(4,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,4,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -427,7 +443,16 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(5,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,5,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -534,7 +559,18 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(6,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,6,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
+    if (args[5].idx == OP_ALL) op_arg_copy_in(n,args[5], (char **)p_a[5]);
+    else op_arg_set(n,args[5], &p_a[5],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -648,7 +684,20 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(7,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,7,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
+    if (args[5].idx == OP_ALL) op_arg_copy_in(n,args[5], (char **)p_a[5]);
+    else op_arg_set(n,args[5], &p_a[5],halo);
+    if (args[6].idx == OP_ALL) op_arg_copy_in(n,args[6], (char **)p_a[6]);
+    else op_arg_set(n,args[6], &p_a[6],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -769,7 +818,22 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(8,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,8,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
+    if (args[5].idx == OP_ALL) op_arg_copy_in(n,args[5], (char **)p_a[5]);
+    else op_arg_set(n,args[5], &p_a[5],halo);
+    if (args[6].idx == OP_ALL) op_arg_copy_in(n,args[6], (char **)p_a[6]);
+    else op_arg_set(n,args[6], &p_a[6],halo);
+    if (args[7].idx == OP_ALL) op_arg_copy_in(n,args[7], (char **)p_a[7]);
+    else op_arg_set(n,args[7], &p_a[7],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -901,7 +965,24 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(9,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,9,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
+    if (args[5].idx == OP_ALL) op_arg_copy_in(n,args[5], (char **)p_a[5]);
+    else op_arg_set(n,args[5], &p_a[5],halo);
+    if (args[6].idx == OP_ALL) op_arg_copy_in(n,args[6], (char **)p_a[6]);
+    else op_arg_set(n,args[6], &p_a[6],halo);
+    if (args[7].idx == OP_ALL) op_arg_copy_in(n,args[7], (char **)p_a[7]);
+    else op_arg_set(n,args[7], &p_a[7],halo);
+    if (args[8].idx == OP_ALL) op_arg_copy_in(n,args[8], (char **)p_a[8]);
+    else op_arg_set(n,args[8], &p_a[8],halo);
 
     // call kernel function, passing in pointers to data
 
@@ -1041,7 +1122,26 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (n==set->core_size) op_mpi_wait_all(10,args);
     if (n==set->size) halo = 1;
 
-    op_args_set(n,10,args,p_a,halo);
+    if (args[0].idx == OP_ALL) op_arg_copy_in(n,args[0], (char **)p_a[0]);
+    else op_arg_set(n,args[0], &p_a[0],halo);
+    if (args[1].idx == OP_ALL) op_arg_copy_in(n,args[1], (char **)p_a[1]);
+    else op_arg_set(n,args[1], &p_a[1],halo);
+    if (args[2].idx == OP_ALL) op_arg_copy_in(n,args[2], (char **)p_a[2]);
+    else op_arg_set(n,args[2], &p_a[2],halo);
+    if (args[3].idx == OP_ALL) op_arg_copy_in(n,args[3], (char **)p_a[3]);
+    else op_arg_set(n,args[3], &p_a[3],halo);
+    if (args[4].idx == OP_ALL) op_arg_copy_in(n,args[4], (char **)p_a[4]);
+    else op_arg_set(n,args[4], &p_a[4],halo);
+    if (args[5].idx == OP_ALL) op_arg_copy_in(n,args[5], (char **)p_a[5]);
+    else op_arg_set(n,args[5], &p_a[5],halo);
+    if (args[6].idx == OP_ALL) op_arg_copy_in(n,args[6], (char **)p_a[6]);
+    else op_arg_set(n,args[6], &p_a[6],halo);
+    if (args[7].idx == OP_ALL) op_arg_copy_in(n,args[7], (char **)p_a[7]);
+    else op_arg_set(n,args[7], &p_a[7],halo);
+    if (args[8].idx == OP_ALL) op_arg_copy_in(n,args[8], (char **)p_a[8]);
+    else op_arg_set(n,args[8], &p_a[8],halo);
+    if (args[9].idx == OP_ALL) op_arg_copy_in(n,args[9], (char **)p_a[9]);
+    else op_arg_set(n,args[9], &p_a[9],halo);
 
     // call kernel function, passing in pointers to data
 

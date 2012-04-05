@@ -682,7 +682,7 @@ for nk = 1:length(kernels)
       file = strvcat(file,...
         '        int nshared = MAX(Plan->nshared,reduct_size*nthread);');
     else
-      file = strvcat(file,'      int nshared = Plan->nshared;');
+      file = strvcat(file,'      int nshared = Plan->nshared[col];');
     end
 
       file = strvcat(file,...
