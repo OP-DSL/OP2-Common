@@ -153,7 +153,16 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 {
   op_plan *plan = op_plan_core ( name, set, part_size,
                                  nargs, args, ninds, inds );
-  int set_size = plan->set->size + plan->set->exec_size +  plan->set->nonexec_size;
+
+  int set_size = set->size;
+  for(int i = 0; i< nargs; i++)
+  {
+    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    {
+      set_size += set->exec_size;
+      break;
+    }
+  }
 
   if ( plan->count == 1 ) {
     for ( int m = 0; m < ninds; m++ )
