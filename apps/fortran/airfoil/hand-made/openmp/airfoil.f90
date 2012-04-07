@@ -19,32 +19,21 @@ program airfoil
 
   intrinsic :: sqrt, real
 
-  integer(4) :: iter, k, i
-
+  integer(4) :: iter, k
   integer(4) :: diags
 
   ! debug variables
-  integer(c_int) :: retDebug, dataSize
-  character(kind=c_char) :: debfilename(20)
+  integer(c_int) :: retDebug
   real(c_double) :: datad
   integer(4) :: debugiter
 
-
-  integer(4), parameter :: maxnode = 9900
-  integer(4), parameter :: maxcell = (9702+1)
-  integer(4), parameter :: maxedge = 19502
-
   integer(4), parameter :: iterationNumber = 1000
-
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter
   real(8) :: ncellr
 
-
   ! profiling
-  real :: startTime, endTime
-
-  type(c_funptr) :: save_soln_cptr
+  !real :: startTime, endTime
 
   ! integer references (valid inside the OP2 library) for op_set
   type(op_set) :: nodes, edges, bedges, cells
@@ -59,18 +48,13 @@ program airfoil
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, rms
 
-  type(c_ptr) :: c_edge, c_ecell, c_bedge, c_becell, c_cell, c_bound, c_x, c_q, c_qold, c_adt, c_res, c_rms
-
-
   ! profiling
   integer :: istat
   real(8) :: simulationStartTime, simulationEndTime
-  real(8) :: totalExecutiontime, iterationTime, iterationPartialTime, iterationFullTimes(iterationNumber)
-  real(8) :: save_soln_kernel_time, adt_calc_kernel_time, res_calc_kernel_time, bres_calc_kernel_time, update_kernel_time
+  real(8) :: iterationTime
   real(8) :: save_soln_host_time, adt_calc_host_time, res_calc_host_time, bres_calc_host_time, update_host_time
-  integer(4) :: save_soln_count, adt_calc_count, res_calc_count, bres_calc_count, update_count, iterationCounter
+  integer(4) :: save_soln_count, adt_calc_count, res_calc_count, bres_calc_count, update_count
   type(profInfo) :: save_soln_info, adt_calc_info, res_calc_info, bres_calc_info, update_info
-
 
   ! kernel namaes, appended by the compiler
   character(kind=c_char,len=10) :: savesolnName = C_CHAR_'save_soln'//C_NULL_CHAR
@@ -78,7 +62,6 @@ program airfoil
   character(kind=c_char, len=9) :: rescalcName = C_CHAR_'res_calc' // C_NULL_CHAR
   character(kind=c_char,len=10) :: brescalcName = C_CHAR_'bres_calc' // C_NULL_CHAR
   character(kind=c_char, len=7) :: updateName = C_CHAR_'update' // C_NULL_CHAR
-
 
   ! names of sets, maps and dats
   character(len=5) :: nodesName = 'nodes'
@@ -160,7 +143,6 @@ program airfoil
   call op_decl_map ( bedges, cells, 1, becell, pbecell, pbecellName )
   call op_decl_map ( cells, nodes, 4, cell, pcell, pcellName )
 
-
   call op_decl_dat ( bedges, 1, bound, p_bound, boundName )
   call op_decl_dat ( nodes, 2, x, p_x, xName )
   call op_decl_dat ( cells, 4, q, p_q, qName )
@@ -170,17 +152,16 @@ program airfoil
 
   call op_decl_gbl ( rms, p_rms, 1 )
 
-  call op_decl_const ( 1, gam )
-  call op_decl_const ( 1, gm1 )
-  call op_decl_const ( 1, cfl )
-  call op_decl_const ( 1, eps )
-  call op_decl_const ( 1, alpha )
-  call op_decl_const ( 1, air_const )
-  call op_decl_const ( 4, qinf )
+  call op_decl_const ( gam, 1 )
+  call op_decl_const ( gm1, 1 )
+  call op_decl_const ( cfl, 1 )
+  call op_decl_const ( eps, 1 )
+  call op_decl_const ( alpha, 1 )
+  call op_decl_const ( air_const, 1 )
+  call op_decl_const ( qinf, 4 )
 
   ! start timer: uncomment to get execution time (also uncomment cpu_time call at the end of this file)
   ! call cpu_time ( startTime )
-
 
   ! main time-marching loop
 
@@ -193,10 +174,8 @@ program airfoil
                                            & p_qold, -1, OP_ID, OP_WRITE &
                                          & )
 
-
     save_soln_host_time = save_soln_host_time + save_soln_info%hostTime
     save_soln_count = save_soln_count + 1
-
 
 !    call op_par_loop_2 ( save_soln, cells, &
 !                       & p_q,    -1, OP_ID, OP_READ, &
@@ -244,7 +223,6 @@ program airfoil
       res_calc_host_time = res_calc_host_time + res_calc_info%hostTime
       res_calc_count = res_calc_count + 1
 
-
 !      call op_par_loop_8 ( res_calc, edges, &
 !                         & p_x,    1, pedge,  OP_READ, &
 !                         & p_x,    2, pedge,  OP_READ, &
@@ -255,7 +233,6 @@ program airfoil
 !                         & p_res,  1, pecell, OP_INC,  &
 !                         & p_res,  2, pecell, OP_INC   &
 !                      & )
-
 
       bres_calc_info = op_par_loop_bres_calc ( brescalcName, bedges, &
                                              & p_x,      1, pbedge,  OP_READ, &
@@ -268,7 +245,6 @@ program airfoil
 
       bres_calc_host_time = bres_calc_host_time + bres_calc_info%hostTime
       bres_calc_count = bres_calc_count + 1
-
 
 !      call op_par_loop_6 ( bres_calc, bedges, &
 !                        & p_x,      1, pbedge,  OP_READ, &
@@ -294,7 +270,6 @@ program airfoil
       update_host_time = update_host_time + update_info%hostTime
       update_count = update_count + 1
 
-
 !      call op_par_loop_5 ( update, cells, &
 !                         & p_qold, -1, OP_ID,  OP_READ,  &
 !                         & p_q,    -1, OP_ID,  OP_WRITE, &
@@ -303,10 +278,27 @@ program airfoil
 !                         & p_rms,  -1, OP_GBL, OP_INC    &
 !                       & )
 
+!       print *, 'va: rms = ', rms(1)
+
+!       retdebug = openfile ( c_char_"q.txt"//c_null_char )
+!
+!       do debugiter = 1, 4*ncell
+!         datad = q(debugiter)
+!         retdebug = writerealtofile ( datad )
+!       end do
+!
+!       retdebug = closefile ()
+
+!       stop
+
     end do ! internal loop
 
     ncellr = real ( ncell )
     rms(1) = sqrt ( rms(1) / ncellr )
+
+    if ( mod ( niter, 100 ) .eq. 0 ) then
+      print '(i4,es12.5)', niter, rms(1)
+    end if
 
   end do ! external loop
 
@@ -314,7 +306,6 @@ program airfoil
 
   write(*,*) 'Time total execution (ms): ', simulationEndTime - simulationStartTime
   write(*,*) 'Average time per iteration (ms): ', (simulationEndTime - simulationStartTime) / iterationNumber
-
 
   write(*,*) 'Number of cells = ', ncell
   write(*,*) 'Number of edges = ', nedge
@@ -336,15 +327,14 @@ program airfoil
   ! call cpu_time ( endTime )
   ! write (*,*), 'Time elapsed is ', endTime - startTime, ' seconds'
 
-! DEBUG: the following set of commands write the Q array (the actual result) to the file name below
-! Change the file name to a proper absolute path.
-!
-! Uncomment to obtain the result
-!
-  retdebug = openfile ( c_char_"/data/carlo/AirfoilFortran/airfoil-openmp/q.txt"//c_null_char )
+  ! DEBUG: the following set of commands write the Q array (the actual result) to the file name below
+  ! Change the file name to a proper absolute path.
+  !
+  ! Uncomment to obtain the result
+  !
+  retdebug = openfile ( c_char_"q.txt"//c_null_char )
 
   do debugiter = 1, 4*ncell
-
     datad = q(debugiter)
     retdebug = writerealtofile ( datad )
   end do

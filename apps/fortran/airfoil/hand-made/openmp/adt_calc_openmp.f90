@@ -491,11 +491,6 @@ contains
 
     ! execute the plan
 
-!     print *, 'ncolblk(1) = ', ncolblk(1)
-!     print *, 'ncolblk(2) = ', ncolblk(2)
-!     print *, 'ncolblk(3) = ', ncolblk(3)
-!     print *, 'NCOLORS = ', actualPlan%ncolors
-
     do col = 0, (actualPlan%ncolors - 1)
 
       ! -1 is needed because the array variable is in Fortran notation

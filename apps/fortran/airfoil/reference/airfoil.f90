@@ -1,13 +1,13 @@
 program airfoil
 
-use, intrinsic :: ISO_C_BINDING
+  use, intrinsic :: ISO_C_BINDING
 
-use OP2_Fortran_Declarations
-use OP2_Fortran_Reference
+  use OP2_Fortran_Declarations
+  use OP2_Fortran_Reference
 
-use constantVars
-use airfoil_seq
-use AirfoilDebug
+  use constantVars
+  use airfoil_seq
+  use AirfoilDebug
 
   implicit none
 
@@ -84,7 +84,6 @@ use AirfoilDebug
 
   allocate ( rms ( 1 ) )
 
-
   ! fill up arrays from file
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x )
 
@@ -94,7 +93,6 @@ use AirfoilDebug
   do iter = 1, 4*ncell
     res(iter) = 0.0
   end do
-
 
   ! OP initialisation
   call op_init ( diags )
@@ -120,13 +118,16 @@ use AirfoilDebug
 
   call op_decl_gbl ( rms, p_rms, 1 )
 
-  call op_decl_const ( 1, gam )
-  call op_decl_const ( 1, gm1 )
-  call op_decl_const ( 1, cfl )
-  call op_decl_const ( 1, eps )
-  call op_decl_const ( 1, alpha )
-  call op_decl_const ( 1, air_const )
-  call op_decl_const ( 4, qinf )
+  call op_decl_const ( gam, 1 )
+  call op_decl_const ( gm1, 1 )
+  call op_decl_const ( cfl, 1 )
+  call op_decl_const ( eps, 1 )
+  call op_decl_const ( alpha, 1 )
+  call op_decl_const ( air_const, 1 )
+  call op_decl_const ( qinf, 4 )
+
+  ! OP diagnostics
+  call op_diagnostic_output (  )
 
   ! start timer: uncomment to get execution time (also uncomment cpu_time call at the end of this file)
   ! call cpu_time ( startTime )
@@ -190,7 +191,6 @@ use AirfoilDebug
                          & p_rms,  -1, OP_GBL, OP_INC    &
                        & )
 
-
     end do ! internal loop
 
     ncellr = real ( ncell )
@@ -214,7 +214,6 @@ use AirfoilDebug
   retdebug = openfile ( c_char_"q-seq.txt"//c_null_char )
 
   do debugiter = 1, 4*ncell
-
     datad = q(debugiter)
     retdebug = writerealtofile ( datad )
   end do

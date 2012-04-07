@@ -149,10 +149,12 @@ int get_associated_set_size (op_dat_core * dat)
 */
 void op_get_dat ( op_dat_core * opdat )
 {
+  (void)opdat;
 }
 
 void op_put_dat ( op_dat_core * opdat )
 {
+  (void)opdat;
 }
 
 void dumpOpDat (op_dat_core * data, const char * fileName)

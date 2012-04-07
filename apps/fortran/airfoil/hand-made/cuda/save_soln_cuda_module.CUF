@@ -19,10 +19,6 @@ module save_soln_cuda_module
   ! sizes of input arguments to CUDA kernel
   type(varSizes_save_soln), device :: argSizes
 
-! real(8), dimension(:), allocatable, device :: argument0
-! real(8), dimension(:), allocatable, device :: argument1
-
-
   ! input data to CUDA kernel
   ! declared here to make them static variables (i.e. state that survives successive op_par_loop function calls)
   integer(4) :: data0Size, data1Size
@@ -76,7 +72,6 @@ contains
 
     integer(4) :: argSDisplacement
 
-
     tid = mod ( (threadidx%x)-1, warpSizeOP2 )
 
     ! remember that:
@@ -102,21 +97,14 @@ contains
 
       ! copy data into shared memory, then into local
 
-      !for (int m=0; m<4; m++)
-      ! ((double *)arg_s)[tid+m*nelems] = arg0[tid+m*nelems+offset*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call ! argSDisplacement
         autoshared ( argSDisplacement  + ( tid + m * nelems ) ) = parg0 ( tid + m * nelems + offset * 4 )
-
       end do
 
       ! for (int m=0; m<4; m++)
       !   arg0_l[m] = ((double *)arg_s)[m+tid*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         arg0_l(m) = autoshared ( argSDisplacement + ( m + tid * 4 ) )
 
@@ -138,25 +126,17 @@ contains
       !   ((double *)arg_s)[m+tid*4] = arg1_l[m];
 
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         autoshared ( argSDisplacement + ( m + tid * 4 ) ) = arg1_l(m)
-
       end do
-
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg1[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         parg1 ( tid + m * nelems + offset * 4 ) = autoshared ( argSDisplacement + ( tid + m * nelems ) )
-
       end do
-
 
       n = n + blockdim%x * griddim%x
 
@@ -220,7 +200,6 @@ contains
     integer(4) :: warpSizeOP2
 
     integer(4) :: threadSynchRet
-
 
     ! profiling
     integer :: istat

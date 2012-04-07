@@ -7,4 +7,3 @@ int writerealtofile ( double * value );
 int writeinttofile ( int * value );
 
 #endif
-

@@ -137,9 +137,7 @@ contains
     p2   = gm1 * (q2(4)-0.5 * ri*(q2(2)*q2(2)+q2(3)*q2(3)))
     vol2 =  ri * (q2(2)*dy - q2(3)*dx)
 
-
     mu = 0.5 * ((adt1(1))+(adt2(1))) * eps
-
 
     f = 0.5 * (vol1 * q1(1)         + vol2* q2(1)        ) + mu*(q1(1)-q2(1))
     res1(1) = res1(1) + f
@@ -158,89 +156,6 @@ contains
     res2(4) = res2(4) - f
 
   end subroutine res_calc
-
-  !subroutine bres_calc ( x1, x2, q1, adt1, res1, bound ) BIND(C)
-  !
-  ! implicit none
-  !
-  ! ! formal parameters
-  ! real(8), dimension(*) :: x1
-  ! real(8), dimension(*) :: x2
-  ! real(8), dimension(*)  :: q1
-  ! real(8), dimension(*) :: adt1
-  ! real(8), dimension(*) :: res1
-  ! integer(4), dimension(*) :: bound
-  !
-  ! ! local variables
-  ! real(8) :: dx, dy, mu, ri, p1, vol1, p2, vol2, f
-  !
-  !  dx = x1(1) - x2(1)
-  !  dy = x1(2) - x2(2)
-  !
-  !  ri = 1.0 / q1(1)
-  !  p1 = gm1*(q1(4)-0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)));
-  !
-  !
-  !  if ( bound(1) == 1 ) then
-  !
-  !    res1(2) = res1(2) + (+ p1*dy)
-  !    res1(3) = res1(3) + (- p1*dx)
-  !
-  !  else
-  !
-  !    vol1 =  ri*(q1(2)*dy - q1(3)*dx)
-  !
-  !    ri   = 1.0 / qinf(1);
-  !    p2   = gm1*(qinf(4)-0.5 * ri * (qinf(2)*qinf(2)+qinf(3)*qinf(3)));
-  !    vol2 =  ri*(qinf(2)*dy - qinf(3)*dx);
-  !
-  !    mu = (adt1(1)) * eps;
-  !
-  !
-  !    f = 0.5 * (vol1 * q1(1)         + vol2 * qinf(1)        ) + mu*(q1(1)-qinf(1));
-  !    res1(1) = res1(1) + f;
-  !
-  !
-  !    f = 0.5 * (vol1* q1(2) + p1*dy + vol2* qinf(2) + p2*dy) + mu*(q1(2)-qinf(2));
-  !    res1(2) = res1(2) + f;
-  !
-  !
-  !    f = 0.5 * (vol1* q1(3) - p1*dx + vol2* qinf(3) - p2*dx) + mu*(q1(3)-qinf(3));
-  !    res1(3) = res1(3) + f;
-  !
-  !
-  !    f = 0.5 * (vol1*(q1(4)+p1)     + vol2*(qinf(4)+p2)    ) + mu*(q1(4)-qinf(4));
-  !    res1(4) = res1(4) + f;
-  !
-  ! end if
-  !
-  !end subroutine bres_calc
-
-  !subroutine update ( qold, q, res, adt, rms ) BIND(C)
-  !
-  ! implicit none
-  !
-  ! ! formal parameters
-  ! real(8), dimension(*) :: qold
-  ! real(8), dimension(*) :: q
-  ! real(8), dimension(*) :: res
-  ! real(8), dimension(*) :: adt
-  ! real(8), dimension(*) :: rms
-  !
-  ! real(8) :: del, adti
-  !
-  ! integer(4) :: i
-  !
-  !  adti = 1.0 / adt(1)
-  !
-  !  do i = 1, 4
-  !   del = adti * res(i)
-  !   q(i) = qold(i) - del
-  !   res(i) = 0.0
-  !   rms(1) = rms(1) + del * del
-  ! end do
-  !
-  !end subroutine update
 
 end module airfoil_seq
 

@@ -19,26 +19,17 @@ use constantVarsCuda
 
   intrinsic :: sqrt, real
 
-  integer(4) :: iter, k, i
+  integer(4) :: iter, k
 
   ! debug variables
-  integer(c_int) :: retDebug, dataSize
-  character(kind=c_char) :: debfilename(20)
+  integer(c_int) :: retDebug
   real(c_double) :: datad
   integer(4) :: debugiter
 
-  integer(4), parameter :: maxnode = 9900
-  integer(4), parameter :: maxcell = (9702+1)
-  integer(4), parameter :: maxedge = 19502
-
   integer(4), parameter :: iterationNumber = 1000
-
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter
   real(8) :: ncellr
-
-  ! debug
-  integer(4) :: CRet
 
   ! profiling
   integer :: istat
@@ -48,9 +39,6 @@ use constantVarsCuda
   real(4) :: save_soln_host_time, adt_calc_host_time, res_calc_host_time, bres_calc_host_time, update_host_time
   integer(4) :: save_soln_count, adt_calc_count, res_calc_count, bres_calc_count, update_count
   type(profInfo) :: save_soln_info, adt_calc_info, res_calc_info, bres_calc_info, update_info
-
-
-  type(c_funptr) :: save_soln_cptr
 
   ! integer references (valid inside the OP2 library) for op_set
   type(op_set) :: nodes, edges, bedges, cells
@@ -138,7 +126,6 @@ use constantVarsCuda
   call op_decl_map ( bedges, nodes, 2, bedge, pbedge, pbedgeName )
   call op_decl_map ( bedges, cells, 1, becell, pbecell, pecellName )
   call op_decl_map ( cells, nodes, 4, cell, pcell, pcellName )
-
 
   call op_decl_dat ( bedges, 1, bound, p_bound, boundName )
   call op_decl_dat ( nodes, 2, x, p_x, xName )
@@ -316,9 +303,7 @@ use constantVarsCuda
 
     ! discard first time in the average
     if ( niter .gt. 1 ) then
-
       iterationTime = iterationTime + iterationPartialTime
-
     end if
 
     if ( mod ( niter, 100 ) .eq. 0 ) then
@@ -334,11 +319,9 @@ use constantVarsCuda
   write(*,*) 'Time total execution (ms): ', totalExecutiontime
   write(*,*) 'Average time per iteration (ms): ', iterationTime / iterationNumber
 
-
   write(*,*) 'Number of cells = ', ncell
   write(*,*) 'Number of edges = ', nedge
   write(*,*) 'Number of vertices = ', nnode
-
 
   write(*,*) 'total kernel save soln time (ms) = ', save_soln_kernel_time
   write(*,*) 'total kernel adt calc time (ms) = ', adt_calc_kernel_time
@@ -381,7 +364,6 @@ use constantVarsCuda
   retDebug = openfile ( C_CHAR_"q.txt"//C_NULL_CHAR )
 
   do debugiter = 1, 4*ncell
-
     datad = q(debugiter)
     retDebug = writeRealToFile ( datad )
   end do
