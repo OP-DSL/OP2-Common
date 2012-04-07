@@ -25,12 +25,13 @@ F_OP2_BACKEND = $(F_OP2_SRC)/backend
 # compiler settings
 #
 
-OP2_COMPILER=pgi
+# Default to PGI compiler
+OP2_COMPILER ?= pgi
 
 ifeq ($(OP2_COMPILER),gnu)
   CC    = gcc
   CFLAGS =  -std=c99 -Wall -Werror -fPIC -pedantic -pipe
-  FC = gfortran44
+  FC = gfortran
   FFLAGS = -J$(F_OP2_MOD) -Wall -Werror -pedantic -pipe
   ALLTARGETS = f_reference f_openmp
 else
