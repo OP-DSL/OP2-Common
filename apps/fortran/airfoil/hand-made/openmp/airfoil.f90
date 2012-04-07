@@ -174,13 +174,13 @@ program airfoil
 	
 	call op_decl_gbl ( rms, p_rms, 1 )
 				
-	call op_decl_const ( 1, gam )
-	call op_decl_const ( 1, gm1 )
-	call op_decl_const ( 1, cfl )
-	call op_decl_const ( 1, eps )
-	call op_decl_const ( 1, alpha )
-	call op_decl_const ( 1, air_const )
-	call op_decl_const ( 4, qinf )
+	call op_decl_const ( gam, 1 )
+	call op_decl_const ( gm1, 1 )
+	call op_decl_const ( cfl, 1 )
+	call op_decl_const ( eps, 1 )
+	call op_decl_const ( alpha, 1 )
+	call op_decl_const ( air_const, 1 )
+	call op_decl_const ( qinf, 4 )
 
 	! start timer: uncomment to get execution time (also uncomment cpu_time call at the end of this file)
 	! call cpu_time ( startTime )

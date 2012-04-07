@@ -1,21 +1,48 @@
-CC = gcc -g
-FC = gfortran -g
+#
+# The following environment variables are required:
+#
+# OP2_COMPILER      - Compiler toolchain: gnu (gcc, gfortran) or pgi (icc, pgfortran)
+# OP2               - OP2 base directory
 
-OPENMP = -fopenmp
+F_OP2 = $(OP2)/fortran
+F_OP2_INC = $(F_OP2)/include
+F_OP2_SRC = $(F_OP2)/src
+F_OP2_OBJ = $(F_OP2)/obj
+F_OP2_LIB = $(F_OP2)/lib
+F_OP2_MOD = $(F_OP2)/mod
 
-#IC = icc
-#FC = ifort
+#
+# compiler settings
+#
 
-#OPENMP = -openmp
-#DEBUG = -debug full
+ifeq ($(OP2_COMPILER),gnu)
+  CC		= gcc
+  CFLAGS = -g -O3 -std=c99 -Wall -Werror -fPIC -pedantic -pipe
+  FC = gfortran
+  FFLAGS = -J$(F_OP2_MOD) -g -O4 -Wall -Werror -pedantic -pipe
+  OPENMP = -fopenmp
+else
+ifeq ($(OP2_COMPILER),pgi)
+  F_OP2_MOD = $(F_OP2)/mod/intel
+  CC		= icc
+  CFLAGS	= -g -O3 -std=c99 -Wall -Werror -vec-report -xSSE4.2
+  FC      = ifort
+  FFLAGS  = -module $(F_OP2_MOD) -g -O3 -vec-report -xSSE4.2
+  DEBUG = -debug full
+  OPENMP = -openmp
+else
+print:
+	@echo "unrecognised value for OP2_COMPILER"
+endif
+endif
+
 PREPROCESSOR = -cpp
 
 EXEC = airfoil_openmp
 CPPLINK = -lstdc++
 FLINK = -L$(F_OP2_LIB)
 
-F_OP2_MOD = $(OP2)/fortran/mod
-F_OP2_LIB = $(OP2)/fortran/lib
+.PHONY: clean
 
 all: debug airfoil_openmp airfoil_link
 
