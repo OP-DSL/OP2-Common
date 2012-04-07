@@ -178,7 +178,6 @@ contains
     integer(4) :: col
     integer(4) :: col2
 
-
     integer(4) :: blockID
 
     integer(4) :: iter1
@@ -229,9 +228,9 @@ contains
 
     end if
 
-!  for (int n=0; n<ind_arg0_size; n++)
-!    for (int d=0; d<2; d++)
-!      ind_arg0_s[d+n*2] = ind_arg0[d+ind_arg0_map[n]*2];
+    !  for (int n=0; n<ind_arg0_size; n++)
+    !    for (int d=0; d<2; d++)
+    !      ind_arg0_s[d+n*2] = ind_arg0[d+ind_arg0_map[n]*2];
 
     ! copy indirect datasets into shared memory or zero increment
     do iter1 = 0, pindArg1Size-1
@@ -243,9 +242,9 @@ contains
       end do
     end do
 
-!  for (int n=0; n<ind_arg1_size; n++)
-!    for (int d=0; d<4; d++)
-!      ind_arg1_s[d+n*4] = ind_arg1[d+ind_arg1_map[n]*4];
+    !  for (int n=0; n<ind_arg1_size; n++)
+    !    for (int d=0; d<4; d++)
+    !      ind_arg1_s[d+n*4] = ind_arg1[d+ind_arg1_map[n]*4];
 
     do iter1 = 0, pindArg3Size-1
       do iter2 = 0, 4-1
@@ -256,9 +255,9 @@ contains
       end do
     end do
 
-!  for (int n=0; n<ind_arg2_size; n++)
-!    for (int d=0; d<1; d++)
-!      ind_arg2_s[d+n*1] = ind_arg2[d+ind_arg2_map[n]*1];
+    !  for (int n=0; n<ind_arg2_size; n++)
+    !    for (int d=0; d<1; d++)
+    !      ind_arg2_s[d+n*1] = ind_arg2[d+ind_arg2_map[n]*1];
 
     do iter1 = 0, pindArg5Size-1
       do iter2 = 0, 1-1
@@ -269,9 +268,9 @@ contains
       end do
     end do
 
-!  for (int n=0; n<ind_arg3_size; n++)
-!    for (int d=0; d<4; d++)
-!      ind_arg3_s[d+n*4] = ZERO_float;
+    !  for (int n=0; n<ind_arg3_size; n++)
+    !    for (int d=0; d<4; d++)
+    !      ind_arg3_s[d+n*4] = ZERO_float;
 
     do iter1 = 0, pindArg7Size-1
       do iter2 = 0, 4-1

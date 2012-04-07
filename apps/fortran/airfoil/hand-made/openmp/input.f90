@@ -18,10 +18,7 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
 
   print *, currDir
 
-  currDir = '/data/carlo/AirfoilFortran/airfoil-sequential-extensions/new_grid.dat'
-! currDir = trim(currDir) //  '/new_grid.dat'
-  !currDir = trim(currDir) //  '/data/carlo/AirfoilFortran/airfoil-gfortran/new_grid.dat'
-  ! iterator for file scanning and array addressing
+  currDir = 'new_grid.dat'
 
   ! open file
 
@@ -71,29 +68,29 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, b
     read ( FILE_ID, * ) cell(4 * i - 3), cell(4 * i + 1 - 3), cell(4 * i + 2 - 3), cell(4 * i + 3 - 3 )
 
     ! pointers are expressed for C arrays (from 0 to N-1), for Fortran we have to convert them in sets from 1 to N
-!   cell(4 * i - 3) = cell(4 * i - 3) + 1
-!   cell(4 * i + 1 - 3) = cell(4 * i + 1 - 3) + 1
-!   cell(4 * i + 2 - 3) = cell(4 * i + 2 - 3) + 1
-!   cell(4 * i + 3 - 3 ) = cell(4 * i + 3 - 3 ) + 1
+    cell(4 * i - 3) = cell(4 * i - 3) + 1
+    cell(4 * i + 1 - 3) = cell(4 * i + 1 - 3) + 1
+    cell(4 * i + 2 - 3) = cell(4 * i + 2 - 3) + 1
+    cell(4 * i + 3 - 3 ) = cell(4 * i + 3 - 3 ) + 1
   enddo
 
   do i = 1, nedge
     read ( FILE_ID, * ) edge(2 * i - 1), edge(2 * i + 1 - 1), ecell(2 * i - 1), ecell(2 * i + 1 - 1)
 
     ! see above
-!   edge(2 * i - 1) = edge(2 * i - 1) + 1
-!   edge(2 * i + 1 - 1) = edge(2 * i + 1 - 1) + 1
-!   ecell(2 * i - 1) = ecell(2 * i - 1) + 1
-!   ecell(2 * i + 1 - 1) = ecell(2 * i + 1 - 1) + 1
+    edge(2 * i - 1) = edge(2 * i - 1) + 1
+    edge(2 * i + 1 - 1) = edge(2 * i + 1 - 1) + 1
+    ecell(2 * i - 1) = ecell(2 * i - 1) + 1
+    ecell(2 * i + 1 - 1) = ecell(2 * i + 1 - 1) + 1
   enddo
 
   do i = 1, nbedge
     read ( FILE_ID, * ) bedge(2 * i - 1), bedge(2 * i + 1 - 1), becell(i), bound(i)
 
     ! see above
-!   bedge(2 * i - 1) = bedge(2 * i - 1) + 1
-!   bedge(2 * i + 1 - 1) = bedge(2 * i + 1 - 1) + 1
-!   becell(i) = becell(i) + 1
+    bedge(2 * i - 1) = bedge(2 * i - 1) + 1
+    bedge(2 * i + 1 - 1) = bedge(2 * i + 1 - 1) + 1
+    becell(i) = becell(i) + 1
   enddo
 
   ! close file
