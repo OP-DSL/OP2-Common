@@ -262,6 +262,10 @@ module OP2_Fortran_Declarations
 
    end subroutine
 
+    subroutine op_diagnostic_output (  ) BIND(C,name='op_diagnostic_output')
+      use, intrinsic :: ISO_C_BINDING
+    end subroutine
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
