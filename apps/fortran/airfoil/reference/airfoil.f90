@@ -126,6 +126,9 @@ program airfoil
   call op_decl_const ( air_const, 1 )
   call op_decl_const ( qinf, 4 )
 
+  ! OP diagnostics
+  call op_diagnostic_output (  )
+
   ! start timer: uncomment to get execution time (also uncomment cpu_time call at the end of this file)
   ! call cpu_time ( startTime )
 
