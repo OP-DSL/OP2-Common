@@ -31,7 +31,6 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
     integer(kind=c_int) :: nonexec_size ! number of additional imported elements that are not executed
 
-
   end type op_set_core
 
   type :: op_set
@@ -270,7 +269,9 @@ module OP2_Fortran_Declarations
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
   interface op_decl_dat
-    module procedure op_decl_dat_real_8, op_decl_dat_integer_4
+    module procedure op_decl_dat_real_8, op_decl_dat_integer_4, &
+                     op_decl_dat_real_8_2, op_decl_dat_integer_4_2, &
+                     op_decl_dat_real_8_3, op_decl_dat_integer_4_3
   end interface op_decl_dat
 
   interface op_decl_gbl
@@ -388,6 +389,30 @@ contains
 
   end subroutine op_decl_dat_real_8
 
+  subroutine op_decl_dat_real_8_2 ( set, datdim, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opName
+
+    call op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+
+  end subroutine op_decl_dat_real_8_2
+
+  subroutine op_decl_dat_real_8_3 ( set, datdim, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opName
+
+    call op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+
+  end subroutine op_decl_dat_real_8_3
+
   subroutine op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
@@ -407,6 +432,28 @@ contains
     call c_f_pointer ( data%dataCPtr, data%dataPtr )
 
   end subroutine op_decl_dat_integer_4
+
+  subroutine op_decl_dat_integer_4_2 ( set, datdim, dat, data, opname )
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+
+    call op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+
+  end subroutine op_decl_dat_integer_4_2
+
+  subroutine op_decl_dat_integer_4_3 ( set, datdim, dat, data, opname )
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+
+    call op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+
+  end subroutine op_decl_dat_integer_4_3
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   declarations of globals    !
