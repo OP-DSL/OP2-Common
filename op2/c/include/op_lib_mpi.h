@@ -38,10 +38,9 @@
  */
 
 #include <op_lib_core.h>
-#include "op_rt_support.h"
+//#include "op_rt_support.h"
+//#include <op_lib_c.h>
 #include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
-//#include <op_hdf5.h>
 
 /** extern variables for halo creation and exchange**/
 extern MPI_Comm OP_MPI_WORLD;
@@ -52,11 +51,7 @@ extern halo_list *OP_import_exec_list;//IEH list
 extern halo_list *OP_import_nonexec_list;//INH list
 extern halo_list *OP_export_nonexec_list;//ENH list
 
-extern set_part_core *OP_latency_sets;
-
-extern int* dirtybit;
 extern op_mpi_buffer *OP_mpi_buffer_list;
-extern int *core_num;
 
 extern int OP_part_index;
 extern part *OP_part_list;

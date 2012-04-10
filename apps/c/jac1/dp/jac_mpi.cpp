@@ -71,7 +71,7 @@ double alpha;
 // op_par_loop declarations
 //
 
-#include "op_mpi_seq.h"
+#include "op_seq.h"
 
 //
 //user declared functions
@@ -274,11 +274,8 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
-  //random partitioning for diagnostics pourposes
-  //op_partition_random(nodes);
-
-  //create halos
-  op_halo_create();
+  //trigger partitioning and halo creation routines
+  op_partition("PTSCOTCH", "KWAY", NULL, NULL, NULL);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -317,7 +314,7 @@ int main(int argc, char **argv)
   //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
   //print each mpi process's timing info for each kernel
-  op_mpi_timing_output();
+  op_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);

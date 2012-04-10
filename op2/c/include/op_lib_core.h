@@ -73,6 +73,7 @@ extern int OP_diags;
 
 extern int OP_cache_line_size;
 
+ 
 /*
  * enum list for op_par_loop
  */
@@ -91,6 +92,7 @@ typedef struct
   int         size;         /* number of elements in set */
   char const *name;         /* name of set */
 // for MPI support
+  int         core_size;      /* number of core elements in an mpi process*/
   int         exec_size;    /* number of additional imported elements to be executed */
   int         nonexec_size; /* number of additional imported elements that are not executed */
 } op_set_core;
@@ -120,6 +122,7 @@ typedef struct
   char const *type,   /* datatype */
              *name;   /* name of dataset */
   char*      buffer_d; /* buffer for MPI halo sends on the devidce */
+  int        dirtybit; /* flag to indicate MPI halo exchange is needed*/
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
@@ -137,6 +140,8 @@ typedef struct
   char const *type;   /* datatype */
   op_access   acc;
   op_arg_type argtype;
+  int         sent;   /* flag to indicate if this argument has
+                         data in flight under non-blocking MPI comms*/
 } op_arg;
 
 
@@ -172,9 +177,9 @@ typedef struct
 extern "C" {
 #endif
 
-/*
+/*******************************************************************************
  * Core lib function prototypes
- */
+*******************************************************************************/
 
 void op_init_core ( int, char **, int );
 
@@ -194,11 +199,11 @@ void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
-op_arg op_arg_gbl_core ( char *, int, const char *, op_access );
+op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 
 void op_diagnostic_output ( void );
 
-void op_timing_output ( void );
+void op_timing_output_core ( void );
 
 void op_timing_output_2_file ( const char * );
 
@@ -207,6 +212,46 @@ void op_timing_realloc ( int );
 void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
+
+/*******************************************************************************
+* Core MPI lib function prototypes
+*******************************************************************************/
+
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
+
+void op_mpi_set_dirtybit(int nargs, op_arg *args); 
+
+void op_mpi_wait_all(int nargs, op_arg* args);
+
+void op_mpi_global_reduction(int nargs, op_arg* args);
+
+void op_mpi_reset_halos(int nargs, op_arg* args);
+
+void op_mpi_reduce_float(op_arg *args, float* data);
+
+void op_mpi_reduce_double(op_arg *args, double* data);
+
+void op_mpi_reduce_int(op_arg *args, int* data);
+
+void op_mpi_barrier();
+
+/*******************************************************************************
+* Toplevel partitioning selection function - also triggers halo creation
+*******************************************************************************/
+void op_partition(const char* lib_name, const char* lib_routine,
+	op_set prime_set, op_map prime_map, op_dat coords );
+
+
+/*******************************************************************************
+* Other partitioning related routine prototypes
+*******************************************************************************/
+
+void op_partition_reverse();
+
+#ifdef COMM_PERF
+int op_mpi_perf_time(const char* name, double time);
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
+#endif
 
 #ifdef __cplusplus
 }

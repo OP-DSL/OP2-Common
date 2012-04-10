@@ -61,7 +61,6 @@
 #endif
 
 #include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
 
 //
 //MPI Communicator for partitioning
@@ -3076,4 +3075,120 @@ void op_partition_ptscotch(op_map primary_map)
   if(my_rank==MPI_ROOT)printf("Max total PT-Scotch partitioning time = %lf\n",max_time);
 }
 #endif
+
+
+/*******************************************************************************
+* Toplevel partitioning selection function - also triggers halo creation
+*******************************************************************************/
+void partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords )
+{
+
+  if(strcmp(lib_name,"PTSCOTCH")==0)
+  {
+
+
+    #ifdef HAVE_PTSCOTCH
+    op_printf("Selected Partitioning Library : %s\n",lib_name);
+    if(strcmp(lib_routine,"KWAY")==0)
+    {
+      op_printf("Selected Partitioning Routine : %s\n",lib_routine);
+      if(prime_map != NULL)
+        op_partition_ptscotch(prime_map); //use ptscotch kaway partitioning
+      else
+      {
+        op_printf("Partitioning prime_map : NULL \n");
+        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      }
+    }
+    else
+    {
+      op_printf("Partitioning Routine : %s\n", lib_routine);
+      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+
+    }
+    #else
+    op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
+    op_printf("Reverting to trivial block partitioning\n");
+    #endif
+
+
+  }
+  else
+  if (strcmp(lib_name,"PARMETIS")==0)
+  {
+
+
+    #ifdef HAVE_PARMETIS
+    op_printf("Selected Partitioning Library : %s\n",lib_name);
+    if(strcmp(lib_routine,"KWAY")==0)
+    {
+      op_printf("Selected Partitioning Routine : %s\n",lib_routine);
+      if(prime_map != NULL)
+        op_partition_kway(prime_map); //use parmetis kaway partitioning
+      else
+      {
+        op_printf("Partitioning prime_map : NULL \n");
+        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      }
+    }
+    else if(strcmp(lib_routine,"GEOMKWAY")==0)
+    {
+      op_printf("Selected Partitioning Routine : %s\n",lib_routine);
+      if(prime_map != NULL)
+        op_partition_geomkway(coords, prime_map); //use parmetis kawaygeom partitioning
+      else
+      {
+        op_printf("Partitioning prime_map or coords: NULL \n");
+        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      }
+
+    }
+    else if(strcmp(lib_routine,"GEOM")==0)
+    {
+      op_printf("Selected Partitioning Routine : %s\n",lib_routine);
+      if(coords != NULL)
+        op_partition_geom(coords); //use parmetis geometric partitioning
+      else
+      {
+        op_printf("Partitioning coords: NULL \n");
+        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      }
+    }
+    else
+    {
+      op_printf("Partitioning Routine : %s\n",lib_routine);
+      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+    }
+    #else
+    op_printf("OP2 Library Not built with Partitioning Library : %s - ",lib_name);
+    op_printf("Reverting to trivial block partitioning\n");
+    #endif
+
+
+  }
+  else
+  if (strcmp(lib_name,"RANDOM")==0)
+  {
+
+    op_printf("Selected Partitioning Routine : %s\n",lib_name);
+    if(prime_set != NULL)
+      op_partition_random(prime_set); //use a random partitioning - used for debugging
+    else
+    {
+      op_printf("Partitioning prime_set : NULL \n");
+      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+    }
+
+  }
+  else
+  {
+    op_printf("Partitioning Library : %s\n UNSUPPORTED - ",lib_name);
+    op_printf("Reverting to trivial block partitioning\n");
+  }
+
+  //trigger halo creation routines
+  op_halo_create();
+
+}
 

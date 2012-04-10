@@ -39,15 +39,15 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
-#include <op_lib_c.h>
+
 #include <op_lib_core.h>
+#include <op_lib_c.h>
 #include <op_util.h>
 
 //mpi header
 #include <mpi.h>
 
 #include <op_mpi_core.h>
-#include <op_mpi_part_core.h>
 
 //
 //MPI Communicator for halo creation and exchange
@@ -65,13 +65,9 @@ halo_list *OP_import_exec_list;//IEH list
 halo_list *OP_import_nonexec_list;//INH list
 halo_list *OP_export_nonexec_list;//ENH list
 
-set_part_core *OP_latency_sets; // set_offset
-
 //
 //global array to hold dirty_bits for op_dats
 //
-
-int* dirtybit;
 
 //
 //halo exchange buffers for each op_dat
@@ -79,14 +75,11 @@ int* dirtybit;
 
 op_mpi_buffer *OP_mpi_buffer_list;
 
-/*array to holding the index of the final element
-  that can be computed without halo exchanges for each set
-
-  0 to core_num[set->index] - no halo exchange needed
-  core_num[set->index] to n<set->size - halo exchange needed
-  */
-
-int *core_num;
+//
+// define external functions (in op_mpi_(cuda)_rt_support.c)
+//
+void exchange_halo(op_arg* arg);
+void wait_all(op_arg* arg);
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
@@ -548,12 +541,6 @@ void op_halo_create()
   }
 
   OP_export_exec_list = (halo_list *)xmalloc(OP_set_index*sizeof(halo_list));
-
-  OP_latency_sets = (set_part_core *)xmalloc(OP_set_index*sizeof(set_part_core));
-  for (int ctr = 0; ctr<OP_set_index; ctr++) {
-    OP_latency_sets[ctr].core_set = NULL;
-    OP_latency_sets[ctr].noncore_set = NULL;
-  }
 
   /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
@@ -1075,17 +1062,14 @@ void op_halo_create()
 
   //set dirty bits of all data arrays to 0
   //for each data array
-  dirtybit = (int *)xmalloc(OP_dat_index*sizeof(int));
 
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
-    dirtybit[dat->index] = 0;
+    dat->dirtybit= 0;
   }
 
 
   /*-STEP 10 -------------------- Separate core elements------------------------*/
-
-  core_num = (int *)xmalloc(OP_set_index*sizeof(int ));
 
   int** core_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
   int** exp_elems = (int **)xmalloc(OP_set_index*sizeof(int *));
@@ -1115,7 +1099,7 @@ void op_halo_create()
       quickSort(core_elems[set->index], 0, count-1);
 
       if(count+num_exp != set->size) printf("sizes not equal\n");
-      core_num[set->index] = count;
+      set->core_size = count;
 
       //for each data array defined on this set seperate its elements
       for(int d=0; d<OP_dat_index; d++) { //for each set
@@ -1199,7 +1183,7 @@ void op_halo_create()
       for(int e=0; e < set->size;e++){//for each elment of this set
         core_elems[set->index][e] = e;
       }
-      core_num[set->index] = set->size;
+      set->core_size = set->size;
     }
   }
 
@@ -1218,17 +1202,17 @@ void op_halo_create()
         {
           int index = binary_search(core_elems[map->to->index],
               map->map[e*map->dim+j],
-              0, core_num[map->to->index]-1);
+              0, map->to->core_size-1);
           if(index < 0)
           {
             index = binary_search(exp_elems[map->to->index],
                 map->map[e*map->dim+j],
-                0, (map->to->size) - (core_num[map->to->index]) -1);
+                0, (map->to->size) - (map->to->core_size) -1);
             if(index < 0)
               printf("Problem in seperating core elements - \
                   renumbering map\n");
             else OP_map_list[map->index]->map[e*map->dim+j] =
-              core_num[map->to->index] + index;
+              map->to->core_size + index;
           }
           else OP_map_list[map->index]->map[e*map->dim+j] = index;
         }
@@ -1263,9 +1247,9 @@ void op_halo_create()
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
       memcpy(&temp[0], core_elems[set->index],
-          core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
-          (set->size-core_num[set->index])*sizeof(int));
+          set->core_size*sizeof(int));
+      memcpy(&temp[set->core_size], exp_elems[set->index],
+          (set->size - set->core_size)*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
@@ -1285,9 +1269,9 @@ void op_halo_create()
       //combine core_elems and exp_elems to one memory block
       int* temp = (int *)xmalloc(sizeof(int)*set->size);
       memcpy(&temp[0], core_elems[set->index],
-          core_num[set->index]*sizeof(int));
-      memcpy(&temp[core_num[set->index]], exp_elems[set->index],
-          (set->size-core_num[set->index])*sizeof(int));
+          set->core_size*sizeof(int));
+      memcpy(&temp[set->core_size], exp_elems[set->index],
+          (set->size - set->core_size)*sizeof(int));
 
       //update OP_part_list[set->index]->g_index
       for(int i = 0; i<set->size; i++)
@@ -1350,11 +1334,11 @@ void op_halo_create()
 
 
     //number of OWNED elements second
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &avg_size,1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &min_size,1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&core_num[set->index],
+    MPI_Reduce(&set->core_size,
         &max_size,1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
     if(my_rank == MPI_ROOT)
@@ -1519,8 +1503,6 @@ void op_halo_destroy()
   free(OP_import_exec_list);free(OP_import_nonexec_list);
   free(OP_export_exec_list);free(OP_export_nonexec_list);
 
-  free(OP_latency_sets);
-
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
 
@@ -1536,148 +1518,102 @@ void op_halo_destroy()
 }
 
 /*******************************************************************************
- * Main MPI Halo Exchange Function
- *******************************************************************************/
-
-int exchange_halo(op_arg arg)
-{
-  op_dat dat = arg.dat;
-
-  if((arg.idx != -1) && (arg.acc == OP_READ || arg.acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1))
-  {
-    //printf("Exchanging Halo of data array %10s\n",dat->name);
-    halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
-
-    halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
-
-    //-------first exchange exec elements related to this data array--------
-
-    //sanity checks
-    if(compare_sets(imp_exec_list->set,dat->set) == 0)
-    {
-      printf("Error: Import list and set mismatch\n");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-    if(compare_sets(exp_exec_list->set,dat->set) == 0)
-    {
-      printf("Error: Export list and set mismatch\n");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-
-    int set_elem_index;
-    for(int i=0; i<exp_exec_list->ranks_size; i++) {
-      for(int j = 0; j < exp_exec_list->sizes[i]; j++)
-      {
-        set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
-        memcpy(&OP_mpi_buffer_list[dat->index]->
-            buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
-            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
-      }
-      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
-          buf_exec[exp_exec_list->disps[i]*dat->size],
-          dat->size*exp_exec_list->sizes[i],
-          MPI_CHAR, exp_exec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
-    }
-
-
-    int init = dat->set->size*dat->size;
-    for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-      //      my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[init+imp_exec_list->disps[i]*dat->size]),
-          dat->size*imp_exec_list->sizes[i],
-          MPI_CHAR, imp_exec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
-    }
-
-    //-----second exchange nonexec elements related to this data array------
-    //sanity checks
-    if(compare_sets(imp_nonexec_list->set,dat->set) == 0)
-    {
-      printf("Error: Non-Import list and set mismatch");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-    if(compare_sets(exp_nonexec_list->set,dat->set)==0)
-    {
-      printf("Error: Non-Export list and set mismatch");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-
-
-    for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
-      for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
-      {
-        set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
-        memcpy(&OP_mpi_buffer_list[dat->index]->
-            buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
-            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
-      }
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
-          buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
-          dat->size*exp_nonexec_list->sizes[i],
-          MPI_CHAR, exp_nonexec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
-    }
-
-    int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
-    for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
-          dat->size*imp_nonexec_list->sizes[i],
-          MPI_CHAR, imp_nonexec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
-    }
-    //clear dirty bit
-    dirtybit[dat->index] = 0;
-    return 1;
-  }
-  return 0;
-
-}
-
-/*******************************************************************************
- * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
- *******************************************************************************/
-
-void wait_all(op_arg arg)
-{
-  op_dat dat = arg.dat;
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
-      OP_mpi_buffer_list[dat->index]->s_req,
-      MPI_STATUSES_IGNORE );
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
-      OP_mpi_buffer_list[dat->index]->r_req,
-      MPI_STATUSES_IGNORE );
-  OP_mpi_buffer_list[dat->index]->s_num_req = 0;
-  OP_mpi_buffer_list[dat->index]->r_num_req = 0;
-}
-
-/*******************************************************************************
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
-void set_dirtybit(op_arg arg)
+static void set_dirtybit(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if(arg.acc == OP_INC || arg.acc == OP_WRITE || arg.acc == OP_RW)
-    dirtybit[dat->index] = 1;
+  if((arg->argtype == OP_ARG_DAT) &&
+    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
+    dat->dirtybit = 1;
 }
+
+
+
+void op_mpi_reduce_float(op_arg* arg, float* data)
+{
+  (void)data;
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    float result;
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_SUM, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+          MPI_MIN, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+    }
+  }
+}
+
+void op_mpi_reduce_double(op_arg* arg, double* data)
+{
+  (void)data;
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    double result;
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_SUM, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+          MPI_MIN, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+    }
+  }
+}
+
+void op_mpi_reduce_int(op_arg* arg, int* data)
+{
+  (void)data;
+  int result;
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_SUM, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+          MPI_MIN, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+    }
+  }
+}
+
+
 
 /*******************************************************************************
  * MPI Global reduce of an op_arg
@@ -1690,20 +1626,20 @@ void global_reduce(op_arg *arg)
     double result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
+          MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double));;
+      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, &result, sizeof(double));
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
+          MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double));
     }
   }
@@ -1712,20 +1648,20 @@ void global_reduce(op_arg *arg)
     float result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
+          MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
+          MPI_MAX, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
+          MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(float));
     }
   }
@@ -1734,20 +1670,20 @@ void global_reduce(op_arg *arg)
     int result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Reduce((int *)arg->data, &result,1, MPI_INT,
-          MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((int *)arg->data, &result,1, MPI_INT,
+          MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT,
-          MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((int *)arg->data, &result, 1, MPI_INT,
+          MPI_MAX, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Reduce((int *)arg->data, &result, 1, MPI_INT,
-          MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Allreduce((int *)arg->data, &result, 1, MPI_INT,
+          MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int));
     }
   }
@@ -2008,12 +1944,13 @@ void op_mpi_put_data(op_dat dat)
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
 
-void reset_halo(op_arg arg)
+static void reset_halo(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if((arg.idx != -1) && (arg.acc == OP_READ || arg.acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1))
+  if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
+    (arg->acc == OP_READ || arg->acc == OP_RW ) &&
+    (dat->dirtybit == 1))
   {
     //printf("Resetting Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
@@ -2036,8 +1973,9 @@ void reset_halo(op_arg arg)
  * Routine to output performance measures
  *******************************************************************************/
 
-void op_mpi_timing_output()
+void mpi_timing_output()
 {
+    
   int my_rank, comm_size;
   MPI_Comm OP_MPI_IO_WORLD;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
@@ -2048,12 +1986,22 @@ void op_mpi_timing_output()
   double tot_time;
   double avg_time;
 
-#ifdef COMM_PERF
-
-  printf("\n\n___________________________________\n");
-  printf("Performance information on rank %d\n", my_rank);
-
+  count = 0;
+  int tot_count = 0;
   for (int n=0; n<HASHSIZE; n++) {
+    MPI_Allreduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
+    tot_count += count;
+  }
+  
+  if(tot_count > 0)
+  {
+      
+#ifdef COMM_PERF
+  
+    printf("\n\n___________________________________\n");
+    printf("Performance information on rank %d\n", my_rank);
+
+    for (int n=0; n<HASHSIZE; n++) {
     if (op_mpi_kernel_tab[n].count>0) {
       printf("-----------------------------------\n");
       printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
@@ -2086,8 +2034,6 @@ void op_mpi_timing_output()
     }
   }
   printf("___________________________________\n");
-#endif
-
 
   if(my_rank == MPI_ROOT)
   {
@@ -2108,10 +2054,12 @@ void op_mpi_timing_output()
     }
     tot_time = avg_time = 0.0;
   }
-
+#endif
+  }
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
+#ifdef COMM_PERF
 /*******************************************************************************
  * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
@@ -2136,13 +2084,10 @@ int op_mpi_perf_time(const char* name, double time)
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
 
-void op_mpi_perf_comm(int kernel_index, op_arg arg)
+void op_mpi_perf_comm(int kernel_index, op_dat dat)
 {
-  op_dat dat = arg.dat;
-
   halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
   halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
-
 
   int tot_halo_size = (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
 
@@ -2200,6 +2145,7 @@ void op_mpi_perf_comm(int kernel_index, op_arg arg)
     }
   }
 }
+#endif
 
 /*******************************************************************************
  * Routine to exit an op2 mpi application -
@@ -2221,8 +2167,62 @@ void op_mpi_exit()
   //return all op_dats, op_maps back to original element order
   op_partition_reverse();
   //print each mpi process's timing info for each kernel
-  //op_mpi_timing_output();
+
 }
+
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
+  int size = set->size;
+  for (int n=0; n<nargs; n++) {
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+    	exchange_halo(&args[n]);
+    	//set_dirtybit(&args[n]);
+    }
+    if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
+  }
+  return size;
+}
+
+void op_mpi_set_dirtybit(int nargs, op_arg *args) {
+  
+  for (int n=0; n<nargs; n++) {
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+    	set_dirtybit(&args[n]);
+    }  
+  }
+}
+
+void op_mpi_wait_all(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    wait_all(&args[n]);
+  }
+}
+
+void op_mpi_reset_halos(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    reset_halo(&args[n]);
+  }
+}
+
+void op_mpi_global_reduction(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    if (args[n].argtype == OP_ARG_GBL && args[n].acc!=OP_READ) global_reduce(&args[n]);
+  }
+}
+
+void op_mpi_barrier() {
+
+}
+
+#ifdef COMM_PERF
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 1)
+    	op_mpi_perf_comm(k_i, (&args[n])->dat);
+  }
+}
+#endif
 
 /*******************************************************************************
  * Write a op_dat to a named ASCI file

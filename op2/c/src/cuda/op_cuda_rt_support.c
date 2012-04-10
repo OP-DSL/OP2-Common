@@ -146,20 +146,23 @@ void op_fetch_data ( op_dat dat )
   cutilSafeCall ( cudaThreadSynchronize (  ) );
 }
 
+
+
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_get_offset ( name, set, 0, part_size,
-                              nargs, args, ninds, inds );
-}
-
-op_plan * op_plan_get_offset ( char const * name, op_set set, int set_offset,
-                               int part_size, int nargs, op_arg * args,
-                               int ninds, int *inds )
-{
-  op_plan *plan = op_plan_core ( name, set, set_offset, part_size,
+  op_plan *plan = op_plan_core ( name, set, part_size,
                                  nargs, args, ninds, inds );
-  int set_size = plan->set->size + plan->set->exec_size +  plan->set->nonexec_size;
+
+  int set_size = set->size;
+  for(int i = 0; i< nargs; i++)
+  {
+    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    {
+      set_size += set->exec_size;
+      break;
+    }
+  }
 
   if ( plan->count == 1 ) {
     for ( int m = 0; m < ninds; m++ )

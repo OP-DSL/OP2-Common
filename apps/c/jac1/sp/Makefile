@@ -64,7 +64,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: jac_mpi jac_seq jac_openmp jac_cuda 
+all: clean jac_mpi jac_seq jac_openmp jac_cuda 
 
 
 #

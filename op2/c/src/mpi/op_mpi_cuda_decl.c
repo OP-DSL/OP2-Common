@@ -167,7 +167,7 @@ void op_printf(const char* format, ...)
   {
     va_list argptr;
     va_start(argptr, format);
-    vfprintf(stderr, format, argptr);
+    vfprintf(stdout, format, argptr);
     va_end(argptr);
   }
 }
@@ -203,8 +203,12 @@ op_exit (  )
   op_exit_core();            // frees lib core variables
 
   int flag = 0;
-    MPI_Finalized(&flag);
+  MPI_Finalized(&flag);
   if(!flag)
       MPI_Finalize();
 }
 
+void op_timing_output()
+{
+  op_timing_output_core();
+}
