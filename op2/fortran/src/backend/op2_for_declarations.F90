@@ -375,7 +375,7 @@ contains
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opName
 
-    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
@@ -395,7 +395,7 @@ contains
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opname
 
-    character(kind=c_char,len=5) :: type = C_CHAR_'real'//C_NULL_CHAR
+    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
