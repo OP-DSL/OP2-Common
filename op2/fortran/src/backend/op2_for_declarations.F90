@@ -115,7 +115,7 @@ module OP2_Fortran_Declarations
 
     end subroutine op_init_core
 
-    type(c_ptr) function op_decl_set_f ( setsize, name ) BIND(C,name='op_decl_set_f')
+    type(c_ptr) function op_decl_set_c ( setsize, name ) BIND(C,name='op_decl_set')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -124,7 +124,7 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value, intent(in)    :: setsize
       character(kind=c_char,len=1), intent(in)  :: name
 
-    end function op_decl_set_f
+    end function op_decl_set_c
 
     type(c_ptr) function op_decl_map_f ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map_f')
 
@@ -335,9 +335,9 @@ contains
     character(kind=c_char,len=*), optional :: opName
 
     if ( present ( opname ) ) then
-      set%setCPtr = op_decl_set_F ( setsize, opname//char(0) )
+      set%setCPtr = op_decl_set_c ( setsize, opname//char(0) )
     else
-      set%setCPtr = op_decl_set_F ( setsize, C_CHAR_'NONAME'//C_NULL_CHAR )
+      set%setCPtr = op_decl_set_c ( setsize, C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
