@@ -31,6 +31,8 @@ OP2_COMPILER ?= pgi
 ifeq ($(OP2_COMPILER),gnu)
   CC         = gcc
   CFLAGS     = -std=c99 -Wall -Werror -fPIC -pedantic -pipe
+  CXX        = g++
+  CXXFLAGS   = -Wall -Werror -fPIC -pipe
   FC         = gfortran
   FFLAGS     = -J$(F_OP2_MOD) -Wall -Werror -pedantic -pipe
   ALLTARGETS = f_reference f_openmp
@@ -40,6 +42,8 @@ ifeq ($(OP2_COMPILER),pgi)
   F_OP2_MOD_PGI   = $(F_OP2_MOD)/pgi
   CC              = icc -O3
   CFLAGS          = -std=c99 -Wall -Werror
+  CXX       			= icpc -O3
+  CXXFLAGS  			= -Wall -Werror
   FC              = ifort -O3
   FFLAGS          = -module $(F_OP2_MOD_INTEL)
   PGCC            = nvcc
@@ -58,6 +62,8 @@ CUDA_INC = $(CUDA_INSTALL_PATH)/include
 NVCC = nvcc
 
 NVCCFLAGS = -O4
+
+PETSC_INC = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/$(PETSC_ARCH)/include -I$(MPI_INSTALL_PATH)/include
 
 .PHONY: clean directories
 
@@ -80,7 +86,8 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
 						 $(F_OP2_SRC)/backend/op2_C_reference.c \
 						 directories
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/sequential/op_seq.c -o $(F_OP2_OBJ)/op_seq.o
+	$(CXX) $(CXXFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_util.cpp -o $(F_OP2_OBJ)/op_lib_util.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) $(PETSC_INC) -c $(C_OP2_SRC)/sequential/op_seq.c -o $(F_OP2_OBJ)/op_seq.o
 	$(CC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/backend/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(shell cp $(F_OP2_SRC)/backend/op2_for_reference.F90 $(F_OP2_SRC)/backend/op2_for_reference.c)
@@ -89,6 +96,7 @@ f_reference: $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c \
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/backend/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	ar -r $(F_OP2_LIB)/libop2_for_reference.a \
 				$(F_OP2_OBJ)/op_lib_core.o \
+				$(F_OP2_OBJ)/op_lib_util.o \
 				$(F_OP2_OBJ)/op_seq.o \
 				$(F_OP2_OBJ)/op2_for_reference.o \
 				$(F_OP2_OBJ)/op2_for_C_wrappers.o \
