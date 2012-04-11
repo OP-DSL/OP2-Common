@@ -122,7 +122,7 @@ module OP2_Fortran_Declarations
       import :: op_set_core
 
       integer(kind=c_int), value, intent(in)    :: setsize
-      character(kind=c_char,len=1), intent(in)  :: name
+      character(kind=c_char,len=1), intent(in)  :: name(*)
 
     end function op_decl_set_c
 
@@ -133,7 +133,7 @@ module OP2_Fortran_Declarations
       type(c_ptr), value, intent(in)           :: from, to
       integer(kind=c_int), value, intent(in)   :: mapdim
       type(c_ptr), intent(in), value           :: data
-      character(kind=c_char,len=1), intent(in) :: name
+      character(kind=c_char,len=1), intent(in) :: name(*)
 
     end function op_decl_map_c
 
@@ -151,9 +151,9 @@ module OP2_Fortran_Declarations
 
       type(c_ptr), value, intent(in)           :: set
       integer(kind=c_int), value               :: datdim, datsize
-      character(kind=c_char,len=1), intent(in) :: type
+      character(kind=c_char,len=1), intent(in) :: type(*)
       type(c_ptr), intent(in), value           :: dat
-      character(kind=c_char,len=1), intent(in) :: name
+      character(kind=c_char,len=1), intent(in) :: name(*)
 
     end function op_decl_dat_c
 
@@ -163,7 +163,7 @@ module OP2_Fortran_Declarations
 
       integer(kind=c_int), value     :: constdim
       type(c_ptr), intent(in), value :: dat
-      character(kind=c_char,len=1)   :: name
+      character(kind=c_char,len=1)   :: name(*)
 
     end subroutine op_decl_const_c
 
@@ -173,7 +173,7 @@ module OP2_Fortran_Declarations
 
       type(c_ptr), intent(in) :: dataIn
       integer(kind=c_int), value, intent(in) :: dataDim, dataSize
-      character(kind=c_char,len=1) :: name
+      character(kind=c_char,len=1) :: name(*)
 
     end function op_decl_gbl_f
 
@@ -236,7 +236,7 @@ module OP2_Fortran_Declarations
      import :: op_dat_core
 
      type(op_dat_core) :: data
-     character(len=1,kind=c_char) :: label
+     character(len=1,kind=c_char) :: label(*)
      integer(kind=c_int) :: sequenceNumber
 
    end subroutine
@@ -247,7 +247,7 @@ module OP2_Fortran_Declarations
      import :: op_dat_core
 
      type(op_dat_core) :: data
-     character(len=1,kind=c_char) :: fileName
+     character(len=1,kind=c_char) :: fileName(*)
 
    end subroutine
 
@@ -257,7 +257,7 @@ module OP2_Fortran_Declarations
      import :: op_map_core
 
      type(op_map_core) :: map
-     character(len=1,kind=c_char) :: fileName
+     character(len=1,kind=c_char) :: fileName(*)
 
    end subroutine
 
