@@ -61,6 +61,13 @@ op_map * OP_map_list;
 op_dat * OP_dat_list;
 op_kernel * OP_kernels;
 
+static char * copy_str( char const * src )
+{
+  const size_t len = strlen( src );
+  char * dest = (char *) calloc ( len, sizeof ( char ) );
+  return strncpy ( dest, src, len );
+}
+
 /*
  * OP core functions: these must be called by back-end specific functions
  */
@@ -126,7 +133,7 @@ op_decl_set_core ( int size, char const * name )
   op_set set = ( op_set ) malloc ( sizeof ( op_set_core ) );
   set->index = OP_set_index;
   set->size = size;
-  set->name = name;
+  set->name = copy_str( name );
   set->exec_size = 0;
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
@@ -187,7 +194,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   map->to = to;
   map->dim = dim;
   map->map = imap;
-  map->name = name;
+  map->name = copy_str( name );
 
   OP_map_list[OP_map_index++] = map;
 
@@ -226,8 +233,8 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->dim = dim;
   dat->data = data;
   dat->data_d = NULL;
-  dat->name = name;
-  dat->type = type;
+  dat->name = copy_str( name );
+  dat->type = copy_str( type );
   dat->size = dim * size;
 
   OP_dat_list[OP_dat_index++] = dat;
@@ -252,20 +259,24 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_set_index; i++ )
   {
+    free ( (char*)OP_set_list[i]->name );
     free ( OP_set_list[i] );
   }
   free ( OP_set_list );
 
   for ( int i = 0; i < OP_map_index; i++ )
   {
-        free ( OP_map_list[i]->map );
+    free ( OP_map_list[i]->map );
+    free ( (char*)OP_map_list[i]->name );
     free ( OP_map_list[i] );
   }
   free ( OP_map_list );
 
   for ( int i = 0; i < OP_dat_index; i++ )
   {
-        free ( OP_dat_list[i]->data );
+    free ( OP_dat_list[i]->data );
+    free ( (char*)OP_dat_list[i]->name );
+    free ( (char*)OP_dat_list[i]->type );
     free ( OP_dat_list[i] );
   }
   free ( OP_dat_list );
