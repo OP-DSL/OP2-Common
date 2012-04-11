@@ -11,46 +11,17 @@
 #include <op_lib_c.h>
 #include "../../include/op2_for_C_wrappers.h"
 
-op_set op_decl_set_f ( int size, char const * name )
+
+op_map op_decl_map_f ( op_set from, op_set to, int dim, int ** imap, char const *name )
 {
-  char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
-
-  strncpy ( heapName, name, strlen ( name ) );
-
-  return op_decl_set ( size, heapName );
-}
-
-
-op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name )
-{
-  char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
-
-  strncpy ( heapName, name, strlen ( name ) );
-
-  return op_decl_map ( from, to, dim, *imap, heapName );
+  return op_decl_map ( from, to, dim, *imap, name );
 }
 
 
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
                        int size, char ** data, char const *name )
 {
-  op_dat tmp;
-
-  char * heapName = (char *) calloc ( strlen ( name ), sizeof ( char ) );
-  char * typeName = (char *) calloc ( strlen ( type ), sizeof ( char ) );
-
-  strncpy ( heapName, name, strlen ( name ) );
-  strncpy ( typeName, type, strlen ( type ) );
-
-  tmp = op_decl_dat ( set, dim, typeName, size, *data, heapName );
-
-  if (tmp->set == NULL)
-    {
-      printf ("%s->set is NULL\n", heapName);
-      exit (0);
-    }
-
-  return tmp;
+  return op_decl_dat ( set, dim, type, size, *data, name );
 }
 
 
