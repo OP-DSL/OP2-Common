@@ -34,18 +34,6 @@ op_map_core * op_decl_null_map ( )
 }
 
 
-void op_decl_const_f ( int dim, void **dat, char const *name )
-{
-  (void)dat;
-
-  if ( dim <= 0 )
-  {
-    printf ( "op_decl_const error -- negative/zero dimension for const: %s\n", name );
-    exit ( -1 );
-  }
-}
-
-
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
 {
   op_dat_core * dataOut = calloc ( 1, sizeof ( op_dat_core ) );
