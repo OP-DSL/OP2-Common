@@ -16,4 +16,4 @@ library and structured as follows:
 `- doc: Documentation
 
 This repository should not be confused with the OP2 compiler, which
-can be found at: https://github.com/abetts155/OP2_ROSE_Fortran
+can be found at: https://github.com/OP2/OP2_ROSE_Fortran
