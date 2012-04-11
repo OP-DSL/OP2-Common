@@ -12,14 +12,6 @@
 extern "C" {
 #endif
 
-/*
- * In all Fortran callers we build name and type strings with the '\0' character
- * at the end. Here we copy them, because in the callers they are allocated onto
- * the stack. An alternative to this is to use dynamic memory allocation of F90
- * to guarantee persistence of name and type strings in the callers.
- */
-op_set op_decl_set_f ( int size, char const * name );
-
 op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name );
 
 op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
