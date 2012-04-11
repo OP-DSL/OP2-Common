@@ -126,16 +126,16 @@ module OP2_Fortran_Declarations
 
     end function op_decl_set_c
 
-    type(c_ptr) function op_decl_map_f ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map_f')
+    type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
       use, intrinsic :: ISO_C_BINDING
 
-      type(c_ptr), value, intent(in) :: from, to
-      integer(kind=c_int), value, intent(in) :: mapdim
-      type(c_ptr), intent(in) :: data
+      type(c_ptr), value, intent(in)           :: from, to
+      integer(kind=c_int), value, intent(in)   :: mapdim
+      type(c_ptr), intent(in), value           :: data
       character(kind=c_char,len=1), intent(in) :: name
 
-    end function op_decl_map_f
+    end function op_decl_map_c
 
     type(c_ptr) function op_decl_null_map () BIND(C,name='op_decl_null_map')
 
@@ -143,7 +143,7 @@ module OP2_Fortran_Declarations
 
     end function op_decl_null_map
 
-    type(c_ptr) function op_decl_dat_f ( set, datdim, type, datsize, dat, name ) BIND(C,name='op_decl_dat_f')
+    type(c_ptr) function op_decl_dat_c ( set, datdim, type, datsize, dat, name ) BIND(C,name='op_decl_dat')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -152,10 +152,10 @@ module OP2_Fortran_Declarations
       type(c_ptr), value, intent(in)           :: set
       integer(kind=c_int), value               :: datdim, datsize
       character(kind=c_char,len=1), intent(in) :: type
-      type(c_ptr), intent(in)                  :: dat
+      type(c_ptr), intent(in), value           :: dat
       character(kind=c_char,len=1), intent(in) :: name
 
-    end function op_decl_dat_f
+    end function op_decl_dat_c
 
     subroutine op_decl_const_f ( constdim, dat, name ) BIND(C,name='op_decl_const_f')
 
@@ -354,9 +354,9 @@ contains
     character(kind=c_char,len=*), optional :: opName
 
     if ( present ( opname ) ) then
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//C_NULL_CHAR )
+      map%mapCPtr = op_decl_map_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname//C_NULL_CHAR )
     else
-      map%mapCPtr = op_decl_map_F ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      map%mapCPtr = op_decl_map_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -379,9 +379,9 @@ contains
     character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -423,9 +423,9 @@ contains
     character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_f ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
