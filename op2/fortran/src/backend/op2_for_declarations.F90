@@ -157,15 +157,15 @@ module OP2_Fortran_Declarations
 
     end function op_decl_dat_c
 
-    subroutine op_decl_const_f ( constdim, dat, name ) BIND(C,name='op_decl_const_f')
+    subroutine op_decl_const_c ( constdim, dat, name ) BIND(C,name='op_decl_const_char')
 
       use, intrinsic :: ISO_C_BINDING
 
-      integer(kind=c_int), value :: constdim
-      type(c_ptr), intent(in) :: dat
-      character(kind=c_char,len=1) :: name
+      integer(kind=c_int), value     :: constdim
+      type(c_ptr), intent(in), value :: dat
+      character(kind=c_char,len=1)   :: name
 
-    end subroutine op_decl_const_f
+    end subroutine op_decl_const_c
 
     type(c_ptr) function op_decl_gbl_f ( dataIn, dataDim, dataSize, name ) BIND(C,name='op_decl_gbl_f')
 
@@ -498,9 +498,9 @@ contains
     character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
+      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_integer_4
@@ -512,9 +512,9 @@ contains
     character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
+      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_real_8
@@ -526,9 +526,9 @@ contains
     character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
+      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_integer_4
@@ -540,9 +540,9 @@ contains
     character(kind=c_char,len=*), optional :: opname
 
     if ( present ( opname ) ) then
-      call op_decl_const_F ( constdim, c_loc ( dat ), opname//char(0) )
+      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
     else
-      call op_decl_const_F ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
   end subroutine op_decl_const_scalar_real_8
