@@ -51,6 +51,13 @@ op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_s
  */
 op_dat op_decl_vec( op_dat ref, char const * name );
 
+/* Free a temporary dat: This requires removing the dat from the global list
+ * after freeing its memory and moving all following pointers in the list up
+ * by one position and updating their index for consistency.
+ * Return the index of the freed temporary.
+ */
+int op_free_vec( op_dat vec );
+
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc );
 
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
