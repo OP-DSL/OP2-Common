@@ -239,11 +239,6 @@ void op_cuda_exit ( )
     cutilSafeCall ( cudaFree ( OP_dat_list[i]->data_d ) );
   }
 
-  for ( int i = 0; i < OP_mat_index; i++ )
-  {
-    cutilSafeCall ( cudaFree ( OP_mat_list[i]->data ) );
-  }
-
   for ( int i = 0; i < OP_sparsity_index; i++ )
   {
     cutilSafeCall ( cudaFree ( OP_sparsity_list[i]->rowptr ) );

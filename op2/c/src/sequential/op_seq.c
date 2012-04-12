@@ -31,7 +31,6 @@
  */
 
 #include <petscsys.h>
-#include <petscmat.h>
 #include <op_lib_c.h>
 
 /*
@@ -112,11 +111,6 @@ void op_timers(double * cpu, double * et)
 
 void op_exit ()
 {
-  for ( int i = 0; i < OP_mat_index; i++ )
-  {
-      MatDestroy ( ((Mat)(OP_mat_list[i]->mat)) );
-  }
-
   op_exit_core ();
   PetscFinalize();
 }

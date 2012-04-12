@@ -154,7 +154,6 @@ typedef op_sparsity_core * op_sparsity;
 
 typedef struct
 {
-  int         index;  /* index */
   op_set      rowset, /* set on which row data is defined */
               colset; /* set on which col data is defined */
   int         dim,    /* dimension of data */

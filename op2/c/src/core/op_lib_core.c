@@ -51,7 +51,6 @@ int OP_diags = 0,
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_dat_max = 0,
-    OP_mat_index = 0, OP_mat_max = 0,
     OP_sparsity_index = 0, OP_sparsity_max = 0,
     OP_kern_max = 0;
 
@@ -62,7 +61,6 @@ int OP_set_index = 0, OP_set_max = 0,
 op_set * OP_set_list;
 op_map * OP_map_list;
 op_dat * OP_dat_list;
-op_mat * OP_mat_list;
 op_sparsity * OP_sparsity_list;
 op_kernel * OP_kernels;
 
@@ -309,19 +307,7 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
     exit ( -1 );
   }
 
-  if ( OP_mat_index == OP_mat_max )
-  {
-    OP_mat_max += 10;
-    OP_mat_list = ( op_mat * ) realloc ( OP_mat_list, OP_mat_max * sizeof ( op_mat ) );
-    if ( OP_mat_list == NULL )
-    {
-      printf ( " op_decl_mat error -- error reallocating memory\n" );
-      exit ( -1 );
-    }
-  }
-
   op_mat mat = ( op_mat ) malloc ( sizeof ( op_mat_core ) );
-  mat->index = OP_mat_index;
   mat->rowset = rowset;
   mat->colset = colset;
   mat->dim = dim;
@@ -331,8 +317,6 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
   mat->mat = 0;
   mat->data = NULL;
   mat->lma_data = NULL;
-
-  OP_mat_list[OP_mat_index++] = mat;
 
   return mat;
 }
@@ -424,10 +408,6 @@ op_exit_core (  )
     op_free_dat_core ( OP_dat_list[i] );
   free ( OP_dat_list );
 
-  for ( int i = 0; i < OP_mat_index; i++ )
-    op_free_mat_core ( OP_mat_list[i] );
-  free ( OP_mat_list );
-
   for ( int i = 0; i < OP_sparsity_index; i++ )
     op_free_sparsity_core ( OP_sparsity_list[i] );
   free ( OP_sparsity_list );
@@ -444,8 +424,6 @@ op_exit_core (  )
   OP_map_max = 0;
   OP_dat_index = 0;
   OP_dat_max = 0;
-  OP_mat_index = 0;
-  OP_mat_max = 0;
   OP_sparsity_index = 0;
   OP_sparsity_max = 0;
   OP_kern_max = 0;
