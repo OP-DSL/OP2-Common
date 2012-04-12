@@ -66,7 +66,6 @@ int main(int argc, char **argv) {
   Real  *p_xn = (Real *)malloc(sizeof(Real)*nnode);
   Real  *p_x  = (Real *)malloc(sizeof(Real)*nnode);
   Real  *p_xref = (Real *)malloc(sizeof(Real)*nnode);
-  Real  *p_y  = (Real *)malloc(sizeof(Real)*nnode);
 
   // create element -> node mapping
   for (int i = 0; i < NN; ++i) {
@@ -94,7 +93,6 @@ int main(int argc, char **argv) {
   op_map elem_node = op_decl_map(elements, nodes, 2, p_elem_node, "elem_node");
 
   op_dat x = op_decl_dat(nodes, 1, REAL, p_x, "x");
-  op_dat y = op_decl_dat(nodes, 1, REAL, p_y, "y");
   op_dat xn = op_decl_dat(nodes, 1, REAL, p_xn, "xn");
 
   op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
@@ -116,6 +114,7 @@ int main(int argc, char **argv) {
               op_arg_dat(xn,  -2, elem_node, 1, REAL, OP_READ));
 
   // solve
+  op_dat y = op_decl_vec(x, "y");
   op_solve(mat, x, y);
 
   op_exit();
