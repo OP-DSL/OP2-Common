@@ -12,19 +12,6 @@
 #include "../../include/op2_for_C_wrappers.h"
 
 
-op_map op_decl_map_f ( op_set from, op_set to, int dim, int ** imap, char const *name )
-{
-  return op_decl_map ( from, to, dim, *imap, name );
-}
-
-
-op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
-                       int size, char ** data, char const *name )
-{
-  return op_decl_dat ( set, dim, type, size, *data, name );
-}
-
-
 op_map_core * op_decl_null_map ( )
 {
   /* must allocate op_set_core instead of op_set, because the latter is actually a pointer to the former */
@@ -44,18 +31,6 @@ op_map_core * op_decl_null_map ( )
   map->map = NULL;
 
   return map;
-}
-
-
-void op_decl_const_f ( int dim, void **dat, char const *name )
-{
-  (void)dat;
-
-  if ( dim <= 0 )
-  {
-    printf ( "op_decl_const error -- negative/zero dimension for const: %s\n", name );
-    exit ( -1 );
-  }
 }
 
 
