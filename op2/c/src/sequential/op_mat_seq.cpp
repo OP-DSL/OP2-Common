@@ -65,6 +65,12 @@ op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_s
   return mat;
 }
 
+void op_free_mat( op_mat mat )
+{
+  MatDestroy ( ((Mat)(mat->mat)) );
+  op_free_mat_core( mat );
+}
+
 op_dat op_decl_vec( op_dat ref, char const * name )
 {
   char * data = (char*) malloc( ref->size * ref->set->size );
