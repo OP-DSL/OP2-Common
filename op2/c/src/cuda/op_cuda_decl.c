@@ -111,6 +111,12 @@ op_dat op_decl_vec( op_dat ref, char const * name )
   return dat;
 }
 
+void op_free_vec( op_dat vec )
+{
+  cutilSafeCall ( cudaFree ( vec->data_d ) );
+  op_free_vec_core( vec );
+}
+
 op_sparsity
 op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
 {
