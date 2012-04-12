@@ -145,6 +145,12 @@ op_decl_mat ( op_sparsity sparsity, int dim, char const * type,
   return mat;
 }
 
+void op_free_mat( op_mat mat )
+{
+  cutilSafeCall ( cudaFree ( mat->data ) );
+  op_free_mat_core( mat );
+}
+
 op_set
 op_decl_set ( int size, char const * name )
 {
