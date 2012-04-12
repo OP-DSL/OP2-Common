@@ -36,6 +36,7 @@
  */
 
 #include <sys/time.h>
+#include <assert.h>
 #include "op_lib_core.h"
 
 /*
@@ -270,6 +271,20 @@ void op_free_dat_core ( op_dat dat )
   free ( (char*)dat->name );
   free ( (char*)dat->type );
   free ( dat );
+}
+
+void op_free_vec_core( op_dat vec )
+{
+  assert( OP_dat_list[vec->index] == vec );
+  for( int i = vec->index; i < OP_dat_index - 1; ++i ) {
+    /* Move the next entry in the global dat list up by one position */
+    OP_dat_list[i] = OP_dat_list[i+1];
+    /* Update its index accordingly */
+    OP_dat_list[i]->index = i;
+  }
+  op_free_dat_core( vec );
+  OP_dat_list[OP_dat_index - 1] = 0;
+  OP_dat_index--;
 }
 
 op_mat

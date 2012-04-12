@@ -77,22 +77,9 @@ op_dat op_decl_vec( op_dat ref, char const * name )
   return op_decl_dat_core( ref->set, ref->dim, ref->type, ref->size, data, name );
 }
 
-int op_free_vec( op_dat vec )
+void op_free_vec( op_dat vec )
 {
-  extern op_dat * OP_dat_list;
-  extern int OP_dat_index;
-  assert( OP_dat_list[vec->index] == vec );
-  int index = vec->index;
-  op_free_dat_core( vec );
-  for( int i = index; i < OP_dat_index - 1; ++i ) {
-    /* Move the next entry in the global dat list up by one position */
-    OP_dat_list[i] = OP_dat_list[i+1];
-    /* Update its index accordingly */
-    OP_dat_list[i]->index = i;
-  }
-  OP_dat_list[OP_dat_index - 1] = 0;
-  OP_dat_index--;
-  return index;
+  op_free_vec_core( vec );
 }
 
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc )

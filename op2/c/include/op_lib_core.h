@@ -251,6 +251,8 @@ op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * )
 
 void op_free_dat_core ( op_dat );
 
+void op_free_vec_core( op_dat vec );
+
 op_mat op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name );
 
 void op_free_mat_core ( op_mat );
