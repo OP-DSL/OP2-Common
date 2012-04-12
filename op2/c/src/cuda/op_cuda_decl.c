@@ -104,6 +104,13 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
   return dat;
 }
 
+op_dat op_decl_vec( op_dat ref, char const * name )
+{
+  op_dat dat = op_decl_dat_core( ref->set, ref->dim, ref->type, ref->size, NULL, name );
+  op_callocDevice( (void **)&(dat->data_d), ref->size * ref->set->size );
+  return dat;
+}
+
 op_sparsity
 op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
 {
