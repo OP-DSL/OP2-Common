@@ -39,7 +39,6 @@ header_h = """/*
 #define __OP_SEQ_H
 
 #include "op_lib_mat.h"
-#include <assert.h>
 #include <boost/type_traits.hpp>
 
 static inline void op_arg_set(int n, op_arg arg, char **p_arg){
@@ -193,11 +192,10 @@ templates = {
     // Copy in of vector map indices
 %(argsetters)s
     // call kernel function, passing in pointers to data
-    int ilower;
-    int iupper;
-    int jlower;
-    int jupper;
-    bool seen_op_mat = false;
+    int ilower = 0;
+    int iupper = itspace->dims[0];
+    int jlower = 0;
+    int jupper = itspace->dims[1];
     int idxs[2];
 %(itspace_loop_prelim)s
 %(itspace_loop)s
@@ -235,50 +233,32 @@ templates = {
     'itspace_loop_prelim' : """
     int arg%didxs[2];
     if (arg%d.argtype == OP_ARG_MAT) {
-      int ilt;
       int iut;
-      int jlt;
       int jut;
       arg%didxs[0] = 0;
       arg%didxs[1] = 1;
       if (arg%d.idx < -1) {
-        ilt = 0;
         iut = arg%d.map->dim;
       } else if (arg%d.idx < OP_I_OFFSET) {
-        ilt = 0;
         iut = itspace->dims[op_i(arg%d.idx)-1];
-        if (seen_op_mat) {
-          arg%didxs[0] = op_i(arg%d.idx) - 1;
-        }
+        arg%didxs[0] = op_i(arg%d.idx) - 1;
       } else {
-        ilt = arg%d.idx;
-        iut = ilt+1;
+        printf("Invalid index (not vector index or op_i) for arg %d, aborting\\n");
+        exit(-1);
       }
       if (arg%d.idx2 < -1) {
-        jlt = 0;
         jut = arg%d.map2->dim;
       } else if (arg%d.idx2 < OP_I_OFFSET) {
-        jlt = 0;
         jut = itspace->dims[op_i(arg%d.idx2)-1];
-        if (seen_op_mat) {
-          arg%didxs[1] = op_i(arg%d.idx) - 1;
-        }
+        arg%didxs[1] = op_i(arg%d.idx2) - 1;
       } else {
-        jlt = arg%d.idx2;
-        jut = jlt+1;
+        printf("Invalid index (not vector index or op_i) for arg %d, aborting\\n");
+        exit(-1);
       }
-      if (seen_op_mat) {
-        assert (ilt == ilower
-                && iut == iupper
-                && jlt == jlower
-                && jut == jupper);
-      } else {
-        ilower = ilt;
-        iupper = iut;
-        jlower = jlt;
-        jupper = jut;
+      if (iut != iupper || jut != jupper) {
+        printf("Map dimensions do not match iteration space, aborting\\n");
+        exit(-1);
       }
-      seen_op_mat = true;
     }
 """,
     'itspace_loop' : """
