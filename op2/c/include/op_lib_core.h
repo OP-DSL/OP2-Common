@@ -241,13 +241,23 @@ void op_exit_core ( void );
 
 op_set op_decl_set_core ( int, char const * );
 
+void op_free_set_core ( op_set );
+
 op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
+
+void op_free_map_core ( op_map );
 
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
 
+void op_free_dat_core ( op_dat );
+
 op_mat op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name );
 
+void op_free_mat_core ( op_mat );
+
 op_sparsity op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name );
+
+void op_free_sparsity_core ( op_sparsity );
 
 void op_build_sparsity_pattern ( op_map rowmap, op_map colmap, op_sparsity sparsity );
 

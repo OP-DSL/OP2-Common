@@ -146,6 +146,12 @@ op_decl_set_core ( int size, char const * name )
   return set;
 }
 
+void op_free_set_core ( op_set set )
+{
+  free ( (char*)set->name );
+  free ( set );
+}
+
 op_map
 op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * name )
 {
@@ -208,6 +214,14 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   return map;
 }
 
+void op_free_map_core ( op_map map )
+{
+  if (!map->user_managed)
+    free ( map->map );
+  free ( (char*)map->name );
+  free ( map );
+}
+
 op_dat
 op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data, char const * name )
 {
@@ -247,6 +261,15 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   OP_dat_list[OP_dat_index++] = dat;
 
   return dat;
+}
+
+void op_free_dat_core ( op_dat dat )
+{
+  if (!dat->user_managed)
+    free ( dat->data );
+  free ( (char*)dat->name );
+  free ( (char*)dat->type );
+  free ( dat );
 }
 
 op_mat
@@ -299,6 +322,11 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
   return mat;
 }
 
+void op_free_mat_core ( op_mat mat )
+{
+  free ( mat );
+}
+
 op_sparsity
 op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
 {
@@ -346,6 +374,14 @@ op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
   return sparsity;
 }
 
+void op_free_sparsity_core ( op_sparsity sparsity )
+{
+  free ( sparsity->nnz );
+  free ( sparsity->rowptr );
+  free ( sparsity->colidx );
+  free ( sparsity );
+}
+
 void
 op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name )
 {
@@ -362,44 +398,23 @@ op_exit_core (  )
   // free storage and pointers for sets, maps and data
 
   for ( int i = 0; i < OP_set_index; i++ )
-  {
-    free ( (char*)OP_set_list[i]->name );
-    free ( OP_set_list[i] );
-  }
+    op_free_set_core ( OP_set_list[i] );
   free ( OP_set_list );
 
   for ( int i = 0; i < OP_map_index; i++ )
-  {
-    if (!OP_map_list[i]->user_managed)
-      free ( OP_map_list[i]->map );
-    free ( (char*)OP_map_list[i]->name );
-    free ( OP_map_list[i] );
-  }
+    op_free_map_core ( OP_map_list[i] );
   free ( OP_map_list );
 
   for ( int i = 0; i < OP_dat_index; i++ )
-  {
-    if (!OP_dat_list[i]->user_managed)
-      free ( OP_dat_list[i]->data );
-    free ( (char*)OP_dat_list[i]->name );
-    free ( (char*)OP_dat_list[i]->type );
-    free ( OP_dat_list[i] );
-  }
+    op_free_dat_core ( OP_dat_list[i] );
   free ( OP_dat_list );
 
   for ( int i = 0; i < OP_mat_index; i++ )
-  {
-    free ( OP_mat_list[i] );
-  }
+    op_free_mat_core ( OP_mat_list[i] );
   free ( OP_mat_list );
 
   for ( int i = 0; i < OP_sparsity_index; i++ )
-  {
-    free ( OP_sparsity_list[i]->nnz );
-    free ( OP_sparsity_list[i]->rowptr );
-    free ( OP_sparsity_list[i]->colidx );
-    free ( OP_sparsity_list[i] );
-  }
+    op_free_sparsity_core ( OP_sparsity_list[i] );
   free ( OP_sparsity_list );
 
   // free storage for timing info
