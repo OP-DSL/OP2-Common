@@ -65,6 +65,12 @@ op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_s
   return mat;
 }
 
+op_dat op_decl_vec( op_dat ref, char const * name )
+{
+  char * data = (char*) malloc( ref->size * ref->set->size );
+  return op_decl_dat_core( ref->set, ref->dim, ref->type, ref->size, data, name );
+}
+
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc )
 {
   return op_arg_mat_core(mat, rowidx, rowmap, colidx, colmap, dim, typ, acc);

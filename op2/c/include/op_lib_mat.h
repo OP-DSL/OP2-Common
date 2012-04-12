@@ -44,6 +44,13 @@ op_sparsity op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
 
 op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_size, char const * name );
 
+/* Initalises a new dat, taking all the attributes of the reference
+ * dat `ref` but `name` and `data` pointer. The data pointer is initialised
+ * with newly malloc'ed memory of the same size as the reference.
+ * Note: No copy of the data is made!
+ */
+op_dat op_decl_vec( op_dat ref, char const * name );
+
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc );
 
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
