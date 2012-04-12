@@ -12,14 +12,7 @@
 extern "C" {
 #endif
 
-op_map op_decl_map_f ( op_set_core * from, op_set_core * to, int dim, int ** imap, char const *name );
-
-op_dat op_decl_dat_f ( op_set set, int dim, char const *type,
-                       int size, char ** data, char const *name );
-
 op_map_core * op_decl_null_map ( );
-
-void op_decl_const_f ( int dim, void **dat, char const *name );
 
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type );
 
