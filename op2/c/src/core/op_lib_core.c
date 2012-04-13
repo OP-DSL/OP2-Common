@@ -63,7 +63,7 @@ op_kernel * OP_kernels;
 
 static char * copy_str( char const * src )
 {
-  const size_t len = strlen( src );
+  const size_t len = strlen( src ) + 1;
   char * dest = (char *) calloc ( len, sizeof ( char ) );
   return strncpy ( dest, src, len );
 }
