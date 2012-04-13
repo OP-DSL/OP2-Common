@@ -1,7 +1,7 @@
 #include "op_lib_cpp.h"
 #include "op_cuda_rt_support.h"
 __device__
-#include "mass_cuda.h"
+#include "mass.h"
 
 __global__ void op_cuda_mass(float *mat_data,
                              int *rowptr,
