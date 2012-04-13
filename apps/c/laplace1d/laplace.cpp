@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
   // solve
   op_dat y = op_decl_vec(x, "y");
   op_solve(mat, x, y);
+  op_free_mat(mat);
   op_free_vec(y);
 
   op_exit();
