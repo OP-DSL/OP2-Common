@@ -248,6 +248,8 @@ void op_cuda_exit ( )
   {
     cutilSafeCall ( cudaFree ( OP_sparsity_list[i]->rowptr ) );
     cutilSafeCall ( cudaFree ( OP_sparsity_list[i]->colidx ) );
+    OP_sparsity_list[i]->rowptr = NULL;
+    OP_sparsity_list[i]->colidx = NULL;
   }
 
   for ( int ip = 0; ip < OP_plan_index; ip++ )
