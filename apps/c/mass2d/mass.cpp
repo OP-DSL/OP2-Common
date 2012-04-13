@@ -88,6 +88,7 @@ int main(int argc, char **argv)
     }
   }
 
+  op_free_mat(mat);
   op_exit();
   return failed;
 }
