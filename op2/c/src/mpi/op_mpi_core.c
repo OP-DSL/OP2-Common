@@ -1981,8 +1981,6 @@ void mpi_timing_output()
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
   int count;
-  double tot_time;
-  double avg_time;
 
   count = 0;
   int tot_count = 0;
@@ -1994,6 +1992,8 @@ void mpi_timing_output()
   if(tot_count > 0)
   {
 #ifdef COMM_PERF
+    double tot_time;
+    double avg_time;
 
     printf("\n\n___________________________________\n");
     printf("Performance information on rank %d\n", my_rank);
