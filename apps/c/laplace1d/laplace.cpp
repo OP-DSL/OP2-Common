@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
   int   *p_elem_node = (int *)malloc(2*sizeof(int)*NN);
   Real  *p_xn = (Real *)malloc(sizeof(Real)*nnode);
   Real  *p_x  = (Real *)malloc(sizeof(Real)*nnode);
-  Real  *p_xref = (Real *)malloc(sizeof(Real)*nnode);
+  //Real  *p_xref = (Real *)malloc(sizeof(Real)*nnode);
 
   // create element -> node mapping
   for (int i = 0; i < NN; ++i) {
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
     /*p_xn[i] = sin(0.5*M_PI*i/NN);*/
     p_xn[i] = (Real)i/NN;
     p_x[i] = (1./(M_PI*M_PI))*sin(M_PI*p_xn[i]);
-    p_xref[i] = sin(M_PI*p_xn[i]);
+    //p_xref[i] = sin(M_PI*p_xn[i]);
   }
 
   // OP initialisation
