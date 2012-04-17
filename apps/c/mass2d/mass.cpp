@@ -66,6 +66,11 @@ int main(int argc, char **argv)
               op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ),
               op_arg_dat(f, -3, elem_node, 1, "float", OP_READ));
 
+  op_fetch_data(b);
+  printf("\nVector\n");
+  for (int i=0; i<NUM_NODES; ++i)
+    printf("%f\n", p_b[i]);
+
   op_exit();
   return 0;
 }
