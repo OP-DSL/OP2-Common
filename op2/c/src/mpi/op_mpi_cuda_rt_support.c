@@ -31,7 +31,7 @@
  */
 
 //
-// This file implements the CUDA-specific run-time support functions
+// This file implements the MPI+CUDA-specific run-time support functions
 //
 
 //
@@ -62,12 +62,13 @@
 int** export_exec_list_d;
 int** export_nonexec_list_d;
 
-int exchange_halo_cuda(op_arg arg)
+void exchange_halo(op_arg* arg)
 {
-  op_dat dat = arg.dat;
+  op_dat dat = arg->dat;
 
-  if((arg.idx != -1) && (arg.acc == OP_READ || arg.acc == OP_RW ) &&
-      (dirtybit[dat->index] == 1)) {
+  if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
+    (arg->acc == OP_READ || arg->acc == OP_RW ) &&
+      (dat->dirtybit == 1)) {
 
     //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
@@ -90,14 +91,14 @@ int exchange_halo_cuda(op_arg arg)
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    gather_data_to_buffer(arg, exp_exec_list, exp_nonexec_list);
+    gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
 
     cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_exec,
-          arg.dat->buffer_d, exp_exec_list->size*arg.dat->size, cudaMemcpyDeviceToHost ) );
+          arg->dat->buffer_d, exp_exec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
 
     cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_nonexec,
-          arg.dat->buffer_d+exp_exec_list->size*arg.dat->size,
-          exp_nonexec_list->size*arg.dat->size,
+          arg->dat->buffer_d+exp_exec_list->size*arg->dat->size,
+          exp_nonexec_list->size*arg->dat->size,
           cudaMemcpyDeviceToHost ) );
 
     cutilSafeCall(cudaThreadSynchronize(  ));
@@ -158,34 +159,56 @@ int exchange_halo_cuda(op_arg arg)
     }
 
     //clear dirty bit
-    dirtybit[dat->index] = 0;
-    return 1;
+    dat->dirtybit = 0;
+    arg->sent = 1;
   }
-  return 0;
 }
 
-void wait_all_cuda(op_arg arg)
+void wait_all(op_arg* arg)
 {
-  op_dat dat = arg.dat;
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
+  if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
+  {
+    op_dat dat = arg->dat;
+    MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
       OP_mpi_buffer_list[dat->index]->s_req,
       MPI_STATUSES_IGNORE );
-  MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
+    MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
       OP_mpi_buffer_list[dat->index]->r_req,
       MPI_STATUSES_IGNORE );
-  OP_mpi_buffer_list[dat->index]->s_num_req = 0;
-  OP_mpi_buffer_list[dat->index]->r_num_req = 0;
+    OP_mpi_buffer_list[dat->index]->s_num_req = 0;
+    OP_mpi_buffer_list[dat->index]->r_num_req = 0;
 
-  int init = dat->set->size*dat->size;
-  cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
-        OP_import_exec_list[dat->set->index]->size*arg.dat->size,
-        cudaMemcpyHostToDevice ) );
+    int init = dat->set->size*dat->size;
+    cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
+          OP_import_exec_list[dat->set->index]->size*arg->dat->size,
+          cudaMemcpyHostToDevice ) );
 
-  int nonexec_init = (dat->set->size+OP_import_exec_list[dat->set->index]->size)*dat->size;
-  cutilSafeCall( cudaMemcpy( dat->data_d + nonexec_init, dat->data + nonexec_init,
-        OP_import_nonexec_list[dat->set->index]->size*arg.dat->size,
-        cudaMemcpyHostToDevice ) );
+    int nonexec_init = (dat->set->size+OP_import_exec_list[dat->set->index]->size)*dat->size;
+    cutilSafeCall( cudaMemcpy( dat->data_d + nonexec_init, dat->data + nonexec_init,
+          OP_import_nonexec_list[dat->set->index]->size*arg->dat->size,
+          cudaMemcpyHostToDevice ) );
 
-  cutilSafeCall(cudaThreadSynchronize ());
+    cutilSafeCall(cudaThreadSynchronize ());
+  }
+}
+
+void op_partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords )
+{
+  partition(lib_name, lib_routine, prime_set, prime_map, coords );
+  
+  for(int s = 0; s<OP_set_index; s++)
+  {
+    op_set set=OP_set_list[s];
+    for(int d=0; d<OP_dat_index; d++) { //for each data array
+      op_dat dat=OP_dat_list[d];
+      
+      if(dat->set->index == set->index)
+      	  op_mv_halo_device(set, dat);      
+    }
+  }
+  
+  op_mv_halo_list_device();
+ 
 }
 

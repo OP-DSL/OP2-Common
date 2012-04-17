@@ -28,9 +28,8 @@ ifeq ($(OP2_COMPILER),gnu)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-  CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-g #-DCOMM_PERF #-DDEBUG
-  CPPFLAGS 	= $(CCFLAGS)
+	CPP		= icpc
+  CPPFLAGS	= -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
@@ -46,7 +45,7 @@ endif
 
 NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G -O0
 
-VAR		= #-DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
+#VAR		= -DOP_PART_SIZE_1=64 -DOP_PART_SIZE_2=64 -DOP_PART_SIZE_3=64 \
 		#-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 \
 		#-DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -78,22 +77,21 @@ all: clean airfoil_mpi_cuda
 # mpi with openmp-nodes version
 #
 
-airfoil_mpi_cuda: airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
-		  Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_mpi_kernels_cu.o \
+airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_cu.o Makefile
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
-airfoil_mpi_kernels_cu.o:	airfoil_mpi_kernels.cu      \
-		  save_soln_mpi_kernel.cu  save_soln.h \
-		  adt_calc_mpi_kernel.cu   adt_calc.h  \
-		  res_calc_mpi_kernel.cu   res_calc.h  \
-		  bres_calc_mpi_kernel.cu  bres_calc.h \
-		  update_mpi_kernel.cu     update.h    \
+airfoil_kernels_cu.o:	airfoil_kernels.cu      \
+		  save_soln_kernel.cu  save_soln.h \
+		  adt_calc_kernel.cu   adt_calc.h  \
+		  res_calc_kernel.cu   res_calc.h  \
+		  bres_calc_kernel.cu  bres_calc.h \
+		  update_kernel.cu     update.h    \
 		  Makefile
 		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
-		  -c -o airfoil_mpi_kernels_cu.o airfoil_mpi_kernels.cu
+		  -c -o airfoil_kernels_cu.o airfoil_kernels.cu
 		    	
 
 #

@@ -30,7 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Sequential library
-add_library(op2_seq ${COMMON_SRC} ${RT_SRC} op_seq.c)
+add_library(op2_seq ${COMMON_SRC} ${RT_SRC} op_seq.c ../core/op_dummy_singlenode.c)
 
 # Add target to the build-tree export set
 export(TARGETS op2_seq APPEND

@@ -137,7 +137,7 @@ void op_printf(const char* format, ...)
 {
   va_list argptr;
   va_start(argptr, format);
-  vfprintf(stderr, format, argptr);
+  vfprintf(stdout, format, argptr);
   va_end(argptr);
 }
 
@@ -153,3 +153,7 @@ void op_exit()
   op_exit_core();            // frees lib core variables
 }
 
+void op_timing_output()
+{
+  op_timing_output_core();
+}

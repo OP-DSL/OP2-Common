@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(MPI_SRC op_mpi_part_core.c op_mpi_core.c)
+set(MPI_SRC op_mpi_part_core.c op_mpi_core.c op_mpi_rt_support.c)
 if(OP2_WITH_HDF5)
   set(MPI_SRC ${MPI_SRC} op_mpi_hdf5.c)
 endif()
@@ -58,7 +58,7 @@ install(TARGETS op2_mpi
 if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
   include_directories(${CUDA_INCLUDE_DIRS})
 
-  cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
+  cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} op_mpi_part_core.c op_mpi_core.c
     op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu ../cuda/op_cuda_rt_support.c op_mpi_cuda_rt_support.c)
   target_link_libraries(op2_mpi_cuda ${OP2_MPI_LIBRARIES})
 
@@ -73,3 +73,20 @@ if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
     ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
     )
 endif()
+
+# MPI-OPENMP library
+#add_definitions(${OP2_MPI_DEFINITIONS})
+#include_directories(${OP2_MPI_INCLUDE_DIRS})
+#add_library(op2_mpi_openmp ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_openmp_decl.c)
+#target_link_libraries(op2_mpi_openmp ${OP2_MPI_LIBRARIES})
+
+# Add target to the build-tree export set
+#export(TARGETS op2_mpi_openmp APPEND
+#  FILE "${PROJECT_BINARY_DIR}/${OP2_TARGETS_EXPORT_SET}.cmake")
+
+# Install
+#install(TARGETS op2_mpi_openmp
+#  EXPORT ${OP2_TARGETS_EXPORT_SET}
+#  LIBRARY DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT RuntimeLibraries
+#  ARCHIVE DESTINATION ${INSTALLATION_LIB_DIR} COMPONENT Development
+#)
