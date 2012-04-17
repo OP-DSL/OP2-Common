@@ -12,7 +12,7 @@
 int main(int argc, char **argv)
 {
   int *p_elem_node;
-  float *p_xn, *p_b, *p_f;
+  float *p_xn, *p_b, *p_f, *p_x;
 
   op_init(argc, argv, 5);
 
@@ -43,6 +43,9 @@ int main(int argc, char **argv)
   p_b = (float*)malloc(NUM_NODES * sizeof(float));
   memset(p_b, 0, NUM_NODES * sizeof(float));
 
+  p_x = (float*)malloc(NUM_NODES * sizeof(float));
+  memset(p_x, 0, NUM_NODES * sizeof(float));
+
   op_set nodes = op_decl_set(NUM_NODES, "nodes");
   op_set elements = op_decl_set(NUM_ELE, "elements");
   op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
@@ -57,6 +60,9 @@ int main(int argc, char **argv)
   // Dat for the RHS vector
   op_dat b = op_decl_dat(nodes, 1, "float", p_b, "b");
 
+  // Dat for solution
+  op_dat x = op_decl_dat(nodes, 1, "float", p_x, "x");
+
   op_par_loop(mass, "mass", op_iteration_space(elements, 3, 3),
               op_arg_mat(mat, op_i(1), elem_node, op_i(2), elem_node, 1, "float", OP_INC),
               op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ));
@@ -66,10 +72,16 @@ int main(int argc, char **argv)
               op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ),
               op_arg_dat(f, -3, elem_node, 1, "float", OP_READ));
 
-  op_fetch_data(b);
+  printf("Solve...\n");
+
+  op_solve(mat, b, x);
+
+  op_fetch_data(x);
   printf("\nVector\n");
   for (int i=0; i<NUM_NODES; ++i)
-    printf("%f\n", p_b[i]);
+    printf("%f\n", p_x[i]);
+
+
 
   op_exit();
   return 0;
