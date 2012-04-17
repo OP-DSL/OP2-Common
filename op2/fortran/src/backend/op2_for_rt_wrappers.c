@@ -289,12 +289,9 @@ op_plan * FortranPlanCallerOpenMP ( char name[],
 
   //  printf ("Copied name: original<%s>, newone<%s> length %d\n", name, heapKernelName, nameLength);
 
-  /* call the C OP2 core function (we don't need anything else for openmp
-   * FIXME: We're passing an offset of 0 since we're running on a single node.
-   * Is that always going to be correct? */
+  /* call the C OP2 core function (we don't need anything else for openmp */
   generatedPlan = op_plan_core ( heapKernelName,
                                  iterationSet,
-                                 0,
                                  partitionSize,
                                  argsNumber,
                                  planArguments,
