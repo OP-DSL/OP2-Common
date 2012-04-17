@@ -1,4 +1,4 @@
-void rhs(float** localTensor, float* c0[2], float* c1)
+void rhs(float** localTensor, float* c0[2], float* c1[1])
 {
   const float CG1[3][6] = { {  0.09157621, 0.09157621, 0.81684757,
                                0.44594849, 0.44594849, 0.10810302 },
@@ -35,7 +35,7 @@ void rhs(float** localTensor, float* c0[2], float* c1)
     c_q1[i_g] = 0.0;
     for(int q_r_0 = 0; q_r_0 < 3; q_r_0++)
     {
-      c_q1[i_g] += c1[q_r_0] * CG1[q_r_0][i_g];
+      c_q1[i_g] += c1[q_r_0][0] * CG1[q_r_0][i_g];
     };
     for(int i_d_0 = 0; i_d_0 < 2; i_d_0++)
     {
