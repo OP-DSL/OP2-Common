@@ -12,7 +12,7 @@
 int main(int argc, char **argv)
 {
   int *p_elem_node;
-  float *p_xn, *p_b, *p_f, *p_x;
+  double *p_xn, *p_b, *p_f, *p_x;
 
   op_init(argc, argv, 5);
 
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   p_elem_node[4] = 3;
   p_elem_node[5] = 1;
 
-  p_xn = (float *)malloc(2 * NUM_NODES * sizeof(float));
+  p_xn = (double *)malloc(2 * NUM_NODES * sizeof(double));
   p_xn[0] = 0.0f;
   p_xn[1] = 0.0f;
   p_xn[2] = 2.0f;
@@ -34,43 +34,43 @@ int main(int argc, char **argv)
   p_xn[6] = 0.0f;
   p_xn[7] = 1.5f;
 
-  p_f = (float*)malloc(NUM_NODES * sizeof(float));
+  p_f = (double*)malloc(NUM_NODES * sizeof(double));
   p_f[0] = 1.0f;
   p_f[1] = 2.0f;
   p_f[2] = 3.0f;
   p_f[3] = 4.0f;
 
-  p_b = (float*)malloc(NUM_NODES * sizeof(float));
-  memset(p_b, 0, NUM_NODES * sizeof(float));
+  p_b = (double*)malloc(NUM_NODES * sizeof(double));
+  memset(p_b, 0, NUM_NODES * sizeof(double));
 
-  p_x = (float*)malloc(NUM_NODES * sizeof(float));
-  memset(p_x, 0, NUM_NODES * sizeof(float));
+  p_x = (double*)malloc(NUM_NODES * sizeof(double));
+  memset(p_x, 0, NUM_NODES * sizeof(double));
 
   op_set nodes = op_decl_set(NUM_NODES, "nodes");
   op_set elements = op_decl_set(NUM_ELE, "elements");
   op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
 
   op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
-  op_mat mat = op_decl_mat(sparsity, 1, "float", sizeof(float), "mat");
-  op_dat xn = op_decl_dat(nodes, 2, "float", p_xn, "xn");
+  op_mat mat = op_decl_mat(sparsity, 1, "double", sizeof(double), "mat");
+  op_dat xn = op_decl_dat(nodes, 2, "double", p_xn, "xn");
 
   // Dat for the field initial condition
-  op_dat f = op_decl_dat(nodes, 1, "float", p_f, "f");
+  op_dat f = op_decl_dat(nodes, 1, "double", p_f, "f");
 
   // Dat for the RHS vector
-  op_dat b = op_decl_dat(nodes, 1, "float", p_b, "b");
+  op_dat b = op_decl_dat(nodes, 1, "double", p_b, "b");
 
   // Dat for solution
-  op_dat x = op_decl_dat(nodes, 1, "float", p_x, "x");
+  op_dat x = op_decl_dat(nodes, 1, "double", p_x, "x");
 
   op_par_loop(mass, "mass", op_iteration_space(elements, 3, 3),
-              op_arg_mat(mat, op_i(1), elem_node, op_i(2), elem_node, 1, "float", OP_INC),
-              op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ));
+              op_arg_mat(mat, op_i(1), elem_node, op_i(2), elem_node, 1, "double", OP_INC),
+              op_arg_dat(xn, -3, elem_node, 2, "double", OP_READ));
 
   op_par_loop(rhs, "rhs", elements,
-              op_arg_dat(b, -3, elem_node, 1, "float", OP_INC),
-              op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ),
-              op_arg_dat(f, -3, elem_node, 1, "float", OP_READ));
+              op_arg_dat(b, -3, elem_node, 1, "double", OP_INC),
+              op_arg_dat(xn, -3, elem_node, 2, "double", OP_READ),
+              op_arg_dat(f, -3, elem_node, 1, "double", OP_READ));
 
   printf("Solve...\n");
 
