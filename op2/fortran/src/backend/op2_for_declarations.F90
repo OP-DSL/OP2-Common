@@ -35,7 +35,7 @@ module OP2_Fortran_Declarations
 
   type :: op_set
 
-    type (op_set_core), pointer :: setPtr
+    type (op_set_core), pointer :: setPtr => null()
     type(c_ptr)                 :: setCptr
 
   end type op_set
@@ -53,7 +53,7 @@ module OP2_Fortran_Declarations
 
   type :: op_map
 
-    type(op_map_core), pointer :: mapPtr
+    type(op_map_core), pointer :: mapPtr => null()
     type(c_ptr) :: mapCptr
 
   end type op_map
@@ -78,7 +78,7 @@ module OP2_Fortran_Declarations
 
   type op_dat
 
-    type(op_dat_core), pointer :: dataPtr
+    type(op_dat_core), pointer :: dataPtr => null()
     type(c_ptr) :: dataCptr
 
   end type op_dat
