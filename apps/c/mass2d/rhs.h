@@ -1,4 +1,4 @@
-void rhs(double** localTensor, double dt, double* c0[2], double* c1)
+void rhs(double** localTensor, double* c0[2], double* c1)
 {
   const double CG1[3][6] = { {  0.09157621, 0.09157621, 0.81684757,
                                0.44594849, 0.44594849, 0.10810302 },
