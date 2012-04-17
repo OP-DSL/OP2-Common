@@ -50,6 +50,25 @@ static inline void copy_in(int n, op_arg arg, char **p_arg) {
       p_arg[i] = arg.data + arg.map->map[i+n*arg.map->dim]*arg.size;
 }
 
+op_itspace op_iteration_space(op_set set)
+{
+  op_itspace ret = (op_itspace)malloc(sizeof(op_itspace_core));
+  ret->set = set;
+  ret->ndims = 0;
+  ret->dims = NULL;
+  return ret;
+}
+
+op_itspace op_iteration_space(op_set set, int i)
+{
+  op_itspace ret = (op_itspace)malloc(sizeof(op_itspace_core));
+  ret->set = set;
+  ret->ndims = 1;
+  ret->dims = (int *)malloc(ret->ndims * sizeof(int));
+  ret->dims[0] = i;
+  return ret;
+}
+
 op_itspace op_iteration_space(op_set set, int i, int j)
 {
   op_itspace ret = (op_itspace)malloc(sizeof(op_itspace_core));
