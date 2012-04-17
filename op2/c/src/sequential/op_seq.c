@@ -87,6 +87,7 @@ void op_fetch_data ( op_dat a ) {
   (void)a;
 }
 
+
 int op_get_size(op_set set)
 {
   return set->size;
@@ -110,3 +111,14 @@ void op_exit ()
   op_exit_core ();
 }
 
+op_plan *
+op_plan_get ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds )
+{
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
+}
+
+void op_timing_output()
+{
+   op_timing_output_core();
+}

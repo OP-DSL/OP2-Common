@@ -30,46 +30,61 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//
-// This file implements the MPI+CUDA-specific run-time support functions
-//
-
-//
-// header files
-//
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-
-#include <cuda.h>
-#include <cuda_runtime_api.h>
-#include <math_constants.h>
+/*
+ * op_mpi_rt_support.c
+ *
+ * Implements the OP2 Distributed memory (MPI) halo exchange and
+ * support routines/functions
+ *
+ * written by: Gihan R. Mudalige, (Started 01-03-2011)
+ */
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
-#include <op_rt_support.h>
-#include <op_cuda_rt_support.h>
-
-#include <op_lib_mpi.h>
 #include <op_util.h>
 
-//
-//export lists on the device
-//
+//mpi header
+#include <mpi.h>
 
-int** export_exec_list_d;
-int** export_nonexec_list_d;
+#include <op_mpi_core.h>
+#include <op_rt_support.h>
+#include <op_lib_mpi.h>
+
+
+// //
+// //MPI Halo related global variables
+// //
+//
+// extern halo_list *OP_export_exec_list;//EEH list
+// halo_list *OP_import_exec_list;//IEH list
+//
+// halo_list *OP_import_nonexec_list;//INH list
+// halo_list *OP_export_nonexec_list;//ENH list
+//
+// //
+// //global array to hold dirty_bits for op_dats
+// //
+
+
+// //
+// //halo exchange buffers for each op_dat
+// //
+//
+// op_mpi_buffer *OP_mpi_buffer_list;
+
+
+/*******************************************************************************
+ * Main MPI Halo Exchange Function
+ *******************************************************************************/
 
 void exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) && (arg->idx != -1) &&
-    (arg->acc == OP_READ || arg->acc == OP_RW ) &&
-      (dat->dirtybit == 1)) {
-
+  if((arg->idx != -1) &&
+     (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+     (dat->dirtybit == 1))
+  {
     //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
@@ -91,19 +106,17 @@ void exchange_halo(op_arg* arg)
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
-
-    cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_exec,
-          arg->dat->buffer_d, exp_exec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
-
-    cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_nonexec,
-          arg->dat->buffer_d+exp_exec_list->size*arg->dat->size,
-          exp_nonexec_list->size*arg->dat->size,
-          cudaMemcpyDeviceToHost ) );
-
-    cutilSafeCall(cudaThreadSynchronize(  ));
-
+    int set_elem_index;
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
+      for(int j = 0; j < exp_exec_list->sizes[i]; j++)
+      {
+        set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
+        memcpy(&OP_mpi_buffer_list[dat->index]->
+            buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
+            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
+      }
+      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
+      //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
       MPI_Isend(&OP_mpi_buffer_list[dat->index]->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
@@ -116,6 +129,8 @@ void exchange_halo(op_arg* arg)
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
+      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
+      //      my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
       MPI_Irecv(&(OP_dat_list[dat->index]->
             data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
@@ -125,19 +140,28 @@ void exchange_halo(op_arg* arg)
           r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
     }
 
-
     //-----second exchange nonexec elements related to this data array------
     //sanity checks
-    if(compare_sets(imp_nonexec_list->set,dat->set) == 0) {
+    if(compare_sets(imp_nonexec_list->set,dat->set) == 0)
+    {
       printf("Error: Non-Import list and set mismatch");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    if(compare_sets(exp_nonexec_list->set,dat->set)==0) {
+    if(compare_sets(exp_nonexec_list->set,dat->set)==0)
+    {
       printf("Error: Non-Export list and set mismatch");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
+
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
+      for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
+      {
+        set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
+        memcpy(&OP_mpi_buffer_list[dat->index]->
+            buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
+            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
+      }
       MPI_Isend(&OP_mpi_buffer_list[dat->index]->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
@@ -157,12 +181,15 @@ void exchange_halo(op_arg* arg)
           &OP_mpi_buffer_list[dat->index]->
           r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
     }
-
     //clear dirty bit
     dat->dirtybit = 0;
     arg->sent = 1;
   }
 }
+
+/*******************************************************************************
+ * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
+ *******************************************************************************/
 
 void wait_all(op_arg* arg)
 {
@@ -177,19 +204,9 @@ void wait_all(op_arg* arg)
       MPI_STATUSES_IGNORE );
     OP_mpi_buffer_list[dat->index]->s_num_req = 0;
     OP_mpi_buffer_list[dat->index]->r_num_req = 0;
-
-    int init = dat->set->size*dat->size;
-    cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
-          OP_import_exec_list[dat->set->index]->size*arg->dat->size,
-          cudaMemcpyHostToDevice ) );
-
-    int nonexec_init = (dat->set->size+OP_import_exec_list[dat->set->index]->size)*dat->size;
-    cutilSafeCall( cudaMemcpy( dat->data_d + nonexec_init, dat->data + nonexec_init,
-          OP_import_nonexec_list[dat->set->index]->size*arg->dat->size,
-          cudaMemcpyHostToDevice ) );
-
-    cutilSafeCall(cudaThreadSynchronize ());
   }
+
+  //arg->sent = 0;
 }
 
 void op_partition(const char* lib_name, const char* lib_routine,
@@ -197,18 +214,4 @@ void op_partition(const char* lib_name, const char* lib_routine,
 {
   partition(lib_name, lib_routine, prime_set, prime_map, coords );
 
-  for(int s = 0; s<OP_set_index; s++)
-  {
-    op_set set=OP_set_list[s];
-    for(int d=0; d<OP_dat_index; d++) { //for each data array
-      op_dat dat=OP_dat_list[d];
-
-      if(dat->set->index == set->index)
-          op_mv_halo_device(set, dat);
-    }
-  }
-
-  op_mv_halo_list_device();
-
 }
-

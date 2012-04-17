@@ -77,7 +77,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-#include "op_mpi_seq.h"
+#include "op_seq.h"
 
 static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
                                  int l_size, int elem_size)

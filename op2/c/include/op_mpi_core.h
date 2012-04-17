@@ -218,27 +218,11 @@ void op_halo_create();
 
 void op_halo_destroy();
 
-int exchange_halo(op_arg arg);
-
-int exchange_halo_cuda(op_arg arg);
-
-void wait_all(op_arg arg);
-
-void wait_all_cuda(op_arg arg);
-
-void set_dirtybit(op_arg arg);
-
 op_dat op_mpi_get_data(op_dat dat);
 
-void global_reduce(op_arg* arg);
-
-void op_mpi_timing_output();
+void mpi_timing_output();
 
 void op_mpi_exit();
-
-int op_mpi_perf_time(const char* name, double time);
-
-void op_mpi_perf_comm(int kernel_index, op_arg arg);
 
 void print_dat_tofile(op_dat dat, const char *file_name);
 
@@ -246,11 +230,45 @@ void print_dat_tobinfile(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
-void reset_halo(op_arg arg);
+/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+void op_mv_halo_device(op_set set, op_dat dat);
 
-void op_mv_halo_device(op_set set, op_dat dat); //may need to be put in a seperate headder file
+/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+void op_mv_halo_list_device();
 
-void op_mv_halo_list_device(); //may need to be put in a seperate headder file
+void global_reduce(op_arg* arg);
+
+
+void partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords );
+
+/******************************************************************************
+* Random partitioning wrapper prototype
+*******************************************************************************/
+
+void op_partition_random(op_set primary_set);
+
+#ifdef HAVE_PARMETIS
+/*******************************************************************************
+* ParMetis wrapper prototypes
+*******************************************************************************/
+
+void op_partition_geom(op_dat coords);
+
+void op_partition_kway(op_map primary_map);
+
+void op_partition_geomkway(op_dat coords, op_map primary_map);
+
+void op_partition_meshkway(op_map primary_map); //does not work
+#endif
+
+#ifdef HAVE_PTSCOTCH
+/*******************************************************************************
+* PT-SCOTCH wrapper prototypes
+*******************************************************************************/
+
+void op_partition_ptscotch(op_map primary_map);
+#endif
 
 #ifdef __cplusplus
 }

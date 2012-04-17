@@ -30,7 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # OpenMP library
-add_library(op2_openmp ${COMMON_SRC} ${RT_SRC} op_openmp_decl.c)
+add_library(op2_openmp ${COMMON_SRC} ${RT_SRC} op_openmp_decl.c ../core/op_dummy_singlenode.c)
 set(CMAKE_C_FLAGS "${OpenMP_C_FLAGS} ${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
 

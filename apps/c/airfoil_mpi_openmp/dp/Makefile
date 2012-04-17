@@ -30,10 +30,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O3 -vec-report -xSSE2,SSE3,SSE4.1,SSE4.2 #-g -DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
-  MPIFLAGS	= $(CCFLAGS)
+  MPIFLAGS	= $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
@@ -73,14 +73,14 @@ all: clean airfoil_mpi_openmp
 # mpi with openmp-nodes version
 #
 
-airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
-		    save_soln_mpi_kernel.cpp  save_soln.h \
-		    adt_calc_mpi_kernel.cpp   adt_calc.h  \
-		    res_calc_mpi_kernel.cpp   res_calc.h  \
-		    bres_calc_mpi_kernel.cpp  bres_calc.h \
-		    update_mpi_kernel.cpp     update.h    \
+airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
+		    save_soln_kernel.cpp  save_soln.h \
+		    adt_calc_kernel.cpp   adt_calc.h  \
+		    res_calc_kernel.cpp   res_calc.h  \
+		    bres_calc_kernel.cpp  bres_calc.h \
+		    update_kernel.cpp     update.h    \
 		    Makefile
-		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_mpi_kernels.cpp \
+		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		    $(HDF5_LIB) -o airfoil_mpi_openmp

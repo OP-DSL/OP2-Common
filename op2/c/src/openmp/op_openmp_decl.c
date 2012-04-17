@@ -62,6 +62,7 @@ op_fetch_data ( op_dat dat )
   (void)dat;
 }
 
+
 /*
  * No specific action is required for constants in OpenMP
  */
@@ -80,14 +81,7 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_get_offset ( name, set, 0, part_size, nargs, args, ninds, inds );
-}
-
-op_plan *
-op_plan_get_offset ( char const * name, op_set set, int set_offset, int part_size,
-                     int nargs, op_arg * args, int ninds, int *inds )
-{
-  return op_plan_core ( name, set, set_offset, part_size, nargs, args, ninds, inds );
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
 }
 
 
@@ -144,3 +138,7 @@ op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
+void op_timing_output()
+{
+   op_timing_output_core();
+}

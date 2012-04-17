@@ -30,63 +30,90 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OP_MPI_PART_CORE_H
-#define __OP_MPI_PART_CORE_H
-
 /*
- * op_mpi_part_core.h
- *
- * Headder file for the OP2 Distributed memory (MPI) Partitioning wrapper routines,
- * data migration and support utility functions
- *
- * written by: Gihan R. Mudalige, (Started 07-04-2011)
+ * This file implements dummy MPI function calls for non-MPI backends
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "op_lib_core.h"
 
-/*******************************************************************************
-* Random partitioning wrapper prototype
-*******************************************************************************/
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+  return set->size;
+}
 
-void op_partition_random(op_set primary_set);
+void op_mpi_set_dirtybit(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
 
-#ifdef HAVE_PARMETIS
+void op_mpi_wait_all(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
 
-/*******************************************************************************
-* ParMetis wrapper prototypes
-*******************************************************************************/
+void op_mpi_global_reduction(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
 
-void op_partition_geom(op_dat coords);
+void op_mpi_reset_halos(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
 
-void op_partition_kway(op_map primary_map);
+void op_mpi_barrier()
+{
+}
 
-void op_partition_geomkway(op_dat coords, op_map primary_map);
+#ifdef COMM_PERF
+int op_mpi_perf_time(const char* name, double time)
+{
+  (void)name;
+  (void)time;
+  return 0;
+}
 
-void op_partition_meshkway(op_map primary_map);
-
-#endif
-
-#ifdef HAVE_PTSCOTCH
-
-/*******************************************************************************
-* PT-SCOTCH wrapper prototypes
-*******************************************************************************/
-
-void op_partition_ptscotch(op_map primary_map);
-
-#endif
-
-/*******************************************************************************
-* Other partitioning related routine prototypes
-*******************************************************************************/
-
-void op_partition_reverse();
-
-#ifdef __cplusplus
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args)
+{
+  (void)k_i;
+  (void)nargs;
+  (void)args;
 }
 #endif
 
-#endif /* __OP_MPI_PART_CORE_H */
+void op_mpi_reduce_float(op_arg* args, float* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_mpi_reduce_double(op_arg* args, double* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_mpi_reduce_int(op_arg* args, int* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords ) {
+  (void)lib_name;
+  (void)lib_routine;
+  (void)prime_set;
+  (void)prime_map;
+  (void)coords;
+}
+
+void op_partition_reverse() {
+}
 

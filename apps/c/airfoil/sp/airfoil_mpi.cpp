@@ -78,7 +78,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-#include "op_mpi_seq.h"
+#include "op_seq.h"
 
 //
 //user declared functions
@@ -152,27 +152,6 @@ static void check_scan(int items_received, int items_expected)
   }
 }
 
-// Specify partitioning routine depending on partitioner available
-
-#ifndef OP2_PARTITION
-
-  //partition with PTScotch
-  #ifdef HAVE_PTSCOTCH
-    #define OP2_PARTITION op_partition_ptscotch(pecell); //a mapping
-  #else //ifdef HAVE_PTSCOTCH
-    //partition with ParMetis
-    #ifdef HAVE_PARMETIS /** uncomment one below**/
-      // #define OP2_PARTITION op_partition_geom(p_x); //geometrically, a dataset
-      // #define OP2_PARTITION op_partition_random(cells); //a set
-      #define OP2_PARTITION op_partition_kway(pecell); //a mapping
-      // #define OP2_PARTITION op_partition_geomkway(p_x, pcell); //dataset and mapping
-      // #define OP2_PARTITION op_partition_meshkway(pcell);  //**not working !!**/
-    #else //ifdef HAVE_PARMETIS
-      #define OP2_PARTITION op_printf("\n **OP2 backend libraries built without PTScotch or ParMetis Support ...  reverting to trivial block partitioning** \n\n");
-    #endif //ifdef HAVE_PARMETIS
-  #endif //ifdef HAVE_PTSCOTCH
-
-#endif //ifndef OP2_PARTITION
 
 //
 // main program
@@ -372,12 +351,8 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
-  // partitioning algorithm - can be set above via #define OP2_PARTITION yourChoice,
-  //or make -B yourChoice. No spaces!
-  OP2_PARTITION;
-
-  //create halos
-  op_halo_create();
+  //trigger partitioning and halo creation routines
+  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);

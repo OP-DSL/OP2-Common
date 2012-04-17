@@ -26,9 +26,8 @@ op_cuda_reduction.h  (has to be kept separate becuase of FORTRAN layer)
 MPI support
 -----------
 op_hdf5.h            (obsolete?)
-op_lib_mpi.h         (include op_lib_core.h, op_rt_support.h, op_mpi_core.h, op_mpi_part_core.h, op_hdf5.h)
+op_lib_mpi.h         (include op_lib_core.h, op_rt_support.h, op_mpi_core.h, op_hdf5.h)
 op_mpi_core.h
 op_mpi_hdf5.h
-op_mpi_part_core.h
 op_mpi_seq.h         (includes: op_lib_core.h, op_rt_support.h)
 op_util.h
