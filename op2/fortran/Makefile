@@ -187,6 +187,8 @@ clean:
 	-rm -if $(F_OP2_LIB)/*.a
 	-rm -if $(F_OP2_SRC)/*~
 	-rm -if $(F_OP2_SRC)/backend/*~
+	-rm -if $(F_OP2_SRC)/backend/op2_for_reference.c
+	-rm -if $(F_OP2_SRC)/backend/op2_cpp_reference.F90
 	-rm -if $(F_OP2_MOD)/*.mod
 	-rm -if $(F_OP2)/*~
 
