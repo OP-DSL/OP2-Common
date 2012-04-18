@@ -56,8 +56,10 @@ op_rt_exit (  )
     free ( OP_plans[ip].idxs );
     free ( OP_plans[ip].maps );
     free ( OP_plans[ip].accs );
+    free ( OP_plans[ip].ind_map );
     free ( OP_plans[ip].ind_maps );
     free ( OP_plans[ip].nindirect );
+    free ( OP_plans[ip].loc_map );
     free ( OP_plans[ip].loc_maps );
     free ( OP_plans[ip].ncolblk );
   }
@@ -395,19 +397,25 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ncolblk = ( int * ) calloc ( exec_length, sizeof ( int ) );  /* max possibly needed */
   OP_plans[ip].blkmap = ( int * ) calloc ( nblocks, sizeof ( int ) );
 
-  for ( int m = 0; m < ninds; m++ )
-  {
+  int *offsets = (int *)malloc((ninds+1)*sizeof(int));
+  offsets[0] = 0;
+  for ( int m = 0; m < ninds; m++ ) {
     int count = 0;
     for ( int m2 = 0; m2 < nargs; m2++ )
       if ( inds[m2] == m )
         count++;
-    OP_plans[ip].ind_maps[m] = ( int * ) malloc ( count * exec_length * sizeof ( int ) );
+      offsets[m+1] = offsets[m] + count;
   }
+  OP_plans[ip].ind_map = ( int * ) malloc ( offsets[ninds] * exec_length * sizeof ( int ) );
+  for ( int m = 0; m < ninds; m++ ) {
+    OP_plans[ip].ind_maps[m] = &OP_plans[ip].ind_map[exec_length*offsets[m]];
+  }
+  free(offsets);
 
-  for ( int m = 0; m < nargs; m++ )
-  {
+  int counter = 0;
+  for ( int m = 0; m < nargs; m++ ) {
     if ( inds[m] >= 0 )
-      OP_plans[ip].loc_maps[m] = ( short * ) malloc ( exec_length * sizeof ( short ) );
+      counter++;
     else
       OP_plans[ip].loc_maps[m] = NULL;
 
@@ -416,6 +424,16 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].maps[m] = args[m].map;
     OP_plans[ip].accs[m] = args[m].acc;
   }
+
+  OP_plans[ip].loc_map = ( short * ) malloc ( counter * exec_length * sizeof ( short ) );
+  counter = 0;
+  for ( int m = 0; m < nargs; m++ ) {
+    if ( inds[m] >= 0 ) {
+      OP_plans[ip].loc_maps[m] = &OP_plans[ip].loc_map[exec_length*(counter)];
+        counter++;
+      }
+  }
+
 
   OP_plans[ip].name = name;
   OP_plans[ip].set = set;
@@ -858,8 +876,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf( " average thread colors  = %.2f \n", total_colors / nblocks );
     //printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
   printf( " shared memory required = ");
-  for (int i = 0; i < ncolors; i++) printf(" %.2f KB,", OP_plans[ip].nshared[i] / 1024.0f );
-  printf("\n");
+  for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nshared[i] / 1024.0f );
+  printf(" %.2f KB\n", OP_plans[ip].nshared[ncolors-1] / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
         OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );

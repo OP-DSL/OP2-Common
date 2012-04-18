@@ -337,6 +337,7 @@ for narg = 1: nargin
       kernels{nkernels}.indtyps = indtyps;
       kernels{nkernels}.invinds = invinds;
       kernels{nkernels}.vectorised = loop_args{loop_index}.vectorised;
+      kernels{nkernels}.cumulative_indirect_index = loop_args{loop_index}.cumulative_indirect_index;
     end
   end
 
@@ -591,7 +592,7 @@ for n = 1:length(locs)
     loop_ctr = loop_ctr+1;
     loc = loc + length('op_par_loop');
     args_str = active_compress(file(loc:end));
-
+    cum_ind_index = 0;
     try
       args = args_parse(args_str);
       loop_args{loop_ctr}.loc   = loc;
@@ -600,6 +601,7 @@ for n = 1:length(locs)
       loop_args{loop_ctr}.set   = args{3};
       loop_args{loop_ctr}.nargs = length(args)-3;
       vectorised = [];
+      cumulative_indirect_index = [];
       newargs = args;
       offset = 1;
       vector_counter = 0;
@@ -618,22 +620,32 @@ for n = 1:length(locs)
           for gen = 0:(maps(i).dim-1)
             newargs{offset+3} = regexprep(args{m+3},'\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,',sprintf('($1,%d,',gen));
             vectorised(offset) = vector_counter;
+            cumulative_indirect_index(offset) = cum_ind_index;
+            cum_ind_index = cum_ind_index+1;
             offset = offset+1;
           end
         else
           newargs{offset+3} = args{m+3};
           vectorised(offset) = 0;
+          if (strcmp(toreplace{1}(3),'OP_ID'))
+            cumulative_indirect_index(offset) = -1;
+          else
+            cumulative_indirect_index(offset) = cum_ind_index;
+            cum_ind_index = cum_ind_index+1;
+          end
           offset = offset+1;
         end
         elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
           newargs{offset+3} = args{m+3};
           vectorised(offset) = 0;
+          cumulative_indirect_index(offset) = -1;
           offset = offset+1;
         end
       end
       args = newargs;
       loop_args{loop_ctr}.nargs = length(args)-3;
       loop_args{loop_ctr}.vectorised = vectorised;
+      loop_args{loop_ctr}.cumulative_indirect_index = cumulative_indirect_index;
       for m = 1:length(args)-3
         if     strcmp(args{m+3}(1:10),'op_arg_dat')
           loop_args{loop_ctr}.type{m} = 'op_arg_dat';

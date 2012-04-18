@@ -165,14 +165,22 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
   }
 
   if ( plan->count == 1 ) {
-    for ( int m = 0; m < ninds; m++ )
-      op_mvHostToDevice ( ( void ** ) &( plan->ind_maps[m] ),
-                          sizeof ( int ) * plan->nindirect[m] );
+    int *offsets = (int *)malloc((ninds+1)*sizeof(int));
+    offsets[0] = 0;
+    for ( int m = 0; m < ninds; m++ ) {
+      int count = 0;
+      for ( int m2 = 0; m2 < nargs; m2++ )
+        if ( inds[m2] == m )
+          count++;
+      offsets[m+1] = offsets[m] + count;
+    }
+    op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[ninds] * set_size * sizeof ( int ));
+    free(offsets);
 
-    for ( int m = 0; m < nargs; m++ )
-      if ( plan->loc_maps[m] != NULL )
-        op_mvHostToDevice ( ( void ** ) &( plan->loc_maps[m] ),
-                            sizeof ( short ) * set_size );
+    int counter = 0;
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
+    op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),
                           sizeof ( int ) * plan->nblocks * plan->ninds );

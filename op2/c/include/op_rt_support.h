@@ -55,10 +55,12 @@ typedef struct {
   int        *nthrcol;    /* number of thread colors for each block */
   int        *thrcol;     /* thread colors */
   int        *offset;     /* offset for primary set */
+  int        *ind_map;    /* concatenated pointers for indirect datasets */
   int       **ind_maps;   /* pointers for indirect datasets */
   int        *ind_offs;   /* block offsets for indirect datasets */
   int        *ind_sizes;  /* block sizes for indirect datasets */
   int        *nindirect;  /* total sizes for indirect datasets */
+  short      *loc_map;    /* concatenated maps to local indices, renumbered as needed */
   short     **loc_maps;   /* maps to local indices, renumbered as needed */
   int         nblocks;    /* number of blocks */
   int        *nelems;     /* number of elements in each block */

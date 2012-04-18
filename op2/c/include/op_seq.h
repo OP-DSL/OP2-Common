@@ -8,11 +8,13 @@
 
 #include "op_lib_core.h"
 
+char blank_args[512]; // scratch space to use for blank args
+
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   *p_arg = arg.data;
 
   if (arg.argtype==OP_ARG_GBL) {
-    if (halo && (arg.acc != OP_READ)) *p_arg = NULL;
+    if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;
   }
   else {
     if (arg.map==NULL)         // identity mapping
@@ -25,13 +27,6 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
 inline void op_arg_copy_in(int n, op_arg arg, char **p_arg) {
   for (int i = 0; i < arg.map->dim; ++i)
     p_arg[i] = arg.data + arg.map->map[i+n*arg.map->dim]*arg.size;
-}
-
-inline void op_args_set(int iter, int nargs, op_arg *args,
-                        char **p_a, int halo){
-  for (int n=0; n<nargs; n++)
-    if(args[n].idx == OP_ALL) op_arg_copy_in(iter, args[n], (char **)p_a[n]);
-    else op_arg_set(iter, args[n], &p_a[n], halo);
 }
 
 inline void op_args_check(op_set set, int nargs, op_arg *args,

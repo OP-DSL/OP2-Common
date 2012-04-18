@@ -44,6 +44,7 @@ for nk = 1:length(kernels)
   indtyps = kernels{nk}.indtyps;
   invinds = kernels{nk}.invinds;
   vectorised = kernels{nk}.vectorised;
+  cumulative_indirect_index = kernels{nk}.cumulative_indirect_index;
 
 %
 % set two logicals
@@ -65,21 +66,26 @@ for nk = 1:length(kernels)
                 ['__global__ void op_cuda_' name '(']);
 
   for m = 1:ninds
-    line = '  INDTYP *ind_ARG, int *ind_ARG_maps,';
+    line = '  INDTYP *ind_ARG,';
     file = strvcat(file,rep(line,m));
+  end
+
+  if (ninds>0)
+    file = strvcat(file,'  int   *ind_map,');
+    file = strvcat(file,'  short *arg_map,');
   end
 
   for m = 1:nargs
     if (maps(m)==OP_GBL && accs(m)==OP_READ)
       line = '  const TYP *ARG,';    % declared const for performance
+      file = strvcat(file,rep(line,m));
     elseif (maps(m)==OP_ID && ninds>0)
       line = '  TYP *ARG,';
+      file = strvcat(file,rep(line,m));
     elseif (maps(m)==OP_GBL || maps(m)==OP_ID)
       line = '  TYP *ARG,';
-    else
-      line = '  short *ARG_maps,';
+      file = strvcat(file,rep(line,m));
     end
-    file = strvcat(file,rep(line,m));
   end
 
   if (ninds>0)
@@ -90,8 +96,9 @@ for nk = 1:length(kernels)
                         '  int   *offset,      ',...
                         '  int   *nelems,      ',...
                         '  int   *ncolors,     ',...
-                        '  int   *colors,    ',...
-                        '  int   nblocks) {    ',' ');
+                        '  int   *colors,      ',...
+                        '  int   nblocks,     ',...
+                        '  int   set_size) {    ',' ');
   else
     file = strvcat(file,'  int   offset_s,   ',...
                         '  int   set_size ) {',' ');
@@ -181,7 +188,7 @@ for nk = 1:length(kernels)
     end
     file = strvcat(file,' ');
     for m = 1:ninds
-      line = ['    ind_ARG_map = ind_ARG_maps + ind_arg_offs[' ...
+      line = ['    ind_ARG_map = &ind_map[',int2str(cumulative_indirect_index(find(inds == m, 1))) ,'*set_size] + ind_arg_offs[' ...
               int2str(m-1) '+blockId*' int2str(ninds) '];'];
       file = strvcat(file,rep(line,m));
     end
@@ -306,7 +313,7 @@ for nk = 1:length(kernels)
           if (inds(n) == m  && vectorised(m))
             file = strvcat(file,line);
             line = [ prefix ...
-              sprintf('  arg%d_vec[%d] = ind_arg%d_s+ARG_maps[n+offset_b]*DIM;',m-1, ctr, inds(n)-1) ];
+              sprintf('  arg%d_vec[%d] = ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(n)),'*set_size+n+offset_b]*DIM;',m-1, ctr, inds(n)-1) ];
             line = rep(line,n);
             ctr = ctr+1;
           end
@@ -323,7 +330,7 @@ for nk = 1:length(kernels)
   for m = 1:nargs
     line = [prefix name '( '];
     if (m~=1)
-      line ='';%blanks(length(line));
+      line = blanks(length(line));
     end
     if (maps(m)==OP_GBL)
       if (accs(m)==OP_READ)
@@ -334,13 +341,13 @@ for nk = 1:length(kernels)
     elseif (maps(m)==OP_MAP & accs(m)==OP_INC && vectorised(m)==0)
       line = rep([ line ' ARG_l,' ],m);
     elseif (maps(m)==OP_MAP && vectorised(m)==0)
-      line = rep([ line sprintf(' ind_arg%d_s+ARG_maps[n+offset_b]*DIM,',inds(m)-1) ],m);
+      line = rep([ line sprintf([' ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(m)),'*set_size+n+offset_b]*DIM,'],inds(m)-1) ],m);
     elseif (maps(m)==OP_MAP && m == 1)
       line = rep([ line ' ARG_vec,' ], inds(m));
     elseif (maps(m)==OP_MAP && m>1 && vectorised(m) ~= vectorised(m-1)) %xxx:vector
       line = rep([ line ' ARG_vec,' ], inds(m));
     elseif (maps(m)==OP_MAP && m>1 && vectorised(m) == vectorised(m-1))
-      line = line;
+      line = '';
     elseif (maps(m)==OP_ID)
       if (ninds>0)
         line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
@@ -355,14 +362,15 @@ for nk = 1:length(kernels)
       error('internal error 1')
     end
     if (m==nargs) %xx one line, and
-      out = [out line(1:end-1)];
       if (isempty(line))
         out = [out(1:end-1) ');'];
       else
-        out = [out ' );' ];
+        out = sprintf('%s\n%s );',out ,line(1:end-1));
       end
     else
-      out =  [out rep(line,m)];
+      if (~isempty(line))
+        out =  sprintf('%s\n%s',out ,rep(line,m));
+      end
     end
   end
   file = strvcat(file,out);
@@ -388,7 +396,7 @@ for nk = 1:length(kernels)
                 ' ','      if (col2>=0) {                  ');
       for m = 1:nargs
         if (maps(m)==OP_MAP && accs(m)==OP_INC)
-          line = sprintf('        ARG_map = ARG_maps[n+offset_b];');
+          line = ['        ARG_map = arg_map[',int2str(cumulative_indirect_index(m)),'*set_size+n+offset_b];'];
           file = strvcat(file,rep(line,m));
         end
       end
@@ -534,7 +542,7 @@ for nk = 1:length(kernels)
       '  #else                          ',...
       '    int part_size = OP_part_size;',...
       '  #endif                         ',' ',...
-      '  op_mpi_halo_exchanges(set, nargs, args);                          ');
+      '  int set_size = op_mpi_halo_exchanges(set, nargs, args);                          ');
 
 %
 % direct bit
@@ -689,17 +697,18 @@ for nk = 1:length(kernels)
        ['        op_cuda_' name '<<<nblocks,nthread,nshared>>>(']);
 
       for m = 1:ninds
-        line = sprintf('           (TYP *)ARG.data_d, Plan->ind_maps[%d],',m-1);
+        line = sprintf('           (TYP *)ARG.data_d,',m-1);
         file = strvcat(file,rep(line,invinds(m)));
       end
+
+      file = strvcat(file,'           Plan->ind_map,');
+      file = strvcat(file,'           Plan->loc_map,');
 
       for m = 1:nargs
         if (inds(m)==0)
           line = '           (TYP *)ARG.data_d,';
-        else
-          line = sprintf('           Plan->loc_maps[%d],',m-1);
+          file = strvcat(file,rep(line,m));
         end
-        file = strvcat(file,rep(line,m));
       end
 
       file = strvcat(file, ...
@@ -710,8 +719,9 @@ for nk = 1:length(kernels)
        '           Plan->offset,                                        ',...
        '           Plan->nelems,                                        ',...
        '           Plan->nthrcol,                                       ',...
-       '           Plan->thrcol,                                       ',...
-       '           Plan->ncolblk[col]);                                       ',...
+       '           Plan->thrcol,                                        ',...
+       '           Plan->ncolblk[col],                                 ',...
+       '           set_size);                                           ',...
    ' ','        cutilSafeCall(cudaThreadSynchronize());                 ',...
       ['        cutilCheckMsg("op_cuda_' name ' execution failed\n");'],...
        '      }                                                  ',...
