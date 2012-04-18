@@ -6,7 +6,7 @@
 // header for sequential and MPI+sequentional execution
 //
 
-#include "op_lib_core.h"
+#include "op_lib_cpp.h"
 
 char blank_args[512]; // scratch space to use for blank args
 

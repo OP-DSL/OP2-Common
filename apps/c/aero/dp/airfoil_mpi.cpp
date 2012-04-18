@@ -324,7 +324,7 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
-  op_partition("PTSCOTCH", "KWAY", NULL, NULL, NULL);
+  op_partition("PTSCOTCH", "KWAY", cells, pcell, NULL);
 
   // main time-marching loop
 
