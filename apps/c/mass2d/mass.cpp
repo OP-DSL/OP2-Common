@@ -8,6 +8,7 @@
 #define NUM_ELE 2
 #define NUM_NODES 4
 #define NUM_DIM 2
+#define TOLERANCE 1.0e-12
 
 int main(int argc, char **argv)
 {
@@ -72,17 +73,19 @@ int main(int argc, char **argv)
               op_arg_dat(xn, -3, elem_node, 2, "double", OP_READ),
               op_arg_dat(f, -3, elem_node, 1, "double", OP_READ));
 
-  printf("Solve...\n");
-
   op_solve(mat, b, x);
 
+  // Check result
+  int failed = 0;
   op_fetch_data(x);
-  printf("\nVector\n");
-  for (int i=0; i<NUM_NODES; ++i)
-    printf("%f\n", p_x[i]);
-
-
+  for (int i=0; i<NUM_NODES; ++i) {
+    double delta = p_x[i] - p_f[i];
+    if (delta > TOLERANCE) {
+      failed = 1;
+      printf("Failed: delta = %18.16f for node %d.\n", delta, i);
+    }
+  }
 
   op_exit();
-  return 0;
+  return failed;
 }
