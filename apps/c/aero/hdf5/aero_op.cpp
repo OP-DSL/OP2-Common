@@ -48,15 +48,6 @@ int stride;
 // OP header file
 //
 
-//
-// mpi header file - included by user for user level mpi
-//
-
-#include <mpi.h>
-
-//
-// OP header file
-//
 
 #include "op_lib_cpp.h"
 #include "op_lib_mpi.h"
@@ -146,158 +137,19 @@ void op_par_loop_update(char const *, op_set,
 #include "update.h"
 
 
-//
-//user declared functions
-//
-
-static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
-{
-  int local_size = global_size/mpi_comm_size;
-  int remainder = (int)fmod(global_size,mpi_comm_size);
-
-  if (mpi_rank < remainder)
-  {
-    local_size = local_size + 1;
-  }
-  return local_size;
-}
-
-static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
-{
-  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-  int* displs = (int *) malloc(comm_size*sizeof(int));
-  int disp = 0;
-
-  for(int i = 0; i<comm_size; i++)
-  {
-    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
-  }
-  for(int i = 0; i<comm_size; i++)
-  {
-    displs[i] =   disp;
-    disp = disp + sendcnts[i];
-  }
-
-  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
-      l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
-
-  free(sendcnts);
-  free(displs);
-}
-
-static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
-  int l_size, int elem_size)
-{
-  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-  int* displs = (int *) malloc(comm_size*sizeof(int));
-  int disp = 0;
-
-  for(int i = 0; i<comm_size; i++)
-  {
-    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
-  }
-  for(int i = 0; i<comm_size; i++)
-  {
-    displs[i] =   disp;
-    disp = disp + sendcnts[i];
-  }
-
-  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array,
-      l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD );
-
-  free(sendcnts);
-  free(displs);
-}
-
-static void check_scan(int items_received, int items_expected)
-{
-  if(items_received != items_expected) {
-    op_printf("error reading from new_grid.dat\n");
-    exit(-1);
-  }
-}
-
-
 // main program
 
 int main(int argc, char **argv){
-
   // OP initialisation
 
   op_init(argc,argv,2);
 
-  //MPI for user I/O
-  int my_rank;
-  int comm_size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+  int    *bnode, *cell;
+  double  *xm;//, *q;
 
-  int    *bnode, *cell, *g_bnode, *g_cell;
-  double  *xm, *g_xm;;
-
-  int    nnode,ncell,nbnodes,niter, g_nnode, g_ncell, g_nbnodes;
+  int    nnode,ncell,nbnodes,niter;
   double  rms = 1;
 
-// read in grid
-
-  printf("reading in grid \n");
-
-  FILE *fp;
-  if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
-  }
-
-  if (fscanf(fp,"%d %d %d \n",&g_nnode, &g_ncell, &g_nbnodes) != 3) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
-  }
-
-  if (my_rank == MPI_ROOT) {
-    g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
-    g_bnode   = (int *) malloc(g_nbnodes*sizeof(int));
-    g_xm      = (double *) malloc(2*g_nnode*sizeof(double));
-
-    for (int n=0; n<g_nnode; n++) {
-      if (fscanf(fp,"%lf %lf \n",&g_xm[2*n], &g_xm[2*n+1]) != 2) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
-      }
-    }
-
-    for (int n=0; n<g_ncell; n++) {
-      if (fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
-      &g_cell[4*n+2], &g_cell[4*n+3]) != 4) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
-      }
-    }
-
-    for (int n=0; n<g_nbnodes; n++) {
-      if (fscanf(fp,"%d \n",&g_bnode[n]) != 1) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
-      }
-    }
-  }
-  fclose(fp);
-
-  nnode = compute_local_size (g_nnode, comm_size, my_rank);
-  ncell = compute_local_size (g_ncell, comm_size, my_rank);
-  nbnodes = compute_local_size (g_nbnodes, comm_size, my_rank);
-
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-  bnode   = (int *) malloc(nbnodes*sizeof(int));
-  xm      = (double *) malloc(2*nnode*sizeof(double));
-
-  scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
-  scatter_int_array(g_bnode, bnode, comm_size, g_nbnodes,nbnodes, 1);
-  scatter_double_array(g_xm, xm, comm_size, g_nnode,nnode, 2);
-
-  if(my_rank == MPI_ROOT) {
-      free(g_cell);
-      free(g_xm);
-    free(g_bnode);
-  }
-// set constants and initialise flow field and residual
-
-  printf("initialising flow field \n");
 
   double gam = 1.4;
   gm1 = gam - 1.0;
@@ -341,44 +193,24 @@ int main(int argc, char **argv){
 
     mfan = 1.0;
 
-  double *phim = (double *)malloc(nnode*sizeof(double));
-  memset(phim,0,nnode*sizeof(double));
-  for (int i = 0;i<nnode;i++) {
-    phim[i] = minf*xm[2*i];
-  }
-
-  double *K = (double *)malloc(4*4*ncell*sizeof(double));
-  memset(K,0,4*4*ncell*sizeof(double));
-  double *resm = (double *)malloc(nnode*sizeof(double));
-  memset(resm,0,nnode*sizeof(double));
-
-    double *V = (double *)malloc(nnode*sizeof(double));
-  memset(V,0,nnode*sizeof(double));
-    double *P = (double *)malloc(nnode*sizeof(double));
-  memset(P,0,nnode*sizeof(double));
-    double *U = (double *)malloc(nnode*sizeof(double));
-  memset(U,0,nnode*sizeof(double));
-
 
 // declare sets, pointers, datasets and global constants
 
-  op_set nodes  = op_decl_set(nnode,  "nodes");
-  op_set bnodes = op_decl_set(nbnodes, "bedges");
-  op_set cells  = op_decl_set(ncell,  "cells");
+  char file[] = "FE_grid.h5";
+  op_set nodes  = op_decl_set_hdf5(file,  "nodes");
+  op_set bnodes = op_decl_set_hdf5(file, "bedges");
+  op_set cells  = op_decl_set_hdf5(file,  "cells");
 
-  op_map pbnodes  = op_decl_map(bnodes,nodes,1,bnode, "pbedge");
-  op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
+  op_map pbnodes = op_decl_map_hdf5(bnodes,nodes,1,file, "pbedge");
+  op_map pcell   = op_decl_map_hdf5(cells, nodes,4,file,  "pcell");
 
-  op_dat p_xm     = op_decl_dat(nodes ,2,"double",xm    ,"p_x");
-  op_dat p_phim  = op_decl_dat(nodes, 1, "double", phim, "p_phim");
-  op_dat p_resm  = op_decl_dat(nodes, 1, "double", resm, "p_resm");
-  op_dat p_K  = op_decl_dat(cells, 16, "double", K, "p_K");
-  //op_dat p_Kt  = op_decl_dat(cells, 16, "double", Kt, "p_Kt");
-
-  op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
-    op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
-    op_dat p_U = op_decl_dat(nodes, 1, "double", U, "p_U");
-
+  op_dat p_xm    = op_decl_dat_hdf5(nodes ,2,"double",  file, "p_x");
+  op_dat p_phim  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
+  op_dat p_resm  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
+  op_dat p_K     = op_decl_dat_hdf5(cells, 16, "double",file, "p_K");
+  op_dat p_V     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
+    op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
+    op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
   op_decl_const2("gm1",1,"double",&gm1  );
   op_decl_const2("gm1i",1,"double",&gm1i  );
@@ -398,7 +230,7 @@ int main(int argc, char **argv){
 
   op_diagnostic_output();
 
-  op_partition("PARMETIS", "GEOMKWAY", cells, pcell, p_xm);
+  op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
 
   #ifdef CUDA
   stride = cells->size + cells->exec_size + cells->nonexec_size;
@@ -406,10 +238,16 @@ int main(int argc, char **argv){
   stride = 1;
   #endif
   op_decl_const2("stride",1,"int",&stride  );
+
+
+  nnode = op_get_size(nodes);
+  ncell = op_get_size(cells);
+  nbnodes = op_get_size(bnodes);
+
 // main time-marching loop
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
     op_timers(&cpu_t1, &wall_t1);
-  niter = 50;
+  niter = 20;
 
   for(int iter=1; iter<=niter; iter++) {
 
@@ -514,7 +352,7 @@ int main(int argc, char **argv){
                    op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_WRITE),
                    op_arg_dat(p_U,-1,OP_ID,1,"double",OP_READ),
                    op_arg_gbl(&rms,1,"double",OP_INC));
-        op_printf("rms = %10.5e cg iter: %d\n", sqrt(rms)/sqrt(g_nnode), iter);
+        op_printf("rms = %10.5e cg iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
 
 
   }
@@ -523,6 +361,5 @@ int main(int argc, char **argv){
   op_timers(&cpu_t2, &wall_t2);
   op_printf("%f\n",wall_t2-wall_t1);
   op_exit();
-
 }
 

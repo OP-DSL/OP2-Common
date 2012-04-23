@@ -238,7 +238,7 @@ int main(int argc, char **argv)
 #endif
   op_decl_const(1,"int",&op2_stride  );
 
-  op_write_hdf5("FE_grid_big.h5");
+  op_write_hdf5("FE_grid.h5");
 
   op_diagnostic_output();
   //create halos - for sanity check

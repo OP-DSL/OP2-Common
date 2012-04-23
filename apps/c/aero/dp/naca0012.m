@@ -2,7 +2,7 @@ close all;
 clear all;
 
 %
-% use NACA0012 definition to construct airfoil upper surface
+% use NACA0012 definition to construct aero upper surface
 %
 
 x = sin(linspace(0,pi/2,100)).^2;
