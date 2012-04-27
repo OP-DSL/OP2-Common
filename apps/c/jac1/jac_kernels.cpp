@@ -4,13 +4,13 @@
 
 // header
 
-#include "op_lib.h"
+#include "op_lib_cpp.h"
 
 void __syncthreads(){}
 
 // global constants
 
-extern float alpha;
+extern double alpha;
 
 // user kernel files
 

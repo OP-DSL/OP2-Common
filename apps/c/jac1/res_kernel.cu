@@ -11,12 +11,12 @@ __device__
 // CUDA kernel function
 
 __global__ void op_cuda_res(
-  float *ind_arg0, int *ind_arg0_maps,
-  float *ind_arg1, int *ind_arg1_maps,
-  float *arg0,
+  double *ind_arg0, int *ind_arg0_maps,
+  double *ind_arg1, int *ind_arg1_maps,
+  double *arg0,
   short *arg1_maps,
   short *arg2_maps,
-  const float *arg3,
+  const double *arg3,
   int   *ind_arg_sizes,
   int   *ind_arg_offs,
   int    block_offset,
@@ -26,12 +26,12 @@ __global__ void op_cuda_res(
   int   *ncolors,
   int   *colors) {
 
-  float arg2_l[1];
+  double arg2_l[1];
 
   __shared__ int   *ind_arg0_map, ind_arg0_size;
   __shared__ int   *ind_arg1_map, ind_arg1_size;
-  __shared__ float *ind_arg0_s;
-  __shared__ float *ind_arg1_s;
+  __shared__ double *ind_arg0_s;
+  __shared__ double *ind_arg1_s;
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
 
@@ -58,9 +58,9 @@ __global__ void op_cuda_res(
     // set shared memory pointers
 
     int nbytes = 0;
-    ind_arg0_s = (float *) &shared[nbytes];
-    nbytes    += ROUND_UP(ind_arg0_size*sizeof(float)*1);
-    ind_arg1_s = (float *) &shared[nbytes];
+    ind_arg0_s = (double *) &shared[nbytes];
+    nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*1);
+    ind_arg1_s = (double *) &shared[nbytes];
   }
 
   __syncthreads(); // make sure all of above completed
@@ -71,7 +71,7 @@ __global__ void op_cuda_res(
     ind_arg0_s[n] = ind_arg0[n%1+ind_arg0_map[n/1]*1];
 
   for (int n=threadIdx.x; n<ind_arg1_size*1; n+=blockDim.x)
-    ind_arg1_s[n] = ZERO_float;
+    ind_arg1_s[n] = ZERO_double;
 
   __syncthreads();
 
@@ -85,7 +85,7 @@ __global__ void op_cuda_res(
       // initialise local variables
 
       for (int d=0; d<1; d++)
-        arg2_l[d] = ZERO_float;
+        arg2_l[d] = ZERO_double;
 
       // user-supplied kernel call
 
@@ -127,7 +127,7 @@ void op_par_loop_res(char const *name, op_set set,
   op_arg arg2,
   op_arg arg3 ){
 
-  float *arg3h = (float *)arg3.data;
+  double *arg3h = (double *)arg3.data;
 
   int    nargs   = 4;
   op_arg args[4] = {arg0,arg1,arg2,arg3};
@@ -157,15 +157,15 @@ void op_par_loop_res(char const *name, op_set set,
   // transfer constants to GPU
 
   int consts_bytes = 0;
-  consts_bytes += ROUND_UP(1*sizeof(float));
+  consts_bytes += ROUND_UP(1*sizeof(double));
 
   reallocConstArrays(consts_bytes);
 
   consts_bytes = 0;
   arg3.data   = OP_consts_h + consts_bytes;
   arg3.data_d = OP_consts_d + consts_bytes;
-  for (int d=0; d<1; d++) ((float *)arg3.data)[d] = arg3h[d];
-  consts_bytes += ROUND_UP(1*sizeof(float));
+  for (int d=0; d<1; d++) ((double *)arg3.data)[d] = arg3h[d];
+  consts_bytes += ROUND_UP(1*sizeof(double));
 
   mvConstArraysToDevice(consts_bytes);
 
@@ -184,12 +184,12 @@ void op_par_loop_res(char const *name, op_set set,
     int nblocks = Plan->ncolblk[col];
     int nshared = Plan->nshared;
     op_cuda_res<<<nblocks,nthread,nshared>>>(
-       (float *)arg1.data_d, Plan->ind_maps[0],
-       (float *)arg2.data_d, Plan->ind_maps[1],
-       (float *)arg0.data_d,
+       (double *)arg1.data_d, Plan->ind_maps[0],
+       (double *)arg2.data_d, Plan->ind_maps[1],
+       (double *)arg0.data_d,
        Plan->loc_maps[1],
        Plan->loc_maps[2],
-       (float *)arg3.data_d,
+       (double *)arg3.data_d,
        Plan->ind_sizes,
        Plan->ind_offs,
        block_offset,
