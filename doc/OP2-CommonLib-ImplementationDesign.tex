@@ -1,0 +1,278 @@
+
+\documentclass[a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{color}
+
+\lstset{
+  language=C,
+  basicstyle=\small,
+  numbers=none,
+  numberstyle=\footnotesize,
+  stepnumber=1,
+  numbersep=5pt,
+  backgroundcolor=\color{white},
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  frame=single,
+  tabsize=2,
+  captionpos=b,
+  breaklines=true,
+  breakatwhitespace=false,
+  escapeinside={\%*}{*)}
+}
+
+
+
+\newcommand{\opset}{{\em op\_set }}
+\newcommand{\opmap}{{\em op\_map }}
+\newcommand{\opdat}{{\em op\_dat }}
+\newcommand{\opsetN}{{\em op\_set}} % no space version
+\newcommand{\opmapN}{{\em op\_map}} % no space version
+\newcommand{\opdatN}{{\em op\_dat}} % no space version
+
+\newcommand{\opdeclset}{{\em op\_decl\_set }}
+\newcommand{\opdeclmap}{{\em op\_decl\_map }}
+\newcommand{\opdecldat}{{\em op\_decl\_dat }}
+\newcommand{\opdeclgbl}{{\em op\_decl\_gbl }}
+\newcommand{\opdeclsetN}{{\em op\_decl\_set}} % no space version
+\newcommand{\opdeclmapN}{{\em op\_decl\_map}} % no space version
+\newcommand{\opdecldatN}{{\em op\_decl\_dat}} % no space version
+\newcommand{\opdeclgblN}{{\em op\_decl\_gbl}} % no space version
+
+
+\newcommand{\opputvalue}{{\em op\_put }}
+\newcommand{\opyield}{{\em op\_yield }}
+\newcommand{\opputvalueN}{{\em op\_put}} % no space version
+\newcommand{\opyieldN}{{\em op\_yield}} % no space version
+
+\newcommand{\hydloop}{hyd\_par\_loop }
+\newcommand{\hydloops}{hyd\_par\_loops }
+\newcommand{\hydloopN}{hyd\_par\_loop} % no space version
+\newcommand{\hydloopsN}{hyd\_par\_loops} % no space version
+
+
+\newcommand{\oploop}{op\_par\_loop }
+\newcommand{\oploops}{op\_par\_loops }
+\newcommand{\oploopN}{op\_par\_loop} % no space version
+\newcommand{\oploopsN}{op\_par\_loops} % no space version
+
+\title{OP2 Common C/C++ and Fortran Library \\ Implementation Design Description}
+\author{Carlo Bertolli and Adam Betts\\ Imperial College London}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This document gives an overview of the OP2 library designed to be
+used by both C/C++ and Fortran applications. The library has been
+re-designed starting from C++ and Fortran versions, and its
+core functions are implemented in C99.
+
+
+\section{Directory Organisation}
+The main OP2 Common directory contains the following subdirectories:
+
+\begin{itemize}
+
+\item {\bf op2}: this directory contains the C/C++ and Fortran OP2
+  support (see below).
+
+\item {\bf apps}: this directory contains the example applications for
+  C++ and Fortran.
+
+\item {\bf doc}: this directory contains the generic OP2 Common
+  documentation, as this document.
+
+\item {\bf translator}: this directory contains the OP2
+  source-2-source compilers. It is currently empty, except for the
+  MATLAB compilers, as the translators are developed in different
+  repositories.
+
+\end{itemize}
+
+\section{The OP2 Directory}
+
+As specified above, the OP2 directory contains the OP2 support code
+needed by Fortran and C/C++. The support files are characterised in
+C/C++ files and in Fortran ones. While the first ones are uniquely
+implemented in C/C++ and they are self-contained, the Fortran support
+makes use of the C/C++ one and it is programmed both in Fortran and C.
+
+\subsection{The OP2 C Support}
+The main subdirectories of ``op2/c'' are the source one (``src'') and
+the include one (``include''). Further directories are ``doc'' which
+contains C/C++ OP2 documentation, ``lib'' and ``obj'' that are used by
+the Makefile for the compilation results.
+
+The ``src'' directory contains:
+
+\begin{itemize}
+
+\item The ``op\_lib\_core.cpp'' file, which implements the core library
+  routines used to initialise the OP2 data structures, like \opset,
+  \opmap, and \opdatN. It also defines the lists of actually declared
+  OP2 variables, namely OP\_set\_list, OP\_map\_list and OP\_dat\_list,
+  and related information. The functions provided in this file are
+  called by upper layer functions and they should not be called
+  directly from user programs.
+
+\item The ``op\_reference.c'' file provides a set of wrappers to core
+  library functions, to be used in reference implementation. This file
+  does {\it not} contain the reference implementation of \oploop
+  functions.
+
+\item The ``op\_rt\_support.c'' file implements the OP2 run-time support
+  functions used by any OP2 back-end (i.e. C/C++ and Fortran) that
+  actually needs them. It provides an implementation of the
+  ``op\_plan\_core'' function, which builds an execution plan (i.e.
+  based on partitioning and colouring an OP2 set) based on the input
+  data to an indirect OP2 parallel loop. It also defines the OP2 plan
+  list variable, called ``OP\_plans''. It is worth of noticing that
+  this files also provides an op\_rt\_exit function which should be
+  called by any OP2 backend using these run-time functions when
+  terminating the OP2 library, via the high-level op\_exit.
+
+\item A ``cuda'' directory containing an implementation of high-level
+  OP2 functions properly extending the implementation of the core
+  library. The ``op\_cuda\_decl.c'' file provides an implementation of
+  the data structure OP2 declaration functions, which is alternative
+  to the reference one and it must be used by C/C++ and Fortran CUDA
+  back-ends. In particular, the \opdecldat function first calls the
+  op\_decl\_dat\_core function and then it copies the declared data
+  from host to device memory space. The ``op\_cuda\_rt\_support.c'' file
+  provides an implementation of utility functions wrapping CUDA
+  functions (e.g. cudaMalloc), and a wrapper for the op\_plan\_core
+  function, which copies part of the generated plan information from
+  host to device memory space. Both files are used by the Fortran CUDA
+  back-end.
+
+\item An ``openmp'' directory contaning the
+  ``op\_openmp\_decl.c'' file, which wraps core library functions.
+  This file is used also by the Fortran OpenMP back-end.
+
+\end{itemize}
+
+
+The ``include'' directory contains the following header files:
+
+\begin{itemize}
+
+\item op\_lib\_core.h: this file provides the declaration of the OP2
+  core library functions (see the corresponding implementation file
+  above).
+
+\item op\_lib\_c.h: this file provide the declaration of the
+  high-level OP2 functions in C. It is included by one of the Fortran
+  wrappers.
+
+\item op\_lib\_cpp.h: this file extends the previous one with C++ OP2
+  high-level functions, related to the declaration of \opdat variables
+  (using templates), constants and global arguments to \oploopN.
+  The file directly contains the definition of the function, which
+  call the functions declared in the previous header by properly
+  transforming the templated calls to plan C calls.
+
+\item op\_openmp\_rt\_support.h: this file declares the op\_plan\_get
+  function wrapper, which is used by the OpenMP back-ends.
+
+\item op\_cuda\_rt\_support.h: this file declares the functions
+  defined in the op\_cuda\_rt\_support.c file (see above).
+
+\item op\_cuda\_reduction.h: this file provides a templated
+  implementation of the op\_reduction routines for CUDA back-ends. It
+  is not part of the op\_cuda\_rt\_support.h file (as it was in
+  previous versions) because the previous file is included by a source
+  file that is compiled with a plain C compiler, i.e. not supporting
+  templates. This design is a consequence of the choice of avoiding to
+  label C functions using the notation ``extern C'' to be called by
+  both Fortran and C++.
+
+\end{itemize}
+
+It is to be remarked that the C++ and Fortran support might compile
+the same files with different compilers (e.g. nvcc and gcc). For this
+reason, some of the include file directly include low level CUDA
+headers like:
+
+\begin{figure}[h!]
+ \centering
+\begin{lstlisting}
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <device_launch_parameters.h>
+#include <device_functions.h>
+\end{lstlisting}
+\caption{Example of declaration of op\_set variables.}
+ \label{fig:op-set-example}
+\end{figure}
+
+
+
+\subsubsection{Compiling OP2 C Support}
+
+The ``op2/c'' directory currently contains a Makefile to build proper
+libraries to be used by OP2 applications. The invocation of the
+``make'' command in the directory will (hopefully) produce the
+following libraries:
+
+\begin{itemize}
+
+\item {\bf libop2\_reference.a}: this is the library providing the
+  reference implementation of OP2 calls. It depends on the core library
+  functions and on the reference version-related source files (see
+  above).
+
+\item {\bf libop2\_rt\_support.a}: this is the OP2 run-time support
+  library, and it includes a compilation of the op\_rt\_support.c file
+  (see above), i.e. an implementation of the op\_plan\_core function
+  and associated functions and variables.
+
+\item {\bf libop2\_cuda.a}: this is the library providing an
+  implementation of OP2 functions for CUDA back-ends.
+
+\item {\bf libop2\_openmp.a}: this is the library providing an
+  implementation of OP2 functions for OpenMP back-ends.
+
+\end{itemize}
+
+For example, to link an application against the CUDA library, it is sufficient to
+specify in the g++ command line the ``-lop2\_cuda''  option (i.e.
+there is no need of using the prefix ``lib'' and the extension ``.a''.
+
+\section{The Applications Directory}
+
+The application directory (``apps'') contains examples in Fortran and C++.
+
+\subsection{The C+ Application Directory}
+This directory contains the airfoil and jacobi examples. The airfoil
+application makes use of the OP2 C common library. To compile it, it
+is required to set the OP2 environment variable to the path of the OP2
+Common ``op2'' directory (i.e. the one containing the C/C++ and
+Fortran support directories). For CUDA, it is required to set the
+CUDA\_INSTALL\_PATH variables to the path of the local CUDA
+installation. The compilation proceeds in the following
+way:
+
+\begin{itemize}
+
+\item The sequential implementation is compiled with g++ and linked
+  against the op2\_reference library.
+
+\item The OpenMP implementation is compiled with g++ and linked
+  against the OP2 run-time library and the openmp one. The run-time
+  library is needed because the OpenMP back-end makes use of the OP2
+  function to build OP2 plans.
+
+\item The CUDA implementation is compiled with nvcc and g++ and linked
+  against the OP2 run-time library (again because the back-end uses
+  the plan function) and the OP2 CUDA library.
+
+\end{itemize}
+
+
+\end{document}
