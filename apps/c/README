@@ -1,20 +1,32 @@
-This directory provides an implementation of the C and C++ OP2 interface.
+This directory example applications using the C and C++ OP2 library.
 
 CMake build
 -----------
 
-The recommended way of building the library is using CMake (http://cmake.org).
+The recommended way of building the examples is using CMake (http://cmake.org).
 
 For a standard developer build with debugging symbols and all features enabled
 run (the installation prefix is the current directory):
 
   ./cmake.local
 
-CMake will automatically detect which dependencies are installed and build the
-libraries for which dependencies are satisfied, automatically skipping others.
+This assumes the OP2 libraries have been built using the cmake.local build
+script in the OP2 library directory. CMake will detect which libraries have
+been built, import these and build the application versions for which the
+required libraries are available, automatically skipping others.
+
+By default, the binaries are installed to the directory specified as
+OP2_APPS_DIR, a variable imported from the OP2 library build. Unless this
+variable is empty, the value of CMAKE_INSTALL_PREFIX is ignored.
+
+A configuration file 'op2.conf' is automatically generated and placed in the
+installation directory. Source this file prior to running any of the
+applications to set shared library load paths and create links to input data:
+
+  . op2.conf
 
 The build is highly customisable:
-* Select which libraries variants to build (sequential, cuda, hdf5, mpi, openmp)
+* Individually select which applications to build
 * Choose the installation prefix
 * Change compiler flags
 * Set paths to non-standard installations of dependencies
@@ -37,24 +49,8 @@ For custom builds, there are several options:
 3. Edit the cache file build/CMakeCache.txt with a text editor and re-run
    cmake.
 
-If CMake does not automatically detect installation paths of dependencies, set
-them as follows:
-
-* CUDA: set CUDA_TOOLKIT_ROOT_DIR if CUDA was not found and CUDA_BIN_PATH to
-  override
-
-* HDF5: set HDF5_ROOT if HDF5 was not FOUND
-
-* MPI: CMake tries to extract the MPI library and include directories from the
-  MPI compiler it finds in the path. If detection fails or you want to
-  override what CMake found, set both MPI_INCLUDE_PATH and MPI_LIBRARY to
-  disable auto detection.
-
-* ParMETIS: set PARMETIS_DIR if not found. If you have a non-standard layout
-  for your ParMETIS installation, i.e. the libraries are not in lib and
-  headers in include, specify PARMETIS_LIB_DIR and/or PARMETIS_INCLUDE_DIR
-
-* SCOTCH: set SCOTCH_DIR if not found
+Each example application contains its own top level CMakeLists.txt file and
+can be built individually.
 
 Regular Makefile build
 ----------------------
@@ -67,10 +63,13 @@ To compile using the regular Makefiles provided, it is required to:
 
       export CUDA_INSTALL_PATH=/apps/cuda/4.0.11
 
-2. Set the environment variable OP2_COMPILER to either 'intel' or 'gnu' to
+2. Set the environment variable OP2_INSTALL_PATH to the base op2 directory,
+   i.e. the one containing the "c" and "fortran" directories.
+
+3. Set the environment variable OP2_COMPILER to either 'intel' or 'gnu' to
    select building with either icc or gcc compilers.
 
-3. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
+4. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
    or PTSCOTCH_INSTALL_PATH to the installation directories of these libraries.
    For instance:
 
@@ -78,4 +77,4 @@ To compile using the regular Makefiles provided, it is required to:
 
       and / or
 
-      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT_Scotch
+      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT-Scotch

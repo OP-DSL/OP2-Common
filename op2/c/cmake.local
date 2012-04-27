@@ -1,0 +1,23 @@
+#! /bin/bash
+
+# Performs CMake configuration and out-of-source build in the directory
+# 'build' and local install
+# Any arguments are directly passed on to CMake and allow overriding
+# the cache values set by this script.
+
+CMAKE_EXTRA_ARGS=$@
+
+INSTALLDIR=`pwd`
+CORES=`fgrep -m 1 'cpu cores' /proc/cpuinfo | cut -d ' ' -f 3`
+
+mkdir -p build && cd build &&
+(
+  eval cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR \
+             -DCMAKE_BUILD_TYPE=Developer \
+             -DCMAKE_VERBOSE_CONFIGURE=ON \
+             -DINSTALLATION_APPS_DIR='' \
+             $CMAKE_EXTRA_ARGS \
+             .. &&
+
+             (make -j$CORES all; make install)
+)
