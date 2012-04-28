@@ -1,31 +1,34 @@
 /*
-  Open source copyright declaration based on BSD open source template:
-  http://www.opensource.org/licenses/bsd-license.php
-
-* Copyright (c) 2009-2011, Mike Giles
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*     * Redistributions of source code must retain the above copyright
-*       notice, this list of conditions and the following disclaimer.
-*     * Redistributions in binary form must reproduce the above copyright
-*       notice, this list of conditions and the following disclaimer in the
-*       documentation and/or other materials provided with the distribution.
-*     * The name of Mike Giles may not be used to endorse or promote products
-*       derived from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Open source copyright declaration based on BSD open source template:
+ * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * This file is part of the OP2 distribution.
+ *
+ * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
+ * the main source directory for a full list of copyright holders.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 //
 // test program for new OPlus2 development
@@ -58,17 +61,15 @@ float alpha;
 #include "res.h"
 #include "update.h"
 
-
 // define problem size
 
 #define NN       6
 #define NITER    2
 
-
 // main program
 
-int main(int argc, char **argv){
-
+int main(int argc, char **argv)
+{
   int   nnode, nedge, n, e;
   float dx;
 
@@ -120,7 +121,7 @@ int main(int argc, char **argv){
 
         if ( (i2==0) || (i2==NN) || (j2==0) || (j2==NN) ) {
           r[2*n] += 0.25f;
-  }
+        }
         else {
           p1[e]     = n;
           p2[e]     = i2-1 + (j2-1)*(NN-1);
@@ -164,19 +165,19 @@ int main(int argc, char **argv){
 
   for (int iter=0; iter<NITER; iter++) {
     op_par_loop(res,"res", edges,
-                op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
-                op_arg_dat(p_u,  1,ppedge, 2,"float", OP_READ),
-                op_arg_dat(p_du, 0,ppedge, 3,"float", OP_INC ),
-                op_arg_gbl(&beta,1,"float",OP_READ));
+        op_arg_dat(p_A, -1,OP_ID,  3,"double",OP_READ),
+        op_arg_dat(p_u,  1,ppedge, 2,"float", OP_READ),
+        op_arg_dat(p_du, 0,ppedge, 3,"float", OP_INC ),
+        op_arg_gbl(&beta,1,"float",OP_READ));
 
     u_sum = 0.0f;
     u_max = 0.0f;
     op_par_loop(update,"update", nodes,
-                op_arg_dat(p_r,  -1,OP_ID, 2,"float",OP_READ),
-                op_arg_dat(p_du, -1,OP_ID, 3,"float",OP_RW  ),
-                op_arg_dat(p_u,  -1,OP_ID, 2,"float",OP_INC ),
-                op_arg_gbl(&u_sum,1,"float",OP_INC),
-                op_arg_gbl(&u_max,1,"float",OP_MAX));
+        op_arg_dat(p_r,  -1,OP_ID, 2,"float",OP_READ),
+        op_arg_dat(p_du, -1,OP_ID, 3,"float",OP_RW  ),
+        op_arg_dat(p_u,  -1,OP_ID, 2,"float",OP_INC ),
+        op_arg_gbl(&u_sum,1,"float",OP_INC),
+        op_arg_gbl(&u_max,1,"float",OP_MAX));
     printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
@@ -187,7 +188,6 @@ int main(int argc, char **argv){
   op_fetch_data(p_u);
 
   for (int pass=0; pass<1; pass++) {
-
     for (int j=NN-1; j>0; j--) {
       for (int i=1; i<NN; i++) {
         if (pass==0)
@@ -214,3 +214,4 @@ int main(int argc, char **argv){
   free(u);
   free(du);
 }
+

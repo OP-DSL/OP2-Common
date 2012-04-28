@@ -4,3 +4,4 @@ inline void update(double *r, double *du, double *u, double *u_sum, double *u_ma
   *u_sum += (*u)*(*u);
   *u_max = MAX(*u_max,*u);
 }
+

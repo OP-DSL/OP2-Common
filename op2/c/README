@@ -1,63 +1,145 @@
 This directory provides an implementation of the C and C++ OP2 interface.
 
 CMake build
------------
+===========
 
-The recommended way of building the library is using CMake (http://cmake.org).
+The recommended way of building the OP2 library and applications is using CMake
+(http://cmake.org).
 
 For a standard developer build with debugging symbols and all features enabled
-run (the installation prefix is the current directory):
+run:
 
   ./cmake.local
+
+This will configure and build the libraries in a build directory 'build' and
+install headers and libraries with the current directory as installation prefix.
 
 CMake will automatically detect which dependencies are installed and build the
 libraries for which dependencies are satisfied, automatically skipping others.
 
-The build is highly customisable:
-* Select which libraries variants to build (sequential, cuda, hdf5, mpi, openmp)
-* Choose the installation prefix
-* Change compiler flags
-* Set paths to non-standard installations of dependencies
-* etc.
+Out-of-source builds
+--------------------
 
-Since CMake builds are out-of-source, you can have as many builds as you want
-wherever you want from the same source with different options.
+CMake supports out-of-source builds and these are highly recommended. Using a
+dedicated build tree has a number of advantages:
 
-For custom builds, there are several options:
+* The source remains free of object files and other 'clutter' from the build.
+* Cleaning is as simple ad removing the build directory.
+* It is possible to have many builds from the same source simultaneously with
+  different build options.
 
-1. Write your own build script based on cmake.local and customise it to your
-   needs.
+How to run CMake
+----------------
 
-2. Use a cmake GUI (ccmake or cmake-gui) to set custom build options:
+Other than running 'cmake.local' there are several options:
+
+1.  Write your own build script based on cmake.local and customise it to your
+    needs (recommended).
+
+2.  Write a CMake script to populate the cache and pass it to CMake with
+
+      cmake -C <cache-init-script>
+
+3.  Use a cmake GUI (ccmake or cmake-gui) to set custom build options:
 
      mkdir build && cd build && ccmake ..
 
-   will generate Makefiles in the subdirectory 'build'.
+    will generate Makefiles in the subdirectory build.
 
-3. Edit the cache file build/CMakeCache.txt with a text editor and re-run
-   cmake.
+4.  Call cmake directly, passing options on the command line with
 
-If CMake does not automatically detect installation paths of dependencies, set
-them as follows:
+      cmake -Dopt1=val1 -Dopt2=val2 ...
 
-* CUDA: set CUDA_TOOLKIT_ROOT_DIR if CUDA was not found and CUDA_BIN_PATH to
-  override
+5.  Edit the cache file `build/CMakeCache.txt` with a text editor and re-run
+    cmake (not recommended).
 
-* HDF5: set HDF5_ROOT if HDF5 was not FOUND
+Customizing the build
+---------------------
 
-* MPI: CMake tries to extract the MPI library and include directories from the
-  MPI compiler it finds in the path. If detection fails or you want to
-  override what CMake found, set both MPI_INCLUDE_PATH and MPI_LIBRARY to
-  disable auto detection.
+The configuration is controlled with CMake variables which are cached for
+later invocations of CMake:
 
-* ParMETIS: set PARMETIS_DIR if not found. If you have a non-standard layout
-  for your ParMETIS installation, i.e. the libraries are not in lib and
-  headers in include, specify PARMETIS_LIB_DIR and/or PARMETIS_INCLUDE_DIR
+* Generic configuration options (defaults in parentheses):
 
-* SCOTCH: set SCOTCH_DIR if not found
+  BUILD_SHARED_LIBS       -- Build shared OP2 libraries. (ON)
+  USE_INSTALL_RPATH       -- Set rpath for installed shared libraries. (ON)
+  CMAKE_INSTALL_PREFIX    -- Installation prefix (/usr/local)
+  CMAKE_VERBOSE_CONFIGURE -- Enable verbose configuration output. (OFF)
+  CMAKE_VERBOSE_MAKEFILE  -- Create verbose makefiles (OFF)
+                             (make VERBOSE=1 is still supported if OFF)
+
+* Select which libraries variants to build (sequential, cuda, hdf5, mpi, openmp)
+
+  This is controlled by the following CMake flags (enabled by default):
+
+  OP2_WITH_SEQ      -- Build a sequential version of the OP2 library.
+  OP2_WITH_OPENMP   -- Build an OpenMP version of the OP2 library.
+  OP2_WITH_HDF5     -- Build an HDF5 version of the OP2 library.
+  OP2_WITH_MPI      -- Build an MPI version of the OP2 library.
+  OP2_WITH_PTSCOTCH -- Use PTScotch for partitioning in parallel.
+  OP2_WITH_PARMETIS -- Use ParMETIS for partitioning in parallel.
+  OP2_WITH_CUDA     -- Build a NVIDIA CUDA version of the OP2 library.
+
+  Note that the dependencies given above are required for the respective
+  libraries. If they cannot be found, the affected libraries are not built.
+
+* Choose the build type and set compiler flags
+
+  The following build types are available and come with pre-defined sets of
+  compiler flags:
+
+  Developer      -- Debug build with all warnings enabled
+  Debug          -- Debug build with compiler optimizations disabled
+  Release        -- Release build with compiler optimizations enabled
+  RelWithDebInfo -- Release build with debugging symbols
+  MinSizeRel     -- Release build optimized for minimum executable size
+
+  Compiler flags for all build variants are controlled via the following
+  variables:
+
+  CMAKE_C_FLAGS   -- C compiler flags
+  CMAKE_CXX_FLAGS -- C++ compiler flags
+  CUDA_NVCC_FLAGS -- CUDA compiler flags
+
+  With build type set to <VARIANT>, the following additional sets of compiler
+  flags are active:
+
+  CMAKE_C_FLAGS_<VARIANT>   -- Additional C compiler flags
+  CMAKE_CXX_FLAGS_<VARIANT> -- Additional C++ compiler flags
+  CUDA_NVCC_FLAGS_<VARIANT> -- Additional CUDA compiler flags
+
+  Additional compiler definitions of the form -DFOO=BAR can be specified with
+  the OP2_USER_DEFINITIONS variable.
+
+* Set paths to non-standard installations of dependencies
+
+  If CMake does not automatically detect installation paths of dependencies,
+  or you want to override these, set custom paths as follows:
+
+  * CUDA: set CUDA_TOOLKIT_ROOT_DIR if CUDA was not found and CUDA_BIN_PATH to
+    override
+
+  * HDF5: set HDF5_ROOT if HDF5 was not FOUND
+
+  * MPI: CMake tries to extract the MPI library and include directories from
+    the MPI compiler wrapper it finds in the path. If detection fails or you
+    want to override what CMake found, set all of MPI_INCLUDE_PATH and
+    MPI_LIBRARY (CMake 2.8.4 and earlier) / MPI_C_INCLUDE_PATH, MPI_C_LIBRARY,
+    MPI_CXX_INCLUDE_PATH and MPI_CXX_LIBRARY (CMake 2.8.5 and newer) to
+    disable auto detection.
+
+  * ParMETIS: set PARMETIS_DIR if ParMETIS was not found. If you have a
+    non-standard layout for your ParMETIS installation, i.e. the libraries are
+    not in lib and headers in include, specify PARMETIS_LIB_DIR and/or
+    PARMETIS_INCLUDE_DIR.
+
+  * SCOTCH: set SCOTCH_DIR if PT-Scotch was not found. If you have a
+    non-standard layout for your PT-Scotch installation, i.e. the libraries are
+    not in lib and headers in include, specify SCOTCH_LIB_DIR and/or
+    SCOTCH_INCLUDE_DIR.
 
 Regular Makefile build
-----------------------
+======================
 
 To compile using the regular Makefiles provided, it is required to:
 

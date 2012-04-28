@@ -6,9 +6,12 @@ CMake build
 The recommended way of building the examples is using CMake (http://cmake.org).
 
 For a standard developer build with debugging symbols and all features enabled
-run (the installation prefix is the current directory):
+run:
 
   ./cmake.local
+
+This will configure and build the applications in a build directory 'build' and
+install the exectuables with the current directory as installation prefix.
 
 This assumes the OP2 libraries have been built using the cmake.local build
 script in the OP2 library directory. CMake will detect which libraries have
@@ -19,38 +22,98 @@ By default, the binaries are installed to the directory specified as
 OP2_APPS_DIR, a variable imported from the OP2 library build. Unless this
 variable is empty, the value of CMAKE_INSTALL_PREFIX is ignored.
 
-A configuration file 'op2.conf' is automatically generated and placed in the
-installation directory. Source this file prior to running any of the
-applications to set shared library load paths and create links to input data:
+Each application contains its own top level CMakeLists.txt file and can be
+built individually. This directory contains a CMakeLists.txt for a meta-build
+of all or a selection of applications.
 
-  . op2.conf
+Out-of-source builds
+--------------------
 
-The build is highly customisable:
-* Individually select which applications to build
-* Choose the installation prefix
-* Change compiler flags
-* Set paths to non-standard installations of dependencies
-* etc.
+CMake supports out-of-source builds and these are highly recommended. Using a
+dedicated build tree has a number of advantages:
 
-Since CMake builds are out-of-source, you can have as many builds as you want
-wherever you want from the same source with different options.
+* The source remains free of object files and other 'clutter' from the build.
+* Cleaning is as simple ad removing the build directory.
+* It is possible to have many builds from the same source simultaneously with
+  different build options.
 
-For custom builds, there are several options:
+How to run CMake
+----------------
 
-1. Write your own build script based on cmake.local and customise it to your
-   needs.
+Other than running 'cmake.local' there are several options:
 
-2. Use a cmake GUI (ccmake or cmake-gui) to set custom build options:
+1.  Write your own build script based on cmake.local and customise it to your
+    needs (recommended).
+
+2.  Write a CMake script to populate the cache and pass it to CMake with
+
+      cmake -C <cache-init-script>
+
+3.  Use a cmake GUI (ccmake or cmake-gui) to set custom build options:
 
      mkdir build && cd build && ccmake ..
 
-   will generate Makefiles in the subdirectory 'build'.
+    will generate Makefiles in the subdirectory build.
 
-3. Edit the cache file build/CMakeCache.txt with a text editor and re-run
-   cmake.
+4.  Call cmake directly, passing options on the command line with
 
-Each example application contains its own top level CMakeLists.txt file and
-can be built individually.
+      cmake -Dopt1=val1 -Dopt2=val2 ...
+
+5.  Edit the cache file `build/CMakeCache.txt` with a text editor and re-run
+    cmake (not recommended).
+
+Customizing the build
+---------------------
+
+The configuration is controlled with CMake variables which are cached for
+later invocations of CMake:
+
+* Generic configuration options (defaults in parentheses):
+
+  USE_INSTALL_RPATH       -- Set rpath for installed executables. (ON)
+  CMAKE_INSTALL_PREFIX    -- Installation prefix (/usr/local)
+  CMAKE_VERBOSE_CONFIGURE -- Enable verbose configuration output. (OFF)
+  CMAKE_VERBOSE_MAKEFILE  -- Create verbose makefiles (OFF)
+                             (make VERBOSE=1 is still supported if OFF)
+
+* Select which applications to build
+
+  OP2_BUILD_<directory> -- Build the applications in <directory>
+                           (only available for meta-build)
+  OP2_BUILD_SP          -- Build single precision versions of the applications.
+  OP2_BUILD_DP          -- Build double precision versions of the applications.
+
+  The variants of each application build (sequential, OpenMP, MPI, CUDA) depend
+  on the availability of the respective libraries and are automaticcally
+  controlled i.e. all possible variants are built.
+
+* Choose the build type and set compiler flags
+
+  The following build types are available and come with pre-defined sets of
+  compiler flags:
+
+  Developer      -- Debug build with all warnings enabled
+  Debug          -- Debug build with compiler optimizations disabled
+  Release        -- Release build with compiler optimizations enabled
+  RelWithDebInfo -- Release build with debugging symbols
+  MinSizeRel     -- Release build optimized for minimum executable size
+
+  Compiler flags for all build variants are controlled via the following
+  variables:
+
+  CMAKE_C_FLAGS   -- C compiler flags
+  CMAKE_CXX_FLAGS -- C++ compiler flags
+  CUDA_NVCC_FLAGS -- CUDA compiler flags
+
+  With build type set to <VARIANT>, the following additional sets of compiler
+  flags are active:
+
+  CMAKE_C_FLAGS_<VARIANT>   -- Additional C compiler flags
+  CMAKE_CXX_FLAGS_<VARIANT> -- Additional C++ compiler flags
+  CUDA_NVCC_FLAGS_<VARIANT> -- Additional CUDA compiler flags
+
+  Additional compiler definitions of the form -DFOO=BAR can be specified with
+  the OP2_USER_DEFINITIONS variable.
 
 Regular Makefile build
 ----------------------

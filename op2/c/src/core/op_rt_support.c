@@ -1,4 +1,36 @@
 /*
+ * Open source copyright declaration based on BSD open source template:
+ * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * This file is part of the OP2 distribution.
+ *
+ * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
+ * the main source directory for a full list of copyright holders.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * The name of Mike Giles may not be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Mike Giles ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Mike Giles BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
  * This file implements the OP2 run-time support used by different
  * OP2 back-ends, like CUDA and OpenMP. It provides and implementation
  * of the plan building function for colouring and partitioning of
@@ -10,8 +42,8 @@
 /*
  * Global variables
  */
-int OP_plan_index = 0, OP_plan_max = 0;
 
+int OP_plan_index = 0, OP_plan_max = 0;
 op_plan * OP_plans;
 
 void
@@ -175,6 +207,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
   err = 0;
 
+
   for ( int m = 0; m < ninds; m++ )
   {
     int m2 = 0;
@@ -213,6 +246,8 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
    *check maps (most likely source of errors)
    */
 
+
+
   err = 0;
 
   for ( int m = 0; m < OP_plan.nargs; m++ )
@@ -245,14 +280,12 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
     printf ( " *** OP_plan_check: maps     OK \n" );
   }
 
-
   /*
    * check thread and block coloring
    */
 
   return;
 }
-
 
 /*
  * OP plan construction
@@ -261,16 +294,16 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_size,
                       int nargs, op_arg *args, int ninds, int *inds )
 {
-  //set exec length
-  int exec_length = set->size;
-  for(int i = 0; i< nargs; i++)
-  {
-    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    //set exec length
+    int exec_length = set->size;
+    for(int i = 0; i< nargs; i++)
     {
-      exec_length += set->exec_size;
-      break;
+      if(args[i].idx != -1 && args[i].acc != OP_READ )
+      {
+          exec_length += set->exec_size;
+          break;
+      }
     }
-  }
 
   /* first look for an existing execution plan */
 
@@ -559,7 +592,6 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     //if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
 
     /* reorder elements by color? */
-
   }
 
 
@@ -582,7 +614,7 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     {
       if ( inds[m] >= 0 )
       {
-        int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
+          int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
         for ( int e = 0; e < to_size; e++ )
           work[inds[m]][e] = 0; // zero out color arrays
       }
@@ -775,9 +807,9 @@ op_plan *op_plan_core(char const *name, op_set set, int set_offset, int part_siz
     printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
-        OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
+             OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
     printf( " data transfer (total)  = %.2f MB \n",
-        OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
+             OP_plans[ip].transfer2 / ( 1024.0f * 1024.0f ) );
     printf( " SoA/AoS transfer ratio = %.2f \n\n", transfer3 / OP_plans[ip].transfer2 );
   }
 

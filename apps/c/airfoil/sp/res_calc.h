@@ -28,3 +28,4 @@ inline void res_calc(float *x1,  float *x2,  float *q1,  float *q2,
   res1[3] += f;
   res2[3] -= f;
 }
+

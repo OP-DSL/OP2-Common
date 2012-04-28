@@ -10,3 +10,4 @@ inline void update(float *qold, float *q, float *res, float *adt, float *rms){
     *rms  += del*del;
   }
 }
+

@@ -31,3 +31,4 @@ inline void bres_calc(double *x1,  double *x2,  double *q1,
     res1[3] += f;
   }
 }
+
