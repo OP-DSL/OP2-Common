@@ -1,9 +1,8 @@
-close all;
-clear all;
-
 %
 % use NACA0012 definition to construct airfoil upper surface
 %
+
+function naca0012(grid)
 
 x = sin(linspace(0,pi/2,100)).^2;
 y = 0.594689181*[0.298222773*sqrt(x) - 0.127125232*x    - 0.357907906*x.^2 ...
@@ -57,8 +56,10 @@ x = real(z); y = imag(z);
 %figure
 %plot(x,y,'k-',x',y','k-'); axis equal
 
+if (nargin > 0 && strcmpi(grid, 'old'))
+
 %
-% construct output files
+% construct old-style output file
 %
 
 nnodes = (3*I+1)*(J+1);
@@ -188,6 +189,8 @@ for n=1:nedges
 end
 
 fclose(fid);
+
+else % (nargin > 0 && strcmpi(grid, 'old'))
 
 %
 % construct new-style output file
@@ -342,3 +345,7 @@ for n=1:nbedges
 end
 
 fclose(fid);
+
+end % (nargin > 0 && strcmpi(grid, 'old'))
+
+end % function naca0012(grid)
