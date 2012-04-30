@@ -8,7 +8,7 @@
 
 if(NOT OP2_FOUND)
 
-  message("-- Loading OP2 configuration from @OP2_CONF_DIR@")
+  message(STATUS "Loading OP2 configuration from @OP2_CONF_DIR@")
 
   # Package found
   set(OP2_FOUND TRUE)
