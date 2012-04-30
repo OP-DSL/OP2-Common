@@ -41,11 +41,49 @@ if (TARGET op2_hdf5 AND OP2_BUILD_DP)
   if (TARGET op2_mpi)
     add_definitions(${OP2_MPI_DEFINITIONS})
     include_directories(${OP2_MPI_INCLUDE_DIRS})
-    add_executable(airfoil_hdf5_dp_mpi dp/airfoil_mpi.cpp ${KERNEL_HEADERS})
-    target_link_libraries(airfoil_hdf5_dp_mpi op2_mpi)
     add_executable(convert_mesh dp/convert_mesh.cpp)
     target_link_libraries(convert_mesh op2_mpi)
-    install(TARGETS airfoil_hdf5_dp_mpi convert_mesh RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
+
+    # Generate the H5 input grid, given the regular input grid has been generated
+    if(TARGET grid)
+      # Convert the grid to H5
+      set(GRID_FILE_H5 ${CMAKE_BINARY_DIR}/new_grid_out.h5)
+      # Custom command to generate the grid
+      add_custom_command(OUTPUT ${GRID_FILE_H5}
+        COMMAND convert_mesh
+        DEPENDS convert_mesh ${GRID_FILE}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Converting the input grid to H5 ${GRID_FILE_H5}...")
+
+      # Repack/compress the grid
+      find_program(H5_REPACK h5repack hints ${HDF5_ROOT} ENV HDF5_ROOT)
+      if(NOT H5_REPACK)
+        message(WARNING "Could not find h5repack. Set HDF5_ROOT to the folder containing the executable.
+
+        Repacking/compression of the H5 input mesh is skipped. Compress it manually by running:
+        h5repack -f GZIP=9 new_grid_out.h5 new_grid.h5")
+        install(FILES ${GRID_FILE_H5} DESTINATION ${OP2_APPS_DIR}
+          COMPONENT RuntimeInputFiles RENAME new_grid.h5)
+        set(GRID ${GRID_FILE_H5})
+      else()
+        set(GRID_FILE_H5_REPACK ${CMAKE_BINARY_DIR}/new_grid.h5)
+        # Custom command to repack the grid
+        add_custom_command(OUTPUT ${GRID_FILE_H5_REPACK}
+          COMMAND ${H5_REPACK} -f GZIP=9 ${GRID_FILE_H5} ${GRID_FILE_H5_REPACK}
+          DEPENDS ${GRID_FILE_H5}
+          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+          COMMENT "Repacking the H5 input grid H5 ${GRID_FILE_H5_REPACK}...")
+        install(FILES ${GRID_FILE_H5_REPACK} DESTINATION ${OP2_APPS_DIR}
+          COMPONENT RuntimeInputFiles)
+        set(GRID ${GRID_FILE_H5_REPACK})
+      endif()
+    endif()
+
+    # Build HDF5 exectuable
+    add_executable(airfoil_hdf5_dp_mpi dp/airfoil_mpi.cpp ${KERNEL_HEADERS} ${GRID})
+    target_link_libraries(airfoil_hdf5_dp_mpi op2_mpi)
+    install(TARGETS airfoil_hdf5_dp_mpi convert_mesh RUNTIME
+      DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
   endif()
 
 endif()
