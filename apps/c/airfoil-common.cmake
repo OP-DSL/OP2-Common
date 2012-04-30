@@ -1,4 +1,8 @@
-include(../common.cmake)
+# This should only be loaded once
+if(DEFINED __AIRFOIL_COMMON_INCLUDED)
+  return()
+endif()
+set(__AIRFOIL_COMMON_INCLUDED TRUE)
 
 # Generate the airfoil input grid using the NACA grid generator
 set(AIRFOIL_MESH_FILE ${CMAKE_BINARY_DIR}/new_grid.dat CACHE FILEPATH

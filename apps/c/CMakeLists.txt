@@ -47,11 +47,13 @@ set(OP2_JACOBI_APPS
   jac2
   )
 
+include(common.cmake)
 # Add each OP2 app directory
 if(OP2_BUILD_ALL_AIRFOIL)
   foreach (APP_DIR ${OP2_AIRFOIL_APPS})
     option(OP2_BUILD_${APP_DIR} "Build the ${APP_DIR} apps" ON)
     if(OP2_BUILD_${APP_DIR})
+      include(airfoil-common.cmake)
       add_subdirectory(${APP_DIR})
     endif()
   endforeach()
