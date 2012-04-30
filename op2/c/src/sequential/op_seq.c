@@ -87,6 +87,24 @@ void op_fetch_data ( op_dat a ) {
   (void)a;
 }
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
+void op_printf(const char* format, ...)
+{
+  va_list argptr;
+  va_start(argptr, format);
+  vprintf(format, argptr);
+  va_end(argptr);
+}
+
+void op_timers(double * cpu, double * et)
+{
+    op_timers_core(cpu,et);
+}
+
 void op_exit ()
 {
   op_exit_core ();

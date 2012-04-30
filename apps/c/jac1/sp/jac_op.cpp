@@ -54,7 +54,6 @@ float alpha;
 //
 
 #include "op_lib_cpp.h"
-#include "op_seq.h"
 
 //
 // op_par_loop declarations
@@ -217,12 +216,5 @@ int main(int argc, char **argv){
   op_timing_output();
 
   op_exit();
-
-  // free allocated arrays
-
-  free(pp);
-  free(A);
-  free(r);
-  free(u);
-  free(du);
 }
+

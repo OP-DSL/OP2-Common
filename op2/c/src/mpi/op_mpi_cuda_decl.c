@@ -53,6 +53,13 @@
 void
 op_init ( int argc, char ** argv, int diags)
 {
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+      MPI_Init(&argc, &argv);
+  }
+
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020
@@ -149,6 +156,25 @@ op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
   return op_arg_gbl ( data, dim, type, acc );
 }
 
+void op_printf(const char* format, ...)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+    vprintf(format, argptr);
+    va_end(argptr);
+  }
+}
+
+void op_timers(double * cpu, double * et)
+{
+  MPI_Barrier(MPI_COMM_WORLD);
+  op_timers_core(cpu,et);
+}
+
 //
 // This function is defined in the generated master kernel file
 // so that it is possible to check on the runtime size of the
@@ -172,5 +198,10 @@ op_exit (  )
   op_cuda_exit();            // frees dat_d memory
   op_rt_exit();              // frees plan memory
   op_exit_core();            // frees lib core variables
+
+  int flag = 0;
+  MPI_Finalized(&flag);
+  if(!flag)
+    MPI_Finalize();
 }
 

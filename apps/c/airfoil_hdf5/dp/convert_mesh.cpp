@@ -142,10 +142,12 @@ static void check_scan(int items_received, int items_expected)
 
 int main(int argc, char **argv)
 {
+  // OP initialisation
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
   int my_rank;
   int comm_size;
-
-  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
@@ -163,7 +165,7 @@ int main(int argc, char **argv)
   FILE *fp;
 
   if ( (fp = fopen(file,"r")) == NULL) {
-    printf("can't open file %s\n",file); exit(-1);
+    op_printf("can't open file %s\n",file); exit(-1);
   }
 
   int   g_nnode,g_ncell,g_nedge,g_nbedge;
@@ -175,7 +177,7 @@ int main(int argc, char **argv)
 
   // set constants
 
-  if(my_rank == MPI_ROOT )printf("initialising flow field\n");
+  op_printf("initialising flow field\n");
   gam = 1.4f;
   gm1 = gam - 1.0f;
   cfl = 0.9f;
@@ -193,11 +195,11 @@ int main(int argc, char **argv)
   qinf[2] = 0.0f;
   qinf[3] = r*e;
 
-  if(my_rank == MPI_ROOT) {
-    printf("reading in grid \n");
-    printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
-        ,g_nnode,g_ncell,g_nedge,g_nbedge);
+  op_printf("reading in grid \n");
+  op_printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n"
+      ,g_nnode,g_ncell,g_nedge,g_nbedge);
 
+  if(my_rank == MPI_ROOT) {
     g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
     g_edge   = (int *) malloc(2*g_nedge*sizeof(int));
     g_ecell  = (int *) malloc(2*g_nedge*sizeof(int));
@@ -247,10 +249,10 @@ int main(int argc, char **argv)
   nedge = compute_local_size (g_nedge, comm_size, my_rank);
   nbedge = compute_local_size (g_nbedge, comm_size, my_rank);
 
-  printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
+  op_printf("Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n"
       ,my_rank,nnode,ncell,nedge,nbedge);
 
-  //Allocate memory to hold local sets, mapping tables and data
+  /*Allocate memory to hold local sets, mapping tables and data*/
   cell   = (int *) malloc(4*ncell*sizeof(int));
   edge   = (int *) malloc(2*nedge*sizeof(int));
   ecell  = (int *) malloc(2*nedge*sizeof(int));
@@ -264,7 +266,7 @@ int main(int argc, char **argv)
   res    = (double *) malloc(4*ncell*sizeof(double));
   adt    = (double *) malloc(  ncell*sizeof(double));
 
-  //scatter sets, mappings and data on sets
+  /* scatter sets, mappings and data on sets*/
   scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
   scatter_int_array(g_edge, edge, comm_size, g_nedge,nedge, 2);
   scatter_int_array(g_ecell, ecell, comm_size, g_nedge,nedge, 2);
@@ -278,21 +280,21 @@ int main(int argc, char **argv)
   scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
   scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
+  /*Freeing memory allocated to gloabal arrays on rank 0
+    after scattering to all processes*/
   if(my_rank == MPI_ROOT) {
-    //Freeing memory allocated to gloabal arrays on rank 0
-    //after scattering to all processes
     free(g_cell);
     free(g_edge);
     free(g_ecell);
     free(g_bedge);
     free(g_becell);
     free(g_bound);
-    free(g_x ); free(g_q);free(g_qold);free(g_adt);free(g_res);
+    free(g_x );
+    free(g_q);
+    free(g_qold);
+    free(g_adt);
+    free(g_res);
   }
-
-  // OP initialisation
-
-  op_init(argc,argv,2);
 
   /**------------------------END I/O  -----------------------**/
 
@@ -333,6 +335,5 @@ int main(int argc, char **argv)
   op_halo_create();
 
   op_exit();
-  MPI_Finalize();   //user mpi finalize
 }
 

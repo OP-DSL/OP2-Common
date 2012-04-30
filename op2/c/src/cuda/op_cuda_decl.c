@@ -128,6 +128,24 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
+int op_get_size(op_set set)
+{
+  return set->size;
+}
+
+void op_printf(const char* format, ...)
+{
+  va_list argptr;
+  va_start(argptr, format);
+  vprintf(format, argptr);
+  va_end(argptr);
+}
+
+void op_timers(double * cpu, double * et)
+{
+  op_timers_core(cpu,et);
+}
+
 void op_exit()
 {
   op_cuda_exit();            // frees dat_d memory

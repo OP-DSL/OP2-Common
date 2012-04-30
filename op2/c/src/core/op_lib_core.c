@@ -513,8 +513,7 @@ op_timing_output_2_file ( const char * outputFileName )
   fclose ( outputFile );
 }
 
-void
-op_timers ( double * cpu, double * et )
+void op_timers_core( double * cpu, double * et )
 {
   (void)cpu;
   struct timeval t;
