@@ -3,7 +3,7 @@ project(OP2-Airfoil-HDF5-DP)
 # Require CMake 2.8
 cmake_minimum_required(VERSION 2.8)
 
-include(../common.cmake)
+include(../airfoil-common.cmake)
 
 # All these require HDF5
 if (TARGET op2_hdf5 AND OP2_BUILD_DP)

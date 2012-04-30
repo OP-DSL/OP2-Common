@@ -3,7 +3,7 @@ project(OP2-Airfoil)
 # Require CMake 2.8
 cmake_minimum_required(VERSION 2.8)
 
-include(../common.cmake)
+include(../airfoil-common.cmake)
 
 foreach(VARIANT ${OP2_BUILD_VARIANTS})
 
