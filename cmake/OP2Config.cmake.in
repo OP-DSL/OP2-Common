@@ -13,6 +13,9 @@ if(NOT OP2_FOUND)
   # Package found
   set(OP2_FOUND TRUE)
 
+  # Custom modules
+  set(CMAKE_MODULE_PATH "@CMAKE_MODULE_PATH@")
+
   # Compiler defintions
   set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
 
