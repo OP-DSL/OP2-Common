@@ -58,3 +58,5 @@ endif()
 
 include_directories(${OP2_INCLUDE_DIRS})
 add_definitions(${OP2_USER_DEFINITIONS})
+
+include(OP2Application)
