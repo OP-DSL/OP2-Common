@@ -328,8 +328,13 @@ int main(int argc, char **argv)
   op_decl_const(4,"double",qinf  );
 
   op_write_hdf5(file_out);
-
-  op_diagnostic_output();
+  op_write_const_hdf5("gam",  1,"double",(char *)&gam,  "new_grid_out.h5");
+  op_write_const_hdf5("gm1",  1,"double",(char *)&gm1,  "new_grid_out.h5");
+  op_write_const_hdf5("cfl",  1,"double",(char *)&cfl,  "new_grid_out.h5");
+  op_write_const_hdf5("eps",  1,"double",(char *)&eps,  "new_grid_out.h5");
+  op_write_const_hdf5("mach", 1,"double",(char *)&mach, "new_grid_out.h5");
+  op_write_const_hdf5("alpha",1,"double",(char *)&alpha,"new_grid_out.h5");
+  op_write_const_hdf5("qinf", 4,"double",(char *)qinf,  "new_grid_out.h5");
 
   //create halos - for sanity check
   op_halo_create();
