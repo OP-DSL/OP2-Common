@@ -38,14 +38,8 @@ include(../common.cmake)
 include(../airfoil-common.cmake)
 
 # MPI with sequential-nodes version
-if (TARGET op2_mpi AND OP2_BUILD_DP)
-  add_definitions(${OP2_MPI_DEFINITIONS})
-  include_directories(${OP2_MPI_INCLUDE_DIRS})
-  add_executable(airfoil_mpi_openmp_dp dp/airfoil_mpi_openmp.cpp dp/airfoil_kernels.cpp
+if (OP2_BUILD_DP)
+  op2_application(airfoil_mpi_openmp_dp DEPENDS grid LIBS op2_mpi
+    SOURCES dp/airfoil_mpi_openmp.cpp dp/airfoil_kernels.cpp
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
-  add_dependencies(airfoil_mpi_openmp_dp grid)
-  target_link_libraries(airfoil_mpi_openmp_dp op2_mpi)
-  set_target_properties(airfoil_mpi_openmp_dp PROPERTIES COMPILE_FLAGS
-    "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
-  install(TARGETS airfoil_mpi_openmp_dp RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
 endif()
