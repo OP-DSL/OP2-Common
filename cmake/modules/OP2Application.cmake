@@ -8,7 +8,7 @@ include(CMakeParseArguments)
 
 function(op2_application APP)
   # Parse arguments
-  cmake_parse_arguments(${APP} "" "" "LIBS;SOURCES" ${ARGN})
+  cmake_parse_arguments(${APP} "" "" "DEPENDS;LIBS;SOURCES" ${ARGN})
 
   # Preparation
   foreach (LIB ${${APP}_LIBS})
@@ -48,7 +48,9 @@ function(op2_application APP)
       "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
   endif()
 
-  add_dependencies(${APP} grid)
+  if (${${APP}_DEPENDS})
+    add_dependencies(${APP} ${${APP}_DEPENDS})
+  endif()
   target_link_libraries(${APP} ${LIBS})
   install(TARGETS ${APP} RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
 endfunction()
