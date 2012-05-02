@@ -34,6 +34,7 @@ function(op2_application APP)
     endif()
     if (${LIB} MATCHES hdf5)
       add_definitions(${OP2_HDF5_DEFINITIONS})
+      include_directories(${OP2_HDF5_INCLUDE_DIRS})
     endif()
 
     # Otherwise add to library set

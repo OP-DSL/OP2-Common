@@ -55,6 +55,7 @@ if(NOT OP2_FOUND)
 
   # Include directories
   set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
+  set(OP2_HDF5_INCLUDE_DIRS "@OP2_HDF5_INCLUDE_DIRS@")
   set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
 
   # Shared library build?
