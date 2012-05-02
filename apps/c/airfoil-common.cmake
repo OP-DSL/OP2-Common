@@ -21,7 +21,8 @@ install(FILES ${AIRFOIL_MESH_FILE} DESTINATION ${OP2_APPS_DIR} COMPONENT Runtime
 if(AIRFOIL_GENERATE_MESH AND NOT TARGET grid)
 
   find_file(AIRFOIL_MESH_GENERATOR naca0012.m PATHS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../mesh_generators)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../mesh_generators
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mesh_generators)
 
   # Use Octave if available, otherwise fall back to MATLAB
   find_program(OCTAVE_EXECUTABLE octave hints ${OCTAVE_DIR} ENV OCTAVE_DIR)
