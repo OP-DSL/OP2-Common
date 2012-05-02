@@ -17,6 +17,7 @@ if(NOT OP2_FOUND)
   set(CMAKE_MODULE_PATH "@CMAKE_MODULE_PATH@")
 
   # Compiler defintions
+  set(OP2_HDF5_DEFINITIONS "@OP2_HDF5_DEFINITIONS@")
   set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
 
   # Compiler flags

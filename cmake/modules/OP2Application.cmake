@@ -32,6 +32,9 @@ function(op2_application APP)
       add_definitions(${OP2_MPI_DEFINITIONS})
       include_directories(${OP2_MPI_INCLUDE_DIRS})
     endif()
+    if (${LIB} MATCHES hdf5)
+      add_definitions(${OP2_HDF5_DEFINITIONS})
+    endif()
 
     # Otherwise add to library set
     set(LIBS ${LIBS} ${LIB})

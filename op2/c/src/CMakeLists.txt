@@ -34,10 +34,6 @@
 
 message(STATUS "Checking for optional packages...")
 
-set(OP2_MPI_INCLUDE_DIRS)
-set(OP2_MPI_DEFINITIONS)
-set(OP2_MPI_LIBRARIES)
-
 if(OP2_WITH_OPENMP)
   find_package(OpenMP)
   if(OPENMP_FOUND)
@@ -60,8 +56,9 @@ if(OP2_WITH_HDF5)
       set(HDF5_INCLUDE_DIRS ${HDF5_INCLUDE_DIR})
     endif()
     message(STATUS "HDF5 found")
+    set(OP2_HDF5_DEFINITIONS ${HDF5_DEFINITIONS})
     set(OP2_MPI_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS} ${OP2_MPI_INCLUDE_DIRS})
-    set(OP2_MPI_LIBRARIES ${OP2_MPI_LIBRARIES} ${HDF5_LIBRARIES})
+    set(OP2_MPI_LIBRARIES ${HDF5_LIBRARIES} ${OP2_MPI_LIBRARIES})
   else()
     message(STATUS "Optional package HDF5 not found - disabling")
     set(OP2_WITH_HDF5 OFF)
