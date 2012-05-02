@@ -42,10 +42,19 @@ find_path(OP2_CMAKE_DIR modules PATHS "${CMAKE_SOURCE_DIR}/../../cmake"
   NO_DEFAULT_PATH)
 set(OP2_CMAKE_DIR ${OP2_CMAKE_DIR} CACHE INTERNAL
   "OP2 CMake utilities directory")
-set(CMAKE_MODULE_PATH_INIT "${OP2_CMAKE_DIR}/modules")
-if (${CMAKE_VERSION} VERSION_LESS 2.8.3)
-  set(CMAKE_MODULE_PATH_INIT ${CMAKE_MODULE_PATH_INIT} ${OP2_CMAKE_DIR}/modules/2.8.3)
-endif()
+set(OP2_CMAKE_MODULE_DIR ${OP2_CMAKE_DIR}/modules CACHE INTERNAL
+  "OP2 CMake modules directory")
+
+# Add packaged CMake scripts for backwards compatibility of features not in
+# CMake 2.8.0 to module path
+set(CMAKE_MODULE_PATH_INIT ${OP2_CMAKE_MODULE_DIR})
+file(GLOB BACKCOMP_VERSIONS RELATIVE ${OP2_CMAKE_MODULE_DIR} ${OP2_CMAKE_MODULE_DIR}/2.8.*)
+foreach(BACKCOMP_VERSION ${BACKCOMP_VERSIONS})
+  if (${CMAKE_VERSION} VERSION_LESS ${BACKCOMP_VERSION})
+    set(CMAKE_MODULE_PATH_INIT ${CMAKE_MODULE_PATH_INIT} ${OP2_CMAKE_MODULE_DIR}/${BACKCOMP_VERSION})
+  endif()
+endforeach()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH_INIT} CACHE FILEPATH
   "Search path for CMake scripts and modules")
 
