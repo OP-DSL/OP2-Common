@@ -105,7 +105,12 @@ for nargs = 1:maxargs
     end
   end
 
-  file = strvcat(file,' ', ['  char  *p_a[' c_nargs ']; ']);
+  line = ['  char  *p_a[' c_nargs '] = {0'];
+  for n = 1:nargs-1
+    line = [line ',0'];
+  end
+  line = [line '};'];
+  file = strvcat(file,' ', line);
 
   line = ['  op_arg args[' c_nargs '] = { '];
 
