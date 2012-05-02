@@ -1,6 +1,13 @@
+# This should only be loaded once
+if(DEFINED __APPS_COMMON_INCLUDED)
+  return()
+endif()
+set(__APPS_COMMON_INCLUDED TRUE)
+
 # Load OP2 configuration (Set OP2_DIR to the directory containing OP2Config.cmake)
 find_package(OP2 REQUIRED PATHS
   ${OP2-APPS_SOURCE_DIR}/../../op2/c/build
+  ${PROJECT_SOURCE_DIR}/../../../op2/c/build
   ${CMAKE_INSTALL_PREFIX}/lib/op2)
 
 # Default installation directory to bin
@@ -51,3 +58,5 @@ endif()
 
 include_directories(${OP2_INCLUDE_DIRS})
 add_definitions(${OP2_USER_DEFINITIONS})
+
+include(OP2Application)

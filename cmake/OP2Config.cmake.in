@@ -8,12 +8,16 @@
 
 if(NOT OP2_FOUND)
 
-  message("-- Loading OP2 configuration from @OP2_CONF_DIR@")
+  message(STATUS "Loading OP2 configuration from @OP2_CONF_DIR@")
 
   # Package found
   set(OP2_FOUND TRUE)
 
+  # Custom modules
+  set(CMAKE_MODULE_PATH "@CMAKE_MODULE_PATH@")
+
   # Compiler defintions
+  set(OP2_HDF5_DEFINITIONS "@OP2_HDF5_DEFINITIONS@")
   set(OP2_MPI_DEFINITIONS "@OP2_MPI_DEFINITIONS@")
 
   # Compiler flags
@@ -51,6 +55,7 @@ if(NOT OP2_FOUND)
 
   # Include directories
   set(OP2_INCLUDE_DIRS "@INSTALLATION_INCLUDE_DIR@")
+  set(OP2_HDF5_INCLUDE_DIRS "@OP2_HDF5_INCLUDE_DIRS@")
   set(OP2_MPI_INCLUDE_DIRS "@OP2_MPI_INCLUDE_DIRS@")
 
   # Shared library build?

@@ -42,7 +42,20 @@ find_path(OP2_CMAKE_DIR modules PATHS "${CMAKE_SOURCE_DIR}/../../cmake"
   NO_DEFAULT_PATH)
 set(OP2_CMAKE_DIR ${OP2_CMAKE_DIR} CACHE INTERNAL
   "OP2 CMake utilities directory")
-set(CMAKE_MODULE_PATH "${OP2_CMAKE_DIR}/modules" CACHE FILEPATH
+set(OP2_CMAKE_MODULE_DIR ${OP2_CMAKE_DIR}/modules CACHE INTERNAL
+  "OP2 CMake modules directory")
+
+# Add packaged CMake scripts for backwards compatibility of features not in
+# CMake 2.8.0 to module path
+set(CMAKE_MODULE_PATH_INIT ${OP2_CMAKE_MODULE_DIR})
+file(GLOB BACKCOMP_VERSIONS RELATIVE ${OP2_CMAKE_MODULE_DIR} ${OP2_CMAKE_MODULE_DIR}/2.8.*)
+foreach(BACKCOMP_VERSION ${BACKCOMP_VERSIONS})
+  if (${CMAKE_VERSION} VERSION_LESS ${BACKCOMP_VERSION})
+    set(CMAKE_MODULE_PATH_INIT ${CMAKE_MODULE_PATH_INIT} ${OP2_CMAKE_MODULE_DIR}/${BACKCOMP_VERSION})
+  endif()
+endforeach()
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH_INIT} CACHE FILEPATH
   "Search path for CMake scripts and modules")
 
 # Set CMake options, see `cmake --help-policy CMP000x`
@@ -88,22 +101,20 @@ option(CMAKE_VERBOSE_CONFIGURE "Enable verbose configuration output."     OFF)
 #------------------------------------------------------------------------------
 # Print a summary of enabled/disabled features
 if(CMAKE_VERBOSE_CONFIGURE)
-  include(FeatureSummary OPTIONAL)
-  if(COMMAND add_feature_info AND COMMAND feature_summary)
-    add_feature_info("   Sequential library" OP2_WITH_SEQ "For reference testing")
-    add_feature_info("   OpenMP library" OP2_WITH_OPENMP "Requires OpenMP support by the compiler")
-    add_feature_info("   HDF5 library" OP2_WITH_HDF5 "Requires the HDF5 library")
-    add_feature_info("   MPI library" OP2_WITH_MPI "Requires an MPI library")
-    add_feature_info("   Parallel graph partitioning with PT-Scotch"
-      OP2_WITH_PTSCOTCH "Requires the PT-Scotch library")
-    add_feature_info("   Parallel graph partitioning with ParMETIS"
-      OP2_WITH_PARMETIS "Requires the ParMETIS library")
-    add_feature_info("   CUDA library" OP2_WITH_CUDA "Requires the NVIDIA CUDA toolkit")
-    feature_summary(WHAT ENABLED_FEATURES DESCRIPTION
-      "Configure with the following features enabled:")
-    feature_summary(WHAT DISABLED_FEATURES DESCRIPTION
-      "Configure with the following features disabled:")
-  endif()
+  include(FeatureSummary)
+  add_feature_info("   Sequential library" OP2_WITH_SEQ "For reference testing")
+  add_feature_info("   OpenMP library" OP2_WITH_OPENMP "Requires OpenMP support by the compiler")
+  add_feature_info("   HDF5 library" OP2_WITH_HDF5 "Requires the HDF5 library")
+  add_feature_info("   MPI library" OP2_WITH_MPI "Requires an MPI library")
+  add_feature_info("   Parallel graph partitioning with PT-Scotch"
+    OP2_WITH_PTSCOTCH "Requires the PT-Scotch library")
+  add_feature_info("   Parallel graph partitioning with ParMETIS"
+    OP2_WITH_PARMETIS "Requires the ParMETIS library")
+  add_feature_info("   CUDA library" OP2_WITH_CUDA "Requires the NVIDIA CUDA toolkit")
+  feature_summary(WHAT ENABLED_FEATURES DESCRIPTION
+    "Configure with the following features enabled:")
+  feature_summary(WHAT DISABLED_FEATURES DESCRIPTION
+    "Configure with the following features disabled:")
 endif()
 
 #------------------------------------------------------------------------------
