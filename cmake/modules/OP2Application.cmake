@@ -8,41 +8,33 @@ include(CMakeParseArguments)
 
 function(op2_application APP)
   # Parse arguments
-  cmake_parse_arguments(${APP} "" "" "BACKENDS;SOURCES" ${ARGN})
+  cmake_parse_arguments(${APP} "" "" "LIBS;SOURCES" ${ARGN})
 
   # Preparation
-  foreach (BACKEND ${${APP}_BACKENDS})
-    if (${BACKEND} STREQUAL SEQUENTIAL)
-      set(LIB op2_seq)
-    elseif (${BACKEND} STREQUAL CUDA)
+  foreach (LIB ${${APP}_LIBS})
+    # Skip if the required library hasn't been build
+    if (NOT TARGET ${LIB})
+      message(STATUS "Library ${LIB} not available, skipping application ${APP}")
+      return()
+    endif()
+
+    if (${LIB} STREQUAL op2_cuda)
       find_package(CUDA)
       if (NOT CUDA_FOUND)
         return()
       endif()
-      set(LIB op2_cuda)
       set(CUDA_ENABLED TRUE)
-    elseif (${BACKEND} STREQUAL OPENMP)
-      set(LIB op2_openmp)
+    elseif (${LIB} STREQUAL op2_openmp)
       set(OPENMP_ENABLED TRUE)
-    elseif (${BACKEND} STREQUAL MPI)
-      set(LIB op2_mpi)
+    elseif (${LIB} STREQUAL op2_mpi)
       add_definitions(${OP2_MPI_DEFINITIONS})
       include_directories(${OP2_MPI_INCLUDE_DIRS})
-    elseif (${BACKEND} STREQUAL HDF5)
-      set(LIB op2_hdf5)
-    else()
-      message(WARNING "Invalid backend ${BACKEND} for application ${APP}")
     endif()
 
-    # Skip if the required library hasn't been build
-    if (NOT TARGET ${LIB})
-      return()
-    endif()
     # Otherwise add to library set
     set(LIBS ${LIBS} ${LIB})
   endforeach()
-
-  message("${APP} ${${APP}_BACKENDS} ${${APP}_SOURCES} ${LIBS}")
+  message(STATUS "Configuring application ${APP} linking against libraries: ${${APP}_LIBS}")
 
   # Add the executable
   if (CUDA_ENABLED)
