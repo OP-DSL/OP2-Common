@@ -121,11 +121,13 @@ if(OP2_WITH_HDF5)
     message(STATUS "HDF5 found")
     set(OP2_HDF5_DEFINITIONS ${HDF5_DEFINITIONS})
     set(OP2_HDF5_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS})
+    set(OP2_HDF5_LIBRARIES ${HDF5_LIBRARIES})
     # If HDF5 is build with parallel support it requires MPI, which needs
     # to be enabled
     if (HDF5_IS_PARALLEL)
       if (OP2_WITH_MPI)
         set(OP2_HDF5_INCLUDE_DIRS ${OP2_HDF5_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
+        set(OP2_HDF5_LIBRARIES ${OP2_HDF5_LIBRARIES} ${MPI_LIBRARIES})
         # MPI is always built with HDF5 if available
         set(OP2_MPI_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS} ${OP2_MPI_INCLUDE_DIRS})
         set(OP2_MPI_LIBRARIES ${HDF5_LIBRARIES} ${OP2_MPI_LIBRARIES})
