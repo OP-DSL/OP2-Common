@@ -69,11 +69,11 @@ for nk = 1:length(kernels)
   end
 
   for m = 1:nargs
-    if (maps(m)==OP_GBL & accs(m)==OP_READ)
+    if (maps(m)==OP_GBL && accs(m)==OP_READ)
       line = '  const TYP *ARG,';    % declared const for performance
-    elseif (maps(m)==OP_ID & ninds>0)
+    elseif (maps(m)==OP_ID && ninds>0)
       line = '  TYP *ARG,';
-    elseif (maps(m)==OP_GBL | maps(m)==OP_ID)
+    elseif (maps(m)==OP_GBL || maps(m)==OP_ID)
       line = '  TYP *ARG,';
     else
       line = '  short *ARG_maps,';
@@ -97,7 +97,7 @@ for nk = 1:length(kernels)
   end
 
   for m = 1:nargs
-    if (maps(m)==OP_GBL & accs(m)~=OP_READ)
+    if (maps(m)==OP_GBL && accs(m)~=OP_READ)
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
       if (accs(m)==OP_INC)
@@ -107,10 +107,10 @@ for nk = 1:length(kernels)
         '  for (int d=0; d<DIM; d++) ARG_l[d]=ARG[d+blockIdx.x*DIM];';
       end
       file = strvcat(file,rep(line,m));
-    elseif (maps(m)==OP_MAP & accs(m)==OP_INC)
+    elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
-    elseif (ninds==0 & maps(m)==OP_ID & ~strcmp(dims{m},'1'))
+    elseif (ninds==0 && maps(m)==OP_ID & ~strcmp(dims{m},'1'))
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
     end
@@ -179,10 +179,10 @@ for nk = 1:length(kernels)
       '  __syncthreads(); // make sure all of above completed',' ',...
       '  // copy indirect datasets into shared memory or zero increment',' ');
     for m = 1:ninds
-      if(indaccs(m)==OP_READ | indaccs(m)==OP_RW | indaccs(m)==OP_INC)
+      if(indaccs(m)==OP_READ || indaccs(m)==OP_RW || indaccs(m)==OP_INC)
         line = '  for (int n=threadIdx.x; n<INDARG_size*INDDIM; n+=blockDim.x)';
         file = strvcat(file,rep(line,m));
-        if(indaccs(m)==OP_READ | indaccs(m)==OP_RW)
+        if(indaccs(m)==OP_READ || indaccs(m)==OP_RW)
           line = '    INDARG_s[n] = INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM];';
         elseif(indaccs(m)==OP_INC)
           line = '    INDARG_s[n] = ZERO_INDTYP;';
@@ -203,7 +203,7 @@ for nk = 1:length(kernels)
         '      // initialise local variables              ',' ');
 
       for m = 1:nargs
-        if (maps(m)==OP_MAP & accs(m)==OP_INC)
+        if (maps(m)==OP_MAP && accs(m)==OP_INC)
           line = '      for (int d=0; d<DIM; d++)';
           file = strvcat(file,rep(line,m));
           line = '        ARG_l[d] = ZERO_TYP;';
@@ -286,7 +286,7 @@ for nk = 1:length(kernels)
       else
         line = [ line 'ARG_l,' ];
       end
-    elseif (maps(m)==OP_MAP & accs(m)==OP_INC)
+    elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
       line = [ line 'ARG_l,' ];
     elseif (maps(m)==OP_MAP)
       line = [ line ...
@@ -324,7 +324,7 @@ for nk = 1:length(kernels)
              ' ','    // store local variables            ',' ');
 
             for m = 1:nargs
-        if (maps(m)==OP_MAP & accs(m)==OP_INC)
+        if (maps(m)==OP_MAP && accs(m)==OP_INC)
           line = sprintf('      int ARG_map;');
           file = strvcat(file,rep(line,m));
         end
@@ -332,7 +332,7 @@ for nk = 1:length(kernels)
       file = strvcat(file,...
                 ' ','      if (col2>=0) {                  ');
       for m = 1:nargs
-        if (maps(m)==OP_MAP & accs(m)==OP_INC)
+        if (maps(m)==OP_MAP && accs(m)==OP_INC)
           line = sprintf('        ARG_map = ARG_maps[n+offset_b];');
           file = strvcat(file,rep(line,m));
         end
@@ -344,7 +344,7 @@ for nk = 1:length(kernels)
             ' ','    for (int col=0; col<ncolor; col++) {',...
                 '      if (col2==col) {                  ');
       for m = 1:nargs
-        if (maps(m)==OP_MAP & accs(m)==OP_INC)
+        if (maps(m)==OP_MAP && accs(m)==OP_INC)
           line = '        for (int d=0; d<DIM; d++)';
           file = strvcat(file,rep(line,m));
           line = sprintf('          ind_arg%d_s[d+ARG_map*DIM] += ARG_l[d];',inds(m)-1);
@@ -359,10 +359,10 @@ for nk = 1:length(kernels)
       file = strvcat(file,'  // apply pointered write/increment',' ');
     end
     for m = 1:ninds
-      if(indaccs(m)==OP_WRITE | indaccs(m)==OP_RW | indaccs(m)==OP_INC)
+      if(indaccs(m)==OP_WRITE || indaccs(m)==OP_RW || indaccs(m)==OP_INC)
         line = '  for (int n=threadIdx.x; n<INDARG_size*INDDIM; n+=blockDim.x)';
         file = strvcat(file,rep(line,m));
-        if(indaccs(m)==OP_WRITE | indaccs(m)==OP_RW)
+        if(indaccs(m)==OP_WRITE || indaccs(m)==OP_RW)
           line = '    INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM] = INDARG_s[n];';
           file = strvcat(file,rep(line,m),' ');
         elseif(indaccs(m)==OP_INC)
@@ -403,7 +403,7 @@ for nk = 1:length(kernels)
   if (reduct)
     file = strvcat(file,' ','  // global reductions',' ');
     for m = 1:nargs
-      if (maps(m)==OP_GBL & accs(m)~=OP_READ)
+      if (maps(m)==OP_GBL && accs(m)~=OP_READ)
         line = '  for(int d=0; d<DIM; d++)';
         file = strvcat(file,rep(line,m));
         if(accs(m)==OP_INC)
@@ -511,7 +511,7 @@ for nk = 1:length(kernels)
      '    // transfer constants to GPU',' ',...
      '    int consts_bytes = 0;');
     for m=1:nargs
-      if(maps(m)==OP_GBL & accs(m)==OP_READ);
+      if(maps(m)==OP_GBL && accs(m)==OP_READ);
         line = '    consts_bytes += ROUND_UP(DIM*sizeof(TYP));';
         file = strvcat(file,rep(line,m));
       end
@@ -522,7 +522,7 @@ for nk = 1:length(kernels)
      '    consts_bytes = 0;');
 
     for m=1:nargs
-      if(maps(m)==OP_GBL & accs(m)==OP_READ);
+      if(maps(m)==OP_GBL && accs(m)==OP_READ);
         line = '    ARG.data   = OP_consts_h + consts_bytes;';
         file = strvcat(file,rep(line,m));
         line = '    ARG.data_d = OP_consts_d + consts_bytes;';
@@ -570,7 +570,7 @@ for nk = 1:length(kernels)
                             '    int reduct_size  = 0;');
 
     for m=1:nargs
-      if(maps(m)==OP_GBL & accs(m)~=OP_READ);
+      if(maps(m)==OP_GBL && accs(m)~=OP_READ);
         line = '    reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));';
         file = strvcat(file,rep(line,m));
         line = '    reduct_size   = MAX(reduct_size,sizeof(TYP));';
@@ -583,7 +583,7 @@ for nk = 1:length(kernels)
      '    reduct_bytes = 0;');
 
     for m=1:nargs
-      if(maps(m)==OP_GBL & accs(m)~=OP_READ);
+      if(maps(m)==OP_GBL && accs(m)~=OP_READ);
         line = '    ARG.data   = OP_reduct_h + reduct_bytes;';
         file = strvcat(file,rep(line,m));
         line = '    ARG.data_d = OP_reduct_d + reduct_bytes;';
@@ -626,8 +626,8 @@ for nk = 1:length(kernels)
     if (reduct)
       file = strvcat(file,...
         '        int nshared = MAX(Plan->nshared,reduct_size*nthread);');
-      else
-  file = strvcat(file,'      int nshared = Plan->nshared;');
+    else
+      file = strvcat(file,'      int nshared = Plan->nshared;');
     end
 
       file = strvcat(file,...
@@ -717,7 +717,7 @@ for nk = 1:length(kernels)
          ' ','    // transfer global reduction data back to CPU',...
          ' ','    mvReductArraysToHost(reduct_bytes);',' ');
     for m=1:nargs
-      if(maps(m)==OP_GBL & accs(m)~=OP_READ);
+      if(maps(m)==OP_GBL && accs(m)~=OP_READ);
         file = strvcat(file,'    for (int b=0; b<maxblocks; b++)');
         line = '      for (int d=0; d<DIM; d++)';
         file = strvcat(file,rep(line,m));
@@ -729,7 +729,7 @@ for nk = 1:length(kernels)
           line = '        ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);';
         end
         file = strvcat(file,rep(line,m));
-    line = '  ARG.data = (char *)ARGh;';
+        line = '  ARG.data = (char *)ARGh;';
         file = strvcat(file,' ',rep(line,m));
         line = '  op_mpi_reduce(&ARG,ARGh);';
         file = strvcat(file,' ',rep(line,m));
@@ -836,7 +836,7 @@ for nc = 1:length(consts)
   end
 end
 file = strvcat(file,...
-      '  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));',....
+      '  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));',...
       '} ',' ',...
       '// user kernel files',' ');
 

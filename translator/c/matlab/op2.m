@@ -225,11 +225,11 @@ for narg = 1: nargin
         end
       end
 
-      if(maps(m)==OP_GBL & (accs(m)==OP_WRITE | accs(m)==OP_RW))
+      if(maps(m)==OP_GBL && (accs(m)==OP_WRITE || accs(m)==OP_RW))
         error(sprintf('invalid access type for argument %d',m));
       end
 
-      if(maps(m)~=OP_GBL & (accs(m)==OP_MIN | accs(m)==OP_MAX))
+      if(maps(m)~=OP_GBL && (accs(m)==OP_MIN || accs(m)==OP_MAX))
         error(sprintf('invalid access type for argument %d',m));
       end
 
