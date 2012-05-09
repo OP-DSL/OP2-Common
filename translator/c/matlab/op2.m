@@ -243,7 +243,7 @@ for narg = 1: nargin
     inds      = zeros(1,nargs);
     invinds   = zeros(1,nargs);
     indtyps   = cell(1,nargs);
-    inddims   = cell(1,nargs);
+    inddims   = zeros(1,nargs);
     indaccs   = zeros(1,nargs);
 
     j = find(maps==OP_MAP);               % find all indirect arguments
@@ -254,7 +254,7 @@ for narg = 1: nargin
             &       (accs(j(1)) == accs(j));     % same access
       ninds = ninds + 1;
       indtyps{ninds} = typs{j(1)};
-      inddims{ninds} = dims{j(1)};
+      inddims(ninds) = dims{j(1)};
       indaccs(ninds) = accs(j(1));
       inds(j(find(match))) = ninds;
       invinds(ninds) = j(1);
@@ -285,7 +285,7 @@ for narg = 1: nargin
 
         for arg = 1:ninds
           rep2 = rep2 && ...
-             strcmp(kernels{nk}.inddims{arg},   inddims{arg}) && ...
+             strcmp(kernels{nk}.inddims(arg),   inddims(arg)) && ...
                    (kernels{nk}.indaccs(arg) == indaccs(arg)) && ...
              strcmp(kernels{nk}.indtyps{arg},   indtyps{arg}) && ...
                    (kernels{nk}.invinds(arg) == invinds(arg));
