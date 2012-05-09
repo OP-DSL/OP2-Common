@@ -612,9 +612,9 @@ function line = rep(line,m)
 
 global dims idxs typs indtyps inddims
 
-line = regexprep(line,'INDDIM',inddims(m));
+line = regexprep(line,'INDDIM',char(inddims(m)));
 line = regexprep(line,'INDARG',sprintf('ind_arg%d',m-1));
-line = regexprep(line,'INDTYP',indtyps(m));
+line = regexprep(line,'INDTYP',char(indtyps(m)));
 
 line = regexprep(line,'DIM',dims(m));
 line = regexprep(line,'ARG',sprintf('arg%d',m-1));
