@@ -157,16 +157,6 @@ module OP2_Fortran_Declarations
 
     end function op_decl_dat_c
 
-    subroutine op_decl_const_c ( constdim, dat, name ) BIND(C,name='op_decl_const_char')
-
-      use, intrinsic :: ISO_C_BINDING
-
-      integer(kind=c_int), value     :: constdim
-      type(c_ptr), intent(in), value :: dat
-      character(kind=c_char,len=1)   :: name
-
-    end subroutine op_decl_const_c
-
     type(c_ptr) function op_decl_gbl_f ( dataIn, dataDim, dataSize, name ) BIND(C,name='op_decl_gbl_f')
 
       use, intrinsic :: ISO_C_BINDING
@@ -491,31 +481,39 @@ contains
   !   declarations of constants  !
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ! All of these are no-ops in the reference implementation
+
   subroutine op_decl_const_integer_4 ( dat, constdim, opname )
 
-    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    if ( present ( opname ) ) then
-      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
-    else
-      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
-    end if
+    ! local dummies to prevent compiler warning
+    integer(4), dimension(1) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname
 
   end subroutine op_decl_const_integer_4
 
   subroutine op_decl_const_real_8 ( dat, constdim, opname )
 
-    real(8), dimension(*), intent(in), target :: dat
+    real(8), dimension(:), intent(in), target :: dat
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    if ( present ( opname ) ) then
-      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
-    else
-      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
-    end if
+    ! local dummies to prevent compiler warning
+    real(8), dimension(1) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname
 
   end subroutine op_decl_const_real_8
 
@@ -525,11 +523,14 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    if ( present ( opname ) ) then
-      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
-    else
-      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
-    end if
+    ! local dummies to prevent compiler warning
+    integer(4) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname
 
   end subroutine op_decl_const_scalar_integer_4
 
@@ -539,11 +540,14 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    if ( present ( opname ) ) then
-      call op_decl_const_c ( constdim, c_loc ( dat ), opname//char(0) )
-    else
-      call op_decl_const_c ( constdim, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
-    end if
+    ! local dummies to prevent compiler warning
+    real(8) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname
 
   end subroutine op_decl_const_scalar_real_8
 
