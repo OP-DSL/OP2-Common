@@ -42,49 +42,10 @@ module adt_calc_cuda_module
 
 
   ! input data to kernel and associated variables
-! real(8), dimension(:), allocatable, device :: argument0
-! real(8), dimension(:), allocatable, device :: argument4
-! real(8), dimension(:), allocatable, device :: argument5
   integer(4) :: arg0Size, arg4Size, arg5Size
   type(varSizes_adt_calc), device :: argSizesMod
 
   type(c_ptr) :: planRet
-
-! type(c_ptr) :: planRet
-! type(op_plan), pointer :: actualPlan
-! integer, pointer, dimension(:) :: pnindirect
-! type(c_devptr), pointer, dimension(:) :: pindMaps
-! integer(4), dimension(1) :: pindMapsSize ! dimension = indsNumber (= 1, see below)
-! integer, allocatable, device, dimension(:) :: pindMaps1
-! integer(4) :: pindMaps1Size
-! type(c_devptr), pointer, dimension(:) :: pmaps
-! integer(4), dimension(6) :: pmapsSize ! dimension = argsNumber (= 6, see below)
-! integer(2), allocatable, device, dimension(:) :: pMaps1
-! integer(2), allocatable, device, dimension(:) :: pMaps2
-! integer(2), allocatable, device, dimension(:) :: pMaps3
-! integer(2), allocatable, device, dimension(:) :: pMaps4
-! integer(2), allocatable, device, dimension(:) :: pMaps5 ! not actually used
-! integer(2), allocatable, device, dimension(:) :: pMaps6 ! not actually used
-! integer(4) :: pmaps1Size, pmaps2Size, pmaps3Size, pmaps4Size, pmaps5Size, pmaps6Size
-! real(8), device, allocatable, dimension(:) :: parg4DatD ! real is obtained from op_dat arg type
-! integer(4) :: parg4DatDSize
-! real(8), device, allocatable, dimension(:) :: parg5DatD ! real is obtained from op_dat arg type
-! integer(4) :: parg5DatDSize
-! integer, device, allocatable, dimension(:) :: pindSizes
-! integer(4) :: pindSizesSize
-! integer, device, allocatable, dimension(:) :: pindOffs
-! integer(4) :: pindOffsSize
-! integer, device, allocatable, dimension(:) :: pblkMap
-! integer(4) :: pblkMapSize
-! integer, device, allocatable, dimension(:) :: poffset
-! integer(4) :: poffsetSize
-! integer, device, allocatable, dimension(:) :: pnelems
-! integer(4) :: pnelemsSize
-! integer, device, allocatable, dimension(:) :: pnthrcol
-! integer(4) :: pnthrcolSize
-! integer, device, allocatable, dimension(:) :: pthrcol
-! integer(4) :: pthrcolSize
-! integer, pointer, dimension(:) :: ncolblk
 
 contains
 
@@ -104,25 +65,7 @@ contains
       adt_calc_qinf(2) = 0.473286 ! r * u
       adt_calc_qinf(3) = 0.000000 ! 0.0
       adt_calc_qinf(4) = 2.612000 ! r * e
-!
-!
-!   adt_calc_gam = 1.4
-!   adt_calc_gm1 = 1.4 - 1.0 ! the first operand was a reference to the gam variable...not accepted by Fortran CUDA
-!   adt_calc_cfl = 0.9
-!   adt_calc_eps = 0.05
-!
-!   adt_calc_mach  = 0.4
-!   adt_calc_alpha = 3.0 * atan(1.0) / 45.0
-!   p     = 1.0
-!   r     = 1.0
-!   u     = sqrt ( adt_calc_gam * p / r ) * adt_calc_mach
-!   e     = p / ( r * adt_calc_gm1 ) + 0.5 * u * u
-!
-!   adt_calc_qinf(1) = r
-!   adt_calc_qinf(2) = r * u
-!   adt_calc_qinf(3) = 0.0
-!   adt_calc_qinf(4) = r * e
-!
+
   end subroutine adt_calc_initialiseConstants
 
   attributes(device) subroutine adt_calc ( x1, x2, x3, x4, q, adt )
@@ -154,7 +97,6 @@ contains
     dy = x3(2) - x2(2)
     adt(1) = adt(1) + abs ( u * dy - v * dx ) + c * sqrt ( dx*dx + dy*dy )
 
-
     dx = x4(1) - x3(1)
     dy = x4(2) - x3(2)
     adt(1) = adt(1) + abs ( u * dy - v * dx ) + c * sqrt ( dx*dx + dy*dy )
@@ -166,7 +108,6 @@ contains
     adt(1) = adt(1) / adt_calc_cfl
 
   end subroutine adt_calc
-
 
   attributes(global) subroutine op_cuda_adt_calc ( argSizes, &
                                                  & parg0DatD, &
@@ -218,7 +159,6 @@ contains
     integer(4), device, dimension(0:(argSizes%pnthrcolSize-1)) :: pnthrcol
     integer(4), device, dimension(0:(argSizes%pthrcolSize-1)) :: pthrcol
 
-
     ! declaring shared variables
     integer, shared :: ind_arg0_size
     integer, shared :: nelem
@@ -229,7 +169,6 @@ contains
     real(8), shared :: myshared(0:*)
 
     integer :: nbytes
-
     integer :: n, moduled, whileBound
 
     if ( (threadidx%x -1) .eq. 0 ) then
@@ -300,7 +239,6 @@ contains
 
     type(profInfo) :: op_par_loop_adt_calc
 
-
     ! formal arguments
     character(kind=c_char,len=*), intent(in) :: subroutineName
 
@@ -324,17 +262,14 @@ contains
     type(op_map_core), pointer :: map0, map1, map2, map3, map4, map5
     type(op_dat_core), pointer :: arg0, arg1, arg2, arg3, arg4, arg5
 
-!   ! Compiler: variables used to invoke cplan
+    ! Compiler: variables used to invoke cplan
     integer(4) :: args(6), idxs(6), maps(6), accs(6), inds(6), argsType(6)
     integer(4) :: argsNumber, indsNumber
     integer(4) :: partitionSize
 
     integer(4) :: iter
 
-!   ! returned plan address by cplan and plan functions
-!   type(c_ptr) :: planRet
-!
-!   ! variable for storing the actual OP Plan
+    ! variable for storing the actual OP Plan
     type(op_plan_cuda), pointer :: actualPlan
 
     ! iteration and offset variables to implement plan execution
@@ -346,63 +281,61 @@ contains
     ! iteration variables
     integer(4) :: i, m
 
-
     ! value returned by thread synchronisation function
     integer(4) :: threadSynchRet
 
-
     ! Fortran variable for Host variable
     integer, pointer, dimension(:) :: ncolblk
-!
+
     integer, pointer, dimension(:) :: pnindirect
 
     ! ind_maps is an array of device pointers allocated on the host memory
     type(c_devptr), pointer, dimension(:) :: pindMaps
     integer(4), dimension(1) :: pindMapsSize ! dimension = indsNumber (= 1, see below)
-!
-!   ! as many pindMapsI as the positions of pindMaps (just one for this case)
+
+    ! as many pindMapsI as the positions of pindMaps (just one for this case)
     integer, allocatable, device, dimension(:) :: pindMaps1
     integer(4) :: pindMaps1Size
-!
-!   ! maps is an array of device pointers allocated on the host memory
+
+    ! maps is an array of device pointers allocated on the host memory
     type(c_devptr), pointer, dimension(:) :: pmaps
     integer(4), dimension(6) :: pmapsSize ! dimension = argsNumber (= 6, see below)
-!
-!   ! as many pMapsI as the positions of pmaps (6 for this case) (they are short integers)
+
+    ! as many pMapsI as the positions of pmaps (6 for this case) (they are short integers)
     integer(2), allocatable, device, dimension(:) :: pMaps1
     integer(2), allocatable, device, dimension(:) :: pMaps2
     integer(2), allocatable, device, dimension(:) :: pMaps3
     integer(2), allocatable, device, dimension(:) :: pMaps4
     integer(2), allocatable, device, dimension(:) :: pMaps5 ! not actually used
     integer(2), allocatable, device, dimension(:) :: pMaps6 ! not actually used
-!
-!   ! last two not actually used
+
+    ! last two not actually used
     integer(4) :: pmaps1Size, pmaps2Size, pmaps3Size, pmaps4Size, pmaps5Size, pmaps6Size
-!
+
     real(8), device, allocatable, dimension(:) :: parg4DatD ! real is obtained from op_dat arg type
     integer(4) :: parg4DatDSize
-!
+
     real(8), device, allocatable, dimension(:) :: parg5DatD ! real is obtained from op_dat arg type
     integer(4) :: parg5DatDSize
-!
+
     integer, device, allocatable, dimension(:) :: pindSizes
     integer(4) :: pindSizesSize
-!
+
     integer, device, allocatable, dimension(:) :: pindOffs
     integer(4) :: pindOffsSize
-!
+
     integer, device, allocatable, dimension(:) :: pblkMap
     integer(4) :: pblkMapSize
-!
+
     integer, device, allocatable, dimension(:) :: poffset
     integer(4) :: poffsetSize
-!
+
     integer, device, allocatable, dimension(:) :: pnelems
     integer(4) :: pnelemsSize
-!
+
     integer, device, allocatable, dimension(:) :: pnthrcol
     integer(4) :: pnthrcolSize
-!
+
     integer, device, allocatable, dimension(:) :: pthrcol
     integer(4) :: pthrcolSize
 
@@ -417,9 +350,6 @@ contains
     real(8), dimension(:), allocatable, device :: argument5
 
     type(op_set_core), pointer :: arg0Set, arg4Set, arg5Set
-
-    ! variable storing CUDA kernel argument sizes
-!   type(varSizes_adt_calc), device :: argSizes
 
     ! profiling
     integer :: istat
@@ -452,8 +382,6 @@ contains
     arg5 => arg5In%dataPtr
 
     if ( isKernelInputDataGenerated .eq. .false. ) then ! generate kernel input data
-
-!     isKernelInputDataGenerated = .true.
 
       ! get the plan
       args(1) = arg0%index
@@ -490,10 +418,10 @@ contains
       accs(5) = access4
       accs(6) = access5
 
-
       ! Compiler: generate this information by analysing the arguments
       argsNumber = 6
-      indsNumber = 1 ! warning: this means the number of op_dat accessed indirectly, not the number of arguments!!
+      ! warning: this means the number of op_dat accessed indirectly, not the number of arguments!!
+      indsNumber = 1
 
       inds(1) = 0
       inds(2) = 0
@@ -537,7 +465,6 @@ contains
       else
         argsType(6) = F_OP_ARG_DAT
       end if
-
 
 #ifdef OP_PART_SIZE_1
       partitionSize = OP_PART_SIZE_1

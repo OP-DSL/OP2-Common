@@ -42,7 +42,6 @@ module bres_calc_cuda_module
                        bres_calc_air_const, &
                        bres_calc_qinf(4)
 
-
   ! logical that tells if the input data to the kernel has been already generated
   ! by previous calls to this same op_par_loop function
   logical :: isKernelInputDataGenerated = .false.
@@ -51,50 +50,6 @@ module bres_calc_cuda_module
   integer(4) :: arg0Size, arg2Size, arg3Size, arg4Size, arg5Size
   type(varSizes_bres_calc), device :: argSizes
   type(c_ptr) :: planRet
-
-! type(op_plan), pointer :: actualPlan
-
-
-! integer, pointer, dimension(:) :: ncolblk
-! integer, pointer, dimension(:) :: pnindirect
-! type(c_devptr), pointer, dimension(:) :: pindMaps
-! integer(4), dimension(1) :: pindMapsSize ! (just one array of pointers (i.e. other arrays))
-! integer, allocatable, device, dimension(:) :: pindMaps1
-! integer(4) :: pindMaps1Size
-! integer, allocatable, device, dimension(:) :: pindMaps2
-! integer(4) :: pindMaps2Size
-! integer, allocatable, device, dimension(:) :: pindMaps3
-! integer(4) :: pindMaps3Size
-! integer, allocatable, device, dimension(:) :: pindMaps4
-! integer(4) :: pindMaps4Size
-! type(c_devptr), pointer, dimension(:) :: pmaps
-! integer(4), dimension(6) :: pmapsSize ! dimension = op_par_loop args without OP_ID or OP_GBL (= 5, see below)
-!!  integer(2), allocatable, device, dimension(:) :: pMaps1
-! integer(2), allocatable, device, dimension(:) :: pMaps2
-! integer(2), allocatable, device, dimension(:) :: pMaps3
-! integer(2), allocatable, device, dimension(:) :: pMaps4
-! integer(2), allocatable, device, dimension(:) :: pMaps5
-! integer(2), allocatable, device, dimension(:) :: pMaps6
-! integer(4) :: pmaps1Size, pmaps2Size, pmaps3Size, pmaps4Size, pmaps5Size, pmaps6Size
-! integer, device, allocatable, dimension(:) :: pindSizes
-! integer(4) :: pindSizesSize
-! integer, device, allocatable, dimension(:) :: pindOffs
-! integer(4) :: pindOffsSize
-! integer, device, allocatable, dimension(:) :: pblkMap
-! integer(4) :: pblkMapSize
-! integer, device, allocatable, dimension(:) :: poffset
-! integer(4) :: poffsetSize
-! integer, device, allocatable, dimension(:) :: pnelems
-! integer(4) :: pnelemsSize
-! integer, device, allocatable, dimension(:) :: pnthrcol
-! integer(4) :: pnthrcolSize
-! integer, device, allocatable, dimension(:) :: pthrcol
-! integer(4) :: pthrcolSize
-! real(8), dimension(:), allocatable, device :: argument0
-! real(8), dimension(:), allocatable, device :: argument2
-! real(8), dimension(:), allocatable, device :: argument3
-! real(8), dimension(:), allocatable, device :: argument4
-! integer(4), dimension(:), allocatable, device :: argument5
 
 contains
 
@@ -109,18 +64,6 @@ contains
     bres_calc_cfl = 0.900000
     bres_calc_eps = 0.050000
     bres_calc_alpha = 0.052360
-
-!     bres_calc_gam = 1.4
-!     bres_calc_gm1 = 1.4 - 1.0 ! the first operand was a reference to the gam variable...not accepted by Fortran CUDA
-!     bres_calc_cfl = 0.9
-!     bres_calc_eps = 0.05
-!
-!     bres_calc_mach  = 0.4
-!     bres_calc_alpha = 3.0 * atan(1.0) / 45.0
-!     p     = 1.0
-!     r     = 1.0
-!     u     = sqrt ( bres_calc_gam * p / r ) * bres_calc_mach
-!     e     = p / ( r * bres_calc_gm1 ) + 0.5 * u * u
 
     bres_calc_qinf(1) = 1.000000 ! r
     bres_calc_qinf(2) = 0.473286 ! r * u
@@ -165,18 +108,14 @@ contains
 
       mu = (adt1(1)) * bres_calc_eps;
 
-
       f = 0.5 * (vol1 * q1(1)         + vol2 * bres_calc_qinf(1)        ) + mu*(q1(1)-bres_calc_qinf(1));
       res1(1) = res1(1) + f;
-
 
       f = 0.5 * (vol1* q1(2) + p1*dy + vol2* bres_calc_qinf(2) + p2*dy) + mu*(q1(2)-bres_calc_qinf(2));
       res1(2) = res1(2) + f;
 
-
       f = 0.5 * (vol1* q1(3) - p1*dx + vol2* bres_calc_qinf(3) - p2*dx) + mu*(q1(3)-bres_calc_qinf(3));
       res1(3) = res1(3) + f;
-
 
       f = 0.5 * (vol1*(q1(4)+p1)     + vol2*(bres_calc_qinf(4)+p2)    ) + mu*(q1(4)-bres_calc_qinf(4));
       res1(4) = res1(4) + f;
@@ -186,28 +125,28 @@ contains
   end subroutine bres_calc
 
   attributes(global) subroutine op_cuda_bres_calc ( argSizes, &
-                                                    pindArg0, &
-                                                    pindArg0Maps, &
-                                                    pindArg1, &
-                                                    pindArg1Maps, &
-                                                    pindArg2, &
-                                                    pindArg2Maps, &
-                                                    pindArg3, &
-                                                    pindArg3Maps, &
-                                                    & parg0Maps, &
-                                                    & parg1Maps, &
-                                                    & parg2Maps, &
-                                                    & parg3Maps, &
-                                                    & parg4Maps, &
-                                                    & parg5DatD, &
-                                                    & pindArgSizes, &
-                                                    & pindArgOffs, &
-                                                    & blockOffset, &
-                                                    & pblkMap, &
-                                                    & poffset, &
-                                                    & pnelems, &
-                                                    & pncolors, &
-                                                    & pcolors &
+                                                  & pindArg0, &
+                                                  & pindArg0Maps, &
+                                                  & pindArg1, &
+                                                  & pindArg1Maps, &
+                                                  & pindArg2, &
+                                                  & pindArg2Maps, &
+                                                  & pindArg3, &
+                                                  & pindArg3Maps, &
+                                                  & parg0Maps, &
+                                                  & parg1Maps, &
+                                                  & parg2Maps, &
+                                                  & parg3Maps, &
+                                                  & parg4Maps, &
+                                                  & parg5DatD, &
+                                                  & pindArgSizes, &
+                                                  & pindArgOffs, &
+                                                  & blockOffset, &
+                                                  & pblkMap, &
+                                                  & poffset, &
+                                                  & pnelems, &
+                                                  & pncolors, &
+                                                  & pcolors &
                                                 & )
 
     implicit none
@@ -243,10 +182,8 @@ contains
     integer(4), dimension(0:(argSizes%pNcolorsSize)-1), device :: pncolors
     integer(4), dimension(0:(argSizes%pColorsSize)-1), device :: pcolors
 
-
     ! the following variables are used to keep temporary values for OP_INC data (4-th parameter to op_par_loop)
     real(8), dimension(0:3) :: arg4_l
-
 
     integer(4), shared :: ind_arg0_size
     integer(4), shared :: ind_arg1_size
@@ -258,7 +195,6 @@ contains
     integer(4), shared :: nelem
     integer(4), shared :: offset_b
     integer(4), shared :: blockId
-
 
     ! the following shared variable is allocated by the kernel call (nshared parameter)
     ! in case of op_dats with different base data type, we can declare multiple
@@ -286,32 +222,11 @@ contains
       nelems2  = blockdim%x * ( 1 + ( nelem - 1 ) / blockdim%x )
       ncolor   = pncolors(blockId)
 
-      ! ind_arg0_size = ind_arg_sizes[0+blockId*4];
-      ! ind_arg1_size = ind_arg_sizes[1+blockId*4];
-      ! ind_arg2_size = ind_arg_sizes[2+blockId*4];
-      ! ind_arg3_size = ind_arg_sizes[3+blockId*4];
-
       ! in the *4 expression, 4 is equal to indsNumber
       ind_arg0_size = pindArgSizes(0 + blockId * 4)
       ind_arg1_size = pindArgSizes(1 + blockId * 4)
       ind_arg2_size = pindArgSizes(2 + blockId * 4)
       ind_arg3_size = pindArgSizes(3 + blockId * 4)
-
-      ! ind_arg0_map = ind_arg0_maps + ind_arg_offs[0+blockId*4];
-      ! ind_arg1_map = ind_arg1_maps + ind_arg_offs[1+blockId*4];
-      ! ind_arg2_map = ind_arg2_maps + ind_arg_offs[2+blockId*4];
-      ! ind_arg3_map = ind_arg3_maps + ind_arg_offs[3+blockId*4];
-
-      ! // set shared memory pointers
-
-      ! int nbytes = 0;
-      ! ind_arg0_s = (double *) &shared[nbytes];
-      ! nbytes    += ROUND_UP(ind_arg0_size*sizeof(double)*2);
-      ! ind_arg1_s = (double *) &shared[nbytes];
-      ! nbytes    += ROUND_UP(ind_arg1_size*sizeof(double)*4);
-      ! ind_arg2_s = (double *) &shared[nbytes];
-      ! nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1);
-      ! ind_arg3_s = (double *) &shared[nbytes];
 
     end if
 
@@ -385,7 +300,6 @@ contains
       n = n + (blockdim%x)
     end do
 
-
     ! implements:
     ! for (int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x)
     !   ind_arg3_s[n] = ZERO_float;
@@ -401,7 +315,6 @@ contains
       !       nbytes    += ROUND_UP(ind_arg2_size*sizeof(double)*1); == nbytes2
       !       ind_arg3_s = (double *) &shared[nbytes];
       myshared(nbytes3 + n) = 0
-      !pindArg3(moduled  + ( pindArg3Maps ( 0 + pindArgOffs( 3 + blockId * 4 ) ) + ( n / 2 ) ) )
 
       n = n + (blockdim%x)
     end do
@@ -409,14 +322,10 @@ contains
     ! make sure all of above completed
     call syncthreads()
 
-    ! for (int n=threadIdx.x; n<nelems2; n+=blockDim.x) {
-    !   int col2 = -1;
-
     n = (threadidx%x-1)
     do while ( n .lt. nelems2 )
       col2 = -1
 
-      !   if (n<nelem) {
       if ( n < nelem ) then
 
         ! initialise local variables
@@ -460,11 +369,8 @@ contains
 
         if ( col2 .eq. col ) then
 
-          ! for (int d=0; d<4; d++)
           do iterInit = 0, 3
-
             myshared(nbytes3 + iterInit + arg4_map*4 ) = myshared(nbytes3 + iterInit + arg4_map*4 ) + arg4_l(iterInit)
-
           end do
 
         end if
@@ -492,16 +398,10 @@ contains
       ! and that:
       ! ind_arg3_s = myshared(nbytes3)
      !ind_arg3[n%4+ind_arg3_map[n/4]*4]
-     !pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 )
       pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 ) = pindArg3 ( moduled + pindArg3Maps ( (0 + pindArgOffs ( 3 + blockId * 4 )) + (n / 4) ) * 4 ) + myshared(nbytes3 + n)
 
       n = n + (blockdim%x)
     end do
-
-!     pindArg3 ( 0 ) = bres_calc_qinf(1)
-!     pindArg3 ( 1 ) = bres_calc_qinf(2)
-!     pindArg3 ( 2 ) = bres_calc_qinf(3)
-!     pindArg3 ( 3 ) = bres_calc_qinf(4)
 
   end subroutine op_cuda_bres_calc
 
@@ -551,10 +451,7 @@ contains
       integer(4) :: argsNumber, indsNumber
       integer(4) :: partitionSize
 
-!     ! returned plan address by cplan and plan functions
-!     type(c_ptr) :: planRet
-
-!     ! variable for storing the actual OP Plan
+      ! variable for storing the actual OP Plan
       type(op_plan_cuda), pointer :: actualPlan
 
       ! iteration and offset variables to implement plan execution
@@ -574,11 +471,11 @@ contains
 
       integer, pointer, dimension(:) :: pnindirect
 
-!     ! ind_maps is an array of device pointers allocated on the host memory
+      ! ind_maps is an array of device pointers allocated on the host memory
       type(c_devptr), pointer, dimension(:) :: pindMaps
       integer(4), dimension(1) :: pindMapsSize ! (just one array of pointers (i.e. other arrays))
 
-!     ! as many pindMapsI as the positions of pindMaps (4 in this case = indsNumber )
+      ! as many pindMapsI as the positions of pindMaps (4 in this case = indsNumber )
       integer, allocatable, device, dimension(:) :: pindMaps1
       integer(4) :: pindMaps1Size
 
@@ -591,18 +488,17 @@ contains
       integer, allocatable, device, dimension(:) :: pindMaps4
       integer(4) :: pindMaps4Size
 
-!     ! maps is an array of device pointers allocated on the host memory
+      ! maps is an array of device pointers allocated on the host memory
       type(c_devptr), pointer, dimension(:) :: pmaps
       integer(4), dimension(6) :: pmapsSize ! dimension = op_par_loop args without OP_ID or OP_GBL (= 5, see below)
 
-!     ! as many pMapsI as the positions of pmaps (8 for this case) (they are short integers)
+      ! as many pMapsI as the positions of pmaps (8 for this case) (they are short integers)
       integer(2), allocatable, device, dimension(:) :: pMaps1
       integer(2), allocatable, device, dimension(:) :: pMaps2
       integer(2), allocatable, device, dimension(:) :: pMaps3
       integer(2), allocatable, device, dimension(:) :: pMaps4
       integer(2), allocatable, device, dimension(:) :: pMaps5
       integer(2), allocatable, device, dimension(:) :: pMaps6
-
 
       integer(4) :: pmaps1Size, pmaps2Size, pmaps3Size, pmaps4Size, pmaps5Size, pmaps6Size
 
@@ -627,21 +523,15 @@ contains
       integer, device, allocatable, dimension(:) :: pthrcol
       integer(4) :: pthrcolSize
 
-!     ! variables for marshalling data from host to device memory and back
-!     integer(4) :: arg0Size, arg2Size, arg3Size, arg4Size, arg5Size
-
       real(8), dimension(:), allocatable, device :: argument0
       real(8), dimension(:), allocatable, device :: argument2
       real(8), dimension(:), allocatable, device :: argument3
       real(8), dimension(:), allocatable, device :: argument4
 
-!     ! the type of the following argument is derived from the main airfoil program
+      ! the type of the following argument is derived from the main airfoil program
       integer(4), dimension(:), allocatable, device :: argument5
 
       type(op_set_core), pointer :: arg0Set, arg2Set, arg3Set, arg4Set, arg5Set
-
-!     ! sizes of variables passed to kernel are all encapsulated inside a single struct
-!     type(varSizes_bres_calc), device :: argSizes
 
       ! profiling
       integer :: istat
@@ -674,8 +564,6 @@ contains
       arg5 => arg5In%dataPtr
 
       if ( isKernelInputDataGenerated .eq. .false. ) then
-
-!       isKernelInputDataGenerated = .true.
 
         ! filling up variables for building the plan
         args(1) = arg0%index
@@ -711,7 +599,6 @@ contains
         accs(4) = access3
         accs(5) = access4
         accs(6) = access5
-
 
         ! Compiler: generate this information by analysing the arguments
         argsNumber = 6
@@ -862,7 +749,6 @@ contains
         call c_f_pointer ( pmaps(6), pmaps6, (/pmaps6Size/) )
       end if
 
-
       ! converting ncolblk field to fortran variable
       call c_f_pointer ( actualPlan%ncolblk, ncolblk, (/set%size/) )
 
@@ -896,7 +782,6 @@ contains
 
       blockOffset = 0
 
-
       if ( isKernelInputDataGenerated .eq. .false. ) then
 
         isKernelInputDataGenerated = .true.
@@ -927,7 +812,6 @@ contains
 
       end if
 
-
       istat = cudaEventRecord ( stopHostTime, 0 )
 
       istat = cudaEventSynchronize ( stopHostTime )
@@ -950,8 +834,6 @@ contains
 
         nblocks = ncolblk(col+1) !+1 is needed because ncolblk is indexed from 1:set%size and not from 0:set%size-1
         nshared = actualPlan%nshared
-
-!         print *, 'col = ', col, nblocks, nthread, nshared
 
         ! call the main kernel (I need to add the variable sizes, otherwise we would get sigsegv in copy back)
         call op_cuda_bres_calc <<< nblocks, nthread, nshared >>> ( argSizes, &

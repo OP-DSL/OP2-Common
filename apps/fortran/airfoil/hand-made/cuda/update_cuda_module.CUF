@@ -3,7 +3,6 @@ module update_cuda_module
   use OP2_Fortran_Declarations
   use OP2_Fortran_RT_Support
   use cudaConfigurationParams
-! use constantVarsCuda
   use OP2Profiling
   use cudafor
 
@@ -30,8 +29,6 @@ module update_cuda_module
 
   real(8), dimension(:), allocatable :: redArrayHost
   real(8), dimension(:), allocatable, device :: redArrayDev
-
-! real(8), dimension(:), pointer :: c2fPtrArg4
 
 contains
 
@@ -149,7 +146,6 @@ contains
     real(8), dimension(0:(argSizes%parg3Size)-1), device :: parg3
     real(8), dimension(0:(argSizes%parg4Size)-1), device :: parg4
 
-
     integer(4), value :: offsetS
     integer(4), value :: setSize
     integer(4), value :: warpSizeOP2
@@ -167,9 +163,6 @@ contains
     integer(4) :: d, n, m
     integer(4) :: tid, offset, nelems, outof
 
-    ! debug
-!   integer(4) :: outofbound = 0
-
     ! automatic shared memory
     real(8), shared :: autoshared(0:*)
 
@@ -181,9 +174,7 @@ contains
     argSDisplacement = (offsetS * ( (threadidx%x-1) / warpSizeOP2 )) / 8
 
     do d = 0, 0
-
       arg4_l(d) = 0
-
     end do
 
     ! implements:
@@ -208,44 +199,32 @@ contains
       ! for (int m=0; m<4; m++)
       !   ((double *)arg_s)[tid+m*nelems] = arg0[tid+m*nelems+offset*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call ! argSDisplacement
         autoshared ( argSDisplacement  + ( tid + m * nelems ) ) = parg0 ( tid + m * nelems + offset * 4 )
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg0_l[m] = ((double *)arg_s)[m+tid*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         arg0_l(m) = autoshared ( argSDisplacement + ( m + tid * 4 ) )
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   ((double *)arg_s)[tid+m*nelems] = arg2[tid+m*nelems+offset*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         autoshared ( argSDisplacement + ( tid + m * nelems ) ) = parg2 ( tid + m * nelems + offset * 4 )
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg2_l[m] = ((double *)arg_s)[m+tid*4];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         arg2_l(m) = autoshared ( argSDisplacement + ( m + tid * 4 ) )
-
       end do
 
       ! user-supplied kernel call
@@ -270,44 +249,32 @@ contains
       ! for (int m=0; m<4; m++)
       !   ((double *)arg_s)[m+tid*4] = arg1_l[m];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         autoshared ( argSDisplacement + ( m + tid * 4 ) ) = arg1_l(m)
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg1[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         parg1 ( tid + m * nelems + offset * 4 ) = autoshared ( argSDisplacement + ( tid + m * nelems ) )
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   ((double *)arg_s)[m+tid*4] = arg2_l[m];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         autoshared ( argSDisplacement + ( m + tid * 4 ) ) = arg2_l(m)
-
       end do
 
       ! implements:
       ! for (int m=0; m<4; m++)
       !   arg2[tid+m*nelems+offset*4] = ((double *)arg_s)[tid+m*nelems];
       do m = 0, 3
-
-        ! autoshared ( argSDisplacement ) = arg_s
         ! 4 is the dimension of argument 0 in this op_par_loop call
         parg2 ( tid + m * nelems + offset * 4 ) = autoshared ( argSDisplacement + ( tid + m * nelems ) )
-
       end do
 
       n = n + blockdim%x * griddim%x
@@ -320,32 +287,10 @@ contains
     ! for(int d=0; d<1; d++) op_reduction<OP_INC>(&arg4[d+blockIdx.x*1],arg4_l[d]);
 
     do d = 0, 0
-
       call reduct_update ( parg4 ( d + (blockidx%x -1) * 1 : d + (blockidx%x -1) * 1 ), arg4_l(d), warpSizeOP2, redStartOffset )
-
     end do
 
-!   if ( outof .eq. -1 ) then
-!
-!     parg4 ( 0 + (blockidx%x -1) * 1 ) = -100.0
-!
-!   else
-!
-!     parg4 ( 0 + (blockidx%x -1) * 1 ) = -200.0
-!
-!   end if
-
   end subroutine op_cuda_update
-
-! attributes(host) function round_up ( intval )
-!
-!   integer(4) :: intval
-!
-!   integer(4) :: round_up
-!
-!   round_up = iand ( ( intval ) + 15, not ( 15 ) )
-!
-! end function round_up
 
   attributes(host) function op_par_loop_update ( subroutineName, setIn, &
                                                  & arg0In,   idx0, map0In, access0, &
@@ -397,14 +342,12 @@ contains
     ! and they contain the values computed by each thread block
 
     type(op_set_core), pointer :: arg0Set, arg1Set, arg2Set, arg3Set
-!   integer(4) :: arg0Size, arg1Size, arg2Size, arg3Size, arg4Size
     real(kind=c_double), dimension(:), pointer :: c2fPtrArg4
 
     real(8), dimension(:), allocatable, device :: argument0
     real(8), dimension(:), allocatable, device :: argument1
     real(8), dimension(:), allocatable, device :: argument2
     real(8), dimension(:), allocatable, device :: argument3
-!   real(8), dimension(:), allocatable, device :: argument4
 
     ! this is needed to avoid having more than 1 device variable in the same expression (see re-assignement
     ! after kernel call below)
@@ -423,9 +366,6 @@ contains
 
     ! value returned by thread synchronisation function
     integer(4) :: threadsynchret
-
-    ! size of arguments
-!   type(varSizes_update), device :: argSizes
 
     real(8) :: reductedValue = 0
 
@@ -523,8 +463,6 @@ contains
     ! arguments *plus* the size of the needed memory for the reduction variable (see below)
     nshared = nshared * nthreads
 
-!   nshared = max ( nshared * nthreads, reductSize * nthreads )
-
     ! 1. transfer C pointers to Fortran pointers
 
     call c_f_pointer ( arg0%dat_d, argument0, (/arg0Size/) )
@@ -563,9 +501,7 @@ contains
 
     ! always zero out reduction variable on host
     do i = 1, reductItems
-
       redArrayHost ( i ) = 0
-
     end do
 
     ! and then copy it to device
@@ -589,17 +525,6 @@ contains
     ! copy back reduction variable, from device to host
     redArrayHost = redArrayDev
 
-!    print *, 'printing out host array'
-!    summed = 0
-!    do i = 1, reductItems
-
-!      print *, redArrayHost ( i )
-! summed = summed + redArrayHost ( i )
-
-!    end do
-!print *, summed
-!    stop
-
     ! 2. reduct the host array to the single user variable
     ! implements:
 
@@ -607,13 +532,9 @@ contains
     !   for (int d=0; d<1; d++)
     !     arg4h[d] = arg4h[d] + ((double *)arg4.dat)[d+b*1];
     do b = 1, reductItems
-
       do d = 0, 0
-
             c2fPtrArg4 ( d + 1 ) = c2fPtrArg4 ( d + 1 ) + redArrayHost ( d + b * 1 )
-
       end do
-
     end do
 
     ! moved here to reflect Mike's timing...
