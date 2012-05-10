@@ -1,3 +1,7 @@
+#include "op_lib_core.h"
+#include "op_lib_cpp.h"
+#include "op_cuda_rt_support.h"
+
 __device__ void op_atomic_add(double *address, double val)
 {
   unsigned long long int new_val, old;
@@ -16,7 +20,6 @@ __device__ void op_atomic_add(float *address, float val)
   atomicAdd(address, val);
 }
 
-static
 __device__ int pos(int row, int col, int* rowptr, int* colidx)
 {
   for ( int k = rowptr[row]; k < rowptr[row+1]; k++ )
@@ -63,7 +66,7 @@ __global__ void op_lma_to_csr_dev (T *lma, T *data,
 }
 
 template<class T>
-__host__ void op_mat_lma_to_csr(T *dummy, op_arg arg, op_set set)
+__host__ void op_mat_lma_to_csr(op_arg arg, op_set set)
 {
   op_mat mat = arg.mat;
   op_sparsity sparsity = mat->sparsity;
@@ -90,9 +93,19 @@ __host__ void op_mat_lma_to_csr(T *dummy, op_arg arg, op_set set)
                                    ((T *)mat->data),
                                    rowptr,
                                    colidx,
-                                   rmap->rmap_d,
+                                   rmap->map_d,
                                    rmapdim,
-                                   cmap->cmap_d,
+                                   cmap->map_d,
                                    cmapdim,
                                    nelems);
+}
+
+__host__ void op_mat_lma_to_csr(float *dummy, op_arg arg, op_set set)
+{
+  op_mat_lma_to_csr<float>(arg, set);
+}
+
+__host__ void op_mat_lma_to_csr(double *dummy, op_arg arg, op_set set)
+{
+  op_mat_lma_to_csr<double>(arg, set);
 }
