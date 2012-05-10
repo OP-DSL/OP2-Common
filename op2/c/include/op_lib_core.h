@@ -264,6 +264,8 @@ op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 
 op_arg op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc );
 
+void op_duplicate_arg (const op_arg in, op_arg * out);
+
 void op_diagnostic_output ( void );
 
 void op_timing_output_core ( void );
