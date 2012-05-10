@@ -620,6 +620,28 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   return arg;
 }
 
+void op_duplicate_arg (const op_arg in, op_arg * out)
+{
+  out->argtype = in.argtype;
+
+  out->dat = in.dat;
+  out->mat = in.mat;
+  out->map = in.map;
+  out->dim = in.dim;
+  out->idx = in.idx;
+  out->size = in.size;
+  out->idx2 = in.idx2;
+  out->map2 = in.map2;
+  out->data = in.data;
+  out->type = in.type;
+  out->acc = in.acc;
+
+  out->index = in.index;
+  out->data_d = in.data_d;
+
+  out->sent = in.sent;
+}
+
 /*
  * diagnostic routines
  */
