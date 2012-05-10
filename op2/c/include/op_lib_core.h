@@ -114,6 +114,7 @@ typedef struct
               to;     /* set pointed to */
   int         dim,    /* dimension of pointer */
              *map;    /* array defining pointer */
+  int        *map_d;  /* map data on device */
   char const *name;   /* name of pointer */
   int         user_managed; /* indicates whether the user is managing memory */
 } op_map_core;
@@ -164,6 +165,7 @@ typedef struct
              *name;   /* name of matrix */
   op_sparsity sparsity;         /* sparsity structure */
   char       *data;   /* matrix entries (device) */
+  char       *lma_data;         /* matrix entries in LMA form (device) */
 } op_mat_core;
 
 typedef op_mat_core * op_mat;
