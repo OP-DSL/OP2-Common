@@ -47,6 +47,7 @@ endif
 endif
 
 NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCC = nvcc
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
@@ -98,8 +99,8 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
-
-	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
+	$(NVCC) $(NVCCFLAGS) -I$(INC) -c $(SRC)/cuda/op_cuda_utils.cu -o $(OBJ)/op_cuda_utils.o
+	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o $(OBJ)/op_cuda_utils.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_lib_util.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o

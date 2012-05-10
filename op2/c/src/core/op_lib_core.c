@@ -199,6 +199,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   map->to = to;
   map->dim = dim;
   map->map = imap;
+  map->map_d = NULL;
   map->name = copy_str( name );
   map->user_managed = 1;
 
@@ -290,6 +291,8 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
   mat->type = type;
   mat->size = dim * size;
   mat->mat = 0;
+  mat->data = NULL;
+  mat->lma_data = NULL;
 
   OP_mat_list[OP_mat_index++] = mat;
 
