@@ -199,7 +199,7 @@ void op_par_loop_res(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
                       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-      int nshared = Plan->nshared[col];
+      int nshared = Plan->nsharedCol[col];
         op_cuda_res<<<nblocks,nthread,nshared>>>(
            (double *)arg1.data_d,
            (double *)arg2.data_d,

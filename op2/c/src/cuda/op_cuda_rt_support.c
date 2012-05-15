@@ -175,11 +175,17 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
       offsets[m+1] = offsets[m] + count;
     }
     op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[ninds] * set_size * sizeof ( int ));
+    for ( int m = 0; m < ninds; m++ ) {
+      plan->ind_maps[m] = &plan->ind_map[set_size*offsets[m]];
+    }
+    op_mvHostToDevice ( ( void *** ) &( plan->ind_maps ), ninds * sizeof ( int * ));
     free(offsets);
 
     int counter = 0;
-    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;}
     op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+    op_mvHostToDevice ( ( void *** ) &( plan->loc_maps ), sizeof ( short * ) * nargs );
+
 
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),

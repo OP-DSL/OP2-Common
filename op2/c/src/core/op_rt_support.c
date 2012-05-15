@@ -486,15 +486,15 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   for ( int b = 0; b < nblocks; b++ )
   {
-  prev_offset = next_offset;
-  if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-    next_offset = set->core_size;
-  } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
-    next_offset = exec_length;
-  } else {
-    next_offset = prev_offset + bsize;
-  }
-  int bs = next_offset-prev_offset;
+    prev_offset = next_offset;
+    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+      next_offset = set->core_size;
+    } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
+      next_offset = exec_length;
+    } else {
+      next_offset = prev_offset + bsize;
+    }
+    int bs = next_offset-prev_offset;
 
     offset[b] = prev_offset;  /* offset for block */
     nelems[b] = bs;   /* size of block */
@@ -652,8 +652,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           work[inds[m]][e] = 0; // zero out color arrays
       }
     }
-  prev_offset = 0;
-  next_offset = 0;
+    prev_offset = 0;
+    next_offset = 0;
     for ( int b = 0; b < nblocks; b++ )
     {
       prev_offset = next_offset;
@@ -743,29 +743,28 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   /* reorder blocks by color? */
 
   /* work out shared memory requirements */
-  OP_plans[ip].nshared = (int *)malloc(ncolors * sizeof(int));
+  OP_plans[ip].nsharedCol = (int *)malloc(ncolors * sizeof(int));
   float total_shared = 0;
   for (int col = 0; col < ncolors; col++) {
-  OP_plans[ip].nshared[col] = 0;
-  for ( int b = 0; b < nblocks; b++ ) {
-    if (blk_col[b] ==  col) {
+    OP_plans[ip].nsharedCol[col] = 0;
+    for ( int b = 0; b < nblocks; b++ ) {
+      if (blk_col[b] ==  col) {
         int nbytes = 0;
-        for ( int m = 0; m < ninds; m++ )
-        {
+        for ( int m = 0; m < ninds; m++ )  {
           int m2 = 0;
           while ( inds[m2] != m )
             m2++;
 
           nbytes += ROUND_UP ( ind_sizes[m + b * ninds] * dats[m2]->size );
         }
-        OP_plans[ip].nshared[col] = MAX ( OP_plans[ip].nshared[col], nbytes );
+        OP_plans[ip].nsharedCol[col] = MAX ( OP_plans[ip].nsharedCol[col], nbytes );
         total_shared += nbytes;
-        }
+      }
     }
   }
-  /*
+
   OP_plans[ip].nshared = 0;
-  float total_shared = 0;
+  total_shared = 0;
 
   for ( int b = 0; b < nblocks; b++ )
   {
@@ -781,7 +780,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].nshared = MAX ( OP_plans[ip].nshared, nbytes );
     total_shared += nbytes;
   }
-  */
+
   /* work out total bandwidth requirements */
 
   OP_plans[ip].transfer = 0;
@@ -875,9 +874,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf( " maximum block size     = %d \n", bsize );
     printf( " average thread colors  = %.2f \n", total_colors / nblocks );
     //printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
-  printf( " shared memory required = ");
-  for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nshared[i] / 1024.0f );
-  printf(" %.2f KB\n", OP_plans[ip].nshared[ncolors-1] / 1024.0f );
+    printf( " shared memory required = ");
+    for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nshared[i] / 1024.0f );
+    printf(" %.2f KB\n", OP_plans[ip].nshared[ncolors-1] / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
         OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );
