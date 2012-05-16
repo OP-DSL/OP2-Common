@@ -10,6 +10,8 @@
 
 char blank_args[512]; // scratch space to use for blank args
 
+char blank_args[512]; // scratch space to use for blank args
+
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   *p_arg = arg.data;
 

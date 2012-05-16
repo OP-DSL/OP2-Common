@@ -171,7 +171,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   }
 
-
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
