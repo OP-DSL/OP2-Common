@@ -187,10 +187,10 @@ int main(int argc, char **argv)
   for(int iter=1; iter<=niter; iter++) {
 
     op_par_loop(res_calc,"res_calc",cells,
-                op_arg_dat(p_xm,    OP_ALL, pcell, 2,"double",OP_READ),
-                op_arg_dat(p_phim,  OP_ALL, pcell, 1,"double",OP_READ),
+                op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
+                op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
                 op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
-                op_arg_dat(p_resm,  OP_ALL, pcell, 1,"double",OP_INC)
+                op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
                 );
 
     op_par_loop(dirichlet,"dirichlet",bnodes,
@@ -218,9 +218,9 @@ int main(int argc, char **argv)
     while (res > 0.1*res0 && iter < maxiter) {
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
-                  op_arg_dat(p_V, OP_ALL, pcell, 1, "double", OP_INC),
+                  op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
                   op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
-                  op_arg_dat(p_P, OP_ALL, pcell, 1, "double", OP_READ));
+                  op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet,"dirichlet",bnodes,
                   op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
