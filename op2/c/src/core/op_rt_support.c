@@ -441,6 +441,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ninds = ninds;
   OP_plans[ip].part_size = part_size;
   OP_plans[ip].nblocks = nblocks;
+  OP_plans[ip].ncolors_core = 0;
+  OP_plans[ip].ncolors_owned = 0;
   OP_plans[ip].count = 1;
 
   OP_plan_index++;
@@ -487,8 +489,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   for ( int b = 0; b < nblocks; b++ )
   {
     prev_offset = next_offset;
-    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-      next_offset = set->core_size;
+    if (prev_offset + bsize >= set->size && prev_offset < set->size) {
+      next_offset = set->size;
     } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
       next_offset = exec_length;
     } else {
@@ -627,7 +629,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   }
 
 
-  /* colour the blocks, after initialising colors to 0 */
+  /* color the blocks, after initialising colors to 0 */
 
   int * blk_col;
 
@@ -657,8 +659,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     for ( int b = 0; b < nblocks; b++ )
     {
       prev_offset = next_offset;
-      if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-        next_offset = set->core_size;
+      if (prev_offset + bsize >= set->size && prev_offset < set->size) {
+        next_offset = set->size;
       } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
         next_offset = exec_length;
       } else {
@@ -667,10 +669,12 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       if ( blk_col[b] == -1 )
       { // color not yet assigned to block
         uint mask = 0;
-    if (prev_offset >= set->core_size) { //should not use block colors from the core set when doing the non_core ones
-      if (prev_offset == set->core_size) OP_plans[ip].ncolors_core = ncolors;
-      for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
-    }
+        if (next_offset > set->core_size) { //should not use block colors from the core set when doing the non_core ones
+          if (prev_offset <= set->core_size) OP_plans[ip].ncolors_core = ncolors;
+          for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
+          if (prev_offset == set->size) OP_plans[ip].ncolors_owned = ncolors;
+          for (int shifter = OP_plans[ip].ncolors_core; shifter < OP_plans[ip].ncolors_owned; shifter++) mask |= 1<<shifter;
+        }
 
         for ( int m = 0; m < nargs; m++ )
         {
@@ -875,8 +879,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf( " average thread colors  = %.2f \n", total_colors / nblocks );
     //printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
     printf( " shared memory required = ");
-    for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nshared[i] / 1024.0f );
-    printf(" %.2f KB\n", OP_plans[ip].nshared[ncolors-1] / 1024.0f );
+    for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nsharedCol[i] / 1024.0f );
+    printf(" %.2f KB\n", OP_plans[ip].nsharedCol[ncolors-1] / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
         OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );

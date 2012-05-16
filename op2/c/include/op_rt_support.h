@@ -64,7 +64,8 @@ typedef struct {
   short     **loc_maps;   /* maps to local indices, renumbered as needed */
   int         nblocks;    /* number of blocks */
   int        *nelems;     /* number of elements in each block */
-  int         ncolors_core;/* mumber of core colors in MPI */
+  int         ncolors_core; /* mumber of core colors in MPI */
+  int         ncolors_owned; /* mumber of colors in MPI for blocks that only have owned elements*/
   int         ncolors;    /* number of block colors */
   int        *ncolblk;    /* number of blocks for each color */
   int        *blkmap;     /* block mapping */

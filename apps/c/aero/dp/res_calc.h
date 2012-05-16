@@ -5,7 +5,7 @@ inline void res_calc(double **x, double **phim, double *K, /*double *Kt,*/ doubl
     }
   }
   for (int i = 0; i<4; i++) { //for each gauss point
-    double N[] = {Ng2[i], Ng2[4+i], Ng2[8+i], Ng2[12+i]};
+    //double N[] = {Ng2[i], Ng2[4+i], Ng2[8+i], Ng2[12+i]};
     double N_xi[] = {Ng2_xi[4*i], Ng2_xi[4*i+1], Ng2_xi[4*i+2], Ng2_xi[4*i+3], Ng2_xi[4*i+16], Ng2_xi[4*i+17], Ng2_xi[4*i+18], Ng2_xi[4*i+19]};
     double x_xi[] = {N_xi[0]*x[0][0]+N_xi[1]*x[1][0]+N_xi[2]*x[2][0]+N_xi[3]*x[3][0],
             N_xi[0]*x[0][1]+N_xi[1]*x[1][1]+N_xi[2]*x[2][1]+N_xi[3]*x[3][1],

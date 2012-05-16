@@ -198,9 +198,6 @@ for narg = 1: nargin
           end
         else
           maps(m) = OP_MAP;
-          if(idxs(m)<0)
-            error(sprintf('invalid index for argument %d',m));
-          end
         end
 
         dims{m} = args{4};
@@ -244,7 +241,7 @@ for narg = 1: nargin
     inds      = zeros(1,nargs);
     invinds   = zeros(1,nargs);
     indtyps   = cell(1,nargs);
-    inddims   = zeros(1,nargs);
+    inddims   = cell(1,nargs);
     indaccs   = zeros(1,nargs);
 
     j = find(maps==OP_MAP);               % find all indirect arguments
@@ -255,7 +252,7 @@ for narg = 1: nargin
             &       (accs(j(1)) == accs(j));     % same access
       ninds = ninds + 1;
       indtyps{ninds} = typs{j(1)};
-      inddims(ninds) = dims{j(1)};
+      inddims{ninds} = dims{j(1)};
       indaccs(ninds) = accs(j(1));
       inds(j(find(match))) = ninds;
       invinds(ninds) = j(1);
@@ -285,7 +282,7 @@ for narg = 1: nargin
 
         for arg = 1:ninds
           rep2 = rep2 && ...
-             strcmp(kernels{nk}.inddims(arg),   inddims(arg)) && ...
+             strcmp(kernels{nk}.inddims{arg},   inddims{arg}) && ...
                    (kernels{nk}.indaccs(arg) == indaccs(arg)) && ...
              strcmp(kernels{nk}.indtyps{arg},   indtyps{arg}) && ...
                    (kernels{nk}.invinds(arg) == invinds(arg));
@@ -336,8 +333,6 @@ for narg = 1: nargin
       kernels{nkernels}.indaccs = indaccs;
       kernels{nkernels}.indtyps = indtyps;
       kernels{nkernels}.invinds = invinds;
-      kernels{nkernels}.vectorised = loop_args{loop_index}.vectorised;
-      kernels{nkernels}.cumulative_indirect_index = loop_args{loop_index}.cumulative_indirect_index;
     end
   end
 
@@ -600,52 +595,6 @@ for n = 1:length(locs)
       loop_args{loop_ctr}.name2 = args{2};
       loop_args{loop_ctr}.set   = args{3};
       loop_args{loop_ctr}.nargs = length(args)-3;
-      vectorised = [];
-      cumulative_indirect_index = [];
-      newargs = args;
-      offset = 1;
-      vector_counter = 0;
-      for m = 1:length(args)-3
-        if     strcmp(args{m+3}(1:10),'op_arg_dat')
-        [toreplace mat] = regexp(args{m+3}(11:end),'(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,','tokens','match');
-        if (~strcmp(toreplace{1}(3),'OP_ID') && strcmp(toreplace{1}(2),'OP_ALL'))%str2num(char(toreplace{1}(2)))<0)
-          vector_counter = vector_counter + 1;
-          %find map
-          for i = 1:size(maps,2)
-            if (strcmp(toreplace{1}(3),maps(i).name))
-              break;
-            end
-          end
-
-          for gen = 0:(maps(i).dim-1)
-            newargs{offset+3} = regexprep(args{m+3},'\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,',sprintf('($1,%d,',gen));
-            vectorised(offset) = vector_counter;
-            cumulative_indirect_index(offset) = cum_ind_index;
-            cum_ind_index = cum_ind_index+1;
-            offset = offset+1;
-          end
-        else
-          newargs{offset+3} = args{m+3};
-          vectorised(offset) = 0;
-          if (strcmp(toreplace{1}(3),'OP_ID'))
-            cumulative_indirect_index(offset) = -1;
-          else
-            cumulative_indirect_index(offset) = cum_ind_index;
-            cum_ind_index = cum_ind_index+1;
-          end
-          offset = offset+1;
-        end
-        elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
-          newargs{offset+3} = args{m+3};
-          vectorised(offset) = 0;
-          cumulative_indirect_index(offset) = -1;
-          offset = offset+1;
-        end
-      end
-      args = newargs;
-      loop_args{loop_ctr}.nargs = length(args)-3;
-      loop_args{loop_ctr}.vectorised = vectorised;
-      loop_args{loop_ctr}.cumulative_indirect_index = cumulative_indirect_index;
       for m = 1:length(args)-3
         if     strcmp(args{m+3}(1:10),'op_arg_dat')
           loop_args{loop_ctr}.type{m} = 'op_arg_dat';

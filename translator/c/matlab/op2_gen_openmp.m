@@ -18,6 +18,7 @@ OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
 OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
+accsstring = {'OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN'};
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -43,9 +44,67 @@ for nk = 1:length(kernels)
   indaccs = kernels{nk}.indaccs;
   indtyps = kernels{nk}.indtyps;
   invinds = kernels{nk}.invinds;
-  vectorised = kernels{nk}.vectorised;
-  cumulative_indirect_index = kernels{nk}.cumulative_indirect_index;
 
+  if (~isempty(find(idxs<0 & maps == 3, 1)))
+      unique_args = 1;
+      vec_counter = 1;
+      vectorised = [];
+      new_dims = {};
+      new_maps = [];
+      new_vars = {};
+      new_typs = {};
+      new_accs = [];
+      new_idxs = [];
+      new_inds = [];
+      for m = 1:nargs
+          if (idxs(m)<0 && maps(m) == 3)
+              if m>1
+                unique_args = [unique_args length(new_dims)+1];
+              end
+              temp(1:-1*idxs(m)) = vars(m);
+              new_vars = [new_vars temp];
+              temp(1:-1*idxs(m)) = typs(m);
+              new_typs = [new_typs temp];
+              temp(1:-1*idxs(m)) = dims(m);
+              new_dims = [new_dims temp];
+              new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
+              new_accs = [new_accs accs(m)*ones(1,-1*idxs(m))];
+              new_idxs = [new_idxs 0:(-1*idxs(m) -1)];
+              new_inds = [new_inds inds(m)*ones(1,-1*idxs(m))];
+              vectorised = [vectorised ones(1,-1*idxs(m)) * vec_counter];
+              vec_counter = vec_counter + 1;
+          else
+              if m>1
+                unique_args = [unique_args length(new_dims)+1];
+              end
+              new_dims = [new_dims dims(m)];
+              new_maps = [new_maps maps(m)];
+              new_accs = [new_accs accs(m)];
+              new_idxs = [new_idxs idxs(m)];
+              new_inds = [new_inds inds(m)];
+              new_vars = [new_vars vars(m)];
+              new_typs = [new_typs typs(m)];
+              vectorised = [vectorised 0];
+          end
+      end
+      dims = new_dims;
+      maps = new_maps;
+      accs = new_accs;
+      idxs = new_idxs;
+      inds = [new_inds];
+      vars = new_vars;
+      typs = new_typs;
+      nargs = length(vectorised);
+      for i = 1:ninds
+          invinds(i) = find(inds == i,1);
+      end
+  else
+      vectorised = zeros(1,nargs);
+      unique_args = 1:nargs;
+  end
+
+  cumulative_indirect_index = -1*ones(1,nargs);
+  cumulative_indirect_index(find(maps == 3)) = 0:(sum(maps==3)-1);
 %
 % set two logicals
 %
@@ -258,7 +317,7 @@ for nk = 1:length(kernels)
     end
   end
 
-  file = strvcat(file,' ',...
+  file = strvcat(file,...
                  [ prefix '// user-supplied kernel call'],' ');
 
   out = '';
@@ -371,18 +430,29 @@ for nk = 1:length(kernels)
   file = strvcat(file,' ',' ','// host stub function          ',' ',...
         ['void op_par_loop_' name '(char const *name, op_set set,']);
 
-  for m = 1:nargs
+  for m = unique_args
     line = rep('  op_arg ARG', m);
 
-    if (m<nargs)
-      file = strvcat(file,[line ',']);
-    else
+    if (m == unique_args(end))
       file = strvcat(file,[line ' ){'],' ');
+    else
+      file = strvcat(file,[line ',']);
     end
   end
 
   for m = 1:nargs
-    if (maps(m)==OP_GBL)
+      if (find(m==unique_args,1) & (vectorised(m) > 0))
+          line = '  ARG.idx = 0;';
+          file = strvcat(file,rep(line,m));
+      elseif (vectorised(m)>0)
+          first = find(vectorised == vectorised(m), 1);
+          line = sprintf('  op_arg ARG = op_arg_dat(arg%d.dat, IDX, arg%d.map, DIM, "TYP", %s);', first-1, first-1, accsstring{accs(m)});
+          file = strvcat(file,rep(line,m));
+      end
+  end
+
+  for m = 1:nargs
+    if (maps(m)==OP_GBL && accs(m)~=OP_READ)
       line = '  TYP *ARGh = (TYP *)ARG.data;';
       file = strvcat(file,rep(line,m));
     end
@@ -477,12 +547,12 @@ for nk = 1:length(kernels)
   if (ninds>0)
 
   file = strvcat(file,' ',...
-      '  op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);',...
-      '  // execute plan                                            ',' ',...
-      '  int block_offset = 0;                                      ',' ',...
-      '  for (int col=0; col < Plan->ncolors; col++) {              ',...
-      '    if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);',' ',...
-      '    int nblocks = Plan->ncolblk[col];                        ',' ',...
+      '    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);',...
+      '    // execute plan                                            ',' ',...
+      '    int block_offset = 0;                                      ',' ',...
+      '    for (int col=0; col < Plan->ncolors; col++) {              ',...
+      '      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);',' ',...
+      '      int nblocks = Plan->ncolblk[col];                        ',' ',...
       '#pragma omp parallel for                                     ',...
       '      for (int blockIdx=0; blockIdx<nblocks; blockIdx++)       ',...
      ['      op_x86_' name '( blockIdx,                              '] );
@@ -512,8 +582,8 @@ for nk = 1:length(kernels)
     '         Plan->nthrcol,                                ',...
     '         Plan->thrcol,                                 ',...
     '         set_size);                                    ',' ',...
-    '    block_offset += nblocks;                         ',...
-    '  }                                                  ');
+    '      block_offset += nblocks;                         ',...
+    '    }                                                  ');
 
 %
 % kernel call for direct version
@@ -676,9 +746,11 @@ function line = rep(line,m)
 
 global dims idxs typs indtyps inddims
 
-line = regexprep(line,'INDDIM',char(inddims(m)));
+if (m <= length(inddims))
+  line = regexprep(line,'INDDIM',char(inddims{m}));
+  line = regexprep(line,'INDTYP',char(indtyps{m}));
+end
 line = regexprep(line,'INDARG',sprintf('ind_arg%d',m-1));
-line = regexprep(line,'INDTYP',char(indtyps{m}));
 
 line = regexprep(line,'DIM',dims(m));
 line = regexprep(line,'ARG',sprintf('arg%d',m-1));
