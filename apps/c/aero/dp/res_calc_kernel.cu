@@ -130,7 +130,7 @@ __global__ void op_cuda_res_calc(
 
       res_calc(  arg0_vec,
                  arg1_vec,
-                 arg8+(n+offset_b)*16,
+                 arg8+(n+offset_b),
                  arg2_vec);
 
       col2 = colors[n+offset_b];

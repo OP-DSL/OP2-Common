@@ -133,7 +133,7 @@ for nargs = 1:maxargs
   end
 
   for n = 1:nargs
-    file = strvcat(file,sprintf('  if(arg%d.idx == OP_ALL) {\n    p_a[%d] = (char *)malloc(args[%d].map->dim*sizeof(T%d));\n  }',n-1,n-1,n-1,n-1));
+    file = strvcat(file,sprintf('  if(arg%d.idx < -1) {\n    p_a[%d] = (char *)malloc(args[%d].map->dim*sizeof(T%d));\n  }',n-1,n-1,n-1,n-1));
   end
 
 %

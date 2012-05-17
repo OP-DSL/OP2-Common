@@ -113,7 +113,7 @@ __global__ void op_cuda_spMV(
 
 
       spMV(  arg0_vec,
-             arg4+(n+offset_b)*16,
+             arg4+(n+offset_b),
              arg1_vec);
 
       col2 = colors[n+offset_b];

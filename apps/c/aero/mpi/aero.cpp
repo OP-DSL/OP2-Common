@@ -40,11 +40,20 @@ http://www.opensource.org/licenses/bsd-license.php
 
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
 int stride;
+
+
+//
+// mpi header file - included by user for user level mpi
+//
+
+#include <mpi.h>
+
 //
 // OP header file
 //
 
 #include "op_lib_cpp.h"
+#include "op_lib_mpi.h"
 #include "op_seq.h"
 
 //
@@ -62,14 +71,97 @@ int stride;
 #include "update.h"
 
 
+//
+//user declared functions
+//
+
+static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank )
+{
+  int local_size = global_size/mpi_comm_size;
+  int remainder = (int)fmod(global_size,mpi_comm_size);
+
+  if (mpi_rank < remainder)
+  {
+    local_size = local_size + 1;
+  }
+  return local_size;
+}
+
+static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
+  int l_size, int elem_size)
+{
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
+
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
+
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
+      l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
+
+  free(sendcnts);
+  free(displs);
+}
+
+static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
+  int l_size, int elem_size)
+{
+  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
+  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int disp = 0;
+
+  for(int i = 0; i<comm_size; i++)
+  {
+    sendcnts[i] =   elem_size*compute_local_size (g_size, comm_size, i);
+  }
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
+    disp = disp + sendcnts[i];
+  }
+
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array,
+      l_size*elem_size, MPI_INT, MPI_ROOT,  MPI_COMM_WORLD );
+
+  free(sendcnts);
+  free(displs);
+}
+
+static void check_scan(int items_received, int items_expected)
+{
+  if(items_received != items_expected) {
+    op_printf("error reading from new_grid.dat\n");
+    exit(-1);
+  }
+}
+
+
 // main program
 
 int main(int argc, char **argv){
 
-  int    *bnode, *cell;
-  double  *xm;//, *q;
+  // OP initialisation
 
-  int    nnode,ncell,nbnodes,niter;
+  op_init(argc,argv,2);
+
+  //MPI for user I/O
+  int my_rank;
+  int comm_size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+  int    *bnode, *cell, *g_bnode, *g_cell;
+  double  *xm, *g_xm;;
+
+  int    nnode,ncell,nbnodes,niter, g_nnode, g_ncell, g_nbnodes;
   double  rms = 1;
 
 // read in grid
@@ -81,36 +173,53 @@ int main(int argc, char **argv){
     printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
-  if (fscanf(fp,"%d %d %d \n",&nnode, &ncell, &nbnodes) != 3) {
+  if (fscanf(fp,"%d %d %d \n",&g_nnode, &g_ncell, &g_nbnodes) != 3) {
     printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-    bnode   = (int *) malloc(nbnodes*sizeof(int));
+  if (my_rank == MPI_ROOT) {
+    g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
+    g_bnode   = (int *) malloc(g_nbnodes*sizeof(int));
+    g_xm      = (double *) malloc(2*g_nnode*sizeof(double));
 
-  xm      = (double *) malloc(2*nnode*sizeof(double));
+    for (int n=0; n<g_nnode; n++) {
+      if (fscanf(fp,"%lf %lf \n",&g_xm[2*n], &g_xm[2*n+1]) != 2) {
+        printf("error reading from new_grid.dat\n"); exit(-1);
+      }
+    }
 
-  for (int n=0; n<nnode; n++) {
-    if (fscanf(fp,"%lf %lf \n",&xm[2*n], &xm[2*n+1]) != 2) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+    for (int n=0; n<g_ncell; n++) {
+      if (fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
+      &g_cell[4*n+2], &g_cell[4*n+3]) != 4) {
+        printf("error reading from new_grid.dat\n"); exit(-1);
+      }
+    }
+
+    for (int n=0; n<g_nbnodes; n++) {
+      if (fscanf(fp,"%d \n",&g_bnode[n]) != 1) {
+        printf("error reading from new_grid.dat\n"); exit(-1);
+      }
     }
   }
-
-  for (int n=0; n<ncell; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-    &cell[4*n+2], &cell[4*n+3]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
-    }
-  }
-
-  for (int n=0; n<nbnodes; n++) {
-    if (fscanf(fp,"%d \n",&bnode[n]) != 1) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
-    }
-  }
-
   fclose(fp);
 
+  nnode = compute_local_size (g_nnode, comm_size, my_rank);
+  ncell = compute_local_size (g_ncell, comm_size, my_rank);
+  nbnodes = compute_local_size (g_nbnodes, comm_size, my_rank);
+
+  cell   = (int *) malloc(4*ncell*sizeof(int));
+  bnode   = (int *) malloc(nbnodes*sizeof(int));
+  xm      = (double *) malloc(2*nnode*sizeof(double));
+
+  scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
+  scatter_int_array(g_bnode, bnode, comm_size, g_nbnodes,nbnodes, 1);
+  scatter_double_array(g_xm, xm, comm_size, g_nnode,nnode, 2);
+
+  if(my_rank == MPI_ROOT) {
+      free(g_cell);
+      free(g_xm);
+    free(g_bnode);
+  }
 // set constants and initialise flow field and residual
 
   printf("initialising flow field \n");
@@ -157,13 +266,6 @@ int main(int argc, char **argv){
 
     mfan = 1.0;
 
-
-//  for (int n=0; n<ncell; n++) {
-//    for (int m=0; m<4; m++) {
-//      q[4*n+m] = qinf[m];
-//    }
-//  }
-
   double *phim = (double *)malloc(nnode*sizeof(double));
   memset(phim,0,nnode*sizeof(double));
   for (int i = 0;i<nnode;i++) {
@@ -172,8 +274,6 @@ int main(int argc, char **argv){
 
   double *K = (double *)malloc(4*4*ncell*sizeof(double));
   memset(K,0,4*4*ncell*sizeof(double));
-  //double *Kt = (double *)malloc(4*4*ncell*sizeof(double));
-  //memset(Kt,0,4*4*ncell*sizeof(double));
   double *resm = (double *)malloc(nnode*sizeof(double));
   memset(resm,0,nnode*sizeof(double));
 
@@ -184,9 +284,6 @@ int main(int argc, char **argv){
     double *U = (double *)malloc(nnode*sizeof(double));
   memset(U,0,nnode*sizeof(double));
 
-// OP initialisation
-
-  op_init(argc,argv,2);
 
 // declare sets, pointers, datasets and global constants
 
@@ -232,6 +329,8 @@ int main(int argc, char **argv){
   op_decl_const(1,"int",&stride  );
 
   op_diagnostic_output();
+
+  op_partition("PTSCOTCH", "KWAY", NULL, NULL, NULL);
 
 // main time-marching loop
 
@@ -327,7 +426,7 @@ int main(int argc, char **argv){
                     op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                     op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                     op_arg_gbl(&rms, 1, "double", OP_INC));
-        op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
+        op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(g_nnode), iter);
 
 
   }

@@ -489,8 +489,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   for ( int b = 0; b < nblocks; b++ )
   {
     prev_offset = next_offset;
-    if (prev_offset + bsize >= set->size && prev_offset < set->size) {
-      next_offset = set->size;
+    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+      next_offset = set->core_size;
     } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
       next_offset = exec_length;
     } else {
@@ -659,8 +659,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     for ( int b = 0; b < nblocks; b++ )
     {
       prev_offset = next_offset;
-      if (prev_offset + bsize >= set->size && prev_offset < set->size) {
-        next_offset = set->size;
+      if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+        next_offset = set->core_size;
       } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
         next_offset = exec_length;
       } else {
@@ -672,8 +672,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if (next_offset > set->core_size) { //should not use block colors from the core set when doing the non_core ones
           if (prev_offset <= set->core_size) OP_plans[ip].ncolors_core = ncolors;
           for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
-          if (prev_offset == set->size) OP_plans[ip].ncolors_owned = ncolors;
-          for (int shifter = OP_plans[ip].ncolors_core; shifter < OP_plans[ip].ncolors_owned; shifter++) mask |= 1<<shifter;
+          //if (prev_offset == set->size) OP_plans[ip].ncolors_owned = ncolors;
+          //for (int shifter = OP_plans[ip].ncolors_core; shifter < OP_plans[ip].ncolors_owned; shifter++) mask |= 1<<shifter;
         }
 
         for ( int m = 0; m < nargs; m++ )
