@@ -70,11 +70,39 @@ op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map co
   return op_arg_mat_core(mat, rowidx, rowmap, colidx, colmap, dim, typ, acc);
 }
 
+template < typename T >
+static inline int is_float(T dat)
+{
+  return strncmp(dat->type, "float", 5) == 0;
+}
+
+template < typename T >
+static inline PetscScalar * to_petsc(T dat, const void * values, int size)
+{
+  PetscScalar * dvalues;
+  // If we're passed float data, we have to convert it to double
+  if (is_float(dat)) {
+    dvalues = (PetscScalar*)malloc(sizeof(PetscScalar) * size);
+    for ( int i = 0; i < size; i++ )
+      dvalues[i] = (PetscScalar)(((float*)values)[i]);
+  } else {
+    dvalues = (PetscScalar *) values;
+  }
+  return dvalues;
+}
+
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols )
 {
   assert( mat && values && irows && icols );
 
-  MatSetValues((Mat) mat->mat, nrows, (const PetscInt *)irows, ncols, (const PetscInt *)icols, (const PetscScalar *)values, ADD_VALUES);
+  PetscScalar * dvalues = to_petsc(mat, values, nrows * ncols);
+
+  MatSetValues( (Mat) mat->mat,
+                nrows, (const PetscInt *)irows,
+                ncols, (const PetscInt *)icols,
+                dvalues, ADD_VALUES);
+
+  if (is_float(mat)) free(dvalues);
 }
 
 void op_mat_assemble( op_mat mat )
@@ -88,13 +116,27 @@ void op_mat_assemble( op_mat mat )
 static Vec op_create_vec ( const op_dat vec ) {
   assert( vec );
 
+  PetscScalar * dvalues = to_petsc(vec, vec->data, vec->dim * vec->set->size);
+
   Vec p_vec;
   // Create a PETSc vector and pass it the user-allocated storage
-  VecCreateSeqWithArray(MPI_COMM_SELF,vec->dim * vec->set->size,(PetscScalar*)vec->data,&p_vec);
+  VecCreateSeqWithArray(MPI_COMM_SELF, vec->dim * vec->set->size, dvalues, &p_vec);
   VecAssemblyBegin(p_vec);
   VecAssemblyEnd(p_vec);
 
   return p_vec;
+}
+
+static void op_destroy_vec ( Vec v, op_dat d ) {
+  // If the op_dat holds float data we need to copy out
+  if (is_float(d)) {
+    PetscScalar * a;
+    VecGetArray(v, &a);
+    for (int i = 0; i < d->dim * d->set->size; i++) {
+      ((float *)d->data)[i] = (float)a[i];
+    }
+  }
+  VecDestroy(v);
 }
 
 void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out )
@@ -106,8 +148,8 @@ void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out )
 
   MatMult((Mat) mat->mat, p_v_in, p_v_out);
 
-  VecDestroy(p_v_in);
-  VecDestroy(p_v_out);
+  op_destroy_vec(p_v_in, v_in);
+  op_destroy_vec(p_v_out, v_out);
 }
 
 void op_solve ( const op_mat mat, const op_dat b, op_dat x )
@@ -128,7 +170,7 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x )
 
   KSPSolve(ksp,p_b,p_x);
 
-  VecDestroy(p_b);
-  VecDestroy(p_x);
+  op_destroy_vec(p_b, b);
+  op_destroy_vec(p_x, x);
   KSPDestroy(ksp);
 }
