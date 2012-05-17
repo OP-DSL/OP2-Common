@@ -3,8 +3,11 @@
 #include <set>
 #include <string>
 #include <vector>
+
 #include "op_lib_cpp.h"
 #include "op_lib_mat.h"
+
+#include "types.h"
 
 void op_par_loop_mass(const char *, op_set, op_arg, op_arg);
 
@@ -12,7 +15,7 @@ void read_from_triangle_files(std::string basename,
                               int *nnode,
                               int *nele,
                               int **p_elem_node,
-                              float **p_xn)
+                              ValueType **p_xn)
 {
   FILE *f;
 
@@ -25,9 +28,9 @@ void read_from_triangle_files(std::string basename,
     fprintf(stderr, "Unknown triangle format\n");
     exit(-1);
   }
-  *p_xn = (float *)malloc(*nnode * sizeof(float) * 2);
+  *p_xn = (ValueType *)malloc(*nnode * sizeof(ValueType) * 2);
 
-  float dummy;
+  ValueType dummy;
   for ( int i = 0; i < *nnode; i++ ) {
     fscanf(f, "%d %g %g %g", &tmp, (*p_xn) + 2*i, (*p_xn) + 2*i + 1, &dummy);
   }
@@ -56,9 +59,9 @@ void read_from_triangle_files(std::string basename,
 int main(int argc, char **argv)
 {
   int *p_elem_node;
-  float *p_xn;
+  ValueType *p_xn;
   int i;
-  float val;
+  ValueType val;
 
   op_init(argc, argv, 5);
 
@@ -76,7 +79,7 @@ int main(int argc, char **argv)
     p_elem_node[5] = 1;
 
 
-    p_xn = (float *)malloc(2 * nnode * sizeof(float));
+    p_xn = (ValueType *)malloc(2 * nnode * sizeof(ValueType));
     p_xn[0] = 0.0f;
     p_xn[1] = 0.0f;
     p_xn[2] = 2.0f;
@@ -91,12 +94,12 @@ int main(int argc, char **argv)
   op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
 
   op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
-  op_mat mat = op_decl_mat(sparsity, 1, "float", sizeof(float), "mat");
-  op_dat xn = op_decl_dat(nodes, 2, "float", p_xn, "xn");
+  op_mat mat = op_decl_mat(sparsity, 1, VALUESTR, sizeof(ValueType), "mat");
+  op_dat xn = op_decl_dat(nodes, 2, VALUESTR, p_xn, "xn");
 
   op_par_loop_mass("mass", elements,
-                   op_arg_mat(mat, -3, elem_node, -3, elem_node, 1, "double", OP_INC),
-                   op_arg_dat(xn, -3, elem_node, 2, "float", OP_READ));
+                   op_arg_mat(mat, -3, elem_node, -3, elem_node, 1, VALUESTR, OP_INC),
+                   op_arg_dat(xn, -3, elem_node, 2, VALUESTR, OP_READ));
 
   op_exit();
   return 0;
