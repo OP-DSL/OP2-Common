@@ -1,24 +1,7 @@
 #include "op_lib_core.h"
 #include "op_lib_cpp.h"
 #include "op_cuda_rt_support.h"
-
-__device__ void op_atomic_add(double *address, double val)
-{
-  unsigned long long int new_val, old;
-  unsigned long long int old2 = __double_as_longlong(*address);
-
-  do
-  {
-    old = old2;
-    new_val = __double_as_longlong(__longlong_as_double(old) + val);
-    old2 = atomicCAS((unsigned long long int *)address, old, new_val);
-  } while(old2!=old);
-}
-
-__device__ void op_atomic_add(float *address, float val)
-{
-  atomicAdd(address, val);
-}
+#include "op_cuda_utils.h"
 
 __device__ int pos(int row, int col, int* rowptr, int* colidx)
 {
