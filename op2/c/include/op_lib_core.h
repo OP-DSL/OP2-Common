@@ -88,7 +88,6 @@ typedef enum { OP_ARG_GBL, OP_ARG_DAT, OP_ARG_MAT } op_arg_type;
 
 /* op_i(int) translation */
 #define OP_I_OFFSET -1024
-#define op_i(idx) (OP_I_OFFSET - (idx))
 
 /*
  * structures
@@ -277,6 +276,8 @@ void op_timing_realloc ( int );
 void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
+
+int op_i (int idx);
 
 /*******************************************************************************
 * Core MPI lib function prototypes
