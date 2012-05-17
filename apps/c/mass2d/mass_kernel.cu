@@ -1,9 +1,12 @@
 #include "op_lib_cpp.h"
 #include "op_cuda_rt_support.h"
+#include "op_cuda_utils.h"
+
+#include "types.h"
 __device__
 #include "mass.h"
 
-__global__ void op_cuda_mass(float *mat_data,
+__global__ void op_cuda_mass(ValueType *mat_data,
                              int *rowptr,
                              int *colptr,
                              int nrow,
@@ -12,29 +15,29 @@ __global__ void op_cuda_mass(float *mat_data,
                              int *nelems,
                              int *blockoffset,
                              int nblocks,
-                             float *data,
+                             ValueType *data,
                              int dim)
 {
   extern __shared__ char shared[];
 
-  __shared__ float *data_s;
+  __shared__ ValueType *data_s;
   __shared__ int *map_s;
-  float *data_vec[3];
+  ValueType *data_vec[3];
   if ( blockIdx.x >= nblocks ) return;
 
   int nelem = nelems[blockIdx.x];
   int boffset = blockoffset[blockIdx.x];
 
   if ( threadIdx.x == 0 ) {
-    data_s = (float *)&shared[0];
-    map_s = (int *)&shared[ROUND_UP(nelem * map_dim * dim * sizeof(float))];
+    data_s = (ValueType *)&shared[0];
+    map_s = (int *)&shared[ROUND_UP(nelem * map_dim * dim * sizeof(ValueType))];
   }
 
   __syncthreads();
-  // Needs nelem * map_dim * dim floats for data.
+  // Needs nelem * map_dim * dim ValueTypes for data.
   // Plus a further nelem * map_dim ints for the map data
   // So for P1 triangles this requires
-  // 6 * nelem * sizeof(float) + 3 * nelem * sizeof(int) bytes (plus
+  // 6 * nelem * sizeof(ValueType) + 3 * nelem * sizeof(int) bytes (plus
   // slop for 16-byte alignment)
   for ( int n = threadIdx.x; n < nelem; n+= blockDim.x ) {
     for ( int k = 0; k < map_dim; k++ ) {
@@ -46,7 +49,7 @@ __global__ void op_cuda_mass(float *mat_data,
       data_s[n] = data[n%2 + map_s[n/2]*2];
   }
   __syncthreads();
-  float entry;
+  ValueType entry;
   for ( int k = threadIdx.x; k < nelem * 3 * 3; k+=blockDim.x ) {
     // k == j + 3*i + 9*n
     int n = k / 9;
@@ -70,7 +73,7 @@ __global__ void op_cuda_mass(float *mat_data,
     // To avoid these atomics we'd have to do colour-order traversal
     // of the elements.  And, if q is iterated over here, warp-level
     // reductions.
-    atomicAdd(mat_data + offset, entry);
+    op_atomic_add(mat_data + offset, entry);
   }
 }
 
@@ -119,11 +122,11 @@ void op_par_loop_mass(const char *name, op_set elements, op_arg arg_mat,
   op_sparsity sparsity = arg_mat.mat->sparsity;
   int nrow = sparsity->nrows;
   int nnz = sparsity->total_nz;
-  nshared = nelems_h[0] * arg_dat.map->dim * arg_dat.dat->dim * sizeof(float)
+  nshared = nelems_h[0] * arg_dat.map->dim * arg_dat.dat->dim * sizeof(ValueType)
     + nelems_h[0] * arg_dat.map->dim * sizeof(int);
 
 
-  op_cuda_mass<<<nblocks, nthread, nshared>>>((float *)arg_mat.mat->data,
+  op_cuda_mass<<<nblocks, nthread, nshared>>>((ValueType *)arg_mat.mat->data,
                                               sparsity->rowptr,
                                               sparsity->colidx,
                                               nrow,
@@ -132,19 +135,19 @@ void op_par_loop_mass(const char *name, op_set elements, op_arg arg_mat,
                                               nelems_d,
                                               boffset_d,
                                               nblock,
-                                              (float *)arg_dat.data_d,
+                                              (ValueType *)arg_dat.data_d,
                                               arg_dat.dat->dim);
 
   // Print out resulting matrix if it comes from 2-element problem
   if ( elements->size == 2 ) {
-      float *mat_h = (float *)malloc(nnz * sizeof(float));
-      cutilSafeCall(cudaMemcpy(mat_h, arg_mat.mat->data, nnz * sizeof(float),
-                               cudaMemcpyDeviceToHost));
-      for ( int i = 0; i < nnz; i++ ) {
-  printf("%g ", mat_h[i]);
-      }
-      printf("\n");
-      free(mat_h);
+    ValueType *mat_h = (ValueType *)malloc(nnz * sizeof(ValueType));
+    cutilSafeCall(cudaMemcpy(mat_h, arg_mat.mat->data, nnz * sizeof(ValueType),
+          cudaMemcpyDeviceToHost));
+    for ( int i = 0; i < nnz; i++ ) {
+      printf("%g ", mat_h[i]);
+    }
+    printf("\n");
+    free(mat_h);
   }
   cutilSafeCall(cudaFree(boffset_d));
   cutilSafeCall(cudaFree(nelems_d));
