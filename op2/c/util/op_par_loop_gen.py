@@ -274,9 +274,7 @@ templates = {
         if (arg%d.argtype == OP_ARG_MAT) {
           const int rows = arg%d.map->dim;
           const int cols = arg%d.map2->dim;
-          typedef typename boost::remove_pointer<T%d>::type value_type;
-          double mat_arg = (double)(((value_type *)p_arg%d)[0]);
-          op_mat_addto(arg%d.mat, &mat_arg,
+          op_mat_addto(arg%d.mat, p_arg%d,
                        1, arg%d.map->map + n*rows + idxs[arg%didxs[0]],
                        1, arg%d.map2->map + n*cols + idxs[arg%didxs[1]]);
         }
@@ -330,7 +328,7 @@ with open(file_h,"w") as h:
             'itspace_loop_prelim' : ''.join([templates['itspace_loop_prelim'] % ((i,)*18) for i in range(n)]),
             'itspace_loop' : ''.join([templates['itspace_loop']]),
             'itspace_zero_mat' : ''.join([templates['itspace_zero_mat'] % ((i,)*4) for i in range(n)]),
-            'mataddto_itspace': ''.join([templates['mataddto_itspace'] % ((i,)*10) for i in range(n)]),
+            'mataddto_itspace': ''.join([templates['mataddto_itspace'] % ((i,)*9) for i in range(n)]),
             'kernelcall_itspace': format_block("        kernel( ", ", idxs[0], idxs[1]);", "(T%d *)p_arg%d", ", ", 2, n, 4),
             'free': ''.join([templates['free'] % ((i,)*4) for i in range(n)]),
             'matassembly': '\n'.join(["  if (arg%d.argtype == OP_ARG_MAT) op_mat_assemble(arg%d.mat);" % ((i,)*2) for i in range(n)])
