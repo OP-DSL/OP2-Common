@@ -810,3 +810,7 @@ op_dump_dat ( op_dat data )
   fflush (stdout);
 }
 
+int op_i ( int idx )
+{
+  return (OP_I_OFFSET - (idx));
+}
