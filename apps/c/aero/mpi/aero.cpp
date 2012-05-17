@@ -41,7 +41,6 @@ http://www.opensource.org/licenses/bsd-license.php
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
 int stride;
 
-
 //
 // mpi header file - included by user for user level mpi
 //
@@ -143,11 +142,10 @@ static void check_scan(int items_received, int items_expected)
   }
 }
 
-
 // main program
 
-int main(int argc, char **argv){
-
+int main(int argc, char **argv)
+{
   // OP initialisation
 
   op_init(argc,argv,2);
@@ -308,7 +306,7 @@ int main(int argc, char **argv){
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
   op_decl_const(1,"double",&gm1i  );
-    op_decl_const(1,"double",&m2  );
+  op_decl_const(1,"double",&m2  );
   op_decl_const(2,"double",wtg1  );
   op_decl_const(2,"double",xi1  );
   op_decl_const(4,"double",Ng1  );
@@ -320,7 +318,12 @@ int main(int argc, char **argv){
   op_decl_const(1,"double",&freq  );
   op_decl_const(1,"double",&kappa  );
   op_decl_const(1,"double",&nmode  );
-    op_decl_const(1,"double",&mfan  );
+  op_decl_const(1,"double",&mfan  );
+
+  op_diagnostic_output();
+
+  op_partition("PARMETIS", "GEOMKWAY", cells, pcell, p_xm);
+
   #ifdef CUDA
   stride = cells->size;
   #else
@@ -328,111 +331,98 @@ int main(int argc, char **argv){
   #endif
   op_decl_const(1,"int",&stride  );
 
-  op_diagnostic_output();
-
-  op_partition("PTSCOTCH", "KWAY", NULL, NULL, NULL);
-
-// main time-marching loop
+  // main time-marching loop
 
   niter = 20;
 
   for(int iter=1; iter<=niter; iter++) {
 
     op_par_loop(res_calc,"res_calc",cells,
-      op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
-      op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-      op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
-      op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
-      );
+                op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
+                op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
+                op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
+                op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
+                );
 
-        op_par_loop(dirichlet,"dirichlet",bnodes,
-            op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
-
-
-        double c1 = 0;
-        double c2 = 0;
-        double c3 = 0;
-        double alpha = 0;
-        double beta = 0;
-
-        //c1 = R'*R;
-        op_par_loop(init_cg, "init_cg", nodes,
-                    op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                    op_arg_gbl(&c1, 1, "double", OP_INC),
-                    op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
-                    op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
-                    op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
-
-        //printf("\nStarting CG iteration\n");
-        //printf("c1 = %10.5e\n",c1);
-
-        //set up stopping conditions
-        double res0 = sqrt(c1);
-        double res = res0;
-        int iter = 0;
-        int maxiter = 200;
-        while (res > 0.1*res0 && iter < maxiter) {
-            //V = Stiffness*P
-            op_par_loop(spMV, "spMV", cells,
-                        op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
-                        op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
-                        //op_arg_dat(p_Kt, -1, OP_ID, 16, "double", OP_READ),
-                        op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
-
-            op_par_loop(dirichlet,"dirichlet",bnodes,
-                        op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
-
-            c2 = 0;
-
-            //c2 = P'*V;
-            op_par_loop(dotPV, "dotPV", nodes,
-                        op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
-                        op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_READ),
-                        op_arg_gbl(&c2, 1, "double", OP_INC));
-
-            alpha = c1/c2;
-
-            //U = U + alpha*P;
-            //resm = resm-alpha*V;
-            op_par_loop(updateUR, "updateUR", nodes,
-                        op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_INC),
-                        op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_INC),
-                        op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
-                        op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_RW),
-                        op_arg_gbl(&alpha, 1, "double", OP_READ));
+    op_par_loop(dirichlet,"dirichlet",bnodes,
+        op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
 
 
-            c3 = 0;
+    double c1 = 0;
+    double c2 = 0;
+    double c3 = 0;
+    double alpha = 0;
+    double beta = 0;
 
-            //c3 = resm'*resm;
-            op_par_loop(dotR, "dotR", nodes,
-                        op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                        op_arg_gbl(&c3, 1, "double", OP_INC));
-            beta = c3/c1;
-            //P = beta*P+resm;
-            op_par_loop(updateP, "updateP", nodes,
-                        op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
-                        op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
-                        op_arg_gbl(&beta, 1, "double", OP_READ));
-            c1 = c3;
-            //printf("c1 = %10.5e\n",c1);
-            res = sqrt(c1);
-            iter++;
-        }
-        rms = 0;
-        //phim = phim - Stiffness\Load;
-        op_par_loop(update, "update", nodes,
-                    op_arg_dat(p_phim, -1, OP_ID, 1, "double", OP_RW),
-                    op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
-                    op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
-                    op_arg_gbl(&rms, 1, "double", OP_INC));
-        op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(g_nnode), iter);
+    //c1 = R'*R;
+    op_par_loop(init_cg, "init_cg", nodes,
+                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
+                op_arg_gbl(&c1, 1, "double", OP_INC),
+                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
 
+    //set up stopping conditions
+    double res0 = sqrt(c1);
+    double res = res0;
+    int iter = 0;
+    int maxiter = 200;
+    while (res > 0.1*res0 && iter < maxiter) {
+      //V = Stiffness*P
+      op_par_loop(spMV, "spMV", cells,
+                  op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
+                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
+                  op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
+      op_par_loop(dirichlet,"dirichlet",bnodes,
+          op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
+
+      c2 = 0;
+
+      //c2 = P'*V;
+      op_par_loop(dotPV, "dotPV", nodes,
+                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
+                  op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_READ),
+                  op_arg_gbl(&c2, 1, "double", OP_INC));
+
+      alpha = c1/c2;
+
+      //U = U + alpha*P;
+      //resm = resm-alpha*V;
+      op_par_loop(updateUR, "updateUR", nodes,
+                  op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_INC),
+                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_INC),
+                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
+                  op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_RW),
+                  op_arg_gbl(&alpha, 1, "double", OP_READ));
+
+      c3 = 0;
+
+      //c3 = resm'*resm;
+      op_par_loop(dotR, "dotR", nodes,
+                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
+                  op_arg_gbl(&c3, 1, "double", OP_INC));
+      beta = c3/c1;
+      //P = beta*P+resm;
+      op_par_loop(updateP, "updateP", nodes,
+                  op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
+                  op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
+                  op_arg_gbl(&beta, 1, "double", OP_READ));
+      c1 = c3;
+      res = sqrt(c1);
+      iter++;
+    }
+    rms = 0;
+    //phim = phim - Stiffness\Load;
+    op_par_loop(update, "update", nodes,
+                op_arg_dat(p_phim, -1, OP_ID, 1, "double", OP_RW),
+                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
+                op_arg_gbl(&rms, 1, "double", OP_INC));
+    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(g_nnode), iter);
   }
 
   op_timing_output();
   op_exit();
-
 }
 

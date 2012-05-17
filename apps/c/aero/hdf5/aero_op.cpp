@@ -220,16 +220,17 @@ int main(int argc, char **argv)
   op_decl_const2("kappa",1,"double",&kappa  );
   op_decl_const2("nmode",1,"double",&nmode  );
   op_decl_const2("mfan",1,"double",&mfan  );
-#ifdef CUDA
-  stride = cells->size;
-#else
-  stride = 1;
-#endif
-  op_decl_const2("stride",1,"int",&stride  );
 
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
+
+  #ifdef CUDA
+  stride = cells->size + cells->exec_size + cells->nonexec_size;
+  #else
+  stride = 1;
+  #endif
+  op_decl_const2("stride",1,"int",&stride  );
 
   printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
   nnode = op_get_size(nodes);
