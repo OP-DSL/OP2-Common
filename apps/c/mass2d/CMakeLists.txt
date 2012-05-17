@@ -16,7 +16,7 @@ endif()
 if (TARGET op2_cuda)
     find_package(CUDA)
     if (CUDA_FOUND)
-      cuda_add_executable(mass2d_cuda mass_cuda.cpp mass_kernel.cu
+      cuda_add_executable(mass2d_cuda mass_cuda.cpp mass_kernel.cu rhs_kernel.cu
         ${KERNEL_HEADERS})
       target_link_libraries(mass2d_cuda op2_cuda)
       install(TARGETS mass2d_cuda RUNTIME DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeExecutables)
