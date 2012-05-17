@@ -55,7 +55,11 @@ void rhs(ValueType** localTensor, ValueType* c0[2], ValueType* c1[1])
     {
       ValueType ST1 = 0.0;
       ST1 += CG1[i_r_0][i_g] * c_q1[i_g] * (c_q0[i_g][0][0] * c_q0[i_g][1][1] + -1 * c_q0[i_g][0][1] * c_q0[i_g][1][0]);
+#ifdef __CUDACC__
+      op_atomic_add(localTensor[i_r_0], ST1 * w[i_g]);
+#else
       localTensor[i_r_0][0] += ST1 * w[i_g];
+#endif
     };
   };
 }
