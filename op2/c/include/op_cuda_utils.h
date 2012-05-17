@@ -43,7 +43,7 @@
 
 #ifdef __CUDACC__
 
-__device__ void op_atomic_add(double *address, double val)
+__device__ inline void op_atomic_add(double *address, double val)
 {
   unsigned long long int new_val, old;
   unsigned long long int old2 = __double_as_longlong(*address);
@@ -56,7 +56,7 @@ __device__ void op_atomic_add(double *address, double val)
   } while(old2!=old);
 }
 
-__device__ void op_atomic_add(float *address, float val)
+__device__ inline void op_atomic_add(float *address, float val)
 {
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 200
   atomicAdd(address, val);
