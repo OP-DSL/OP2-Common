@@ -103,7 +103,7 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  maps = op_decl_map_parse(src_file);
+  %maps = op_decl_map_parse(src_file);
   const_args = op_decl_const_parse(src_file);
 
   for const_index = 1:length(const_args)
@@ -164,7 +164,7 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  loop_args = op_par_loop_parse(src_file, maps);
+  loop_args = op_par_loop_parse(src_file);
 
   for loop_index = 1:length(loop_args)
     name  = loop_args{loop_index}.name1;
@@ -548,34 +548,11 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% parsing for op_decl_map calls
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function maps = op_decl_map_parse(file)
-
-maps = [];
-
-[toreplace mat] = regexp(file,'op_map\s*?(\S*?)\s*?=\s*?op_decl_map\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)','tokens','match');
-if (isempty(toreplace))
-  [toreplace mat] = regexp(file,'op_map\s*?(\S*?)\s*?=\s*?op_decl_map_hdf5\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)','tokens','match');
-end
-for map = 1:size(toreplace,2)
-  maps(map).name = toreplace{map}(1);
-  maps(map).dim = toreplace{map}(4);
-  maps(map).dim = str2num(maps(map).dim{1});
-  maps(map).from = toreplace{map}(2);
-  maps(map).to = toreplace{map}(3);
-end
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
 % parsing for    calls
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function loop_args = op_par_loop_parse(file,maps)
+function loop_args = op_par_loop_parse(file)
 
 loop_args = [];
 
