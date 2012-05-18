@@ -1991,23 +1991,19 @@ void mpi_timing_output()
 
   if(tot_count > 0)
   {
-#ifdef COMM_PERF
     double tot_time;
     double avg_time;
 
-    printf("\n\n___________________________________\n");
+    printf("___________________________________________________\n");
     printf("Performance information on rank %d\n", my_rank);
-
+    printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
     for (int n=0; n<HASHSIZE; n++) {
-      if (op_mpi_kernel_tab[n].count>0) {
-        printf("-----------------------------------\n");
-        printf("Kernel        :  %10s\n",op_mpi_kernel_tab[n].name);
-        printf("Count         :  %10.4d  \n", op_mpi_kernel_tab[n].count);
-        printf("tot_time(sec) :  %10.4f  \n", op_mpi_kernel_tab[n].time);
-        printf("avg_time(sec) :  %10.4f  \n",
-            op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count );
+    if (op_mpi_kernel_tab[n].count>0) {
+        printf("%-10s  %6d       %10.4f      %10.4f    \n",
+          op_mpi_kernel_tab[n].name,op_mpi_kernel_tab[n].count,
+          op_mpi_kernel_tab[n].time,op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count);
 
-
+#ifdef COMM_PERF
         if(op_mpi_kernel_tab[n].num_indices>0)
         {
           printf("halo exchanges:  ");
@@ -2029,12 +2025,16 @@ void mpi_timing_output()
         {
           printf("halo exchanges:  %10s\n","NONE");
         }
+        printf("---------------------------------------------------\n");
+#endif
+
       }
     }
-    printf("___________________________________\n");
+    printf("___________________________________________________\n");
 
     if(my_rank == MPI_ROOT)
     {
+      printf("___________________________________________________\n");
       printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
     for (int n=0; n<HASHSIZE; n++) {
@@ -2052,12 +2052,10 @@ void mpi_timing_output()
       }
       tot_time = avg_time = 0.0;
     }
-#endif
   }
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
-#ifdef COMM_PERF
 /*******************************************************************************
  * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
@@ -2078,6 +2076,7 @@ int op_mpi_perf_time(const char* name, double time)
   return kernel_index;
 }
 
+#ifdef COMM_PERF
 /*******************************************************************************
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/

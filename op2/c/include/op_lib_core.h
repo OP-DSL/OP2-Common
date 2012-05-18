@@ -248,8 +248,8 @@ void op_partition(const char* lib_name, const char* lib_routine,
 
 void op_partition_reverse();
 
-#ifdef COMM_PERF
 int op_mpi_perf_time(const char* name, double time);
+#ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
 #endif
 
