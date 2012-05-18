@@ -33,7 +33,7 @@ __global__ void op_cuda_rhs(ValueType *vec_data,
   if ( threadIdx.x == 0 ) {
     data_s0 = (ValueType *)&shared[0];
     data_s1 = (ValueType *)&shared[ROUND_UP(nelem * map_dim * dim0 * sizeof(ValueType))];
-    map_s = (int *)&data_s1[ROUND_UP(nelem * map_dim * dim1 * sizeof(ValueType))];
+    map_s = (int *)&((char *)data_s1)[ROUND_UP(nelem * map_dim * dim1 * sizeof(ValueType))];
   }
 
   __syncthreads();
@@ -108,8 +108,9 @@ void op_par_loop_rhs(const char *name, op_set elements, op_arg arg_vec,
   cutilSafeCall(cudaMemcpy(boffset_d, boffset_h, nblock * sizeof(int),
                 cudaMemcpyHostToDevice));
 
-  int nshared = nelems_h[0] * arg_vec.map->dim
-    * ((arg_dat0.dat->dim + arg_dat1.dat->dim) * sizeof(ValueType) + sizeof(int));
+  int nshared = ROUND_UP(nelems_h[0] * arg_vec.map->dim * arg_dat0.dat->dim * sizeof(ValueType));
+  nshared += ROUND_UP(nelems_h[0] * arg_vec.map->dim * arg_dat1.dat->dim * sizeof(ValueType));
+  nshared += ROUND_UP(nelems_h[0] * arg_vec.map->dim * sizeof(int));
 
   op_cuda_rhs<<<nblocks, nthread, nshared>>>((ValueType *)arg_vec.data_d,
                                               map_d,
