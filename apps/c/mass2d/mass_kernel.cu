@@ -117,13 +117,11 @@ void op_par_loop_mass(const char *name, op_set elements, op_arg arg_mat,
   cutilSafeCall(cudaMemcpy(boffset_d, boffset_h, nblock * sizeof(int),
          cudaMemcpyHostToDevice));
 
-  int nshared;
-
   op_sparsity sparsity = arg_mat.mat->sparsity;
   int nrow = sparsity->nrows;
   int nnz = sparsity->total_nz;
-  nshared = nelems_h[0] * arg_dat.map->dim * arg_dat.dat->dim * sizeof(ValueType)
-    + nelems_h[0] * arg_dat.map->dim * sizeof(int);
+  int nshared = ROUND_UP(nelems_h[0] * arg_dat.map->dim * arg_dat.dat->dim * sizeof(ValueType));
+  nshared += ROUND_UP(nelems_h[0] * arg_dat.map->dim * sizeof(int));
 
 
   op_cuda_mass<<<nblocks, nthread, nshared>>>((ValueType *)arg_mat.mat->data,
