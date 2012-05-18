@@ -315,9 +315,9 @@ int main(int argc, char **argv)
     //set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
-    int iter = 0;
+    int inner_iter = 0;
     int maxiter = 200;
-    while (res > 0.1*res0 && iter < maxiter) {
+    while (res > 0.1*res0 && inner_iter < maxiter) {
       //V = Stiffness*P
       op_par_loop_spMV("spMV",cells,
                  op_arg_dat(p_V,-4,pcell,1,"double",OP_INC),
@@ -360,7 +360,7 @@ int main(int argc, char **argv)
                  op_arg_gbl(&beta,1,"double",OP_READ));
       c1 = c3;
       res = sqrt(c1);
-      iter++;
+      inner_iter++;
     }
     rms = 0;
     //phim = phim - Stiffness\Load;
@@ -369,7 +369,7 @@ int main(int argc, char **argv)
                op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_WRITE),
                op_arg_dat(p_U,-1,OP_ID,1,"double",OP_READ),
                op_arg_gbl(&rms,1,"double",OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
+    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), inner_iter);
   }
 
   op_timers(&cpu_t2, &wall_t2);
