@@ -155,6 +155,9 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+
   int    *bnode, *cell, *g_bnode, *g_cell;
   double  *xm, *g_xm;;
 
@@ -163,15 +166,15 @@ int main(int argc, char **argv)
 
   // read in grid
 
-  printf("reading in grid \n");
+  op_printf("reading in grid \n");
 
   FILE *fp;
   if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
   if (fscanf(fp,"%d %d %d \n",&g_nnode, &g_ncell, &g_nbnodes) != 3) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
+    op_printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
   if (my_rank == MPI_ROOT) {
@@ -181,20 +184,20 @@ int main(int argc, char **argv)
 
     for (int n=0; n<g_nnode; n++) {
       if (fscanf(fp,"%lf %lf \n",&g_xm[2*n], &g_xm[2*n+1]) != 2) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
 
     for (int n=0; n<g_ncell; n++) {
       if (fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
       &g_cell[4*n+2], &g_cell[4*n+3]) != 4) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
 
     for (int n=0; n<g_nbnodes; n++) {
       if (fscanf(fp,"%d \n",&g_bnode[n]) != 1) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
   }
@@ -220,7 +223,7 @@ int main(int argc, char **argv)
 
   // set constants and initialise flow field and residual
 
-  printf("initialising flow field \n");
+  op_printf("initialising flow field \n");
 
   double gam = 1.4;
   gm1 = gam - 1.0;
@@ -329,7 +332,8 @@ int main(int argc, char **argv)
   // main time-marching loop
 
   niter = 20;
-
+  //initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
   for(int iter=1; iter<=niter; iter++) {
 
     op_par_loop(res_calc,"res_calc",cells,
@@ -359,9 +363,9 @@ int main(int argc, char **argv)
     //set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
-    int iter = 0;
+    int inner_iter = 0;
     int maxiter = 200;
-    while (res > 0.1*res0 && iter < maxiter) {
+    while (res > 0.1*res0 && inner_iter < maxiter) {
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
@@ -404,7 +408,7 @@ int main(int argc, char **argv)
                   op_arg_gbl(&beta, 1, "double", OP_READ));
       c1 = c3;
       res = sqrt(c1);
-      iter++;
+      inner_iter++;
     }
     rms = 0;
     //phim = phim - Stiffness\Load;
@@ -413,10 +417,11 @@ int main(int argc, char **argv)
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&rms, 1, "double", OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(g_nnode), iter);
+    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(g_nnode), inner_iter);
   }
-
+  op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
 }
 

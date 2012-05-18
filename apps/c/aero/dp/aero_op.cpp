@@ -132,15 +132,15 @@ int main(int argc, char **argv)
 
   // read in grid
 
-  printf("reading in grid \n");
+  op_printf("reading in grid \n");
 
   FILE *fp;
   if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file new_grid.dat\n"); exit(-1);
   }
 
   if (fscanf(fp,"%d %d %d \n",&nnode, &ncell, &nbnodes) != 3) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
+     op_printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
   cell  = (int *) malloc(4*ncell*sizeof(int));
@@ -150,20 +150,20 @@ int main(int argc, char **argv)
 
   for (int n=0; n<nnode; n++) {
     if (fscanf(fp,"%lf %lf \n",&xm[2*n], &xm[2*n+1]) != 2) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
   for (int n=0; n<ncell; n++) {
     if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
           &cell[4*n+2], &cell[4*n+3]) != 4) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
   for (int n=0; n<nbnodes; n++) {
     if (fscanf(fp,"%d \n",&bnode[n]) != 1) {
-      printf("error reading from new_grid.dat\n"); exit(-1);
+      op_printf("error reading from new_grid.dat\n"); exit(-1);
     }
   }
 
