@@ -201,7 +201,7 @@ void op_par_loop_spMV(char const *name, op_set set,
   if (set->size >0) {
 
     int op2_stride = set->size + set->exec_size + set->nonexec_size;
-    op_decl_const_char(1, "int", sizeof(int), (char *)op2_stride, "op2_stride");
+    op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");
 
     op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 

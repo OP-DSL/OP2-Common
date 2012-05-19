@@ -651,7 +651,7 @@ for nk = 1:length(kernels)
 
   if (sum(soaflags))
       file = strvcat(file,'    int op2_stride = set->size + set->exec_size + set->nonexec_size;');
-      file = strvcat(file,'    op_decl_const_char(1, "int", sizeof(int), (char *)op2_stride, "op2_stride");',' ');
+      file = strvcat(file,'    op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");',' ');
   end
 
   if (ninds>0)
