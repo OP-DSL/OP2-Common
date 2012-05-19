@@ -39,7 +39,7 @@ http://www.opensource.org/licenses/bsd-license.php
 // global constants
 
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
-int stride;
+
 //
 // OP header file
 //
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
   op_dat p_xm     = op_decl_dat(nodes ,2,"double",xm    ,"p_x");
   op_dat p_phim  = op_decl_dat(nodes, 1, "double", phim, "p_phim");
   op_dat p_resm  = op_decl_dat(nodes, 1, "double", resm, "p_resm");
-  op_dat p_K  = op_decl_dat(cells, 16, "double", K, "p_K");
+  op_dat p_K  = op_decl_dat(cells, 16, "double:soa", K, "p_K");
 
   op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
   op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
@@ -212,12 +212,6 @@ int main(int argc, char **argv)
   op_decl_const(1,"double",&kappa  );
   op_decl_const(1,"double",&nmode  );
   op_decl_const(1,"double",&mfan  );
-#ifdef CUDA
-  stride = cells->size;
-#else
-  stride = 1;
-#endif
-  op_decl_const(1,"int",&stride  );
 
   op_diagnostic_output();
 
@@ -233,7 +227,7 @@ int main(int argc, char **argv)
     op_par_loop(res_calc,"res_calc",cells,
                 op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
                 op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
+                op_arg_dat(p_K,     -1,     OP_ID, 16,"double:soa",OP_WRITE),
                 op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
                 );
 
@@ -263,7 +257,7 @@ int main(int argc, char **argv)
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
-                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
+                  op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet,"dirichlet",bnodes,

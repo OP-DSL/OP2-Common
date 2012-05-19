@@ -5,7 +5,7 @@ inline void res_calc(double **x, double **phim, double *K, /*double *Kt,*/ doubl
     }
   }
   for (int i = 0; i<4; i++) { //for each gauss point
-    double N[] = {Ng2[i], Ng2[4+i], Ng2[8+i], Ng2[12+i]};
+    //double N[] = {Ng2[i], Ng2[4+i], Ng2[8+i], Ng2[12+i]};
     double N_xi[] = {Ng2_xi[4*i], Ng2_xi[4*i+1], Ng2_xi[4*i+2], Ng2_xi[4*i+3], Ng2_xi[4*i+16], Ng2_xi[4*i+17], Ng2_xi[4*i+18], Ng2_xi[4*i+19]};
     double x_xi[] = {N_xi[0]*x[0][0]+N_xi[1]*x[1][0]+N_xi[2]*x[2][0]+N_xi[3]*x[3][0],
             N_xi[0]*x[0][1]+N_xi[1]*x[1][1]+N_xi[2]*x[2][1]+N_xi[3]*x[3][1],
@@ -39,7 +39,7 @@ inline void res_calc(double **x, double **phim, double *K, /*double *Kt,*/ doubl
     }
     for (int j = 0;j<4;j++) {
       for (int k = 0;k<4;k++) {
-        K[stride*(j*4+k)] += wt1*rho*(N_x[j]*N_x[k]+N_x[4+j]*N_x[4+k]) - wt1*rc2*(u[0]*N_x[j] + u[1]*N_x[4+j])*(u[0]*N_x[k] + u[1]*N_x[4+k]);
+        K[op2_stride*(j*4+k)] += wt1*rho*(N_x[j]*N_x[k]+N_x[4+j]*N_x[4+k]) - wt1*rc2*(u[0]*N_x[j] + u[1]*N_x[4+j])*(u[0]*N_x[k] + u[1]*N_x[4+k]);
         //Kt[j*4+k] += wt2*rho*N[j]*N[k];
       }
     }

@@ -39,7 +39,6 @@ http://www.opensource.org/licenses/bsd-license.php
 // global constants
 
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
-int stride;
 
 //
 // mpi header file - included by user for user level mpi
@@ -318,12 +317,6 @@ int main(int argc, char **argv)
   op_decl_const(1,"double",&kappa  );
   op_decl_const(1,"double",&nmode  );
   op_decl_const(1,"double",&mfan  );
-#ifdef CUDA
-  stride = cells->size;
-#else
-  stride = 1;
-#endif
-  op_decl_const(1,"int",&stride  );
 
   op_diagnostic_output();
 

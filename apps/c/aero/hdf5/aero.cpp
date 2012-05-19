@@ -39,7 +39,6 @@ http://www.opensource.org/licenses/bsd-license.php
 // global constants
 
 double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
-int stride;
 
 //
 // OP header file
@@ -165,13 +164,6 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
-
-  #ifdef CUDA
-  stride = cells->size + cells->exec_size + cells->nonexec_size;
-  #else
-  stride = 1;
-  #endif
-  op_decl_const2("stride",1,"int",&stride  );
 
   printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
   nnode = op_get_size(nodes);

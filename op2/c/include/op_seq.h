@@ -8,6 +8,8 @@
 
 #include "op_lib_cpp.h"
 
+int op2_stride = 1;
+
 char blank_args[512]; // scratch space to use for blank args
 
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){

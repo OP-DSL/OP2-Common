@@ -39,7 +39,7 @@ inline void res_calc(double **x, double **phim, double *K, /*double *Kt,*/ doubl
     }
     for (int j = 0;j<4;j++) {
       for (int k = 0;k<4;k++) {
-        K[stride*(j*4+k)] += wt1*rho*(N_x[j]*N_x[k]+N_x[4+j]*N_x[4+k]) - wt1*rc2*(u[0]*N_x[j] + u[1]*N_x[4+j])*(u[0]*N_x[k] + u[1]*N_x[4+k]);
+        K[op2_stride*(j*4+k)] += wt1*rho*(N_x[j]*N_x[k]+N_x[4+j]*N_x[4+k]) - wt1*rc2*(u[0]*N_x[j] + u[1]*N_x[4+j])*(u[0]*N_x[k] + u[1]*N_x[4+k]);
         //Kt[j*4+k] += wt2*rho*N[j]*N[k];
       }
     }

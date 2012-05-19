@@ -62,7 +62,7 @@ op_rt_exit (  )
     //free ( OP_plans[ip].loc_map );
     //free ( OP_plans[ip].loc_maps );
     free ( OP_plans[ip].ncolblk );
-  free ( OP_plans[ip].nsharedCol);
+    free ( OP_plans[ip].nsharedCol);
   }
 
   OP_plan_index = 0;
