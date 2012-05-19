@@ -182,6 +182,7 @@ for narg = 1: nargin
     maps = zeros(1,nargs);
     typs = {};
     accs = zeros(1,nargs);
+    soaflags = zeros(1,nargs);
 
     for m = 1:nargs
       type = loop_args{loop_index}.type{m};
@@ -201,7 +202,13 @@ for narg = 1: nargin
         end
 
         dims{m} = args{4};
-        typs{m} = args{5}(2:end-1);
+        soa_loc = strfind(args{5},':soa');
+        if (~isempty(soa_loc))
+            soaflags(m) = 1;
+            typs{m} = args{5}(2:soa_loc-1);
+        else
+            typs{m} = args{5}(2:end-1);
+        end
 
         if(isempty(strmatch(args{6},OP_accs_labels)))
           error(sprintf('unknown access type for argument %d',m));
@@ -277,6 +284,7 @@ for narg = 1: nargin
              strcmp(kernels{nk}.typs{arg},      typs{arg}) && ...
                    (kernels{nk}.accs(arg)    == accs(arg)) && ...
                    (kernels{nk}.idxs(arg)    == idxs(arg)) && ...
+                   (kernels{nk}.soaflags(arg)== soaflags(arg)) && ...
                    (kernels{nk}.inds(arg)    == inds(arg));
         end
 
@@ -327,6 +335,7 @@ for narg = 1: nargin
       kernels{nkernels}.accs  = accs;
       kernels{nkernels}.idxs  = idxs;
       kernels{nkernels}.inds  = inds;
+      kernels{nkernels}.soaflags = soaflags;
 
       kernels{nkernels}.ninds   = ninds;
       kernels{nkernels}.inddims = inddims;
@@ -371,13 +380,13 @@ for narg = 1: nargin
     loc_old = loc-1;
 
     if (~isempty(find(loc==loc_header)))
-      fprintf(fid,' "op_lib_cpp.h"\n\n');
+      fprintf(fid,' "op_lib_cpp.h"\nint op2_stride = 1;\n');
       fprintf(fid,'//\n// op_par_loop declarations\n//\n');
 
       for k=1:nkernels
         fprintf(fid,'\nvoid op_par_loop_%s(char const *, op_set,\n',...
-                loop_args{k}.name1);
-        for n = 1:loop_args{k}.nargs-1
+                kernels{k}.name);
+        for n = 1:kernels{k}.nargs-1
           fprintf(fid,'  op_arg,\n');
         end
         fprintf(fid,'  op_arg );\n');

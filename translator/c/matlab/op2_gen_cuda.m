@@ -20,6 +20,11 @@ OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
 accsstring = {'OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN'};
 
+any_soa = 0;
+for nk = 1:length(kernels)
+    any_soa = any_soa || sum(kernels{nk}.soaflags);
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  create new kernel file
@@ -38,6 +43,7 @@ for nk = 1:length(kernels)
   accs  = kernels{nk}.accs;
   idxs  = kernels{nk}.idxs;
   inds  = kernels{nk}.inds;
+  soaflags = kernels{nk}.soaflags;
 
   ninds   = kernels{nk}.ninds;
   inddims = kernels{nk}.inddims;
@@ -56,6 +62,7 @@ for nk = 1:length(kernels)
       new_accs = [];
       new_idxs = [];
       new_inds = [];
+      new_soaflags = [];
       for m = 1:nargs
           if (idxs(m)<0 && maps(m) == 3)
               if m>1
@@ -68,6 +75,7 @@ for nk = 1:length(kernels)
               temp(1:-1*idxs(m)) = dims(m);
               new_dims = [new_dims temp];
               new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
+              new_soaflags = [new_soaflags zeros(1,-1*idxs(m))];
               new_accs = [new_accs accs(m)*ones(1,-1*idxs(m))];
               new_idxs = [new_idxs 0:(-1*idxs(m) -1)];
               new_inds = [new_inds inds(m)*ones(1,-1*idxs(m))];
@@ -80,6 +88,7 @@ for nk = 1:length(kernels)
               new_dims = [new_dims dims(m)];
               new_maps = [new_maps maps(m)];
               new_accs = [new_accs accs(m)];
+              new_soaflags = [new_soaflags soaflags(m)];
               new_idxs = [new_idxs idxs(m)];
               new_inds = [new_inds inds(m)];
               new_vars = [new_vars vars(m)];
@@ -94,6 +103,7 @@ for nk = 1:length(kernels)
       inds = [new_inds];
       vars = new_vars;
       typs = new_typs;
+      soaflags = new_soaflags;
       nargs = length(vectorised);
       for i = 1:ninds
           invinds(i) = find(inds == i,1);
@@ -178,7 +188,7 @@ for nk = 1:length(kernels)
     elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
-    elseif (ninds==0 && maps(m)==OP_ID & ~strcmp(dims{m},'1'))
+    elseif (ninds==0 && maps(m)==OP_ID && ~strcmp(dims{m},'1') && ~soaflags(m))
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
     end
@@ -338,7 +348,7 @@ for nk = 1:length(kernels)
     end
 
     for m = 1:nargs
-      if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && ~strcmp(dims{m},'1'))
+      if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && ~strcmp(dims{m},'1') && ~soaflags(m))
         line = '    for (int m=0; m<DIM; m++)';
         file = strvcat(file,rep(line,m));
         line = ['      ((TYP *)arg_s)[tid+m*nelems] =' ...
@@ -410,9 +420,13 @@ for nk = 1:length(kernels)
       line = '';
     elseif (maps(m)==OP_ID)
       if (ninds>0)
-        line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
+        if (soaflags(m))
+            line = rep([ line ' ARG+(n+offset_b),' ],m);
+        else
+            line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
+        end
       else
-        if (strcmp(dims{m},'1'))
+        if (strcmp(dims{m},'1') || soaflags(m))
           line = rep([ line ' ARG+n,' ],m);
         else
           line = rep([ line ' ARG_l,' ],m);
@@ -505,7 +519,7 @@ for nk = 1:length(kernels)
     end
 
     for m = 1:nargs
-      if(maps(m)~=OP_GBL && accs(m)~=OP_READ && ~strcmp(dims{m},'1'))
+      if(maps(m)~=OP_GBL && accs(m)~=OP_READ && ~strcmp(dims{m},'1') && ~soaflags(m))
         line = '    for (int m=0; m<DIM; m++)';
         file = strvcat(file,rep(line,m));
         line = '      ((TYP *)arg_s)[m+tid*DIM] = ARG_l[m];';
@@ -634,6 +648,12 @@ for nk = 1:length(kernels)
                           '  op_timers_core(&cpu_t1, &wall_t1);           ');
 
   file = strvcat(file,' ','  if (set->size >0) {',' ');
+
+  if (sum(soaflags))
+      file = strvcat(file,'    int op2_stride = set->size + set->exec_size + set->nonexec_size;');
+      file = strvcat(file,'    op_decl_const_char(1, "int", sizeof(int), (char *)op2_stride, "op2_stride");',' ');
+  end
+
   if (ninds>0)
       file = strvcat(file,'    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);',' ');
   end
@@ -966,6 +986,11 @@ for nc = 1:length(consts)
     file = strvcat(file, ...
       [ '__constant__ ' consts{nc}.type ' ' consts{nc}.name '[' num '];' ]);
   end
+end
+
+if (any_soa)
+   file = strvcat(file, '__constant__ int op2_stride;');
+   %file = strvcat(file, 'extern int op2_stride;');
 end
 
 file = strvcat(file,' ',...

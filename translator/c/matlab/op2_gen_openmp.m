@@ -20,6 +20,11 @@ OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
 accsstring = {'OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN'};
 
+any_soa = 0;
+for nk = 1:length(kernels)
+    any_soa = any_soa || sum(kernels{nk}.soaflags);
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  create new kernel file
@@ -38,6 +43,7 @@ for nk = 1:length(kernels)
   accs  = kernels{nk}.accs;
   idxs  = kernels{nk}.idxs;
   inds  = kernels{nk}.inds;
+  soaflags = kernels{nk}.soaflags;
 
   ninds   = kernels{nk}.ninds;
   inddims = kernels{nk}.inddims;
@@ -56,6 +62,7 @@ for nk = 1:length(kernels)
       new_accs = [];
       new_idxs = [];
       new_inds = [];
+      new_soaflags = [];
       for m = 1:nargs
           if (idxs(m)<0 && maps(m) == 3)
               if m>1
@@ -68,6 +75,7 @@ for nk = 1:length(kernels)
               temp(1:-1*idxs(m)) = dims(m);
               new_dims = [new_dims temp];
               new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
+              new_soaflags = [new_soaflags zeros(1,-1*idxs(m))];
               new_accs = [new_accs accs(m)*ones(1,-1*idxs(m))];
               new_idxs = [new_idxs 0:(-1*idxs(m) -1)];
               new_inds = [new_inds inds(m)*ones(1,-1*idxs(m))];
@@ -80,6 +88,7 @@ for nk = 1:length(kernels)
               new_dims = [new_dims dims(m)];
               new_maps = [new_maps maps(m)];
               new_accs = [new_accs accs(m)];
+              new_soaflags = [new_soaflags soaflags(m)];
               new_idxs = [new_idxs idxs(m)];
               new_inds = [new_inds inds(m)];
               new_vars = [new_vars vars(m)];
@@ -94,6 +103,7 @@ for nk = 1:length(kernels)
       inds = [new_inds];
       vars = new_vars;
       typs = new_typs;
+      soaflags = new_soaflags;
       nargs = length(vectorised);
       for i = 1:ninds
           invinds(i) = find(inds == i,1);
@@ -541,6 +551,7 @@ for nk = 1:length(kernels)
   end
 
   file = strvcat(file,' ','  if (set->size >0) {',' ');
+
 %
 % kernel call for indirect version
 %
@@ -714,6 +725,10 @@ for nc = 1:length(consts)
     file = strvcat(file, ...
       [ 'extern ' consts{nc}.type ' ' consts{nc}.name '[' num '];' ]);
   end
+end
+
+if (any_soa)
+   file = strvcat(file, 'extern int op2_stride;');
 end
 
 file = strvcat(file,' ','// user kernel files',' ');

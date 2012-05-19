@@ -1,7 +1,7 @@
 inline void res_calc(double **x, double **phim, double *K, /*double *Kt,*/ double **res) {
   for (int j = 0;j<4;j++) {
     for (int k = 0;k<4;k++) {
-      K[stride*(j*4+k)] = 0;
+      K[op2_stride*(j*4+k)] = 0;
     }
   }
   for (int i = 0; i<4; i++) { //for each gauss point
