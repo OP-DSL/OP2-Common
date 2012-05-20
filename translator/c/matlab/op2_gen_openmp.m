@@ -451,17 +451,6 @@ for nk = 1:length(kernels)
   end
 
   for m = 1:nargs
-      if (find(m==unique_args,1) & (vectorised(m) > 0))
-          line = '  ARG.idx = 0;';
-          file = strvcat(file,rep(line,m));
-      elseif (vectorised(m)>0)
-          first = find(vectorised == vectorised(m), 1);
-          line = sprintf('  op_arg ARG = op_arg_dat(arg%d.dat, IDX, arg%d.map, DIM, "TYP", %s);', first-1, first-1, accsstring{accs(m)});
-          file = strvcat(file,rep(line,m));
-      end
-  end
-
-  for m = 1:nargs
     if (maps(m)==OP_GBL && accs(m)~=OP_READ)
       line = '  TYP *ARGh = (TYP *)ARG.data;';
       file = strvcat(file,rep(line,m));
@@ -470,11 +459,25 @@ for nk = 1:length(kernels)
 
   file = strvcat(file,' ',['  int    nargs   = ' num2str(nargs) ';']);
 
-  line = sprintf('  op_arg args[%d] = {',nargs);
+  line = sprintf('  op_arg args[%d];',nargs);
+  file = strvcat(file,rep(line,m),' ');
+
   for m = 1:nargs
-      line = [line 'arg' num2str(m-1) ','];
+    if (find(m==unique_args,1) & (vectorised(m) > 0))
+      line = '  ARG.idx = 0;';
+      line = sprintf('%s\n  args[%d] = ARG;',line, m-1);
+      file = strvcat(file,rep(line,m));
+      first = find(vectorised == vectorised(m), 1);
+      line = sprintf('  for (int v = 1; v < %d; v++) {\n',sum(vectorised == vectorised(m)) );
+      line = sprintf('%s    args[%d + v] = op_arg_dat(arg%d.dat, IDX, arg%d.map, DIM, "TYP", %s);\n  }', line,  m-1, first-1, first-1, accsstring{accs(m)});
+      file = strvcat(file,rep(line,m));
+    elseif (vectorised(m)>0)
+
+    else
+      line = sprintf('  args[%d] = ARG;',m-1);
+      file = strvcat(file,rep(line,m));
+    end
   end
-  file = strvcat(file,[line(1:end-1) '};']);
 
 %
 %   indirect bits
