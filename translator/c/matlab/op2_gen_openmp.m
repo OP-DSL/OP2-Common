@@ -469,7 +469,7 @@ for nk = 1:length(kernels)
       file = strvcat(file,rep(line,m));
       first = find(vectorised == vectorised(m), 1);
       line = sprintf('  for (int v = 1; v < %d; v++) {\n',sum(vectorised == vectorised(m)) );
-      line = sprintf('%s    args[%d + v] = op_arg_dat(arg%d.dat, IDX, arg%d.map, DIM, "TYP", %s);\n  }', line,  m-1, first-1, first-1, accsstring{accs(m)});
+      line = sprintf('%s    args[%d + v] = op_arg_dat(arg%d.dat, v, arg%d.map, DIM, "TYP", %s);\n  }', line,  m-1, first-1, first-1, accsstring{accs(m)});
       file = strvcat(file,rep(line,m));
     elseif (vectorised(m)>0)
 
