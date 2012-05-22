@@ -260,9 +260,9 @@ void op_par_loop ( void (*kernel)( T0*, int, int ),
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
       }
@@ -546,17 +546,17 @@ void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
       }
@@ -930,25 +930,25 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
       }
@@ -1412,33 +1412,33 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
         if (arg3.argtype == OP_ARG_MAT) {
           const int rows = arg3.map->dim;
           const int cols = arg3.map2->dim;
-          op_mat_addto(arg3.mat, p_arg3,
-                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
-                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+          op_mat_addto_scalar(arg3.mat, p_arg3,
+                              arg3.map->map[n*rows + idxs[arg3idxs[0]]],
+                              arg3.map2->map[n*cols + idxs[arg3idxs[1]]]);
         }
 
       }
@@ -2002,41 +2002,41 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
         if (arg3.argtype == OP_ARG_MAT) {
           const int rows = arg3.map->dim;
           const int cols = arg3.map2->dim;
-          op_mat_addto(arg3.mat, p_arg3,
-                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
-                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+          op_mat_addto_scalar(arg3.mat, p_arg3,
+                              arg3.map->map[n*rows + idxs[arg3idxs[0]]],
+                              arg3.map2->map[n*cols + idxs[arg3idxs[1]]]);
         }
 
         if (arg4.argtype == OP_ARG_MAT) {
           const int rows = arg4.map->dim;
           const int cols = arg4.map2->dim;
-          op_mat_addto(arg4.mat, p_arg4,
-                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
-                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+          op_mat_addto_scalar(arg4.mat, p_arg4,
+                              arg4.map->map[n*rows + idxs[arg4idxs[0]]],
+                              arg4.map2->map[n*cols + idxs[arg4idxs[1]]]);
         }
 
       }
@@ -2690,49 +2690,49 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
         if (arg3.argtype == OP_ARG_MAT) {
           const int rows = arg3.map->dim;
           const int cols = arg3.map2->dim;
-          op_mat_addto(arg3.mat, p_arg3,
-                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
-                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+          op_mat_addto_scalar(arg3.mat, p_arg3,
+                              arg3.map->map[n*rows + idxs[arg3idxs[0]]],
+                              arg3.map2->map[n*cols + idxs[arg3idxs[1]]]);
         }
 
         if (arg4.argtype == OP_ARG_MAT) {
           const int rows = arg4.map->dim;
           const int cols = arg4.map2->dim;
-          op_mat_addto(arg4.mat, p_arg4,
-                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
-                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+          op_mat_addto_scalar(arg4.mat, p_arg4,
+                              arg4.map->map[n*rows + idxs[arg4idxs[0]]],
+                              arg4.map2->map[n*cols + idxs[arg4idxs[1]]]);
         }
 
         if (arg5.argtype == OP_ARG_MAT) {
           const int rows = arg5.map->dim;
           const int cols = arg5.map2->dim;
-          op_mat_addto(arg5.mat, p_arg5,
-                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
-                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+          op_mat_addto_scalar(arg5.mat, p_arg5,
+                              arg5.map->map[n*rows + idxs[arg5idxs[0]]],
+                              arg5.map2->map[n*cols + idxs[arg5idxs[1]]]);
         }
 
       }
@@ -3476,57 +3476,57 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
         if (arg3.argtype == OP_ARG_MAT) {
           const int rows = arg3.map->dim;
           const int cols = arg3.map2->dim;
-          op_mat_addto(arg3.mat, p_arg3,
-                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
-                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+          op_mat_addto_scalar(arg3.mat, p_arg3,
+                              arg3.map->map[n*rows + idxs[arg3idxs[0]]],
+                              arg3.map2->map[n*cols + idxs[arg3idxs[1]]]);
         }
 
         if (arg4.argtype == OP_ARG_MAT) {
           const int rows = arg4.map->dim;
           const int cols = arg4.map2->dim;
-          op_mat_addto(arg4.mat, p_arg4,
-                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
-                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+          op_mat_addto_scalar(arg4.mat, p_arg4,
+                              arg4.map->map[n*rows + idxs[arg4idxs[0]]],
+                              arg4.map2->map[n*cols + idxs[arg4idxs[1]]]);
         }
 
         if (arg5.argtype == OP_ARG_MAT) {
           const int rows = arg5.map->dim;
           const int cols = arg5.map2->dim;
-          op_mat_addto(arg5.mat, p_arg5,
-                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
-                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+          op_mat_addto_scalar(arg5.mat, p_arg5,
+                              arg5.map->map[n*rows + idxs[arg5idxs[0]]],
+                              arg5.map2->map[n*cols + idxs[arg5idxs[1]]]);
         }
 
         if (arg6.argtype == OP_ARG_MAT) {
           const int rows = arg6.map->dim;
           const int cols = arg6.map2->dim;
-          op_mat_addto(arg6.mat, p_arg6,
-                       1, arg6.map->map + n*rows + idxs[arg6idxs[0]],
-                       1, arg6.map2->map + n*cols + idxs[arg6idxs[1]]);
+          op_mat_addto_scalar(arg6.mat, p_arg6,
+                              arg6.map->map[n*rows + idxs[arg6idxs[0]]],
+                              arg6.map2->map[n*cols + idxs[arg6idxs[1]]]);
         }
 
       }
@@ -4360,65 +4360,65 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
         if (arg0.argtype == OP_ARG_MAT) {
           const int rows = arg0.map->dim;
           const int cols = arg0.map2->dim;
-          op_mat_addto(arg0.mat, p_arg0,
-                       1, arg0.map->map + n*rows + idxs[arg0idxs[0]],
-                       1, arg0.map2->map + n*cols + idxs[arg0idxs[1]]);
+          op_mat_addto_scalar(arg0.mat, p_arg0,
+                              arg0.map->map[n*rows + idxs[arg0idxs[0]]],
+                              arg0.map2->map[n*cols + idxs[arg0idxs[1]]]);
         }
 
         if (arg1.argtype == OP_ARG_MAT) {
           const int rows = arg1.map->dim;
           const int cols = arg1.map2->dim;
-          op_mat_addto(arg1.mat, p_arg1,
-                       1, arg1.map->map + n*rows + idxs[arg1idxs[0]],
-                       1, arg1.map2->map + n*cols + idxs[arg1idxs[1]]);
+          op_mat_addto_scalar(arg1.mat, p_arg1,
+                              arg1.map->map[n*rows + idxs[arg1idxs[0]]],
+                              arg1.map2->map[n*cols + idxs[arg1idxs[1]]]);
         }
 
         if (arg2.argtype == OP_ARG_MAT) {
           const int rows = arg2.map->dim;
           const int cols = arg2.map2->dim;
-          op_mat_addto(arg2.mat, p_arg2,
-                       1, arg2.map->map + n*rows + idxs[arg2idxs[0]],
-                       1, arg2.map2->map + n*cols + idxs[arg2idxs[1]]);
+          op_mat_addto_scalar(arg2.mat, p_arg2,
+                              arg2.map->map[n*rows + idxs[arg2idxs[0]]],
+                              arg2.map2->map[n*cols + idxs[arg2idxs[1]]]);
         }
 
         if (arg3.argtype == OP_ARG_MAT) {
           const int rows = arg3.map->dim;
           const int cols = arg3.map2->dim;
-          op_mat_addto(arg3.mat, p_arg3,
-                       1, arg3.map->map + n*rows + idxs[arg3idxs[0]],
-                       1, arg3.map2->map + n*cols + idxs[arg3idxs[1]]);
+          op_mat_addto_scalar(arg3.mat, p_arg3,
+                              arg3.map->map[n*rows + idxs[arg3idxs[0]]],
+                              arg3.map2->map[n*cols + idxs[arg3idxs[1]]]);
         }
 
         if (arg4.argtype == OP_ARG_MAT) {
           const int rows = arg4.map->dim;
           const int cols = arg4.map2->dim;
-          op_mat_addto(arg4.mat, p_arg4,
-                       1, arg4.map->map + n*rows + idxs[arg4idxs[0]],
-                       1, arg4.map2->map + n*cols + idxs[arg4idxs[1]]);
+          op_mat_addto_scalar(arg4.mat, p_arg4,
+                              arg4.map->map[n*rows + idxs[arg4idxs[0]]],
+                              arg4.map2->map[n*cols + idxs[arg4idxs[1]]]);
         }
 
         if (arg5.argtype == OP_ARG_MAT) {
           const int rows = arg5.map->dim;
           const int cols = arg5.map2->dim;
-          op_mat_addto(arg5.mat, p_arg5,
-                       1, arg5.map->map + n*rows + idxs[arg5idxs[0]],
-                       1, arg5.map2->map + n*cols + idxs[arg5idxs[1]]);
+          op_mat_addto_scalar(arg5.mat, p_arg5,
+                              arg5.map->map[n*rows + idxs[arg5idxs[0]]],
+                              arg5.map2->map[n*cols + idxs[arg5idxs[1]]]);
         }
 
         if (arg6.argtype == OP_ARG_MAT) {
           const int rows = arg6.map->dim;
           const int cols = arg6.map2->dim;
-          op_mat_addto(arg6.mat, p_arg6,
-                       1, arg6.map->map + n*rows + idxs[arg6idxs[0]],
-                       1, arg6.map2->map + n*cols + idxs[arg6idxs[1]]);
+          op_mat_addto_scalar(arg6.mat, p_arg6,
+                              arg6.map->map[n*rows + idxs[arg6idxs[0]]],
+                              arg6.map2->map[n*cols + idxs[arg6idxs[1]]]);
         }
 
         if (arg7.argtype == OP_ARG_MAT) {
           const int rows = arg7.map->dim;
           const int cols = arg7.map2->dim;
-          op_mat_addto(arg7.mat, p_arg7,
-                       1, arg7.map->map + n*rows + idxs[arg7idxs[0]],
-                       1, arg7.map2->map + n*cols + idxs[arg7idxs[1]]);
+          op_mat_addto_scalar(arg7.mat, p_arg7,
+                              arg7.map->map[n*rows + idxs[arg7idxs[0]]],
+                              arg7.map2->map[n*cols + idxs[arg7idxs[1]]]);
         }
 
       }

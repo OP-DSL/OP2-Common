@@ -91,6 +91,21 @@ static inline PetscScalar * to_petsc(T dat, const void * values, int size)
   return dvalues;
 }
 
+void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col )
+{
+  assert( mat && value);
+  PetscScalar v[1];
+  if (is_float(mat))
+    v[0] = (PetscScalar)((float *)value)[0];
+  else
+    v[0] = ((const PetscScalar *)value)[0];
+
+  MatSetValues( (Mat) mat->mat,
+                1, (const PetscInt *)&row,
+                1, (const PetscInt *)&col,
+                v, ADD_VALUES );
+}
+
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols )
 {
   assert( mat && values && irows && icols );
