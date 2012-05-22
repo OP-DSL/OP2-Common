@@ -48,6 +48,8 @@ op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map co
 
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
 
+void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col );
+
 void op_mat_assemble( op_mat mat );
 
 void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out );

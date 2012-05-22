@@ -293,9 +293,9 @@ templates = {
         if (arg%d.argtype == OP_ARG_MAT) {
           const int rows = arg%d.map->dim;
           const int cols = arg%d.map2->dim;
-          op_mat_addto(arg%d.mat, p_arg%d,
-                       1, arg%d.map->map + n*rows + idxs[arg%didxs[0]],
-                       1, arg%d.map2->map + n*cols + idxs[arg%didxs[1]]);
+          op_mat_addto_scalar(arg%d.mat, p_arg%d,
+                              arg%d.map->map[n*rows + idxs[arg%didxs[0]]],
+                              arg%d.map2->map[n*cols + idxs[arg%didxs[1]]]);
         }
 """
     }
