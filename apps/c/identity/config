@@ -1,0 +1,2 @@
+files=identity.cpp
+kernel_basename=identity_kernel
