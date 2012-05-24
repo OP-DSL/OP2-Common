@@ -153,6 +153,9 @@ __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *
   int colour1;
   int colour2;
   int i2;
+  for (i1 = 0; i1 < 1; ++i1) {
+    opDat2Local[i1] = 0.00000;
+  }
   if (threadIdx.x == 0) {
     blockID = pblkMap[blockIdx.x + blockOffset];
     numberOfActiveThreads = pnelems[blockID];
@@ -275,36 +278,41 @@ __host__ void L_0_host(const char *userSubroutine,op_set set,op_arg opDat1,op_ar
   indirectionDescriptorArray[9] = 2;
   indirectionDescriptorArray[7] = 2;
   planRet = op_plan_get(userSubroutine,set,setPartitionSize_L_0,10,opDatArray,3,indirectionDescriptorArray);
+  blocksPerGrid = 0;
+  for (i1 = 0; i1 < planRet -> ncolors; ++i1) {
+    i2 = planRet -> ncolblk[i1];
+    blocksPerGrid = MAX(blocksPerGrid,i2);
+  }
+  reductionBytes = 0;
+  reductionSharedMemorySize = 0;
+  reductionArrayHost2 = ((double *)opDat2.data);
+  reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
+  reductionSharedMemorySize = MAX(reductionSharedMemorySize,sizeof(double ));
+  reallocReductArrays(reductionBytes);
+  reductionBytes = 0;
+  opDat2.data = OP_reduct_h + reductionBytes;
+  opDat2.data_d = OP_reduct_d + reductionBytes;
+  for (i1 = 0; i1 < blocksPerGrid; ++i1) {
+    for (i2 = 0; i2 < 1; ++i2) {
+      ((double *)opDat2.data)[i2 + i1 * 1] = 0.00000;
+    }
+  }
+  reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
+  mvReductArraysToDevice(reductionBytes);
   blockOffset = 0;
   for (i3 = 0; i3 < planRet -> ncolors; ++i3) {
     blocksPerGrid = planRet -> ncolblk[i3];
-    dynamicSharedMemorySize = planRet -> nshared;
     threadsPerBlock = threadsPerBlockSize_L_0;
-    reductionBytes = 0;
-    reductionSharedMemorySize = 0;
-    reductionArrayHost2 = ((double *)opDat2.data);
-    reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
-    reductionSharedMemorySize = MAX(reductionSharedMemorySize,sizeof(double ));
-    reallocReductArrays(reductionBytes);
-    reductionBytes = 0;
-    opDat2.data = OP_reduct_h + reductionBytes;
-    opDat2.data_d = OP_reduct_d + reductionBytes;
-    for (i1 = 0; i1 < blocksPerGrid; ++i1) {
-      for (i2 = 0; i2 < 1; ++i2) {
-        ((double *)opDat2.data)[i2 + i1 * 1] = 0.00000;
-      }
-    }
-    reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
-    mvReductArraysToDevice(reductionBytes);
-    L_0_kernel<<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>(((double *)opDat1.data_d),((double *)opDat2.data_d),((double *)opDat3.data_d),((double *)opDat4.data_d),planRet -> ind_maps[0],planRet -> ind_maps[1],planRet -> ind_maps[2],planRet -> loc_maps[0],planRet -> loc_maps[1],planRet -> loc_maps[2],planRet -> loc_maps[3],planRet -> loc_maps[4],planRet -> loc_maps[5],planRet -> loc_maps[6],planRet -> loc_maps[7],planRet -> loc_maps[8],planRet -> ind_sizes,planRet -> ind_offs,planRet -> blkmap,planRet -> offset,planRet -> nelems,planRet -> nthrcol,planRet -> thrcol,blockOffset);
+    dynamicSharedMemorySize = MAX(planRet -> nshared,reductionSharedMemorySize * threadsPerBlock);
+    L_0_kernel<<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>(((double *)opDat1.data_d),((double *)opDat2.data_d),((double *)opDat3.data_d),((double *)opDat4.data_d),planRet -> ind_maps[0],planRet -> ind_maps[1],planRet -> ind_maps[2],planRet -> loc_maps[0],planRet -> loc_maps[1],planRet -> loc_maps[2],planRet -> loc_maps[4],planRet -> loc_maps[5],planRet -> loc_maps[6],planRet -> loc_maps[7],planRet -> loc_maps[8],planRet -> loc_maps[9],planRet -> ind_sizes,planRet -> ind_offs,planRet -> blkmap,planRet -> offset,planRet -> nelems,planRet -> nthrcol,planRet -> thrcol,blockOffset);
     cutilSafeCall(cudaThreadSynchronize());
-    mvReductArraysToHost(reductionBytes);
-    for (i1 = 0; i1 < blocksPerGrid; ++i1) {
-      for (i2 = 0; i2 < 1; ++i2) {
-        reductionArrayHost2[i2] += ((double *)opDat2.data)[i2 + i1 * 1];
-      }
-    }
     blockOffset += blocksPerGrid;
+  }
+  mvReductArraysToHost(reductionBytes);
+  for (i1 = 0; i1 < blocksPerGrid; ++i1) {
+    for (i2 = 0; i2 < 1; ++i2) {
+      reductionArrayHost2[i2] += ((double *)opDat2.data)[i2 + i1 * 1];
+    }
   }
 }
 
@@ -347,6 +355,9 @@ __global__ void a_0_kernel(double *opMat1,double *reductionArrayDevice1,double *
   double *opDat2vec[3];
   __device__ __shared__ int opDat2SharedIndirectionSize;
   __device__ __shared__ double *opDat2SharedIndirection;
+  for (i1 = 0; i1 < 1; ++i1) {
+    opDat1Local[i1] = 0.00000;
+  }
   if (threadIdx.x == 0) {
     blockID = pblkMap[blockIdx.x + blockOffset];
     numberOfActiveThreads = pnelems[blockID];
@@ -407,39 +418,44 @@ __host__ void a_0_host(const char *userSubroutine,op_set set,op_arg opMat1,op_ar
   indirectionDescriptorArray[3] = 0;
   indirectionDescriptorArray[1] = 0;
   planRet = op_plan_get(userSubroutine,set,setPartitionSize_a_0,4,opDatArray,1,indirectionDescriptorArray);
+  blocksPerGrid = 0;
+  for (i1 = 0; i1 < planRet -> ncolors; ++i1) {
+    i2 = planRet -> ncolblk[i1];
+    blocksPerGrid = MAX(blocksPerGrid,i2);
+  }
+  reductionBytes = 0;
+  reductionSharedMemorySize = 0;
+  reductionArrayHost1 = ((double *)opDat1.data);
+  reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
+  reductionSharedMemorySize = MAX(reductionSharedMemorySize,sizeof(double ));
+  reallocReductArrays(reductionBytes);
+  reductionBytes = 0;
+  opDat1.data = OP_reduct_h + reductionBytes;
+  opDat1.data_d = OP_reduct_d + reductionBytes;
+  for (i1 = 0; i1 < blocksPerGrid; ++i1) {
+    for (i2 = 0; i2 < 1; ++i2) {
+      ((double *)opDat1.data)[i2 + i1 * 1] = 0.00000;
+    }
+  }
+  reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
+  mvReductArraysToDevice(reductionBytes);
   if (opMat1.mat -> lma_data == NULL) {
     op_callocDevice(((void **)(&opMat1.mat -> lma_data)),9 * set -> size * sizeof(double ));
   }
   blockOffset = 0;
   for (i3 = 0; i3 < planRet -> ncolors; ++i3) {
     blocksPerGrid = planRet -> ncolblk[i3];
-    dynamicSharedMemorySize = planRet -> nshared;
     threadsPerBlock = threadsPerBlockSize_a_0;
-    reductionBytes = 0;
-    reductionSharedMemorySize = 0;
-    reductionArrayHost1 = ((double *)opDat1.data);
-    reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
-    reductionSharedMemorySize = MAX(reductionSharedMemorySize,sizeof(double ));
-    reallocReductArrays(reductionBytes);
-    reductionBytes = 0;
-    opDat1.data = OP_reduct_h + reductionBytes;
-    opDat1.data_d = OP_reduct_d + reductionBytes;
-    for (i1 = 0; i1 < blocksPerGrid; ++i1) {
-      for (i2 = 0; i2 < 1; ++i2) {
-        ((double *)opDat1.data)[i2 + i1 * 1] = 0.00000;
-      }
-    }
-    reductionBytes += ROUND_UP(blocksPerGrid * sizeof(double ) * 1);
-    mvReductArraysToDevice(reductionBytes);
-    a_0_kernel<<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>(((double *)(opMat1.mat -> lma_data)),((double *)opDat1.data_d),((double *)opDat2.data_d),planRet -> ind_maps[0],planRet -> loc_maps[0],planRet -> loc_maps[1],planRet -> loc_maps[2],planRet -> ind_sizes,planRet -> ind_offs,planRet -> blkmap,planRet -> offset,planRet -> nelems,planRet -> nthrcol,planRet -> thrcol,blockOffset);
+    dynamicSharedMemorySize = MAX(planRet -> nshared,reductionSharedMemorySize * threadsPerBlock);
+    a_0_kernel<<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>(((double *)(opMat1.mat -> lma_data)),((double *)opDat1.data_d),((double *)opDat2.data_d),planRet -> ind_maps[0],planRet -> loc_maps[1],planRet -> loc_maps[2],planRet -> loc_maps[3],planRet -> ind_sizes,planRet -> ind_offs,planRet -> blkmap,planRet -> offset,planRet -> nelems,planRet -> nthrcol,planRet -> thrcol,blockOffset);
     cutilSafeCall(cudaThreadSynchronize());
-    mvReductArraysToHost(reductionBytes);
-    for (i1 = 0; i1 < blocksPerGrid; ++i1) {
-      for (i2 = 0; i2 < 1; ++i2) {
-        reductionArrayHost1[i2] += ((double *)opDat1.data)[i2 + i1 * 1];
-      }
-    }
     blockOffset += blocksPerGrid;
   }
   op_mat_lma_to_csr(((double *)(opMat1.mat -> lma_data)),opMat1,set);
+  mvReductArraysToHost(reductionBytes);
+  for (i1 = 0; i1 < blocksPerGrid; ++i1) {
+    for (i2 = 0; i2 < 1; ++i2) {
+      reductionArrayHost1[i2] += ((double *)opDat1.data)[i2 + i1 * 1];
+    }
+  }
 }
