@@ -128,7 +128,9 @@ __device__ void L_0_modified(double **localTensor,double *dt,double *(c0)[2UL],d
 
 __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *opDat3,double *opDat4,int *ind_maps1,int *ind_maps3,int *ind_maps4,short *mappingArray1,short *mappingArray2,short *mappingArray3,short *mappingArray4,short *mappingArray5,short *mappingArray6,short *mappingArray7,short *mappingArray8,short *mappingArray9,int *pindSizes,int *pindOffs,int *pblkMap,int *poffset,int *pnelems,int *pnthrcol,int *pthrcol,int blockOffset)
 {
-  double opDat1Local[1];
+  double opDat1Local1[1];
+  double opDat1Local2[1];
+  double opDat1Local3[1];
   extern __device__ __shared__ char shared_L_0[];
   __device__ __shared__ int sharedMemoryOffset;
   __device__ __shared__ int numberOfActiveThreads;
@@ -190,11 +192,13 @@ __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *
     colour2 = -1;
     if (i1 < numberOfActiveThreads) {
       for (i2 = 0; i2 < 1; ++i2) {
-        opDat1Local[i2] = 0.00000;
+        opDat1Local1[i2] = 0.00000;
+        opDat1Local2[i2] = 0.00000;
+        opDat1Local3[i2] = 0.00000;
       }
-      opDat1vec[0] = opDat1SharedIndirection + mappingArray1[i1 + sharedMemoryOffset] * 1;
-      opDat1vec[1] = opDat1SharedIndirection + mappingArray2[i1 + sharedMemoryOffset] * 1;
-      opDat1vec[2] = opDat1SharedIndirection + mappingArray3[i1 + sharedMemoryOffset] * 1;
+      opDat1vec[0] = opDat1Local1;
+      opDat1vec[1] = opDat1Local2;
+      opDat1vec[2] = opDat1Local3;
       opDat3vec[0] = opDat3SharedIndirection + mappingArray4[i1 + sharedMemoryOffset] * 2;
       opDat3vec[1] = opDat3SharedIndirection + mappingArray5[i1 + sharedMemoryOffset] * 2;
       opDat3vec[2] = opDat3SharedIndirection + mappingArray6[i1 + sharedMemoryOffset] * 2;
@@ -207,7 +211,9 @@ __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *
     for (colour1 = 0; colour1 < numOfColours; ++colour1) {
       if (colour2 == colour1) {
         for (i2 = 0; i2 < 1; ++i2) {
-          opDat1SharedIndirection[i2 + mappingArray1[i1 + sharedMemoryOffset] * 1] += opDat1Local[i2];
+          opDat1SharedIndirection[i2 + mappingArray1[i1 + sharedMemoryOffset] * 1] += opDat1Local1[i2];
+          opDat1SharedIndirection[i2 + mappingArray2[i1 + sharedMemoryOffset] * 1] += opDat1Local2[i2];
+          opDat1SharedIndirection[i2 + mappingArray3[i1 + sharedMemoryOffset] * 1] += opDat1Local3[i2];
         }
       }
       __syncthreads();
