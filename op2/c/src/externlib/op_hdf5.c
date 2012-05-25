@@ -171,8 +171,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   H5Fclose(file_id);
-
-  return op_decl_map(from, to, dim, map, name);
+  op_map new_map = op_decl_map(from, to, dim, map, name);
+  new_map->user_managed = 0;
+  return new_map;
 }
 
 /*******************************************************************************
@@ -317,7 +318,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Dclose(dset_id);
   H5Fclose(file_id);
 
-  return op_decl_dat(set, dim, type, dat_size, data, name );
+  op_dat new_dat = op_decl_dat(set, dim, type, dat_size, data, name );
+  new_dat->user_managed = 0;
+  return new_dat;
 }
 
 /*******************************************************************************

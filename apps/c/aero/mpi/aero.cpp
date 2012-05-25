@@ -141,6 +141,7 @@ static void check_scan(int items_received, int items_expected)
   }
 }
 
+
 // main program
 
 int main(int argc, char **argv)
@@ -335,12 +336,12 @@ int main(int argc, char **argv)
     op_par_loop(res_calc,"res_calc",cells,
                 op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
                 op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
+                op_arg_dat(p_K,     -1,     OP_ID, 16,"double:soa",OP_WRITE),
                 op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
                 );
 
     op_par_loop(dirichlet,"dirichlet",bnodes,
-        op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
+                op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
 
 
     double c1 = 0;
@@ -366,7 +367,7 @@ int main(int argc, char **argv)
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
-                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
+                  op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet,"dirichlet",bnodes,
@@ -421,5 +422,15 @@ int main(int argc, char **argv)
   op_timing_output();
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
+
+  free(cell);
+  free(bnode);
+  free(xm);
+  free(phim);
+  free(K);
+  free(resm);
+  free(V);
+  free(P);
+  free(U);
 }
 

@@ -178,15 +178,14 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
     for ( int m = 0; m < ninds; m++ ) {
       plan->ind_maps[m] = &plan->ind_map[set_size*offsets[m]];
     }
-    op_mvHostToDevice ( ( void ** ) &( plan->ind_maps ), ninds * sizeof ( int * ));
     free(offsets);
 
     int counter = 0;
-    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;}
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
     op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
-    op_mvHostToDevice ( ( void ** ) &( plan->loc_maps ), sizeof ( short * ) * nargs );
-
-
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {
+      plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;
+    }
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),
                           sizeof ( int ) * plan->nblocks * plan->ninds );
@@ -213,6 +212,11 @@ void op_cuda_exit ( )
     cutilSafeCall ( cudaFree ( OP_dat_list[i]->data_d ) );
   }
 
+  for ( int ip = 0; ip < OP_plan_index; ip++ )
+  {
+    OP_plans[ip].ind_map = NULL;
+    OP_plans[ip].loc_map = NULL;
+  }
   cudaThreadExit ( );
 }
 

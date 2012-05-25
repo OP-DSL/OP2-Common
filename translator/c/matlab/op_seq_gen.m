@@ -228,7 +228,7 @@ for nargs = 1:maxargs
       '#endif');
 
   for n = 1:nargs
-      file = strvcat(file,sprintf('  if(arg%d.idx == OP_ALL) {\n    free(p_a[%d]);\n  }',n-1,n-1));
+      file = strvcat(file,sprintf('  if(arg%d.idx < -1) {\n    free(p_a[%d]);\n  }',n-1,n-1));
   end
 
   file = strvcat(file,'}',' ');

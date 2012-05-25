@@ -76,6 +76,7 @@ typedef struct {
   int         count;      /* number of times called */
 } op_plan;
 
+extern op_plan * OP_plans;
 
 #ifdef __cplusplus
 extern "C" {

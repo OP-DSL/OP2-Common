@@ -44,8 +44,7 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[3
 // OP header file
 //
 
-
-#include "op_lib_cpp.h"
+#include "op_seq.h"
 #include "op_lib_mpi.h"
 
 
@@ -62,8 +61,6 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[3
 #include "init_cg.h"
 #include "spMV.h"
 #include "update.h"
-
-#include "op_seq.h"
 
 // main program
 
@@ -182,7 +179,7 @@ int main(int argc, char **argv)
     op_par_loop(res_calc,"res_calc",cells,
                 op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
                 op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1,     OP_ID, 16,"double",OP_WRITE),
+                op_arg_dat(p_K,     -1,     OP_ID, 16,"double:soa",OP_WRITE),
                 op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
                 );
 
@@ -212,7 +209,7 @@ int main(int argc, char **argv)
       //V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
-                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
+                  op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet,"dirichlet",bnodes,

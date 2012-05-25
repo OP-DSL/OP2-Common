@@ -196,6 +196,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   map->dim = dim;
   map->map = imap;
   map->name = copy_str( name );
+  map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
 
@@ -237,7 +238,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->name = copy_str( name );
   dat->type = copy_str( type );
   dat->size = dim * size;
-
+  dat->user_managed = 1;
   OP_dat_list[OP_dat_index++] = dat;
 
   return dat;
@@ -267,7 +268,7 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_map_index; i++ )
   {
-    free ( OP_map_list[i]->map );
+    if (!OP_map_list[i]->user_managed) free ( OP_map_list[i]->map );
     free ( (char*)OP_map_list[i]->name );
     free ( OP_map_list[i] );
   }
@@ -275,7 +276,7 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_dat_index; i++ )
   {
-    free ( OP_dat_list[i]->data );
+    if (!OP_dat_list[i]->user_managed) free ( OP_dat_list[i]->data );
     free ( (char*)OP_dat_list[i]->name );
     free ( (char*)OP_dat_list[i]->type );
     free ( OP_dat_list[i] );

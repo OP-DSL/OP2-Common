@@ -82,7 +82,6 @@ typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
 
 typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
 
-#define OP_ALL -2
 /*
  * structures
  */
@@ -108,6 +107,7 @@ typedef struct
   int         dim,    /* dimension of pointer */
              *map;    /* array defining pointer */
   char const *name;   /* name of pointer */
+  int         user_managed; /* indicates whether the user is managing memory */
 } op_map_core;
 
 typedef op_map_core * op_map;
@@ -122,8 +122,9 @@ typedef struct
              *data_d; /* data on device (GPU) */
   char const *type,   /* datatype */
              *name;   /* name of dataset */
-  char*      buffer_d; /* buffer for MPI halo sends on the devidce */
-  int        dirtybit; /* flag to indicate MPI halo exchange is needed*/
+  char*       buffer_d; /* buffer for MPI halo sends on the devidce */
+  int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
+  int         user_managed; /* indicates whether the user is managing memory */
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
