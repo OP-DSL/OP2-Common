@@ -458,12 +458,11 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //get results data array - perhaps can be later handled by a remporary dat
-  //op_dat temp = op_mpi_get_data(p_q);
-
   //output the result dat array to files
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
+
+  op_print_dat_to_binfile(p_q, "out_grid.bin"); //Binary
+
 
   op_timing_output();
 
