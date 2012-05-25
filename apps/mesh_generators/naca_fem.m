@@ -134,7 +134,7 @@ ff_node   = ff_node    - 1;
 % output to grid.dat file
 %
 
-fid = fopen('FE_grid_big.dat','wt');
+fid = fopen('FE_grid.dat','wt');
 
 fprintf(fid,' %d %d %d \n',nnodes, ncells, nffnodes);
 

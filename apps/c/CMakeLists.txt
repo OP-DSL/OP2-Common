@@ -36,6 +36,7 @@ cmake_minimum_required(VERSION 2.8)
 
 option(OP2_BUILD_ALL_AIRFOIL "Build all airfoil apps" ON)
 option(OP2_BUILD_ALL_JACOBI "Build all jacobi apps" ON)
+option(OP2_BUILD_ALL_AERO "Build all aero apps" ON)
 set(OP2_AIRFOIL_APPS
   airfoil
   airfoil_hdf5
@@ -45,6 +46,9 @@ set(OP2_AIRFOIL_APPS
 set(OP2_JACOBI_APPS
   jac1
   jac2
+  )
+set(OP2_AERO_APPS
+  aero
   )
 
 include(common.cmake)
@@ -63,6 +67,15 @@ if(OP2_BUILD_ALL_JACOBI)
     option(OP2_BUILD_${APP_DIR} "Build the ${APP_DIR} apps" ON)
     if(OP2_BUILD_${APP_DIR})
       include(airfoil-common.cmake)
+      add_subdirectory(${APP_DIR})
+    endif()
+  endforeach()
+endif()
+if(OP2_BUILD_ALL_AERO)
+  foreach (APP_DIR ${OP2_AERO_APPS})
+    option(OP2_BUILD_${APP_DIR} "Build the ${APP_DIR} apps" ON)
+    if(OP2_BUILD_${APP_DIR})
+      include(aero-common.cmake)
       add_subdirectory(${APP_DIR})
     endif()
   endforeach()
