@@ -237,6 +237,8 @@ void op_dump_dat ( op_dat data );
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name);
 
+void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
+
 /*******************************************************************************
 * Core MPI lib function prototypes
 *******************************************************************************/
