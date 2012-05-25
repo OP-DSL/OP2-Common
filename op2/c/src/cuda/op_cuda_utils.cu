@@ -26,31 +26,28 @@ __global__ void op_lma_to_csr_dev (T *lma, T *data,
                                    int cmapdim,
                                    int nelems)
 {
-  if ( threadIdx.x + blockIdx.x * blockDim.x > nelems * rmapdim * cmapdim )
-    return;
-
   int n;
   int e;
   int i;
   int j;
-
-  int entry_per_ele = rmapdim * cmapdim;
-
+  int entry_per_ele;
   int offset;
   int row;
   int col;
-  for ( n = threadIdx.x; n < nelems * entry_per_ele; n += blockDim.x )
-  {
-    e = n / entry_per_ele;
-    i = (n - e * entry_per_ele) / rmapdim;
-    j = (n - e * entry_per_ele - i * cmapdim);
+  entry_per_ele = rmapdim * cmapdim;
 
-    row = rmap[e * rmapdim + i];
-    col = cmap[e * cmapdim + j];
+  n = threadIdx.x + blockIdx.x * blockDim.x;
+  if ( n >= nelems * entry_per_ele ) return;
 
-    offset = pos(row, col, rowptr, colidx);
-    op_atomic_add(data + offset, lma[n]);
-  }
+  e = n / entry_per_ele;
+  i = (n - e * entry_per_ele) / rmapdim;
+  j = (n - e * entry_per_ele - i * cmapdim);
+
+  row = rmap[e * rmapdim + i];
+  col = cmap[e * cmapdim + j];
+
+  offset = pos(row, col, rowptr, colidx);
+  op_atomic_add(data + offset, lma[n]);
 }
 
 template<class T>
@@ -77,15 +74,17 @@ __host__ void op_mat_lma_to_csr(op_arg arg, op_set set)
         (void **)&(cmap->map),
         sizeof(int) * cmapdim * nelems);
   }
-  op_lma_to_csr_dev<<<128, 128>>> (((T *)mat->lma_data),
-                                   ((T *)mat->data),
-                                   rowptr,
-                                   colidx,
-                                   rmap->map_d,
-                                   rmapdim,
-                                   cmap->map_d,
-                                   cmapdim,
-                                   nelems);
+  int nthread = 128;
+  int nblock = (nelems * rmapdim * cmapdim) / nthread + 1;
+  op_lma_to_csr_dev<<<nblock, nthread>>> (((T *)mat->lma_data),
+                                          ((T *)mat->data),
+                                          rowptr,
+                                          colidx,
+                                          rmap->map_d,
+                                          rmapdim,
+                                          cmap->map_d,
+                                          cmapdim,
+                                          nelems);
 }
 
 __host__ void op_mat_lma_to_csr(float *dummy, op_arg arg, op_set set)
