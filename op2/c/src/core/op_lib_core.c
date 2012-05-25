@@ -325,9 +325,9 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( arg.map != NULL && ( arg.map->from != set || arg.map->to != arg.dat->set ) )
       op_err_print ( "mapping error", m, name );
 
-    if ( ( arg.map == NULL && arg.idx != -1 ) ||
-         ( arg.map != NULL && ( arg.idx < 0 || arg.idx >= arg.map->dim ) ) )
-      op_err_print ( "invalid index", m, name );
+    if ( ( arg.map == NULL && arg.idx != -1 ) || ( arg.map != NULL &&
+       ( (arg.idx != OP_ALL && arg.idx < 0) || arg.idx >= arg.map->dim ) ) )
+    op_err_print ( "invalid index", m, name );
 
     if ( arg.dat->dim != arg.dim )
       op_err_print ( "dataset dim does not match declared dim", m, name );

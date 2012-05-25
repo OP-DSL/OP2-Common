@@ -104,6 +104,28 @@ for nk = 1:length(kernels)
     end
   end
 
+  for  m = 1:ninds
+    if (sum(inds==m)>1 & vectorised(find(inds==m)))
+      if (indaccs(m) == OP_INC)
+        line = sprintf('  INDTYP *ARG_vec[%d] = {',max(idxs(inds==m))+1);
+        file = strvcat(file,rep(line,m));
+        line = '';
+        for n = 1:nargs
+          if (inds(n) == m)
+            file = strvcat(file,line);
+            line = rep('    ARG_l,',n);
+          end
+        end
+        file = strvcat(file,line(1:end-1));
+        line = '  };';
+        file = strvcat(file,line);
+      else
+        line = sprintf('  INDTYP *ARG_vec[%d];',max(idxs(inds==m))+1);
+        file = strvcat(file,rep(line,m));
+      end
+    end
+  end
+
 %
 % lengthy code for general case with indirection
 %
@@ -207,37 +229,77 @@ for nk = 1:length(kernels)
     prefix = '    ';
   end
 
+  % xxx: array of pointers for non-locals
+  for  m = 1:ninds
+    if (sum(inds==m)>1)
+      if (indaccs(m) ~= OP_INC)
+        file = strvcat(file,' ');
+        line = '';
+        ctr = 0;
+        for n = 1:nargs
+          if (inds(n) == m  && vectorised(m))
+            file = strvcat(file,line);
+            line = [ prefix ...
+                sprintf('  arg%d_vec[%d] = ind_arg%d_s+ARG_maps[n+offset_b]*DIM;',m-1, ctr, inds(n)-1) ];
+            line = rep(line,n);
+            ctr = ctr+1;
+          end
+        end
+        file = strvcat(file,line);
+      end
+    end
+  end
+
   file = strvcat(file,' ',...
                  [ prefix '// user-supplied kernel call'],' ');
 
+  out = '';
   for m = 1:nargs
     line = [prefix name '( '];
     if (m~=1)
-      line = blanks(length(line));
+      line ='';%blanks(length(line));
     end
     if (maps(m)==OP_GBL)
-      line = [ line 'ARG,' ];
-    elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
-      line = [ line 'ARG_l,' ];
-    elseif (maps(m)==OP_MAP)
-      line = [ line ...
-      sprintf('ind_arg%d_s+ARG_maps[n+offset_b]*DIM,',inds(m)-1) ];
+      if (accs(m)==OP_READ)
+        line = rep([ line ' ARG,' ],m);
+      else
+        line = rep([ line ' ARG_l,' ],m);
+      end
+    elseif (maps(m)==OP_MAP & accs(m)==OP_INC && vectorised(m)==0)
+      line = rep([ line ' ARG_l,' ],m);
+    elseif (maps(m)==OP_MAP && vectorised(m)==0)
+      line = rep([ line sprintf(' ind_arg%d_s+ARG_maps[n+offset_b]*DIM,',inds(m)-1) ],m);
+    elseif (maps(m)==OP_MAP && m == 1)
+      line = rep([ line ' ARG_vec,' ], inds(m));
+    elseif (maps(m)==OP_MAP && m>1 && vectorised(m) ~= vectorised(m-1)) %xxx:vector
+      line = rep([ line ' ARG_vec,' ], inds(m));
+    elseif (maps(m)==OP_MAP && m>1 && vectorised(m) == vectorised(m-1))
+      line = line;
     elseif (maps(m)==OP_ID)
       if (ninds>0)
-        line = [ line 'ARG+(n+offset_b)*DIM,' ];
+        line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
       else
-        line = [ line 'ARG+n*DIM,' ];
+        if (strcmp(dims{m},'1'))
+          line = rep([ line ' ARG+n,' ],m);
+        else
+          line = rep([ line ' ARG_l,' ],m);
+        end
       end
-
     else
       error('internal error 1')
     end
-    if (m==nargs)
-      line = [ line(1:end-1) ' );' ];
+    if (m==nargs) %xx one line, and
+      out = [out line(1:end-1)];
+      if (isempty(line))
+        out = [out(1:end-1) ');'];
+      else
+        out = [out ' );' ];
+      end
+    else
+      out =  [out rep(line,m)];
     end
-
-    file = strvcat(file,rep(line,m));
   end
+  file = strvcat(file,out);
 
 %
 % updating for indirect kernels ...
@@ -478,9 +540,6 @@ for nk = 1:length(kernels)
     ['  OP_kernels[' num2str(nk-1) '].transfer2 += Plan->transfer2;']);
   end
   file = strvcat(file, ' ','  }',' ');
-
-  file = strvcat(file, sprintf(['  //set dirty bit on datasets touched\n',...
-                  '  op_mpi_set_dirtybit(%d, args);'],nargs));
 %
 % combine reduction data from multiple OpenMP threads
 %

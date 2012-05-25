@@ -103,6 +103,7 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+  maps = op_decl_map_parse(src_file);
   const_args = op_decl_const_parse(src_file);
 
   for const_index = 1:length(const_args)
@@ -163,7 +164,7 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  loop_args = op_par_loop_parse(src_file);
+  loop_args = op_par_loop_parse(src_file, maps);
 
   for loop_index = 1:length(loop_args)
     name  = loop_args{loop_index}.name1;
@@ -336,6 +337,7 @@ for narg = 1: nargin
       kernels{nkernels}.indaccs = indaccs;
       kernels{nkernels}.indtyps = indtyps;
       kernels{nkernels}.invinds = invinds;
+      kernels{nkernels}.vectorised = loop_args{loop_index}.vectorised;
     end
   end
 
@@ -536,36 +538,95 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% parsing for op_par_loop calls
+% parsing for op_decl_map calls
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function loop_args = op_par_loop_parse(file)
+function maps = op_decl_map_parse(file)
+
+maps = [];
+
+[toreplace mat] = regexp(file,'op_map\s*?(\S*?)\s*?=\s*?op_decl_map\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)','tokens','match');
+if (isempty(toreplace))
+  [toreplace mat] = regexp(file,'op_map\s*?(\S*?)\s*?=\s*?op_decl_map_hdf5\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)','tokens','match');
+end
+for map = 1:size(toreplace,2)
+  maps(map).name = toreplace{map}(1);
+  maps(map).dim = toreplace{map}(4);
+  maps(map).dim = str2num(maps(map).dim{1});
+  maps(map).from = toreplace{map}(2);
+  maps(map).to = toreplace{map}(3);
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% parsing for    calls
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function loop_args = op_par_loop_parse(file,maps)
 
 loop_args = [];
 
 locs = strfind(file,'op_par_loop');
-
+loop_ctr = 0;
 for n = 1:length(locs)
   loc = locs(n);
   if active(file(1:loc))
+    loop_ctr = loop_ctr+1;
     loc = loc + length('op_par_loop');
     args_str = active_compress(file(loc:end));
 
     try
       args = args_parse(args_str);
-      loop_args{n}.loc   = loc;
-      loop_args{n}.name1 = args{1};
-      loop_args{n}.name2 = args{2};
-      loop_args{n}.set   = args{3};
-      loop_args{n}.nargs = length(args)-3;
+      loop_args{loop_ctr}.loc   = loc;
+      loop_args{loop_ctr}.name1 = args{1};
+      loop_args{loop_ctr}.name2 = args{2};
+      loop_args{loop_ctr}.set   = args{3};
+      loop_args{loop_ctr}.nargs = length(args)-3;
+      vectorised = [];
+      newargs = args;
+      offset = 1;
+      vector_counter = 0;
       for m = 1:length(args)-3
         if     strcmp(args{m+3}(1:10),'op_arg_dat')
-          loop_args{n}.type{m} = 'op_arg_dat';
-        elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
-          loop_args{n}.type{m} = 'op_arg_gbl';
+        [toreplace mat] = regexp(args{m+3}(11:end),'(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,','tokens','match');
+        if (~strcmp(toreplace{1}(3),'OP_ID') && strcmp(toreplace{1}(2),'OP_ALL'))%str2num(char(toreplace{1}(2)))<0)
+          vector_counter = vector_counter + 1;
+          %find map
+          for i = 1:size(maps,2)
+            if (strcmp(toreplace{1}(3),maps(i).name))
+              break;
+            end
+          end
+
+          for gen = 0:(maps(i).dim-1)
+            newargs{offset+3} = regexprep(args{m+3},'\(\s*?(\S*?)\s*?,\s*?(\S*?)\s*?,',sprintf('($1,%d,',gen));
+            vectorised(offset) = vector_counter;
+            offset = offset+1;
+          end
+        else
+          newargs{offset+3} = args{m+3};
+          vectorised(offset) = 0;
+          offset = offset+1;
         end
-        loop_args{n}.args{m} = args{m+3}(11:end);
+        elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
+          newargs{offset+3} = args{m+3};
+          vectorised(offset) = 0;
+          offset = offset+1;
+        end
+      end
+      args = newargs;
+      loop_args{loop_ctr}.nargs = length(args)-3;
+      loop_args{loop_ctr}.vectorised = vectorised;
+      for m = 1:length(args)-3
+        if     strcmp(args{m+3}(1:10),'op_arg_dat')
+          loop_args{loop_ctr}.type{m} = 'op_arg_dat';
+        elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
+          loop_args{loop_ctr}.type{m} = 'op_arg_gbl';
+        end
+        loop_args{loop_ctr}.args{m} = args{m+3}(11:end);
       end
     catch
       error(sprintf('error parsing op_par_loop'));

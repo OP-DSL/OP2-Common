@@ -82,6 +82,7 @@ typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
 
 typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
 
+#define OP_ALL -2
 /*
  * structures
  */
