@@ -2250,7 +2250,7 @@ void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
  * Write a op_dat to a named ASCI file
  *******************************************************************************/
 
-void print_dat_tofile(op_dat dat, const char *file_name)
+void print_dat_to_file_mpi(op_dat dat, const char *file_name)
 {
   //create new communicator for output
   int rank, comm_size;
@@ -2463,7 +2463,7 @@ void print_dat_tofile(op_dat dat, const char *file_name)
  * Write a op_dat to a named Binary file
  *******************************************************************************/
 
-void print_dat_tobinfile(op_dat dat, const char *file_name)
+void print_dat_to_binfile_mpi(op_dat dat, const char *file_name)
 {
   //create new communicator for output
   int rank, comm_size;

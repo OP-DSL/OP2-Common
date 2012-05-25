@@ -322,3 +322,10 @@ void op_timing_output()
 {
   op_timing_output_core();
 }
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  //need to get data from GPU
+  //rearrange data backe to original order in mpi
+  //op_print_dat_to_binfile_mpi(op_dat dat, const char *file_name)
+}

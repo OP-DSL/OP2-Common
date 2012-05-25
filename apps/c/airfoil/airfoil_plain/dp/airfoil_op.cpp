@@ -314,6 +314,8 @@ int main(int argc, char **argv)
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
+  op_print_dat_to_binfile(p_q, "out_grid.bin"); //Binary
+
   op_exit();
 
   free(cell);

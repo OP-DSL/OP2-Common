@@ -235,6 +235,8 @@ void op_timers_core( double *cpu, double *et );
 
 void op_dump_dat ( op_dat data );
 
+void op_print_dat_to_binfile(op_dat dat, const char *file_name);
+
 /*******************************************************************************
 * Core MPI lib function prototypes
 *******************************************************************************/

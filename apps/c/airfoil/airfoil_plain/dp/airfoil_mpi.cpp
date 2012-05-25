@@ -415,7 +415,7 @@ int main(int argc, char **argv)
 
   //output the result dat array to files
   //print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
+  op_print_dat_to_binfile(p_q, "out_grid.bin"); //Binary
 
   op_timing_output();
 

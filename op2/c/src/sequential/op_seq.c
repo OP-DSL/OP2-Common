@@ -133,3 +133,8 @@ void op_timing_output()
 {
    op_timing_output_core();
 }
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  //op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
+}
