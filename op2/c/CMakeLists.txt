@@ -71,10 +71,23 @@ if(POLICY CMP0017)
   cmake_policy(SET CMP0017 OLD)
 endif()
 
+# Used languages
+set(OP2_ENABLED_LANGUAGES C CXX)
+
+#------------------------------------------------------------------------------
+# Enable Fortran if the Fortran interface is enabled
+option(OP2_ENABLE_FORTRAN_INTERFACE "Enable the Fortran interface to the OP2 library." ON)
+if(OP2_ENABLE_FORTRAN_INTERFACE)
+  set(OP2_ENABLED_LANGUAGES ${OP2_ENABLED_LANGUAGES} Fortran)
+  # Fortran interface sources
+  set(FORTRAN_SRC ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_declarations.F90
+    ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_C_wrappers.c)
+endif()
+
 #------------------------------------------------------------------------------
 # Set project name and version number
 
-project(OP2 C CXX)
+project(OP2 ${OP2_ENABLED_LANGUAGES})
 
 set(OP2_VERSION_MAJOR 0)
 set(OP2_VERSION_MINOR 1)

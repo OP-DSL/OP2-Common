@@ -147,11 +147,11 @@ endif()
 # Common source files
 
 # Core library sources
-set(COMMON_SRC "${OP2_SOURCE_DIR}/src/core/op_lib_core.c")
+set(COMMON_SRC ${OP2_SOURCE_DIR}/src/core/op_lib_core.c ${FORTRAN_SRC})
 # Utility sources
-set(UTIL_SRC "${OP2_SOURCE_DIR}/src/externlib/op_util.c")
+set(UTIL_SRC ${OP2_SOURCE_DIR}/src/externlib/op_util.c)
 # Runtime support sources
-set(RT_SRC "${OP2_SOURCE_DIR}/src/core/op_rt_support.c")
+set(RT_SRC ${OP2_SOURCE_DIR}/src/core/op_rt_support.c)
 
 #------------------------------------------------------------------------------
 # Configuration
