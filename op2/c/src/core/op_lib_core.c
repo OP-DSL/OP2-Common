@@ -321,7 +321,7 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
       op_err_print ( "invalid set", m, name );
 
     if ( arg.map != NULL && strstr( arg.type, ":soa")!= NULL)
-    op_err_print( "SoA dataset accessed indirectly", m, name );
+      op_err_print( "SoA dataset accessed indirectly", m, name );
 
     if ( arg.map == NULL && arg.dat->set != set )
       op_err_print ( "dataset set does not match loop set", m, name );
@@ -331,7 +331,7 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 
     if ( ( arg.map == NULL && arg.idx != -1 ) || ( arg.map != NULL &&
        ( arg.idx >= arg.map->dim || arg.idx < -1*arg.map->dim ) ) )
-    op_err_print ( "invalid index", m, name );
+      op_err_print ( "invalid index", m, name );
 
     if ( arg.dat->dim != arg.dim )
       op_err_print ( "dataset dim does not match declared dim", m, name );

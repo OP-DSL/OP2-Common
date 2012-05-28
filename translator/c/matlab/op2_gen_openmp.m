@@ -317,7 +317,7 @@ for nk = 1:length(kernels)
           if (inds(n) == m  && vectorised(m))
             file = strvcat(file,line);
             line = [ prefix ...
-                sprintf(['  arg%d_vec[%d] = ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(n)),'*set_size+n+offset_b]*DIM;'],m-1, ctr, inds(n)-1) ];
+                sprintf(['arg%d_vec[%d] = ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(n)),'*set_size+n+offset_b]*DIM;'],m-1, ctr, inds(n)-1) ];
             line = rep(line,n);
             ctr = ctr+1;
           end
@@ -328,7 +328,7 @@ for nk = 1:length(kernels)
   end
 
   file = strvcat(file,...
-                 [ prefix '// user-supplied kernel call'],' ');
+                 ' ',[ prefix '// user-supplied kernel call'],' ');
 
   out = '';
   for m = 1:nargs

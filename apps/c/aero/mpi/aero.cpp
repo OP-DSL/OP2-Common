@@ -275,11 +275,11 @@ int main(int argc, char **argv)
   double *resm = (double *)malloc(nnode*sizeof(double));
   memset(resm,0,nnode*sizeof(double));
 
-    double *V = (double *)malloc(nnode*sizeof(double));
+  double *V = (double *)malloc(nnode*sizeof(double));
   memset(V,0,nnode*sizeof(double));
-    double *P = (double *)malloc(nnode*sizeof(double));
+  double *P = (double *)malloc(nnode*sizeof(double));
   memset(P,0,nnode*sizeof(double));
-    double *U = (double *)malloc(nnode*sizeof(double));
+  double *U = (double *)malloc(nnode*sizeof(double));
   memset(U,0,nnode*sizeof(double));
 
 
@@ -295,12 +295,11 @@ int main(int argc, char **argv)
   op_dat p_xm     = op_decl_dat(nodes ,2,"double",xm    ,"p_x");
   op_dat p_phim  = op_decl_dat(nodes, 1, "double", phim, "p_phim");
   op_dat p_resm  = op_decl_dat(nodes, 1, "double", resm, "p_resm");
-  op_dat p_K  = op_decl_dat(cells, 16, "double", K, "p_K");
-  //op_dat p_Kt  = op_decl_dat(cells, 16, "double", Kt, "p_Kt");
+  op_dat p_K  = op_decl_dat(cells, 16, "double:soa", K, "p_K");
 
   op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
-    op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
-    op_dat p_U = op_decl_dat(nodes, 1, "double", U, "p_U");
+  op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
+  op_dat p_U = op_decl_dat(nodes, 1, "double", U, "p_U");
 
 
   op_decl_const(1,"double",&gam  );
@@ -343,7 +342,6 @@ int main(int argc, char **argv)
     op_par_loop(dirichlet,"dirichlet",bnodes,
                 op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
 
-
     double c1 = 0;
     double c2 = 0;
     double c3 = 0;
@@ -371,7 +369,7 @@ int main(int argc, char **argv)
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet,"dirichlet",bnodes,
-          op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
+                  op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
 
       c2 = 0;
 

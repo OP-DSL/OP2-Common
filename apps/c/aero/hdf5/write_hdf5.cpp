@@ -209,7 +209,7 @@ int main(int argc, char **argv)
   op_dat p_xm     = op_decl_dat(nodes ,2,"double",xm    ,"p_x");
   op_dat p_phim  = op_decl_dat(nodes, 1, "double", phim, "p_phim");
   op_dat p_resm  = op_decl_dat(nodes, 1, "double", resm, "p_resm");
-  op_dat p_K  = op_decl_dat(cells, 16, "double", K, "p_K");
+  op_dat p_K  = op_decl_dat(cells, 16, "double:soa", K, "p_K");
 
   op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
   op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");

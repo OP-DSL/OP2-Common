@@ -425,7 +425,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].idxs[m] = args[m].idx;
     OP_plans[ip].maps[m] = args[m].map;
     OP_plans[ip].accs[m] = args[m].acc;
-  indirect_reduce = indirect_reduce || (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
+    indirect_reduce = indirect_reduce || (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
   }
 
   indirect_reduce = indirect_reduce && (ninds>0);
@@ -886,7 +886,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf( " number of block colors = %d \n", OP_plans[ip].ncolors );
     printf( " maximum block size     = %d \n", bsize );
     printf( " average thread colors  = %.2f \n", total_colors / nblocks );
-    //printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
     printf( " shared memory required = ");
     for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nsharedCol[i] / 1024.0f );
     printf(" %.2f KB\n", OP_plans[ip].nsharedCol[ncolors-1] / 1024.0f );

@@ -155,10 +155,8 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                                  nargs, args, ninds, inds );
 
   int set_size = set->size;
-  for(int i = 0; i< nargs; i++)
-  {
-    if(args[i].idx != -1 && args[i].acc != OP_READ )
-    {
+  for(int i = 0; i< nargs; i++) {
+    if(args[i].idx != -1 && args[i].acc != OP_READ ) {
       set_size += set->exec_size;
       break;
     }

@@ -106,15 +106,15 @@ void op_x86_res_calc(
     for (int d=0; d<1; d++)
       arg12_l[d] = ZERO_double;
 
-      arg0_vec[0] = ind_arg0_s+arg_map[0*set_size+n+offset_b]*2;
-      arg0_vec[1] = ind_arg0_s+arg_map[1*set_size+n+offset_b]*2;
-      arg0_vec[2] = ind_arg0_s+arg_map[2*set_size+n+offset_b]*2;
-      arg0_vec[3] = ind_arg0_s+arg_map[3*set_size+n+offset_b]*2;
+    arg0_vec[0] = ind_arg0_s+arg_map[0*set_size+n+offset_b]*2;
+    arg0_vec[1] = ind_arg0_s+arg_map[1*set_size+n+offset_b]*2;
+    arg0_vec[2] = ind_arg0_s+arg_map[2*set_size+n+offset_b]*2;
+    arg0_vec[3] = ind_arg0_s+arg_map[3*set_size+n+offset_b]*2;
 
-      arg1_vec[0] = ind_arg1_s+arg_map[4*set_size+n+offset_b]*1;
-      arg1_vec[1] = ind_arg1_s+arg_map[5*set_size+n+offset_b]*1;
-      arg1_vec[2] = ind_arg1_s+arg_map[6*set_size+n+offset_b]*1;
-      arg1_vec[3] = ind_arg1_s+arg_map[7*set_size+n+offset_b]*1;
+    arg1_vec[0] = ind_arg1_s+arg_map[4*set_size+n+offset_b]*1;
+    arg1_vec[1] = ind_arg1_s+arg_map[5*set_size+n+offset_b]*1;
+    arg1_vec[2] = ind_arg1_s+arg_map[6*set_size+n+offset_b]*1;
+    arg1_vec[3] = ind_arg1_s+arg_map[7*set_size+n+offset_b]*1;
     // user-supplied kernel call
 
 

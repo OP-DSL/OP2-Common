@@ -136,7 +136,7 @@ int main(int argc, char **argv)
   op_dat p_xm    = op_decl_dat_hdf5(nodes ,2,"double",  file, "p_x");
   op_dat p_phim  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
   op_dat p_resm  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
-  op_dat p_K     = op_decl_dat_hdf5(cells, 16, "double",file, "p_K");
+  op_dat p_K     = op_decl_dat_hdf5(cells, 16, "double:soa",file, "p_K");
   op_dat p_V     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
   op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
   op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");

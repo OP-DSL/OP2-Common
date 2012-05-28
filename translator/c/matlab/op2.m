@@ -103,7 +103,6 @@ for narg = 1: nargin
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  %maps = op_decl_map_parse(src_file);
   const_args = op_decl_const_parse(src_file);
 
   for const_index = 1:length(const_args)
@@ -554,10 +553,9 @@ for n = 1:length(locs)
   end
 end
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% parsing for    calls
+% parsing for op_par_loop calls
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
