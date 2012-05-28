@@ -417,7 +417,7 @@ int main(int argc, char **argv)
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
 
-  free(cell);
+  /*free(cell);
   free(bnode);
   free(xm);
   free(phim);
@@ -425,6 +425,6 @@ int main(int argc, char **argv)
   free(resm);
   free(V);
   free(P);
-  free(U);
+  free(U);*/
 }
 

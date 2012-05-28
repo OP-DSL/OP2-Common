@@ -179,7 +179,7 @@ int main(int argc, char **argv)
     op_par_loop(res_calc,"res_calc",cells,
                 op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
                 op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1,     OP_ID, 16,"double:soa",OP_WRITE),
+                op_arg_dat(p_K,     -1, OP_ID, 16,"double:soa",OP_WRITE),
                 op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
                 );
 

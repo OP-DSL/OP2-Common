@@ -104,12 +104,12 @@ aero_kernels_cu.o:	aero_kernels.cu      \
 #
 
 aero_mpi: aero.cpp Makefile
-	$(MPICPP) $(MPIFLAGS) aero.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC)\
+	$(MPICPP) $(MPIFLAGS) aero.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o aero_mpi
 
 
 write_hdf5: write_hdf5.cpp
-	$(MPICPP) $(MPIFLAGS) write_hdf5.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC)\
+	$(MPICPP) $(MPIFLAGS) write_hdf5.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o write_hdf5
 
 
