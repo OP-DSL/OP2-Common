@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-project(OP2-Airfoil-MPI-DP)
+project(OP2-Airfoil-MPI-OpenMP-DP)
 
 # Require CMake 2.8
 cmake_minimum_required(VERSION 2.8)
@@ -39,7 +39,7 @@ include(../airfoil-common.cmake)
 
 # MPI with sequential-nodes version
 if (OP2_BUILD_DP)
-  op2_application(airfoil_mpi_openmp_dp DEPENDS grid LIBS op2_mpi
+  op2_application(airfoil_mpi_openmp_dp DEPENDS grid LIBS op2_mpi op2_openmp
     SOURCES dp/airfoil_mpi_openmp.cpp dp/airfoil_kernels.cpp
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
 endif()
