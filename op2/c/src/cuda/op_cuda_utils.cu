@@ -1,3 +1,4 @@
+#include <thrust/fill.h>
 #include <cusp/csr_matrix.h>
 #include <cusp/precond/diagonal.h>
 #include <cusp/krylov/cg.h>
@@ -121,6 +122,9 @@ __host__ void op_solve_impl(const op_mat mat, const op_dat b_dat, op_dat x_dat)
   DeviceValueArrayView values        (d_data,   d_data   + sparsity->total_nz);
   DeviceValueArrayView b             (d_b,      d_b      + b_dat->set->size);
   DeviceValueArrayView x             (d_x,      d_x      + x_dat->set->size);
+
+  // set initial guess of resulting vector to zero
+  thrust::fill(x.begin(), x.end(), 0.0);
 
   DeviceView A(sparsity->nrows, sparsity->ncols, sparsity->total_nz,
                row_offsets, column_indices, values);
