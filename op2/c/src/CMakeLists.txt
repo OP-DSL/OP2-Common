@@ -146,6 +146,11 @@ endif()
 #------------------------------------------------------------------------------
 # Common source files
 
+if(OP2_ENABLE_FORTRAN_INTERFACE)
+  # Fortran interface sources
+  set(FORTRAN_SRC ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_declarations.F90
+    ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_C_wrappers.c)
+endif()
 # Core library sources
 set(COMMON_SRC ${OP2_SOURCE_DIR}/src/core/op_lib_core.c ${FORTRAN_SRC})
 # Utility sources

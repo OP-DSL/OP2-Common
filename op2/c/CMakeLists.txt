@@ -79,9 +79,6 @@ set(OP2_ENABLED_LANGUAGES C CXX)
 option(OP2_ENABLE_FORTRAN_INTERFACE "Enable the Fortran interface to the OP2 library." ON)
 if(OP2_ENABLE_FORTRAN_INTERFACE)
   set(OP2_ENABLED_LANGUAGES ${OP2_ENABLED_LANGUAGES} Fortran)
-  # Fortran interface sources
-  set(FORTRAN_SRC ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_declarations.F90
-    ${OP2_SOURCE_DIR}/../fortran/src/backend/op2_for_C_wrappers.c)
 endif()
 
 #------------------------------------------------------------------------------
