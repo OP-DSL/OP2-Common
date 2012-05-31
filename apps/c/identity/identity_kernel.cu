@@ -128,10 +128,10 @@ __device__ void L_0_modified(double **localTensor,double *dt,double *(c0)[2UL],d
 
 __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *opDat3,double *opDat4,int *ind_maps1,int *ind_maps3,int *ind_maps4,short *mappingArray1,short *mappingArray2,short *mappingArray3,short *mappingArray4,short *mappingArray5,short *mappingArray6,short *mappingArray7,short *mappingArray8,short *mappingArray9,int *pindSizes,int *pindOffs,int *pblkMap,int *poffset,int *pnelems,int *pnthrcol,int *pthrcol,int blockOffset)
 {
+  extern __device__ __shared__ char shared_L_0[];
   double opDat1Local1[1];
   double opDat1Local2[1];
   double opDat1Local3[1];
-  extern __device__ __shared__ char shared_L_0[];
   __device__ __shared__ int sharedMemoryOffset;
   __device__ __shared__ int numberOfActiveThreads;
   __device__ __shared__ int nbytes;
@@ -188,6 +188,9 @@ __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *
     opDat4SharedIndirection[i1] = opDat4[i1 % 1 + opDat4IndirectionMap[i1 / 1] * 1];
   }
   __syncthreads();
+  opDat1vec[0] = opDat1Local1;
+  opDat1vec[1] = opDat1Local2;
+  opDat1vec[2] = opDat1Local3;
   for (i1 = threadIdx.x; i1 < numberOfActiveThreadsCeiling; i1 += blockDim.x) {
     colour2 = -1;
     if (i1 < numberOfActiveThreads) {
@@ -196,15 +199,12 @@ __global__ void L_0_kernel(double *opDat1,double *reductionArrayDevice2,double *
         opDat1Local2[i2] = 0.00000;
         opDat1Local3[i2] = 0.00000;
       }
-      opDat1vec[0] = opDat1Local1;
-      opDat1vec[1] = opDat1Local2;
-      opDat1vec[2] = opDat1Local3;
-      opDat3vec[0] = opDat3SharedIndirection + mappingArray4[i1 + sharedMemoryOffset] * 2;
-      opDat3vec[1] = opDat3SharedIndirection + mappingArray5[i1 + sharedMemoryOffset] * 2;
-      opDat3vec[2] = opDat3SharedIndirection + mappingArray6[i1 + sharedMemoryOffset] * 2;
-      opDat4vec[0] = opDat4SharedIndirection + mappingArray7[i1 + sharedMemoryOffset] * 1;
-      opDat4vec[1] = opDat4SharedIndirection + mappingArray8[i1 + sharedMemoryOffset] * 1;
-      opDat4vec[2] = opDat4SharedIndirection + mappingArray9[i1 + sharedMemoryOffset] * 1;
+      opDat3vec[0] = opDat3SharedIndirection + mappingArray1[i1 + sharedMemoryOffset] * 2;
+      opDat3vec[1] = opDat3SharedIndirection + mappingArray2[i1 + sharedMemoryOffset] * 2;
+      opDat3vec[2] = opDat3SharedIndirection + mappingArray3[i1 + sharedMemoryOffset] * 2;
+      opDat4vec[0] = opDat4SharedIndirection + mappingArray4[i1 + sharedMemoryOffset] * 1;
+      opDat4vec[1] = opDat4SharedIndirection + mappingArray5[i1 + sharedMemoryOffset] * 1;
+      opDat4vec[2] = opDat4SharedIndirection + mappingArray6[i1 + sharedMemoryOffset] * 1;
       L_0_modified(opDat1vec,opDat2Local,opDat3vec,opDat4vec);
       colour2 = pthrcol[i1 + sharedMemoryOffset];
     }
