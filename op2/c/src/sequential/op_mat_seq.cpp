@@ -73,7 +73,7 @@ void op_free_mat( op_mat mat )
 
 op_dat op_decl_vec( op_dat ref, char const * name )
 {
-  char * data = (char*) malloc( ref->size * ref->set->size );
+  char * data = (char*) calloc( ref->set->size, ref->size );
   return op_decl_dat_core( ref->set, ref->dim, ref->type, ref->size, data, name );
 }
 
