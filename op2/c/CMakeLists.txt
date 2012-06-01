@@ -76,7 +76,7 @@ set(OP2_ENABLED_LANGUAGES C CXX)
 
 #------------------------------------------------------------------------------
 # Enable Fortran if the Fortran interface is enabled
-option(OP2_ENABLE_FORTRAN_INTERFACE "Enable the Fortran interface to the OP2 library." ON)
+option(OP2_ENABLE_FORTRAN_INTERFACE "Enable the Fortran interface to the OP2 library." OFF)
 if(OP2_ENABLE_FORTRAN_INTERFACE)
   set(OP2_ENABLED_LANGUAGES ${OP2_ENABLED_LANGUAGES} Fortran)
 endif()
