@@ -63,7 +63,11 @@ op_dat op_decl_dat ( op_set set, int dim, char const * type, int size, char * da
   char* d = (char*) malloc(set->size*dim*size);
   memcpy(d, data, set->size*dim*size*sizeof(char));
   //return op_decl_dat_core ( set, dim, type, size, data, name );
-  return op_decl_dat_core ( set, dim, type, size, d, name );
+  op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
+  out_dat-> user_managed = 0;
+  return out_dat;
+
+
 }
 
 void op_fetch_data ( op_dat dat )
@@ -129,7 +133,10 @@ op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * nam
 {
   int* m = (int*) malloc(from->size*dim*sizeof(int));
   memcpy(m, imap, from->size*dim*sizeof(int));
-  return op_decl_map_core ( from, to, dim, m, name );
+
+  op_map out_map= op_decl_map_core ( from, to, dim, m, name );
+  out_map-> user_managed = 0;
+  return out_map;
   //return op_decl_map_core ( from, to, dim, imap, name );
 }
 

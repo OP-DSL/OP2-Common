@@ -92,12 +92,6 @@ op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
   char* d = (char*) malloc(set->size*dim*size);
   memcpy(d, data, set->size*dim*size*sizeof(char));
   return op_decl_dat_core ( set, dim, type, size, d, name );
-  //op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
-
-  //op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-  //                    ( void ** ) &( dat->data ), dat->size * set->size );
-
-  
 }
 
 void op_mv_halo_device(op_set set, op_dat dat)
