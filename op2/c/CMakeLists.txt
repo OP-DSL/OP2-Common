@@ -71,10 +71,20 @@ if(POLICY CMP0017)
   cmake_policy(SET CMP0017 OLD)
 endif()
 
+# Used languages
+set(OP2_ENABLED_LANGUAGES C CXX)
+
+#------------------------------------------------------------------------------
+# Enable Fortran if the Fortran interface is enabled
+option(OP2_ENABLE_FORTRAN_INTERFACE "Enable the Fortran interface to the OP2 library." OFF)
+if(OP2_ENABLE_FORTRAN_INTERFACE)
+  set(OP2_ENABLED_LANGUAGES ${OP2_ENABLED_LANGUAGES} Fortran)
+endif()
+
 #------------------------------------------------------------------------------
 # Set project name and version number
 
-project(OP2 C CXX)
+project(OP2 ${OP2_ENABLED_LANGUAGES})
 
 set(OP2_VERSION_MAJOR 0)
 set(OP2_VERSION_MINOR 1)
@@ -102,6 +112,7 @@ option(CMAKE_VERBOSE_CONFIGURE "Enable verbose configuration output."     OFF)
 # Print a summary of enabled/disabled features
 if(CMAKE_VERBOSE_CONFIGURE)
   include(FeatureSummary)
+  add_feature_info("   Fortran interface" OP2_ENABLE_FORTRAN_INTERFACE "Enables the OP2 Fortran interface to the OP2 C libraries")
   add_feature_info("   Sequential library" OP2_WITH_SEQ "For reference testing")
   add_feature_info("   OpenMP library" OP2_WITH_OPENMP "Requires OpenMP support by the compiler")
   add_feature_info("   HDF5 library" OP2_WITH_HDF5 "Requires the HDF5 library")
