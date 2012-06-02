@@ -75,12 +75,6 @@ halo_list *OP_export_nonexec_list;//ENH list
 
 op_mpi_buffer *OP_mpi_buffer_list;
 
-//
-// define external functions (in op_mpi_(cuda)_rt_support.c)
-//
-void exchange_halo(op_arg* arg);
-void wait_all(op_arg* arg);
-
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
 
