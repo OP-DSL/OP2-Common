@@ -3059,6 +3059,11 @@ void op_partition_ptscotch(op_map primary_map)
 void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )
 {
+#if !defined(HAVE_PTSCOTCH) && !defined(HAVE_PARMETIS)
+  /* Suppress warning */
+  (void)lib_routine;
+  (void)prime_map;
+#endif
 
   if(strcmp(lib_name,"PTSCOTCH")==0)
   {
@@ -3137,6 +3142,8 @@ void partition(const char* lib_name, const char* lib_routine,
       op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
     }
     #else
+    /*  Suppress warning */
+    (void)coords;
     op_printf("OP2 Library Not built with Partitioning Library : %s - ",lib_name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
