@@ -140,10 +140,28 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
 
 void op_fetch_data ( op_dat dat )
 {
+
+  //transpose data
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
+    cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
+                                 dat->size * dat->set->size,
+                                 cudaMemcpyDeviceToHost ) );
+    cutilSafeCall ( cudaThreadSynchronize (  ) );
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < dat->set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+        	dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*dat->set->size + element_size*j + c];
+        }
+      }
+    }
+  } else {
   cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
                                dat->size * dat->set->size,
                                cudaMemcpyDeviceToHost ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
+  }
 }
 
 
