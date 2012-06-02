@@ -16,8 +16,8 @@ macro(__compiler_intel lang)
   set(CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT "-O2 -g")
 
   # Custom Developer build type, need to create cache variable for that
-  # ignore remark #981: operands are evaluated in unspecified order
-  set(CMAKE_${lang}_FLAGS_DEVELOPER "-O2 -g -Wall -Werror -wd981" CACHE STRING
+  set(CMAKE_${lang}_FLAGS_DEVELOPER
+    "${CMAKE_${lang}_FLAGS_DEVELOPER_INIT} ${CMAKE_${lang}_FLAGS_DIAGS_INIT}" CACHE STRING
     "Flags used by the compiler during Developer builds.")
   mark_as_advanced(CMAKE_${lang}_FLAGS_DEVELOPER)
 
