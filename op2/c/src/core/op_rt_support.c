@@ -56,6 +56,13 @@ op_rt_exit (  )
     free ( OP_plans[ip].idxs );
     free ( OP_plans[ip].maps );
     free ( OP_plans[ip].accs );
+    free ( OP_plans[ip].nthrcol );
+    free ( OP_plans[ip].thrcol );
+    free ( OP_plans[ip].offset );
+    free ( OP_plans[ip].ind_offs );
+    free ( OP_plans[ip].ind_sizes );
+    free ( OP_plans[ip].nelems );
+    free ( OP_plans[ip].blkmap );
     free ( OP_plans[ip].ind_map );
     free ( OP_plans[ip].ind_maps );
     free ( OP_plans[ip].nindirect );

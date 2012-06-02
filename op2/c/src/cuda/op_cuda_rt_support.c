@@ -156,6 +156,7 @@ void op_fetch_data ( op_dat dat )
         }
       }
     }
+    free(temp_data);
   } else {
   cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
                                dat->size * dat->set->size,
@@ -232,6 +233,13 @@ void op_cuda_exit ( )
   {
     OP_plans[ip].ind_map = NULL;
     OP_plans[ip].loc_map = NULL;
+    OP_plans[ip].ind_sizes = NULL;
+    OP_plans[ip].ind_offs = NULL;
+    OP_plans[ip].nthrcol = NULL;
+    OP_plans[ip].thrcol = NULL;
+    OP_plans[ip].offset = NULL;
+    OP_plans[ip].nelems = NULL;
+    OP_plans[ip].blkmap = NULL;
   }
   cudaThreadExit ( );
 }
