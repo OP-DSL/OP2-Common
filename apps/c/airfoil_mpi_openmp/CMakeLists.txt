@@ -39,7 +39,7 @@ include(../airfoil-common.cmake)
 
 # MPI with sequential-nodes version
 if (OP2_BUILD_DP)
-  op2_application(airfoil_mpi_openmp_dp DEPENDS grid LIBS op2_mpi op2_openmp
+  op2_application(airfoil_mpi_openmp_dp DEPENDS AIRFOIL_grid LIBS op2_mpi op2_openmp
     SOURCES dp/airfoil_mpi_openmp.cpp dp/airfoil_kernels.cpp
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
 endif()

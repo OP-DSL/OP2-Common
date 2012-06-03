@@ -46,11 +46,11 @@ if (TARGET op2_hdf5 AND OP2_BUILD_DP)
   op2_application(convert_mesh LIBS op2_mpi SOURCES dp/convert_mesh.cpp)
 
   # Generate the H5 input grid, given the regular input grid has been generated
-  if(TARGET grid OR EXISTS ${AIRFOIL_MESH_FILE})
+  if(TARGET AIRFOIL_grid OR EXISTS ${AIRFOIL_MESH_FILE})
     option(AIRFOIL_HDF5_GENERATE_MESH "Generate HDF5 meshes during the build process." ON)
     if(AIRFOIL_HDF5_GENERATE_MESH)
-      if(TARGET grid)
-        set(GRID grid)
+      if(TARGET AIRFOIL_grid)
+        set(GRID AIRFOIL_grid)
       endif()
       # Convert the grid to H5
       set(AIRFOIL_MESH_FILE_H5 ${CMAKE_BINARY_DIR}/new_grid_out.h5)
