@@ -59,3 +59,47 @@ function(generate_mesh APP MESH_FILE MESH_GENERATOR)
 
   endif(${APP}_GENERATE_MESH)
 endfunction()
+
+function(generate_hdf5_mesh APP MESH_FILE_H5 MESH_CONVERTER)
+  # Generate the H5 input grid, given the regular input grid has been generated
+  if(TARGET ${APP}_grid OR EXISTS ${${APP}_MESH_FILE})
+    option(${APP}_HDF5_GENERATE_MESH "Generate HDF5 meshes during the build process." ON)
+    if(${APP}_HDF5_GENERATE_MESH)
+      # Convert the grid to H5
+      set(${APP}_MESH_FILE_H5 ${CMAKE_BINARY_DIR}/${MESH_FILE_H5}_out.h5)
+      # Custom command to generate the grid
+      add_custom_command(OUTPUT ${${APP}_MESH_FILE_H5}
+        COMMAND ${MESH_CONVERTER}
+        DEPENDS ${${APP}_MESH_FILE}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Converting the input grid to H5 ${${APP}_MESH_FILE_H5}...")
+      set(MESH ${${APP}_MESH_FILE_H5})
+
+      # Repack/compress the grid
+      option(${APP}_HDF5_REPACK_MESH "Repack HDF5 meshes during the build process." ON)
+      if(${APP}_HDF5_REPACK_MESH)
+        find_program(HDF5_H5REPACK h5repack hints ${HDF5_ROOT} ENV HDF5_ROOT)
+        if(NOT HDF5_H5REPACK)
+          message(STATUS "Could not find h5repack. Set HDF5_ROOT to the folder containing the executable.")
+          message(STATUS "Repacking/compression of the H5 input mesh is skipped. Compress it manually by running:")
+          message(STATUS "  h5repack -f GZIP=9 ${${APP}_MESH_FILE_H5} ${${APP}_MESH_FILE_H5_REPACK}")
+          install(FILES ${${APP}_MESH_FILE_H5} DESTINATION ${OP2_APPS_DIR}
+            COMPONENT RuntimeInputFiles RENAME ${MESH_FILE_H5}.h5)
+        else()
+          set(${APP}_MESH_FILE_H5_REPACK ${CMAKE_BINARY_DIR}/${MESH_FILE_H5}.h5)
+          # Custom command to repack the grid
+          add_custom_command(OUTPUT ${${APP}_MESH_FILE_H5_REPACK}
+            COMMAND ${HDF5_H5REPACK} -f GZIP=9 ${${APP}_MESH_FILE_H5} ${${APP}_MESH_FILE_H5_REPACK}
+            DEPENDS ${${APP}_MESH_FILE_H5}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Repacking the H5 input grid H5 ${${APP}_MESH_FILE_H5_REPACK}...")
+          install(FILES ${${APP}_MESH_FILE_H5_REPACK} DESTINATION ${OP2_APPS_DIR}
+            COMPONENT RuntimeInputFiles)
+          set(MESH ${${APP}_MESH_FILE_H5_REPACK})
+        endif()
+      endif()
+
+      add_custom_target(${APP}_h5_grid DEPENDS ${MESH})
+    endif()
+  endif()
+endfunction()
