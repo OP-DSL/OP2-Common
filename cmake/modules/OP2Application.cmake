@@ -54,7 +54,7 @@ function(op2_application APP)
       "${OpenMP_CXX_FLAGS}" LINK_FLAGS "${OpenMP_CXX_FLAGS}")
   endif()
 
-  if (${${APP}_DEPENDS})
+  if (${APP}_DEPENDS)
     add_dependencies(${APP} ${${APP}_DEPENDS})
   endif()
   target_link_libraries(${APP} ${LIBS})
