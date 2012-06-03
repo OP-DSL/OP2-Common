@@ -47,9 +47,6 @@ set(OP2_JACOBI_APPS
   jac1
   jac2
   )
-set(OP2_AERO_APPS
-  aero
-  )
 
 include(common.cmake)
 # Add each OP2 app directory
@@ -71,12 +68,6 @@ if(OP2_BUILD_ALL_JACOBI)
     endif()
   endforeach()
 endif()
-if(OP2_BUILD_ALL_AERO)
-  foreach (APP_DIR ${OP2_AERO_APPS})
-    option(OP2_BUILD_${APP_DIR} "Build the ${APP_DIR} apps" ON)
-    if(OP2_BUILD_${APP_DIR})
-      include(aero-common.cmake)
-      add_subdirectory(${APP_DIR})
-    endif()
-  endforeach()
+if(OP2_BUILD_AERO)
+  add_subdirectory(aero)
 endif()
