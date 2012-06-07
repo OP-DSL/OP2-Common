@@ -151,6 +151,8 @@ int main(int argc, char ** argv)
               op_arg_dat(Coordinate, -3, CoordinateMesh_element_dofs, 2, 
                          "double", OP_READ));
   op_dat L_vec = op_decl_vec(Tracer, "L_vec");
+  double * soln = (double *)malloc(Tracer->set->size * Tracer->dim * sizeof(double));
+  memcpy(soln, Tracer->data, Tracer->set->size * Tracer->dim * sizeof(double));
   op_par_loop(L_0, "L_0", CoordinateMesh_elements, 
               op_arg_dat(L_vec, -3, VelocityMesh_element_dofs, 1, "double", 
                          OP_INC), 
@@ -163,6 +165,14 @@ int main(int argc, char ** argv)
   op_free_vec(L_vec);
   op_free_mat(a_mat);
   op_fetch_data(Tracer);
+  double * data = (double *)(Tracer->data);
+  for ( int i = 0; i < Tracer->set->size * Tracer->dim; i++ ) {
+    printf("%g %g\n", data[i], soln[i]);
+    if ( fabs(data[i] - soln[i]) > 1e-6 ) {
+      printf("Error in solution at point %d. Should be %g is %g\n", i, soln[i], data[i]);
+    }
+  }
+  free(soln);
   op_exit();
 }
 
