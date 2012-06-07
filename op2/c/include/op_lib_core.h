@@ -146,6 +146,9 @@ typedef struct {
   int    total_nz;    /* total nonzeros in the pattern sum(nnz) */
   int    *rowptr;     /* csr row pointer (accumulation of nnz) */
   int    *colidx;     /* csr column indices for each row */
+  int    *lmaidx;
+  int    *csr2lma;
+  int    nlma;
   size_t max_nonzeros;/* maximum number of nonzeros per row */
   char const *name;   /* name of dataset */
 } op_sparsity_core;

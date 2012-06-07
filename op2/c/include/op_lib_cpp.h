@@ -196,5 +196,9 @@ void op_mat_lma_to_csr(float *dummy, op_arg mat, op_set set);
 
 void op_mat_lma_to_csr(double *dummy, op_arg mat, op_set set);
 
+void op_mat_lma2csr(float *dummy, op_arg mat);
+
+void op_mat_lma2csr(double *dummy, op_arg mat);
+
 #endif /* __OP_LIB_CPP_H */
 

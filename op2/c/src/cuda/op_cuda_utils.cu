@@ -13,6 +13,48 @@ __device__ int pos(int row, int col, int* rowptr, int* colidx)
 }
 
 template<class T>
+__global__ void op_lma2csr_dev(T * lma, T * data,
+                               int * lmaidx,
+                               int * csr2lma,
+                               int nentries)
+{
+
+    int id = threadIdx.x + blockIdx.x * blockDim.x;
+    if ( id >= nentries ) return;
+
+    for ( int i = lmaidx[id]; i < lmaidx[id+1]; i++ )
+        data[id] += lma[csr2lma[i]];
+}
+
+template<class T>
+__host__ void op_mat_lma2csr (op_arg arg)
+{
+    op_mat mat = arg.mat;
+    op_sparsity sparsity = mat->sparsity;
+
+    int nthread = 128;
+    int nentries = sparsity->total_nz;
+
+    int nblock = nentries / nthread + 1;
+
+    op_lma2csr_dev<<<nblock,nthread>>>((T *)mat->lma_data,
+                                       (T *)mat->data,
+                                       sparsity->lmaidx,
+                                       sparsity->csr2lma,
+                                       nentries);
+}
+
+__host__ void op_mat_lma2csr(float *dummy, op_arg arg)
+{
+    op_mat_lma2csr<float>(arg);
+}
+
+__host__ void op_mat_lma2csr(double *dummy, op_arg arg)
+{
+    op_mat_lma2csr<double>(arg);
+}
+
+template<class T>
 __global__ void op_lma_to_csr_dev (T *lma, T *data,
                                    int *rowptr,
                                    int *colidx,

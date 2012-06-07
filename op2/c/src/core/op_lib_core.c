@@ -365,6 +365,9 @@ op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
   sparsity->nnz = NULL;
   sparsity->rowptr = NULL;
   sparsity->colidx = NULL;
+  sparsity->lmaidx = NULL;
+  sparsity->csr2lma = NULL;
+  sparsity->nlma = 0;
   sparsity->max_nonzeros = 0;
 
   op_build_sparsity_pattern ( rowmap, colmap, sparsity );
@@ -378,6 +381,8 @@ void op_free_sparsity_core ( op_sparsity sparsity )
   free ( sparsity->nnz );
   free ( sparsity->rowptr );
   free ( sparsity->colidx );
+  free ( sparsity->lmaidx );
+  free ( sparsity->csr2lma );
   free ( sparsity );
 }
 

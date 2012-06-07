@@ -128,6 +128,10 @@ op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
   op_mvHostToDevice ( (void **)&(sparsity->colidx),
                       sizeof(int) * (sparsity->total_nz));
 
+  op_mvHostToDevice ( (void **)&(sparsity->lmaidx),
+                      sizeof(int) * (sparsity->total_nz + 1));
+  op_mvHostToDevice ( (void **)&(sparsity->csr2lma),
+                      sizeof(int) * sparsity->nlma);
   return sparsity;
 }
 

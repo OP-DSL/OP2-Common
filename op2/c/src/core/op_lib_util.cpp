@@ -29,7 +29,9 @@
 
 #include <vector>
 #include <set>
+#include <map>
 #include "op_lib_core.h"
+
 void op_build_sparsity_pattern ( op_map rowmap, op_map colmap,
                                  op_sparsity sparsity )
 {
@@ -37,10 +39,19 @@ void op_build_sparsity_pattern ( op_map rowmap, op_map colmap,
   // the from set, for each row pointed to by the row map, add all
   // columns pointed to by the col map
   std::vector< std::set< int > > s(sparsity->nrows);
+  std::vector< std::map< int, std::set<int> > > lma(sparsity->nrows);
   for ( int e = 0; e < rowmap->from->size; ++e ) {
     for ( int i = 0; i < rowmap->dim; ++i ) {
       int row = rowmap->map[i + e*rowmap->dim];
       s[row].insert( colmap->map + e*colmap->dim, colmap->map + (e+1)*colmap->dim );
+      for ( int j = 0; j < colmap->dim; ++j ) {
+        int col = colmap->map[j + e*colmap->dim];
+        // e element;
+        // i row idx in element matrix
+        // j col idx in element matrix
+        int offset = rowmap->dim * colmap->dim * e + i * colmap->dim + j;
+        lma[row][col].insert(offset);
+      }
     }
   }
 
@@ -54,13 +65,34 @@ void op_build_sparsity_pattern ( op_map rowmap, op_map colmap,
     if ( sparsity->max_nonzeros < s[row].size() )
       sparsity->max_nonzeros = s[row].size();
   }
+
   int *colidx = (int*)malloc(rowptr[sparsity->nrows] * sizeof(int));
   for ( size_t row = 0; row < sparsity->nrows; ++row ) {
     std::copy(s[row].begin(), s[row].end(), colidx + rowptr[row]);
   }
 
+  int offset = 0;
+  sparsity->nlma = rowmap->from->size * rowmap->dim * colmap->dim;
+  int *csr_to_lma = (int *)malloc(sparsity->nlma * sizeof(int));
+  int *lmaidx = (int *)malloc((rowptr[sparsity->nrows]+1) * sizeof(int));
+  int j = 0;
+  for ( size_t row = 0; row < sparsity->nrows; row++ ) {
+    for ( int i = rowptr[row]; i < rowptr[row+1]; i++ ) {
+      int col = colidx[i];
+      std::set <int> tmp = lma[row][col];
+      lmaidx[i] = offset;
+      offset += tmp.size ();
+      for ( std::set <int>::iterator it = tmp.begin ();
+            it != tmp.end (); it++ ) {
+        csr_to_lma[j++] = *it;
+      }
+    }
+  }
+  lmaidx[rowptr[sparsity->nrows]] = offset;
   sparsity->nnz = nnz;
   sparsity->total_nz = rowptr[sparsity->nrows];
   sparsity->rowptr = rowptr;
   sparsity->colidx = colidx;
+  sparsity->lmaidx = lmaidx;
+  sparsity->csr2lma = csr_to_lma;
 }
