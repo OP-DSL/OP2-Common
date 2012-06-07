@@ -32,7 +32,7 @@
 # CUDA library
 include_directories(${CUDA_INCLUDE_DIRS} ${THRUST_INCLUDE_DIRS} ${CUSP_INCLUDE_DIRS})
 cuda_add_library(op2_cuda ${COMMON_SRC} ${RT_SRC}
-  op_cuda_decl.c op_cuda_rt_support.c op_cuda_utils.cu ../core/op_dummy_singlenode.c)
+  op_cuda_decl.c op_cuda_rt_support.c op_cuda_utils.cu op_solve.cu ../core/op_dummy_singlenode.c)
 
 # Add target to the build-tree export set
 export(TARGETS op2_cuda APPEND
