@@ -357,6 +357,7 @@ __global__ void a_0_kernel(double *opMat1,double *reductionArrayDevice1,double *
   int i3;
   int i4;
   double opDat1Local[1];
+  int matOffset1;
   __device__ __shared__ int *opDat2IndirectionMap;
   double *opDat2vec[3];
   __device__ __shared__ int opDat2SharedIndirectionSize;
@@ -378,15 +379,18 @@ __global__ void a_0_kernel(double *opMat1,double *reductionArrayDevice1,double *
     opDat2SharedIndirection[i1] = opDat2[i1 % 2 + opDat2IndirectionMap[i1 / 2] * 2];
   }
   __syncthreads();
+  matOffset1 = 0;
+  for (i1 = 0; i1 < blockIdx.x; ++i1) {
+    matOffset1 += 9 * pnelems[i1];
+  }
   for (i1 = threadIdx.x; i1 < numberOfActiveThreads * 9; i1 += blockDim.x) {
-    opMat1[i1] = ((double )0);
     i2 = i1 / 9;
     i3 = (i1 - i2 * 9) / 3;
     i4 = i1 - (i2 * 9 + i3 * 3);
     opDat2vec[0] = opDat2SharedIndirection + mappingArray1[i2 + sharedMemoryOffset] * 2;
     opDat2vec[1] = opDat2SharedIndirection + mappingArray2[i2 + sharedMemoryOffset] * 2;
     opDat2vec[2] = opDat2SharedIndirection + mappingArray3[i2 + sharedMemoryOffset] * 2;
-    a_0_modified(opMat1 + i1,opDat1Local,opDat2vec,i3,i4);
+    a_0_modified(opMat1 + (i1 + matOffset1),opDat1Local,opDat2vec,i3,i4);
   }
   for (i1 = 0; i1 < 1; ++i1) {
     ReductionDouble8(&reductionArrayDevice1[i1 + blockIdx.x * 1],opDat1Local[i1],0);
