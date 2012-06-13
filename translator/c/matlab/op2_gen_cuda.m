@@ -18,6 +18,12 @@ OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
 OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
+accsstring = {'OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN'};
+
+any_soa = 0;
+for nk = 1:length(kernels)
+    any_soa = any_soa || sum(kernels{nk}.soaflags);
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -37,12 +43,78 @@ for nk = 1:length(kernels)
   accs  = kernels{nk}.accs;
   idxs  = kernels{nk}.idxs;
   inds  = kernels{nk}.inds;
+  soaflags = kernels{nk}.soaflags;
 
   ninds   = kernels{nk}.ninds;
   inddims = kernels{nk}.inddims;
   indaccs = kernels{nk}.indaccs;
   indtyps = kernels{nk}.indtyps;
   invinds = kernels{nk}.invinds;
+
+  if (~isempty(find(idxs<0 & maps == 3, 1)))
+      unique_args = 1;
+      vec_counter = 1;
+      vectorised = [];
+      new_dims = {};
+      new_maps = [];
+      new_vars = {};
+      new_typs = {};
+      new_accs = [];
+      new_idxs = [];
+      new_inds = [];
+      new_soaflags = [];
+      for m = 1:nargs
+          if (idxs(m)<0 && maps(m) == 3)
+              if m>1
+                unique_args = [unique_args length(new_dims)+1];
+              end
+              temp(1:-1*idxs(m)) = vars(m);
+              new_vars = [new_vars temp];
+              temp(1:-1*idxs(m)) = typs(m);
+              new_typs = [new_typs temp];
+              temp(1:-1*idxs(m)) = dims(m);
+              new_dims = [new_dims temp];
+              new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
+              new_soaflags = [new_soaflags zeros(1,-1*idxs(m))];
+              new_accs = [new_accs accs(m)*ones(1,-1*idxs(m))];
+              new_idxs = [new_idxs 0:(-1*idxs(m) -1)];
+              new_inds = [new_inds inds(m)*ones(1,-1*idxs(m))];
+              vectorised = [vectorised ones(1,-1*idxs(m)) * vec_counter];
+              vec_counter = vec_counter + 1;
+          else
+              if m>1
+                unique_args = [unique_args length(new_dims)+1];
+              end
+              new_dims = [new_dims dims(m)];
+              new_maps = [new_maps maps(m)];
+              new_accs = [new_accs accs(m)];
+              new_soaflags = [new_soaflags soaflags(m)];
+              new_idxs = [new_idxs idxs(m)];
+              new_inds = [new_inds inds(m)];
+              new_vars = [new_vars vars(m)];
+              new_typs = [new_typs typs(m)];
+              vectorised = [vectorised 0];
+          end
+      end
+      dims = new_dims;
+      maps = new_maps;
+      accs = new_accs;
+      idxs = new_idxs;
+      inds = [new_inds];
+      vars = new_vars;
+      typs = new_typs;
+      soaflags = new_soaflags;
+      nargs = length(vectorised);
+      for i = 1:ninds
+          invinds(i) = find(inds == i,1);
+      end
+  else
+      vectorised = zeros(1,nargs);
+      unique_args = 1:nargs;
+  end
+
+  cumulative_indirect_index = -1*ones(1,nargs);
+  cumulative_indirect_index(find(maps == 3)) = 0:(sum(maps==3)-1);
 
 %
 % set two logicals
@@ -64,21 +136,26 @@ for nk = 1:length(kernels)
                 ['__global__ void op_cuda_' name '(']);
 
   for m = 1:ninds
-    line = '  INDTYP *ind_ARG, int *ind_ARG_maps,';
+    line = '  INDTYP *ind_ARG,';
     file = strvcat(file,rep(line,m));
+  end
+
+  if (ninds>0)
+    file = strvcat(file,'  int   *ind_map,');
+    file = strvcat(file,'  short *arg_map,');
   end
 
   for m = 1:nargs
     if (maps(m)==OP_GBL && accs(m)==OP_READ)
       line = '  const TYP *ARG,';    % declared const for performance
+      file = strvcat(file,rep(line,m));
     elseif (maps(m)==OP_ID && ninds>0)
       line = '  TYP *ARG,';
+      file = strvcat(file,rep(line,m));
     elseif (maps(m)==OP_GBL || maps(m)==OP_ID)
       line = '  TYP *ARG,';
-    else
-      line = '  short *ARG_maps,';
+      file = strvcat(file,rep(line,m));
     end
-    file = strvcat(file,rep(line,m));
   end
 
   if (ninds>0)
@@ -89,8 +166,9 @@ for nk = 1:length(kernels)
                         '  int   *offset,      ',...
                         '  int   *nelems,      ',...
                         '  int   *ncolors,     ',...
-                        '  int   *colors,    ',...
-                        '  int   nblocks) {    ',' ');
+                        '  int   *colors,      ',...
+                        '  int   nblocks,     ',...
+                        '  int   set_size) {    ',' ');
   else
     file = strvcat(file,'  int   offset_s,   ',...
                         '  int   set_size ) {',' ');
@@ -110,9 +188,31 @@ for nk = 1:length(kernels)
     elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
-    elseif (ninds==0 && maps(m)==OP_ID & ~strcmp(dims{m},'1'))
+    elseif (ninds==0 && maps(m)==OP_ID && ~strcmp(dims{m},'1') && ~soaflags(m))
       line = '  TYP ARG_l[DIM];';
       file = strvcat(file,rep(line,m));
+    end
+  end
+
+  for  m = 1:ninds
+    if (sum(inds==m)>1 & vectorised(find(inds==m)))
+      if (indaccs(m) == OP_INC)
+        line = sprintf('  INDTYP *ARG_vec[%d] = {',max(idxs(inds==m))+1);
+        file = strvcat(file,rep(line,m));
+        line = '';
+        for n = 1:nargs
+          if (inds(n) == m)
+            file = strvcat(file,line);
+            line = rep('    ARG_l,',n);
+          end
+        end
+        file = strvcat(file,line(1:end-1));
+        line = '  };';
+        file = strvcat(file,line);
+      else
+        line = sprintf('  INDTYP *ARG_vec[%d];',max(idxs(inds==m))+1);
+        file = strvcat(file,rep(line,m));
+      end
     end
   end
 
@@ -158,7 +258,7 @@ for nk = 1:length(kernels)
     end
     file = strvcat(file,' ');
     for m = 1:ninds
-      line = ['    ind_ARG_map = ind_ARG_maps + ind_arg_offs[' ...
+      line = ['    ind_ARG_map = &ind_map[',int2str(cumulative_indirect_index(find(inds == m, 1))) ,'*set_size] + ind_arg_offs[' ...
               int2str(m-1) '+blockId*' int2str(ninds) '];'];
       file = strvcat(file,rep(line,m));
     end
@@ -248,7 +348,7 @@ for nk = 1:length(kernels)
     end
 
     for m = 1:nargs
-      if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && ~strcmp(dims{m},'1'))
+      if(maps(m)~=OP_GBL && accs(m)~=OP_WRITE && ~strcmp(dims{m},'1') && ~soaflags(m))
         line = '    for (int m=0; m<DIM; m++)';
         file = strvcat(file,rep(line,m));
         line = ['      ((TYP *)arg_s)[tid+m*nelems] =' ...
@@ -272,9 +372,31 @@ for nk = 1:length(kernels)
     prefix = '    ';
   end
 
-  file = strvcat(file,' ',...
-                 [ prefix '// user-supplied kernel call'],' ');
+  % xxx: array of pointers for non-locals
+  for  m = 1:ninds
+    if (sum(inds==m)>1)
+      if (indaccs(m) ~= OP_INC)
+        file = strvcat(file,' ');
+        line = '';
+        ctr = 0;
+        for n = 1:nargs
+          if (inds(n) == m  && vectorised(m))
+            file = strvcat(file,line);
+            line = [ prefix ...
+              sprintf(['arg%d_vec[%d] = ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(n)),'*set_size+n+offset_b]*DIM;'],m-1, ctr, inds(n)-1) ];
+            line = rep(line,n);
+            ctr = ctr+1;
+          end
+        end
+        file = strvcat(file,line);
+      end
+    end
+  end
 
+  file = strvcat(file,...
+                 ' ',[ prefix '// user-supplied kernel call'],' ');
+
+  out = '';
   for m = 1:nargs
     line = [prefix name '( '];
     if (m~=1)
@@ -282,35 +404,50 @@ for nk = 1:length(kernels)
     end
     if (maps(m)==OP_GBL)
       if (accs(m)==OP_READ)
-        line = [ line 'ARG,' ];
+        line = rep([ line ' ARG,' ],m);
       else
-        line = [ line 'ARG_l,' ];
+        line = rep([ line ' ARG_l,' ],m);
       end
-    elseif (maps(m)==OP_MAP && accs(m)==OP_INC)
-      line = [ line 'ARG_l,' ];
-    elseif (maps(m)==OP_MAP)
-      line = [ line ...
-      sprintf('ind_arg%d_s+ARG_maps[n+offset_b]*DIM,',inds(m)-1) ];
+    elseif (maps(m)==OP_MAP & accs(m)==OP_INC && vectorised(m)==0)
+      line = rep([ line ' ARG_l,' ],m);
+    elseif (maps(m)==OP_MAP && vectorised(m)==0)
+      line = rep([ line sprintf([' ind_arg%d_s+arg_map[',int2str(cumulative_indirect_index(m)),'*set_size+n+offset_b]*DIM,'],inds(m)-1) ],m);
+    elseif (maps(m)==OP_MAP && m == 1)
+      line = rep([ line ' ARG_vec,' ], inds(m));
+    elseif (maps(m)==OP_MAP && m>1 && vectorised(m) ~= vectorised(m-1)) %xxx:vector
+      line = rep([ line ' ARG_vec,' ], inds(m));
+    elseif (maps(m)==OP_MAP && m>1 && vectorised(m) == vectorised(m-1))
+      line = '';
     elseif (maps(m)==OP_ID)
       if (ninds>0)
-        line = [ line 'ARG+(n+offset_b)*DIM,' ];
-      else
-        if (strcmp(dims{m},'1'))
-          line = [ line 'ARG+n,' ];
+        if (soaflags(m))
+            line = rep([ line ' ARG+(n+offset_b),' ],m);
         else
-          line = [ line 'ARG_l,' ];
+            line = rep([ line ' ARG+(n+offset_b)*DIM,' ],m);
+        end
+      else
+        if (strcmp(dims{m},'1') || soaflags(m))
+          line = rep([ line ' ARG+n,' ],m);
+        else
+          line = rep([ line ' ARG_l,' ],m);
         end
       end
-
     else
       error('internal error 1')
     end
-    if (m==nargs)
-      line = [ line(1:end-1) ' );' ];
+    if (m==nargs) %xx one line, and
+      if (isempty(line))
+        out = [out(1:end-1) ');'];
+      else
+        out = sprintf('%s\n%s );',out ,line(1:end-1));
+      end
+    else
+      if (~isempty(line))
+        out =  sprintf('%s\n%s',out ,rep(line,m));
+      end
     end
-
-    file = strvcat(file,rep(line,m));
   end
+  file = strvcat(file,out);
 
 %
 % updating for indirect kernels ...
@@ -333,7 +470,7 @@ for nk = 1:length(kernels)
                 ' ','      if (col2>=0) {                  ');
       for m = 1:nargs
         if (maps(m)==OP_MAP && accs(m)==OP_INC)
-          line = sprintf('        ARG_map = ARG_maps[n+offset_b];');
+          line = ['        ARG_map = arg_map[',int2str(cumulative_indirect_index(m)),'*set_size+n+offset_b];'];
           file = strvcat(file,rep(line,m));
         end
       end
@@ -382,7 +519,7 @@ for nk = 1:length(kernels)
     end
 
     for m = 1:nargs
-      if(maps(m)~=OP_GBL && accs(m)~=OP_READ && ~strcmp(dims{m},'1'))
+      if(maps(m)~=OP_GBL && accs(m)~=OP_READ && ~strcmp(dims{m},'1') && ~soaflags(m))
         line = '    for (int m=0; m<DIM; m++)';
         file = strvcat(file,rep(line,m));
         line = '      ((TYP *)arg_s)[m+tid*DIM] = ARG_l[m];';
@@ -432,13 +569,13 @@ for nk = 1:length(kernels)
   file = strvcat(file,' ',' ','// host stub function          ',' ',...
         ['void op_par_loop_' name '(char const *name, op_set set,']);
 
-  for m = 1:nargs
+  for m = unique_args
     line = rep('  op_arg ARG', m);
 
-    if (m<nargs)
-      file = strvcat(file,[line ',']);
-    else
+    if (m == unique_args(end))
       file = strvcat(file,[line ' ){'],' ');
+    else
+      file = strvcat(file,[line ',']);
     end
   end
 
@@ -451,11 +588,30 @@ for nk = 1:length(kernels)
 
   file = strvcat(file,' ',['  int    nargs   = ' num2str(nargs) ';']);
 
-  line = sprintf('  op_arg args[%d] = {',nargs);
+  line = sprintf('  op_arg args[%d];',nargs);
+  file = strvcat(file,rep(line,m),' ');
+
   for m = 1:nargs
-      line = [line 'arg' num2str(m-1) ','];
+      if (find(m==unique_args,1) & (vectorised(m) > 0))
+          line = '  ARG.idx = 0;';
+          line = sprintf('%s\n  args[%d] = ARG;',line, m-1);
+          file = strvcat(file,rep(line,m));
+          first = find(vectorised == vectorised(m), 1);
+          line = sprintf('  for (int v = 1; v < %d; v++) {\n',sum(vectorised == vectorised(m)) );
+          line = sprintf('%s    args[%d + v] = op_arg_dat(arg%d.dat, v, arg%d.map, DIM, "TYP", %s);\n  }', line,  m-1, first-1, first-1, accsstring{accs(m)});
+          file = strvcat(file,rep(line,m));
+      elseif (vectorised(m)>0)
+
+      else
+          line = sprintf('  args[%d] = ARG;',m-1);
+          file = strvcat(file,rep(line,m));
+      end
   end
-  file = strvcat(file,[line(1:end-1) '};']);
+%
+%   for m = 1:nargs
+%       line = [line 'arg' num2str(m-1) ','];
+%   end
+%   file = strvcat(file,[line(1:end-1) '};']);
 
 %
 %   indirect bits
@@ -479,7 +635,7 @@ for nk = 1:length(kernels)
       '  #else                          ',...
       '    int part_size = OP_part_size;',...
       '  #endif                         ',' ',...
-      '  op_mpi_halo_exchanges(set, nargs, args);                          ');
+      '  int set_size = op_mpi_halo_exchanges(set, nargs, args);                          ');
 
 %
 % direct bit
@@ -500,6 +656,12 @@ for nk = 1:length(kernels)
                           '  op_timers_core(&cpu_t1, &wall_t1);           ');
 
   file = strvcat(file,' ','  if (set->size >0) {',' ');
+
+  if (sum(soaflags))
+      file = strvcat(file,'    int op2_stride = set->size + set->exec_size + set->nonexec_size;');
+      file = strvcat(file,'    op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");',' ');
+  end
+
   if (ninds>0)
       file = strvcat(file,'    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);',' ');
   end
@@ -627,24 +789,25 @@ for nk = 1:length(kernels)
       file = strvcat(file,...
         '        int nshared = MAX(Plan->nshared,reduct_size*nthread);');
     else
-      file = strvcat(file,'      int nshared = Plan->nshared;');
+      file = strvcat(file,'        int nshared = Plan->nsharedCol[col];');
     end
 
       file = strvcat(file,...
        ['        op_cuda_' name '<<<nblocks,nthread,nshared>>>(']);
 
       for m = 1:ninds
-        line = sprintf('           (TYP *)ARG.data_d, Plan->ind_maps[%d],',m-1);
+        line = sprintf('           (TYP *)ARG.data_d,',m-1);
         file = strvcat(file,rep(line,invinds(m)));
       end
+
+      file = strvcat(file,'           Plan->ind_map,');
+      file = strvcat(file,'           Plan->loc_map,');
 
       for m = 1:nargs
         if (inds(m)==0)
           line = '           (TYP *)ARG.data_d,';
-        else
-          line = sprintf('           Plan->loc_maps[%d],',m-1);
+          file = strvcat(file,rep(line,m));
         end
-        file = strvcat(file,rep(line,m));
       end
 
       file = strvcat(file, ...
@@ -655,12 +818,20 @@ for nk = 1:length(kernels)
        '           Plan->offset,                                        ',...
        '           Plan->nelems,                                        ',...
        '           Plan->nthrcol,                                       ',...
-       '           Plan->thrcol,                                       ',...
-       '           Plan->ncolblk[col]);                                       ',...
-   ' ','        cutilSafeCall(cudaThreadSynchronize());                 ',...
-      ['        cutilCheckMsg("op_cuda_' name ' execution failed\n");'],...
-       '      }                                                  ',...
-   ' ','      block_offset += Plan->ncolblk[col];                                ',...
+       '           Plan->thrcol,                                        ',...
+       '           Plan->ncolblk[col],                                  ',...
+       '           set_size);                                           ',...
+       ' ','        cutilSafeCall(cudaThreadSynchronize());             ',...
+      ['        cutilCheckMsg("op_cuda_' name ' execution failed\n");']);
+      if (reduct)
+        file = strvcat(file, ...
+        ' ','        // transfer global reduction data back to CPU',...
+        ' ','        if (col == Plan->ncolors_owned)',...
+        ' ','          mvReductArraysToHost(reduct_bytes);',' ');
+      end
+      file = strvcat(file, ...
+       '      }                                                         ',...
+       ' ','      block_offset += Plan->ncolblk[col];                   ',...
        '    }                                                         ');
 
 %
@@ -708,14 +879,15 @@ for nk = 1:length(kernels)
     ['    OP_kernels[' num2str(nk-1) '].transfer2 += Plan->transfer2;']);
    end
 
-
 %
 % transfer global reduction initial data
 %
   if (reduct)
-    file = strvcat(file,...
-         ' ','    // transfer global reduction data back to CPU',...
-         ' ','    mvReductArraysToHost(reduct_bytes);',' ');
+    if (ninds == 0)
+      file = strvcat(file,...
+           ' ','    // transfer global reduction data back to CPU',...
+           ' ','    mvReductArraysToHost(reduct_bytes);',' ');
+    end
     for m=1:nargs
       if(maps(m)==OP_GBL && accs(m)~=OP_READ);
         file = strvcat(file,'    for (int b=0; b<maxblocks; b++)');
@@ -737,9 +909,9 @@ for nk = 1:length(kernels)
     end
   end
   file = strvcat(file, ' ','  }',' ');
-  %file = strvcat(file,' ','  op_mpi_global_reduction(nargs, args);');
-  file = strvcat(file, sprintf(['  //set dirty bit on datasets touched\n',...
-                    '  op_mpi_set_dirtybit(%d, args);'],nargs));
+
+  file = strvcat(file,' ','  op_mpi_set_dirtybit(nargs, args);');
+
 %
 % update kernel record
 %
@@ -824,6 +996,12 @@ for nc = 1:length(consts)
   end
 end
 
+if (any_soa)
+   file = strvcat(file, '__constant__ int op2_stride;', ' ',...
+       '#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]');
+   %file = strvcat(file, 'extern int op2_stride;');
+end
+
 file = strvcat(file,' ',...
       'void op_decl_const_char(int dim, char const *type,',...
       '            int size, char *dat, char const *name){');
@@ -868,9 +1046,11 @@ function line = rep(line,m)
 
 global dims idxs typs indtyps inddims
 
-line = regexprep(line,'INDDIM',char(inddims(m)));
+if (m <= length(inddims))
+  line = regexprep(line,'INDDIM',char(inddims{m}));
+  line = regexprep(line,'INDTYP',char(indtyps{m}));
+end
 line = regexprep(line,'INDARG',sprintf('ind_arg%d',m-1));
-line = regexprep(line,'INDTYP',char(indtyps{m}));
 
 line = regexprep(line,'DIM',dims(m));
 line = regexprep(line,'ARG',sprintf('arg%d',m-1));

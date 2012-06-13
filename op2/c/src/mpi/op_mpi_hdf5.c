@@ -255,7 +255,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
-  return op_decl_map(from, to, dim, map, name);
+  op_map new_map = op_decl_map_core(from, to, dim, map, name);
+  new_map->user_managed = 0;
+  return new_map;
 }
 
 /*******************************************************************************
@@ -369,7 +371,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   //initialize data buffer and read in data
   char* data = 0;
-  if(strcmp(type,"double") == 0)
+  if((strcmp(type,"double") == 0) || (strcmp(type,"double:soa") == 0))
   {
     data = (char *)xmalloc(set->size*dim*sizeof(double));
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, data);
@@ -382,7 +384,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     else
       dat_size = sizeof(double);
 
-  }else if(strcmp(type,"float") == 0)
+  }else if((strcmp(type,"float") == 0) || (strcmp(type,"float:soa") == 0))
   {
     data = (char *)xmalloc(set->size*dim*sizeof(float));
     H5Dread(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, data);
@@ -395,7 +397,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     else
       dat_size = sizeof(float);
 
-  }else if(strcmp(type,"int") == 0)
+  }else if((strcmp(type,"int") == 0) || (strcmp(type,"int:soa") == 0))
   {
     data = (char *)xmalloc(set->size*dim*sizeof(int));
     H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, data);
@@ -421,7 +423,11 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
-  return op_decl_dat(set, dim, type, dat_size, data, name );
+
+  op_dat new_dat = op_decl_dat_core(set, dim, type, dat_size, data, name );
+  new_dat->user_managed = 0;
+  return new_dat;
+
 }
 
 /*******************************************************************************
@@ -735,13 +741,13 @@ void op_write_hdf5(char const * file_name)
     dataspace = H5Screate_simple(2, dimsf, NULL);
 
     //Create the dataset with default properties and close dataspace.
-    if(strcmp(dat->type,"double")==0)
+    if((strcmp(dat->type,"double")==0) || (strcmp(dat->type,"double:soa") == 0))
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    else if(strcmp(dat->type,"float")==0)
+    else if((strcmp(dat->type,"float")==0) || (strcmp(dat->type,"float:soa") == 0))
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    else if(strcmp(dat->type,"int")==0)
+    else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     else printf("Unknown type\n");
@@ -767,11 +773,11 @@ void op_write_hdf5(char const * file_name)
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
     //write data
-    if(strcmp(dat->type,"double") == 0)
+    if((strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
       H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, dat->data);
-    else if(strcmp(dat->type,"float") == 0)
+    else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
       H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, dat->data);
-    else if(strcmp(dat->type,"int") == 0)
+    else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
       H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
     else printf("Unknown type\n");
 
@@ -875,7 +881,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
   //Create the dataset with default properties
-  if(strcmp(type,"double")==0)
+  if((strcmp(type,"double")==0) || (strcmp(type,"double:soa") == 0))
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_DOUBLE, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -883,7 +889,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, plist_id, const_data);
     H5Dclose(dset_id);
   }
-  else if(strcmp(type,"float")==0)
+  else if((strcmp(type,"float")==0) || (strcmp(type,"float:soa") == 0))
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_FLOAT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -891,7 +897,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, plist_id, const_data);
     H5Dclose(dset_id);
   }
-  else if(strcmp(type,"int")==0)
+  else if((strcmp(type,"int")==0) || (strcmp(type,"int:soa") == 0))
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -899,7 +905,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, plist_id, const_data);
     H5Dclose(dset_id);
   }
-  else if(strcmp(type,"long")==0)
+  else if((strcmp(type,"long")==0) || (strcmp(type,"long:soa") == 0))
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_LONG, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -907,7 +913,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, plist_id, const_data);
     H5Dclose(dset_id);
   }
-  else if(strcmp(type,"long long")==0)
+  else if((strcmp(type,"long long")==0) || (strcmp(type,"long long:soa") == 0))
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_LLONG, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);

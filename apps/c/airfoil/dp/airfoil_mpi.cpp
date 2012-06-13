@@ -416,7 +416,7 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //get results data array
+  //get results data array - perhaps can be later handled by a remporary dat
   //op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
@@ -428,5 +428,17 @@ int main(int argc, char **argv)
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
+
+  free(cell);
+  free(edge);
+  free(ecell);
+  free(bedge);
+  free(becell);
+  free(bound);
+  free(x);
+  free(q);
+  free(qold);
+  free(res);
+  free(adt);
 }
 

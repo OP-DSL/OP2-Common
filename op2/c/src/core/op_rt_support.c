@@ -56,10 +56,20 @@ op_rt_exit (  )
     free ( OP_plans[ip].idxs );
     free ( OP_plans[ip].maps );
     free ( OP_plans[ip].accs );
+    free ( OP_plans[ip].nthrcol );
+    free ( OP_plans[ip].thrcol );
+    free ( OP_plans[ip].offset );
+    free ( OP_plans[ip].ind_offs );
+    free ( OP_plans[ip].ind_sizes );
+    free ( OP_plans[ip].nelems );
+    free ( OP_plans[ip].blkmap );
+    free ( OP_plans[ip].ind_map );
     free ( OP_plans[ip].ind_maps );
     free ( OP_plans[ip].nindirect );
+    free ( OP_plans[ip].loc_map );
     free ( OP_plans[ip].loc_maps );
     free ( OP_plans[ip].ncolblk );
+    free ( OP_plans[ip].nsharedCol);
   }
 
   OP_plan_index = 0;
@@ -395,19 +405,26 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ncolblk = ( int * ) calloc ( exec_length, sizeof ( int ) );  /* max possibly needed */
   OP_plans[ip].blkmap = ( int * ) calloc ( nblocks, sizeof ( int ) );
 
-  for ( int m = 0; m < ninds; m++ )
-  {
+  int *offsets = (int *)malloc((ninds+1)*sizeof(int));
+  offsets[0] = 0;
+  for ( int m = 0; m < ninds; m++ ) {
     int count = 0;
     for ( int m2 = 0; m2 < nargs; m2++ )
       if ( inds[m2] == m )
         count++;
-    OP_plans[ip].ind_maps[m] = ( int * ) malloc ( count * exec_length * sizeof ( int ) );
+      offsets[m+1] = offsets[m] + count;
   }
+  OP_plans[ip].ind_map = ( int * ) malloc ( offsets[ninds] * exec_length * sizeof ( int ) );
+  for ( int m = 0; m < ninds; m++ ) {
+    OP_plans[ip].ind_maps[m] = &OP_plans[ip].ind_map[exec_length*offsets[m]];
+  }
+  free(offsets);
 
-  for ( int m = 0; m < nargs; m++ )
-  {
+  int indirect_reduce = 0;
+  int counter = 0;
+  for ( int m = 0; m < nargs; m++ ) {
     if ( inds[m] >= 0 )
-      OP_plans[ip].loc_maps[m] = ( short * ) malloc ( exec_length * sizeof ( short ) );
+      counter++;
     else
       OP_plans[ip].loc_maps[m] = NULL;
 
@@ -415,7 +432,19 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].idxs[m] = args[m].idx;
     OP_plans[ip].maps[m] = args[m].map;
     OP_plans[ip].accs[m] = args[m].acc;
+    indirect_reduce = indirect_reduce || (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
   }
+
+  indirect_reduce = indirect_reduce && (ninds>0);
+  OP_plans[ip].loc_map = ( short * ) malloc ( counter * exec_length * sizeof ( short ) );
+  counter = 0;
+  for ( int m = 0; m < nargs; m++ ) {
+    if ( inds[m] >= 0 ) {
+      OP_plans[ip].loc_maps[m] = &OP_plans[ip].loc_map[exec_length*(counter)];
+        counter++;
+      }
+  }
+
 
   OP_plans[ip].name = name;
   OP_plans[ip].set = set;
@@ -423,6 +452,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ninds = ninds;
   OP_plans[ip].part_size = part_size;
   OP_plans[ip].nblocks = nblocks;
+  OP_plans[ip].ncolors_core = 0;
+  OP_plans[ip].ncolors_owned = 0;
   OP_plans[ip].count = 1;
 
   OP_plan_index++;
@@ -468,15 +499,17 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   for ( int b = 0; b < nblocks; b++ )
   {
-  prev_offset = next_offset;
-  if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-    next_offset = set->core_size;
-  } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
-    next_offset = exec_length;
-  } else {
-    next_offset = prev_offset + bsize;
-  }
-  int bs = next_offset-prev_offset;
+    prev_offset = next_offset;
+    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+      next_offset = set->core_size;
+    } else if (prev_offset + bsize >= set->size && prev_offset < set->size && indirect_reduce) {
+      next_offset = set->size;
+    } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
+      next_offset = exec_length;
+    } else {
+      next_offset = prev_offset + bsize;
+    }
+    int bs = next_offset-prev_offset;
 
     offset[b] = prev_offset;  /* offset for block */
     nelems[b] = bs;   /* size of block */
@@ -609,7 +642,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   }
 
 
-  /* colour the blocks, after initialising colors to 0 */
+  /* color the blocks, after initialising colors to 0 */
 
   int * blk_col;
 
@@ -634,13 +667,16 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           work[inds[m]][e] = 0; // zero out color arrays
       }
     }
-  prev_offset = 0;
-  next_offset = 0;
+    prev_offset = 0;
+    next_offset = 0;
     for ( int b = 0; b < nblocks; b++ )
     {
       prev_offset = next_offset;
+
       if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
         next_offset = set->core_size;
+      } else if (prev_offset + bsize >= set->size && prev_offset < set->size && indirect_reduce) {
+        next_offset = set->size;
       } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
         next_offset = exec_length;
       } else {
@@ -649,10 +685,12 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       if ( blk_col[b] == -1 )
       { // color not yet assigned to block
         uint mask = 0;
-    if (prev_offset >= set->core_size) { //should not use block colors from the core set when doing the non_core ones
-      if (prev_offset == set->core_size) OP_plans[ip].ncolors_core = ncolors;
-      for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
-    }
+        if (next_offset > set->core_size) { //should not use block colors from the core set when doing the non_core ones
+          if (prev_offset <= set->core_size) OP_plans[ip].ncolors_core = ncolors;
+          for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++) mask |= 1<<shifter;
+          if (prev_offset == set->size && indirect_reduce) OP_plans[ip].ncolors_owned = ncolors;
+          for (int shifter = OP_plans[ip].ncolors_core; indirect_reduce && shifter < OP_plans[ip].ncolors_owned; shifter++) mask |= 1<<shifter;
+        }
 
         for ( int m = 0; m < nargs; m++ )
         {
@@ -725,9 +763,28 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   /* reorder blocks by color? */
 
   /* work out shared memory requirements */
+  OP_plans[ip].nsharedCol = (int *)malloc(ncolors * sizeof(int));
+  float total_shared = 0;
+  for (int col = 0; col < ncolors; col++) {
+    OP_plans[ip].nsharedCol[col] = 0;
+    for ( int b = 0; b < nblocks; b++ ) {
+      if (blk_col[b] ==  col) {
+        int nbytes = 0;
+        for ( int m = 0; m < ninds; m++ )  {
+          int m2 = 0;
+          while ( inds[m2] != m )
+            m2++;
+
+          nbytes += ROUND_UP ( ind_sizes[m + b * ninds] * dats[m2]->size );
+        }
+        OP_plans[ip].nsharedCol[col] = MAX ( OP_plans[ip].nsharedCol[col], nbytes );
+        total_shared += nbytes;
+      }
+    }
+  }
 
   OP_plans[ip].nshared = 0;
-  float total_shared = 0;
+  total_shared = 0;
 
   for ( int b = 0; b < nblocks; b++ )
   {
@@ -836,7 +893,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     printf( " number of block colors = %d \n", OP_plans[ip].ncolors );
     printf( " maximum block size     = %d \n", bsize );
     printf( " average thread colors  = %.2f \n", total_colors / nblocks );
-    printf( " shared memory required = %.2f KB \n", OP_plans[ip].nshared / 1024.0f );
+    printf( " shared memory required = ");
+    for (int i = 0; i < ncolors-1; i++) printf(" %.2f KB,", OP_plans[ip].nsharedCol[i] / 1024.0f );
+    printf(" %.2f KB\n", OP_plans[ip].nsharedCol[ncolors-1] / 1024.0f );
     printf( " average data reuse     = %.2f \n", maxbytes * ( exec_length / total_shared ) );
     printf( " data transfer (used)   = %.2f MB \n",
         OP_plans[ip].transfer / ( 1024.0f * 1024.0f ) );

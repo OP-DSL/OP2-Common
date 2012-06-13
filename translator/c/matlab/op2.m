@@ -181,6 +181,7 @@ for narg = 1: nargin
     maps = zeros(1,nargs);
     typs = {};
     accs = zeros(1,nargs);
+    soaflags = zeros(1,nargs);
 
     for m = 1:nargs
       type = loop_args{loop_index}.type{m};
@@ -197,13 +198,16 @@ for narg = 1: nargin
           end
         else
           maps(m) = OP_MAP;
-          if(idxs(m)<0)
-            error(sprintf('invalid index for argument %d',m));
-          end
         end
 
         dims{m} = args{4};
-        typs{m} = args{5}(2:end-1);
+        soa_loc = strfind(args{5},':soa');
+        if (~isempty(soa_loc))
+            soaflags(m) = 1;
+            typs{m} = args{5}(2:soa_loc-1);
+        else
+            typs{m} = args{5}(2:end-1);
+        end
 
         if(isempty(strmatch(args{6},OP_accs_labels)))
           error(sprintf('unknown access type for argument %d',m));
@@ -243,7 +247,7 @@ for narg = 1: nargin
     inds      = zeros(1,nargs);
     invinds   = zeros(1,nargs);
     indtyps   = cell(1,nargs);
-    inddims   = zeros(1,nargs);
+    inddims   = cell(1,nargs);
     indaccs   = zeros(1,nargs);
 
     j = find(maps==OP_MAP);               % find all indirect arguments
@@ -254,7 +258,7 @@ for narg = 1: nargin
             &       (accs(j(1)) == accs(j));     % same access
       ninds = ninds + 1;
       indtyps{ninds} = typs{j(1)};
-      inddims(ninds) = dims{j(1)};
+      inddims{ninds} = dims{j(1)};
       indaccs(ninds) = accs(j(1));
       inds(j(find(match))) = ninds;
       invinds(ninds) = j(1);
@@ -276,16 +280,16 @@ for narg = 1: nargin
           rep2 = rep2 && ...
              strcmp(kernels{nk}.dims(arg),      dims(arg)) && ...
                    (kernels{nk}.maps(arg)    == maps(arg)) && ...
-             strcmp(kernels{nk}.vars{arg},      vars{arg}) && ...
              strcmp(kernels{nk}.typs{arg},      typs{arg}) && ...
                    (kernels{nk}.accs(arg)    == accs(arg)) && ...
                    (kernels{nk}.idxs(arg)    == idxs(arg)) && ...
+                   (kernels{nk}.soaflags(arg)== soaflags(arg)) && ...
                    (kernels{nk}.inds(arg)    == inds(arg));
         end
 
         for arg = 1:ninds
           rep2 = rep2 && ...
-             strcmp(kernels{nk}.inddims(arg),   inddims(arg)) && ...
+             strcmp(kernels{nk}.inddims{arg},   inddims{arg}) && ...
                    (kernels{nk}.indaccs(arg) == indaccs(arg)) && ...
              strcmp(kernels{nk}.indtyps{arg},   indtyps{arg}) && ...
                    (kernels{nk}.invinds(arg) == invinds(arg));
@@ -330,6 +334,7 @@ for narg = 1: nargin
       kernels{nkernels}.accs  = accs;
       kernels{nkernels}.idxs  = idxs;
       kernels{nkernels}.inds  = inds;
+      kernels{nkernels}.soaflags = soaflags;
 
       kernels{nkernels}.ninds   = ninds;
       kernels{nkernels}.inddims = inddims;
@@ -374,13 +379,13 @@ for narg = 1: nargin
     loc_old = loc-1;
 
     if (~isempty(find(loc==loc_header)))
-      fprintf(fid,' "op_lib_cpp.h"\n\n');
+      fprintf(fid,' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n');
       fprintf(fid,'//\n// op_par_loop declarations\n//\n');
 
       for k=1:nkernels
         fprintf(fid,'\nvoid op_par_loop_%s(char const *, op_set,\n',...
-                loop_args{k}.name1);
-        for n = 1:loop_args{k}.nargs-1
+                kernels{k}.name);
+        for n = 1:kernels{k}.nargs-1
           fprintf(fid,'  op_arg,\n');
         end
         fprintf(fid,'  op_arg );\n');
@@ -390,12 +395,27 @@ for narg = 1: nargin
     end
 
     if (~isempty(find(loc==loc_loops)))
-      name = loop_args{find(loc==loc_loops)}.name1;
-      while (src_file(loc)~=',' || ~active(src_file(loc_old:loc)))
-        loc = loc+1;
+      prefix = strfind(src_file(1:loc),sprintf('\n'));
+      prefix = prefix(end)+1;
+      prefix = loc-prefix;
+      prefix = blanks(prefix);
+      curr_loop = find(loc==loc_loops);
+      name = loop_args{curr_loop}.name1;
+      endofcall = strfind(src_file(loc:end),';');
+      number = 1;
+      while (~active(src_file(1:loc+endofcall(number))))
+        number = number+1;
       end
-      fprintf(fid,'_%s(',name);
-      loc_old = loc+1;
+
+      fprintf(fid, '_%s(%s,%s,\n', name, loop_args{curr_loop}.name2, loop_args{curr_loop}.set);
+      line = '';
+      for arguments = 1:size(loop_args{curr_loop}.args,2)
+        line = [line prefix loop_args{curr_loop}.type{arguments} loop_args{curr_loop}.args{arguments} sprintf(',\n')];
+      end
+
+      fprintf(fid,[line(1:end-2) ');']);
+      fprintf(fid,'\n');
+      loc_old = loc + endofcall(number)+1;
     end
 
     if (~isempty(find(loc==loc_consts)))
@@ -533,7 +553,6 @@ for n = 1:length(locs)
   end
 end
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 % parsing for op_par_loop calls
@@ -545,27 +564,28 @@ function loop_args = op_par_loop_parse(file)
 loop_args = [];
 
 locs = strfind(file,'op_par_loop');
-
+loop_ctr = 0;
 for n = 1:length(locs)
   loc = locs(n);
   if active(file(1:loc))
+    loop_ctr = loop_ctr+1;
     loc = loc + length('op_par_loop');
     args_str = active_compress(file(loc:end));
-
+    cum_ind_index = 0;
     try
       args = args_parse(args_str);
-      loop_args{n}.loc   = loc;
-      loop_args{n}.name1 = args{1};
-      loop_args{n}.name2 = args{2};
-      loop_args{n}.set   = args{3};
-      loop_args{n}.nargs = length(args)-3;
+      loop_args{loop_ctr}.loc   = loc;
+      loop_args{loop_ctr}.name1 = args{1};
+      loop_args{loop_ctr}.name2 = args{2};
+      loop_args{loop_ctr}.set   = args{3};
+      loop_args{loop_ctr}.nargs = length(args)-3;
       for m = 1:length(args)-3
         if     strcmp(args{m+3}(1:10),'op_arg_dat')
-          loop_args{n}.type{m} = 'op_arg_dat';
+          loop_args{loop_ctr}.type{m} = 'op_arg_dat';
         elseif strcmp(args{m+3}(1:10),'op_arg_gbl')
-          loop_args{n}.type{m} = 'op_arg_gbl';
+          loop_args{loop_ctr}.type{m} = 'op_arg_gbl';
         end
-        loop_args{n}.args{m} = args{m+3}(11:end);
+        loop_args{loop_ctr}.args{m} = args{m+3}(11:end);
       end
     catch
       error(sprintf('error parsing op_par_loop'));

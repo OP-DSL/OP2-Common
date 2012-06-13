@@ -36,7 +36,7 @@
 /*
  * op_hdf5.h
  *
- * Header file for the parallel I/O functions 
+ * Header file for the parallel I/O functions
  *
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
  */
