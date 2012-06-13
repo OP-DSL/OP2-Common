@@ -53,6 +53,10 @@
 
 float alpha;
 
+// jac header file
+
+#include "check_result.h"
+
 //
 // OP header file
 //
@@ -131,6 +135,10 @@ static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_s
   free(sendcnts);
   free(displs);
 }
+
+// Error tolerance in checking correctness
+
+#define TOLERANCE 1e-6
 
 // define problem size
 
@@ -315,6 +323,7 @@ int main(int argc, char **argv)
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  int result = check_result<float>(u, NN, TOLERANCE);
   op_exit();
 
   free(u);
@@ -322,5 +331,7 @@ int main(int argc, char **argv)
   free(A);
   free(r);
   free(du);
+
+  return result;
 }
 
