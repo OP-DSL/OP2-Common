@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 
   FILE *fp;
   if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    op_printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file FE_grid.dat\n"); exit(-1);
   }
 
   if (fscanf(fp,"%d %d %d \n",&g_nnode, &g_ncell, &g_nbnodes) != 3) {

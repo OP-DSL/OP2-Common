@@ -731,7 +731,7 @@ for nc = 1:length(consts)
 end
 
 if (any_soa)
-   file = strvcat(file, 'extern int op2_stride;');
+   file = strvcat(file, ' ', '#define OP2_STRIDE(arr, idx) arr[idx]',' ');
 end
 
 file = strvcat(file,' ','// user kernel files',' ');

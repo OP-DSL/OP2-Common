@@ -164,15 +164,15 @@ int main(int argc, char **argv)
 
 // read in grid
 
-  printf("reading in grid \n");
+  op_printf("reading in grid \n");
 
   FILE *fp;
   if ( (fp = fopen("FE_grid.dat","r")) == NULL) {
-    printf("can't open file new_grid.dat\n"); exit(-1);
+    op_printf("can't open file FE_grid.dat\n"); exit(-1);
   }
 
   if (fscanf(fp,"%d %d %d \n",&g_nnode, &g_ncell, &g_nbnodes) != 3) {
-    printf("error reading from new_grid.dat\n"); exit(-1);
+    op_printf("error reading from FE_grid.dat\n"); exit(-1);
   }
 
   if (my_rank == MPI_ROOT) {
@@ -182,20 +182,20 @@ int main(int argc, char **argv)
 
     for (int n=0; n<g_nnode; n++) {
       if (fscanf(fp,"%lf %lf \n",&g_xm[2*n], &g_xm[2*n+1]) != 2) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
 
     for (int n=0; n<g_ncell; n++) {
       if (fscanf(fp,"%d %d %d %d \n",&g_cell[4*n  ], &g_cell[4*n+1],
       &g_cell[4*n+2], &g_cell[4*n+3]) != 4) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
 
     for (int n=0; n<g_nbnodes; n++) {
       if (fscanf(fp,"%d \n",&g_bnode[n]) != 1) {
-        printf("error reading from new_grid.dat\n"); exit(-1);
+        op_printf("error reading from new_grid.dat\n"); exit(-1);
       }
     }
   }
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
   }
 // set constants and initialise flow field and residual
 
-  printf("initialising flow field \n");
+  op_printf("initialising flow field \n");
 
   double gam = 1.4;
   gm1 = gam - 1.0;

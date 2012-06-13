@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 
   // set constants and initialise flow field and residual
 
-  printf("initialising flow field \n");
+  op_printf("initialising flow field \n");
 
   double gam = 1.4;
   gm1 = gam - 1.0;
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
 
-  printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
+  op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
   nnode = op_get_size(nodes);
   ncell = op_get_size(cells);
   nbnodes = op_get_size(bnodes);

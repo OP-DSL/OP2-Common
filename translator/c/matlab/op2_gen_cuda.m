@@ -997,7 +997,8 @@ for nc = 1:length(consts)
 end
 
 if (any_soa)
-   file = strvcat(file, '__constant__ int op2_stride;');
+   file = strvcat(file, '__constant__ int op2_stride;', ' ',...
+       '#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]');
    %file = strvcat(file, 'extern int op2_stride;');
 end
 
