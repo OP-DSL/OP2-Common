@@ -140,10 +140,29 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
 
 void op_fetch_data ( op_dat dat )
 {
+
+  //transpose data
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
+    cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
+                                 dat->size * dat->set->size,
+                                 cudaMemcpyDeviceToHost ) );
+    cutilSafeCall ( cudaThreadSynchronize (  ) );
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < dat->set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+        	dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*dat->set->size + element_size*j + c];
+        }
+      }
+    }
+    free(temp_data);
+  } else {
   cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
                                dat->size * dat->set->size,
                                cudaMemcpyDeviceToHost ) );
   cutilSafeCall ( cudaThreadSynchronize (  ) );
+  }
 }
 
 
@@ -155,24 +174,35 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                                  nargs, args, ninds, inds );
 
   int set_size = set->size;
-  for(int i = 0; i< nargs; i++)
-  {
-    if(args[i].idx != -1 && args[i].acc != OP_READ )
-    {
+  for(int i = 0; i< nargs; i++) {
+    if(args[i].idx != -1 && args[i].acc != OP_READ ) {
       set_size += set->exec_size;
       break;
     }
   }
 
   if ( plan->count == 1 ) {
-    for ( int m = 0; m < ninds; m++ )
-      op_mvHostToDevice ( ( void ** ) &( plan->ind_maps[m] ),
-                          sizeof ( int ) * plan->nindirect[m] );
+    int *offsets = (int *)malloc((ninds+1)*sizeof(int));
+    offsets[0] = 0;
+    for ( int m = 0; m < ninds; m++ ) {
+      int count = 0;
+      for ( int m2 = 0; m2 < nargs; m2++ )
+        if ( inds[m2] == m )
+          count++;
+      offsets[m+1] = offsets[m] + count;
+    }
+    op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[ninds] * set_size * sizeof ( int ));
+    for ( int m = 0; m < ninds; m++ ) {
+      plan->ind_maps[m] = &plan->ind_map[set_size*offsets[m]];
+    }
+    free(offsets);
 
-    for ( int m = 0; m < nargs; m++ )
-      if ( plan->loc_maps[m] != NULL )
-        op_mvHostToDevice ( ( void ** ) &( plan->loc_maps[m] ),
-                            sizeof ( short ) * set_size );
+    int counter = 0;
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
+    op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+    for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {
+      plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;
+    }
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),
                           sizeof ( int ) * plan->nblocks * plan->ninds );
@@ -199,6 +229,18 @@ void op_cuda_exit ( )
     cutilSafeCall ( cudaFree ( OP_dat_list[i]->data_d ) );
   }
 
+  for ( int ip = 0; ip < OP_plan_index; ip++ )
+  {
+    OP_plans[ip].ind_map = NULL;
+    OP_plans[ip].loc_map = NULL;
+    OP_plans[ip].ind_sizes = NULL;
+    OP_plans[ip].ind_offs = NULL;
+    OP_plans[ip].nthrcol = NULL;
+    OP_plans[ip].thrcol = NULL;
+    OP_plans[ip].offset = NULL;
+    OP_plans[ip].nelems = NULL;
+    OP_plans[ip].blkmap = NULL;
+  }
   cudaThreadExit ( );
 }
 

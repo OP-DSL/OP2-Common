@@ -184,5 +184,11 @@ int main(int argc, char **argv)
 
   op_timing_output();
   op_exit();
+
+  free(pp);
+  free(A);
+  free(u);
+  free(du);
+  free(r);
 }
 

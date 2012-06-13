@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 	CC       := gcc
 	CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
 	CXX      := g++
-	CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
+	CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
 	MPICXX   := /usr/bin/mpiCC
 	MPIFLAGS := $(CXXFLAGS)
 else

@@ -55,25 +55,25 @@
  */
 
 inline int type_error (const double * a, const char *type ) {
-  (void)a; return strcmp ( type, "double" );
+  (void)a; return (strcmp ( type, "double" ) && strcmp ( type, "double:soa" ));
 }
 inline int type_error (const float  * a, const char *type ) {
-  (void)a; return strcmp ( type, "float" );
+  (void)a; return (strcmp ( type, "float" ) && strcmp ( type, "float:soa" ));
 }
 inline int type_error (const int    * a, const char *type ) {
-  (void)a; return strcmp ( type, "int"   );
+  (void)a; return (strcmp ( type, "int"   ) && strcmp ( type, "int:soa"   ));
 }
 inline int type_error (const uint   * a, const char *type ) {
-  (void)a; return strcmp ( type, "uint"  );
+  (void)a; return (strcmp ( type, "uint"  ) && strcmp ( type, "uint:soa"  ));
 }
 inline int type_error (const ll     * a, const char *type ) {
-  (void)a; return strcmp ( type, "ll"    );
+  (void)a; return (strcmp ( type, "ll"    ) && strcmp ( type, "ll:soa"    ));
 }
 inline int type_error (const ull    * a, const char *type ) {
-  (void)a; return strcmp ( type, "ull"   );
+  (void)a; return (strcmp ( type, "ull"   ) && strcmp ( type, "ull:soa"   ));
 }
 inline int type_error (const bool   * a, const char *type ) {
-  (void)a; return strcmp ( type, "bool"  );
+  (void)a; return (strcmp ( type, "bool"  ) && strcmp ( type, "bool:soa"  ));
 }
 
 /*
