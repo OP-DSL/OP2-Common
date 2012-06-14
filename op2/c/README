@@ -1,10 +1,8 @@
-This directory provides an implementation of the C and C++ OP2 interface.
+This directory provides an implementation of the C and C++ OP2 interface.  
+The library and applications can be built using either CMake or regular Makefiles.
 
 CMake build
 ===========
-
-The recommended way of building the OP2 library and applications is using CMake
-(http://cmake.org).
 
 For a standard developer build with debugging symbols and all features enabled
 run:
