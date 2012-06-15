@@ -8,6 +8,7 @@
 
 #include "op_lib_cpp.h"
 
+int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 char blank_args[512]; // scratch space to use for blank args
