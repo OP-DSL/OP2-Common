@@ -1937,7 +1937,7 @@ void op_mpi_put_data(op_dat dat)
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
 
-static void reset_halo(op_arg* arg)
+static void op_reset_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -2166,7 +2166,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
     {
-      exchange_halo(&args[n]);
+      op_exchange_halo(&args[n]);
       //set_dirtybit(&args[n]);
     }
     if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
@@ -2186,13 +2186,13 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    wait_all(&args[n]);
+    op_wait_all(&args[n]);
   }
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
-    reset_halo(&args[n]);
+    op_reset_halo(&args[n]);
   }
 }
 
