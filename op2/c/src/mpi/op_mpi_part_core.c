@@ -3124,7 +3124,6 @@ void partition(const char* lib_name, const char* lib_routine,
         op_printf("Partitioning prime_map or coords: NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
-
     }
     else if(strcmp(lib_routine,"GEOM")==0)
     {
@@ -3166,7 +3165,7 @@ void partition(const char* lib_name, const char* lib_routine,
   }
   else
   {
-    op_printf("Partitioning Library : %s\n UNSUPPORTED - ",lib_name);
+    op_printf("Partitioning Library : %s UNSUPPORTED\n",lib_name);
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
