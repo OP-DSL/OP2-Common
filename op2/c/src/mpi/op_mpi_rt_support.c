@@ -77,7 +77,7 @@
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
-void exchange_halo(op_arg* arg)
+void op_exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -191,7 +191,7 @@ void exchange_halo(op_arg* arg)
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
 
-void wait_all(op_arg* arg)
+void op_wait_all(op_arg* arg)
 {
   if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {

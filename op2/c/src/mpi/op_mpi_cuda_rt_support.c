@@ -62,7 +62,7 @@
 int** export_exec_list_d;
 int** export_nonexec_list_d;
 
-void exchange_halo(op_arg* arg)
+void op_exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
@@ -164,7 +164,7 @@ void exchange_halo(op_arg* arg)
   }
 }
 
-void wait_all(op_arg* arg)
+void op_wait_all(op_arg* arg)
 {
   if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
