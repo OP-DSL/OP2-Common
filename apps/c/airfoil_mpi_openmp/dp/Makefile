@@ -91,4 +91,4 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 #
 
 clean:
-		rm -f rm -f airfoil_mpi_openmp *.o
+		rm -f airfoil_mpi_openmp *.o

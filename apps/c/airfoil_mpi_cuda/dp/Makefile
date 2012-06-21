@@ -74,7 +74,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 all: clean airfoil_mpi_cuda
 
 #
-# mpi with openmp-nodes version
+# mpi with CUDA version
 #
 
 airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_cu.o Makefile
