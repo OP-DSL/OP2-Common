@@ -3059,11 +3059,18 @@ void op_partition_ptscotch(op_map primary_map)
 void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )
 {
+#if !defined(HAVE_PTSCOTCH) && !defined(HAVE_PARMETIS)
+  /* Suppress warning */
+  (void)lib_routine;
+  (void)prime_map;
+#endif
+
+  /*initial error checks for NULL variables*/
+  if(lib_name == NULL) lib_name = "NULL";
+  if(lib_routine == NULL) lib_routine = "NULL";
 
   if(strcmp(lib_name,"PTSCOTCH")==0)
   {
-
-
     #ifdef HAVE_PTSCOTCH
     op_printf("Selected Partitioning Library : %s\n",lib_name);
     if(strcmp(lib_routine,"KWAY")==0)
@@ -3073,28 +3080,27 @@ void partition(const char* lib_name, const char* lib_routine,
         op_partition_ptscotch(prime_map); //use ptscotch kaway partitioning
       else
       {
-        op_printf("Partitioning prime_map : NULL \n");
-        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+        op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
+        op_printf("Reverting to trivial block partitioning\n");
       }
     }
     else
     {
-      op_printf("Partitioning Routine : %s\n", lib_routine);
-      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
-
+      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
+      op_printf("Reverting to trivial block partitioning\n");
     }
     #else
     op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
+    op_printf("Ignoring input routine : %s\n",lib_routine);
+    if(prime_set != NULL)op_printf("Ignoring input mapping : %s\n",prime_set->name);
+    if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
+    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
-
-
   }
   else
   if (strcmp(lib_name,"PARMETIS")==0)
   {
-
-
     #ifdef HAVE_PARMETIS
     op_printf("Selected Partitioning Library : %s\n",lib_name);
     if(strcmp(lib_routine,"KWAY")==0)
@@ -3104,8 +3110,8 @@ void partition(const char* lib_name, const char* lib_routine,
         op_partition_kway(prime_map); //use parmetis kaway partitioning
       else
       {
-        op_printf("Partitioning prime_map : NULL \n");
-        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+        op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner Specification\n");
+        op_printf("Reverting to trivial block partitioning\n");
       }
     }
     else if(strcmp(lib_routine,"GEOMKWAY")==0)
@@ -3115,10 +3121,9 @@ void partition(const char* lib_name, const char* lib_routine,
         op_partition_geomkway(coords, prime_map); //use parmetis kawaygeom partitioning
       else
       {
-        op_printf("Partitioning prime_map or coords: NULL \n");
-        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+        op_printf("Partitioning prime_map or coords: NULL - UNSUPPORTED Partitioner Specification\n");
+        op_printf("Reverting to trivial block partitioning\n");
       }
-
     }
     else if(strcmp(lib_routine,"GEOM")==0)
     {
@@ -3127,39 +3132,44 @@ void partition(const char* lib_name, const char* lib_routine,
         op_partition_geom(coords); //use parmetis geometric partitioning
       else
       {
-        op_printf("Partitioning coords: NULL \n");
-        op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+        op_printf("Partitioning coords: NULL - UNSUPPORTED Partitioner Specification\n");
+        op_printf("Reverting to trivial block partitioning\n");
       }
     }
     else
     {
-      op_printf("Partitioning Routine : %s\n",lib_routine);
-      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      op_printf("Partitioning Routine : %s UNSUPPORTED\n",lib_routine);
+      op_printf("Reverting to trivial block partitioning\n");
     }
     #else
-    op_printf("OP2 Library Not built with Partitioning Library : %s - ",lib_name);
+    /*  Suppress warning */
+    (void)coords;
+    op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
+    op_printf("Ignoring input routine : %s\n",lib_routine);
+    if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
+    if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
+    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
-
-
   }
-  else
-  if (strcmp(lib_name,"RANDOM")==0)
+  else if (strcmp(lib_name,"RANDOM")==0)
   {
-
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
     if(prime_set != NULL)
       op_partition_random(prime_set); //use a random partitioning - used for debugging
     else
     {
-      op_printf("Partitioning prime_set : NULL \n");
-      op_printf("UNSUPPORTED Partitioner Specification - Reverting to trivial block partitioning\n");
+      op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
+      op_printf("Reverting to trivial block partitioning\n");
     }
-
   }
   else
   {
-    op_printf("Partitioning Library : %s\n UNSUPPORTED - ",lib_name);
+    op_printf("Partitioning Library : %s UNSUPPORTED\n",lib_name);
+    op_printf("Ignoring input routine : %s\n",lib_routine);
+    if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
+    if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
+    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
     op_printf("Reverting to trivial block partitioning\n");
   }
 
