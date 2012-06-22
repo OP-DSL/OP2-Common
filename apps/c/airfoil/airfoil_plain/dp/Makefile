@@ -129,18 +129,17 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    Makefile
 		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		    $(HDF5_LIB) -o airfoil_mpi_openmp
+		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_openmp
 	
 #
 # mpi with CUDA version
 #
 
 airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o \
-		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		  $(MPICPP) $(MPIFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o \
+		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
+		  $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
 airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 		  save_soln_kernel.cu  save_soln.h \

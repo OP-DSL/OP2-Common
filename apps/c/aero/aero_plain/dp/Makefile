@@ -66,7 +66,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 # master to make all versions
 #
 
-all: clean aero_seq aero_openmp aero_cuda aero_mpi
+all: clean aero_seq aero_openmp aero_cuda aero_mpi aero_mpi_openmp aero_mpi_cuda
 
 #
 # simple sequential version
@@ -106,6 +106,32 @@ aero_mpi: aero_mpi.cpp Makefile
 	$(MPICPP) $(MPIFLAGS) aero_mpi.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o aero_mpi
 
+#
+# mpi with openmp-nodes version
+#
+
+aero_mpi_openmp:	aero_mpi_openmp.cpp aero_kernels.cpp Makefile
+		$(MPICPP) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+		aero_mpi_openmp.cpp aero_kernels.cpp -lm $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		-o aero_mpi_openmp
+
+
+#
+# mpi with CUDA version
+#
+
+aero_mpi_cuda:	aero_mpi_cuda.cpp aero_kernels_mpi_cu.o Makefile
+		$(MPICPP) $(MPIFLAGS) aero_mpi_cuda.cpp aero_kernels_mpi_cu.o  \
+		$(CUDA_INC) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+		$(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		$(CUDA_LIB) -lcudart  -o aero_mpi_cuda
+
+aero_kernels_mpi_cu.o:	aero_kernels.cu      \
+                Makefile
+		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		-c -o aero_kernels_mpi_cu.o \
+		aero_kernels.cu -DCUDA
+
 
 write_hdf5: write_hdf5.cpp
 	$(MPICPP) $(MPIFLAGS) write_hdf5.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC)\
@@ -117,4 +143,4 @@ write_hdf5: write_hdf5.cpp
 #
 
 clean:
-		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 *.o
+		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 aero_mpi_openmp aero_mpi_cuda *.o
