@@ -136,7 +136,7 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 # mpi with CUDA version
 #
 
-airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_cu.o Makefile
+airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o Makefile
 		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \

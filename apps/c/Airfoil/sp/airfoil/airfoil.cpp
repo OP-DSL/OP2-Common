@@ -84,6 +84,7 @@ int main(int argc, char **argv)
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in grid
+
   op_printf("reading in grid \n");
 
   FILE *fp;
@@ -147,10 +148,10 @@ int main(int argc, char **argv)
   eps = 0.05f;
 
   float mach  = 0.4f;
-  float alpha = 3.0f*atanf(1.0f)/45.0f;
+  float alpha = 3.0f*atan(1.0f)/45.0f;
   float p     = 1.0f;
   float r     = 1.0f;
-  float u     = sqrtf(gam*p/r)*mach;
+  float u     = sqrt(gam*p/r)*mach;
   float e     = p/(r*gm1) + 0.5f*u*u;
 
   qinf[0] = r;
@@ -257,7 +258,7 @@ int main(int argc, char **argv)
     }
 
     // print iteration history
-    rms = sqrtf(rms/(float) op_get_size(cells));
+    rms = sqrt(rms/(float) op_get_size(cells));
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
   }
@@ -267,6 +268,7 @@ int main(int argc, char **argv)
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
   op_exit();
+
   free(cell);
   free(edge);
   free(ecell);

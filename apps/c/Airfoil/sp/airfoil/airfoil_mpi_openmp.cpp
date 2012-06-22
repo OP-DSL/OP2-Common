@@ -36,7 +36,7 @@
 //     Written by Mike Giles, 2010-2011, based on FORTRAN code
 //     by Devendra Ghate and Mike Giles, 2005
 //
-//     Extended to MPI by Gihan Mudalige March 2011
+//     Extended to MPI with OpenMPby Gihan Mudalige Oct 2011
 
 //
 // standard headers
@@ -78,7 +78,42 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // op_par_loop declarations
 //
 
-#include "op_seq.h"
+extern void op_par_loop_save_soln(char const *, op_set,
+                                  op_arg,
+                                  op_arg );
+
+extern void op_par_loop_adt_calc(char const *, op_set,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg );
+
+extern void op_par_loop_res_calc(char const *, op_set,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg,
+                                 op_arg );
+
+extern void op_par_loop_bres_calc(char const *, op_set,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg,
+                                  op_arg );
+
+extern void op_par_loop_update(char const *, op_set,
+                               op_arg,
+                               op_arg,
+                               op_arg,
+                               op_arg,
+                               op_arg );
 
 //
 //user declared functions
@@ -92,6 +127,7 @@ static int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank 
   if (mpi_rank < remainder)
   {
     local_size = local_size + 1;
+
   }
   return local_size;
 }
@@ -351,7 +387,8 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", NULL, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -360,7 +397,7 @@ int main(int argc, char **argv)
   for(int iter=1; iter<=niter; iter++) {
 
     //save old flow solution
-    op_par_loop(save_soln,"save_soln", cells,
+    op_par_loop_save_soln("save_soln", cells,
         op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
         op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
 
@@ -369,7 +406,7 @@ int main(int argc, char **argv)
     for(int k=0; k<2; k++) {
 
       //    calculate area/timstep
-      op_par_loop(adt_calc,"adt_calc",cells,
+      op_par_loop_adt_calc("adt_calc",cells,
           op_arg_dat(p_x,   0,pcell, 2,"float",OP_READ ),
           op_arg_dat(p_x,   1,pcell, 2,"float",OP_READ ),
           op_arg_dat(p_x,   2,pcell, 2,"float",OP_READ ),
@@ -378,7 +415,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_adt,-1,OP_ID, 1,"float",OP_WRITE));
 
       //    calculate flux residual
-      op_par_loop(res_calc,"res_calc",edges,
+      op_par_loop_res_calc("res_calc",edges,
           op_arg_dat(p_x,    0,pedge, 2,"float",OP_READ),
           op_arg_dat(p_x,    1,pedge, 2,"float",OP_READ),
           op_arg_dat(p_q,    0,pecell,4,"float",OP_READ),
@@ -388,7 +425,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_res,  0,pecell,4,"float",OP_INC ),
           op_arg_dat(p_res,  1,pecell,4,"float",OP_INC ));
 
-      op_par_loop(bres_calc,"bres_calc",bedges,
+      op_par_loop_bres_calc("bres_calc",bedges,
           op_arg_dat(p_x,     0,pbedge, 2,"float",OP_READ),
           op_arg_dat(p_x,     1,pbedge, 2,"float",OP_READ),
           op_arg_dat(p_q,     0,pbecell,4,"float",OP_READ),
@@ -400,7 +437,7 @@ int main(int argc, char **argv)
 
       rms = 0.0;
 
-      op_par_loop(update,"update",cells,
+      op_par_loop_update("update",cells,
           op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_READ ),
           op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_WRITE),
           op_arg_dat(p_res, -1,OP_ID, 4,"float",OP_RW   ),
@@ -416,7 +453,7 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //get results data array - perhaps can be later handled by a remporary dat
+  //get results data array
   //op_dat temp = op_mpi_get_data(p_q);
 
   //output the result dat array to files
@@ -427,6 +464,7 @@ int main(int argc, char **argv)
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+
   op_exit();
 
   free(cell);
