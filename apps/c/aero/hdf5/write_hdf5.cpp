@@ -65,6 +65,7 @@ int op2_stride;
 // kernel routines for parallel loops
 //
 
+/*
 #include "dirichlet.h"
 #include "dotPV.h"
 #include "dotR.h"
@@ -74,6 +75,7 @@ int op2_stride;
 #include "init_cg.h"
 #include "spMV.h"
 #include "update.h"
+*/
 
 // main program
 
