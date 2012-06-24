@@ -140,7 +140,7 @@ airfoil_mpi_openmp: airfoil_op.cpp airfoil_kernels.cpp \
 #
 
 airfoil_mpi_cuda: airfoil_op.cpp airfoil_kernels_mpi_cu.o Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_op.cpp -lm airfoil_kernels_mpi_cu.o \
+		  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp -lm airfoil_kernels_mpi_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
