@@ -120,14 +120,14 @@ airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h Makef
 # mpi with openmp-nodes version
 #
 
-airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
+airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
 		    save_soln_kernel.cpp  save_soln.h \
 		    adt_calc_kernel.cpp   adt_calc.h  \
 		    res_calc_kernel.cpp   res_calc.h  \
 		    bres_calc_kernel.cpp  bres_calc.h \
 		    update_kernel.cpp     update.h    \
 		    Makefile
-		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
+		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_op.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		    $(HDF5_LIB) -o airfoil_mpi_openmp
@@ -136,8 +136,8 @@ airfoil_mpi_openmp: airfoil_mpi_openmp.cpp airfoil_kernels.cpp \
 # mpi with CUDA version
 #
 
-airfoil_mpi_cuda:	airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o Makefile
-		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_cuda.cpp airfoil_kernels_mpi_cu.o \
+airfoil_mpi_cuda:	airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o Makefile
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda

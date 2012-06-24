@@ -110,9 +110,9 @@ aero_mpi: aero_mpi.cpp Makefile
 # mpi with openmp-nodes version
 #
 
-aero_mpi_openmp:	aero_mpi_openmp.cpp aero_kernels.cpp Makefile
+aero_mpi_openmp:	aero_mpi_op.cpp aero_kernels.cpp Makefile
 		$(MPICPP) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
-		aero_mpi_openmp.cpp aero_kernels.cpp -lm $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		aero_mpi_op.cpp aero_kernels.cpp -lm $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		-o aero_mpi_openmp
 
 
@@ -120,8 +120,8 @@ aero_mpi_openmp:	aero_mpi_openmp.cpp aero_kernels.cpp Makefile
 # mpi with CUDA version
 #
 
-aero_mpi_cuda:	aero_mpi_cuda.cpp aero_kernels_mpi_cu.o Makefile
-		$(MPICPP) $(MPIFLAGS) aero_mpi_cuda.cpp aero_kernels_mpi_cu.o  \
+aero_mpi_cuda:	aero_mpi_op.cpp aero_kernels_mpi_cu.o Makefile
+		$(MPICPP) $(MPIFLAGS) aero_mpi_op.cpp aero_kernels_mpi_cu.o  \
 		$(CUDA_INC) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 		$(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		$(CUDA_LIB) -lcudart  -o aero_mpi_cuda
