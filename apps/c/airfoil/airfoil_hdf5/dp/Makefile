@@ -115,8 +115,8 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 # mpi with sequential-nodes version
 #
 
-airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h Makefile
-	$(MPICPP) $(MPIFLAGS) airfoil_mpi.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+airfoil_mpi: airfoil.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h Makefile
+	$(MPICPP) $(MPIFLAGS) airfoil.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi
 
 #
