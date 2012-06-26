@@ -34,8 +34,8 @@ project(OP2-APPS)
 # Require CMake 2.8
 cmake_minimum_required(VERSION 2.8)
 
-option(OP2_BUILD_ALL_AIRFOIL "Build all airfoil apps" OFF)
-option(OP2_BUILD_ALL_JACOBI "Build all jacobi apps" OFF)
+option(OP2_BUILD_ALL_AIRFOIL "Build all airfoil apps" ON)
+option(OP2_BUILD_ALL_JACOBI "Build all jacobi apps" ON)
 option(OP2_BUILD_ALL_AERO "Build all aero apps" ON)
 set(OP2_AIRFOIL_APPS
   airfoil/airfoil_plain
