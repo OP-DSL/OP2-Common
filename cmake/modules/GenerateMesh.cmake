@@ -19,10 +19,10 @@ function(generate_mesh APP MESH_FILE MESH_GENERATOR)
     ${${APP}_GENERATE_MESH_INIT})
   install(FILES ${${APP}_MESH_FILE} DESTINATION ${OP2_APPS_DIR} COMPONENT RuntimeInputFiles OPTIONAL)
 
-  if(${APP}_GENERATE_MESH)
+  if(${APP}_GENERATE_MESH AND NOT TARGET ${APP}_grid)
 
     find_file(${APP}_MESH_GENERATOR ${MESH_GENERATOR}.m PATHS
-      ${CMAKE_CURRENT_SOURCE_DIR}/../../mesh_generators
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../../mesh_generators
       ${CMAKE_CURRENT_SOURCE_DIR}/../mesh_generators)
 
     # Use Octave if available, otherwise fall back to MATLAB
@@ -57,14 +57,14 @@ function(generate_mesh APP MESH_FILE MESH_GENERATOR)
       add_custom_target(${APP}_grid DEPENDS ${${APP}_MESH_FILE})
     endif()
 
-  endif(${APP}_GENERATE_MESH)
+  endif()
 endfunction()
 
 function(generate_hdf5_mesh APP MESH_FILE_H5 MESH_CONVERTER)
   # Generate the H5 input grid, given the regular input grid has been generated
   if(TARGET ${APP}_grid OR EXISTS ${${APP}_MESH_FILE})
     option(${APP}_HDF5_GENERATE_MESH "Generate HDF5 meshes during the build process." ON)
-    if(${APP}_HDF5_GENERATE_MESH)
+    if(${APP}_HDF5_GENERATE_MESH AND NOT TARGET ${APP}_h5_grid)
       # Convert the grid to H5
       set(${APP}_MESH_FILE_H5 ${CMAKE_BINARY_DIR}/${MESH_FILE_H5}_out.h5)
       # Custom command to generate the grid
