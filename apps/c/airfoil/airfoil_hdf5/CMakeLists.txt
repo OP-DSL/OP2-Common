@@ -70,7 +70,7 @@ if (TARGET op2_hdf5 AND OP2_BUILD_DP)
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
 
   #MPI + OpenMP version
-  op2_application(airfoil_hdf5_mpi_openmp DEPENDS AIRFOIL_grid LIBS op2_mpi op2_openmp
+  op2_application(airfoil_hdf5_dp_mpi_openmp DEPENDS AIRFOIL_grid LIBS op2_mpi op2_openmp
     SOURCES dp/airfoil_op.cpp dp/airfoil_kernels.cpp
     dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
 
