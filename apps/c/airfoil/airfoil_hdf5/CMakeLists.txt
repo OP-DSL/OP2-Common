@@ -35,7 +35,8 @@ project(OP2-Airfoil-HDF5)
 cmake_minimum_required(VERSION 2.8)
 
 include(../../common.cmake)
-include(../../airfoil-common.cmake)
+include(GenerateMesh)
+generate_mesh(AIRFOIL new_grid.dat naca0012)
 
 # All these require HDF5
 if (TARGET op2_hdf5 AND OP2_BUILD_DP)
