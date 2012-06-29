@@ -64,6 +64,17 @@ extern "C" {
 /** Gather halo data in buffer on the device **/
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list);
 
+op_set op_decl_set_hdf5(char const *file, char const *name);
+op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name);
+op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name);
+
+void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_data,
+  char const *file_name);
+
+void op_write_hdf5(char const * file_name);
+void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
+  char const *file_name);
+
 #ifdef __cplusplus
 }
 #endif
