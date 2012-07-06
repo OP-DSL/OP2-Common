@@ -78,13 +78,13 @@ op_set op_decl_set ( int, char const * );
 
 op_map op_decl_map ( op_set, op_set, int, int *, char const * );
 
-op_dat op_decl_dat ( op_set, int, char const *, int, char *, char const * );
+op_dat op_decl_dat_char ( op_set, int, char const *, int, char *, char const * );
 
 void op_decl_const_char ( int, char const *, int, char *, char const * );
 
 op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );
 
-op_arg op_arg_gbl ( char *, int, char const *, op_access );
+op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
 void op_fetch_data ( op_dat );
 
