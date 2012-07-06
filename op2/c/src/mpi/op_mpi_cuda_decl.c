@@ -86,7 +86,7 @@ op_init ( int argc, char ** argv, int diags)
   printf ( "\n 16/48 L1/shared \n" );
 }
 
-op_dat op_decl_dat( op_set set, int dim, char const *type, int size,
+op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {
   char* d = (char*) malloc(set->size*dim*size);
@@ -151,9 +151,9 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
 }
 
 op_arg
-op_arg_gbl ( char * data, int dim, const char *type, op_access acc )
+op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
 {
-  return op_arg_gbl ( data, dim, type, acc );
+  return op_arg_gbl_core ( data, dim, type, size, acc );
 }
 
 void op_printf(const char* format, ...)

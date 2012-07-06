@@ -51,7 +51,7 @@ op_init ( int argc, char ** argv, int diags )
 }
 
 op_dat
-op_decl_dat ( op_set set, int dim, char const * type, int size, char * data, char const *name )
+op_decl_dat_char ( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
@@ -133,9 +133,9 @@ void op_timers(double * cpu, double * et)
 }
 
 op_arg
-op_arg_gbl ( char * data, int dim, const char * type, op_access acc )
+op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
 {
-  return op_arg_gbl ( data, dim, type, acc );
+  return op_arg_gbl_core ( data, dim, type, size, acc );
 }
 
 void op_timing_output()

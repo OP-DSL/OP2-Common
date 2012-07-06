@@ -117,24 +117,6 @@ extern op_kernel * OP_kernels;
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 
 
-
-/*
- * templates for handling datasets and constants
- */
-
-template < class T >
-op_dat op_decl_dat ( op_set set, int dim, char const *type,
-                     T * data, char const * name );
-
-template < class T >
-void op_decl_const2 ( char const * name, int dim, char const *type, T * data );
-
-template < class T >
-void op_decl_const ( int dim, char const * type, T * data );
-
-template < class T >
-op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc );
-
 /* Implementation */
 
 template < class T >
@@ -148,7 +130,7 @@ op_dat op_decl_dat ( op_set set, int dim, char const *type,
     exit ( 1 );
   }
 
-  return op_decl_dat ( set, dim, type, sizeof(T), (char *) data, name );
+  return op_decl_dat_char ( set, dim, type, sizeof(T), (char *) data, name );
 }
 
 template < class T >
@@ -177,9 +159,9 @@ template < class T >
 op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
 {
   if ( type_error ( data, type ) )
-    return op_arg_gbl_core ( ( char *  )data, dim, "error",  sizeof(T), acc );
+    return op_arg_gbl_char ( ( char *  )data, dim, "error",  sizeof(T), acc );
   else
-    return op_arg_gbl_core ( ( char * ) data, dim, type,  sizeof(T), acc );
+    return op_arg_gbl_char ( ( char * ) data, dim, type,  sizeof(T), acc );
 }
 
 

@@ -129,15 +129,23 @@ To compile using the regular Makefiles provided, it is required to:
 2. Set the environment variable OP2_INSTALL_PATH to the base op2 directory,
    i.e. the one containing the "c" and "fortran" directories.
 
+   e.g.:  export OP2_INSTALL_PATH=~/OP2-Common/op2/
+
 3. Set the environment variable OP2_COMPILER to either 'intel' or 'gnu' to
    select building with either icc or gcc compilers.
 
-4. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
-   or PTSCOTCH_INSTALL_PATH to the installation directories of these libraries.
-   For instance:
+   e.g.:  export OP2_COMPILER=intel
+
+4. Set the environment variables MPI_INSTALL_PATH, HDF5_INSTALL_PATH,
+   PARMETIS_INSTALL_PATH and/or PTSCOTCH_INSTALL_PATH to the installation
+   directories of these libraries. For instance:
 
       export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
 
       and / or
 
       export PTSCOTCH_INSTALL_PATH=/home/gihan/PT-Scotch
+
+      export HDF5_INSTALL_PATH=/home/gihan/hdf5/
+
+      export MPI_INSTALL_PATH=/home/gihan/openmpi-intel/
