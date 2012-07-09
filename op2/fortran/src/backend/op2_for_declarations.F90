@@ -143,7 +143,7 @@ module OP2_Fortran_Declarations
 
     end function op_decl_null_map
 
-    type(c_ptr) function op_decl_dat_c ( set, datdim, type, datsize, dat, name ) BIND(C,name='op_decl_dat')
+    type(c_ptr) function op_decl_dat_c ( set, datdim, type, datsize, dat, name ) BIND(C,name='op_decl_dat_char')
 
       use, intrinsic :: ISO_C_BINDING
 
