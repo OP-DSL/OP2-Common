@@ -200,6 +200,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
     int counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
     op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+    counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {
       plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;
     }
