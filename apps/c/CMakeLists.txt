@@ -44,6 +44,7 @@ set(OP2_AIRFOIL_APPS
 set(OP2_JACOBI_APPS
   jac1
   jac2
+  reduction
   )
 set(OP2_AERO_APPS
   aero/aero_plain
