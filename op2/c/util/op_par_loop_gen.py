@@ -256,20 +256,20 @@ templates = {
       int jut;
       arg%didxs[0] = 0;
       arg%didxs[1] = 1;
-      if (arg%d.idx < -1) {
-        iut = arg%d.map->dim;
-      } else if (arg%d.idx < OP_I_OFFSET) {
+      if (arg%d.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg%d.idx)-1];
         arg%didxs[0] = op_i(arg%d.idx) - 1;
+      } else if (arg%d.idx < -1) {
+        iut = arg%d.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg %d, aborting\\n");
         exit(-1);
       }
-      if (arg%d.idx2 < -1) {
-        jut = arg%d.map2->dim;
-      } else if (arg%d.idx2 < OP_I_OFFSET) {
+      if (arg%d.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg%d.idx2)-1];
         arg%didxs[1] = op_i(arg%d.idx2) - 1;
+      } else if (arg%d.idx2 < -1) {
+        jut = arg%d.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg %d, aborting\\n");
         exit(-1);
