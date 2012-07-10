@@ -250,12 +250,10 @@ templates = {
   }
 """,
     'itspace_loop_prelim' : """
-    int arg%didxs[2];
+    int arg%didxs[2] = {0, 1};
     if (arg%d.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg%didxs[0] = 0;
-      arg%didxs[1] = 1;
       if (arg%d.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg%d.idx)-1];
         arg%didxs[0] = op_i(arg%d.idx) - 1;
@@ -344,7 +342,7 @@ with open(file_h,"w") as h:
             'argchecks': '\n'.join(["    op_arg_check(set,%d ,arg%d ,&ninds,name);" % (i,i) for i in range(n)]),
             'allocate_itspace': ''.join([templates['allocate_itspace'] % ((i,)*9) for i in range(n)]),
             'argsetters': ''.join([templates['argsetters'] % ((i,)*6) for i in range(n)]),
-            'itspace_loop_prelim' : ''.join([templates['itspace_loop_prelim'] % ((i,)*18) for i in range(n)]),
+            'itspace_loop_prelim' : ''.join([templates['itspace_loop_prelim'] % ((i,)*16) for i in range(n)]),
             'itspace_loop' : ''.join([templates['itspace_loop']]),
             'itspace_zero_mat' : ''.join([templates['itspace_zero_mat'] % ((i,)*4) for i in range(n)]),
             'mataddto_itspace': ''.join([templates['mataddto_itspace'] % ((i,)*9) for i in range(n)]),

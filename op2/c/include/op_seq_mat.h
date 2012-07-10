@@ -215,12 +215,10 @@ void op_par_loop ( void (*kernel)( T0*, int, int ),
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -467,12 +465,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -497,12 +493,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -817,12 +811,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -847,12 +839,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -877,12 +867,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -1265,12 +1253,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -1295,12 +1281,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -1325,12 +1309,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -1355,12 +1337,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       }
     }
 
-    int arg3idxs[2];
+    int arg3idxs[2] = {0, 1};
     if (arg3.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg3idxs[0] = 0;
-      arg3idxs[1] = 1;
       if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
@@ -1820,12 +1800,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -1850,12 +1828,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -1880,12 +1856,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -1910,12 +1884,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg3idxs[2];
+    int arg3idxs[2] = {0, 1};
     if (arg3.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg3idxs[0] = 0;
-      arg3idxs[1] = 1;
       if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
@@ -1940,12 +1912,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg4idxs[2];
+    int arg4idxs[2] = {0, 1};
     if (arg4.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg4idxs[0] = 0;
-      arg4idxs[1] = 1;
       if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
@@ -2474,12 +2444,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -2504,12 +2472,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -2534,12 +2500,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -2564,12 +2528,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg3idxs[2];
+    int arg3idxs[2] = {0, 1};
     if (arg3.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg3idxs[0] = 0;
-      arg3idxs[1] = 1;
       if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
@@ -2594,12 +2556,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg4idxs[2];
+    int arg4idxs[2] = {0, 1};
     if (arg4.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg4idxs[0] = 0;
-      arg4idxs[1] = 1;
       if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
@@ -2624,12 +2584,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg5idxs[2];
+    int arg5idxs[2] = {0, 1};
     if (arg5.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg5idxs[0] = 0;
-      arg5idxs[1] = 1;
       if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
@@ -3226,12 +3184,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -3256,12 +3212,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -3286,12 +3240,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -3316,12 +3268,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg3idxs[2];
+    int arg3idxs[2] = {0, 1};
     if (arg3.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg3idxs[0] = 0;
-      arg3idxs[1] = 1;
       if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
@@ -3346,12 +3296,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg4idxs[2];
+    int arg4idxs[2] = {0, 1};
     if (arg4.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg4idxs[0] = 0;
-      arg4idxs[1] = 1;
       if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
@@ -3376,12 +3324,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg5idxs[2];
+    int arg5idxs[2] = {0, 1};
     if (arg5.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg5idxs[0] = 0;
-      arg5idxs[1] = 1;
       if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
@@ -3406,12 +3352,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg6idxs[2];
+    int arg6idxs[2] = {0, 1};
     if (arg6.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg6idxs[0] = 0;
-      arg6idxs[1] = 1;
       if (arg6.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg6.idx)-1];
         arg6idxs[0] = op_i(arg6.idx) - 1;
@@ -4076,12 +4020,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
     int jupper = itspace->dims[1];
     int idxs[2];
 
-    int arg0idxs[2];
+    int arg0idxs[2] = {0, 1};
     if (arg0.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg0idxs[0] = 0;
-      arg0idxs[1] = 1;
       if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
@@ -4106,12 +4048,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg1idxs[2];
+    int arg1idxs[2] = {0, 1};
     if (arg1.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg1idxs[0] = 0;
-      arg1idxs[1] = 1;
       if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
@@ -4136,12 +4076,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg2idxs[2];
+    int arg2idxs[2] = {0, 1};
     if (arg2.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg2idxs[0] = 0;
-      arg2idxs[1] = 1;
       if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
@@ -4166,12 +4104,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg3idxs[2];
+    int arg3idxs[2] = {0, 1};
     if (arg3.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg3idxs[0] = 0;
-      arg3idxs[1] = 1;
       if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
@@ -4196,12 +4132,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg4idxs[2];
+    int arg4idxs[2] = {0, 1};
     if (arg4.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg4idxs[0] = 0;
-      arg4idxs[1] = 1;
       if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
@@ -4226,12 +4160,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg5idxs[2];
+    int arg5idxs[2] = {0, 1};
     if (arg5.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg5idxs[0] = 0;
-      arg5idxs[1] = 1;
       if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
@@ -4256,12 +4188,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg6idxs[2];
+    int arg6idxs[2] = {0, 1};
     if (arg6.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg6idxs[0] = 0;
-      arg6idxs[1] = 1;
       if (arg6.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg6.idx)-1];
         arg6idxs[0] = op_i(arg6.idx) - 1;
@@ -4286,12 +4216,10 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       }
     }
 
-    int arg7idxs[2];
+    int arg7idxs[2] = {0, 1};
     if (arg7.argtype == OP_ARG_MAT) {
       int iut;
       int jut;
-      arg7idxs[0] = 0;
-      arg7idxs[1] = 1;
       if (arg7.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg7.idx)-1];
         arg7idxs[0] = op_i(arg7.idx) - 1;
