@@ -221,20 +221,20 @@ void op_par_loop ( void (*kernel)( T0*, int, int ),
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -473,20 +473,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -503,20 +503,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, int, int ),
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -823,20 +823,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -853,20 +853,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -883,20 +883,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, int, int ),
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -1271,20 +1271,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -1301,20 +1301,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -1331,20 +1331,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -1361,20 +1361,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*, int, int ),
       int jut;
       arg3idxs[0] = 0;
       arg3idxs[1] = 1;
-      if (arg3.idx < -1) {
-        iut = arg3.map->dim;
-      } else if (arg3.idx < OP_I_OFFSET) {
+      if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
+      } else if (arg3.idx < -1) {
+        iut = arg3.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
       }
-      if (arg3.idx2 < -1) {
-        jut = arg3.map2->dim;
-      } else if (arg3.idx2 < OP_I_OFFSET) {
+      if (arg3.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg3.idx2)-1];
         arg3idxs[1] = op_i(arg3.idx2) - 1;
+      } else if (arg3.idx2 < -1) {
+        jut = arg3.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
@@ -1826,20 +1826,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -1856,20 +1856,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -1886,20 +1886,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -1916,20 +1916,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg3idxs[0] = 0;
       arg3idxs[1] = 1;
-      if (arg3.idx < -1) {
-        iut = arg3.map->dim;
-      } else if (arg3.idx < OP_I_OFFSET) {
+      if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
+      } else if (arg3.idx < -1) {
+        iut = arg3.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
       }
-      if (arg3.idx2 < -1) {
-        jut = arg3.map2->dim;
-      } else if (arg3.idx2 < OP_I_OFFSET) {
+      if (arg3.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg3.idx2)-1];
         arg3idxs[1] = op_i(arg3.idx2) - 1;
+      } else if (arg3.idx2 < -1) {
+        jut = arg3.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
@@ -1946,20 +1946,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg4idxs[0] = 0;
       arg4idxs[1] = 1;
-      if (arg4.idx < -1) {
-        iut = arg4.map->dim;
-      } else if (arg4.idx < OP_I_OFFSET) {
+      if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
+      } else if (arg4.idx < -1) {
+        iut = arg4.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
       }
-      if (arg4.idx2 < -1) {
-        jut = arg4.map2->dim;
-      } else if (arg4.idx2 < OP_I_OFFSET) {
+      if (arg4.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg4.idx2)-1];
         arg4idxs[1] = op_i(arg4.idx2) - 1;
+      } else if (arg4.idx2 < -1) {
+        jut = arg4.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
@@ -2480,20 +2480,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -2510,20 +2510,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -2540,20 +2540,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -2570,20 +2570,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg3idxs[0] = 0;
       arg3idxs[1] = 1;
-      if (arg3.idx < -1) {
-        iut = arg3.map->dim;
-      } else if (arg3.idx < OP_I_OFFSET) {
+      if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
+      } else if (arg3.idx < -1) {
+        iut = arg3.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
       }
-      if (arg3.idx2 < -1) {
-        jut = arg3.map2->dim;
-      } else if (arg3.idx2 < OP_I_OFFSET) {
+      if (arg3.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg3.idx2)-1];
         arg3idxs[1] = op_i(arg3.idx2) - 1;
+      } else if (arg3.idx2 < -1) {
+        jut = arg3.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
@@ -2600,20 +2600,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg4idxs[0] = 0;
       arg4idxs[1] = 1;
-      if (arg4.idx < -1) {
-        iut = arg4.map->dim;
-      } else if (arg4.idx < OP_I_OFFSET) {
+      if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
+      } else if (arg4.idx < -1) {
+        iut = arg4.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
       }
-      if (arg4.idx2 < -1) {
-        jut = arg4.map2->dim;
-      } else if (arg4.idx2 < OP_I_OFFSET) {
+      if (arg4.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg4.idx2)-1];
         arg4idxs[1] = op_i(arg4.idx2) - 1;
+      } else if (arg4.idx2 < -1) {
+        jut = arg4.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
@@ -2630,20 +2630,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg5idxs[0] = 0;
       arg5idxs[1] = 1;
-      if (arg5.idx < -1) {
-        iut = arg5.map->dim;
-      } else if (arg5.idx < OP_I_OFFSET) {
+      if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
+      } else if (arg5.idx < -1) {
+        iut = arg5.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
       }
-      if (arg5.idx2 < -1) {
-        jut = arg5.map2->dim;
-      } else if (arg5.idx2 < OP_I_OFFSET) {
+      if (arg5.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg5.idx2)-1];
         arg5idxs[1] = op_i(arg5.idx2) - 1;
+      } else if (arg5.idx2 < -1) {
+        jut = arg5.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
@@ -3232,20 +3232,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -3262,20 +3262,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -3292,20 +3292,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -3322,20 +3322,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg3idxs[0] = 0;
       arg3idxs[1] = 1;
-      if (arg3.idx < -1) {
-        iut = arg3.map->dim;
-      } else if (arg3.idx < OP_I_OFFSET) {
+      if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
+      } else if (arg3.idx < -1) {
+        iut = arg3.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
       }
-      if (arg3.idx2 < -1) {
-        jut = arg3.map2->dim;
-      } else if (arg3.idx2 < OP_I_OFFSET) {
+      if (arg3.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg3.idx2)-1];
         arg3idxs[1] = op_i(arg3.idx2) - 1;
+      } else if (arg3.idx2 < -1) {
+        jut = arg3.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
@@ -3352,20 +3352,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg4idxs[0] = 0;
       arg4idxs[1] = 1;
-      if (arg4.idx < -1) {
-        iut = arg4.map->dim;
-      } else if (arg4.idx < OP_I_OFFSET) {
+      if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
+      } else if (arg4.idx < -1) {
+        iut = arg4.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
       }
-      if (arg4.idx2 < -1) {
-        jut = arg4.map2->dim;
-      } else if (arg4.idx2 < OP_I_OFFSET) {
+      if (arg4.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg4.idx2)-1];
         arg4idxs[1] = op_i(arg4.idx2) - 1;
+      } else if (arg4.idx2 < -1) {
+        jut = arg4.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
@@ -3382,20 +3382,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg5idxs[0] = 0;
       arg5idxs[1] = 1;
-      if (arg5.idx < -1) {
-        iut = arg5.map->dim;
-      } else if (arg5.idx < OP_I_OFFSET) {
+      if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
+      } else if (arg5.idx < -1) {
+        iut = arg5.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
       }
-      if (arg5.idx2 < -1) {
-        jut = arg5.map2->dim;
-      } else if (arg5.idx2 < OP_I_OFFSET) {
+      if (arg5.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg5.idx2)-1];
         arg5idxs[1] = op_i(arg5.idx2) - 1;
+      } else if (arg5.idx2 < -1) {
+        jut = arg5.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
@@ -3412,20 +3412,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg6idxs[0] = 0;
       arg6idxs[1] = 1;
-      if (arg6.idx < -1) {
-        iut = arg6.map->dim;
-      } else if (arg6.idx < OP_I_OFFSET) {
+      if (arg6.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg6.idx)-1];
         arg6idxs[0] = op_i(arg6.idx) - 1;
+      } else if (arg6.idx < -1) {
+        iut = arg6.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 6, aborting\n");
         exit(-1);
       }
-      if (arg6.idx2 < -1) {
-        jut = arg6.map2->dim;
-      } else if (arg6.idx2 < OP_I_OFFSET) {
+      if (arg6.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg6.idx2)-1];
         arg6idxs[1] = op_i(arg6.idx2) - 1;
+      } else if (arg6.idx2 < -1) {
+        jut = arg6.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 6, aborting\n");
         exit(-1);
@@ -4082,20 +4082,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg0idxs[0] = 0;
       arg0idxs[1] = 1;
-      if (arg0.idx < -1) {
-        iut = arg0.map->dim;
-      } else if (arg0.idx < OP_I_OFFSET) {
+      if (arg0.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg0.idx)-1];
         arg0idxs[0] = op_i(arg0.idx) - 1;
+      } else if (arg0.idx < -1) {
+        iut = arg0.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
       }
-      if (arg0.idx2 < -1) {
-        jut = arg0.map2->dim;
-      } else if (arg0.idx2 < OP_I_OFFSET) {
+      if (arg0.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg0.idx2)-1];
         arg0idxs[1] = op_i(arg0.idx2) - 1;
+      } else if (arg0.idx2 < -1) {
+        jut = arg0.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 0, aborting\n");
         exit(-1);
@@ -4112,20 +4112,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg1idxs[0] = 0;
       arg1idxs[1] = 1;
-      if (arg1.idx < -1) {
-        iut = arg1.map->dim;
-      } else if (arg1.idx < OP_I_OFFSET) {
+      if (arg1.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg1.idx)-1];
         arg1idxs[0] = op_i(arg1.idx) - 1;
+      } else if (arg1.idx < -1) {
+        iut = arg1.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
       }
-      if (arg1.idx2 < -1) {
-        jut = arg1.map2->dim;
-      } else if (arg1.idx2 < OP_I_OFFSET) {
+      if (arg1.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg1.idx2)-1];
         arg1idxs[1] = op_i(arg1.idx2) - 1;
+      } else if (arg1.idx2 < -1) {
+        jut = arg1.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 1, aborting\n");
         exit(-1);
@@ -4142,20 +4142,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg2idxs[0] = 0;
       arg2idxs[1] = 1;
-      if (arg2.idx < -1) {
-        iut = arg2.map->dim;
-      } else if (arg2.idx < OP_I_OFFSET) {
+      if (arg2.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg2.idx)-1];
         arg2idxs[0] = op_i(arg2.idx) - 1;
+      } else if (arg2.idx < -1) {
+        iut = arg2.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
       }
-      if (arg2.idx2 < -1) {
-        jut = arg2.map2->dim;
-      } else if (arg2.idx2 < OP_I_OFFSET) {
+      if (arg2.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg2.idx2)-1];
         arg2idxs[1] = op_i(arg2.idx2) - 1;
+      } else if (arg2.idx2 < -1) {
+        jut = arg2.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 2, aborting\n");
         exit(-1);
@@ -4172,20 +4172,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg3idxs[0] = 0;
       arg3idxs[1] = 1;
-      if (arg3.idx < -1) {
-        iut = arg3.map->dim;
-      } else if (arg3.idx < OP_I_OFFSET) {
+      if (arg3.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg3.idx)-1];
         arg3idxs[0] = op_i(arg3.idx) - 1;
+      } else if (arg3.idx < -1) {
+        iut = arg3.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
       }
-      if (arg3.idx2 < -1) {
-        jut = arg3.map2->dim;
-      } else if (arg3.idx2 < OP_I_OFFSET) {
+      if (arg3.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg3.idx2)-1];
         arg3idxs[1] = op_i(arg3.idx2) - 1;
+      } else if (arg3.idx2 < -1) {
+        jut = arg3.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 3, aborting\n");
         exit(-1);
@@ -4202,20 +4202,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg4idxs[0] = 0;
       arg4idxs[1] = 1;
-      if (arg4.idx < -1) {
-        iut = arg4.map->dim;
-      } else if (arg4.idx < OP_I_OFFSET) {
+      if (arg4.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg4.idx)-1];
         arg4idxs[0] = op_i(arg4.idx) - 1;
+      } else if (arg4.idx < -1) {
+        iut = arg4.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
       }
-      if (arg4.idx2 < -1) {
-        jut = arg4.map2->dim;
-      } else if (arg4.idx2 < OP_I_OFFSET) {
+      if (arg4.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg4.idx2)-1];
         arg4idxs[1] = op_i(arg4.idx2) - 1;
+      } else if (arg4.idx2 < -1) {
+        jut = arg4.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 4, aborting\n");
         exit(-1);
@@ -4232,20 +4232,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg5idxs[0] = 0;
       arg5idxs[1] = 1;
-      if (arg5.idx < -1) {
-        iut = arg5.map->dim;
-      } else if (arg5.idx < OP_I_OFFSET) {
+      if (arg5.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg5.idx)-1];
         arg5idxs[0] = op_i(arg5.idx) - 1;
+      } else if (arg5.idx < -1) {
+        iut = arg5.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
       }
-      if (arg5.idx2 < -1) {
-        jut = arg5.map2->dim;
-      } else if (arg5.idx2 < OP_I_OFFSET) {
+      if (arg5.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg5.idx2)-1];
         arg5idxs[1] = op_i(arg5.idx2) - 1;
+      } else if (arg5.idx2 < -1) {
+        jut = arg5.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 5, aborting\n");
         exit(-1);
@@ -4262,20 +4262,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg6idxs[0] = 0;
       arg6idxs[1] = 1;
-      if (arg6.idx < -1) {
-        iut = arg6.map->dim;
-      } else if (arg6.idx < OP_I_OFFSET) {
+      if (arg6.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg6.idx)-1];
         arg6idxs[0] = op_i(arg6.idx) - 1;
+      } else if (arg6.idx < -1) {
+        iut = arg6.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 6, aborting\n");
         exit(-1);
       }
-      if (arg6.idx2 < -1) {
-        jut = arg6.map2->dim;
-      } else if (arg6.idx2 < OP_I_OFFSET) {
+      if (arg6.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg6.idx2)-1];
         arg6idxs[1] = op_i(arg6.idx2) - 1;
+      } else if (arg6.idx2 < -1) {
+        jut = arg6.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 6, aborting\n");
         exit(-1);
@@ -4292,20 +4292,20 @@ void op_par_loop ( void (*kernel)( T0*, T1*, T2*, T3*,
       int jut;
       arg7idxs[0] = 0;
       arg7idxs[1] = 1;
-      if (arg7.idx < -1) {
-        iut = arg7.map->dim;
-      } else if (arg7.idx < OP_I_OFFSET) {
+      if (arg7.idx < OP_I_OFFSET) {
         iut = itspace->dims[op_i(arg7.idx)-1];
         arg7idxs[0] = op_i(arg7.idx) - 1;
+      } else if (arg7.idx < -1) {
+        iut = arg7.map->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 7, aborting\n");
         exit(-1);
       }
-      if (arg7.idx2 < -1) {
-        jut = arg7.map2->dim;
-      } else if (arg7.idx2 < OP_I_OFFSET) {
+      if (arg7.idx2 < OP_I_OFFSET) {
         jut = itspace->dims[op_i(arg7.idx2)-1];
         arg7idxs[1] = op_i(arg7.idx2) - 1;
+      } else if (arg7.idx2 < -1) {
+        jut = arg7.map2->dim;
       } else {
         printf("Invalid index (not vector index or op_i) for arg 7, aborting\n");
         exit(-1);
