@@ -1,5 +1,5 @@
 inline void res_calc(double *x1,  double *x2,  double *q1,  double *q2,
-                     double *adt1,double *adt2,double *res1,double *res2) {
+                     double *adt1,double *adt2,double *res1,double *res2, double *tmp) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
   dx = x1[0] - x2[0];
@@ -27,5 +27,6 @@ inline void res_calc(double *x1,  double *x2,  double *q1,  double *q2,
   f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(q2[3]+p2)    ) + mu*(q1[3]-q2[3]);
   res1[3] += f;
   res2[3] -= f;
+  *tmp += 1.0;
 }
 

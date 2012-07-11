@@ -380,7 +380,9 @@ int main(int argc, char **argv)
           op_arg_dat(p_adt,  0,pecell,1,"double",OP_READ),
           op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
           op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
-          op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
+          op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ),
+          op_arg_gbl(&rms,1,"double",OP_INC));
+      printf("number of edges:: %lf should be: %d \n",rms,g_nedge);
 
       op_par_loop(bres_calc,"bres_calc",bedges,
           op_arg_dat(p_x,     0,pbedge, 2,"double",OP_READ),

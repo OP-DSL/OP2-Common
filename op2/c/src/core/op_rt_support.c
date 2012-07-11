@@ -728,7 +728,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   /* store block mapping and number of blocks per color */
 
-
+  if (indirect_reduce && OP_plans[ip].ncolors_owned == 0) OP_plans[ip].ncolors_owned = ncolors; //no MPI, so get the reduction arrays after everyting is done
   OP_plans[ip].ncolors = ncolors;
 
   /*for(int col = 0; col = OP_plans[ip].ncolors;col++) //should initialize to zero because calloc returns garbage!!

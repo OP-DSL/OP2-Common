@@ -54,7 +54,7 @@ nhdf5 = 0;
 
 nconsts  = 0;
 nkernels = 0;
-
+consts = {};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  loop over all input source files
