@@ -397,7 +397,7 @@ int main(int argc, char **argv)
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
-
+  double test;
   niter = 1000;
   for(int iter=1; iter<=niter; iter++) {
 
@@ -429,8 +429,8 @@ int main(int argc, char **argv)
                  op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
                  op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
                  op_arg_dat(p_res,1,pecell,4,"double",OP_INC),
-                 op_arg_gbl(&rms,1,"double",OP_INC));
-          printf("number of edges:: %lf should be: %d \n",rms,g_nedge);
+                 op_arg_gbl(&test,1,"double",OP_INC));
+          op_printf("number of edges:: %lf should be: %d \n",test,g_nedge);
 
       op_par_loop_bres_calc("bres_calc",bedges,
                  op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
