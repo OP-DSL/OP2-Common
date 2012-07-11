@@ -418,7 +418,7 @@ int main(int argc, char **argv)
                  op_arg_dat(p_x,3,pcell,2,"double",OP_READ),
                  op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
-
+      test = 0.0;
       //    calculate flux residual
       op_par_loop_res_calc("res_calc",edges,
                  op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
