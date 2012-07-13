@@ -583,7 +583,10 @@ for nk = 1:length(kernels)
   file = strvcat(file,'         Plan->loc_map,');
 
   for m = 1:nargs
-    if (inds(m)==0)
+    if (inds(m) == 0 & maps(m) == OP_GBL & accs(m) ~= OP_READ)
+      line = '         &ARG_l[64*omp_get_thread_num()],';
+      file = strvcat(file, rep(line,m));
+    elseif (inds(m)==0)
       line = '         (TYP *)ARG.data,';
       file = strvcat(file,rep(line,m));
     end
