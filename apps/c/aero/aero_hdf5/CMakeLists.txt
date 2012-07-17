@@ -38,7 +38,8 @@ include(../../common.cmake)
 include(GenerateMesh)
 generate_mesh(AERO FE_grid.dat naca_fem)
 
-if (OP2_BUILD_DP)
+# All these require HDF5
+if (TARGET op2_hdf5 AND OP2_BUILD_DP)
 
   set(KERNEL_HEADERS_HDF5 dp/dirichlet.h dp/dotPV.h dp/dotR.h dp/init_cg.h dp/res_calc.h dp/spMV.h dp/update.h dp/updateUR.h dp/updateP.h)
 
