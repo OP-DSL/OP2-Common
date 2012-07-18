@@ -57,8 +57,8 @@ double alpha;
 // OP header file
 //
 
+#include "op_seq.h"
 #include "op_lib_mpi.h"
-#include "op_lib_cpp.h"
 
 //
 // kernel routines for parallel loops
@@ -66,12 +66,6 @@ double alpha;
 
 #include "res.h"
 #include "update.h"
-
-//
-// op_par_loop declarations
-//
-
-#include "op_seq.h"
 
 //
 //user declared functions

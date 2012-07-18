@@ -51,7 +51,6 @@ float alpha;
 // OP header file
 //
 
-#include "op_lib_cpp.h"
 #include "op_seq.h"
 
 //

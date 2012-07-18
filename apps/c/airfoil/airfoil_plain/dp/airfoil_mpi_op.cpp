@@ -66,23 +66,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_cpp.h"
-#include "op_lib_mpi.h"
-
-//
-// kernel routines for parallel loops
-//
-
-#include "save_soln.h"
-#include "adt_calc.h"
-#include "res_calc.h"
-#include "bres_calc.h"
-#include "update.h"
-
-//
-// op_par_loop declarations
-//
-
-#include "op_lib_cpp.h"
 int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]
 
@@ -126,6 +109,17 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+#include "op_lib_mpi.h"
+
+//
+// kernel routines for parallel loops
+//
+
+#include "save_soln.h"
+#include "adt_calc.h"
+#include "res_calc.h"
+#include "bres_calc.h"
+#include "update.h"
 
 //
 //user declared functions
