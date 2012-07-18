@@ -61,7 +61,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib_cpp.h"
+#include "op_seq.h"
 #include "op_lib_mpi.h"
 
 //
@@ -73,12 +73,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "res_calc.h"
 #include "bres_calc.h"
 #include "update.h"
-
-//
-// op_par_loop declarations
-//
-
-#include "op_seq.h"
 
 //
 //user declared functions

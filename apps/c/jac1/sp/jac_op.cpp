@@ -56,7 +56,8 @@ float alpha;
 //
 
 #include "op_lib_cpp.h"
-#include "op_lib_cpp.h"
+int op2_stride = 1;
+#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]
 
 //
 // op_par_loop declarations
@@ -205,5 +206,10 @@ int main(int argc, char **argv)
 
   op_timing_output();
   op_exit();
-}
 
+  free(pp);
+  free(A);
+  free(u);
+  free(du);
+  free(r);
+}

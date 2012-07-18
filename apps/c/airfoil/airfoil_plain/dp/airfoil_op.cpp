@@ -59,7 +59,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_cpp.h"
-#include "op_lib_cpp.h"
 int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]
 
