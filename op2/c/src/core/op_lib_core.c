@@ -265,6 +265,7 @@ op_exit_core (  )
     free ( OP_set_list[i] );
   }
   free ( OP_set_list );
+  OP_set_list = NULL;
 
   for ( int i = 0; i < OP_map_index; i++ )
   {
@@ -274,6 +275,7 @@ op_exit_core (  )
     free ( OP_map_list[i] );
   }
   free ( OP_map_list );
+  OP_map_list = NULL;
 
   for ( int i = 0; i < OP_dat_index; i++ )
   {
@@ -284,10 +286,12 @@ op_exit_core (  )
     free ( OP_dat_list[i] );
   }
   free ( OP_dat_list );
+  OP_dat_list = NULL;
 
   // free storage for timing info
 
   free ( OP_kernels );
+  OP_kernels = NULL;
 
   // reset initial values
 

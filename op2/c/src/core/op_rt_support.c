@@ -76,6 +76,7 @@ op_rt_exit (  )
   OP_plan_max = 0;
 
   free ( OP_plans );
+  OP_plans = NULL;
 }
 
 /*
