@@ -156,7 +156,7 @@ def op_par_loop_parse(text):
       #print arg_string
 
       #parse arguments in par loop
-      temp_arg_string = []
+      temp_args = []
       num_args = 0
       
       try:
@@ -172,7 +172,19 @@ def op_par_loop_parse(text):
           if len(dat_args_string.split(',')) <> 6:
             print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
             return
-          temp_arg_string.append('op_arg_dat, '+dat_args_string)
+          
+          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+          temp_dat = {'type':'op_arg_dat', 
+            'dat':dat_args_string.split(',')[0],
+            'idx':dat_args_string.split(',')[1],
+            'map':dat_args_string.split(',')[2],
+            'dim':dat_args_string.split(',')[3],
+            'typ':dat_args_string.split(',')[4],
+            'acc':dat_args_string.split(',')[5]
+          }
+          #append this struct to a temporary list/array
+          temp_args.append(temp_dat)
+          
           num_args = num_args + 1        
           j= arg_string.find(search2, j+12) 
                 
@@ -188,7 +200,17 @@ def op_par_loop_parse(text):
           if len(gbl_args_string.split(',')) <> 4:
             print 'Error in parsing op_arg_gbl('+ dat_args_string +'): must have four arguments'
             return
-          temp_arg_string.append('op_arg_gbl, '+gbl_args_string)
+           
+          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+          temp_gbl = {'type':'op_arg_gbl', 
+            'data':gbl_args_string.split(',')[0],
+            'dim':gbl_args_string.split(',')[1],
+            'typ':gbl_args_string.split(',')[2],
+            'acc':gbl_args_string.split(',')[3]
+          }
+          #append this struct to a temporary list/array
+          temp_args.append(temp_gbl)
+          
           num_args = num_args + 1
           k= arg_string.find(search3, k+12)        
         
@@ -196,10 +218,9 @@ def op_par_loop_parse(text):
           'name1':arg_string.split(',')[0],
           'name2':arg_string.split(',')[1],
           'set':arg_string.split(',')[2],
-          'args':temp_arg_string,
+          'args':temp_args,
           'nargs':num_args
-        }
-      
+        }      
       except (RuntimeError, TypeError, NameError):
         print "error parsing op_par_loop"
       
@@ -301,8 +322,15 @@ for i in range(1,len(sys.argv)):
 ##########################################################################
    
     loop_args = op_par_loop_parse(text)
-    print loop_args
-    #for i in range (0, len(loop_args)):
-    #  print loop_args[i]
+    #print loop_args
+    for i in range (0, len(loop_args)):
+      name = loop_args[i]['name1']
+      nargs = loop_args[i]['nargs']
+      print 'processing kernel '+name+' with '+str(nargs)+' arguments'
+      print ' '
+#
+# process arguments
+#
+    
     
     f.close()
