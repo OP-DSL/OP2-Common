@@ -263,96 +263,165 @@ def op_par_loop_parse(text):
 #  loop over all input source files
 ##########################################################################
 for i in range(1,len(sys.argv)):
-    print 'processing file '+ str(i) + ' of ' + str(len(sys.argv)) + ' '+ \
-    str(sys.argv[i]) 
+  print 'processing file '+ str(i) + ' of ' + str(len(sys.argv)) + ' '+ \
+  str(sys.argv[i]) 
     
-    src_file = str(sys.argv[i])
-    f = open(src_file,'r')
-    text = f.read()
+  src_file = str(sys.argv[i])
+  f = open(src_file,'r')
+  text = f.read()
     
-    #remove commnets for parsing
-    text = comment_remover(text)
-    
-    #print str(OP_accs_labels[1])
+  #remove commnets for parsing
+  text = comment_remover(text)
+  
+  #print str(OP_accs_labels[1])
     
 ##########################################################################
 # check for op_init/op_exit/op_partition/op_hdf5 calls
 ##########################################################################    
     
-    inits, exits, parts, hdf5s = op_parse_calls(text)
-    
-    if inits+exits+parts+hdf5s > 0:
-      print ' '
-    if inits > 0:
-      print'  contains op_init call\n'
-    if exits > 0:
-      print'  contains op_exit call\n'
-    if parts > 0:
-      print'  contains op_partition call\n'
-    if hdf5s > 0:
-      print'  contains op_hdf5 calls\n'
+  inits, exits, parts, hdf5s = op_parse_calls(text)
   
-    ninit = ninit + inits;
-    nexit = nexit + exits;
-    npart = npart + parts;
-    nhdf5 = nhdf5 + hdf5s;
+  if inits+exits+parts+hdf5s > 0:
+    print ' '
+  if inits > 0:
+    print'  contains op_init call\n'
+  if exits > 0:
+    print'  contains op_exit call\n'
+  if parts > 0:
+    print'  contains op_partition call\n'
+  if hdf5s > 0:
+    print'  contains op_hdf5 calls\n'
+  
+  ninit = ninit + inits;
+  nexit = nexit + exits;
+  npart = npart + parts;
+  nhdf5 = nhdf5 + hdf5s;
     
     
 ##########################################################################
 # parse and process constants
 ##########################################################################    
     
-    const_args = op_decl_const_parse(text)
-    #print'  number of constants declared '+str(len(const_args))
-    #print'  contains constants '+str(const_args)
+  const_args = op_decl_const_parse(text)
+  #print'  number of constants declared '+str(len(const_args))
+  #print'  contains constants '+str(const_args)
     
-    #cleanup '&' symbols from name and convert dim to integer
-    for i  in range(0,len(const_args)):
-      if const_args[i]['name'][0] == '&':
-        const_args[i]['name'] = const_args[i]['name'][1:]    
-        const_args[i]['dim'] = int(const_args[i]['dim'])
-    
-    #check for repeats
-    nconsts = 0
-    for i  in range(0,len(const_args)):
-      repeat = 0
-      name = const_args[i]['name']
-      for c in range(0,nconsts):
-        if  const_args[i]['name'] == consts[c]['name']:
-          repeat = 1
-          if const_args[i]['type'] <> consts[c]['type']:
-            print 'type mismatch in repeated op_decl_const'
-          if const_args[i]['dim'] <> consts[c]['dim']:
-            print 'size mismatch in repeated op_decl_const'
-          
-      if repeat > 0:
-        print 'repeated global constant ' + const_args[i]['name']
-      else:
-        print 'global constant '+ const_args[i]['name'].strip() + ' of size ' + str(const_args[i]['dim'])
+  #cleanup '&' symbols from name and convert dim to integer
+  for i  in range(0,len(const_args)):
+    if const_args[i]['name'][0] == '&':
+      const_args[i]['name'] = const_args[i]['name'][1:]    
+      const_args[i]['dim'] = int(const_args[i]['dim'])
+  
+  #check for repeats
+  nconsts = 0
+  for i  in range(0,len(const_args)):
+    repeat = 0
+    name = const_args[i]['name']
+    for c in range(0,nconsts):
+      if  const_args[i]['name'] == consts[c]['name']:
+        repeat = 1
+        if const_args[i]['type'] <> consts[c]['type']:
+          print 'type mismatch in repeated op_decl_const'
+        if const_args[i]['dim'] <> consts[c]['dim']:
+          print 'size mismatch in repeated op_decl_const'
         
-    #store away in master list
-      if repeat == 0:
-        nconsts = nconsts + 1
-        temp = {'dim': const_args[i]['dim'],
-        'type': const_args[i]['type'].strip(),
-        'name': const_args[i]['name'].strip()}
-        consts.append(temp)
-        
+    if repeat > 0:
+      print 'repeated global constant ' + const_args[i]['name']
+    else:
+      print 'global constant '+ const_args[i]['name'].strip() + ' of size ' + str(const_args[i]['dim'])
+      
+  #store away in master list
+    if repeat == 0:
+      nconsts = nconsts + 1
+      temp = {'dim': const_args[i]['dim'],
+      'type': const_args[i]['type'].strip(),
+      'name': const_args[i]['name'].strip()}
+      consts.append(temp)
+      
 
 ##########################################################################
 # parse and process op_par_loop calls
 ##########################################################################
    
-    loop_args = op_par_loop_parse(text)
-    print loop_args
-    for i in range (0, len(loop_args)):
-      name = loop_args[i]['name1']
-      nargs = loop_args[i]['nargs']
-      print 'processing kernel '+name+' with '+str(nargs)+' arguments'
-      print ' '
+  loop_args = op_par_loop_parse(text)
+  print loop_args
+  for i in range (0, len(loop_args)):
+    name = loop_args[i]['name1']
+    nargs = loop_args[i]['nargs']
+    print 'processing kernel '+name+' with '+str(nargs)+' arguments'
+      
 #
 # process arguments
 #
+    var = []
+    idx = [0]*nargs
+    dims = []
+    maps = [0]*nargs
+    typs = []
+    accs = [0]*nargs
+    soaflags = [0]*nargs
+      
+    for m in range (0,nargs):
+      arg_type =  loop_args[i]['args'][m]['type']
+      args =  loop_args[i]['args'][m]
+       
+      if arg_type.strip() == 'op_arg_dat':
+        var.append(args['dat'])
+        idx[m] =  args['idx']
+         
+        if str(args['map']).strip() == 'OP_ID':
+          maps[m] = OP_ID
+          if int(idx[m]) <> -1:
+             print 'invalid index for argument'+str(m)
+        else:
+          maps[m] = OP_MAP
+        
+        dims.append(args['dim'])
+        soa_loc = args['typ'].find(':soa')
+        
+        if soa_loc > 0: 
+          soaflags[m] = 1
+          typs.append(args['typ'][1:soa_loc])
+        else:
+          typs.append(args['typ'][1:-1])
+        
+        l = -1
+        for l in range(0,len(OP_accs_labels)):
+          if args['acc'].strip() == OP_accs_labels[l].strip():
+            break
+          
+        if l == -1:
+          print 'unknown access type for argument '+str(m)
+        else:
+          accs[m] = l+1
+       
+      if arg_type.strip() == 'op_arg_gbl':
+        maps[m] = OP_GBL
+        var.append(args['data'])
+        dims.append(args['dim'])
+        typs.append(args['typ'][1:-1])
+          
+        l = -1
+        for l in range(0,len(OP_accs_labels)):
+          if args['acc'].strip() == OP_accs_labels[l].strip():
+            break
+          
+        if l == -1:
+          print 'unknown access type for argument '+str(m)
+        else:
+          accs[m] = l+1
+         
+      if (maps[m]==OP_GBL) and (accs[m]==OP_WRITE or accs[m]==OP_RW):
+         print 'invalid access type for argument '+str(m)
+       
+      if (maps[m]<>OP_GBL) and (accs[m]==OP_MIN or accs[m]==OP_MAX):
+         print 'invalid access type for argument '+str(m)
+       
+      print var[m]+' '+str(maps[m])+' '+str(dims[m])+' '+typs[m]+' '+str(accs[m])
+      
+    print ' '
+      
+    #start here
+      
     
-    
-    f.close()
+  f.close()
