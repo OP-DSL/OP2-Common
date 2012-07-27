@@ -151,7 +151,11 @@ static void op_destroy_vec ( Vec v, op_dat d ) {
       ((float *)d->data)[i] = (float)a[i];
     }
   }
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  VecDestroy(&v);
+#else
   VecDestroy(v);
+#endif
 }
 
 void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out )
@@ -187,5 +191,9 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x )
 
   op_destroy_vec(p_b, b);
   op_destroy_vec(p_x, x);
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  KSPDestroy(&ksp);
+#else
   KSPDestroy(ksp);
+#endif
 }
