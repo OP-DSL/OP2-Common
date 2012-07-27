@@ -137,8 +137,27 @@ def op_decl_const_parse(text):
       num_const = num_const + 1
             
     return (consts)
-    
-    
+
+
+##########################################################################
+# parsing for arguments in op_par_loop to find the correct closing brace
+##########################################################################
+def arg_parse(text,j):
+    #print text
+    #text = text.strip()
+    depth = 0
+    loc2 = j;
+    while 1:
+      if text[loc2] == '(':
+        depth = depth + 1
+        
+      elif text[loc2] == ')':
+        depth = depth - 1
+        if depth == 0:
+          return loc2 
+      loc2 = loc2 + 1
+        
+       
     
 
 ##########################################################################
@@ -151,86 +170,86 @@ def op_par_loop_parse(text):
     search = "op_par_loop"
     i = text.find(search)
     while i > -1:
-      #arg_string = text[i+12:text.find(';',i+11)]
       arg_string = text[text.find('(',i)+1:text.find(';',i+11)]
       #print arg_string
 
       #parse arguments in par loop
       temp_args = []
       num_args = 0
-      
-      try:
-        #parse each op_arg_dat
-        search2 = "op_arg_dat"
-        j = arg_string.find(search2)
-        while j > -1:
-          #dat_args_string =  arg_string[j+11: arg_string.find(')',j+12)]
-          dat_args_string = arg_string[arg_string.find('(',j)+1:arg_string.find(')',j+12)]
-          #print dat_args_string
-          
-          #check for syntax errors
-          if len(dat_args_string.split(',')) <> 6:
-            print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
-            return
-          
-          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
-          temp_dat = {'type':'op_arg_dat', 
-            'dat':dat_args_string.split(',')[0],
-            'idx':dat_args_string.split(',')[1],
-            'map':dat_args_string.split(',')[2],
-            'dim':dat_args_string.split(',')[3],
-            'typ':dat_args_string.split(',')[4],
-            'acc':dat_args_string.split(',')[5]
-          }
-          #append this struct to a temporary list/array
-          temp_args.append(temp_dat)
-          
-          num_args = num_args + 1        
-          j= arg_string.find(search2, j+12) 
-                
-        #parse each op_arg_gbl
-        search3 = "op_arg_gbl"
-        k = arg_string.find(search3)
-        while k > -1:
-          #gbl_args_string =  arg_string[k+11: arg_string.find(')',k+12)]
-          gbl_args_string = arg_string[arg_string.find('(',k)+1:arg_string.find(')',k+12)]
-          #print gbl_args_string
-          
-          #check for syntax errors
-          if len(gbl_args_string.split(',')) <> 4:
-            print 'Error in parsing op_arg_gbl('+ dat_args_string +'): must have four arguments'
-            return
-           
-          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
-          temp_gbl = {'type':'op_arg_gbl', 
-            'data':gbl_args_string.split(',')[0],
-            'dim':gbl_args_string.split(',')[1],
-            'typ':gbl_args_string.split(',')[2],
-            'acc':gbl_args_string.split(',')[3]
-          }
-          #append this struct to a temporary list/array
-          temp_args.append(temp_gbl)
-          
-          num_args = num_args + 1
-          k= arg_string.find(search3, k+12)        
+
+      #try:
+      #parse each op_arg_dat
+      search2 = "op_arg_dat"
+      j = arg_string.find(search2)
+      while j > -1:
         
-        temp = {'loc':i,
-          'name1':arg_string.split(',')[0],
-          'name2':arg_string.split(',')[1],
-          'set':arg_string.split(',')[2],
-          'args':temp_args,
-          'nargs':num_args
-        }      
-      except (RuntimeError, TypeError, NameError):
-        print "error parsing op_par_loop"
+        loc = arg_parse(arg_string,j+1)
+        
+        #dat_args_string = arg_string[arg_string.find('(',j)+1:arg_string.find(')',j+12)]
+        dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+        #print dat_args_string
+        
+        #check for syntax errors
+        if len(dat_args_string.split(',')) <> 6:
+          print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
+          return
+        
+        #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+        temp_dat = {'type':'op_arg_dat', 
+          'dat':dat_args_string.split(',')[0].strip(),
+          'idx':dat_args_string.split(',')[1].strip(),
+          'map':dat_args_string.split(',')[2].strip(),
+          'dim':dat_args_string.split(',')[3].strip(),
+          'typ':dat_args_string.split(',')[4].strip(),
+          'acc':dat_args_string.split(',')[5].strip()
+        }
+        #append this struct to a temporary list/array
+        temp_args.append(temp_dat)
+        
+        num_args = num_args + 1        
+        j= arg_string.find(search2, j+12) 
+              
+      #parse each op_arg_gbl
+      search3 = "op_arg_gbl"
+      k = arg_string.find(search3)
+      while k > -1:
+        #gbl_args_string =  arg_string[k+11: arg_string.find(')',k+12)]
+        gbl_args_string = arg_string[arg_string.find('(',k)+1:arg_string.find(')',k+12)]
+        #print gbl_args_string
+        
+        #check for syntax errors
+        if len(gbl_args_string.split(',')) <> 4:
+          print 'Error in parsing op_arg_gbl('+ dat_args_string +'): must have four arguments'
+          return
+         
+        #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+        temp_gbl = {'type':'op_arg_gbl', 
+          'data':gbl_args_string.split(',')[0].strip(),
+          'dim':gbl_args_string.split(',')[1].strip(),
+          'typ':gbl_args_string.split(',')[2].strip(),
+          'acc':gbl_args_string.split(',')[3].strip()
+        }
+        #append this struct to a temporary list/array
+        temp_args.append(temp_gbl)
+        
+        num_args = num_args + 1
+        k= arg_string.find(search3, k+12)        
+      
+      temp = {'loc':i,
+        'name1':arg_string.split(',')[0].strip(),
+        'name2':arg_string.split(',')[1].strip(),
+        'set':arg_string.split(',')[2].strip(),
+        'args':temp_args,
+        'nargs':num_args
+      }      
+      #except (RuntimeError, TypeError, NameError):
+      #  print "error parsing op_par_loop"
       
       loop_args.append(temp)
       i=text.find(search, i+12)
     return (loop_args)
 
 
-
-    
 ###################END OF FUNCTIONS DECLARATIONS #########################
 
 
@@ -306,14 +325,14 @@ for i in range(1,len(sys.argv)):
       if repeat > 0:
         print 'repeated global constant ' + const_args[i]['name']
       else:
-        print 'global constant '+ const_args[i]['name'] + ' of size ' + str(const_args[i]['dim'])
+        print 'global constant '+ const_args[i]['name'].strip() + ' of size ' + str(const_args[i]['dim'])
         
     #store away in master list
       if repeat == 0:
         nconsts = nconsts + 1
         temp = {'dim': const_args[i]['dim'],
-        'type': const_args[i]['type'],
-        'name': const_args[i]['name']}
+        'type': const_args[i]['type'].strip(),
+        'name': const_args[i]['name'].strip()}
         consts.append(temp)
         
 
