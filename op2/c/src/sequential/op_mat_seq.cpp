@@ -197,3 +197,18 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x )
   KSPDestroy(ksp);
 #endif
 }
+
+// FIXME: Only correct for PETSc configured with --with-scalar-type=real,
+// --with-precision=double
+void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n)
+{
+  MatGetSize((Mat) mat->mat, m, n);
+  *v = (double *) malloc(sizeof(PetscScalar)*m[0]*n[0]);
+  int *idxm = (int *) malloc(sizeof(int)*m[0]);
+  int *idxn = (int *) malloc(sizeof(int)*n[0]);
+
+  for (int i=0; i<m[0]; ++i) idxm[i] = i;
+  for (int i=0; i<n[0]; ++i) idxn[i] = i;
+
+  MatGetValues((Mat) mat->mat, m[0], idxm, n[0], idxn, *v);
+}
