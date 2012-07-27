@@ -54,6 +54,8 @@ void op_mat_assemble( op_mat mat );
 
 void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out );
 
+void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n);
+
 void op_solve ( const op_mat mat, const op_dat b, op_dat x );
 
 #ifdef __cplusplus
