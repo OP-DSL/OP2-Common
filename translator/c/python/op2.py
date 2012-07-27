@@ -213,8 +213,11 @@ def op_par_loop_parse(text):
       search3 = "op_arg_gbl"
       k = arg_string.find(search3)
       while k > -1:
-        #gbl_args_string =  arg_string[k+11: arg_string.find(')',k+12)]
-        gbl_args_string = arg_string[arg_string.find('(',k)+1:arg_string.find(')',k+12)]
+        
+        loc = arg_parse(arg_string,k+1)
+        
+        #gbl_args_string = arg_string[arg_string.find('(',k)+1:arg_string.find(')',k+12)]
+        gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
         #print gbl_args_string
         
         #check for syntax errors
@@ -341,7 +344,7 @@ for i in range(1,len(sys.argv)):
 ##########################################################################
    
     loop_args = op_par_loop_parse(text)
-    #print loop_args
+    print loop_args
     for i in range (0, len(loop_args)):
       name = loop_args[i]['name1']
       nargs = loop_args[i]['nargs']
