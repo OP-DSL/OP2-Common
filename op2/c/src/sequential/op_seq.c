@@ -114,7 +114,11 @@ void op_exit ()
 {
   for ( int i = 0; i < OP_mat_index; i++ )
   {
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+      MatDestroy ( ((Mat*)&(OP_mat_list[i]->mat)) );
+#else
       MatDestroy ( ((Mat)(OP_mat_list[i]->mat)) );
+#endif
   }
 
   op_exit_core ();
