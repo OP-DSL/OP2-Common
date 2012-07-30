@@ -171,6 +171,11 @@ void op_mat_mult ( const op_mat mat, const op_dat v_in, op_dat v_out )
   op_destroy_vec(p_v_out, v_out);
 }
 
+void op_mat_zero ( op_mat mat )
+{
+  MatZeroEntries((Mat) mat->mat);
+}
+
 void op_solve ( const op_mat mat, const op_dat b, op_dat x )
 {
   assert( mat && b && x );
