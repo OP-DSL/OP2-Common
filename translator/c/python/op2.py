@@ -481,6 +481,14 @@ for i in range(1,len(sys.argv)):
     fid.write(text[loc_old:locs[loc]-1])
     loc_old = locs[loc]-1
     
+    indent = ''
+    ind = 0;
+    while 1:
+      if text[locs[loc]-ind] == '\n':
+    	 break
+      indent = indent + ' '
+      ind = ind + 1
+        
     if locs[loc]in loc_header:
       fid.write(' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n')
       fid.write('//\n// op_par_loop declarations\n//\n')
@@ -492,16 +500,23 @@ for i in range(1,len(sys.argv)):
       #
       
     if locs[loc] in loc_loops:
+       indent = indent + ' '*len('op_par_loop')
        endofcall = text.find(';', locs[loc]) 
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
        line = str(' op_par_loop_'+name+'('+loop_args[curr_loop]['name2']+','+
-              loop_args[curr_loop]['set']+',\n             ')
-       for arguments in range(1,loop_args[curr_loop]['nargs']):
-         elem = loop_args[curr_loop]['args'][arguments]
-         line = line + elem['type'] + '\n             '
+              loop_args[curr_loop]['set']+',\n'+indent)
        
-       fid.write(line+');\n')
+       for arguments in range(0,loop_args[curr_loop]['nargs']):
+         elem = loop_args[curr_loop]['args'][arguments]
+         if elem['type'] == 'op_arg_dat':
+            line = line + elem['type'] + '(' + elem['dat'] + ','+ elem['idx'] + ','+ \
+            elem['map'] + ','+ elem['dim'] + ','+ elem['typ'] + ','+ elem['acc'] +')\n'+indent
+         elif elem['type'] == 'op_arg_gbl':
+            line = line + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] + ','+ \
+            elem['typ'] + ','+ elem['acc'] +')\n'+indent
+       
+       fid.write(line[0:-len(indent)-1]+');')
        
        loc_old = endofcall+1
        continue
