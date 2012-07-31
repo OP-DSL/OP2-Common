@@ -36,18 +36,18 @@
 
 #include "op_lib_mat.h"
 
-op_sparsity op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name )
+op_sparsity op_decl_sparsity ( op_map *rowmaps, op_map *colmaps, int nmaps, int *dim, int ndim, char const * name )
 {
-  assert(rowmap && colmap);
-  op_sparsity sparsity = op_decl_sparsity_core(rowmap, colmap, name);
+  assert(rowmaps && colmaps);
+  op_sparsity sparsity = op_decl_sparsity_core(rowmaps, colmaps, nmaps, dim, ndim, name);
 
   return sparsity;
 }
 
-op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_size, char const * name )
+op_mat op_decl_mat( op_sparsity sparsity, int *dims, int ndim, char const * type, int type_size, char const * name )
 {
   assert( sparsity );
-  op_mat mat = op_decl_mat_core ( sparsity->rowmap->to, sparsity->colmap->to, dim, type, type_size, name );
+  op_mat mat = op_decl_mat_core ( sparsity, dims, ndim, type, type_size, name );
 
   Mat p_mat;
   // Create a PETSc CSR sparse matrix and pre-allocate storage
@@ -65,9 +65,9 @@ op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_s
   return mat;
 }
 
-op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc )
+op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dims, const char * typ, op_access acc )
 {
-  return op_arg_mat_core(mat, rowidx, rowmap, colidx, colmap, dim, typ, acc);
+  return op_arg_mat_core(mat, rowidx, rowmap, colidx, colmap, dims, typ, acc);
 }
 
 template < typename T >

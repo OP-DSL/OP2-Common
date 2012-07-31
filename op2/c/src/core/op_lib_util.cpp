@@ -30,22 +30,34 @@
 #include <vector>
 #include <set>
 #include "op_lib_core.h"
-void op_build_sparsity_pattern ( op_map rowmap, op_map colmap,
-                                 op_sparsity sparsity )
+void op_build_sparsity_pattern ( op_sparsity sparsity )
 {
   // Create and populate auxiliary data structure: for each element of
   // the from set, for each row pointed to by the row map, add all
   // columns pointed to by the col map
+  int rmult = sparsity->dim[0];
+  int cmult = sparsity->dim[1];
   std::vector< std::set< int > > s(sparsity->nrows);
-  for ( int e = 0; e < rowmap->from->size; ++e ) {
-    for ( int i = 0; i < rowmap->dim; ++i ) {
-      int row = rowmap->map[i + e*rowmap->dim];
-      s[row].insert( colmap->map + e*colmap->dim, colmap->map + (e+1)*colmap->dim );
+
+  for ( int m = 0; m < sparsity->nmaps; m++ ) {
+    op_map rowmap = sparsity->rowmaps[m];
+    op_map colmap = sparsity->colmaps[m];
+    for ( int e = 0; e < rowmap->from->size; ++e ) {
+      for ( int i = 0; i < rowmap->dim; ++i ) {
+        for ( int r = 0; r < rmult; r++ ) {
+          int row = (r + 1) * rowmap->map[i + e*rowmap->dim];
+          for ( int c = 0; c < cmult; c++ ) {
+            for ( int d = 0; d < colmap->dim; d++ ) {
+              s[row].insert((c+1)*colmap->map[d + e * colmap->dim]);
+            }
+          }
+        }
+      }
     }
   }
 
   // Create final sparsity structure
-  int *nnz = (int*)malloc(sparsity->nrows * sizeof(int));
+  int *nnz = (int*)malloc(cmult * sparsity->nrows * sizeof(int));
   int *rowptr = (int*)malloc((sparsity->nrows+1) * sizeof(int));
   rowptr[0] = 0;
   for ( size_t row = 0; row < sparsity->nrows; ++row ) {
