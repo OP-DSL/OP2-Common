@@ -250,22 +250,22 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
 }
 
 op_mat
-op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int size, char const * name )
+op_decl_mat_core ( op_sparsity sparsity, int *dim, int ndim, char const * type, int size, char const * name )
 {
 
-  if ( rowset == NULL )
+  if ( sparsity == NULL )
   {
-    printf ( "op_decl_mat error -- invalid rowset for matrix: %s\n", name );
+    printf ( "op_decl_mat error -- invalid sparsity pattern for matrix: %s\n", name );
     exit ( -1 );
   }
 
-  if ( colset == NULL )
+  if ( ndim != 2 )
   {
-    printf ( "op_decl_mat error -- invalid colset for matrix: %s\n", name );
+    printf ( "op_decl_mat error -- matrix %s must have dimension 2\n", name );
     exit ( -1 );
   }
 
-  if ( dim <= 0 )
+  if ( dim[0] <= 0 || dim[1] <= 0 )
   {
     printf ( "op_decl_mat error -- negative/zero dimension for matrix: %s\n", name );
     exit ( -1 );
@@ -284,12 +284,12 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
 
   op_mat mat = ( op_mat ) malloc ( sizeof ( op_mat_core ) );
   mat->index = OP_mat_index;
-  mat->rowset = rowset;
-  mat->colset = colset;
-  mat->dim = dim;
+  mat->sparsity = sparsity;
+  mat->dim[0] = dim[0];
+  mat->dim[1] = dim[1];
   mat->name = name;
   mat->type = type;
-  mat->size = dim * size;
+  mat->size = dim[0] * dim[1] * size;
   mat->mat = 0;
   mat->data = NULL;
   mat->lma_data = NULL;
@@ -300,23 +300,47 @@ op_decl_mat_core ( op_set rowset, op_set colset, int dim, char const * type, int
 }
 
 op_sparsity
-op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
+op_decl_sparsity_core ( op_map *rowmaps, op_map *colmaps, int nmaps, int *dim, int ndim, char const * name )
 {
-  if ( rowmap == NULL )
+  int nrows = 0;
+  int ncols = 0;
+  if ( ndim != 2 )
   {
-    printf ( "op_decl_sparsity error -- invalid rowmap for sparsity: %s\n", name );
+    printf ( "op_decl_sparsity error -- sparsity %s must have dimension 2\n", name );
     exit ( -1 );
   }
 
-  if ( colmap == NULL )
+  for ( int i = 0; i < nmaps; i++ )
   {
-    printf ( "op_decl_sparsity error -- invalid colmap for sparsity: %s\n", name );
-    exit ( -1 );
-  }
+    op_map rowmap = rowmaps[i];
+    op_map colmap = colmaps[i];
 
-  if ( rowmap->from != colmap->from ) {
-    printf("op_decl_sparsity: row map and col map do not map from the same set for sparsity: %s\n", name );
-    exit(1);
+    if ( rowmap == NULL )
+    {
+      printf ( "op_decl_sparsity error -- invalid rowmap for sparsity: %s\n", name );
+      exit ( -1 );
+    }
+
+    if ( colmap == NULL )
+    {
+      printf ( "op_decl_sparsity error -- invalid colmap for sparsity: %s\n", name );
+      exit ( -1 );
+    }
+
+    if ( rowmap->from != colmap->from ) {
+      printf("op_decl_sparsity: row map and col map do not map from the same set for sparsity: %s\n", name );
+      exit(1);
+    }
+
+    /* FIXME, every to set should be the same (for cols and rows) */
+    if ( rowmap->to->size > nrows )
+    {
+      nrows = rowmap->to->size;
+    }
+    if ( colmap->to->size > ncols )
+    {
+      ncols = colmap->to->size;
+    }
   }
 
   if ( OP_sparsity_index == OP_sparsity_max )
@@ -331,16 +355,19 @@ op_decl_sparsity_core ( op_map rowmap, op_map colmap, char const * name )
   }
 
   op_sparsity sparsity = ( op_sparsity ) malloc ( sizeof ( op_sparsity_core ) );
-  sparsity->rowmap = rowmap;
-  sparsity->colmap = colmap;
-  sparsity->nrows = rowmap->to->size;
-  sparsity->ncols = colmap->to->size;
+  sparsity->rowmaps = rowmaps;
+  sparsity->colmaps = colmaps;
+  sparsity->nmaps = nmaps;
+  sparsity->dim[0] = dim[0];
+  sparsity->dim[1] = dim[1];
+  sparsity->nrows = nrows * dim[0];
+  sparsity->ncols = ncols * dim[1];
   sparsity->nnz = NULL;
   sparsity->rowptr = NULL;
   sparsity->colidx = NULL;
   sparsity->max_nonzeros = 0;
 
-  op_build_sparsity_pattern ( rowmap, colmap, sparsity );
+  op_build_sparsity_pattern ( sparsity );
   OP_sparsity_list[OP_sparsity_index++] = sparsity;
 
   return sparsity;
@@ -478,15 +505,18 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( set == NULL )
       op_err_print ( "invalid set", m, name );
 
-    if ( arg.map  == NULL && arg.mat->rowset != set )
-      op_err_print ( "row dataset does not match loop set", m, name );
-    if ( arg.map2 == NULL && arg.mat->colset != set )
-      op_err_print ( "row dataset does not match loop set", m, name );
+    if ( arg.map  == NULL )
+      op_err_print ( "Must specify a rowmap for matrix argument", m, name );
+    if ( arg.map2 == NULL )
+      op_err_print ( "Must specify a colmap for matrix argument", m, name );
 
-    if ( arg.map  != NULL && ( arg.map->from  != set || arg.map->to  != arg.mat->rowset ) )
-      op_err_print ( "mapping error in rowmap", m, name );
-    if ( arg.map2 != NULL && ( arg.map2->from != set || arg.map2->to != arg.mat->colset ) )
-      op_err_print ( "mapping error in colmap", m, name );
+    /* FIXME: need to check all rowset/colsets in matrix */
+    /* 
+     * if ( arg.map  != NULL && ( arg.map->from  != set || arg.map->to  != arg.mat->rowset ) )
+     *   op_err_print ( "mapping error in rowmap", m, name );
+     * if ( arg.map2 != NULL && ( arg.map2->from != set || arg.map2->to != arg.mat->colset ) )
+     *   op_err_print ( "mapping error in colmap", m, name );
+     */
 
     if ( ( arg.map == NULL && arg.idx != -1 ) ||
          ( arg.map != NULL &&
@@ -497,7 +527,7 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
            (arg.idx2 < OP_I_OFFSET-arg.map2->dim || (arg.idx2 > OP_I_OFFSET && arg.idx2 < -arg.map2->dim) || arg.idx2 >= arg.map2->dim ) ) )
       op_err_print ( "invalid col index", m, name );
 
-    if ( arg.mat->dim != arg.dim )
+    if ( arg.mat->dim[0] != arg.dims[0] || arg.mat->dim[1] != arg.dims[1] )
       op_err_print ( "dataset dim does not match declared dim", m, name );
 
     if ( strcmp ( arg.mat->type, arg.type ) )
@@ -542,6 +572,8 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
   arg.mat = NULL;
   arg.map = map;
   arg.dim = dim;
+  arg.dims[0] = -1;
+  arg.dims[1] = -1;
   arg.idx = idx;
   arg.idx2 = -1;
   arg.map2 = NULL;
@@ -556,7 +588,7 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
 }
 
 op_arg
-op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc )
+op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dims, const char * typ, op_access acc )
 {
   if ( mat == NULL ) {
     printf ( " op_arg_mat error -- no valid op_mat given\n" );
@@ -574,7 +606,9 @@ op_arg_mat_core ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colm
   arg.mat = mat;
   arg.map = rowmap;
   arg.map2 = colmap;
-  arg.dim = dim;
+  arg.dim = -1;
+  arg.dims[0] = dims[0];
+  arg.dims[1] = dims[1];
   arg.idx = rowidx;
   arg.idx2 = colidx;
 
@@ -602,6 +636,8 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.mat = NULL;
   arg.map = NULL;
   arg.dim = dim;
+  arg.dims[0] = -1;
+  arg.dims[1] = -1;
   arg.idx = -1;
   arg.size = dim*size;
   arg.idx2 = -1;
@@ -628,6 +664,8 @@ void op_duplicate_arg (const op_arg in, op_arg * out)
   out->mat = in.mat;
   out->map = in.map;
   out->dim = in.dim;
+  out->dims[0] = in.dims[0];
+  out->dims[1] = in.dims[1];
   out->idx = in.idx;
   out->size = in.size;
   out->idx2 = in.idx2;

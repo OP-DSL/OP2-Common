@@ -53,8 +53,16 @@ int main(int argc, char **argv)
   op_set elements = op_decl_set(NUM_ELE, "elements");
   op_map elem_node = op_decl_map(elements, nodes, 3, p_elem_node, "elem_node");
 
-  op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
-  op_mat mat = op_decl_mat(sparsity, 1, VALUESTR, sizeof(ValueType), "mat");
+  op_map rmaps[1];
+  op_map cmaps[1];
+  int dim[2];
+
+  rmaps[0] = elem_node;
+  cmaps[0] = elem_node;
+  dim[0] = 1;
+  dim[1] = 1;
+  op_sparsity sparsity = op_decl_sparsity(rmaps, cmaps, 1, dim, 2, "sparsity");
+  op_mat mat = op_decl_mat(sparsity, dim, 2, VALUESTR, sizeof(ValueType), "mat");
   op_dat xn = op_decl_dat(nodes, 2, VALUESTR, p_xn, "xn");
 
   // Dat for the field initial condition
@@ -67,7 +75,7 @@ int main(int argc, char **argv)
   op_dat x = op_decl_dat(nodes, 1, VALUESTR, p_x, "x");
 
   op_par_loop(mass, "mass", op_iteration_space(elements, 3, 3),
-              op_arg_mat(mat, op_i(1), elem_node, op_i(2), elem_node, 1, VALUESTR, OP_INC),
+              op_arg_mat(mat, op_i(1), elem_node, op_i(2), elem_node, dim, VALUESTR, OP_INC),
               op_arg_dat(xn, -3, elem_node, 2, VALUESTR, OP_READ));
 
   op_par_loop(rhs, "rhs", elements,

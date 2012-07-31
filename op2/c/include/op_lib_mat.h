@@ -40,11 +40,11 @@ extern "C" {
  * Matrix computation function prototypes
  */
 
-op_sparsity op_decl_sparsity ( op_map rowmap, op_map colmap, char const * name );
+op_sparsity op_decl_sparsity ( op_map *rowmaps, op_map *colmaps, int nmaps, int *dim, int ndim, char const * name );
 
-op_mat op_decl_mat( op_sparsity sparsity, int dim, char const * type, int type_size, char const * name );
+op_mat op_decl_mat( op_sparsity sparsity, int *dims, int ndim, char const * type, int type_size, char const * name );
 
-op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int dim, const char * typ, op_access acc );
+op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dim, const char * typ, op_access acc );
 
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
 

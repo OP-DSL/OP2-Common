@@ -97,9 +97,16 @@ int main(int argc, char **argv) {
   op_dat y = op_decl_dat(nodes, 1, REAL, p_y, "y");
   op_dat xn = op_decl_dat(nodes, 1, REAL, p_xn, "xn");
 
-  op_sparsity sparsity = op_decl_sparsity(elem_node, elem_node, "sparsity");
+  op_map rmaps[1];
+  op_map cmaps[1];
+  int dim[2];
+  rmaps[0] = elem_node;
+  cmaps[0] = elem_node;
+  dim[0] = 1;
+  dim[1] = 1;
+  op_sparsity sparsity = op_decl_sparsity(rmaps, cmaps, 1, dim, 2, "sparsity");
 
-  op_mat mat = op_decl_mat(sparsity, 1, REAL, sizeof(Real), "matrix");
+  op_mat mat = op_decl_mat(sparsity, dim, 2, REAL, sizeof(Real), "matrix");
 
   op_diagnostic_output();
 
@@ -112,7 +119,7 @@ int main(int argc, char **argv) {
 
   // construct the matrix
   op_par_loop(laplace, "laplace", elements,
-              op_arg_mat(mat, -2, elem_node, -2, elem_node, 1, REAL, OP_INC),
+              op_arg_mat(mat, -2, elem_node, -2, elem_node, dim, REAL, OP_INC),
               op_arg_dat(xn,  -2, elem_node, 1, REAL, OP_READ));
 
   // solve
