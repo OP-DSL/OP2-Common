@@ -133,7 +133,8 @@ def op_decl_const_parse(text):
       temp = {'loc': i,
         'dim':const_string.split(',')[0],
         'type': const_string.split(',')[1],
-        'name':const_string.split(',')[2]}
+        'name':const_string.split(',')[2],
+        'name2':const_string.split(',')[2]}
       
       consts.append(temp)
       
@@ -328,7 +329,7 @@ for i in range(1,len(sys.argv)):
   #cleanup '&' symbols from name and convert dim to integer
   for i  in range(0,len(const_args)):
     if const_args[i]['name'][0] == '&':
-      const_args[i]['name'] = const_args[i]['name'][1:]    
+      const_args[i]['name'] = const_args[i]['name'][1:]
       const_args[i]['dim'] = int(const_args[i]['dim'])
   
   #check for repeats
@@ -510,17 +511,29 @@ for i in range(1,len(sys.argv)):
        for arguments in range(0,loop_args[curr_loop]['nargs']):
          elem = loop_args[curr_loop]['args'][arguments]
          if elem['type'] == 'op_arg_dat':
-            line = line + elem['type'] + '(' + elem['dat'] + ','+ elem['idx'] + ','+ \
-            elem['map'] + ','+ elem['dim'] + ','+ elem['typ'] + ','+ elem['acc'] +')\n'+indent
+            line = line + elem['type'] + '(' + elem['dat'] + ','+ elem['idx'] \
+            + ','+ elem['map'] + ','+ elem['dim'] + ','+ elem['typ'] + ',' \
+            + elem['acc'] +')\n'+indent
          elif elem['type'] == 'op_arg_gbl':
-            line = line + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] + ','+ \
-            elem['typ'] + ','+ elem['acc'] +')\n'+indent
+            line = line + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] \
+            + ','+ elem['typ'] + ','+ elem['acc'] +')\n'+indent
        
        fid.write(line[0:-len(indent)-1]+');')
        
        loc_old = endofcall+1
        continue
        
+    if locs[loc] in loc_consts:
+       curr_const = loc_consts.index(locs[loc])
+       endofcall = text.find(';', locs[loc]) 
+       name = const_args[curr_const]['name'] 
+       fid.write(indent[0:-2]+'op_decl_const2("'+name.strip()+'",'+ \
+       str(const_args[curr_const]['dim'])+ const_args[curr_const]['type']+ \
+       ','+const_args[curr_const]['name2'].strip()+');')
+       loc_old = endofcall+1
+       continue       
+       
+
   fid.write(text[loc_old:]) 
   fid.close()
   
