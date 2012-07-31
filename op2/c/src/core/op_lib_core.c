@@ -422,6 +422,7 @@ op_exit_core (  )
     free ( OP_mat_list[i] );
   }
   free ( OP_mat_list );
+  OP_mat_list = NULL;
 
   for ( int i = 0; i < OP_sparsity_index; i++ )
   {
@@ -431,6 +432,7 @@ op_exit_core (  )
     free ( OP_sparsity_list[i] );
   }
   free ( OP_sparsity_list );
+  OP_sparsity_list = NULL;
 
   // free storage for timing info
 
