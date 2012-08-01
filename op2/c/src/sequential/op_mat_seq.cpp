@@ -217,3 +217,8 @@ void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n)
 
   MatGetValues((Mat) mat->mat, m[0], idxm, n[0], idxn, *v);
 }
+
+void op_mat_zero_rows ( op_mat mat, int n, const int *rows, double val)
+{
+  MatZeroRows( (Mat)mat->mat, n, rows, val, PETSC_NULL, PETSC_NULL );
+}
