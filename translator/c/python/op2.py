@@ -79,6 +79,9 @@ def comment_remover(text):
 
 def op_parse_calls(text):
     
+    #remove comments just for this call
+    text = comment_remover(text)
+    
     inits = 0
     search = "op_init"
     found = text.find(search)
@@ -282,18 +285,14 @@ def op_par_loop_parse(text):
 ##########################################################################
 #  loop over all input source files
 ##########################################################################
-for i in range(1,len(sys.argv)):
-  print 'processing file '+ str(i) + ' of ' + str(len(sys.argv)) + ' '+ \
-  str(sys.argv[i]) 
+for a in range(1,len(sys.argv)):
+  print 'processing file '+ str(a) + ' of ' + str(len(sys.argv)-1) + ' '+ \
+  str(sys.argv[a]) 
     
-  src_file = str(sys.argv[i])
+  src_file = str(sys.argv[a])
   f = open(src_file,'r')
   text = f.read()
-    
-  #remove commnets for parsing
-  #text = comment_remover(text)
-  
-  #print str(OP_accs_labels[1])
+ 
     
 ##########################################################################
 # check for op_init/op_exit/op_partition/op_hdf5 calls
@@ -304,13 +303,13 @@ for i in range(1,len(sys.argv)):
   if inits+exits+parts+hdf5s > 0:
     print ' '
   if inits > 0:
-    print'  contains op_init call\n'
+    print'contains op_init call'
   if exits > 0:
-    print'  contains op_exit call\n'
+    print'contains op_exit call'
   if parts > 0:
-    print'  contains op_partition call\n'
+    print'contains op_partition call'
   if hdf5s > 0:
-    print'  contains op_hdf5 calls\n'
+    print'contains op_hdf5 calls'
   
   ninit = ninit + inits;
   nexit = nexit + exits;
@@ -348,7 +347,7 @@ for i in range(1,len(sys.argv)):
     if repeat > 0:
       print 'repeated global constant ' + const_args[i]['name']
     else:
-      print 'global constant '+ const_args[i]['name'].strip() + ' of size ' + str(const_args[i]['dim'])
+      print '\nglobal constant ('+ const_args[i]['name'].strip() + ') of size ' + str(const_args[i]['dim'])
       
   #store away in master list
     if repeat == 0:
@@ -364,20 +363,20 @@ for i in range(1,len(sys.argv)):
 ##########################################################################
    
   loop_args = op_par_loop_parse(text)
-  print loop_args
+  #print loop_args
   for i in range (0, len(loop_args)):
     name = loop_args[i]['name1']
     nargs = loop_args[i]['nargs']
-    print 'processing kernel '+name+' with '+str(nargs)+' arguments'
+    print '\nprocessing kernel '+name+' with '+str(nargs)+' arguments',
       
 #
 # process arguments
 #
-    var = []
-    idx = [0]*nargs
-    dims = []
+    var = ['']*nargs
+    idxs = [0]*nargs
+    dims = ['']*nargs
     maps = [0]*nargs
-    typs = []
+    typs = ['']*nargs
     accs = [0]*nargs
     soaflags = [0]*nargs
       
@@ -386,24 +385,24 @@ for i in range(1,len(sys.argv)):
       args =  loop_args[i]['args'][m]
        
       if arg_type.strip() == 'op_arg_dat':
-        var.append(args['dat'])
-        idx[m] =  args['idx']
+        var[m] = args['dat']
+        idxs[m] =  args['idx']
          
         if str(args['map']).strip() == 'OP_ID':
           maps[m] = OP_ID
-          if int(idx[m]) <> -1:
+          if int(idxs[m]) <> -1:
              print 'invalid index for argument'+str(m)
         else:
           maps[m] = OP_MAP
         
-        dims.append(args['dim'])
+        dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
         
         if soa_loc > 0: 
           soaflags[m] = 1
-          typs.append(args['typ'][1:soa_loc])
+          typs[m] = args['typ'][1:soa_loc]
         else:
-          typs.append(args['typ'][1:-1])
+            typs[m] = args['typ'][1:-1]
         
         l = -1
         for l in range(0,len(OP_accs_labels)):
@@ -417,9 +416,9 @@ for i in range(1,len(sys.argv)):
        
       if arg_type.strip() == 'op_arg_gbl':
         maps[m] = OP_GBL
-        var.append(args['data'])
-        dims.append(args['dim'])
-        typs.append(args['typ'][1:-1])
+        var[m] = args['data']
+        dims[m] = args['dim']
+        typs[m] = args['typ'][1:-1]
           
         l = -1
         for l in range(0,len(OP_accs_labels)):
@@ -437,27 +436,139 @@ for i in range(1,len(sys.argv)):
       if (maps[m]<>OP_GBL) and (accs[m]==OP_MIN or accs[m]==OP_MAX):
          print 'invalid access type for argument '+str(m)
        
-      print var[m]+' '+str(maps[m])+' '+str(dims[m])+' '+typs[m]+' '+str(accs[m])
+      #print var[m]+' '+str(idxs[m])+' '+str(maps[m])+' '+\
+      #str(dims[m])+' '+typs[m]+' '+str(accs[m])
       
     print ' '
-      
-    #start here
-      
+    
+#
+# identify indirect datasets
+#
+    ninds = 0
+    inds = [0]*nargs
+    invinds = [0]*nargs
+    indtyps = ['']*nargs
+    inddims = ['']*nargs
+    indaccs = [0]*nargs
+    
+    j = [i for i, x in enumerate(maps) if x == OP_MAP]
+    
+    while len(j) > 0:
+    	for i in range(0,len(j)):
+    	    if var[j[0]] == var[j[i]] and typs[j[0]] == typs[j[i]] \
+    	    and accs[j[0]] == accs[j[i]]: #same variable
+    	      inds[j[i]] = ninds
+    	      invinds[ninds] = j[0] #inverse mapping
+        
+        indtyps[ninds] = typs[j[0]]
+        inddims[ninds] = dims[j[0]]
+        indaccs[ninds] = accs[j[0]]
+        
+        k = []        
+        for i in range(0,len(j)):
+    	    if not (var[j[0]] == var[j[i]] and typs[j[0]] == typs[j[i]] \
+    	    and accs[j[0]] == accs[j[i]]): #same variable
+    	      k.append(j[i]) 
+        j = k
+        ninds = ninds + 1
+    #print inds
+    #print invinds
+    
+    
+#
+# check for repeats
+#    
+    repeat = False
+    rep1 = False
+    rep2 = False
+    for nk in range (0,nkernels):
+    	rep1 = kernels[nk]['name'] == name and \
+    	kernels[nk]['nargs'] == nargs and \
+    	kernels[nk]['ninds'] == ninds
+    	if rep1:
+    	   rep2 = True
+    	   for arg in range(0,nargs):
+    	    	rep2 =  rep2 and kernels[nk]['dims'][arg] == dims[arg] and \
+    	    	kernels[nk]['maps'][arg] == maps[arg] and \
+    	    	kernels[nk]['typs'][arg] == typs[arg] and \
+    	    	kernels[nk]['accs'][arg] == accs[arg] and \
+    	    	kernels[nk]['idxs'][arg] == idxs[arg] and \
+    	    	kernels[nk]['soaflags'][arg] == soaflags[arg] and \
+    	    	kernels[nk]['inds'][arg] == inds[arg]
+    	    
+    	   for arg in range(0,ninds):
+    	    	rep2 =  rep2 and kernels[nk]['inddims'][arg] == inddims[arg] and \
+    	    	kernels[nk]['indaccs'][arg] == indaccs[arg] and \
+    	    	kernels[nk]['indtyps'][arg] == indtyps[arg] and \
+    	    	kernels[nk]['invinds'][arg] == invinds[arg]
+    	   
+	   if rep2:
+    	    	print 'repeated kernel with compatible arguments: '+ kernels[nk]['name']
+    	        repeat = True
+    	   else:
+    	        print 'repeated kernel with incompatible arguments: ERROR'
+                break 
+
+#
+# output various diagnostics
+#  
+    if not repeat:
+    	print '  local constants:',
+    	for arg in range(0,nargs):
+    	    if maps[arg] == OP_GBL and accs[arg] == OP_READ:
+    	    	print str(arg),
+    	print '\n  global reductions:',
+    	for arg in range(0,nargs):
+    	    if maps[arg] == OP_GBL and accs[arg] <> OP_READ:
+    	    	print str(arg), 
+    	print '\n  direct arguments:',
+    	for arg in range(0,nargs):
+    	    if maps[arg] == OP_ID:
+    	    	print str(arg),
+    	print '\n  indirect arguments:',
+    	for arg in range(0,nargs):
+    	    if maps[arg] == OP_MAP:
+    	    	print str(arg),
+    	if ninds > 0:
+    	    print '\n  number of indirect datasets: '+str(ninds)    	    
+    	
+#
+# store away in master list
+#   
+    if not repeat: 
+      nkernels = nkernels+1;
+      temp = {'name': name,
+	'nargs': nargs,
+	'dims': dims,
+	'maps': maps,
+	'var': var,
+	'typs': typs,
+	'accs': accs,
+	'idxs': idxs,
+	'inds': inds,
+	'soaflags': soaflags,
+	
+	'ninds': ninds,
+	'inddims': inddims,
+	'indaccs': indaccs,
+	'indtyps': indtyps,
+	'invinds': invinds
+      }
+      kernels.append(temp)
+
   
 ##########################################################################
 # output new source file
 ########################################################################## 
   fid = open(src_file.split('.')[0]+'_op.cpp', 'w')
   now = datetime.datetime.now()
-  fid.write('//\n// auto-generated by op2.py on '+now.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
+  fid.write('//\n// auto-generated by op2.py on '+now.strftime("#Y-#m-#d #H:#M")+'\n//\n\n')
 
   loc_old = 0
 
   #read original file and locate header location
   loc_header = [text.find("op_seq.h")]
   
-  print loc_header
-    
   #get locations of all op_decl_consts
   n_consts = len(const_args)
   loc_consts = [0]*n_consts
@@ -471,9 +582,7 @@ for i in range(1,len(sys.argv)):
     loc_loops[n] = loop_args[n]['loc']
     
   locs = sorted(loc_header+loc_consts+loc_loops) 
-  print 'length of locs : '+str(len(locs))+str(locs)
   
-  #fid.write(text)
 #
 # process header, loops and constants
 #
@@ -536,6 +645,30 @@ for i in range(1,len(sys.argv)):
 
   fid.write(text[loc_old:]) 
   fid.close()
-  
-  
-  f.close()
+    
+  f.close() 
+  #end of loop over input source files
+
+
+##########################################################################
+#  errors and warnings
+###########################################################################
+
+if ninit==0:
+  print' '
+  print'-----------------------------'
+  print'  ERROR: no call to op_init  '
+  print'-----------------------------'
+
+if nexit==0:
+  print' '
+  print'-------------------------------'
+  print'  WARNING: no call to op_exit  '
+  print'-------------------------------'
+
+if npart==0 and nhdf5>0:
+  print' '
+  print'---------------------------------------------------'
+  print'  WARNING: hdf5 calls without call to op_partition '
+  print'---------------------------------------------------'
+
