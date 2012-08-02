@@ -220,5 +220,9 @@ void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n)
 
 void op_mat_zero_rows ( op_mat mat, int n, const int *rows, double val)
 {
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
   MatZeroRows( (Mat)mat->mat, n, rows, val, PETSC_NULL, PETSC_NULL );
+#else
+  MatZeroRows( (Mat)mat->mat, n, rows, val);
+#endif
 }
