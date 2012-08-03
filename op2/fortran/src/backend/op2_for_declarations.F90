@@ -18,16 +18,17 @@ module OP2_Fortran_Declarations
   ! accessing operation codes
   integer(c_int) :: OP_READ = 1
   integer(c_int) :: OP_WRITE = 2
-  integer(c_int) :: OP_INC = 3
-  integer(c_int) :: OP_RW = 4
+  integer(c_int) :: OP_RW = 3
+  integer(c_int) :: OP_INC = 4
   integer(c_int) :: OP_MIN = 4
   integer(c_int) :: OP_MAX = 5
 
   type, BIND(C) :: op_set_core
 
-    integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
+   integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
     integer(kind=c_int) :: size         ! number of elements in the set
     type(c_ptr)         :: name         ! set name
+    integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
     integer(kind=c_int) :: nonexec_size ! number of additional imported elements that are not executed
 
@@ -42,12 +43,13 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_map_core
 
-    integer(kind=c_int) ::    index ! position in the private OP2 array of op_map_core variables
-    type(c_ptr) ::            from  ! set map from
-    type(c_ptr) ::            to    ! set map to
-    integer(kind=c_int) ::    dim   ! dimension of map
-    type(c_ptr) ::            map   ! array defining map
-    type(c_ptr) ::            name  ! map name
+    integer(kind=c_int) ::    index        ! position in the private OP2 array of op_map_core variables
+    type(c_ptr) ::            from         ! set map from
+    type(c_ptr) ::            to           ! set map to
+    integer(kind=c_int) ::    dim          ! dimension of map
+    type(c_ptr) ::            map          ! array defining map
+    type(c_ptr) ::            name         ! map name
+    integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory
 
   end type op_map_core
 
@@ -60,19 +62,21 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_dat_core
 
-    integer(kind=c_int) ::    index    ! position in the private OP2 array of op_dat_core variables
-    type(c_ptr) ::            set      ! set on which data is defined
-    integer(kind=c_int) ::    dim      ! dimension of data
-    integer(kind=c_int) ::    size     ! size of each element in dataset
-    type(c_ptr) ::            dat      ! data on host
+    integer(kind=c_int) ::    index        ! position in the private OP2 array of op_dat_core variables
+    type(c_ptr) ::            set          ! set on which data is defined
+    integer(kind=c_int) ::    dim          ! dimension of data
+    integer(kind=c_int) ::    size         ! size of each element in dataset
+    type(c_ptr) ::            dat          ! data on host
 #ifdef OP2_WITH_CUDAFOR
-    type(c_devptr) ::         dat_d    ! data on device
+    type(c_devptr) ::         dat_d        ! data on device
 #else
-    type(c_ptr) ::            dat_d    ! data on device
+    type(c_ptr) ::            dat_d        ! data on device
 #endif
-    type(c_ptr) ::            type     ! data type
-    type(c_ptr) ::            name     ! data name
-    type(c_ptr) ::            buffer_d ! buffer for MPI halo sends on the device
+    type(c_ptr) ::            type         ! data type
+    type(c_ptr) ::            name         ! data name
+    type(c_ptr) ::            buffer_d     ! buffer for MPI halo sends on the device
+    integer(kind=c_int) ::    dirtybit     ! flag to indicate MPI halo exchange is needed
+    integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory
 
   end type op_dat_core
 

@@ -16,25 +16,61 @@ module OP2_Fortran_RT_Support
     integer(kind=c_int) :: nargs, ninds, part_size
     type(c_ptr) ::         in_maps
     type(c_ptr) ::         dats
-
     type(c_ptr) ::         idxs
     type(c_ptr) ::         accs
 
     ! execution plan
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      nthrcol ! number of thread colors for each block
+    type(c_devptr) ::      thrcol  ! thread colors
+    type(c_devptr) ::      offset  ! offset for primary set
+#else
     type(c_ptr) ::         nthrcol ! number of thread colors for each block
-    type(c_ptr) ::         thrcol ! thread colors
-    type(c_ptr) ::         offset ! offset for primary set
-    integer(kind=c_int) :: set_offset ! offset inside set (for MPI back-ends)
+    type(c_ptr) ::         thrcol  ! thread colors
+    type(c_ptr) ::         offset  ! offset for primary set
+#endif
+
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      ind_map ! concatenated pointers for indirect datasets
+#else
+    type(c_ptr) ::         ind_map ! concatenated pointers for indirect datasets
+#endif
+
     type(c_ptr) ::         ind_maps ! pointers for indirect datasets
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      ind_offs ! offsets for indirect datasets
+    type(c_devptr) ::      ind_sizes ! offsets for indirect datasets
+#else
     type(c_ptr) ::         ind_offs ! offsets for indirect datasets
     type(c_ptr) ::         ind_sizes ! offsets for indirect datasets
+#endif
     type(c_ptr) ::         nindirect ! size of ind_maps (for Fortran)
-    type(c_ptr) ::         maps ! regular pointers, renumbered as needed
+
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      loc_map ! concatenated maps to local indices, renumbered as needed
+#else
+    type(c_ptr) ::         loc_map ! concatenated maps to local indices, renumbered as needed
+#endif
+
+    type(c_ptr) ::         maps ! maps to local indices, renumbered as needed
     integer(kind=c_int) :: nblocks ! number of blocks (for Fortran)
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      nelems ! number of elements in each block
+#else
     type(c_ptr) ::         nelems ! number of elements in each block
+#endif
+    integer(kind=c_int) :: ncolors_core ! mumber of core colors in MPI
+    integer(kind=c_int) :: ncolors_owned ! number of colors in MPI for blocks that only have owned elements
     integer(kind=c_int) :: ncolors ! number of block colors
     type(c_ptr) ::         ncolblk  ! number of blocks for each color
+
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      blkmap ! block mapping
+#else
     type(c_ptr) ::         blkmap ! block mapping
+#endif
+
+    type(c_ptr) ::         nsharedCol ! bytes of shared memory required per block colour
     integer(kind=c_int) :: nshared ! bytes of shared memory required
     real(kind=c_float) ::  transfer ! bytes of data transfer per kernel call
     real(kind=c_float) ::  transfer2 ! bytes of cache line per kernel call
