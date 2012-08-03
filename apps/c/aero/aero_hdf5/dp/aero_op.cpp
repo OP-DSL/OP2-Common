@@ -218,6 +218,8 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
+  op_write_hdf5("new_FE_grid.h5");
+  
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
 
   op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
