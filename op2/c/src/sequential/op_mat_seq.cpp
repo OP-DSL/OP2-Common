@@ -191,6 +191,7 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x )
   KSPGetPC(ksp,&pc);
   PCSetType(pc,PCJACOBI);
   KSPSetTolerances(ksp,1.e-7,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT);
+  KSPSetFromOptions(ksp);
 
   KSPSolve(ksp,p_b,p_x);
 
