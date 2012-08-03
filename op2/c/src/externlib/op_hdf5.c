@@ -53,7 +53,7 @@
 #include <op_util.h> //just to include xmalloc routine
 
 /*******************************************************************************
-* Routine to write an op_set to an already open hdf5 file
+* Routine to read an op_set to an already open hdf5 file
 *******************************************************************************/
 
 op_set op_decl_set_hdf5(char const *file, char const *name)
@@ -78,7 +78,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 }
 
 /*******************************************************************************
-* Routine to write an op_map to an already open hdf5 file
+* Routine to read an op_map to an already open hdf5 file
 *******************************************************************************/
 
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name)
@@ -177,7 +177,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 }
 
 /*******************************************************************************
-* Routine to write an op_map to an already open hdf5 file
+* Routine to read an op_map to an already open hdf5 file
 *******************************************************************************/
 
 op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name)
@@ -220,13 +220,18 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
-  H5Tset_size(atype, 10);
+
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   //get OID of the attribute
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
+
+  //get length of attribute
+  int attlen = H5Aget_storage_size(attr);
+  H5Tset_size(atype, attlen+1);
+
   //read attribute
-  char typ[10];
+  char typ[attlen+1];
   H5Aread(attr,atype,typ);
   H5Aclose(attr);
   H5Sclose(dataspace);
@@ -236,6 +241,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     exit(2);
   }
+
 
   //Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -506,9 +512,6 @@ void op_write_hdf5(char const * file_name)
       exit(2);
     }
 
-
-
-
     H5Sclose(dataspace);
     H5Dclose(dset_id);
 
@@ -539,7 +542,9 @@ void op_write_hdf5(char const * file_name)
     //Create an string attribute - type
     dataspace= H5Screate(H5S_SCALAR);
     hid_t atype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(atype, 10);
+    int attlen = strlen(dat->type);
+    H5Tset_size(atype, attlen);
+
     attribute = H5Acreate(dset_id, "type", atype, dataspace,
         H5P_DEFAULT, H5P_DEFAULT);
     H5Awrite(attribute, atype, dat->type);
@@ -592,13 +597,18 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
-  H5Tset_size(atype, 10);
+
   //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   //get OID of the attribute
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
+
+  //get length of attribute
+  int attlen = H5Aget_storage_size(attr);
+  H5Tset_size(atype, attlen+1);
+
   //read attribute
-  char typ[10];
+  char typ[attlen+1];
   H5Aread(attr,atype,typ);
   H5Aclose(attr);
   H5Sclose(dataspace);
@@ -740,7 +750,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   //Create a string attribute - type
   dataspace= H5Screate(H5S_SCALAR);
   hid_t atype = H5Tcopy(H5T_C_S1);
-  H5Tset_size(atype, 10);
+
+  int attlen = strlen(type);
+  H5Tset_size(atype, attlen);
   attribute = H5Acreate(dset_id, "type", atype, dataspace,
     H5P_DEFAULT, H5P_DEFAULT);
 
