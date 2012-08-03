@@ -512,9 +512,6 @@ void op_write_hdf5(char const * file_name)
       exit(2);
     }
 
-
-
-
     H5Sclose(dataspace);
     H5Dclose(dset_id);
 
