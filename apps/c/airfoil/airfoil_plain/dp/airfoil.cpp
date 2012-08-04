@@ -225,7 +225,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_adt,-1,OP_ID, 1,"double",OP_WRITE));
 
       // calculate flux residual
-      rms = 0.0;
+
       op_par_loop(res_calc,"res_calc",edges,
           op_arg_dat(p_x,    0,pedge, 2,"double",OP_READ),
           op_arg_dat(p_x,    1,pedge, 2,"double",OP_READ),
@@ -234,9 +234,8 @@ int main(int argc, char **argv)
           op_arg_dat(p_adt,  0,pecell,1,"double",OP_READ),
           op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
           op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
-          op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ),
-          op_arg_gbl(&rms,1,"double",OP_INC));
-      printf("number of edges:: %lf should be: %d for single node\n",rms,nedge);
+          op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
+
       op_par_loop(bres_calc,"bres_calc",bedges,
           op_arg_dat(p_x,     0,pbedge, 2,"double",OP_READ),
           op_arg_dat(p_x,     1,pbedge, 2,"double",OP_READ),
