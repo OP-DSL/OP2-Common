@@ -198,12 +198,48 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   map->from = from;
   map->to = to;
   map->dim = dim;
+  map->idx_arr = NULL;
   map->map = imap;
   map->map_d = NULL;
   map->name = copy_str( name );
   map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
+
+  return map;
+}
+
+op_map
+op_decl_vmap_core ( op_set from, op_set to, int * idx, int * imap, char const * name )
+{
+  //Check whether we have everything correct (except dim) and add ourselves to the map list
+  op_map map = op_decl_map_core(from, to, 1, imap, name);
+  map->idx_arr = idx;
+
+  //Get the maximum dimension and store it
+  map->dim = 1;
+
+  for(int i = 0; i < from->size; ++i)
+    if(idx[i + 1] - idx[i] > map->dim)
+      map->dim = idx[i + 1] - idx[i];
+
+  //Check if sorted
+  for(int i = 0; i < from->size; ++i) {
+    if(idx[i + 1] <= idx[i]) {
+      printf("op_decl_map error -- index array is not sorted for map %s\n", name);
+      exit(-1);
+    }
+  }
+
+  //Check every element is correct
+  for(int i = 0; i < from->size; ++i) {
+    for(int j = idx[i]; j < idx[i + 1]; ++j) {
+      if(imap[j] >= to->size) {
+        printf("op_decl_map error -- element is past the end of the destination array for map %s\n", name);
+        exit(-1);
+      }
+    }
+  }
 
   return map;
 }

@@ -112,6 +112,7 @@ typedef struct
   op_set      from,   /* set pointed from */
               to;     /* set pointed to */
   int         dim,    /* dimension of pointer */
+             *idx_arr,/* dimension index array for vmaps */
              *map;    /* array defining pointer */
   int        *map_d;  /* map data on device */
   char const *name;   /* name of pointer */
@@ -246,6 +247,8 @@ void op_exit_core ( void );
 op_set op_decl_set_core ( int, char const * );
 
 op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
+
+op_map op_decl_vmap_core ( op_set, op_set, int *, int *, char const * );
 
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
 

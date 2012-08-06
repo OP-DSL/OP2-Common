@@ -98,6 +98,22 @@ comp ( const void * a2, const void * b2 )
 }
 
 /*
+ * Function to get the correct index into a map
+ */
+static int
+get_map_idx(int off, op_map map, int idx)
+{
+  if(map->idx_arr) {
+    if(off < map->idx_arr[idx + 1] - map->idx_arr[idx])
+      return off + map->idx_arr[idx];
+    else
+      return map->idx_arr[idx];
+  } else {
+    return off + idx * map->dim;
+  }
+}
+
+/*
  * plan check routine
  */
 
@@ -275,7 +291,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
         {
           int p_local = OP_plan.loc_maps[m][e];
           int p_global = OP_plan.ind_maps[m2][p_local + OP_plan.ind_offs[m2 + n * ninds]];
-          err += ( p_global != map->map[OP_plan.idxs[m] + e * map->dim] );
+          err += ( p_global != map->map[get_map_idx(OP_plan.idxs[m], map, e)] );
         }
         ntot += OP_plan.nelems[n];
       }
@@ -549,7 +565,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( inds[m2] == m )
         {
           for ( int e = prev_offset; e < next_offset; e++ )
-            work2[ne++] = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
+            work2[ne++] = maps[m2]->map[get_map_idx(idxs[m2], maps[m2], e)];
         }
       }
 
@@ -586,7 +602,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( inds[m2] == m )
         {
           for ( int e = prev_offset; e < next_offset; e++ )
-            OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]]);
+            OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[get_map_idx(idxs[m2], maps[m2], e)]]);
         }
       }
 
@@ -620,8 +636,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       {
         if ( inds[m] >= 0 )
           for ( int e = prev_offset; e < next_offset; e++ )
-            work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
-        //work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
+            work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]] = 0; /* zero out color array */
+        //work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]] = 0; /* zero out color array */
       }
 
       for ( int e = prev_offset; e < next_offset; e++ )
@@ -631,7 +647,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && accs[m] == OP_INC )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; /* set bits of mask
+              mask |= work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]]; /* set bits of mask
               */
 
           int color = ffs ( ~mask ) - 1;  /* find first bit not set */
@@ -647,7 +663,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
             for ( int m = 0; m < nargs; m++ )
               if ( inds[m] >= 0 && accs[m] == OP_INC )
-                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask; /* set color bit */
+                work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]] |= mask; /* set color bit */
           }
         }
       }
@@ -718,8 +734,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         {
           if ( inds[m] >= 0 && accs[m] == OP_INC )
             for ( int e = prev_offset; e < next_offset; e++ )
-              mask |= work[inds[m]][maps[m]->map[idxs[m] +
-                e * maps[m]->dim]]; // set bits of mask
+              mask |= work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]]; // set bits of mask
         }
 
         int color = ffs( ~mask ) - 1; // find first bit not set
@@ -737,8 +752,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           {
             if ( inds[m] >= 0 && accs[m] == OP_INC )
               for ( int e = prev_offset; e < next_offset; e++ )
-                work[inds[m]][maps[m]->map[idxs[m] +
-                  e * maps[m]->dim]] |= mask;
+                work[inds[m]][maps[m]->map[get_map_idx(idxs[m], maps[m], e)]] |= mask;
           }
         }
       }
