@@ -20,8 +20,7 @@ def op2_gen_openmp(master, date, consts, kernels):
   
   any_soa = 0
   for nk in range (0,len(kernels)):
-    any_soa = any_soa or sum(kernels[nk]['soaflags'])
-    
+    any_soa = any_soa or sum(kernels[nk]['soaflags'])    
 
 ##########################################################################
 #  create new kernel file
@@ -192,21 +191,24 @@ def op2_gen_openmp(master, date, consts, kernels):
       if sum(v)>1 and len(v_i)>0:
         if indaccs[m-1] == OP_INC:
           ind = max([idxs[i] for i in range(len(inds)) if inds[i]==m])
-          file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind+1)+'] = {\n'
+          file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+\
+          '_vec['+str(ind+1)+'] = {\n'
           for n in range(0,nargs):
             if inds[n] == m:
               file_text = file_text+'    arg'+str(n)+'_l,\n'
           file_text = file_text+'  };\n'
         else:
          ind = max([idxs[i] for i in range(len(inds)) if inds[i]==m])
-         file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind+1)+'];\n'
+         file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+\
+         '_vec['+str(ind+1)+'];\n'
 # 
 # lengthy code for general case with indirection
 #
     if ninds>0:
       file_text = file_text+' \n'
       for m in range (0,ninds):
-        file_text = file_text+'  int  *ind_arg'+str(m)+'_map, ind_arg'+str(m)+'_size;\n'
+        file_text = file_text+'  int  *ind_arg'+str(m)+\
+        '_map, ind_arg'+str(m)+'_size;\n'
       for m in range (0,ninds):
         file_text = file_text+'  '+indtyps[m]+' *ind_arg'+str(m)+'_s;\n'
        
@@ -235,9 +237,11 @@ def op2_gen_openmp(master, date, consts, kernels):
       '    int nbytes = 0;\n'
        
       for m in range(0,ninds):
-        file_text = file_text+'    ind_arg'+str(m)+'_s = ('+indtyps[m]+' *) &shared[nbytes];\n'
+        file_text = file_text+'    ind_arg'+str(m)+'_s = ('+indtyps[m]+\
+        ' *) &shared[nbytes];\n'
         if m < ninds-1:
-          file_text = file_text+ '    nbytes    += ROUND_UP(ind_arg+'+str(m)+'_size*sizeof('+\
+          file_text = file_text+ '    nbytes    += ROUND_UP(ind_arg+'+\
+          str(m)+'_size*sizeof('+\
           indtyps[m]+')*'+ inddims[m]+');\n'
         
       file_text = file_text+'  }\n'\
@@ -248,10 +252,12 @@ def op2_gen_openmp(master, date, consts, kernels):
           file_text = file_text+ '  for (int n=0; n<ind_arg'+str(m)+'_size; n++)\n'
           file_text = file_text+ '    for (int d=0; d<'+inddims[m]+'; d++)\n'
         if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
-          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+inddims[m]+'] = ind_arg'+str(m)+\
+          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
+          inddims[m]+'] = ind_arg'+str(m)+\
           '[d+ind_arg'+str(m)+'_map[n]*'+inddims[m]+'];\n\n'
         elif indaccs[m]==OP_INC:
-          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+inddims[m]+'] = ZERO_'+indtyps[m]+';\n'
+          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
+          inddims[m]+'] = ZERO_'+indtyps[m]+';\n'
        
       file_text = file_text+'\n  // process set elements\n\n'
        
@@ -265,7 +271,6 @@ def op2_gen_openmp(master, date, consts, kernels):
             '      arg'+str(m)+'_l[d] = ZERO_'+typs[m]+';\n'
       else:
         file_text = file_text+'  for (int n=0; n<nelem; n++) {\n'
-
 #
 # simple alternative when no indirection
 #
@@ -340,13 +345,14 @@ def op2_gen_openmp(master, date, consts, kernels):
       
         for m in range(0,nargs):
           if maps[m] == OP_MAP and accs[m] == OP_INC:
-            file_text = file_text+'    int arg'+str(m)+'_map = arg_map['+str(cumulative_indirect_index[m])+\
-            '*set_size+n+offset_b];\n'
+            file_text = file_text+'    int arg'+str(m)+'_map = arg_map['+\
+            str(cumulative_indirect_index[m])+'*set_size+n+offset_b];\n'
       
         for m in range(0,nargs):
           if maps[m] == OP_MAP and accs[m] == OP_INC:
             file_text = file_text+'\n    for (int d=0; d<'+str(dims[m])+'; d++)\n'\
-            '      ind_arg'+str(inds[m]-1)+'_s[d+arg'+str(m)+'_map*'+dims[m]+'] += arg'+str(m)+'_l[d];\n'
+            '      ind_arg'+str(inds[m]-1)+'_s[d+arg'+str(m)+'_map*'+dims[m]+\
+            '] += arg'+str(m)+'_l[d];\n'
           
       file_text = file_text + '  }\n'
       
@@ -364,18 +370,34 @@ def op2_gen_openmp(master, date, consts, kernels):
           elif indaccs[m-1]==OP_INC:
             file_text = file_text +'      ind_arg'+str(m-1)+'[d+ind_arg'+str(m-1)+'_map[n]*'+\
             inddims[m-1]+'] += ind_arg'+str(m-1)+'_s[d+n*'+inddims[m-1]+'];'
-            
 #
 # ... and direct kernels
 #
     else:
       file_text = file_text +'  }\n'
-      
+
+#
+# global reduction
+#
     file_text = file_text +'}\n'
+    
+
+##########################################################################
+# then C++ stub function
+##########################################################################
+
+    file_text = file_text+'\n// host stub function          \n'\
+        'void op_par_loop_'+name+'(char const *name, op_set set,\n'
+        
+    for m in range(0,len(unique_args)):
+      if m == unique_args[len(unique_args)-1]:
+        file_text = file_text+'  op_arg arg'+str(m)+'){\n'
+      else:
+        file_text = file_text+'  op_arg arg'+str(m)+',\n'
     
     print file_text
     
-    
+    #for m in range(len([i for i in range(len(unique_args)) if m == unique_args[i]])):
     
     
     
