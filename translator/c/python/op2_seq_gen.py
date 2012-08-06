@@ -177,7 +177,8 @@ for nargs in range (1,maxargs+1):
     f.write('  //set dirty bit on datasets touched\n')
     f.write('  op_mpi_set_dirtybit(10, args);\n\n')
 
-    f.write('  //global reduction for MPI execution, if needed\n')
+    f.write('  //global reduction for MPI execution, if needed \n')
+    f.write('  //p_a simply used to determine type for MPI reduction\n')
     for n in range (0, nargs):
         f.write('  op_mpi_reduce(&arg'+str(n)+',(T'+str(n)+' *)p_a['+str(n)+']);\n')
     
