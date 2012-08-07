@@ -294,16 +294,16 @@ int main(int argc, char **argv)
       op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
       op_arg_gbl(&count,1,"int",OP_INC));
   op_printf("number of edges:: %d should be: %d \n",count,g_nedge);
-  if (count != g_nedge) printf("indirect reduction FAILED\n");
-  else printf("indirect reduction PASSED\n");
+  if (count != g_nedge) op_printf("indirect reduction FAILED\n");
+  else op_printf("indirect reduction PASSED\n");
   //direct reduction
   count = 0;
   op_par_loop(update,"update",cells,
       op_arg_dat(p_res, -1,OP_ID, 4,"double",OP_RW   ),
       op_arg_gbl(&count,1,"int",OP_INC));
   op_printf("number of cells: %d should be: %d \n",count,g_ncell);
-  if (count != g_ncell) printf("direct reduction FAILED\n");
-  else printf("direct reduction PASSED\n");
+  if (count != g_ncell) op_printf("direct reduction FAILED\n");
+  else op_printf("direct reduction PASSED\n");
 
   op_timers(&cpu_t2, &wall_t2);
 
