@@ -68,10 +68,13 @@ for nk = 1:length(kernels)
               if m>1
                 unique_args = [unique_args length(new_dims)+1];
               end
+              temp = {};
               temp(1:-1*idxs(m)) = vars(m);
               new_vars = [new_vars temp];
+              temp = {};
               temp(1:-1*idxs(m)) = typs(m);
               new_typs = [new_typs temp];
+              temp = {};
               temp(1:-1*idxs(m)) = dims(m);
               new_dims = [new_dims temp];
               new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
@@ -826,7 +829,7 @@ for nk = 1:length(kernels)
       if (reduct)
         file = strvcat(file, ...
         ' ','        // transfer global reduction data back to CPU',...
-        ' ','        if (col == Plan->ncolors_owned)',...
+        ' ','        if (col == Plan->ncolors_owned - 1)',...
         ' ','          mvReductArraysToHost(reduct_bytes);',' ');
       end
       file = strvcat(file, ...
