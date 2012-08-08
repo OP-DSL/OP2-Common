@@ -684,5 +684,5 @@ if npart==0 and nhdf5>0:
 #  finally, generate target-specific kernel files
 ##########################################################################
 
-op2_gen_openmp(str(sys.argv[0]), date, consts, kernels)
+op2_gen_openmp(str(sys.argv[1]), date, consts, kernels)
 
