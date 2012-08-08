@@ -48,9 +48,13 @@ def op2_gen_openmp(master, date, consts, kernels):
     #print inds
     #print invinds
     
+    #print idxs
+    #print dims
+    
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
+    
     if len(vec) > 0:
-      unique_args = 1;
+      unique_args = [1];
       vec_counter = 1;
       vectorised = []
       new_dims = []
@@ -63,10 +67,9 @@ def op2_gen_openmp(master, date, consts, kernels):
       new_soaflags = []
       for m in range(0,nargs):
       	  if int(idxs[m])<0 and maps[m] == OP_MAP:
-      	    if m > 1:
-      	      unique_args = [unique_args,len(new_dims)+1]
-      	    
-	    temp = [0]*(-1*int(idxs[m]))
+      	    if m > 0:
+      	      unique_args = unique_args + [len(new_dims)+1]
+      	    temp = [0]*(-1*int(idxs[m]))
       	    for i in range(0,-1*int(idxs[m])): 
       	      temp[i] = var[m]
       	    new_vars = new_vars+temp
@@ -85,8 +88,8 @@ def op2_gen_openmp(master, date, consts, kernels):
             vectorised = vectorised + [vec_counter]*int(-1*int(idxs[m]))
             vec_counter = vec_counter + 1;
           else:
-            if m>1:
-              unique_args = [unique_args,len(new_dims)+1]
+            if m > 0:
+              unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
             new_accs = new_accs+[int(accs[m])]
@@ -110,19 +113,19 @@ def op2_gen_openmp(master, date, consts, kernels):
       	for index in range(0,len(inds)+1):
       	  if inds[index] == i:
       	    invinds[i-1] = index
-      	    break
-      
+      	    break      
     else:
     	vectorised = [0]*nargs
-    	unique_args = range(0,nargs)
-        
+    	unique_args = range(1,nargs+1)
+    
+    #print unique_args
+    
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
       if maps[i] == OP_MAP:
         cumulative_indirect_index[i] = j
-        j = j + 1
-
+        j = j + 1        
 #
 # set two logicals
 #
@@ -181,7 +184,7 @@ def op2_gen_openmp(master, date, consts, kernels):
   
     for m in range (0,nargs):
       if maps[m]==OP_MAP and accs[m]==OP_INC:
-        file_text = file_text+'  '+typs[m]+'  arg'+str(m)+'_l['+dims[m]+'];\n'
+        file_text = file_text+'  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
     
     for m in range (1,ninds+1):
       v = [i for i in range(len(inds)) if inds[i]==m]
@@ -190,17 +193,16 @@ def op2_gen_openmp(master, date, consts, kernels):
         v_i = v_i + [vectorised[v[i]]]
       if sum(v)>1 and len(v_i)>0:
         if indaccs[m-1] == OP_INC:
-          ind = max([idxs[i] for i in range(len(inds)) if inds[i]==m])
+          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
           file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+\
-          '_vec['+str(ind+1)+'] = {\n'
+          '_vec['+str(ind)+'] = {\n'
           for n in range(0,nargs):
             if inds[n] == m:
               file_text = file_text+'    arg'+str(n)+'_l,\n'
           file_text = file_text+'  };\n'
         else:
-         ind = max([idxs[i] for i in range(len(inds)) if inds[i]==m])
-         file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+\
-         '_vec['+str(ind+1)+'];\n'
+          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
+          file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'];\n'
 # 
 # lengthy code for general case with indirection
 #
@@ -277,9 +279,9 @@ def op2_gen_openmp(master, date, consts, kernels):
     else:
       file_text = file_text+'  // process set elements\n'\
                         '  for (int n=start; n<finish; n++) {\n'    
+                        
 #
-# kernel call
-#   
+# kernel call#   
 
     # xxx: array of pointers for non-locals 
     for m in range(1,ninds+1):
@@ -315,13 +317,13 @@ def op2_gen_openmp(master, date, consts, kernels):
         line = line+indent+'ind_arg'+str(inds[m]-1)+'_s+arg_map['+\
         str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*'+str(m)+','+'\n'
         a =a+1
-      elif maps[m]==OP_MAP and m == 1:
+      elif maps[m]==OP_MAP and m == 0:
         line = line+indent+'arg'+str(inds[m]-1)+'_vec,'+'\n'
         a =a+1
-      elif maps[m]==OP_MAP and m>1 and vectorised[m] <> vectorised[m-1]: #xxx:vector
+      elif maps[m]==OP_MAP and m>0 and vectorised[m] <> vectorised[m-1]: #xxx:vector
         line = line+indent+'arg'+str(inds[m]-1)+'_vec,'+'\n'
         a =a+1
-      elif maps[m]==OP_MAP and m>1 and vectorised[m] == vectorised[m-1]:
+      elif maps[m]==OP_MAP and m>0 and vectorised[m] == vectorised[m-1]:
         line = line
         a =a+1
       elif maps[m]==OP_ID:
@@ -332,7 +334,7 @@ def op2_gen_openmp(master, date, consts, kernels):
           line = line+indent+'arg'+str(m)+'+n*'+str(dims[m])+','+'\n'
           a =a+1
       else:
-        print 'internal error 1'
+        print 'internal error 1 '
     
     file_text = file_text+line[0:-2]+');\n' #remove final ',' and \n  
     
@@ -357,7 +359,8 @@ def op2_gen_openmp(master, date, consts, kernels):
       file_text = file_text + '  }\n'
       
       s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
-      if max(s)>0:
+      
+      if len(s)>0 and max(s)>0:
         file_text = file_text +'\n  // apply pointered write/increment\n'
         
       for m in range(1,ninds+1):
@@ -379,8 +382,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
 # global reduction
 #
-    file_text = file_text +'}\n'
-    
+    file_text = file_text +'}\n'    
 
 ##########################################################################
 # then C++ stub function
@@ -388,27 +390,226 @@ def op2_gen_openmp(master, date, consts, kernels):
 
     file_text = file_text+'\n// host stub function          \n'\
         'void op_par_loop_'+name+'(char const *name, op_set set,\n'
+    
+   
+    
+    for m in unique_args:
+        if m == unique_args[len(unique_args)-1]:
+          file_text = file_text+'  op_arg arg'+str(m-1)+'){\n\n'
+        else:
+          file_text = file_text+'  op_arg arg'+str(m-1)+',\n'
+    
+    for m in range (0,nargs):
+      if maps[m]==OP_GBL and accs[m] <> OP_READ:
+        file_text = file_text+'  '+typs[m]+'*arg'+str(m)+'h = ('+typs[m]+' *)arg'+str(m)+'.data;'
+    
+    file_text = file_text + '\n  int nargs = '+str(nargs)+';\n'
+    file_text = file_text + '  op_arg args['+str(nargs)+'];\n\n'
+  
+    #print vectorised
+    
+    for m in range (0,nargs):
+      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == m]
+      if len(u) > 0 and vectorised[m] > 0:
+        file_text = file_text + '  arg'+str(m)+'.idx = 0;\n'
+        file_text = file_text + '  args['+str(m)+'] = arg'+str(m)+';\n'
+        v = [int(vectorised[i] == vectorised[m]) for i in range(0,len(vectorised))]
+        first = [i for i in range(0,len(v)) if v[i] == 1]
+        first = first[0]
+        file_text = file_text +'  for (int v = 1; v < '+str(sum(v))+'; v++) {\n'
+        file_text = file_text +'    args['+str(m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        str(first)+'.map, '+dims[m]+', "'+typs[m]+'", '+accsstring[accs[m]-1]+');\n  }' 
         
-    for m in range(0,len(unique_args)):
-      if m == unique_args[len(unique_args)-1]:
-        file_text = file_text+'  op_arg arg'+str(m)+'){\n'
+      elif vectorised[m]>0:
+        file_text = file_text
       else:
-        file_text = file_text+'  op_arg arg'+str(m)+',\n'
+        file_text = file_text + '  args['+str(m)+'] = arg'+str(m)+';\n'
+        
+#
+#   indirect bits
+#
+    if ninds>0:
+      file_text = file_text +'\n  int    ninds   = '+str(ninds)+';\n'
+      file_text = file_text +'  int    inds['+str(nargs)+'] = {'
+      for m in range(0,nargs):
+        file_text = file_text + str(inds[m]-1)+','
+      file_text = file_text + '};\n\n'
+      file_text = file_text + \
+      '  if (OP_diags>2) {\n'\
+      '    printf(" kernel routine with indirection: '+name+'");\n'\
+      '  }\n\n'\
+      '  // get plan\n'\
+      '  #ifdef OP_PART_SIZE_ '+ str(nk)+'\n'\
+      '    int part_size = OP_PART_SIZE_'+str(nk)+';\n'\
+      '  #else\n'\
+      '    int part_size = OP_part_size;\n'\
+      '  #endif\n\n'\
+      '  int set_size = op_mpi_halo_exchanges(set, nargs, args);\n'  
     
+#
+# direct bit
+#   
+    else:
+      file_text = file_text + \
+      '\n  if (OP_diags>2) {\n'\
+      '    printf(" kernel routine w/o indirection:  '+ name + '");\n'\
+      '  }\n\n'\
+      '  op_mpi_halo_exchanges(set, nargs, args);\n'
+
+#
+# start timing
+#
+    file_text = file_text + '\n  // initialise timers\n'\
+                '  double cpu_t1, cpu_t2, wall_t1, wall_t2;\n'\
+                '  op_timers_core(&cpu_t1, &wall_t1);\n'
+
+#
+# set number of threads in x86 execution and create arrays for reduction
+#
+
+    if reduct or ninds==0:
+      file_text = file_text +'  // set number of threads\n'\
+      '  #ifdef _OPENMP\n'\
+      '    int nthreads = omp_get_max_threads();\n'\
+      '  #else\n'\
+      '    int nthreads = 1;\n'\
+      '  #endif\n'
+     
+    if reduct:
+      file_text = file_text +\
+      '\n  // allocate and initialise arrays for global reduction\n'
+      for m in range(0,nargs):
+        if maps[m]==OP_GBL and accs[m]<>OP_READ:
+          file_text = file_text +'  '+typs[m]+' arg'+str(m)+'_l['+dims[m]+'+64*64];\n'\
+          '  for (int thr=0; thr<nthreads; thr++)\n'
+          if accs[m]==OP_INC:
+            file_text = file_text +'    for (int d=0; d<'+dims[m]+'; d++) arg'+\
+            str(m)+'_l[d+thr*64]=ZERO_'+typs[m]+';\n'
+          else:
+            file_text = file_text +'    for (int d=0; d<'+dims[m]+'; d++) arg'+\
+            str(m)+'_l[d+thr*64]=arg'+str(m)+'h[d];\n'
+          
+    file_text = file_text +'\n  if (set->size >0) {\n\n'
+    
+#
+# kernel call for indirect version
+#
+    if ninds>0:
+      file_text = file_text +\
+      '    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);\n\n'\
+      '    // execute plan\n'\
+      '    int block_offset = 0;\n'\
+      '    for (int col=0; col < Plan->ncolors; col++) {\n'\
+      '      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);\n'\
+      '      int nblocks = Plan->ncolblk[col];\n\n'\
+      '#pragma omp parallel for\n'\
+      '      for (int blockIdx=0; blockIdx<nblocks; blockIdx++)\n'\
+      '      op_x86_'+name+'( blockIdx,\n'\
+
+      for m in range(1,ninds+1):
+        file_text = file_text +'         ('+typs[m-1]+' *)arg'+str(m-1)+'.data,\n'
+    
+      file_text = file_text +'         Plan->ind_map,\n'
+      file_text = file_text +'         Plan->loc_map,\n'
+
+      for m in range(0,nargs):
+        if inds[m]==0:
+          file_text = file_text +'         ('+typs[m]+' *)arg'+str(m)+'.data,\n'
+      
+
+      file_text = file_text+\
+      '         Plan->ind_sizes,\n'\
+      '         Plan->ind_offs,\n'\
+      '         block_offset,\n'\
+      '         Plan->blkmap,\n'\
+      '         Plan->offset,\n'\
+      '         Plan->nelems,\n'\
+      '         Plan->nthrcol,\n'\
+      '         Plan->thrcol,\n'\
+      '         set_size);\n\n'\
+      '      block_offset += nblocks;\n'\
+      '    }\n'    
+#
+# kernel call for direct version
+#
+    else:
+      file_text = file_text +\
+      '  // execute plan\n'\
+       '#pragma omp parallel for\n'\
+           '    for (int thr=0; thr<nthreads; thr++) {\n'\
+           '      int start  = (set->size* thr   )/nthreads;\n'\
+           '      int finish = (set->size*(thr+1))/nthreads;\n'\
+           '      op_x86_'+name+'( '
+
+      for m in range(0,nargs):
+        indent = ''
+        if m <> 0:
+          indent = '               '+' '*len(name)
+        if maps[m]==OP_GBL and accs[m] <> OP_READ:
+          file_text = file_text +indent+'arg'+str(m)+'_l + thr*64,\n'
+        else:
+          file_text = file_text +indent+'('+typs[m]+' *) arg'+str(m)+'.data,\n'
+        
+      file_text = file_text +' '*len(name)+'               start, finish );\n    }\n\n'
+    
+  
+    if ninds>0:
+      file_text = file_text +'  op_timing_realloc('+str(nk)+');\n'\
+      '  OP_kernels['+str(nk)+'].transfer  += Plan->transfer; \n'\
+      '  OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;\n'
+    
+    file_text = file_text+'  }\n'    
+
+#
+# combine reduction data from multiple OpenMP threads
+#
+    file_text = file_text +'\n  // combine reduction data\n'
+    for m in range(0,nargs):
+      if maps[m]==OP_GBL and accs[m]<>OP_READ:
+        file_text = file_text+'  for (int thr=0; thr<nthreads; thr++)\n'
+        if accs[m]==OP_INC:
+          file_text = file_text+'    for(int d=0; d<'+dims[m]+'; d++) arg'+\
+          str(m)+'h[d] += arg'+str(m)+'_l[d+thr*64];';
+        elif accs[m]==OP_MIN:
+          file_text = file_text+\
+          '    for(int d=0; d<'+dims(m)+'; d++) arg'+str(m)+'h[d]  = MIN(arg'+\
+          str(m)+'h[d],arg'+str(m)+'_l[d+thr*64]);\n'
+        elif accs[m]==OP_MAX:
+          file_text = file_text+\
+          '    for(int d=0; d<'+dims[m]+'; d++) '+str(m)+'h[d]  = MAX(arg'+\
+          str(m)+'h[d],arg'+str(m)+'_l[d+thr*64]);\n'
+        else:
+          print 'internal error: invalid reduction option'
+        file_text = file_text+'\n  op_mpi_reduce(&arg'+str(m)+',arg'+str(m)+'h);\n'
+      
+
+    file_text = file_text+'\n  op_mpi_set_dirtybit(nargs, args);\n\n'
+
+#
+# update kernel record
+#
+
+    file_text = file_text+'  // update kernel record\n'\
+    '  op_timers_core(&cpu_t2, &wall_t2);\n'\
+    '  op_timing_realloc('+str(nk)+');\n'\
+    '  OP_kernels[' +str(nk)+ '].name      = name;\n'\
+    '  OP_kernels[' +str(nk)+ '].count    += 1;\n'\
+    '  OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;\n'
+
+    if ninds == 0:
+      line = '  OP_kernels['+str(nk)+'].transfer += (float)set->size *'
+
+      for m in range (0,nargs):
+        if maps[m]<>OP_GBL:
+          if accs[m]==OP_READ or accs[m]==OP_WRITE:
+            file_text = file_text+line+' arg'+str(m)+'.size;\n'
+          else:
+            file_text = file_text+line+' arg'+str(m)+'.size * 2.0f;\n'
+       
+
+    file_text = file_text+'}'
+  
     print file_text
-    
-    #for m in range(len([i for i in range(len(unique_args)) if m == unique_args[i]])):
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     
