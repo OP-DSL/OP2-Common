@@ -227,3 +227,13 @@ void op_mat_zero_rows ( op_mat mat, int n, const int *rows, double val)
   MatZeroRows( (Mat)mat->mat, n, rows, val);
 #endif
 }
+
+void op_mat_get_array( const op_mat mat)
+{
+  MatGetArray((Mat) mat->mat, (MatScalar**) &mat->mat_array);
+}
+
+void op_mat_put_array( const op_mat mat)
+{
+  MatRestoreArray((Mat) mat->mat, (MatScalar**) &mat->mat_array);
+}

@@ -62,6 +62,10 @@ void op_mat_zero_rows ( op_mat mat, int n, const int *rows, double val);
 
 void op_solve ( const op_mat mat, const op_dat b, op_dat x );
 
+void op_mat_get_array( const op_mat mat);
+
+void op_mat_put_array( const op_mat mat);
+
 #ifdef __cplusplus
 }
 #endif
