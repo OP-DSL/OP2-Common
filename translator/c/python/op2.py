@@ -41,13 +41,7 @@ from op2_gen_openmp import *
 # declare constants
 #
 
-ninit = 0
-nexit = 0
-npart = 0
-nhdf5 = 0
-
-nconsts  = 0
-nkernels = 0
+ninit = 0; nexit = 0; npart = 0; nhdf5 = 0; nconsts  = 0; nkernels = 0;
 consts = []
 kernels = []
 
@@ -179,8 +173,56 @@ def find_all(string, occurrence):
       else:
         break
       found += 1
-    
 
+
+def get_arg_dat(arg_string, j):  
+  loc = arg_parse(arg_string,j+1)
+  dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+  #print dat_args_string
+  
+  #remove comments
+  dat_args_string = comment_remover(dat_args_string)
+  
+  #check for syntax errors
+  if len(dat_args_string.split(',')) <> 6:
+    print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
+    return
+    
+  #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+  temp_dat = {'type':'op_arg_dat', 
+  'dat':dat_args_string.split(',')[0].strip(),
+  'idx':dat_args_string.split(',')[1].strip(),
+  'map':dat_args_string.split(',')[2].strip(),
+  'dim':dat_args_string.split(',')[3].strip(),
+  'typ':dat_args_string.split(',')[4].strip(),
+  'acc':dat_args_string.split(',')[5].strip()}
+  
+  return temp_dat
+
+
+def get_arg_gbl(arg_string, k):  
+  loc = arg_parse(arg_string,k+1)
+  gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+  print gbl_args_string
+  
+  #remove comments
+  gbl_args_string = comment_remover(gbl_args_string)
+  
+  #check for syntax errors
+  if len(gbl_args_string.split(',')) <> 4:
+    print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
+    return
+    
+  #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+  temp_gbl = {'type':'op_arg_gbl', 
+  'data':gbl_args_string.split(',')[0].strip(),
+  'dim':gbl_args_string.split(',')[1].strip(),
+  'typ':gbl_args_string.split(',')[2].strip(),
+  'acc':gbl_args_string.split(',')[3].strip()}
+  
+  return temp_gbl
+  
+  
 ##########################################################################
 # parsing for op_par_loop calls
 ##########################################################################
@@ -206,119 +248,33 @@ def op_par_loop_parse(text):
       k = arg_string.find(search3)
       
       while j > -1 or k > -1:
-        print str(j) +'  '+str(k)
         if  k <= -1 : 
-          loc = arg_parse(arg_string,j+1)
-          dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
-          print dat_args_string
-        
-          #remove comments
-          dat_args_string = comment_remover(dat_args_string)
-        
-          #check for syntax errors
-          if len(dat_args_string.split(',')) <> 6:
-            print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
-            return
-        
-          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
-          temp_dat = {'type':'op_arg_dat', 
-            'dat':dat_args_string.split(',')[0].strip(),
-            'idx':dat_args_string.split(',')[1].strip(),
-            'map':dat_args_string.split(',')[2].strip(),
-            'dim':dat_args_string.split(',')[3].strip(),
-            'typ':dat_args_string.split(',')[4].strip(),
-            'acc':dat_args_string.split(',')[5].strip()
-          }
+          temp_dat = get_arg_dat(arg_string,j)
           #append this struct to a temporary list/array
-          num_args = num_args + 1
           temp_args.append(temp_dat)
-          j= arg_string.find(search2, j+11) 
-          #k= arg_string.find(search3, j+11) 
-        
-        elif  j <= -1 :
-          loc = arg_parse(arg_string,k+1)
-          gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
-          print gbl_args_string
-        
-          #remove comments
-          gbl_args_string = comment_remover(gbl_args_string)
-        
-          #check for syntax errors
-          if len(gbl_args_string.split(',')) <> 4:
-            print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
-            return
-         
-          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
-          temp_gbl = {'type':'op_arg_gbl', 
-            'data':gbl_args_string.split(',')[0].strip(),
-            'dim':gbl_args_string.split(',')[1].strip(),
-            'typ':gbl_args_string.split(',')[2].strip(),
-            'acc':gbl_args_string.split(',')[3].strip()}
-            
-          #append this struct to a temporary list/array
           num_args = num_args + 1
+          j= arg_string.find(search2, j+11) 
+          
+        elif  j <= -1 :
+          temp_gbl = get_arg_gbl(arg_string,k)
+          #append this struct to a temporary list/array
           temp_args.append(temp_gbl)
-          #j= arg_string.find(search2, k+11) 
+          num_args = num_args + 1
           k= arg_string.find(search3, k+11) 
           
         elif j < k:
-          loc = arg_parse(arg_string,j+1)
-          dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
-          print dat_args_string
-        
-          #remove comments
-          dat_args_string = comment_remover(dat_args_string)
-        
-          #check for syntax errors
-          if len(dat_args_string.split(',')) <> 6:
-            print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
-            return
-        
-          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
-          temp_dat = {'type':'op_arg_dat', 
-            'dat':dat_args_string.split(',')[0].strip(),
-            'idx':dat_args_string.split(',')[1].strip(),
-            'map':dat_args_string.split(',')[2].strip(),
-            'dim':dat_args_string.split(',')[3].strip(),
-            'typ':dat_args_string.split(',')[4].strip(),
-            'acc':dat_args_string.split(',')[5].strip()
-          }
+          temp_dat = get_arg_dat(arg_string,j)
           #append this struct to a temporary list/array
-          num_args = num_args + 1
           temp_args.append(temp_dat)
+          num_args = num_args + 1
           j= arg_string.find(search2, j+11) 
-          #k= arg_string.find(search3, j+11) 
           
         else:
-          loc = arg_parse(arg_string,k+1)
-          gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
-          print gbl_args_string
-        
-          #remove comments
-          gbl_args_string = comment_remover(gbl_args_string)
-        
-          #check for syntax errors
-          if len(gbl_args_string.split(',')) <> 4:
-            print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
-            return
-         
-          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
-          temp_gbl = {'type':'op_arg_gbl', 
-            'data':gbl_args_string.split(',')[0].strip(),
-            'dim':gbl_args_string.split(',')[1].strip(),
-            'typ':gbl_args_string.split(',')[2].strip(),
-            'acc':gbl_args_string.split(',')[3].strip()}
-        
+          temp_gbl = get_arg_gbl(arg_string,k)
           #append this struct to a temporary list/array
-          num_args = num_args + 1
           temp_args.append(temp_gbl)
-          #j= arg_string.find(search2, k+11) 
+          num_args = num_args + 1
           k= arg_string.find(search3, k+11) 
-       
-                
-        #j= arg_string.find(search2, j+10) 
-        #k= arg_string.find(search3, k+10)     
-        #end of inner while loop
           
       temp = {'loc':i,
       'name1':arg_string.split(',')[0].strip(),
@@ -332,8 +288,7 @@ def op_par_loop_parse(text):
     #print loop_args
     print '\n\n'    
     return (loop_args)
-
-
+    
 ###################END OF FUNCTIONS DECLARATIONS #########################
 
 
@@ -599,22 +554,21 @@ for a in range(1,len(sys.argv)):
     if not repeat: 
       nkernels = nkernels+1;
       temp = {'name': name,
-	'nargs': nargs,
-	'dims': dims,
-	'maps': maps,
-	'var': var,
-	'typs': typs,
-	'accs': accs,
-	'idxs': idxs,
-	'inds': inds,
-	'soaflags': soaflags,
+              'nargs': nargs,
+              'dims': dims,
+              'maps': maps,
+              'var': var,
+              'typs': typs,
+              'accs': accs,
+              'idxs': idxs,
+              'inds': inds,
+              'soaflags': soaflags,
 	
-	'ninds': ninds,
-	'inddims': inddims,
-	'indaccs': indaccs,
-	'indtyps': indtyps,
-	'invinds': invinds
-      }
+            	'ninds': ninds,
+            	'inddims': inddims,
+            	'indaccs': indaccs,
+            	'indtyps': indtyps,
+            	'invinds': invinds }
       kernels.append(temp)
 
   
