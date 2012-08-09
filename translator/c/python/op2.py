@@ -201,82 +201,136 @@ def op_par_loop_parse(text):
       #try:
       #parse each op_arg_dat
       search2 = "op_arg_dat"
-      j = arg_string.find(search2)
-      while j > -1:
-        
-        loc = arg_parse(arg_string,j+1)
-        
-        #dat_args_string = arg_string[arg_string.find('(',j)+1:arg_string.find(')',j+12)]
-        dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
-        #print dat_args_string
-        
-        #remove comments
-        dat_args_string = comment_remover(dat_args_string)
-        
-        #check for syntax errors
-        if len(dat_args_string.split(',')) <> 6:
-          print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
-          return
-        
-        #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
-        temp_dat = {'type':'op_arg_dat', 
-          'dat':dat_args_string.split(',')[0].strip(),
-          'idx':dat_args_string.split(',')[1].strip(),
-          'map':dat_args_string.split(',')[2].strip(),
-          'dim':dat_args_string.split(',')[3].strip(),
-          'typ':dat_args_string.split(',')[4].strip(),
-          'acc':dat_args_string.split(',')[5].strip()
-        }
-        #append this struct to a temporary list/array
-        temp_args.append(temp_dat)
-        
-        num_args = num_args + 1        
-        j= arg_string.find(search2, j+12) 
-              
-      #parse each op_arg_gbl
       search3 = "op_arg_gbl"
+      j = arg_string.find(search2)
       k = arg_string.find(search3)
-      while k > -1:
-        
-        loc = arg_parse(arg_string,k+1)
-        
-        #gbl_args_string = arg_string[arg_string.find('(',k)+1:arg_string.find(')',k+12)]
-        gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
-        #print gbl_args_string
-        
-        #remove comments
-        #gbl_args_string = comment_remover(gbl_args_string)
-        
-        #check for syntax errors
-        if len(gbl_args_string.split(',')) <> 4:
-          print 'Error in parsing op_arg_gbl('+ dat_args_string +'): must have four arguments'
-          return
-         
-        #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
-        temp_gbl = {'type':'op_arg_gbl', 
-          'data':gbl_args_string.split(',')[0].strip(),
-          'dim':gbl_args_string.split(',')[1].strip(),
-          'typ':gbl_args_string.split(',')[2].strip(),
-          'acc':gbl_args_string.split(',')[3].strip()
-        }
-        #append this struct to a temporary list/array
-        temp_args.append(temp_gbl)
-        
-        num_args = num_args + 1
-        k= arg_string.find(search3, k+12)        
       
+      while j > -1 or k > -1:
+        print str(j) +'  '+str(k)
+        if  k <= -1 : 
+          loc = arg_parse(arg_string,j+1)
+          dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+          print dat_args_string
+        
+          #remove comments
+          dat_args_string = comment_remover(dat_args_string)
+        
+          #check for syntax errors
+          if len(dat_args_string.split(',')) <> 6:
+            print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
+            return
+        
+          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+          temp_dat = {'type':'op_arg_dat', 
+            'dat':dat_args_string.split(',')[0].strip(),
+            'idx':dat_args_string.split(',')[1].strip(),
+            'map':dat_args_string.split(',')[2].strip(),
+            'dim':dat_args_string.split(',')[3].strip(),
+            'typ':dat_args_string.split(',')[4].strip(),
+            'acc':dat_args_string.split(',')[5].strip()
+          }
+          #append this struct to a temporary list/array
+          num_args = num_args + 1
+          temp_args.append(temp_dat)
+          j= arg_string.find(search2, j+11) 
+          #k= arg_string.find(search3, j+11) 
+        
+        elif  j <= -1 :
+          loc = arg_parse(arg_string,k+1)
+          gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+          print gbl_args_string
+        
+          #remove comments
+          gbl_args_string = comment_remover(gbl_args_string)
+        
+          #check for syntax errors
+          if len(gbl_args_string.split(',')) <> 4:
+            print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
+            return
+         
+          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+          temp_gbl = {'type':'op_arg_gbl', 
+            'data':gbl_args_string.split(',')[0].strip(),
+            'dim':gbl_args_string.split(',')[1].strip(),
+            'typ':gbl_args_string.split(',')[2].strip(),
+            'acc':gbl_args_string.split(',')[3].strip()}
+            
+          #append this struct to a temporary list/array
+          num_args = num_args + 1
+          temp_args.append(temp_gbl)
+          #j= arg_string.find(search2, k+11) 
+          k= arg_string.find(search3, k+11) 
+          
+        elif j < k:
+          loc = arg_parse(arg_string,j+1)
+          dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+          print dat_args_string
+        
+          #remove comments
+          dat_args_string = comment_remover(dat_args_string)
+        
+          #check for syntax errors
+          if len(dat_args_string.split(',')) <> 6:
+            print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
+            return
+        
+          #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+          temp_dat = {'type':'op_arg_dat', 
+            'dat':dat_args_string.split(',')[0].strip(),
+            'idx':dat_args_string.split(',')[1].strip(),
+            'map':dat_args_string.split(',')[2].strip(),
+            'dim':dat_args_string.split(',')[3].strip(),
+            'typ':dat_args_string.split(',')[4].strip(),
+            'acc':dat_args_string.split(',')[5].strip()
+          }
+          #append this struct to a temporary list/array
+          num_args = num_args + 1
+          temp_args.append(temp_dat)
+          j= arg_string.find(search2, j+11) 
+          #k= arg_string.find(search3, j+11) 
+          
+        else:
+          loc = arg_parse(arg_string,k+1)
+          gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+          print gbl_args_string
+        
+          #remove comments
+          gbl_args_string = comment_remover(gbl_args_string)
+        
+          #check for syntax errors
+          if len(gbl_args_string.split(',')) <> 4:
+            print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
+            return
+         
+          #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+          temp_gbl = {'type':'op_arg_gbl', 
+            'data':gbl_args_string.split(',')[0].strip(),
+            'dim':gbl_args_string.split(',')[1].strip(),
+            'typ':gbl_args_string.split(',')[2].strip(),
+            'acc':gbl_args_string.split(',')[3].strip()}
+        
+          #append this struct to a temporary list/array
+          num_args = num_args + 1
+          temp_args.append(temp_gbl)
+          #j= arg_string.find(search2, k+11) 
+          k= arg_string.find(search3, k+11) 
+       
+                
+        #j= arg_string.find(search2, j+10) 
+        #k= arg_string.find(search3, k+10)     
+        #end of inner while loop
+          
       temp = {'loc':i,
-        'name1':arg_string.split(',')[0].strip(),
-        'name2':arg_string.split(',')[1].strip(),
-        'set':arg_string.split(',')[2].strip(),
-        'args':temp_args,
-        'nargs':num_args
-      }      
-      #except (RuntimeError, TypeError, NameError):
-      #  print "error parsing op_par_loop"
+      'name1':arg_string.split(',')[0].strip(),
+      'name2':arg_string.split(',')[1].strip(),
+      'set':arg_string.split(',')[2].strip(),
+      'args':temp_args,
+      'nargs':num_args}
       
       loop_args.append(temp)
-      i=text.find(search, i+12)
+      i=text.find(search, i+10)
+    #print loop_args
+    print '\n\n'    
     return (loop_args)
 
 
@@ -609,12 +663,17 @@ for a in range(1,len(sys.argv)):
     if locs[loc]in loc_header:
       fid.write(' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n')
       fid.write('//\n// op_par_loop declarations\n//\n')
+      
+      for k in range (0,nkernels):
+        line = '\nvoid op_par_loop_'+kernels[k]['name']+'(char const *, op_set,\n'
+        for n in range(1,kernels[k]['nargs']):
+          line = line+'  op_arg,\n'
+        line = line+'  op_arg );\n'
+        fid.write(line);
+      
+      fid.write('\n');  
       loc_old = locs[loc]+11
       continue
-    
-      #
-      #need to do the forward declaration of op_par_loops here
-      #
       
     if locs[loc] in loc_loops:
        indent = indent + ' '*len('op_par_loop')
@@ -629,12 +688,12 @@ for a in range(1,len(sys.argv)):
          if elem['type'] == 'op_arg_dat':
             line = line + elem['type'] + '(' + elem['dat'] + ','+ elem['idx'] \
             + ','+ elem['map'] + ','+ elem['dim'] + ','+ elem['typ'] + ',' \
-            + elem['acc'] +')\n'+indent
+            + elem['acc'] +'),\n'+indent
          elif elem['type'] == 'op_arg_gbl':
             line = line + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] \
-            + ','+ elem['typ'] + ','+ elem['acc'] +')\n'+indent
+            + ','+ elem['typ'] + ','+ elem['acc'] +'),\n'+indent
        
-       fid.write(line[0:-len(indent)-1]+');')
+       fid.write(line[0:-len(indent)-2]+');')
        
        loc_old = endofcall+1
        continue
@@ -644,7 +703,7 @@ for a in range(1,len(sys.argv)):
        endofcall = text.find(';', locs[loc]) 
        name = const_args[curr_const]['name'] 
        fid.write(indent[0:-2]+'op_decl_const2("'+name.strip()+'",'+ \
-       str(const_args[curr_const]['dim'])+ const_args[curr_const]['type']+ \
+       str(const_args[curr_const]['dim'])+',' +const_args[curr_const]['type']+ \
        ','+const_args[curr_const]['name2'].strip()+');')
        loc_old = endofcall+1
        continue       

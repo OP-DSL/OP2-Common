@@ -148,7 +148,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 ##########################################################################
 
     file_text = '//user function\n'\
-    '#include '+name+'.h\n'\
+    '#include "'+name+'.h"\n'\
     '\n// x86 kernel function\n\n'\
     'void op_x86_'+name+'(\n'
     if ninds>0:
@@ -188,12 +188,12 @@ def op2_gen_openmp(master, date, consts, kernels):
       if maps[m]==OP_MAP and accs[m]==OP_INC:
         file_text = file_text+'  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
     
+    file_text = file_text+'\n' 
+    
     for m in range (1,ninds+1):
-      v = [i for i in range(len(inds)) if inds[i]==m]
-      v_i = [] 
-      for i in range(len(v)):
-        v_i = v_i + [vectorised[v[i]]]
-      if sum(v)>1 and len(v_i)>0:
+      v = [int(inds[i]==m) for i in range(len(inds))]
+      v_i = [vectorised[i] for i in range(len(inds)) if inds[i] == m] 
+      if sum(v)>1 and sum(v_i)>0: #check this sum(v_i) 
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
           file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+\
@@ -233,7 +233,7 @@ def op2_gen_openmp(master, date, consts, kernels):
        
       for m in range (1,ninds+1):
         c = [i for i in range(len(inds)) if inds[i]==m]
-        file_text = file_text+'    ind_arg'+str(m)+'_map = &ind_map['+\
+        file_text = file_text+'    ind_arg'+str(m-1)+'_map = &ind_map['+\
         str(cumulative_indirect_index[c[0]])+'*set_size] + ind_arg_offs['+\
         str(m-1)+'+blockId*'+str(ninds)+'];\n'
        
@@ -244,7 +244,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         file_text = file_text+'    ind_arg'+str(m)+'_s = ('+indtyps[m]+\
         ' *) &shared[nbytes];\n'
         if m < ninds-1:
-          file_text = file_text+ '    nbytes    += ROUND_UP(ind_arg+'+\
+          file_text = file_text+ '    nbytes    += ROUND_UP(ind_arg'+\
           str(m)+'_size*sizeof('+\
           indtyps[m]+')*'+ inddims[m]+');\n'
         
@@ -294,7 +294,7 @@ def op2_gen_openmp(master, date, consts, kernels):
           ctr = 0
           for n in range(0,nargs):
             if inds[n] == m and vectorised[m]:
-              file_text = file_text+'    arg'+str(m)+\
+              file_text = file_text+'    arg'+str(m-1)+\
               '_vec['+str(ctr)+'] = ind_arg'+str(inds[n]-1)+'_s+arg_map['+\
               str(cumulative_indirect_index[n])+'*set_size+n+offset_b]*'+str(dims[n])+';\n'
               ctr = ctr+1
@@ -313,11 +313,11 @@ def op2_gen_openmp(master, date, consts, kernels):
         line = line+indent+'arg'+str(m)+',\n'
         a =a+1
       elif maps[m]==OP_MAP and  accs[m]==OP_INC and vectorised[m]==0:
-        line = line+indent+'arg_l'+str(m)+',\n'
+        line = line+indent+'arg'+str(m)+'_l,\n'
         a =a+1
       elif maps[m]==OP_MAP and vectorised[m]==0:
         line = line+indent+'ind_arg'+str(inds[m]-1)+'_s+arg_map['+\
-        str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*'+str(m)+','+'\n'
+        str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*'+str(dims[m])+','+'\n'
         a =a+1
       elif maps[m]==OP_MAP and m == 0:
         line = line+indent+'arg'+str(inds[m]-1)+'_vec,'+'\n'
@@ -384,7 +384,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
 # global reduction
 #
-    file_text = file_text +'}\n'    
+    file_text = file_text +'\n}\n'    
 
 ##########################################################################
 # then C++ stub function
@@ -420,7 +420,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         first = first[0]
         file_text = file_text +'  for (int v = 1; v < '+str(sum(v))+'; v++) {\n'
         file_text = file_text +'    args['+str(m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, '+dims[m]+', "'+typs[m]+'", '+accsstring[accs[m]-1]+');\n  }' 
+        str(first)+'.map, '+dims[m]+', "'+typs[m]+'", '+accsstring[accs[m]-1]+');\n  }\n' 
         
       elif vectorised[m]>0:
         file_text = file_text
@@ -435,13 +435,15 @@ def op2_gen_openmp(master, date, consts, kernels):
       file_text = file_text +'  int    inds['+str(nargs)+'] = {'
       for m in range(0,nargs):
         file_text = file_text + str(inds[m]-1)+','
-      file_text = file_text + '};\n\n'
+        
+      file_text = file_text[:-1] + '};\n\n'
+      
       file_text = file_text + \
       '  if (OP_diags>2) {\n'\
-      '    printf(" kernel routine with indirection: '+name+'");\n'\
+      '    printf(" kernel routine with indirection: '+name+'\\n");\n'\
       '  }\n\n'\
       '  // get plan\n'\
-      '  #ifdef OP_PART_SIZE_ '+ str(nk)+'\n'\
+      '  #ifdef OP_PART_SIZE_'+ str(nk)+'\n'\
       '    int part_size = OP_PART_SIZE_'+str(nk)+';\n'\
       '  #else\n'\
       '    int part_size = OP_part_size;\n'\
@@ -509,7 +511,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       '      op_x86_'+name+'( blockIdx,\n'\
 
       for m in range(1,ninds+1):
-        file_text = file_text +'         ('+typs[m-1]+' *)arg'+str(m-1)+'.data,\n'
+        file_text = file_text +'         ('+typs[invinds[m-1]]+' *)arg'+str(invinds[m-1])+'.data,\n'
     
       file_text = file_text +'         Plan->ind_map,\n'
       file_text = file_text +'         Plan->loc_map,\n'
@@ -634,14 +636,14 @@ def op2_gen_openmp(master, date, consts, kernels):
               
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      file_text = file_text + 'extern '+consts[nc]['type']+' '+consts[nc]['name']+';\n'
+      file_text = file_text + 'extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';\n'
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
     
-      file_text = file_text + 'extern '+consts[nc]['type']+' '+consts[nc]['name']+'['+num+'];\n'
+      file_text = file_text + 'extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];\n'
       
   if any_soa:
     file_text = file_text +'\nextern int op2_stride;\n'\
@@ -650,9 +652,9 @@ def op2_gen_openmp(master, date, consts, kernels):
   file_text = file_text +'// user kernel files\n'
 
   for nk in range(0,len(kernels)):
-    file_text = file_text + '#include "'+kernels[nk]['name']+'_kernel"\n'
+    file_text = file_text + '#include "'+kernels[nk]['name']+'_kernel.cpp"\n'
   master = master.split('.')[0] 
-  fid = open(master.split('.')[0]+'_kernel.cpp','w')
+  fid = open(master.split('.')[0]+'_kernels.cpp','w')
   fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
   fid.write(file_text)
   fid.close()
