@@ -160,6 +160,7 @@ typedef struct
   int         dim[2], /* dimension of data */
               size;   /* size of each element in dataset */
   void*       mat;    /* handle to matrix object from 3rd party library */
+  void*       mat_array;        /* handle to matrix value from 3rd party library */
   char const *type,   /* datatype */
              *name;   /* name of matrix */
   op_sparsity sparsity;         /* sparsity structure */
