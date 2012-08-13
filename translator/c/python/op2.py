@@ -206,7 +206,7 @@ def get_arg_dat(arg_string, j):
 def get_arg_gbl(arg_string, k):  
   loc = arg_parse(arg_string,k+1)
   gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
-  print gbl_args_string
+  #print gbl_args_string
   
   #remove comments
   gbl_args_string = comment_remover(gbl_args_string)
