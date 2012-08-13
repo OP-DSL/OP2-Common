@@ -255,13 +255,13 @@ def op2_gen_openmp(master, date, consts, kernels):
         if indaccs[m]==OP_READ or indaccs[m]==OP_RW or indaccs[m]==OP_INC:
           file_text = file_text+ '  for (int n=0; n<ind_arg'+str(m)+'_size; n++)\n'
           file_text = file_text+ '    for (int d=0; d<'+inddims[m]+'; d++)\n'
-        if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
-          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
-          inddims[m]+'] = ind_arg'+str(m)+\
-          '[d+ind_arg'+str(m)+'_map[n]*'+inddims[m]+'];\n\n'
-        elif indaccs[m]==OP_INC:
-          file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
-          inddims[m]+'] = ZERO_'+indtyps[m]+';\n'
+          if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
+            file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
+            inddims[m]+'] = ind_arg'+str(m)+\
+            '[d+ind_arg'+str(m)+'_map[n]*'+inddims[m]+'];\n\n'
+          elif indaccs[m]==OP_INC:
+            file_text = file_text+ '      ind_arg'+str(m)+'_s[d+n*'+\
+            inddims[m]+'] = ZERO_'+indtyps[m]+';\n'
        
       file_text = file_text+'\n  // process set elements\n\n'
        

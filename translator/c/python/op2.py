@@ -37,6 +37,9 @@ import datetime
 import op2_gen_openmp
 from op2_gen_openmp import *
 
+import op2_gen_cuda
+from op2_gen_cuda import *
+
 #
 # declare constants
 #
@@ -698,4 +701,5 @@ if npart==0 and nhdf5>0:
 ##########################################################################
 
 op2_gen_openmp(str(sys.argv[1]), date, consts, kernels)
+op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
 
