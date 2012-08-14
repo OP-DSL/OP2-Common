@@ -5,7 +5,8 @@
 # This tool parses the user's original source code to produce
 # target-specific code to execute the user's kernel functions.
 #
-# This prototype is written in Python 
+# This prototype is written in Python and is directly based on the 
+# parsing and code generation of the matlab source code transformation code
 #
 # usage: op2('file1','file2',...)
 #

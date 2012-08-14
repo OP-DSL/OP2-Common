@@ -30,11 +30,11 @@ def op2_gen_cuda(master, date, consts, kernels):
 
   for nk in range (0,len(kernels)):
       
-    name = kernels[nk]['name']
+    name  = kernels[nk]['name']
     nargs = kernels[nk]['nargs']
     dims  = kernels[nk]['dims']
     maps  = kernels[nk]['maps']
-    var  = kernels[nk]['var']
+    var   = kernels[nk]['var']
     typs  = kernels[nk]['typs']
     accs  = kernels[nk]['accs']
     idxs  = kernels[nk]['idxs']
@@ -139,29 +139,33 @@ def op2_gen_cuda(master, date, consts, kernels):
 #  start with CUDA kernel function
 ##########################################################################
 
-    file_text = '//user function\n'\
+    file_text = \
+    '//user function\n'\
     '__device__\n'\
     '#include "'+name+'.h"\n\n'\
     '// CUDA kernel function\n\n'\
     '__global__ void op_cuda_'+name+'(\n'
 
     for m in range(0,ninds):
-      file_text = file_text+'  '+str(indtyps[m])+' *ind_arg'+str(m)+',\n'
+      file_text += '  '+str(indtyps[m])+' *ind_arg'+str(m)+',\n'
 
     if ninds>0:
-      file_text = file_text+'  int   *ind_map,\n'
-      file_text = file_text+'  short *arg_map,\n'
+      file_text += \
+      '  int   *ind_map,\n'\
+      '  short *arg_map,\n'
   
     for m in range (0,nargs):
       if maps[m]==OP_GBL and accs[m] == OP_READ:
-        file_text = file_text+'  const '+typs[m]+' *arg'+str(m)+',\n'  # declared const for performance
+        # declared const for performance
+        file_text +='  const '+typs[m]+' *arg'+str(m)+',\n'  
       elif maps[m]==OP_ID and ninds>0:
-        file_text = file_text+'  '+typs[m]+' *arg'+str(m)+',\n'
+        file_text +='  '+typs[m]+' *arg'+str(m)+',\n'
       elif maps[m]==OP_GBL or maps[m]==OP_ID:
-        file_text = file_text+'  '+typs[m]+' *arg'+str(m)+',\n'
+        file_text +='  '+typs[m]+' *arg'+str(m)+',\n'
     
     if ninds>0:
-      file_text = file_text+'  int   *ind_arg_sizes,\n'\
+      file_text +=\
+      '  int   *ind_arg_sizes,\n'\
       '  int   *ind_arg_offs,\n'\
       '  int    block_offset,\n'\
       '  int   *blkmap,      \n'\
@@ -172,24 +176,25 @@ def op2_gen_cuda(master, date, consts, kernels):
       '  int   nblocks,     \n'\
       '  int   set_size) {   \n\n'
     else:
-      file_text = file_text+'  int   offset_s,    \n'\
-                            '  int   set_size ) {\n\n'
+      file_text +=\
+      '  int   offset_s,    \n'\
+      '  int   set_size ) {\n\n'
     
     for m in range(0,nargs):
       if maps[m]==OP_GBL and accs[m]<>OP_READ:
-        file_text = file_text+'  '+typs[m]+' arg'+str(m)+'_l['+dims[m]+'];\n'
+        file_text +='  '+typs[m]+' arg'+str(m)+'_l['+dims[m]+'];\n'
         if accs[m] == OP_INC:
-          file_text = file_text+\
+          file_text +=\
           '  for (int d=0; d<'+dims[m]+'; d++) arg'+str(m)+'_l[d]=ZERO_'+typs[m]+';\n'
         else:
-          file_text = file_text+\
+          file_text +=\
           '  for (int d=0; d<'+dims[m]+'; d++) arg'+str(m)+'_l[d]=arg'+str(m)+'[d+blockIdx.x*'+dims[m]+'];\n'
       elif maps[m]==OP_MAP and accs[m]==OP_INC:
-        file_text = file_text+'  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
+        file_text +='  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
       elif (ninds==0 and maps[m]==OP_ID and dims[m]<>'1') and not(soaflags[m]):
-        file_text = file_text+'  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
+        file_text +='  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
     
-    file_text = file_text+'\n' 
+    file_text +='\n' 
     
     for m in range (1,ninds+1):
       v = [int(inds[i]==m) for i in range(len(inds))]
@@ -197,29 +202,29 @@ def op2_gen_cuda(master, date, consts, kernels):
       if sum(v)>1 and sum(v_i)>0: #check this sum(v_i) 
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'] = {\n'
+          file_text +='  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'] = {\n'
           for n in range(0,nargs):
             if inds[n] == m:
-              file_text = file_text+'    arg'+str(n)+'_l,\n'
+              file_text +='    arg'+str(n)+'_l,\n'
               
           file_text = file_text[0:-2]+'\n  };\n'
         else:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          file_text = file_text+'  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'];\n'
+          file_text +='  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'];\n'
 # 
 # lengthy code for general case with indirection
 #
     if ninds>0:
-      file_text = file_text+' \n'
+      file_text +=' \n'
       for m in range (0,ninds):
-        file_text = file_text+'  __shared__  int  *ind_arg'+str(m)+'_map, ind_arg'+str(m)+'_size;\n'
+        file_text +='  __shared__  int  *ind_arg'+str(m)+'_map, ind_arg'+str(m)+'_size;\n'
       for m in range (0,ninds):
-        file_text = file_text+'  __shared__  '+indtyps[m]+' *ind_arg'+str(m)+'_s;\n'
+        file_text +='  __shared__  '+indtyps[m]+' *ind_arg'+str(m)+'_s;\n'
       
       if ind_inc:
-        file_text = file_text+'  __shared__ int    nelems2, ncolor;\n'
+        file_text +='  __shared__ int    nelems2, ncolor;\n'
       
-      file_text = file_text+\
+      file_text +=\
         '  __shared__ int    nelem, offset_b;\n\n'\
         '  extern __shared__ char shared[];\n\n'\
         '  if (blockIdx.x+blockIdx.y*gridDim.x >= nblocks) return;\n'\
@@ -230,56 +235,56 @@ def op2_gen_cuda(master, date, consts, kernels):
         '    offset_b = offset[blockId];\n\n'
       
       if ind_inc:
-        file_text = file_text+\
+        file_text +=\
         '    nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);\n'\
         '    ncolor   = ncolors[blockId];\n\n'
       
       for m in range (0,ninds):
-        file_text = file_text+\
+        file_text +=\
         '    ind_arg'+str(m)+'_size = ind_arg_sizes['+str(m)+'+blockId*'+ str(ninds)+'];\n'
       
-      file_text = file_text+'\n'
+      file_text +='\n'
        
       for m in range (1,ninds+1):
         c = [i for i in range(len(inds)) if inds[i]==m]
-        file_text = file_text+\
+        file_text +=\
         '    ind_arg'+str(m-1)+'_map = &ind_map['+str(cumulative_indirect_index[c[0]])+\
         '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds)+'];\n'
        
-      file_text = file_text+'\n'\
+      file_text +='\n'\
       '    // set shared memory pointers\n'\
       '    int nbytes = 0;\n'
        
       for m in range(0,ninds):
-        file_text = file_text+\
+        file_text +=\
         '    ind_arg'+str(m)+'_s = ('+indtyps[m]+' *) &shared[nbytes];\n'
         if m < ninds-1:
-          file_text = file_text+\
+          file_text +=\
           '    nbytes    += ROUND_UP(ind_arg'+str(m)+'_size*sizeof('+indtyps[m]+')*'+ inddims[m]+');\n'
         
-      file_text = file_text+\
+      file_text +=\
       '  }\n'\
-      '  __syncthreads(); // make sure all of above completed\n'\
-      '\n  // copy indirect datasets into shared memory or zero increment\n\n'
+      '  __syncthreads(); // make sure all of above completed\n\n'\
+      '  // copy indirect datasets into shared memory or zero increment\n\n'
        
       for m in range(0,ninds):
         if indaccs[m]==OP_READ or indaccs[m]==OP_RW or indaccs[m]==OP_INC:
-          file_text = file_text+\
+          file_text +=\
           '  for (int n=threadIdx.x; n<ind_arg'+str(m)+'_size*'+inddims[m]+'; n+=blockDim.x)\n'
           if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
-            file_text = file_text+\
+            file_text +=\
             '      ind_arg'+str(m)+'_s[n] = ind_arg'+str(m)+'[n%'+inddims[m]+\
             '+ind_arg'+str(m)+'_map[n/'+inddims[m]+']*'+inddims[m]+'];\n\n'
           elif indaccs[m]==OP_INC:
-            file_text = file_text+\
+            file_text +=\
             '      ind_arg'+str(m)+'_s[n] = ZERO_'+indtyps[m]+';\n'
        
-      file_text = file_text+'\n'\
+      file_text +='\n'\
       '  __syncthreads();\n'\
       '  // process set elements\n\n'
        
       if ind_inc:
-        file_text = file_text+\
+        file_text +=\
         '  for (int n=threadIdx.x; n<nelems2; n+=blockDim.x) {\n'\
         '    int col2 = -1;                               \n'\
         '    if (n<nelem) {                               \n\n'\
@@ -287,11 +292,11 @@ def op2_gen_cuda(master, date, consts, kernels):
 
         for m in range(0,nargs):
           if maps[m]==OP_MAP and accs[m]==OP_INC:
-            file_text = file_text+\
+            file_text +=\
             '      for (int d=0; d<'+dims[m]+'; d++)\n'\
             '        arg'+str(m)+'_l[d] = ZERO_'+typs[m]+';\n'
       else:
-        file_text = file_text+'    for (int n=threadIdx.x; n<nelem; n+=blockDim.x) {\n'
+        file_text +='    for (int n=threadIdx.x; n<nelem; n+=blockDim.x) {\n'
 #
 # simple alternative when no indirection
 #
@@ -302,24 +307,24 @@ def op2_gen_cuda(master, date, consts, kernels):
           use_shared = 1
       
       if use_shared:
-        file_text = file_text+'  int   tid = threadIdx.x%OP_WARPSIZE;\n\n'\
+        file_text +='  int   tid = threadIdx.x%OP_WARPSIZE;\n\n'\
         '  extern __shared__ char shared[];    \n'\
         '  char *arg_s = shared + offset_s*(threadIdx.x/OP_WARPSIZE);\n'
     
-      file_text = file_text+\
+      file_text +=\
       '\n  // process set elements\n'\
       '  for (int n=threadIdx.x+blockIdx.x*blockDim.x;\n'\
       '       n<set_size; n+=blockDim.x*gridDim.x) {\n'
       
       if use_shared:
-        file_text = file_text+\
+        file_text +=\
         '    int offset = n - tid;\n'\
         '    int nelems = MIN(OP_WARPSIZE,set_size-offset);\n'\
         '    // copy data into shared memory, then into local\n\n'
       
       for m in range(0,nargs):
         if (maps[m]<>OP_GBL and accs[m]<>OP_WRITE and dims[m]<>'1') and not(soaflags[m]):
-          file_text = file_text+\
+          file_text +=\
           '    for (int m=0; m<'+dims[m]+'; m++)\n'\
           '      (('+typs[m]+' *)arg_s)[tid+m*nelems] = arg'+str(m)+'[tid+m*nelems+offset*'+dims[m]+'];\n\n'\
           '    for (int m=0; m<'+dims[m]+'; m++)\n'\
@@ -328,23 +333,24 @@ def op2_gen_cuda(master, date, consts, kernels):
     
                         
 #
-# kernel call#   
+# kernel call
+#   
 
     # xxx: array of pointers for non-locals 
     for m in range(1,ninds+1):
       s = [i for i in range(len(inds)) if inds[i]==m]
       if sum(s)>1:
         if indaccs[m-1] <> OP_INC:
-          file_text = file_text+' \n'
+          file_text +=' \n'
           ctr = 0
           for n in range(0,nargs):
             if inds[n] == m and vectorised[m]:
-              file_text = file_text+\
+              file_text +=\
               '      arg'+str(m-1)+'_vec['+str(ctr)+'] = ind_arg'+str(inds[n]-1)+'_s+arg_map['+\
               str(cumulative_indirect_index[n])+'*set_size+n+offset_b]*'+str(dims[n])+';\n'
               ctr = ctr+1
     
-    file_text = file_text+'\n      // user-supplied kernel call\n\n'
+    file_text +='\n      // user-supplied kernel call\n\n'
 
     line = '      '+name+'('
     
@@ -392,37 +398,37 @@ def op2_gen_cuda(master, date, consts, kernels):
       else:
         print 'internal error 1 '
     
-    file_text = file_text+line[0:-2]+');\n\n' #remove final ',' and \n  
+    file_text +=line[0:-2]+');\n\n' #remove final ',' and \n  
     
 #
 # updating for indirect kernels ...
 #    
     if ninds>0:
       if ind_inc:
-        file_text = file_text+\
+        file_text +=\
         '      col2 = colors[n+offset_b];        \n'\
         '    }\n\n\n'\
         '    // store local variables            \n\n'
       
         for m in range(0,nargs):
           if maps[m]==OP_MAP and accs[m]==OP_INC:
-            file_text = file_text+'    int arg'+str(m)+'_map;\n'
+            file_text +='    int arg'+str(m)+'_map;\n'
         
-        file_text = file_text+'    if (col2>=0) {\n'
+        file_text +='    if (col2>=0) {\n'
         
         for m in range(0,nargs):
           if maps[m] == OP_MAP and accs[m] == OP_INC:
-            file_text = file_text+\
+            file_text +=\
             '      arg'+str(m)+'_map = arg_map['+str(cumulative_indirect_index[m])+'*set_size+n+offset_b];\n'
         
-        file_text = file_text+\
+        file_text +=\
         '    }\n\n'\
         '    for (int col=0; col<ncolor; col++) {\n'\
                 '      if (col2==col) {'
         
         for m in range(0,nargs):
           if maps[m] == OP_MAP and accs[m] == OP_INC:
-            file_text = file_text+'\n'+\
+            file_text +='\n'+\
             '        for (int d=0; d<'+str(dims[m])+'; d++)\n'\
             '          ind_arg'+str(inds[m]-1)+'_s[d+arg'+str(m)+'_map*'+dims[m]+'] += arg'+str(m)+'_l[d];'
       
@@ -489,27 +495,26 @@ def op2_gen_cuda(master, date, consts, kernels):
            else:
              print 'internal error: invalid reduction option'
              sys.exit(2);
-        
-    
+            
     file_text = file_text +'\n}\n'    
 
 ##########################################################################
 # then C++ stub function
 ##########################################################################
 
-    file_text = file_text+'\n'\
+    file_text +='\n'\
     '// host stub function          \n'\
     'void op_par_loop_'+name+'(char const *name, op_set set,\n'
     
     for m in unique_args:
         if m == unique_args[len(unique_args)-1]:
-          file_text = file_text+'  op_arg arg'+str(m-1)+'){\n\n'
+          file_text +='  op_arg arg'+str(m-1)+'){\n\n'
         else:
-          file_text = file_text+'  op_arg arg'+str(m-1)+',\n'
+          file_text +='  op_arg arg'+str(m-1)+',\n'
     
     for m in range (0,nargs):
       if maps[m]==OP_GBL:
-        file_text = file_text+'  '+typs[m]+' *arg'+str(m)+'h = ('+typs[m]+' *)arg'+str(m)+'.data;\n'
+        file_text +='  '+typs[m]+' *arg'+str(m)+'h = ('+typs[m]+' *)arg'+str(m)+'.data;\n'
     
     file_text = file_text + '\n'\
     '  int nargs = '+str(nargs)+';\n'\
@@ -723,7 +728,7 @@ def op2_gen_cuda(master, date, consts, kernels):
           '         ('+typs[m]+' *)arg'+str(m)+'.data_d,\n'
       
 
-      file_text = file_text+\
+      file_text +=\
       '         Plan->ind_sizes,\n'\
       '         Plan->ind_offs,\n'\
       '         block_offset,\n'\
@@ -737,12 +742,12 @@ def op2_gen_cuda(master, date, consts, kernels):
       '         cutilSafeCall(cudaThreadSynchronize());\n'\
       '         cutilCheckMsg("op_cuda_'+name+' execution failed\\n");\n'
       if reduct:
-        file_text = file_text+\
+        file_text +=\
         '        // transfer global reduction data back to CPU\n'
         '        if (col == Plan->ncolors_owned)\n'
         '          mvReductArraysToHost(reduct_bytes);\n'
       
-      file_text = file_text+\
+      file_text +=\
       '      }\n\n'\
       '      block_offset += Plan->ncolblk[col]; \n'\
       '    }\n'    
@@ -803,24 +808,24 @@ def op2_gen_cuda(master, date, consts, kernels):
     
       for m in range(0,nargs):
         if maps[m]==OP_GBL and accs[m]<>OP_READ:
-          file_text = file_text+\
+          file_text +=\
           '    for (int b=0; b<maxblocks; b++)\n'\
           '        for (int d=0; d<'+dims[m]+'; d++)\n'
           if accs[m]==OP_INC:
-            file_text = file_text+\
+            file_text +=\
             '          arg'+str(m)+'h[d] = arg'+str(m)+'h[d] + (('+typs[m]+' *)arg'+str(m)+'.data)[d+b*'+dims[m]+'];\n'
           elif accs[m]==OP_MIN:
             file_text = file_text +\
             '          arg'+str(m)+'h[d] = MIN(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);\n'
           elif accs[m]==OP_MAX:
-            file_text = file_text+\
+            file_text +=\
             '          ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);\n'
             
-          file_text = file_text+'\n'\
+          file_text +='\n'\
           '    arg'+str(m)+'.data = (char *)arg'+str(m)+'h;\n\n'\
           '    op_mpi_reduce(&arg'+str(m)+',arg'+str(m)+'h);\n'
       
-    file_text = file_text+\
+    file_text +=\
     '  }\n'\
     '\n  op_mpi_set_dirtybit(nargs, args);\n\n'
 
@@ -828,7 +833,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 # update kernel record
 #
 
-    file_text = file_text+\
+    file_text +=\
     '  // update kernel record\n'\
     '  op_timers_core(&cpu_t2, &wall_t2);\n'\
     '  op_timing_realloc('+str(nk)+');\n'\
@@ -842,12 +847,11 @@ def op2_gen_cuda(master, date, consts, kernels):
       for m in range (0,nargs):
         if maps[m]<>OP_GBL:
           if accs[m]==OP_READ or accs[m]==OP_WRITE:
-            file_text = file_text+line+' arg'+str(m)+'.size;\n'
+            file_text +=line+' arg'+str(m)+'.size;\n'
           else:
-            file_text = file_text+line+' arg'+str(m)+'.size * 2.0f;\n'
-       
+            file_text +=line+' arg'+str(m)+'.size * 2.0f;\n'       
 
-    file_text = file_text+'}'
+    file_text +='}'
 
 
 ##########################################################################
@@ -858,7 +862,7 @@ def op2_gen_cuda(master, date, consts, kernels):
     fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
     fid.write(file_text)
     fid.close()
-
+    
 # end of main kernel call loop
 
 
@@ -903,7 +907,6 @@ def op2_gen_cuda(master, date, consts, kernels):
       '  if(~strcmp(name,"'+name+'") && size>MAX_CONST_SIZE) {\n'\
       '    printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);\n'\
       '  }\n'
-  
   
   file_text = file_text +\
   '  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));\n'\
