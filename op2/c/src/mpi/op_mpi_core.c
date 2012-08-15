@@ -860,14 +860,11 @@ void op_halo_create()
 
         //prepare space for the incomming data - realloc each
         //data array in each mpi process
-        OP_dat_list[dat->index]->data =
-          (char *)xrealloc(OP_dat_list[dat->index]->data,
-              (set->size+i_list->size)*dat->size);
+        dat->data = (char *)xrealloc(dat->data,(set->size+i_list->size)*dat->size);
 
         int init = set->size*dat->size;
         for(int i=0; i<i_list->ranks_size; i++) {
-          MPI_Recv(&(OP_dat_list[dat->index]->
-                data[init+i_list->disps[i]*dat->size]),
+          MPI_Recv(&(dat->data[init+i_list->disps[i]*dat->size]),
               dat->size*i_list->sizes[i],
               MPI_CHAR, i_list->ranks[i], d,
               OP_MPI_WORLD, MPI_STATUSES_IGNORE);
@@ -920,14 +917,12 @@ void op_halo_create()
         //data array in each mpi process
         halo_list exec_i_list = OP_import_exec_list[set->index];
 
-        OP_dat_list[dat->index]->data =
-          (char *)xrealloc(OP_dat_list[dat->index]->data,
-              (set->size+exec_i_list->size+i_list->size)*dat->size);
+        dat->data = (char *)xrealloc(dat->data,
+          (set->size+exec_i_list->size+i_list->size)*dat->size);
 
         int init = (set->size+exec_i_list->size)*dat->size;
         for(int i=0; i < i_list->ranks_size; i++) {
-          MPI_Recv(&(OP_dat_list[dat->index]->
-                data[init+i_list->disps[i]*dat->size]),
+          MPI_Recv(&(dat->data[init+i_list->disps[i]*dat->size]),
               dat->size*i_list->sizes[i],
               MPI_CHAR, i_list->ranks[i], d,
               OP_MPI_WORLD, MPI_STATUSES_IGNORE);
@@ -1459,9 +1454,7 @@ void op_halo_destroy()
   //remove halos from op_dats
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
-    OP_dat_list[dat->index]->data =
-      (char *)xrealloc(OP_dat_list[dat->index]->data,
-          dat->set->size*dat->size);
+    dat->data =(char *)xrealloc(dat->data,dat->set->size*dat->size);
   }
 
   //free lists

@@ -1227,8 +1227,7 @@ static void migrate_all(int my_rank, int comm_size)
           if(OP_part_list[set->index]->elem_part[i] == my_rank)
           {
             memcpy(&new_dat[count*dat->size],
-                (void *)&OP_dat_list[dat->index]->
-                data[dat->size*i],dat->size);
+                (void *)&dat->data[dat->size*i],dat->size);
             count++;
           }
         }
@@ -1239,8 +1238,8 @@ static void migrate_all(int my_rank, int comm_size)
         new_dat = (char *)xrealloc(new_dat,dat->size*count);
         free(rbuf);
 
-        free(OP_dat_list[dat->index]->data);
-        OP_dat_list[dat->index]->data = new_dat;
+        free(dat->data);
+        dat->data = new_dat;
       }
     }
   }
@@ -1405,7 +1404,7 @@ static void migrate_all(int my_rank, int comm_size)
   //re-set values in data arrays
   for(int d=0; d<OP_dat_index; d++) { //for data array
     op_dat dat=OP_dat_list[d];
-    OP_dat_list[dat->index]->set = OP_set_list[dat->set->index];
+    dat->set = OP_set_list[dat->set->index];
   }
 
   //finally .... need to sort for each set, data on the set and mapping tables
@@ -1424,8 +1423,7 @@ static void migrate_all(int my_rank, int comm_size)
           int* temp = (int *)xmalloc(sizeof(int)*set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
               sizeof(int)*set->size);
-          quickSort_dat(temp,OP_dat_list[dat->index]->data, 0,
-              set->size-1, dat->size);
+          quickSort_dat(temp,dat->data, 0, set->size-1, dat->size);
           free(temp);
         }
       }

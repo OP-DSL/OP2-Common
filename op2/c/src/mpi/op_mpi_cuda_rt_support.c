@@ -116,8 +116,7 @@ void op_exchange_halo(op_arg* arg)
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[init+imp_exec_list->disps[i]*dat->size]),
+      MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -149,8 +148,7 @@ void op_exchange_halo(op_arg* arg)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
+      MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
