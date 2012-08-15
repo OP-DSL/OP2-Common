@@ -1036,7 +1036,6 @@ void op_halo_create()
 
     mpi_buf->s_num_req = 0;
     mpi_buf->r_num_req = 0;
-    mpi_buf->dat_index = dat->index;
     dat->mpi_buffer = mpi_buf;
   }
 

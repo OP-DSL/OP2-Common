@@ -127,8 +127,6 @@ typedef struct {
 *******************************************************************************/
 
 typedef struct {
-  //index of the op_dat to which this buffer belongs
-  int         dat_index;
   //buffer holding exec halo to be exported;
   char        *buf_exec;
   //buffer holding nonexec halo to be exported;

@@ -1683,8 +1683,7 @@ void op_partition_geom(op_dat coords)
       double temp;
       for(int e = 0; e < coords->dim;e++)
       {
-        memcpy(&temp, (void *)&(OP_dat_list[coords->index]->
-              data[(i*coords->dim+e)*mult]), mult);
+        memcpy(&temp, (void *)&(coords->data[(i*coords->dim+e)*mult]), mult);
         xyz[i*coords->dim + e] = (float)temp;
       }
     }
@@ -2183,8 +2182,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
       double temp;
       for(int e = 0; e < coords->dim;e++)
       {
-        memcpy(&temp, (void *)&(OP_dat_list[coords->index]->
-              data[(i*coords->dim+e)*mult]), mult);
+        memcpy(&temp, (void *)&(coords->data[(i*coords->dim+e)*mult]), mult);
         xyz[i*coords->dim + e] = (float)temp;
       }
     }
