@@ -125,6 +125,7 @@ typedef struct
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
   int         user_managed; /* indicates whether the user is managing memory */
+  void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
 } op_dat_core;
 
 typedef op_dat_core * op_dat;

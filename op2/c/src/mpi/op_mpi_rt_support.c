@@ -65,14 +65,6 @@
 // //global array to hold dirty_bits for op_dats
 // //
 
-
-// //
-// //halo exchange buffers for each op_dat
-// //
-//
-// op_mpi_buffer *OP_mpi_buffer_list;
-
-
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
@@ -111,19 +103,19 @@ void op_exchange_halo(op_arg* arg)
       for(int j = 0; j < exp_exec_list->sizes[i]; j++)
       {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
-        memcpy(&OP_mpi_buffer_list[dat->index]->
-            buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
-            (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
+        memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
+          buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
+          (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
       //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
       //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
+      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
 
@@ -135,8 +127,8 @@ void op_exchange_halo(op_arg* arg)
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -157,17 +149,17 @@ void op_exchange_halo(op_arg* arg)
       for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
       {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
-        memcpy(&OP_mpi_buffer_list[dat->index]->
+        memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
             buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
+      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
@@ -176,8 +168,8 @@ void op_exchange_halo(op_arg* arg)
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
     //clear dirty bit
     dat->dirtybit = 0;
@@ -194,14 +186,14 @@ void op_wait_all(op_arg* arg)
   if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
     op_dat dat = arg->dat;
-    MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
-      OP_mpi_buffer_list[dat->index]->s_req,
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,
+      ((op_mpi_buffer)(dat->mpi_buffer))->s_req,
       MPI_STATUSES_IGNORE );
-    MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
-      OP_mpi_buffer_list[dat->index]->r_req,
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,
+      ((op_mpi_buffer)(dat->mpi_buffer))->r_req,
       MPI_STATUSES_IGNORE );
-    OP_mpi_buffer_list[dat->index]->s_num_req = 0;
-    OP_mpi_buffer_list[dat->index]->r_num_req = 0;
+    ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
+    ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
   }
 
   //arg->sent = 0;

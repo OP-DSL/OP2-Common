@@ -239,6 +239,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->type = copy_str( type );
   dat->size = dim * size;
   dat->user_managed = 1;
+  dat->mpi_buffer = NULL;
   OP_dat_list[OP_dat_index++] = dat;
 
   return dat;

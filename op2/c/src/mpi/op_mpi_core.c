@@ -69,11 +69,6 @@ halo_list *OP_export_nonexec_list;//ENH list
 //global array to hold dirty_bits for op_dats
 //
 
-//
-//halo exchange buffers for each op_dat
-//
-
-op_mpi_buffer *OP_mpi_buffer_list;
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
@@ -1020,8 +1015,6 @@ void op_halo_create()
 
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
 
-  OP_mpi_buffer_list = (op_mpi_buffer *)xmalloc(OP_dat_index*sizeof(op_mpi_buffer));
-
   for(int d=0; d<OP_dat_index; d++){//for each data array
     op_dat dat=OP_dat_list[d];
 
@@ -1044,7 +1037,7 @@ void op_halo_create()
     mpi_buf->s_num_req = 0;
     mpi_buf->r_num_req = 0;
     mpi_buf->dat_index = dat->index;
-    OP_mpi_buffer_list[dat->index] = mpi_buf;
+    dat->mpi_buffer = mpi_buf;
   }
 
 
@@ -1492,13 +1485,12 @@ void op_halo_destroy()
   for(int d=0; d<OP_dat_index; d++){
     op_dat dat=OP_dat_list[d];
 
-    free(OP_mpi_buffer_list[dat->index]->buf_exec);
-    free(OP_mpi_buffer_list[dat->index]->buf_nonexec);
-    free(OP_mpi_buffer_list[dat->index]->s_req);
-    free(OP_mpi_buffer_list[dat->index]->r_req);
-    free(OP_mpi_buffer_list[dat->index]);
+    free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+    free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+    free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+    free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+
   }
-  free(OP_mpi_buffer_list);
 
   MPI_Comm_free(&OP_MPI_WORLD);
 }
@@ -1910,6 +1902,9 @@ op_dat op_mpi_get_data(op_dat dat)
   temp_dat->type = dat->type;
   temp_dat->size = dat->size;
 
+  //not required ?
+  //temp_dat->mpi_buffer = dat->mpi_buffer
+
   return temp_dat;
 }
 
@@ -1950,8 +1945,8 @@ static void op_reset_halo(op_arg* arg)
     for(int i = 0; i<double_count; i++) NaN[i] = (double)NAN;//0.0/0.0;
 
     int init = dat->set->size*dat->size;
-    memcpy(&(OP_dat_list[dat->index]->data[init]), NaN,
-        dat->size*imp_exec_list->size + dat->size*imp_nonexec_list->size);
+    memcpy(&(dat->data[init]), NaN,
+      dat->size*imp_exec_list->size + dat->size*imp_nonexec_list->size);
     free(NaN);
   }
 }
