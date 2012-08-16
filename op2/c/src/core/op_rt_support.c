@@ -370,8 +370,32 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     bsize = ( 48 * 1024 / ( 64 * maxbytes ) ) * 64;
   //int nblocks = ( exec_length - 1 ) / bsize + 1;
   int nblocks = 0;
-  if (set->core_size != 0) nblocks += ( set->core_size - 1 ) / bsize + 1;
-  if (set->core_size != exec_length) nblocks += ( exec_length - set->core_size - 1 ) / bsize + 1;
+  /*if (set->core_size != 0) nblocks += ( set->core_size - 1 ) / bsize + 1;
+  if (set->core_size != exec_length) nblocks += ( exec_length - set->core_size - 1 ) / bsize + 1;*/
+
+  int indirect_reduce = 0;
+  for ( int m = 0; m < nargs; m++ ) {
+    indirect_reduce |= (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
+  }
+  indirect_reduce &= (ninds>0);
+
+  int prev_offset = 0;
+  int next_offset = 0;
+
+  while (next_offset < exec_length)
+  {
+    prev_offset = next_offset;
+    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
+      next_offset = set->core_size;
+    } else if (prev_offset + bsize >= set->size && prev_offset < set->size && indirect_reduce) {
+      next_offset = set->size;
+    } else if (prev_offset + bsize >= exec_length && prev_offset < exec_length) {
+      next_offset = exec_length;
+    } else {
+      next_offset = prev_offset + bsize;
+    }
+    nblocks++;
+  }
 
   /* enlarge OP_plans array if needed */
 
@@ -421,7 +445,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   }
   free(offsets);
 
-  int indirect_reduce = 0;
   int counter = 0;
   for ( int m = 0; m < nargs; m++ ) {
     if ( inds[m] >= 0 )
@@ -433,10 +456,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].idxs[m] = args[m].idx;
     OP_plans[ip].maps[m] = args[m].map;
     OP_plans[ip].accs[m] = args[m].acc;
-    indirect_reduce = indirect_reduce || (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
   }
 
-  indirect_reduce = indirect_reduce && (ninds>0);
   OP_plans[ip].loc_map = ( short * ) malloc ( counter * exec_length * sizeof ( short ) );
   counter = 0;
   for ( int m = 0; m < nargs; m++ ) {
@@ -495,8 +516,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   float total_colors = 0;
 
-  int prev_offset = 0;
-  int next_offset = 0;
+  prev_offset = 0;
+  next_offset = 0;
 
   for ( int b = 0; b < nblocks; b++ )
   {
@@ -728,7 +749,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   /* store block mapping and number of blocks per color */
 
-
+  if (indirect_reduce && OP_plans[ip].ncolors_owned == 0) OP_plans[ip].ncolors_owned = ncolors; //no MPI, so get the reduction arrays after everyting is done
   OP_plans[ip].ncolors = ncolors;
 
   /*for(int col = 0; col = OP_plans[ip].ncolors;col++) //should initialize to zero because calloc returns garbage!!

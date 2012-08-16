@@ -1560,7 +1560,7 @@ void op_mpi_reduce_double(op_arg* arg, double* data)
     double result;
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, (double *)&result, arg->dim, MPI_DOUBLE,
           MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double)*arg->dim);
     }
@@ -1583,6 +1583,7 @@ void op_mpi_reduce_int(op_arg* arg, int* data)
 {
   (void)data;
   int result;
+
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     if(arg->acc == OP_INC)//global reduction

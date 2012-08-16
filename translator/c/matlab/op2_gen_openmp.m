@@ -68,10 +68,13 @@ for nk = 1:length(kernels)
               if m>1
                 unique_args = [unique_args length(new_dims)+1];
               end
+              temp = {};
               temp(1:-1*idxs(m)) = vars(m);
               new_vars = [new_vars temp];
+              temp = {};
               temp(1:-1*idxs(m)) = typs(m);
               new_typs = [new_typs temp];
+              temp = {};
               temp(1:-1*idxs(m)) = dims(m);
               new_dims = [new_dims temp];
               new_maps = [new_maps maps(m)*ones(1,-1*idxs(m))];
@@ -580,7 +583,10 @@ for nk = 1:length(kernels)
   file = strvcat(file,'         Plan->loc_map,');
 
   for m = 1:nargs
-    if (inds(m)==0)
+    if (inds(m) == 0 & maps(m) == OP_GBL & accs(m) ~= OP_READ)
+      line = '         &ARG_l[64*omp_get_thread_num()],';
+      file = strvcat(file, rep(line,m));
+    elseif (inds(m)==0)
       line = '         (TYP *)ARG.data,';
       file = strvcat(file,rep(line,m));
     end
@@ -595,7 +601,29 @@ for nk = 1:length(kernels)
     '         Plan->nelems,                                 ',...
     '         Plan->nthrcol,                                ',...
     '         Plan->thrcol,                                 ',...
-    '         set_size);                                    ',' ',...
+    '         set_size);                                    ',' ');
+  if (reduct)
+  file = strvcat(file,' ','  // combine reduction data','    if (col == Plan->ncolors_owned-1) {');
+  for m=1:nargs
+    if(maps(m)==OP_GBL && accs(m)~=OP_READ);
+      file = strvcat(file,'      for (int thr=0; thr<nthreads; thr++)');
+      if(accs(m)==OP_INC)
+        line = '        for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];';
+      elseif (accs(m)==OP_MIN)
+        line = ...
+   '        for(int d=0; d<DIM; d++) ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);';
+      elseif (accs(m)==OP_MAX)
+        line = ...
+   '        for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);';
+      else
+        error('internal error: invalid reduction option')
+      end
+      file = strvcat(file,rep(line,m));
+    end
+  end
+  file = strvcat(file,'    }',' ');
+  end
+  file = strvcat(file, ...
     '      block_offset += nblocks;                         ',...
     '    }                                                  ');
 
@@ -635,19 +663,23 @@ for nk = 1:length(kernels)
   file = strvcat(file,' ','  // combine reduction data');
   for m=1:nargs
     if(maps(m)==OP_GBL && accs(m)~=OP_READ);
-      file = strvcat(file,' ','  for (int thr=0; thr<nthreads; thr++)');
-      if(accs(m)==OP_INC)
+      if (ninds == 0)
+        file = strvcat(file,' ','  for (int thr=0; thr<nthreads; thr++)');
+      end
+      if(accs(m)==OP_INC && ninds == 0)
         line = '    for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];';
-      elseif (accs(m)==OP_MIN)
+      elseif (accs(m)==OP_MIN & ninds == 0)
         line = ...
    '    for(int d=0; d<DIM; d++) ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);';
-      elseif (accs(m)==OP_MAX)
+      elseif (accs(m)==OP_MAX && ninds == 0)
         line = ...
    '    for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);';
-      else
+      elseif (ninds == 0)
         error('internal error: invalid reduction option')
       end
-      file = strvcat(file,rep(line,m));
+      if (ninds == 0)
+        file = strvcat(file,rep(line,m));
+      end
       line = '  op_mpi_reduce(&ARG,ARGh);';
       file = strvcat(file,' ',rep(line,m));
     end
