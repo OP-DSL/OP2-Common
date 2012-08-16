@@ -1995,7 +1995,6 @@ void mpi_timing_output()
         {
           printf("halo exchanges:  ");
           for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-            //printf("%10s ",OP_dat_list[op_mpi_kernel_tab[n].op_dat_indices[i]]->name;
             printf("%10s ",op_mpi_kernel_tab[n].comm_info[i]->name);
           printf("\n");
           printf("       count  :  ");
