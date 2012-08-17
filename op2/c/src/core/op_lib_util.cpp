@@ -45,10 +45,10 @@ void op_build_sparsity_pattern ( op_sparsity sparsity )
     for ( int e = 0; e < rowmap->from->size; ++e ) {
       for ( int i = 0; i < rowmap->dim; ++i ) {
         for ( int r = 0; r < rmult; r++ ) {
-          int row = (r + 1) * rowmap->map[i + e*rowmap->dim];
+          int row = rmult * rowmap->map[i + e*rowmap->dim] + r;
           for ( int c = 0; c < cmult; c++ ) {
             for ( int d = 0; d < colmap->dim; d++ ) {
-              s[row].insert((c+1)*colmap->map[d + e * colmap->dim]);
+              s[row].insert(cmult * colmap->map[d + e*colmap->dim] + c);
             }
           }
         }
