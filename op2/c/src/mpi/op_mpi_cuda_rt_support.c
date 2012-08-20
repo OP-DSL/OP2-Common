@@ -198,8 +198,9 @@ void op_partition(const char* lib_name, const char* lib_routine,
   for(int s = 0; s<OP_set_index; s++)
   {
     op_set set=OP_set_list[s];
-    for(int d=0; d<OP_dat_index; d++) { //for each data array
-      op_dat dat=OP_dat_list[d];
+    OP_dat_list_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+      op_dat dat = item->dat;
 
       if(dat->set->index == set->index)
           op_mv_halo_device(set, dat);

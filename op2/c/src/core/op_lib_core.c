@@ -58,9 +58,16 @@ int OP_set_index = 0, OP_set_max = 0,
 
 op_set * OP_set_list;
 op_map * OP_map_list;
-op_dat * OP_dat_list;
 op_kernel * OP_kernels;
 
+/*
+ * Head of the double linked list, defined using the TAILQ_HEAD macro.
+ */
+Double_linked_list_head OP_dat_list_head;
+
+/*
+ * Utility functions
+ */
 static char * copy_str( char const * src )
 {
   const size_t len = strlen( src ) + 1;
@@ -106,6 +113,9 @@ void
     }
 
   }
+
+  /*Initialize the double linked list to hold op_dats*/
+  TAILQ_INIT(&OP_dat_list_head);
 }
 
 op_set
@@ -218,17 +228,6 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
     exit ( -1 );
   }
 
-  if ( OP_dat_index == OP_dat_max )
-  {
-    OP_dat_max += 10;
-    OP_dat_list = ( op_dat * ) realloc ( OP_dat_list, OP_dat_max * sizeof ( op_dat ) );
-    if ( OP_dat_list == NULL )
-    {
-      printf ( " op_decl_dat error -- error reallocating memory\n" );
-      exit ( -1 );
-    }
-  }
-
   op_dat dat = ( op_dat ) malloc ( sizeof ( op_dat_core ) );
   dat->index = OP_dat_index;
   dat->set = set;
@@ -240,7 +239,23 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->size = dim * size;
   dat->user_managed = 1;
   dat->mpi_buffer = NULL;
-  OP_dat_list[OP_dat_index++] = dat;
+
+  /* Create a pointer to an item in the op_dats doubly linked list */
+	//struct OP_dat_list_entry *item;
+	OP_dat_list_entry* item;
+
+	//add the newly created op_dat to list
+  //item = (OP_dat_list_entry *)malloc(sizeof(OP_dat_list_entry));
+  item = (OP_dat_list_entry *)malloc(sizeof(OP_dat_list_entry));
+  if (item == NULL) {
+    printf ( " op_decl_dat error -- error allocating memory to double linked list entry\n" );
+    exit ( -1 );
+  }
+  item->dat = dat;
+
+  //add item to the end of the list
+  TAILQ_INSERT_TAIL(&OP_dat_list_head, item, entries);
+  OP_dat_index++;
 
   return dat;
 }
@@ -278,16 +293,17 @@ op_exit_core (  )
   free ( OP_map_list );
   OP_map_list = NULL;
 
-  for ( int i = 0; i < OP_dat_index; i++ )
-  {
-    if (!OP_dat_list[i]->user_managed)
-      free ( OP_dat_list[i]->data );
-    free ( (char*)OP_dat_list[i]->name );
-    free ( (char*)OP_dat_list[i]->type );
-    free ( OP_dat_list[i] );
-  }
-  free ( OP_dat_list );
-  OP_dat_list = NULL;
+
+  /*free doubl linked list holding the op_dats */
+  OP_dat_list_entry *item;
+  while (item = TAILQ_FIRST(&OP_dat_list_head)) {
+    if (!(item->dat)->user_managed)
+      free((item->dat)->data);
+    free((char*)(item->dat)->name);
+    free((char*)(item->dat)->type);
+		TAILQ_REMOVE(&OP_dat_list_head, item, entries);
+		free(item);
+	}
 
   // free storage for timing info
 
@@ -460,11 +476,12 @@ op_diagnostic_output (  )
 
     printf ( "\n       dat        dim        set\n" );
     printf ( "  ------------------------------\n" );
-    for ( int n = 0; n < OP_dat_index; n++ )
+    OP_dat_list_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list_head, entries)
     {
-      printf ( "%10s %10d %10s\n", OP_dat_list[n]->name,
-               OP_dat_list[n]->dim, OP_dat_list[n]->set->name );
-    }
+      printf ( "%10s %10d %10s\n", (item->dat)->name,
+               (item->dat)->dim, (item->dat)->set->name );
+		}
     printf ( "\n" );
   }
 }

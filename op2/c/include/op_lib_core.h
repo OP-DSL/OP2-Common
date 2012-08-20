@@ -46,6 +46,7 @@
 #include <strings.h>
 #include <math.h>
 #include <stdarg.h>
+#include <sys/queue.h> //contains double linked list implementation
 
 /*
  * essential typedefs
@@ -156,6 +157,19 @@ typedef struct
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
 } op_kernel;
+
+
+//struct definition for a double linked list entry to hold an op_dat
+struct OP_dat_list_entry_core{
+  op_dat dat;
+
+  //holds pointers to next and previous entries in the list
+  TAILQ_ENTRY(OP_dat_list_entry_core) entries;
+};
+
+typedef struct OP_dat_list_entry_core OP_dat_list_entry;
+
+typedef TAILQ_HEAD(, OP_dat_list_entry_core)  Double_linked_list_head;
 
 
 /*
