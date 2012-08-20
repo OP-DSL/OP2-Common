@@ -104,13 +104,13 @@ extern int OP_diags, OP_part_size, OP_block_size;
 
 extern int OP_set_index,  OP_set_max,
            OP_map_index,  OP_map_max,
-           OP_dat_index,  /*OP_dat_max,*/
+           OP_dat_index,
            OP_plan_index, OP_plan_max,
                           OP_kern_max;
 
 extern op_set    * OP_set_list;
 extern op_map    * OP_map_list;
-extern Double_linked_list_head OP_dat_list_head;
+extern Double_linked_list OP_dat_list;
 extern op_kernel * OP_kernels;
 
 

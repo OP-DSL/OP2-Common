@@ -160,16 +160,15 @@ typedef struct
 
 
 //struct definition for a double linked list entry to hold an op_dat
-struct OP_dat_list_entry_core{
+struct op_dat_entry_core{
   op_dat dat;
-
-  //holds pointers to next and previous entries in the list
-  TAILQ_ENTRY(OP_dat_list_entry_core) entries;
+  TAILQ_ENTRY(op_dat_entry_core) entries; /*holds pointers to next and
+                                          previous entries in the list*/
 };
 
-typedef struct OP_dat_list_entry_core OP_dat_list_entry;
+typedef struct op_dat_entry_core op_dat_entry;
 
-typedef TAILQ_HEAD(, OP_dat_list_entry_core)  Double_linked_list_head;
+typedef TAILQ_HEAD(, op_dat_entry_core)  Double_linked_list;
 
 
 /*

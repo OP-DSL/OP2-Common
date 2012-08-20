@@ -1182,8 +1182,8 @@ static void migrate_all(int my_rank, int comm_size)
     MPI_Request request_send[exp->ranks_size];
 
     //migrate data defined on this set
-    OP_dat_list_entry *item; int d = -1; //d is just simply the tag for mpi comms
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item; int d = -1; //d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       d++; //increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
@@ -1404,8 +1404,8 @@ static void migrate_all(int my_rank, int comm_size)
   }
 
   //re-set values in data arrays
-  OP_dat_list_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->set = OP_set_list[dat->set->index];
   }
@@ -1416,8 +1416,8 @@ static void migrate_all(int my_rank, int comm_size)
     op_set set=OP_set_list[s];
 
     //first ... data on this set
-    OP_dat_list_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
 
       if(compare_sets(dat->set,set) == 1)

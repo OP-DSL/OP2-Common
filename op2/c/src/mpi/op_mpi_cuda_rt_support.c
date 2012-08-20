@@ -198,8 +198,8 @@ void op_partition(const char* lib_name, const char* lib_routine,
   for(int s = 0; s<OP_set_index; s++)
   {
     op_set set=OP_set_list[s];
-    OP_dat_list_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
 
       if(dat->set->index == set->index)

@@ -827,8 +827,8 @@ void op_halo_create()
     halo_list e_list = OP_export_exec_list[set->index];
 
     //for each data array
-    OP_dat_list_entry *item; int d = -1; //d is just simply the tag for mpi comms
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item; int d = -1; //d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       d++; //increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
@@ -887,8 +887,8 @@ void op_halo_create()
     halo_list e_list = OP_export_nonexec_list[set->index];
 
     //for each data array
-    OP_dat_list_entry *item; int d = -1; //d is just simply the tag for mpi comms
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item; int d = -1; //d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       d++; //increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
@@ -1021,8 +1021,8 @@ void op_halo_create()
 
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
 
-  OP_dat_list_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
 
     op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
@@ -1050,7 +1050,7 @@ void op_halo_create()
   //set dirty bits of all data arrays to 0
   //for each data array
   item = NULL;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->dirtybit= 0;
   }
@@ -1089,8 +1089,8 @@ void op_halo_create()
       set->core_size = count;
 
       //for each data array defined on this set seperate its elements
-      OP_dat_list_entry *item;
-      TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+      op_dat_entry *item;
+      TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
 
         if(compare_sets(set,dat->set)==1)//if this data array is
@@ -1420,8 +1420,8 @@ void op_halo_create()
   for(int s = 0; s< OP_set_index; s++){
     op_set set=OP_set_list[s];
 
-    OP_dat_list_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
 
       if(compare_sets(dat->set,set)==1)
@@ -1457,8 +1457,8 @@ void op_halo_create()
 void op_halo_destroy()
 {
   //remove halos from op_dats
-  OP_dat_list_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->data =(char *)xrealloc(dat->data,dat->set->size*dat->size);
   }
@@ -1496,7 +1496,7 @@ void op_halo_destroy()
   free(OP_export_exec_list);free(OP_export_nonexec_list);
 
   item = NULL;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries) {
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
     free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);

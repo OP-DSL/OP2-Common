@@ -226,8 +226,8 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 
 void op_cuda_exit ( )
 {
-  OP_dat_list_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list_head, entries)
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries)
   {
 		cutilSafeCall (cudaFree((item->dat)->data_d));
 	}
