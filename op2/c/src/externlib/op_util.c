@@ -96,13 +96,13 @@ void* xrealloc (void *ptr, size_t size)
 * Compare two op_sets and return 1 if they are identical
 *******************************************************************************/
 
-int compare_sets(op_set set1, op_set set2)
+/*int compare_sets(op_set set1, op_set set2)
 {
   if(set1->size == set2->size && set1->index == set2->index &&
       strcmp(set1->name,set2->name)==0 )
     return 1;
   else return 0;
-}
+}*/
 
 /*******************************************************************************
 * Simple hash function for a char string

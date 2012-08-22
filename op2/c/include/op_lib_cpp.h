@@ -185,6 +185,7 @@ inline void op_mpi_reduce(op_arg* args, int *data)
   op_mpi_reduce_int(args,data);
 }
 
+//needed as a dummy, "do nothing" routine for the non-mpi backends
 template <class T>
 void op_mpi_reduce(op_arg* args, T* data)
 {

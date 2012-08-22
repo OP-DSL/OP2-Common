@@ -72,6 +72,14 @@ static char * copy_str( char const * src )
   return strncpy ( dest, src, len );
 }
 
+int compare_sets(op_set set1, op_set set2)
+{
+  if(set1->size == set2->size && set1->index == set2->index &&
+      strcmp(set1->name,set2->name)==0 )
+    return 1;
+  else return 0;
+}
+
 /*
  * OP core functions: these must be called by back-end specific functions
  */
@@ -253,6 +261,47 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   OP_dat_index++;
 
   return dat;
+}
+
+
+/*
+ * temporary dats
+ */
+
+op_dat
+op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size, char const * name )
+{
+  //create empty data block to assign to this temporary dat
+  char* data = (char *)malloc(sizeof(set->size*dim*size));
+  if (data == NULL) {
+    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
+    exit ( -1 );
+  }
+  return op_decl_dat_core ( set, dim, type, size, data, name );
+}
+
+void
+op_free_dat_temp_core (op_dat dat)
+{
+   op_dat_entry* item;
+   op_dat_entry* tmp_item;
+   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item)
+   {
+     tmp_item = TAILQ_NEXT(item, entries);
+     op_dat item_dat = item->dat;
+     if (strcmp(item_dat->name,dat->name) == 0 && item_dat->dim == dat->dim &&
+         item_dat->size == dat->size && compare_sets(item_dat->set, dat->set) &&
+         strcmp(item_dat->type,dat->type) == 0 )
+     {
+       if (!(item->dat)->user_managed)
+         free((item->dat)->data);
+       free((char*)(item->dat)->name);
+       free((char*)(item->dat)->type);
+       TAILQ_REMOVE(&OP_dat_list, item, entries);
+       free(item);
+       break;
+     }
+   }
 }
 
 void
