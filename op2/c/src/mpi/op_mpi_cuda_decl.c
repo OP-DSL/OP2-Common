@@ -99,13 +99,13 @@ void op_mv_halo_device(op_set set, op_dat dat)
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
 
-  if (strstr( type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set->size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size*i*set->size + element_size*j + c] = data[dat->size*j+element_size*i+c];
+          temp_data[element_size*i*set->size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
         }
       }
     }
