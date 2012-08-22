@@ -2178,7 +2178,7 @@ void op_mpi_exit()
   }
 #endif
 
-  //free memory allocated to halos
+  //free memory allocated to halos and mpi_buffers
   op_halo_destroy();
   //return all op_dats, op_maps back to original element order
   op_partition_reverse();

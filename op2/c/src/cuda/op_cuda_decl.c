@@ -115,7 +115,7 @@ op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char co
 
   op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
 
-  //transpose data -- is this needed as we are basically copying empty bytes?
+  //transpose data
   if (strstr( type, ":soa")!= NULL) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
@@ -137,6 +137,13 @@ op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char co
   return dat;
 }
 
+int op_free_dat_temp_char ( op_dat dat )
+{
+  //free data on device
+  cutilSafeCall (cudaFree(dat->data_d));
+
+  return op_free_dat_temp_core (dat);
+}
 
 op_set
 op_decl_set ( int size, char const * name )

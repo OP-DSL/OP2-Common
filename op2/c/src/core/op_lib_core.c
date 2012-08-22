@@ -275,9 +275,10 @@ op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size,
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
-void
+int
 op_free_dat_temp_core (op_dat dat)
 {
+   int success = -1;
    op_dat_entry* item;
    op_dat_entry* tmp_item;
    for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item)
@@ -294,9 +295,11 @@ op_free_dat_temp_core (op_dat dat)
        free((char*)(item->dat)->type);
        TAILQ_REMOVE(&OP_dat_list, item, entries);
        free(item);
+       success = 1;
        break;
      }
    }
+   return success;
 }
 
 void

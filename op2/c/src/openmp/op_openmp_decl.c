@@ -69,6 +69,11 @@ op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char co
   return out_dat;
 }
 
+int op_free_dat_temp_char ( op_dat dat )
+{
+  return op_free_dat_temp_core (dat);
+}
+
 void
 op_fetch_data ( op_dat dat )
 {

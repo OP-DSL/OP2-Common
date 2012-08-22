@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -DCOMM_PERF -vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O0 -g -DCOMM_PERF #-vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -44,7 +44,7 @@ endif
 # set flags for NVCC compilation and linking
 #
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca #-use_fast_math #-g -G -O0
+NVCCFLAGS	= -g -G -O0 -arch=sm_20 -Xptxas=-v -Dlcm=ca #-use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
@@ -115,7 +115,7 @@ airfoil_mpi: airfoil_mpi.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h Makef
 	$(MPICPP) $(MPIFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(OP2_LIB) airfoil_mpi.cpp -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi
 
-	
+
 #
 # mpi with openmp-nodes version
 #
@@ -130,7 +130,7 @@ airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
 		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_op.cpp airfoil_kernels.cpp \
 		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_openmp
-	
+
 #
 # mpi with CUDA version
 #
@@ -150,9 +150,9 @@ airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 		  Makefile
 		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
 		  -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
-		  
 
-		  
+
+
 #
 # cleanup
 #

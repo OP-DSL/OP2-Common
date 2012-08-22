@@ -80,6 +80,10 @@ op_map op_decl_map ( op_set, op_set, int, int *, char const * );
 
 op_dat op_decl_dat_char ( op_set, int, char const *, int, char *, char const * );
 
+op_dat op_decl_dat_temp_char ( op_set, int, char const *, int, char const * );
+
+int op_free_dat_temp_char ( op_dat dat );
+
 void op_decl_const_char ( int, char const *, int, char *, char const * );
 
 op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );

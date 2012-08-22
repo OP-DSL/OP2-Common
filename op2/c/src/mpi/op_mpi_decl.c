@@ -41,6 +41,7 @@
 #include <op_rt_support.h>
 #include <op_mpi_core.h>
 #include <op_lib_mpi.h>
+#include <op_util.h>
 
 /*
  * Routines called by user code and kernels
@@ -85,11 +86,44 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
     printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
     exit ( -1 );
   }
-  op_dat out_dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
-  out_dat-> user_managed = 0;
-  return out_dat;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
+  dat-> user_managed = 0;
+
+  //need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size)*dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size)*dat->size);
+
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  dat->mpi_buffer = mpi_buf;
+
+  return dat;
 }
 
+int op_free_dat_temp_char ( op_dat dat )
+{
+  //need to free mpi_buffers used in this op_dat
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+  free(dat->mpi_buffer);
+  return op_free_dat_temp_core (dat);
+}
 
 void op_fetch_data ( op_dat dat )
 {

@@ -209,6 +209,8 @@ op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * )
 
 op_dat op_decl_dat_temp_core ( op_set, int, char const*, int, char *, char const * );
 
+int op_free_dat_temp_core ( op_dat );
+
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
 void op_err_print ( const char * error_string, int m, const char * name );

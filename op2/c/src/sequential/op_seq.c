@@ -58,6 +58,10 @@ op_dat op_decl_dat_char ( op_set set, int dim, char const * type, int size, char
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
+int op_free_dat_temp_char ( op_dat dat )
+{
+  return op_free_dat_temp_core (dat);
+}
 
 op_dat
 op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )

@@ -116,6 +116,7 @@ extern op_kernel * OP_kernels;
 
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 op_dat op_decl_dat_temp_char (op_set, int, char const *, int, char const * );
+int op_free_dat_temp_char ( op_dat dat );
 
 /* Implementation */
 
@@ -174,6 +175,10 @@ inline op_dat op_decl_dat_temp ( op_set set, int dim, char const *type,
   return op_decl_dat_temp_char ( set, dim, type, size, name );
 }
 
+inline int op_free_dat_temp ( op_dat dat )
+{
+  return op_free_dat_temp_char ( dat );
+}
 
 //
 // wrapper functions to handle MPI global reductions
