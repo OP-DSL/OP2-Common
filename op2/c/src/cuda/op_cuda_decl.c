@@ -107,6 +107,26 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
 op_dat
 op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char const * name )
 {
+  //Check if this dat already exists in the double linked list
+  op_dat_entry* item;
+  op_dat_entry* tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item)
+  {
+    tmp_item = TAILQ_NEXT(item, entries);
+    op_dat item_dat = item->dat;
+
+    if (strcmp(item_dat->name,name) == 0 && item_dat->dim == dim &&
+      (item_dat->size/dim) == size && compare_sets(item_dat->set, set) == 1 &&
+    strcmp(item_dat->type,type) == 0 )
+    {
+      return item_dat;
+    }
+  }
+
+  //
+  //if not found ...
+  //
+
   //char* data = (char*) malloc(set->size*dim*size);
   char* data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
   if (data == NULL) {

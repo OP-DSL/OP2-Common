@@ -272,7 +272,6 @@ op_dat
 op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size,
   char * data, char const * name )
 {
-  //need to see if this dat already exists in the doubl linked list
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
@@ -287,7 +286,7 @@ op_free_dat_temp_core (op_dat dat)
      tmp_item = TAILQ_NEXT(item, entries);
      op_dat item_dat = item->dat;
      if (strcmp(item_dat->name,dat->name) == 0 && item_dat->dim == dat->dim &&
-         item_dat->size == dat->size && compare_sets(item_dat->set, dat->set) &&
+         item_dat->size == dat->size && compare_sets(item_dat->set, dat->set) == 1 &&
          strcmp(item_dat->type,dat->type) == 0 )
      {
        if (!(item->dat)->user_managed)
