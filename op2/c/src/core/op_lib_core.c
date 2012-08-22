@@ -272,6 +272,7 @@ op_dat
 op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size,
   char * data, char const * name )
 {
+  //need to see if this dat already exists in the doubl linked list
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
@@ -400,8 +401,9 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( arg.dat->dim != arg.dim )
       op_err_print ( "dataset dim does not match declared dim", m, name );
 
-    if ( strcmp ( arg.dat->type, arg.type ) )
+    if ( strcmp ( arg.dat->type, arg.type ) ){
       op_err_print ( "dataset type does not match declared type", m, name );
+    }
 
     if ( arg.idx >= 0 )
       ( *ninds )++;
@@ -451,6 +453,7 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.data_d = NULL;
   }
 
+  //printf("dat->type = %s\n",dat->type);
 
   arg.type = typ;
   arg.acc = acc;

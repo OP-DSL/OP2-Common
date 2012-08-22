@@ -66,7 +66,8 @@ int op_free_dat_temp_char ( op_dat dat )
 op_dat
 op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )
 {
-  char* data = (char*) malloc(set->size*dim*size);
+  //char* data = (char*) malloc(set->size*dim*size);
+  char* data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
   if (data == NULL) {
     printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
     exit ( -1 );
