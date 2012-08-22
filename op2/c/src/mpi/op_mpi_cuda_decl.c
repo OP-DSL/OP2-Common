@@ -89,9 +89,28 @@ op_init ( int argc, char ** argv, int diags)
 op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {
-  char* d = (char*) malloc(set->size*dim*size);
-  memcpy(d, data, set->size*dim*size*sizeof(char));
-  return op_decl_dat_core ( set, dim, type, size, d, name );
+  op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
+
+  //transpose data
+  if (strstr( type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size*i*set->size + element_size*j + c] = data[dat->size*j+element_size*i+c];
+        }
+      }
+    }
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+        ( void ** ) &( temp_data ), dat->size * set->size );
+    free(temp_data);
+  } else {
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+        ( void ** ) &( dat->data ), dat->size * set->size );
+  }
+
+  return dat;
 }
 
 void op_mv_halo_device(op_set set, op_dat dat)
@@ -173,6 +192,33 @@ void op_timers(double * cpu, double * et)
 {
   MPI_Barrier(MPI_COMM_WORLD);
   op_timers_core(cpu,et);
+}
+
+void op_fetch_data ( op_dat dat )
+{
+
+  //transpose data
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
+    cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
+                                 dat->size * dat->set->size,
+                                 cudaMemcpyDeviceToHost ) );
+    cutilSafeCall ( cudaThreadSynchronize (  ) );
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < dat->set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*dat->set->size + element_size*j + c];
+        }
+      }
+    }
+    free(temp_data);
+  } else {
+  cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
+                               dat->size * dat->set->size,
+                               cudaMemcpyDeviceToHost ) );
+  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  }
 }
 
 //
