@@ -269,14 +269,9 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
  */
 
 op_dat
-op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size, char const * name )
+op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size,
+  char * data, char const * name )
 {
-  //create empty data block to assign to this temporary dat
-  char* data = (char *)malloc(sizeof(set->size*dim*size));
-  if (data == NULL) {
-    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
-    exit ( -1 );
-  }
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 

@@ -207,6 +207,8 @@ op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
 
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
 
+op_dat op_decl_dat_temp_core ( op_set, int, char const*, int, char *, char const * );
+
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
 void op_err_print ( const char * error_string, int m, const char * name );
@@ -268,6 +270,13 @@ int op_mpi_perf_time(const char* name, double time);
 #ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
 #endif
+
+
+/*******************************************************************************
+* Utility function to compare two op_sets and return 1 if they are identical
+*******************************************************************************/
+int compare_sets(op_set set1, op_set set2);
+
 
 #ifdef __cplusplus
 }

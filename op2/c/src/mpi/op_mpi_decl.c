@@ -40,6 +40,7 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_mpi_core.h>
+#include <op_lib_mpi.h>
 
 /*
  * Routines called by user code and kernels
@@ -61,14 +62,34 @@ void op_init ( int argc, char ** argv, int diags )
 op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
   char* d = (char*) malloc(set->size*dim*size);
+  if (d == NULL) {
+    printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
+    exit ( -1 );
+  }
   memcpy(d, data, set->size*dim*size*sizeof(char));
-  //return op_decl_dat_core ( set, dim, type, size, data, name );
   op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
   out_dat-> user_managed = 0;
   return out_dat;
 
 
 }
+
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, char const *name )
+{
+  //create empty data block to assign to this temporary dat (including the halos)
+  int halo_size = OP_import_exec_list[set->index]->size +
+  OP_import_nonexec_list[set->index]->size;
+
+  char* d = (char*) malloc((set->size+halo_size)*dim*size);
+  if (d == NULL) {
+    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
+    exit ( -1 );
+  }
+  op_dat out_dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
+  out_dat-> user_managed = 0;
+  return out_dat;
+}
+
 
 void op_fetch_data ( op_dat dat )
 {

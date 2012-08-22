@@ -90,8 +90,15 @@ op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {
   char* d = (char*) malloc(set->size*dim*size);
+  if (d == NULL) {
+    printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
+    exit ( -1 );
+  }
+
   memcpy(d, data, set->size*dim*size*sizeof(char));
-  return op_decl_dat_core ( set, dim, type, size, d, name );
+  op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
+  out_dat-> user_managed = 0;
+  return out_dat;
 }
 
 void op_mv_halo_device(op_set set, op_dat dat)

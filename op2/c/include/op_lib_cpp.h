@@ -115,7 +115,7 @@ extern op_kernel * OP_kernels;
 
 
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
-
+op_dat op_decl_dat_temp_char (op_set, int, char const *, int, char const * );
 
 /* Implementation */
 
@@ -162,6 +162,16 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
     return op_arg_gbl_char ( ( char *  )data, dim, "error",  sizeof(T), acc );
   else
     return op_arg_gbl_char ( ( char * ) data, dim, type,  sizeof(T), acc );
+}
+
+//
+//temporary dats
+//
+inline op_dat op_decl_dat_temp ( op_set set, int dim, char const *type,
+                     int size, char const * name )
+{
+  //size is the size of the type (e.g. sizeof(double))
+  return op_decl_dat_temp_char ( set, dim, type, size, name );
 }
 
 

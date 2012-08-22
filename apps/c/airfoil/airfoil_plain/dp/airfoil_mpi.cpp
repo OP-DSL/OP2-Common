@@ -371,7 +371,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_q,  -1,OP_ID, 4,"double",OP_READ ),
           op_arg_dat(p_adt,-1,OP_ID, 1,"double",OP_WRITE));
 
-      //op_dat p_q_temp     = op_decl_dat_temp(cells ,4,"double",q    ,"p_q_temp");
+      //op_dat p_res_temp     = op_decl_dat_temp(cells ,4,"double",sizeof(double),"p_res_temp");
 
       //    calculate flux residual
       op_par_loop(res_calc,"res_calc",edges,
@@ -392,7 +392,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_res,   0,pbecell,4,"double",OP_INC ),
           op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ));
 
-      //op_free_dat_temp(p_q_temp);
+      //op_free_dat_temp(p_res_temp);
 
       //    update flow field
 

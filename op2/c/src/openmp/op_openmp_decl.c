@@ -56,6 +56,19 @@ op_decl_dat_char ( op_set set, int dim, char const * type, int size, char * data
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
+op_dat
+op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )
+{
+  char* data = (char*) malloc(set->size*dim*size);
+  if (data == NULL) {
+    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
+    exit ( -1 );
+  }
+  op_dat out_dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+  out_dat-> user_managed = 0;
+  return out_dat;
+}
+
 void
 op_fetch_data ( op_dat dat )
 {
