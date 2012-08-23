@@ -35,8 +35,17 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+  CPP		= pgCC
+  CCFLAGS  	= -O3 -fPIC
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -mp
+  MPICPP 	= /home/gihan/openmpi-pgi/bin/mpiCC
+  MPIFLAGS 	= $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -65,7 +74,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp
+all: clean airfoil_seq airfoil_openmp airfoil_mpi airfoil_mpi_openmp airfoil_cuda airfoil_mpi_cuda
 
 #
 # simple sequential version

@@ -41,8 +41,17 @@ ifeq ($(OP2_COMPILER),intel)
 	MPICXX   := mpiCC
 	MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+	CC	 := pgcc
+	CCFLAGS	 := -O3
+	CXX	 := pgCC
+	CXXFLAGS := $(CCFLAGS)
+	MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
+	MPIFLAGS := $(CXXFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -63,7 +72,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
