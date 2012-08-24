@@ -2200,7 +2200,12 @@ void op_mpi_exit()
   }
 #endif
 
-  //free memory allocated to halos and mpi_buffers
+  /* Don't free if we didn't build halos */
+  if (!OP_import_exec_list)
+  {
+    return;
+  }
+  //free memory allocated to halos
   op_halo_destroy();
   //return all op_dats, op_maps back to original element order
   op_partition_reverse();
