@@ -673,6 +673,7 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
   arg.type = typ;
   arg.acc = acc;
 
+  arg.sent = 0;
   return arg;
 }
 
