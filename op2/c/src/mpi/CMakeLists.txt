@@ -37,8 +37,13 @@ endif()
 # MPI library
 add_definitions(${OP2_MPI_DEFINITIONS})
 include_directories(${OP2_MPI_INCLUDE_DIRS})
-add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_decl.c op_mpi_rt_support.c)
-target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES})
+if(OP2_WITH_MATRICES)
+  include_directories(${PETSC_INCLUDE_DIRS})
+  set(MATRIX_SRC ${MATRIX_SRC} ../sequential/op_mat_seq.cpp)
+endif()
+add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
+${MATRIX_SRC} op_mpi_decl.c op_mpi_rt_support.c)
+target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES} ${PETSC_LIBRARIES})
 
 # Add target to the build-tree export set
 export(TARGETS op2_mpi APPEND
