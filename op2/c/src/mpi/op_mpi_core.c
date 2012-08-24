@@ -2179,6 +2179,11 @@ void op_mpi_exit()
   }
 #endif
 
+  /* Don't free if we didn't build halos */
+  if (!OP_import_exec_list)
+  {
+    return;
+  }
   //free memory allocated to halos
   op_halo_destroy();
   //return all op_dats, op_maps back to original element order
@@ -2189,6 +2194,11 @@ void op_mpi_exit()
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
+  /* No halos */
+  if (!OP_import_exec_list)
+  {
+    return size;
+  }
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
     {
