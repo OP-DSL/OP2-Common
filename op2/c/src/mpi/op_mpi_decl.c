@@ -40,13 +40,14 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_mpi_core.h>
-
+#include <petsc.h>
 /*
  * Routines called by user code and kernels
  * these wrappers are used by non-CUDA versions
  * op_lib.cu provides wrappers for CUDA version
  */
 
+extern MPI_Comm OP_MPI_WORLD;
 void op_init ( int argc, char ** argv, int diags )
 {
   int flag = 0;
@@ -55,6 +56,10 @@ void op_init ( int argc, char ** argv, int diags )
   {
     MPI_Init(&argc, &argv);
   }
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_WORLD);
+  PETSC_COMM_WORLD = OP_MPI_WORLD;
+  PetscInitialize(&argc,&argv,(char *)0,(char *)0);
+
   op_init_core ( argc, argv, diags );
 }
 

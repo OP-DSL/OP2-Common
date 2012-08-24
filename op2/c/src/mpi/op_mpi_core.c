@@ -510,7 +510,6 @@ void op_halo_create()
 
   //create new communicator for OP mpi operation
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_WORLD);
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
