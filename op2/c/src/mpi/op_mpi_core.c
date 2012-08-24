@@ -1607,6 +1607,31 @@ void op_mpi_reduce_int(op_arg* arg, int* data)
   }
 }
 
+void op_mpi_reduce_unsigned_int(op_arg* arg, unsigned int* data)
+{
+  (void)data;
+  unsigned int result;
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    MPI_Op op;
+
+    if(arg->acc == OP_INC)//global reduction
+    {
+      op = MPI_SUM;
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      op = MPI_MAX;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      op = MPI_MIN;
+    }
+    MPI_Allreduce((unsigned int *)arg->data, &result, arg->dim, MPI_UNSIGNED,
+                  op, OP_MPI_WORLD);
+    memcpy(arg->data, &result, sizeof(unsigned int)*arg->dim);
+  }
+}
 
 
 /*******************************************************************************
