@@ -37,18 +37,28 @@ void op_build_sparsity_pattern ( op_sparsity sparsity )
   // columns pointed to by the col map
   int rmult = sparsity->dim[0];
   int cmult = sparsity->dim[1];
-  std::vector< std::set< int > > s(sparsity->nrows);
+  std::vector< std::set< int > > s_diag(sparsity->nrows);
+  std::vector< std::set< int > > s_odiag(sparsity->nrows);
 
+  int lsize = sparsity->nrows;
   for ( int m = 0; m < sparsity->nmaps; m++ ) {
     op_map rowmap = sparsity->rowmaps[m];
     op_map colmap = sparsity->colmaps[m];
-    for ( int e = 0; e < rowmap->from->size; ++e ) {
+    int rsize = rowmap->from->size + rowmap->from->exec_size;
+    for ( int e = 0; e < rsize; ++e ) {
       for ( int i = 0; i < rowmap->dim; ++i ) {
         for ( int r = 0; r < rmult; r++ ) {
           int row = rmult * rowmap->map[i + e*rowmap->dim] + r;
-          for ( int c = 0; c < cmult; c++ ) {
-            for ( int d = 0; d < colmap->dim; d++ ) {
-              s[row].insert(cmult * colmap->map[d + e*colmap->dim] + c);
+          if ( row < lsize ) {
+            for ( int c = 0; c < cmult; c++ ) {
+              for ( int d = 0; d < colmap->dim; d++ ) {
+                int entry = cmult * colmap->map[d + e * colmap->dim] + c;
+                if ( entry < lsize ) {
+                  s_diag[row].insert(entry);
+                } else {
+                  s_odiag[row].insert(entry);
+                }
+              }
             }
           }
         }
@@ -57,21 +67,24 @@ void op_build_sparsity_pattern ( op_sparsity sparsity )
   }
 
   // Create final sparsity structure
-  int *nnz = (int*)malloc(cmult * sparsity->nrows * sizeof(int));
+  int *d_nnz = (int*)malloc(cmult * sparsity->nrows * sizeof(int));
+  int *o_nnz = (int *)malloc(cmult * sparsity->nrows * sizeof(int));
   int *rowptr = (int*)malloc((sparsity->nrows+1) * sizeof(int));
   rowptr[0] = 0;
   for ( size_t row = 0; row < sparsity->nrows; ++row ) {
-    nnz[row] = s[row].size();
-    rowptr[row+1] = rowptr[row] + nnz[row];
-    if ( sparsity->max_nonzeros < s[row].size() )
-      sparsity->max_nonzeros = s[row].size();
+    d_nnz[row] = s_diag[row].size();
+    o_nnz[row] = s_odiag[row].size();
+    rowptr[row+1] = rowptr[row] + d_nnz[row] + o_nnz[row];
   }
   int *colidx = (int*)malloc(rowptr[sparsity->nrows] * sizeof(int));
   for ( size_t row = 0; row < sparsity->nrows; ++row ) {
-    std::copy(s[row].begin(), s[row].end(), colidx + rowptr[row]);
+    std::copy(s_diag[row].begin(), s_diag[row].end(), colidx + rowptr[row]);
+    std::copy(s_odiag[row].begin(), s_odiag[row].end(),
+              colidx + rowptr[row] + d_nnz[row]);
   }
 
-  sparsity->nnz = nnz;
+  sparsity->d_nnz = d_nnz;
+  sparsity->o_nnz = o_nnz;
   sparsity->total_nz = rowptr[sparsity->nrows];
   sparsity->rowptr = rowptr;
   sparsity->colidx = colidx;

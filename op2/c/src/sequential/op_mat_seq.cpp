@@ -50,16 +50,40 @@ op_mat op_decl_mat( op_sparsity sparsity, int *dims, int ndim, char const * type
   op_mat mat = op_decl_mat_core ( sparsity, dims, ndim, type, type_size, name );
 
   Mat p_mat;
-  // Create a PETSc CSR sparse matrix and pre-allocate storage
-  MatCreateSeqAIJ(PETSC_COMM_SELF,
-      sparsity->nrows,
-      sparsity->ncols,
-      sparsity->max_nonzeros,
-      (const PetscInt*)sparsity->nnz,
-      &p_mat);
-  // Set the column indices (FIXME: benchmark if this is worth it)
-  MatSeqAIJSetColumnIndices(p_mat, (PetscInt*)sparsity->colidx);
-
+  int size;
+  MPI_Comm comm= PETSC_COMM_WORLD;
+  MPI_Comm_size(comm, &size);
+  if (size > 1) {
+    // Create a PETSc CSR sparse matrix and pre-allocate storage
+    MatCreateMPIAIJ(comm,
+                    sparsity->nrows, // Local number of rows
+                    sparsity->ncols, // Local number of columns
+                    PETSC_DETERMINE, // Global number of rows,
+                    PETSC_DETERMINE, // Global number of columns,
+                    PETSC_DEFAULT,   // unused
+                    (const PetscInt*)sparsity->d_nnz, // diagonal subblock
+                    PETSC_DEFAULT,
+                    (const PetscInt*)sparsity->o_nnz, // offdiagonal subblock)
+                    &p_mat);
+    // These are wrong for petsc MPI matrices I think, so make them NULL.
+    free(sparsity->rowptr);
+    sparsity->rowptr = NULL;
+    free(sparsity->colidx);
+    sparsity->colidx = NULL;
+  } else {
+    // Create a PETSc CSR sparse matrix and pre-allocate storage
+    MatCreateSeqAIJ(comm,
+                    sparsity->nrows, // Number of rows
+                    sparsity->ncols, // Number of columns
+                    PETSC_DEFAULT,   // unused
+                    (const PetscInt*)sparsity->d_nnz, // diagonal block
+                    &p_mat);
+    // Set the column indices (FIXME: benchmark if this is worth it)
+    MatSeqAIJSetColumnIndices(p_mat, (PetscInt*)sparsity->colidx);
+  }
+  // FIXME: work out what is necessary to make OP2 do redundant
+  // computation in L1 element halos.
+  //MatSetOption(p_mat, MAT_IGNORE_OFF_PROC_ENTRIES, PETSC_TRUE);
   MatZeroEntries(p_mat);
   mat->mat = p_mat;
   return mat;
@@ -134,8 +158,16 @@ static Vec op_create_vec ( const op_dat vec ) {
   PetscScalar * dvalues = to_petsc(vec, vec->data, vec->dim * vec->set->size);
 
   Vec p_vec;
-  // Create a PETSc vector and pass it the user-allocated storage
-  VecCreateSeqWithArray(MPI_COMM_SELF, vec->dim * vec->set->size, dvalues, &p_vec);
+  int size;
+  MPI_Comm comm = PETSC_COMM_WORLD;
+  MPI_Comm_size(comm, &size);
+  if ( size > 1 ) {
+    VecCreateMPIWithArray(comm, vec->dim * vec->set->size,
+                          PETSC_DETERMINE, dvalues, &p_vec);
+  } else {
+    // Create a PETSc vector and pass it the user-allocated storage
+    VecCreateSeqWithArray(comm, vec->dim * vec->set->size, dvalues, &p_vec);
+  }
   VecAssemblyBegin(p_vec);
   VecAssemblyEnd(p_vec);
 
