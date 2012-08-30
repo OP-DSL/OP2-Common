@@ -124,6 +124,13 @@ void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col )
   else
     v[0] = ((const PetscScalar *)value)[0];
 
+  if ( v[0] == 0.0 ) {
+    return;
+  }
+  op_set s = mat->sparsity->rowmaps[0]->to;
+  row = op_global_index(s, row);
+  col = op_global_index(s, col);
+
   MatSetValues( (Mat) mat->mat,
                 1, (const PetscInt *)&row,
                 1, (const PetscInt *)&col,
@@ -136,11 +143,22 @@ void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, 
 
   PetscScalar * dvalues = to_petsc(mat, values, nrows * ncols);
 
+  op_set s = mat->sparsity->rowmaps[0]->to;
+  PetscInt *rows = (PetscInt *)malloc(nrows * sizeof(PetscInt));
+  PetscInt *cols = (PetscInt *)malloc(ncols * sizeof(PetscInt));
+  for ( int i = 0; i < nrows; i++ ) {
+    rows[i] = op_global_index(s, irows[i]);
+  }
+  for ( int i = 0; i < ncols; i++ ) {
+    cols[i] = op_global_index(s, icols[i]);
+  }
   MatSetValues( (Mat) mat->mat,
-                nrows, (const PetscInt *)irows,
-                ncols, (const PetscInt *)icols,
+                nrows, (const PetscInt *)rows,
+                ncols, (const PetscInt *)cols,
                 dvalues, ADD_VALUES);
 
+  free(rows);
+  free(cols);
   if (is_float(mat)) free(dvalues);
 }
 
