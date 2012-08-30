@@ -155,6 +155,7 @@ typedef op_mpi_buffer_core *op_mpi_buffer;
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
+extern int** new_part_range;
 
 /** export list on the device **/
 
@@ -176,6 +177,8 @@ void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
 int get_partition(int global_index, int* part_range, int* local_index, int comm_size);
 
 int get_global_index(int local_index, int partition, int* part_range, int comm_size);
+
+int find_idx_in_hlist(int idx, halo_list hlist, int *partition);
 
 void find_neighbors_set(halo_list List,
                         int* neighbors,

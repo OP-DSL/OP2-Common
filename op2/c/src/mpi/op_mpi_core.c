@@ -89,6 +89,7 @@ part *OP_part_list;
 
 int** orig_part_range = NULL;
 
+int **new_part_range = NULL;
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
@@ -154,6 +155,61 @@ int get_partition(int global_index, int* part_range, int* local_index,
   }
   return 0;
 }
+
+/* Try to find the partition an index belongs to, and the index on
+ * the remote process by looking in a halo. */
+int find_idx_in_hlist(int idx, halo_list hlist, int *partition)
+{
+  for ( int i = 0; i < hlist->ranks_size; i++ ) {
+    if ( hlist->ranks_size - 1 == i
+         || (hlist->disps[i] <= idx && idx < hlist->disps[i+1]) ) {
+      *partition = hlist->ranks[i];
+      break;
+    }
+  }
+  /* Map the index on this process onto the index of the element on
+   * the remote process */
+  return hlist->list[idx];
+}
+
+/* Map the local index of a set S to a global index.  This works even
+ * for indices that are in the halo elements of a set. */
+int op_global_index(op_set s, int idx)
+{
+  halo_list ieh;
+  halo_list inh;
+  int partition;
+  int rank;
+  MPI_Comm c = OP_MPI_WORLD;
+  int * part_range;
+
+  /* No halos, AKA serial */
+  if ( OP_import_nonexec_list == NULL ) {
+    return idx;
+  }
+  ieh = OP_import_exec_list[s->index];
+  inh = OP_import_nonexec_list[s->index];
+  part_range = new_part_range[s->index];
+  MPI_Comm_rank(c, &rank);
+  if ( idx < s->size ) {
+    /* This index is local to us. */
+    partition = rank;
+  } else if ( idx < s->size + s->exec_size ) {
+    /* It's in the import-exec halo */
+    idx -= s->size;
+    idx = find_idx_in_hlist(idx, ieh, &partition);
+  } else if ( idx < s->size + s->exec_size + s->nonexec_size ) {
+    /* It's in the import-nonexec halo */
+    idx -= s->size + s->exec_size;
+    idx = find_idx_in_hlist(idx, inh, &partition);
+  } else {
+    /* Should never happen */
+    printf("Unable to find global value of idx %d on rank %d\n", idx, rank);
+    MPI_Abort(c, 1);
+  }
+  return get_global_index(idx, partition, part_range, 0);
+}
+
 
 /*******************************************************************************
  * Routine to convert a local index in to a global index
@@ -1443,10 +1499,8 @@ void op_halo_create()
     printf("Average (worst case) Halo size = %d Bytes\n",
         avg_halo_size/comm_size);
   }
-
-  //initialise hash table that keeps track of the communication performance of
-  //each of the kernels executed
-  for (int i=0;i<HASHSIZE;i++) op_mpi_kernel_tab[i].count = 0;
+  new_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  get_part_range(new_part_range,my_rank,comm_size, OP_MPI_WORLD);
 }
 
 /*******************************************************************************
@@ -1462,6 +1516,12 @@ void op_halo_destroy()
     dat->data =(char *)xrealloc(dat->data,dat->set->size*dat->size);
   }
 
+  /* Free new_part_range */
+  for ( int i = 0; i < OP_set_index; i++ ) {
+    free(new_part_range[i]);
+  }
+  free(new_part_range);
+  new_part_range = NULL;
   //free lists
   for(int s = 0; s< OP_set_index; s++){
     op_set set=OP_set_list[s];
