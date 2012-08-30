@@ -287,6 +287,8 @@ int op_i (int idx);
 * Core MPI lib function prototypes
 *******************************************************************************/
 
+int op_global_index(op_set set, int idx);
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
