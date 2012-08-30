@@ -147,11 +147,13 @@ typedef struct {
   int dim[2];
   size_t nrows;       /* number of rows */
   size_t ncols;       /* number of columns */
-  int    *nnz;        /* vector of number of nonzeros per row */
-  int    total_nz;    /* total nonzeros in the pattern sum(nnz) */
-  int    *rowptr;     /* csr row pointer (accumulation of nnz) */
+  int    *d_nnz;      /* vector of number of nonzeros per row in
+                       * diagonal subblock */
+  int    *o_nnz;      /* vector of number of nonzeros per row in
+                       * off-diagonal subblock */
+  int    total_nz;    /* total nonzeros in the pattern sum(d_nnz + o_nnz) */
+  int    *rowptr;     /* csr row pointer (accumulation of d_nnz and o_nnz) */
   int    *colidx;     /* csr column indices for each row */
-  size_t max_nonzeros;/* maximum number of nonzeros per row */
   char const *name;   /* name of dataset */
 } op_sparsity_core;
 

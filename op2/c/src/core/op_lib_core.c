@@ -454,10 +454,10 @@ op_decl_sparsity_core ( op_map *rowmaps, op_map *colmaps, int nmaps, int *dim, i
   sparsity->dim[1] = dim[1];
   sparsity->nrows = nrows * dim[0];
   sparsity->ncols = ncols * dim[1];
-  sparsity->nnz = NULL;
+  sparsity->d_nnz = NULL;
+  sparsity->o_nnz = NULL;
   sparsity->rowptr = NULL;
   sparsity->colidx = NULL;
-  sparsity->max_nonzeros = 0;
 
   op_build_sparsity_pattern ( sparsity );
   OP_sparsity_list[OP_sparsity_index++] = sparsity;
@@ -519,7 +519,8 @@ op_exit_core (  )
 
   for ( int i = 0; i < OP_sparsity_index; i++ )
   {
-    free ( OP_sparsity_list[i]->nnz );
+    free ( OP_sparsity_list[i]->d_nnz );
+    free ( OP_sparsity_list[i]->o_nnz );
     free ( OP_sparsity_list[i]->rowptr );
     free ( OP_sparsity_list[i]->colidx );
     free ( OP_sparsity_list[i] );
