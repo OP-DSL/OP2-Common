@@ -60,12 +60,12 @@ foreach(VARIANT ${OP2_BUILD_VARIANTS})
 
   # MPI + CUDA version
   op2_application(airfoil_${VARIANT}_mpi_cuda DEPENDS AIRFOIL_grid LIBS op2_mpi_cuda
-    SOURCES dp/airfoil_mpi_op.cpp dp/airfoil_kernels.cu
-    dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
+    SOURCES ${VARIANT}/airfoil_mpi_op.cpp ${VARIANT}/airfoil_kernels.cu
+    ${VARIANT}/save_soln.h ${VARIANT}/adt_calc.h ${VARIANT}/res_calc.h ${VARIANT}/bres_calc.h ${VARIANT}/update.h)
 
   #MPI + OpenMP version
   op2_application(airfoil_${VARIANT}_mpi_openmp DEPENDS AIRFOIL_grid LIBS op2_mpi op2_openmp
-    SOURCES dp/airfoil_mpi_op.cpp dp/airfoil_kernels.cpp
-    dp/save_soln.h dp/adt_calc.h dp/res_calc.h dp/bres_calc.h dp/update.h)
+    SOURCES ${VARIANT}/airfoil_mpi_op.cpp ${VARIANT}/airfoil_kernels.cpp
+    ${VARIANT}/save_soln.h ${VARIANT}/adt_calc.h ${VARIANT}/res_calc.h ${VARIANT}/bres_calc.h ${VARIANT}/update.h)
 
 endforeach()
