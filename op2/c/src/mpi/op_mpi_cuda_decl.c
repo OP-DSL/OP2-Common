@@ -128,7 +128,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
 
-  //char* data = (char*) malloc(set_size*dim*size);
   char* data = (char*) calloc(set_size*dim*size, 1); //initialize data bits to 0
   if (data == NULL) {
     printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );

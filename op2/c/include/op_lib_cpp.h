@@ -168,11 +168,11 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
 //
 //temporary dats
 //
-inline op_dat op_decl_dat_temp ( op_set set, int dim, char const *type,
-                     int size, char const * name )
+template < class T >
+op_dat op_decl_dat_temp ( op_set set, int dim, char const *type, T* data,
+  char const * name )
 {
-  //size is the size of the type (e.g. sizeof(double))
-  return op_decl_dat_temp_char ( set, dim, type, size, name );
+  return op_decl_dat_temp_char ( set, dim, type, sizeof(T), name );
 }
 
 inline int op_free_dat_temp ( op_dat dat )

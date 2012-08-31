@@ -402,7 +402,8 @@ int main(int argc, char **argv)
   niter = 1000;
   for(int iter=1; iter<=niter; iter++) {
 
-    op_dat p_res   = op_decl_dat_temp(cells ,4,"double",sizeof(double),"p_res");
+    double tmp_elem[] = {0.0,0.0,0.0,0.0};
+    op_dat p_res   = op_decl_dat_temp(cells ,4,"double",tmp_elem,"p_res");
 
     //save old flow solution
     op_par_loop_save_soln("save_soln",cells,

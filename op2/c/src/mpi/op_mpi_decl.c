@@ -100,7 +100,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
   //create empty data block to assign to this temporary dat (including the halos)
   int halo_size = OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
-  //char* d = (char*) malloc((set->size+halo_size)*dim*size);
+
   char* d = (char*) calloc((set->size+halo_size)*dim*size, 1); //initialize data bits to 0
   if (d == NULL) {
     printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
