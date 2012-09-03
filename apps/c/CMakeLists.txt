@@ -41,6 +41,7 @@ set(OP2_AIRFOIL_APPS
   airfoil/airfoil_plain
   airfoil/airfoil_hdf5
   airfoil/airfoil_vector
+  airfoil/airfoil_hdf5_vector
   )
 set(OP2_JACOBI_APPS
   jac1
