@@ -106,7 +106,11 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
 {
   //Check if this dat already exists in the double linked list
   op_dat found_dat = search_dat(set, dim, type, size, name);
-  if ( found_dat != NULL) return found_dat;
+  if ( found_dat != NULL)
+  {
+    op_printf("op_dat with name %s already exists, cannot create temporary op_dat\n ", name);
+    exit(2);
+  }
 
   //
   //if not found ...

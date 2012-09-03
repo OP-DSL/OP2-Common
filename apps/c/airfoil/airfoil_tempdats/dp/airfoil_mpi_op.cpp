@@ -459,8 +459,8 @@ int main(int argc, char **argv)
     if (iter%100 == 0)
       op_printf("%d  %10.5e \n",iter,rms);
 
-    //if (op_free_dat_temp(p_res) < 0)
-    //  op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);
+    if (op_free_dat_temp(p_res) < 0)
+      op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);
   }
 
   op_timers(&cpu_t2, &wall_t2);
