@@ -402,7 +402,7 @@ int main(int argc, char **argv)
   niter = 1000;
   for(int iter=1; iter<=niter; iter++) {
 
-    double tmp_elem[] = {0.0,0.0,0.0,0.0};
+    double* tmp_elem = NULL;
     op_dat p_res   = op_decl_dat_temp(cells ,4,"double",tmp_elem,"p_res");
 
     //save old flow solution

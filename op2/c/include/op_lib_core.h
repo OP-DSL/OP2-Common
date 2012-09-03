@@ -278,7 +278,7 @@ void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
 * Utility function to compare two op_sets and return 1 if they are identical
 *******************************************************************************/
 int compare_sets(op_set set1, op_set set2);
-
+op_dat search_dat(op_set set, int dim, char const * type, int size, char const * name);
 
 #ifdef __cplusplus
 }
