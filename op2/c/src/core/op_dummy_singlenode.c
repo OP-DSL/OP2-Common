@@ -36,6 +36,13 @@
 
 #include "op_lib_core.h"
 
+int op_global_index(op_set s, int idx)
+{
+  (void)s;
+  (void)idx;
+  return idx;
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args)
 {
   (void)nargs;
