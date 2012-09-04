@@ -77,28 +77,14 @@ op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char 
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, char const *name )
 {
-  //Check if this dat already exists in the double linked list
-  op_dat found_dat = search_dat(set, dim, type, size, name);
-  if ( found_dat != NULL)
-  {
-    op_printf("op_dat with name %s already exists, cannot create temporary op_dat\n ", name);
-    exit(2);
-  }
-
-  //
-  //if not found ...
-  //
+  char* d = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
 
   //create empty data block to assign to this temporary dat (including the halos)
   int halo_size = OP_import_exec_list[set->index]->size +
-  OP_import_nonexec_list[set->index]->size;
+                  OP_import_nonexec_list[set->index]->size;
 
-  char* d = (char*) calloc((set->size+halo_size)*dim*size, 1); //initialize data bits to 0
-  if (d == NULL) {
-    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
-    exit ( -1 );
-  }
-  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
+  dat->data = (char*) calloc((set->size+halo_size)*dim*size, 1); //initialize data bits to 0
   dat-> user_managed = 0;
 
   //need to allocate mpi_buffers for this new temp_dat

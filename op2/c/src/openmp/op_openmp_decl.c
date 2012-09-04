@@ -59,26 +59,12 @@ op_decl_dat_char ( op_set set, int dim, char const * type, int size, char * data
 op_dat
 op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )
 {
-  //Check if this dat already exists in the double linked list
-  op_dat found_dat = search_dat(set, dim, type, size, name);
-  if ( found_dat != NULL)
-  {
-    op_printf("op_dat with name %s already exists, cannot create temporary op_dat\n ", name);
-    exit(2);
-  }
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
 
-  //
-  //if not found ...
-  //
-
-  char* data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
-  if (data == NULL) {
-    printf ( " op_decl_dat_temp error -- error allocating memory to temporary dat\n" );
-    exit ( -1 );
-  }
-  op_dat out_dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
-  out_dat-> user_managed = 0;
-  return out_dat;
+  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+  return dat;
 }
 
 int op_free_dat_temp_char ( op_dat dat )
