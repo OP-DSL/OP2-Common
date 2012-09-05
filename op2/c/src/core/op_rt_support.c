@@ -332,6 +332,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       for ( int m = 0; m < nargs; m++ )
       {
         match = match
+          && args[m].argtype == OP_ARG_DAT
           && ( args[m].dat->size == OP_plans[ip].dats[m]->size )
           && ( args[m].dat->dim == OP_plans[ip].dats[m]->dim )
           && ( args[m].map == OP_plans[ip].maps[m] )

@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -g -O0 #-O2 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O2 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
   CPPFLAGS	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
