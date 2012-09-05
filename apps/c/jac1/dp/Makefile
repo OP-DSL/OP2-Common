@@ -30,7 +30,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O2 -vec-report -xSSE4.2 -g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -g -O0 #-O2 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
+  CPPFLAGS	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
   MPIFLAGS	= $(CCFLAGS)
@@ -64,7 +65,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: jac_mpi jac_seq jac_openmp jac_cuda
+all: clean jac_mpi jac_seq jac_openmp jac_cuda
 
 
 #
