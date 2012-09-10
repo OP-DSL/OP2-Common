@@ -1914,9 +1914,6 @@ op_dat op_mpi_get_data(op_dat dat)
   temp_dat->type = dat->type;
   temp_dat->size = dat->size;
 
-  //not required ?
-  //temp_dat->mpi_buffer = dat->mpi_buffer
-
   return temp_dat;
 }
 

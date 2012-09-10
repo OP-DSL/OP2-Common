@@ -228,11 +228,12 @@ int main(int argc, char **argv)
   op_dat p_bound = op_decl_dat(bedges,1,"int"  ,bound,"p_bound");
   op_dat p_x     = op_decl_dat(nodes ,2,"double",x    ,"p_x");
   op_dat p_q     = op_decl_dat(cells ,4,"double",q    ,"p_q");
-  op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
-  op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
+  //op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
+  //op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
+  //op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
 
-  // p_res now declared as a temp op_dat during the execution of the time-marching loop
-  //op_decl_dat(cells ,4,"double",res  ,"p_res");
+  // p_res, p_adt and p_qold  now declared as a temp op_dats during
+  // the execution of the time-marching loop
 
   op_decl_const2("gam",1,"double",&gam  );
   op_decl_const2("gm1",1,"double",&gm1  );
@@ -255,6 +256,8 @@ int main(int argc, char **argv)
 
     double* tmp_elem = NULL;
     op_dat p_res   = op_decl_dat_temp(cells ,4,"double",tmp_elem,"p_res");
+    op_dat p_adt   = op_decl_dat_temp(cells ,1,"double",tmp_elem,"p_adt");
+    op_dat p_qold  = op_decl_dat_temp(cells ,4,"double",qold ,"p_qold");
 
     // save old flow solution
 
@@ -315,6 +318,10 @@ int main(int argc, char **argv)
 
     if (op_free_dat_temp(p_res) < 0)
       op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);
+    if (op_free_dat_temp(p_adt) < 0)
+      op_printf("Error: temporary op_dat %s cannot be removed\n",p_adt->name);
+    if (op_free_dat_temp(p_qold) < 0)
+      op_printf("Error: temporary op_dat %s cannot be removed\n",p_qold->name);
   }
 
   op_timers(&cpu_t2, &wall_t2);

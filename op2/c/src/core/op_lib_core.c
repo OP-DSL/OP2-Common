@@ -480,8 +480,6 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.data_d = NULL;
   }
 
-  //printf("dat->type = %s\n",dat->type);
-
   arg.type = typ;
   arg.acc = acc;
 
