@@ -28,7 +28,7 @@
 \begin{document}
 
 \title{OP2 C++ User's Manual}
-\author{Mike Giles}
+\author{Mike Giles, Gihan Mudalige, Istv{\'a}n Reguly}
 \maketitle
 
 
@@ -53,7 +53,8 @@ with the set or with another set through a mapping.
 
 OP2 makes the important restriction that the order in which the
 function is applied to the members of the set must not affect the
-final result.  This allows the parallel implementation to choose
+final result to within the limits of finite precision floating-point arithmetic.
+This allows the parallel implementation to choose
 its own ordering to achieve maximum parallel efficiency.
 Two other restrictions are that the sets and maps are static
 (i.e.~they do not change) and the operands in the set operations
@@ -267,7 +268,8 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 \subsection{Initialisation and termination routines}
 
 \begin{routine} {void op\_init(int argc, char **argv, int diags\_level)}
-{This routine must be called before all other OP routines.}
+{This routine must be called before all other OP routines. Under MPI back-ends, this routine also calls
+\texttt{MPI\_Init()} unless its already called previously}
 \item[argc, argv]   the usual command line arguments
 \item[diags\_level] an integer which defines the level of debugging
                     diagnostics and reporting to be performed;
@@ -281,8 +283,10 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 
 
 \begin{routine} {void op\_exit()}
-{This routine must be called last to cleanly terminate the OP computation.}
-\item \vspace{-0.3in}
+{This routine must be called last to cleanly terminate the OP computation. Under MPI back-ends, this routine also calls
+\texttt{MPI\_Finalize()} unless its has been called previously. A runtime error will occur if \texttt{MPI\_Finalize()}
+is called after \texttt{op\_exit()}}
+\item \vspace{-0.4in}
 \end{routine}
 
 \begin{routine} {op\_set op\_decl\_set(int size, char *name)}
@@ -330,14 +334,36 @@ appropriate variable with global scope.}
                      at present this must be a literal constant (i.e. a number not a variable);
                      this restriction will be removed in the future but a literal constant will
                      remain more efficient
-\item[type]          datatype, either intrinsic or user-defined
-\item[data]          input data of type {\tt T}  (checked for consistency with {\tt type} at run-time)
+\item[type]          datatype, either intrinsic or user-defined -- expert users can add a qualifier to control data layout and management within OP2 (see section \ref{sec:expert})
+\item[data]          input data of type {\tt T}  (checked for consistency with {\tt type} at run-time) -- for each element in {\tt set}, the {\tt dim} data items muct be contiguous, but OP2 may use a different data layout internally for better performance on certain hardware platforms (see section \ref{sec:expert})
 \item[name]          a name used for output diagnostics
 \end{routine}
 
 \begin{routine} {void op\_fetch\_data(op\_dat dat)}
-{This routine transfers data from the GPU back to the CPU.}
-\item[dat]           OP dataset ID -- data is put back into original input array
+{This routine transfers control over data from OP2 back to the user.}
+\item[dat]           OP dataset ID -- data is put back into the original input array
+\end{routine}
+
+
+\newpage
+
+\begin{routine} {op\_dat op\_decl\_dat\_tmp(op\_set set, int dim, char *type, char *name)}
+{This routine (which is not yet implemented) defines a temporary dataset, initialises it to zero, and returns a dataset ID.}
+
+\item[set]           set
+\item[dim]           dimension of dataset (number of items per set element)
+
+                     at present this must be a literal constant (i.e. a number not a variable);
+                     this restriction will be removed in the future but a literal constant will
+                     remain more efficient
+\item[type]          datatype, either intrinsic or user-defined -- expert users can add a qualifier to control data layout and management within OP2 (see section \ref{sec:expert})
+\item[name]          a name used for output diagnostics
+\end{routine}
+
+
+\begin{routine} {void op\_free\_dat\_tmp(op\_dat dat)}
+{This routine (which is not yet implemented) terminates a temporary dataset.}
+\item[dat]           OP dataset ID
 \end{routine}
 
 
@@ -396,7 +422,7 @@ to support the needs of finite element calculations.
 \begin{routine} {op\_arg op\_arg\_dat(op\_dat dat, int idx, op\_map map,\\
 \hspace*{1.4in} int dim, char *typ, op\_access acc)}{}
 \item[dat]        OP dataset ID
-\item[idx]        index of mapping to be used (-1 $\equiv$ no mapping indirection)
+\item[idx]        index of mapping to be used (ignored if no mapping indirection) -- a negative value indicates that a range of indices is to be used (see section \ref{sec:expert} for additional information)
 \item[map]        OP mapping ID ({\tt OP\_ID} for identity mapping, i.e.~no mapping indirection)
 \item[dim]        dataset dimension (redundant info, checked at run-time for consistency)
 
@@ -408,7 +434,7 @@ to support the needs of finite element calculations.
                   {\tt OP\_READ}: read-only\\
                   {\tt OP\_WRITE}: write-only, but without potential data conflict\\
                   {\tt OP\_RW}:  read and write, but without potential data conflict\\
-                  {\tt OP\_INC}: increment, or global reduction to compute a sum\\
+                  {\tt OP\_INC}: increment, or global reduction to compute a sum
 
 The restriction that {\tt OP\_WRITE} and {\tt OP\_RW} access must not have any
 potential data conflict means that two different elements of the set cannot
@@ -439,6 +465,99 @@ must be passed as an additional {\tt op\_arg\_gbl} argument.
 
 \newpage
 
+\subsection{Expert user capabilities}
+
+\label{sec:expert}
+
+\subsubsection{SoA data layout}
+
+The objective of OP2 is hide all of the complexities involved in
+achieving high performance on a wide variety of hardware platforms.
+Unfortunately, there are limits to the extent to which this is possible,
+and so we have added the capability for expert users to achieve higher
+performance by providing extra directions to OP2.  This is very similar
+to the use of pragmas in C/C++.
+
+At present we have just one qualifier option, which is to force OP2 to
+use SoA (struct of arrays) storage internally on GPUs.  As illustrated in
+Figure \ref{fig:SoA_AoS} the user always supplies data in AoS (array of
+structs) layout, with all of the items associated with one set element
+stored contiguously.  On cache-based CPUs this is almost always the most
+efficient storage layout because it usually maximises the cache hit ratio
+and reuse of data.   However, when doing vector computing (either on GPUs
+or in the AVX vector units of CPUs) with no indirect addressing, then the
+SoA format is more efficient.
+
+OP2 can be directed to use the SoA format by adding the qualifier
+{\tt ':soa'} to the datatype, as in {\tt 'float:soa'}.  Note that the
+data should still be supplied by the user in the standard AoS layout;
+the transposition to SoA format is handled internally by OP2.  Also,
+this qualifier must be used every time the data is accessed, as well as
+when it is first defined.  If it is not, or if it is accessed indirectly,
+it will generate a run-time error.
+
+If the data is held in an SoA layout, then there is a non-unit ``stride''
+in accessing the data associated with one set element; this is illustrated
+in the figure.  When executing a parallel loop, this stride is held
+in a global variable {\tt op2\_stride} which must be used by the user's
+kernel, so instead of a data reference {\tt data[m]} it should be
+{\tt data[m*op2\_stride]}.   The sequential implementation defines
+{\tt op2\_stride = 1} so that the user's code works with both SoA and AoS
+layouts.
+
+\begin{figure}[h]
+{\begin{center}\setlength{\unitlength}{1.2cm}
+\begin{picture}(10,0.75)
+\put(-1.0,0){\makebox(0,0.5){AoS}}
+\multiput(0.0,0)(2.0,0){5}{\framebox(0.5,0.5){0}}
+\multiput(0.5,0)(2.0,0){5}{\framebox(0.5,0.5){1}}
+\multiput(1.0,0)(2.0,0){5}{\framebox(0.5,0.5){2}}
+\multiput(1.5,0)(2.0,0){5}{\framebox(0.5,0.5){3}}
+\end{picture}\end{center}}
+
+{\begin{center}\setlength{\unitlength}{1.2cm}
+\begin{picture}(10,1.25)(0,-0.5)
+\put(-1.0,0){\makebox(0,0.5){SoA}}
+\multiput(0.0,0)(0.5,0){5}{\framebox(0.5,0.5){0}}
+\multiput(2.5,0)(0.5,0){5}{\framebox(0.5,0.5){1}}
+\multiput(5.0,0)(0.5,0){5}{\framebox(0.5,0.5){2}}
+\multiput(7.5,0)(0.5,0){5}{\framebox(0.5,0.5){3}}
+\put(0.75,0){\line(0,-1){0.5}}
+\put(0.75,-0.5){\line(1,0){2.5}}
+\put(3.25,-0.5){\vector(0,1){0.5}}
+\put(2.0,-0.6){\makebox(0,0)[t]{op2\_stride}}
+\end{picture}\end{center}}
+
+\caption{The AoS and SoA layouts for a set with 5 elements,
+ and 4 data items (numbered 0, 1, 2, 3) per element, and
+the access stride for the SoA storage.}
+\label{fig:SoA_AoS}
+\end{figure}
+
+\newpage
+
+\subsubsection{Vector maps}
+
+When each of the arguments in a parallel loop uses a single
+mapping index, the corresponding argument in the user's kernel
+function is a pointer to an array holding the data items for
+the set element being pointed to. i.e.~the kernel declaration
+may look something like\\
+{\tt kernel\_routine(float *arg1, float *arg2, float *arg3, float *arg4)}
+
+If the first 3 arguments correspond to the vertices of a triangle,
+and the parallel loop is over the set of triangles using a mapping
+from triangles to vertices, then it may be more natural to combine
+the first 3 arguments into a single doubly-indexed array as\\
+{\tt kernel\_routine(float *arg1[3], float *arg4)}
+
+This is obtained by a parallel loop argument having a range of mapping
+indices (instead of just one) which is accomplished by specifying the
+mapping index to be {\tt -range} -- this means that the set of mapping
+indices {\tt 0} - {\tt range-1} is to be used.
+
+\newpage
+
 \subsection{MPI message-passing using HDF5 files}
 
 \href{http://www.hdfgroup.org/HDF5/}{HDF5}
@@ -464,7 +583,7 @@ replaced by {\tt char *file} from which the data is read using keyword {\tt name
 
 In addition, there are the following two routines.
 
-\begin{routine} {T op\_get\_const\_hdf5(int dim, char *type, char *file, char *name)}
+\begin{routine} {op\_get\_const\_hdf5(int dim, char *type, char *file, char *name)}
 {This routine reads a constant (or constant array) from an HDF5 file; if required,
 the user must then call {\bf op\_decl\_const} to declare it to OP2.}
 
@@ -485,19 +604,36 @@ the user must then call {\bf op\_decl\_const} to declare it to OP2.}
 \end{routine}
 
 
-\begin{routine} {void op\_partition(char *method)}
+\begin{routine} {void op\_partition(char *lib\_name, const char* lib\_routine,
+  op\_set prime\_set, op\_map prime\_map, op\_dat coords)}
 {This routine controls how the various sets are partitioned.}
-\item[method]   A string which declares the partitioning method to be used.
-                (This needs to be updated with details of how to specify and
-                 control
-\href{http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview}{\tt parmetis}
-and
-\href{http://www.labri.fr/perso/pelegrin/scotch/}{\tt PT-Scotch}
-partitioning.)
+\item[lib\_name]  A string which declares the partitioning library to be used.
+
+                 ``PTSCOTCH'' - select \href{http://www.labri.fr/perso/pelegrin/scotch/}{\tt PT-Scotch}\\
+                 ``PARMETIS'' - select \href{http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview} {\tt ParMetis}\\
+                 ``RANDOM''   - select a generic random partitioning (for debugging)
+
+If the OP2 library was not built with the specified third-party library, an error message is displayed at runtime and a
+trivial block-partitioning is used for the remainder of the application.
+
+\item[lib\_routine] A string which specify the partitioning routine to be used.\\
+                    ``KWAY'' select the kway graph partitioner in PT-Scotch or ParMetis \\
+		    ``GEOM'' - select geometric partitioning routine if ParMetis is the \texttt{lib\_name}\\
+                    ``GEOMKWAY'' - select geometric partitioning followed by kway partitioning if ParMetis is the
+                    \texttt{lib\_name}
+
+\item[prime\_set]  Specify the primary \texttt{op\_set} to be partitioned
+
+\item[prime\_map]  Specify the primary \texttt{op\_map} to be used in the partitioning - to create the adjacency lists
+for \texttt{prime\_set} - needed for ``KWAY'' and ``GEOMKWAY''
+
+\item[prime\_set]  Specify the geometric coordinates as an \texttt{op\_dat} to be used in when using
+``GEOM'' or ``GEOMKWAY''
+
 \end{routine}
 
 
-\begin{routine} {void op\_print(char *string)}
+\begin{routine} {void op\_printf(char *string)}
 {This routine simply prints a message; this is in place of the standard {\tt printf}
 function which would print the same message from each MPI process.}
 \item
@@ -706,7 +842,3 @@ so that this header file is included into the OP2 header file {\tt op\_datatypes
 
 
 \end{document}
-
-
-
-

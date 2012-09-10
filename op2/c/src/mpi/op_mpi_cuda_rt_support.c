@@ -93,10 +93,10 @@ void op_exchange_halo(op_arg* arg)
 
     gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
 
-    cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_exec,
+    cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec,
           arg->dat->buffer_d, exp_exec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
 
-    cutilSafeCall( cudaMemcpy ( OP_mpi_buffer_list[dat->index]-> buf_nonexec,
+    cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec,
           arg->dat->buffer_d+exp_exec_list->size*arg->dat->size,
           exp_nonexec_list->size*arg->dat->size,
           cudaMemcpyDeviceToHost ) );
@@ -104,25 +104,24 @@ void op_exchange_halo(op_arg* arg)
     cutilSafeCall(cudaThreadSynchronize(  ));
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
+      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[init+imp_exec_list->disps[i]*dat->size]),
+      MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
 
 
@@ -138,24 +137,23 @@ void op_exchange_halo(op_arg* arg)
     }
 
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
-      MPI_Isend(&OP_mpi_buffer_list[dat->index]->
+      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      MPI_Irecv(&(OP_dat_list[dat->index]->
-            data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
+      MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
 
     //clear dirty bit
@@ -169,14 +167,14 @@ void op_wait_all(op_arg* arg)
   if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
     op_dat dat = arg->dat;
-    MPI_Waitall(OP_mpi_buffer_list[dat->index]->s_num_req,
-      OP_mpi_buffer_list[dat->index]->s_req,
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,
+      ((op_mpi_buffer)(dat->mpi_buffer))->s_req,
       MPI_STATUSES_IGNORE );
-    MPI_Waitall(OP_mpi_buffer_list[dat->index]->r_num_req,
-      OP_mpi_buffer_list[dat->index]->r_req,
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,
+      ((op_mpi_buffer)(dat->mpi_buffer))->r_req,
       MPI_STATUSES_IGNORE );
-    OP_mpi_buffer_list[dat->index]->s_num_req = 0;
-    OP_mpi_buffer_list[dat->index]->r_num_req = 0;
+    ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
+    ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
 
     int init = dat->set->size*dat->size;
     cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
@@ -200,8 +198,9 @@ void op_partition(const char* lib_name, const char* lib_routine,
   for(int s = 0; s<OP_set_index; s++)
   {
     op_set set=OP_set_list[s];
-    for(int d=0; d<OP_dat_index; d++) { //for each data array
-      op_dat dat=OP_dat_list[d];
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      op_dat dat = item->dat;
 
       if(dat->set->index == set->index)
           op_mv_halo_device(set, dat);

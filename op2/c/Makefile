@@ -41,8 +41,17 @@ ifeq ($(OP2_COMPILER),intel)
 	MPICXX   := mpiCC
 	MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+	CC	 := pgcc
+	CCFLAGS	 := -O3
+	CXX	 := pgCC
+	CXXFLAGS := $(CCFLAGS)
+	MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
+	MPIFLAGS := $(CXXFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -63,7 +72,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp cuda mpi_seq mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
@@ -87,7 +96,7 @@ seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
 cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
 	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
 
-	$(CXX) -DSET_CUDA_CACHE_CONFIG $(FLAGS) $(CUDA_INC) -I$(INC) \
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_INC) -I$(INC) \
 	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/op_cuda_decl.o
 	$(CXX) $(CXXFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o

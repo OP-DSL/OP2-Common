@@ -46,6 +46,7 @@
 #include <strings.h>
 #include <math.h>
 #include <stdarg.h>
+#include <sys/queue.h> //contains double linked list implementation
 
 /*
  * essential typedefs
@@ -125,6 +126,7 @@ typedef struct
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
   int         user_managed; /* indicates whether the user is managing memory */
+  void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
 } op_dat_core;
 
 typedef op_dat_core * op_dat;
@@ -155,6 +157,18 @@ typedef struct
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
 } op_kernel;
+
+
+//struct definition for a double linked list entry to hold an op_dat
+struct op_dat_entry_core{
+  op_dat dat;
+  TAILQ_ENTRY(op_dat_entry_core) entries; /*holds pointers to next and
+                                          previous entries in the list*/
+};
+
+typedef struct op_dat_entry_core op_dat_entry;
+
+typedef TAILQ_HEAD(, op_dat_entry_core)  Double_linked_list;
 
 
 /*
@@ -192,6 +206,10 @@ op_set op_decl_set_core ( int, char const * );
 op_map op_decl_map_core ( op_set, op_set, int, int *, char const * );
 
 op_dat op_decl_dat_core ( op_set, int, char const *, int, char *, char const * );
+
+op_dat op_decl_dat_temp_core ( op_set, int, char const*, int, char *, char const * );
+
+int op_free_dat_temp_core ( op_dat );
 
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
 
@@ -254,6 +272,13 @@ int op_mpi_perf_time(const char* name, double time);
 #ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
 #endif
+
+
+/*******************************************************************************
+* Utility function to compare two op_sets and return 1 if they are identical
+*******************************************************************************/
+int compare_sets(op_set set1, op_set set2);
+op_dat search_dat(op_set set, int dim, char const * type, int size, char const * name);
 
 #ifdef __cplusplus
 }

@@ -56,6 +56,22 @@ op_decl_dat_char ( op_set set, int dim, char const * type, int size, char * data
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
+op_dat
+op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )
+{
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+
+  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+  return dat;
+}
+
+int op_free_dat_temp_char ( op_dat dat )
+{
+  return op_free_dat_temp_core (dat);
+}
+
 void
 op_fetch_data ( op_dat dat )
 {

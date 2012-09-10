@@ -104,18 +104,19 @@ extern int OP_diags, OP_part_size, OP_block_size;
 
 extern int OP_set_index,  OP_set_max,
            OP_map_index,  OP_map_max,
-           OP_dat_index,  OP_dat_max,
+           OP_dat_index,
            OP_plan_index, OP_plan_max,
                           OP_kern_max;
 
 extern op_set    * OP_set_list;
 extern op_map    * OP_map_list;
-extern op_dat    * OP_dat_list;
+extern Double_linked_list OP_dat_list;
 extern op_kernel * OP_kernels;
 
 
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
-
+op_dat op_decl_dat_temp_char (op_set, int, char const *, int, char const * );
+int op_free_dat_temp_char ( op_dat dat );
 
 /* Implementation */
 
@@ -164,6 +165,20 @@ op_arg op_arg_gbl ( T * data, int dim, char const * type, op_access acc )
     return op_arg_gbl_char ( ( char * ) data, dim, type,  sizeof(T), acc );
 }
 
+//
+//temporary dats
+//
+template < class T >
+op_dat op_decl_dat_temp ( op_set set, int dim, char const *type, T* data,
+  char const * name )
+{
+  return op_decl_dat_temp_char ( set, dim, type, sizeof(T), name );
+}
+
+inline int op_free_dat_temp ( op_dat dat )
+{
+  return op_free_dat_temp_char ( dat );
+}
 
 //
 // wrapper functions to handle MPI global reductions
@@ -185,6 +200,7 @@ inline void op_mpi_reduce(op_arg* args, int *data)
   op_mpi_reduce_int(args,data);
 }
 
+//needed as a dummy, "do nothing" routine for the non-mpi backends
 template <class T>
 void op_mpi_reduce(op_arg* args, T* data)
 {

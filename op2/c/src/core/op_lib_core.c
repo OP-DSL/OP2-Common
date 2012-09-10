@@ -49,7 +49,7 @@ int OP_diags = 0,
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
-    OP_dat_index = 0, OP_dat_max = 0,
+    OP_dat_index = 0,
     OP_kern_max = 0;
 
 /*
@@ -58,14 +58,46 @@ int OP_set_index = 0, OP_set_max = 0,
 
 op_set * OP_set_list;
 op_map * OP_map_list;
-op_dat * OP_dat_list;
+Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel * OP_kernels;
 
+
+/*
+ * Utility functions
+ */
 static char * copy_str( char const * src )
 {
   const size_t len = strlen( src ) + 1;
   char * dest = (char *) calloc ( len, sizeof ( char ) );
   return strncpy ( dest, src, len );
+}
+
+int compare_sets(op_set set1, op_set set2)
+{
+  if(set1->size == set2->size && set1->index == set2->index &&
+      strcmp(set1->name,set2->name)==0 )
+    return 1;
+  else return 0;
+}
+
+op_dat search_dat(op_set set, int dim, char const * type, int size, char const * name)
+{
+  op_dat_entry* item;
+  op_dat_entry* tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item)
+  {
+    tmp_item = TAILQ_NEXT(item, entries);
+    op_dat item_dat = item->dat;
+
+    if (strcmp(item_dat->name,name) == 0 && item_dat->dim == dim &&
+      (item_dat->size/dim) == size && compare_sets(item_dat->set, set) == 1 &&
+    strcmp(item_dat->type,type) == 0 )
+    {
+      return item_dat;
+    }
+  }
+
+  return NULL;
 }
 
 /*
@@ -106,6 +138,9 @@ void
     }
 
   }
+
+  /*Initialize the double linked list to hold op_dats*/
+  TAILQ_INIT(&OP_dat_list);
 }
 
 op_set
@@ -218,17 +253,6 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
     exit ( -1 );
   }
 
-  if ( OP_dat_index == OP_dat_max )
-  {
-    OP_dat_max += 10;
-    OP_dat_list = ( op_dat * ) realloc ( OP_dat_list, OP_dat_max * sizeof ( op_dat ) );
-    if ( OP_dat_list == NULL )
-    {
-      printf ( " op_decl_dat error -- error reallocating memory\n" );
-      exit ( -1 );
-    }
-  }
-
   op_dat dat = ( op_dat ) malloc ( sizeof ( op_dat_core ) );
   dat->index = OP_dat_index;
   dat->set = set;
@@ -239,9 +263,71 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->type = copy_str( type );
   dat->size = dim * size;
   dat->user_managed = 1;
-  OP_dat_list[OP_dat_index++] = dat;
+  dat->mpi_buffer = NULL;
+
+  /* Create a pointer to an item in the op_dats doubly linked list */
+	op_dat_entry* item;
+
+	//add the newly created op_dat to list
+  item = (op_dat_entry *)malloc(sizeof(op_dat_entry));
+  if (item == NULL) {
+    printf ( " op_decl_dat error -- error allocating memory to double linked list entry\n" );
+    exit ( -1 );
+  }
+  item->dat = dat;
+
+  //add item to the end of the list
+  TAILQ_INSERT_TAIL(&OP_dat_list, item, entries);
+  OP_dat_index++;
 
   return dat;
+}
+
+
+/*
+ * temporary dats
+ */
+
+op_dat
+op_decl_dat_temp_core ( op_set set, int dim, char const * type, int size,
+  char * data, char const * name )
+{
+  //Check if this dat already exists in the double linked list
+  op_dat found_dat = search_dat(set, dim, type, size, name);
+  if ( found_dat != NULL)
+  {
+    printf("op_dat with name %s already exists, cannot create temporary op_dat\n ", name);
+    exit(2);
+  }
+  //if not found ...
+  return op_decl_dat_core ( set, dim, type, size, data, name );
+}
+
+int
+op_free_dat_temp_core (op_dat dat)
+{
+   int success = -1;
+   op_dat_entry* item;
+   op_dat_entry* tmp_item;
+   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item)
+   {
+     tmp_item = TAILQ_NEXT(item, entries);
+     op_dat item_dat = item->dat;
+     if (strcmp(item_dat->name,dat->name) == 0 && item_dat->dim == dat->dim &&
+         item_dat->size == dat->size && compare_sets(item_dat->set, dat->set) == 1 &&
+         strcmp(item_dat->type,dat->type) == 0 )
+     {
+       if (!(item->dat)->user_managed)
+         free((item->dat)->data);
+       free((char*)(item->dat)->name);
+       free((char*)(item->dat)->type);
+       TAILQ_REMOVE(&OP_dat_list, item, entries);
+       free(item);
+       success = 1;
+       break;
+     }
+   }
+   return success;
 }
 
 void
@@ -277,16 +363,17 @@ op_exit_core (  )
   free ( OP_map_list );
   OP_map_list = NULL;
 
-  for ( int i = 0; i < OP_dat_index; i++ )
-  {
-    if (!OP_dat_list[i]->user_managed)
-      free ( OP_dat_list[i]->data );
-    free ( (char*)OP_dat_list[i]->name );
-    free ( (char*)OP_dat_list[i]->type );
-    free ( OP_dat_list[i] );
-  }
-  free ( OP_dat_list );
-  OP_dat_list = NULL;
+
+  /*free doubl linked list holding the op_dats */
+  op_dat_entry *item;
+  while (item = TAILQ_FIRST(&OP_dat_list)) {
+    if (!(item->dat)->user_managed)
+      free((item->dat)->data);
+    free((char*)(item->dat)->name);
+    free((char*)(item->dat)->type);
+		TAILQ_REMOVE(&OP_dat_list, item, entries);
+		free(item);
+	}
 
   // free storage for timing info
 
@@ -300,7 +387,6 @@ op_exit_core (  )
   OP_map_index = 0;
   OP_map_max = 0;
   OP_dat_index = 0;
-  OP_dat_max = 0;
   OP_kern_max = 0;
 }
 
@@ -342,8 +428,9 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( arg.dat->dim != arg.dim )
       op_err_print ( "dataset dim does not match declared dim", m, name );
 
-    if ( strcmp ( arg.dat->type, arg.type ) )
+    if ( strcmp ( arg.dat->type, arg.type ) ){
       op_err_print ( "dataset type does not match declared type", m, name );
+    }
 
     if ( arg.idx >= 0 )
       ( *ninds )++;
@@ -392,7 +479,6 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.data = NULL;
     arg.data_d = NULL;
   }
-
 
   arg.type = typ;
   arg.acc = acc;
@@ -459,11 +545,12 @@ op_diagnostic_output (  )
 
     printf ( "\n       dat        dim        set\n" );
     printf ( "  ------------------------------\n" );
-    for ( int n = 0; n < OP_dat_index; n++ )
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries)
     {
-      printf ( "%10s %10d %10s\n", OP_dat_list[n]->name,
-               OP_dat_list[n]->dim, OP_dat_list[n]->set->name );
-    }
+      printf ( "%10s %10d %10s\n", (item->dat)->name,
+               (item->dat)->dim, (item->dat)->set->name );
+		}
     printf ( "\n" );
   }
 }

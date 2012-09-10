@@ -90,8 +90,99 @@ op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {
   char* d = (char*) malloc(set->size*dim*size);
+  if (d == NULL) {
+    printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
+    exit ( -1 );
+  }
+
   memcpy(d, data, set->size*dim*size*sizeof(char));
-  return op_decl_dat_core ( set, dim, type, size, d, name );
+  op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
+  out_dat-> user_managed = 0;
+  return out_dat;
+}
+
+
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, char const *name )
+{
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+
+  //create empty data block to assign to this temporary dat (including the halos)
+  int set_size = set->size + OP_import_exec_list[set->index]->size +
+  OP_import_nonexec_list[set->index]->size;
+
+  dat->data = (char*) calloc(set_size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+
+  //transpose
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set_size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+        }
+      }
+    }
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                        ( void ** ) &( temp_data ), dat->size * set_size );
+    free(temp_data);
+  } else {
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                        ( void ** ) &( dat->data ), dat->size * set_size );
+  }
+
+  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
+      dat->size * (OP_export_exec_list[set->index]->size +
+      OP_export_nonexec_list[set->index]->size) ));
+
+  //need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size)*dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size)*dat->size);
+
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  dat->mpi_buffer = mpi_buf;
+
+  //need to allocate device buffers for mpi comms for this new temp_dat
+  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
+      dat->size * (OP_export_exec_list[set->index]->size +
+      OP_export_nonexec_list[set->index]->size) ));
+
+  return dat;
+
+}
+
+int op_free_dat_temp_char ( op_dat dat )
+{
+  //need to free mpi_buffers use in this op_dat
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+  free(dat->mpi_buffer);
+
+  //need to free device buffers used in mpi comms
+  cutilSafeCall (cudaFree(dat->buffer_d));
+
+  //free data on device
+  cutilSafeCall (cudaFree(dat->data_d));
+  return op_free_dat_temp_core (dat);
 }
 
 void op_mv_halo_device(op_set set, op_dat dat)
@@ -209,6 +300,13 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 void
 op_exit (  )
 {
+  //need to free buffer_d used for mpi comms in each op_dat
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries)
+  {
+		cutilSafeCall (cudaFree((item->dat)->buffer_d));
+	}
+
   op_mpi_exit();
   op_cuda_exit();            // frees dat_d memory
   op_rt_exit();              // frees plan memory

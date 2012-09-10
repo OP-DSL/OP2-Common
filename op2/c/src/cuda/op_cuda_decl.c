@@ -103,6 +103,46 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
   return dat;
 }
 
+
+op_dat
+op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char const * name )
+{
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+
+  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+
+  //transpose data
+  if (strstr( type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size*i*set->size + element_size*j + c] = data[dat->size*j+element_size*i+c];
+        }
+      }
+    }
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                          ( void ** ) &( temp_data ), dat->size * set->size );
+    free(temp_data);
+  } else {
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                        ( void ** ) &( dat->data ), dat->size * set->size );
+  }
+
+  return dat;
+}
+
+int op_free_dat_temp_char ( op_dat dat )
+{
+  //free data on device
+  cutilSafeCall (cudaFree(dat->data_d));
+
+  return op_free_dat_temp_core (dat);
+}
+
 op_set
 op_decl_set ( int size, char const * name )
 {

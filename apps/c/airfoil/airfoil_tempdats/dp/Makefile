@@ -35,17 +35,8 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
-ifeq ($(OP2_COMPILER),pgi)
-  CPP		= pgCC
-  CCFLAGS  	= -O3 -fPIC
-  CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -mp
-  MPICPP 	= /home/gihan/openmpi-pgi/bin/mpiCC
-  MPIFLAGS 	= $(CPPFLAGS)
-else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
-endif
 endif
 endif
 
@@ -62,19 +53,19 @@ NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 # partitioning software for MPI versions
 #
 
-PARMETIS_INC 	= -I$(PARMETIS_INSTALL_PATH) -DHAVE_PARMETIS
-PARMETIS_LIB 	= -L$(PARMETIS_INSTALL_PATH) -lparmetis \
-	       	      -L$(PARMETIS_INSTALL_PATH) -lmetis
+PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH) -DHAVE_PARMETIS
+PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
+               -L$(PARMETIS_INSTALL_PATH) -lmetis
 
-PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
-PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
+PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
+               -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
 #
 # master to make all versions
 #
 
-all: clean airfoil_seq airfoil_openmp airfoil_mpi airfoil_mpi_openmp airfoil_cuda airfoil_mpi_cuda
+all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp
 
 #
 # simple sequential version
