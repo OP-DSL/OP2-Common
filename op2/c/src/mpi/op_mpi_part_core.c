@@ -1182,8 +1182,10 @@ static void migrate_all(int my_rank, int comm_size)
     MPI_Request request_send[exp->ranks_size];
 
     //migrate data defined on this set
-    for(int d=0; d<OP_dat_index; d++) { //for data array
-      op_dat dat=OP_dat_list[d];
+    op_dat_entry *item; int d = -1; //d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      d++; //increase tag to do mpi comm for the next op_dat
+      op_dat dat = item->dat;
 
       if(compare_sets(dat->set,set)==1) //this data array is defines on this set
       {
@@ -1227,8 +1229,7 @@ static void migrate_all(int my_rank, int comm_size)
           if(OP_part_list[set->index]->elem_part[i] == my_rank)
           {
             memcpy(&new_dat[count*dat->size],
-                (void *)&OP_dat_list[dat->index]->
-                data[dat->size*i],dat->size);
+                (void *)&dat->data[dat->size*i],dat->size);
             count++;
           }
         }
@@ -1239,8 +1240,8 @@ static void migrate_all(int my_rank, int comm_size)
         new_dat = (char *)xrealloc(new_dat,dat->size*count);
         free(rbuf);
 
-        free(OP_dat_list[dat->index]->data);
-        OP_dat_list[dat->index]->data = new_dat;
+        free(dat->data);
+        dat->data = new_dat;
       }
     }
   }
@@ -1403,9 +1404,10 @@ static void migrate_all(int my_rank, int comm_size)
   }
 
   //re-set values in data arrays
-  for(int d=0; d<OP_dat_index; d++) { //for data array
-    op_dat dat=OP_dat_list[d];
-    OP_dat_list[dat->index]->set = OP_set_list[dat->set->index];
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    dat->set = OP_set_list[dat->set->index];
   }
 
   //finally .... need to sort for each set, data on the set and mapping tables
@@ -1414,8 +1416,9 @@ static void migrate_all(int my_rank, int comm_size)
     op_set set=OP_set_list[s];
 
     //first ... data on this set
-    for(int d=0; d<OP_dat_index; d++) { //for data array
-      op_dat dat=OP_dat_list[d];
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      op_dat dat = item->dat;
 
       if(compare_sets(dat->set,set) == 1)
       {
@@ -1424,8 +1427,7 @@ static void migrate_all(int my_rank, int comm_size)
           int* temp = (int *)xmalloc(sizeof(int)*set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
               sizeof(int)*set->size);
-          quickSort_dat(temp,OP_dat_list[dat->index]->data, 0,
-              set->size-1, dat->size);
+          quickSort_dat(temp,dat->data, 0, set->size-1, dat->size);
           free(temp);
         }
       }
@@ -1685,8 +1687,7 @@ void op_partition_geom(op_dat coords)
       double temp;
       for(int e = 0; e < coords->dim;e++)
       {
-        memcpy(&temp, (void *)&(OP_dat_list[coords->index]->
-              data[(i*coords->dim+e)*mult]), mult);
+        memcpy(&temp, (void *)&(coords->data[(i*coords->dim+e)*mult]), mult);
         xyz[i*coords->dim + e] = (float)temp;
       }
     }
@@ -2185,8 +2186,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
       double temp;
       for(int e = 0; e < coords->dim;e++)
       {
-        memcpy(&temp, (void *)&(OP_dat_list[coords->index]->
-              data[(i*coords->dim+e)*mult]), mult);
+        memcpy(&temp, (void *)&(coords->data[(i*coords->dim+e)*mult]), mult);
         xyz[i*coords->dim + e] = (float)temp;
       }
     }

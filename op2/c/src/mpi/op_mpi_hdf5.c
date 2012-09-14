@@ -736,8 +736,9 @@ void op_write_hdf5(char const * file_name)
   }
 
   /*loop over all the op_dats and write them to file*/
-  for(int d=0; d<OP_dat_index; d++) {
-    op_dat dat=OP_dat_list[d];
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
 
     //find total size of map
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);

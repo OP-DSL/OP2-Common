@@ -92,13 +92,23 @@ typedef struct {
 typedef part_core *part;
 
 /*******************************************************************************
-* Data structure to hold sets for latency hiding
+* Data structure to hold mpi communications of an op_dat
 *******************************************************************************/
 
-typedef struct {
-  op_set core_set;
-  op_set noncore_set;
-} set_part_core;
+typedef struct{
+  //name of this op_dat
+  char const  *name;
+  //size of this op_dat
+  int         size;
+  //index of this op_dat
+  int         index;
+  //total number of times this op_dat was halo exported
+  int         count;
+  //total number of bytes halo exported for this op_dat in this kernel
+  int         bytes;
+} op_dat_mpi_comm_info_core;
+
+typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 
 /*******************************************************************************
 * Data Type to hold MPI performance measures
@@ -107,19 +117,16 @@ typedef struct {
 typedef struct {
   // name of kernel
   char const  *name;
-  //total time spent in this kernel (compute+comm-overlapping)
+  //total time spent in this kernel (compute + comm - overlap)
   double      time;
   //number of times this kernel is called
   int         count;
-  //array to hold op_dat index of each op_dat used in MPI halo exports for
-  //this kernel
-  int*        op_dat_indices;
-  //number of op_dat indices
+  //number of op_dat indices in this kernel
   int         num_indices;
-  //total number of times this op_dat was halo exported within this kernel
-  int*        tot_count;
-  //total number of bytes halo exported for this op_dat in this kernel
-  int*        tot_bytes;
+  // array to hold all the op_dat_mpi_comm_info structs for this kernel
+  op_dat_mpi_comm_info* comm_info;
+  // capacity of comm_info array
+  int cap;
 } op_mpi_kernel;
 
 /*******************************************************************************
@@ -127,8 +134,6 @@ typedef struct {
 *******************************************************************************/
 
 typedef struct {
-  //index of the op_dat to which this buffer belongs
-  int         dat_index;
   //buffer holding exec halo to be exported;
   char        *buf_exec;
   //buffer holding nonexec halo to be exported;

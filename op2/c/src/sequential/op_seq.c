@@ -58,6 +58,23 @@ op_dat op_decl_dat_char ( op_set set, int dim, char const * type, int size, char
   return op_decl_dat_core ( set, dim, type, size, data, name );
 }
 
+int op_free_dat_temp_char ( op_dat dat )
+{
+  return op_free_dat_temp_core (dat);
+}
+
+op_dat
+op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char const *name )
+{
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+
+  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+  return dat;
+}
+
+
 /*
  * The following function is empty for the reference implementation
  * and is not present in the core library: it is only needed

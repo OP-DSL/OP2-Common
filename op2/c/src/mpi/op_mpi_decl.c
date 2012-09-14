@@ -40,6 +40,8 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_mpi_core.h>
+#include <op_lib_mpi.h>
+#include <op_util.h>
 
 /*
  * Routines called by user code and kernels
@@ -61,13 +63,64 @@ void op_init ( int argc, char ** argv, int diags )
 op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
   char* d = (char*) malloc(set->size*dim*size);
+  if (d == NULL) {
+    printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
+    exit ( -1 );
+  }
   memcpy(d, data, set->size*dim*size*sizeof(char));
-  //return op_decl_dat_core ( set, dim, type, size, data, name );
   op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
   out_dat-> user_managed = 0;
   return out_dat;
 
 
+}
+
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, char const *name )
+{
+  char* d = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, d, name );
+
+  //create empty data block to assign to this temporary dat (including the halos)
+  int halo_size = OP_import_exec_list[set->index]->size +
+                  OP_import_nonexec_list[set->index]->size;
+
+  dat->data = (char*) calloc((set->size+halo_size)*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+
+  //need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size)*dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size)*dat->size);
+
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  dat->mpi_buffer = mpi_buf;
+
+  return dat;
+}
+
+int op_free_dat_temp_char ( op_dat dat )
+{
+  //need to free mpi_buffers used in this op_dat
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+  free(dat->mpi_buffer);
+  return op_free_dat_temp_core (dat);
 }
 
 void op_fetch_data ( op_dat dat )
