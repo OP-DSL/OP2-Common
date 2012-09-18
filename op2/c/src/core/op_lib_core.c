@@ -366,7 +366,7 @@ op_exit_core (  )
 
   /*free doubl linked list holding the op_dats */
   op_dat_entry *item;
-  while (item = TAILQ_FIRST(&OP_dat_list)) {
+  while ((item = TAILQ_FIRST(&OP_dat_list))) {
     if (!(item->dat)->user_managed)
       free((item->dat)->data);
     free((char*)(item->dat)->name);
