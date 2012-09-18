@@ -44,6 +44,20 @@ static op_access getAccFromIntCode ( int accCode )
   }
 }
 
+static op_dat find_dat_by_index(int idx)
+{
+  op_dat_entry *item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; )
+  {
+    if (item->dat->index == idx)
+    {
+      return item->dat;
+    }
+    item = TAILQ_NEXT(item, entries);
+  }
+  return NULL;
+}
+
 op_arg * generatePlanInputData ( char name[],
                                  int setId,
                                  int argsNumber,
@@ -76,7 +90,7 @@ op_arg * generatePlanInputData ( char name[],
   {
     if ( argsType[i] != F_OP_ARG_GBL )
     {
-      op_dat_core * tmp = OP_dat_list[args[i]];
+      op_dat_core * tmp = find_dat_by_index(args[i]);
       planDatArgs[i] = *tmp;
     }
     //      else
@@ -117,7 +131,7 @@ op_arg * generatePlanInputData ( char name[],
     if ( argsType[i] != F_OP_ARG_GBL )
     {
       /* obtain reference to next op_dat */
-      op_dat_core * tmpDat = OP_dat_list[args[i]];
+      op_dat_core * tmpDat = find_dat_by_index(args[i]);
 
       /* allocate space and copy strings */
       int typeNameLen = strlen ( tmpDat->type );
