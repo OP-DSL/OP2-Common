@@ -9,7 +9,26 @@
 #
 ##########################################################################
 
+import re
 import datetime
+
+FORTRAN = 0;
+CPP     = 1;
+ 
+def comment(line):
+  if len(line) == 0:
+    return '\n'
+  elif FORTRAN:
+    return "!  "+line
+  elif CPP:
+    return "//  "+line
+
+def rep(line,m):
+  return re.sub("ARG",'arg'+str(m),line)
+
+def code(text):
+  return text+'\n'
+
 
 def op2_gen_openmp(master, date, consts, kernels):
 
@@ -46,12 +65,6 @@ def op2_gen_openmp(master, date, consts, kernels):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
-    
-    #print inds
-    #print invinds
-    
-    #print idxs
-    #print dims
     
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
     
@@ -119,9 +132,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     else:
     	vectorised = [0]*nargs
     	unique_args = range(1,nargs+1)
-    
-    #print unique_args
-    
+
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
@@ -146,30 +157,66 @@ def op2_gen_openmp(master, date, consts, kernels):
 ##########################################################################
 #  start with OpenMP kernel function
 ##########################################################################
-
-    file_text = \
-    '//user function\n'\
-    '#include "'+name+'.h"\n'\
-    '\n// x86 kernel function\n\n'\
-    'void op_x86_'+name+'(\n'
-    if ninds>0:
-      file_text +='  int    blockIdx,\n'
   
-    for m in range(0,ninds):
-      file_text +='  '+str(indtyps[m])+' *ind_arg'+str(m)+',\n'
+    file_text = \
+    comment('user function')+\
+    comment('')
+    
+    if FORTRAN:
+      file_text += code('include '+name+'.inc')
+    elif CPP:
+      file_text += code('#include "'+name+'.h"')
+    
+    file_text += \
+    comment('')+\
+    comment('x86 kernel function')+\
+    comment('')+\
+    comment('')
+    
+    if FORTRAN:
+      file_text += code('subroutine op_x86_'+name+'(')
+    elif CPP:
+      file_text += code('void op_x86_'+name+'(')
+    
     
     if ninds>0:
-      file_text +='  int   *ind_map,\n'
-      file_text +='  short *arg_map,\n'
+      if FORTRAN:
+        file_text +=code('  integer(4)  blockIdx,')
+      elif CPP:
+        file_text +=code('  int  blockIdx,')
+      
+  
+    for m in range(0,ninds):
+      if FORTRAN:
+        file_text +=code('  '+str(indtyps[m])+' *ind_arg'+str(m)+',')
+      elif CPP:
+        file_text +=code('  '+str(indtyps[m])+' *ind_arg'+str(m)+',')
+    
+    if ninds>0:
+      if FORTRAN:
+        file_text +=code('  int   *ind_map,')
+        file_text +=code('  short *arg_map,')
+      elif CPP:
+        file_text +=code('  int   *ind_map,')
+        file_text +=code('  short *arg_map,')
   
     for m in range (0,nargs):
       if maps[m]==OP_GBL and accs[m] == OP_READ:
         # declared const for performance
-        file_text +='  const '+typs[m]+' *arg'+str(m)+',\n'  
+        if FORTRAN:
+          file_text +=code('  arg'+str(m)+',')
+        elif CPP:
+          file_text +=code('  const '+typs[m]+' *arg'+str(m)+',')          
       elif maps[m]==OP_ID and ninds>0:
-        file_text +='  '+typs[m]+ ' *arg'+str(m)+',\n'
+        if FORTRAN:
+          file_text +=code('  arg'+str(m)+',')
+        elif CPP:
+          file_text +=code('  '+typs[m]+ ' *arg'+str(m)+',')
       elif maps[m]==OP_GBL or maps[m]==OP_ID:
-        file_text +='  '+typs[m]+' *arg'+str(m)+',\n'
+        if FORTRAN:
+          file_text +=code(' arg'+str(m)+',')
+        elif CPP:
+          file_text +=code('  '+typs[m]+' *arg'+str(m)+',')
     
     if ninds>0:
       file_text +=\
