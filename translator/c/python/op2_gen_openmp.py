@@ -11,27 +11,40 @@
 
 import re
 import datetime
-
-FORTRAN = 0;
-CPP     = 1;
  
-def comment(line):
+def comm(line):
+  global file_text, FORTRAN, CPP  
+  
   if len(line) == 0:
-    return '\n'
+    file_text +='\n'
   elif FORTRAN:
-    return "!  "+line
+    file_text +='!  '+line+'\n'
   elif CPP:
-    return "//  "+line
+    file_text +='//  '+line+'\n'
 
 def rep(line,m):
-  return re.sub("ARG",'arg'+str(m),line)
+  global dims, idxs, typs, indtyps, inddims  
+  if m < len(inddims):
+    line = re.sub('INDDIM',str(inddims[m]),line)
+    line = re.sub('INDTYP',str(indtyps[m]),line)
+    
+  line = re.sub('INDARG','ind_arg'+str(m),line)
+  line = re.sub('DIM',str(dims[m]),line)
+  line = re.sub('ARG','arg'+str(m),line)
+  line = re.sub('TYP',typs[m],line)
+  line = re.sub('IDX',str(int(idxs[m])),line)
+  return line
 
 def code(text):
-  return text+'\n'
+  global file_text, FORTRAN, CPP, g_m
+  file_text += rep(text,g_m)+'\n'
 
 
 def op2_gen_openmp(master, date, consts, kernels):
 
+  global dims, idxs, typs, indtyps, inddims
+  global FORTRAN, CPP, g_m, file_text
+  
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
@@ -158,179 +171,194 @@ def op2_gen_openmp(master, date, consts, kernels):
 #  start with OpenMP kernel function
 ##########################################################################
   
-    file_text = \
-    comment('user function')+\
-    comment('')
+    FORTRAN = 0;
+    CPP     = 1;
+    g_m = 0;
+    file_text = ''
+    
+    comm('user function')
+        
+    if FORTRAN:
+      code('include '+name+'.inc')
+    elif CPP:
+      code('#include "'+name+'.h"')
+    
+    comm('')
+    comm('x86 kernel function')
     
     if FORTRAN:
-      file_text += code('include '+name+'.inc')
+      code('subroutine op_x86_'+name+'(')
     elif CPP:
-      file_text += code('#include "'+name+'.h"')
-    
-    file_text += \
-    comment('')+\
-    comment('x86 kernel function')+\
-    comment('')+\
-    comment('')
-    
-    if FORTRAN:
-      file_text += code('subroutine op_x86_'+name+'(')
-    elif CPP:
-      file_text += code('void op_x86_'+name+'(')
+      code('void op_x86_'+name+'(')
     
     
     if ninds>0:
       if FORTRAN:
-        file_text +=code('  integer(4)  blockIdx,')
+        code('  integer(4)  blockIdx,')
       elif CPP:
-        file_text +=code('  int  blockIdx,')
+        code('  int  blockIdx,')
       
   
-    for m in range(0,ninds):
+    for g_m in range(0,ninds):
       if FORTRAN:
-        file_text +=code('  '+str(indtyps[m])+' *ind_arg'+str(m)+',')
+        code('  INDTYP *ind_ARG,')
       elif CPP:
-        file_text +=code('  '+str(indtyps[m])+' *ind_arg'+str(m)+',')
+        code('  INDTYP *ind_ARG,')
     
     if ninds>0:
       if FORTRAN:
-        file_text +=code('  int   *ind_map,')
-        file_text +=code('  short *arg_map,')
+        code('  int   *ind_map,')
+        code('  short *arg_map,')
       elif CPP:
-        file_text +=code('  int   *ind_map,')
-        file_text +=code('  short *arg_map,')
+        code('  int   *ind_map,')
+        code('  short *arg_map,')
   
-    for m in range (0,nargs):
-      if maps[m]==OP_GBL and accs[m] == OP_READ:
+    for g_m in range (0,nargs):
+      if maps[g_m]==OP_GBL and accs[g_m] == OP_READ:
         # declared const for performance
         if FORTRAN:
-          file_text +=code('  arg'+str(m)+',')
+          code('  const TYP *ARG,')  
         elif CPP:
-          file_text +=code('  const '+typs[m]+' *arg'+str(m)+',')          
-      elif maps[m]==OP_ID and ninds>0:
+          code('  const TYP *ARG,')          
+      elif maps[g_m]==OP_ID and ninds>0:
         if FORTRAN:
-          file_text +=code('  arg'+str(m)+',')
+          code('  ARG,')
         elif CPP:
-          file_text +=code('  '+typs[m]+ ' *arg'+str(m)+',')
-      elif maps[m]==OP_GBL or maps[m]==OP_ID:
+          code('  TYP  *ARG,')
+      elif maps[g_m]==OP_GBL or maps[g_m]==OP_ID:
         if FORTRAN:
-          file_text +=code(' arg'+str(m)+',')
+          code(' ARG,')
         elif CPP:
-          file_text +=code('  '+typs[m]+' *arg'+str(m)+',')
+          code('  TYP *ARG,')
     
     if ninds>0:
-      file_text +=\
-      '  int   *ind_arg_sizes,\n'\
-      '  int   *ind_arg_offs,\n'\
-      '  int    block_offset,\n'\
-      '  int   *blkmap,      \n'\
-      '  int   *offset,      \n'\
-      '  int   *nelems,      \n'\
-      '  int   *ncolors,     \n'\
-      '  int   *colors,      \n'\
-      '  int   set_size) {   \n\n'
+      if FORTRAN:
+        code('  ind_arg_sizes,')
+        code('  ind_arg_offs, ')
+        code('  block_offset, ')
+        code('  blkmap,       ')
+        code('  offset,       ')
+        code('  nelems,       ')
+        code('  ncolors,      ')
+        code('  colors,       ')
+        code('  set_size) {    ')
+        code(' ')
+      elif CPP:
+        code('  int   *ind_arg_sizes,')
+        code('  int   *ind_arg_offs, ')
+        code('  int    block_offset, ')
+        code('  int   *blkmap,       ')
+        code('  int   *offset,       ')
+        code('  int   *nelems,       ')
+        code('  int   *ncolors,      ')
+        code('  int   *colors,       ')
+        code('  int   set_size) {    ')
+        code(' ')          
     else:
-      file_text +=\
-      '  int   start,    \n'\
-      '  int   finish ) {\n\n'
-  
-    for m in range (0,nargs):
-      if maps[m]==OP_MAP and accs[m]==OP_INC:
-        file_text +='  '+typs[m]+'  arg'+str(m)+'_l['+str(dims[m])+'];\n'
+      code('  int   start,    ')
+      code('  int   finish ) {')
+      
+    for g_m in range (0,nargs):
+      if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+        if FORTRAN:
+          code('  TYP  ARG_l[DIM];')  
+        elif CPP:
+          code('  TYP  ARG_l[DIM];')     
+        
     
-    file_text +='\n' 
+    code('') 
     
     for m in range (1,ninds+1):
+      g_m = m-1
       v = [int(inds[i]==m) for i in range(len(inds))]
       v_i = [vectorised[i] for i in range(len(inds)) if inds[i] == m] 
-      if sum(v)>1 and sum(v_i)>0: #check this sum(v_i) 
+      if sum(v)>1 and sum(v_i)>0:  
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          file_text +='  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'] = {\n'
+          code('  INDTYP *ARG_vec['+str(ind)+'] = {')
           for n in range(0,nargs):
             if inds[n] == m:
-              file_text +='    arg'+str(n)+'_l,\n'
-          file_text +='  };\n'
+              g_m = n
+              code('    ARG_l,')
+          code('  };')
         else:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          file_text +='  '+indtyps[m-1]+' *arg'+str(m-1)+'_vec['+str(ind)+'];\n'
+          code('  INDTYP *ARG_vec['+str(ind)+'];')
 # 
 # lengthy code for general case with indirection
 #
     if ninds>0:
-      file_text +=' \n'
-      for m in range (0,ninds):
-        file_text +='  int  *ind_arg'+str(m)+'_map, ind_arg'+str(m)+'_size;\n'
-      for m in range (0,ninds):
-        file_text +='  '+indtyps[m]+' *ind_arg'+str(m)+'_s;\n'
+      code('')
+      for g_m in range (0,ninds):
+        code('  int  *ind_ARG_map, ind_ARG_size;')
+      for g_m in range (0,ninds):
+        code('  INDTYP *ind_ARG_s;')
        
-      file_text +=\
-        '  int    nelem, offset_b;\n\n'\
-        '  char shared[128000];\n'\
-        '  if (0==0) {\n\n'\
-        '    // get sizes and shift pointers and direct-mapped data\n\n'\
-        '    int blockId = blkmap[blockIdx + block_offset];\n'\
-        '    nelem    = nelems[blockId];\n'\
-        '    offset_b = offset[blockId];\n\n'
+      code('  int    nelem, offset_b;')
+      code('')
+      code('  char shared[128000];')
+      code('  if (0==0) {')
+      code('')
+      code('    // get sizes and shift pointers and direct-mapped data')
+      code('')
+      code('    int blockId = blkmap[blockIdx + block_offset];')
+      code('    nelem    = nelems[blockId];')
+      code('    offset_b = offset[blockId];')
+      code('')
        
-      for m in range (0,ninds):
-        file_text +='    ind_arg'+str(m)+'_size = ind_arg_sizes['+str(m)+'+blockId*'+ str(ninds)+'];\n'
+      for g_m in range (0,ninds):
+        code('    ind_ARG_size = ind_arg_sizes['+str(g_m)+'+blockId*'+ str(ninds)+'];')
       
-      file_text +='\n'
-       
       for m in range (1,ninds+1):
+        g_m = m-1
         c = [i for i in range(len(inds)) if inds[i]==m]
-        file_text +=\
-        '    ind_arg'+str(m-1)+'_map = &ind_map['+str(cumulative_indirect_index[c[0]])+\
-        '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds)+'];\n'
+        code('    ind_ARG_map = &ind_map['+str(cumulative_indirect_index[c[0]])+\
+        '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds)+'];')
        
-      file_text +='\n    // set shared memory pointers\n'\
-      '    int nbytes = 0;\n'
+      code('')
+      code('    // set shared memory pointers')
+      code('    int nbytes = 0;')
        
-      for m in range(0,ninds):
-        file_text +=\
-        '    ind_arg'+str(m)+'_s = ('+indtyps[m]+' *) &shared[nbytes];\n'
-        if m < ninds-1:
-          file_text +=\
-          '    nbytes    += ROUND_UP(ind_arg'+str(m)+'_size*sizeof('+indtyps[m]+')*'+ inddims[m]+');\n'
+      for g_m in range(0,ninds):
+        code('    ind_ARG_s = (INDTYP *) &shared[nbytes];')
+        if g_m < ninds-1:
+          code('    nbytes += ROUND_UP(ind_ARG_size*sizeof(INDTYP)*INDDIM);')
         
-      file_text +=\
-      '  }\n\n'\
-      '  // copy indirect datasets into shared memory or zero increment\n\n'
+      code('  }')
+      code('')
+      code('  // copy indirect datasets into shared memory or zero increment')
+      code('')
        
-      for m in range(0,ninds):
-        if indaccs[m]==OP_READ or indaccs[m]==OP_RW or indaccs[m]==OP_INC:
-          file_text += '  for (int n=0; n<ind_arg'+str(m)+'_size; n++)\n'
-          file_text += '    for (int d=0; d<'+inddims[m]+'; d++)\n'
-          if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
-            file_text +=\
-            '      ind_arg'+str(m)+'_s[d+n*'+inddims[m]+'] = ind_arg'+str(m)+\
-            '[d+ind_arg'+str(m)+'_map[n]*'+inddims[m]+'];\n\n'
-          elif indaccs[m]==OP_INC:
-            file_text +=\
-            '      ind_arg'+str(m)+'_s[d+n*'+inddims[m]+'] = ZERO_'+indtyps[m]+';\n'
+      for g_m in range(0,ninds):
+        if indaccs[g_m]==OP_READ or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
+          code('  for (int n=0; n<INDARG_size; n++)')
+          code('    for (int d=0; d<INDDIM; d++)')
+          if indaccs[g_m]==OP_READ or indaccs[g_m]==OP_RW:
+            code('      INDARG_s[d+n*INDDIM] = INDARG[d+INDARG_map[n]*INDDIM];')
+            code('')
+          elif indaccs[g_m]==OP_INC:
+            code('      INDARG_s[d+n*INDDIM] = ZERO_INDTYP;')
        
-      file_text +='\n  // process set elements\n\n'
-       
+      code('')
+      code('  // process set elements')
+      code('')
+      
       if ind_inc:
-        file_text +=\
-        '  for (int n=0; n<nelem; n++) {\n'\
-        '    // initialise local variables            \n\n'
-
-        for m in range(0,nargs):
-          if maps[m]==OP_MAP and accs[m]==OP_INC:
-            file_text +=\
-            '    for (int d=0; d<'+dims[m]+'; d++)\n'\
-            '      arg'+str(m)+'_l[d] = ZERO_'+typs[m]+';\n'
+        code('  for (int n=0; n<nelem; n++) {')
+        code('    // initialise local variables            ')
+        
+        for g_m in range(0,nargs):
+          if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+            code('    for (int d=0; d<DIM; d++)')
+            code('      ARG_l[d] = ZERO_TYP;')
       else:
-        file_text +='  for (int n=0; n<nelem; n++) {\n'
+        code('  for (int n=0; n<nelem; n++) {')
 #
 # simple alternative when no indirection
 #
     else:
-      file_text +=\
-      '  // process set elements\n'\
-      '  for (int n=start; n<finish; n++) {\n'    
+      code('  // process set elements')
+      code('  for (int n=start; n<finish; n++) {')    
                         
 #
 # kernel call#   
@@ -340,7 +368,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       s = [i for i in range(len(inds)) if inds[i]==m]
       if sum(s)>1:
         if indaccs[m-1] <> OP_INC:
-          file_text +=' \n'
+          code('')
           ctr = 0
           for n in range(0,nargs):
             if inds[n] == m and vectorised[m]:
@@ -349,8 +377,9 @@ def op2_gen_openmp(master, date, consts, kernels):
               '*set_size+n+offset_b]*'+str(dims[n])+';\n'
               ctr = ctr+1
     
-    file_text +='\n    // user-supplied kernel call\n\n'
-
+    code('')
+    code('    // user-supplied kernel call')
+    
     line = '    '+name+'('
     prefix = ' '*len(name)
     a = 0 #only apply indentation if its not the 0th argument
@@ -360,319 +389,341 @@ def op2_gen_openmp(master, date, consts, kernels):
         indent = '     '+' '*len(name)
         
       if maps[m] == OP_GBL:
-        line = line+indent+'arg'+str(m)+',\n'
-        a =a+1
+        line += rep(indent+'ARG,\n',m)
+        a = a+1
       elif maps[m]==OP_MAP and  accs[m]==OP_INC and vectorised[m]==0:
-        line = line+indent+'arg'+str(m)+'_l,\n'
-        a =a+1
+        line += rep(indent+'ARG_l,\n',m);
+        a = a+1
       elif maps[m]==OP_MAP and vectorised[m]==0:
-        line = line+indent+'ind_arg'+str(inds[m]-1)+'_s+arg_map['+\
-        str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*'+str(dims[m])+','+'\n'
-        a =a+1
+        line += rep(indent+'ind_arg'+str(inds[m]-1)+'_s+arg_map['+\
+        str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*DIM,\n',m)
+        a = a+1
       elif maps[m]==OP_MAP and m == 0:
-        line = line+indent+'arg'+str(inds[m]-1)+'_vec,'+'\n'
-        a =a+1
+        line += rep(indent+'ARG_vec,'+'\n',inds[m]-1)
+        a = a+1
       elif maps[m]==OP_MAP and m>0 and vectorised[m] <> vectorised[m-1]: #xxx:vector
-        line = line+indent+'arg'+str(inds[m]-1)+'_vec,'+'\n'
-        a =a+1
+        line += rep(indent+'ARG_vec,'+'\n',inds[m]-1)
+        a = a+1
       elif maps[m]==OP_MAP and m>0 and vectorised[m] == vectorised[m-1]:
         line = line
-        a =a+1
+        a = a+1
       elif maps[m]==OP_ID:
         if ninds>0:
-          line = line+indent+'arg'+str(m)+'+(n+offset_b)*'+str(dims[m])+','+'\n'
-          a =a+1
+          line += rep(indent+'ARG+(n+offset_b)*DIM,'+'\n',m)
+          a = a+1
         else:
-          line = line+indent+'arg'+str(m)+'+n*'+str(dims[m])+','+'\n'
-          a =a+1
+          line += rep(indent+'ARG+n*DIM,'+'\n',m)
+          a = a+1
       else:
         print 'internal error 1 '
     
-    file_text +=line[0:-2]+');\n' #remove final ',' and \n  
+    code(line[0:-2]+');') #remove final ',' and \n  
     
 #
 # updating for indirect kernels ...
 #    
     if ninds>0:
       if ind_inc:
-        file_text +='\n'\
-        '    // store local variables            \n\n'
+        code('')
+        code('    // store local variables            ')
+        code('')
       
-        for m in range(0,nargs):
-          if maps[m] == OP_MAP and accs[m] == OP_INC:
-            file_text +=\
-            '    int arg'+str(m)+'_map = arg_map['+ str(cumulative_indirect_index[m])+'*set_size+n+offset_b];\n'
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+            code('    int ARG_map = arg_map['+ str(cumulative_indirect_index[g_m])+'*set_size+n+offset_b];')
       
-        for m in range(0,nargs):
-          if maps[m] == OP_MAP and accs[m] == OP_INC:
-            file_text +='\n'\
-            '    for (int d=0; d<'+str(dims[m])+'; d++)\n'\
-            '      ind_arg'+str(inds[m]-1)+'_s[d+arg'+str(m)+'_map*'+dims[m]+'] += arg'+str(m)+'_l[d];\n'
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+            code('    for (int d=0; d<'+str(dims[g_m])+'; d++)')
+            code('      ind_arg'+str(inds[g_m]-1)+'_s[d+ARG_map*DIM] += ARG_l[d];')
           
-      file_text += '  }\n'
+      code('  }')
       
       s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
       
       if len(s)>0 and max(s)>0:
-        file_text +='\n'\
-        '  // apply pointered write/increment\n'
+        code('')
+        code('  // apply pointered write/increment')
         
-      for m in range(1,ninds+1):
-        if indaccs[m-1]==OP_WRITE or indaccs[m-1]==OP_RW or indaccs[m-1]==OP_INC:
-          file_text +=\
-          '  for (int n=0; n<ind_arg'+str(m-1)+'_size; n++)\n'\
-          '    for (int d=0; d<'+inddims[m-1]+'; d++)\n'
-          if indaccs[m-1]==OP_WRITE or indaccs[m-1]==OP_RW:
-            file_text +='      ind_arg'+str(m-1)+'[d+ind_arg'+str(m-1)+'_map[n]*'+\
-            inddims[m-1]+'] = ind_arg'+str(m-1)+'_s[d+n*'+inddims[m-1]+'];'
-          elif indaccs[m-1]==OP_INC:
-            file_text +='      ind_arg'+str(m-1)+'[d+ind_arg'+str(m-1)+'_map[n]*'+\
-            inddims[m-1]+'] += ind_arg'+str(m-1)+'_s[d+n*'+inddims[m-1]+'];'
+      for g_m in range(0,ninds):
+        if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
+          code('  for (int n=0; n<INDARG_size; n++)')
+          code('    for (int d=0; d<INDDIM; d++)')
+          if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW:
+            code('      INDARG[d+INDARG_map[n]*INDDIM] = INDARG_s[d+n*INDDIM];')
+          elif indaccs[g_m]==OP_INC:
+            code('      INDARG[d+INDARG_map[n]*INDDIM] += INDARG_s[d+n*INDDIM];')
 #
 # ... and direct kernels
 #
     else:
-      file_text +='  }\n'
-
+      code('  }')
+      code('')      
 #
 # global reduction
 #
-    file_text +='\n}\n'    
-
+    code('}')    
+    code('')
+    
 ##########################################################################
 # then C++ stub function
 ##########################################################################
 
-    file_text +='\n'\
-    '// host stub function          \n'\
-    'void op_par_loop_'+name+'(char const *name, op_set set,\n'
+    code('')
+    comm(' host stub function          ')
+    code('void op_par_loop_'+name+'(char const *name, op_set set,')
     
     for m in unique_args:
-        if m == unique_args[len(unique_args)-1]:
-          file_text +='  op_arg arg'+str(m-1)+'){\n\n'
-        else:
-          file_text +='  op_arg arg'+str(m-1)+',\n'
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('  op_arg ARG){')
+        code('')
+      else:
+        code('  op_arg ARG,')
     
-    for m in range (0,nargs):
-      if maps[m]==OP_GBL and accs[m] <> OP_READ:
-        file_text +='  '+typs[m]+'*arg'+str(m)+'h = ('+typs[m]+' *)arg'+str(m)+'.data;'
+    for g_m in range (0,nargs):
+      if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+        code('  TYP*ARGh = (TYP *)ARG.data;')
     
-    file_text += '\n'\
-    '  int nargs = '+str(nargs)+';\n'\
-    '  op_arg args['+str(nargs)+'];\n\n'
-  
-    #print vectorised
+    code('  int nargs = '+str(nargs)+';')
+    code('  op_arg args['+str(nargs)+'];')
     
-    for m in range (0,nargs):
-      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == m]
-      if len(u) > 0 and vectorised[m] > 0:
-        file_text += '  arg'+str(m)+'.idx = 0;\n'
-        file_text += '  args['+str(m)+'] = arg'+str(m)+';\n'
-        v = [int(vectorised[i] == vectorised[m]) for i in range(0,len(vectorised))]
+    
+    for g_m in range (0,nargs):
+      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+      if len(u) > 0 and vectorised[g_m] > 0:
+        code('  ARG.idx = 0;')
+        code('  args['+str(g_m)+'] = ARG;')
+        
+        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
-        file_text +=\
-        '  for (int v = 1; v < '+str(sum(v))+'; v++) {\n'\
-        '    args['+str(m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, '+dims[m]+', "'+typs[m]+'", '+accsstring[accs[m]-1]+');\n  }\n' 
+        code('')
+        code('  for (int v = 1; v < '+str(sum(v))+'; v++) {')
+        code('    args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        code('  }') 
         
-      elif vectorised[m]>0:
+      elif vectorised[g_m]>0:
         file_text = file_text
       else:
-        file_text += '  args['+str(m)+'] = arg'+str(m)+';\n'
+        code('  args['+str(g_m)+'] = ARG;')
         
 #
 #   indirect bits
 #
     if ninds>0:
-      file_text +='\n'\
-      '  int    ninds   = '+str(ninds)+';\n'\
-      '  int    inds['+str(nargs)+'] = {'
+      code('')
+      code('  int    ninds   = '+str(ninds)+';')
+      file_text += '  int    inds['+str(nargs)+'] = {'
+      
       for m in range(0,nargs):
         file_text += str(inds[m]-1)+','
-        
-      file_text = file_text[:-1] + '};\n\n'
+      file_text = file_text[:-1]
       
-      file_text += \
-      '  if (OP_diags>2) {\n'\
-      '    printf(" kernel routine with indirection: '+name+'\\n");\n'\
-      '  }\n\n'\
-      '  // get plan\n'\
-      '  #ifdef OP_PART_SIZE_'+ str(nk)+'\n'\
-      '    int part_size = OP_PART_SIZE_'+str(nk)+';\n'\
-      '  #else\n'\
-      '    int part_size = OP_part_size;\n'\
-      '  #endif\n\n'\
-      '  int set_size = op_mpi_halo_exchanges(set, nargs, args);\n'  
+      code( '};')
+      code('')
+      
+      code('  if (OP_diags>2) {')
+      code('    printf(" kernel routine with indirection: '+name+'\\n");')
+      code('  }')
+      code('')
+      code('  // get plan')
+      code('  #ifdef OP_PART_SIZE_'+ str(nk))
+      code('    int part_size = OP_PART_SIZE_'+str(nk)+';')
+      code('  #else')
+      code('    int part_size = OP_part_size;')
+      code('  #endif')
+      code('')
+      code('  int set_size = op_mpi_halo_exchanges(set, nargs, args);')  
     
 #
 # direct bit
 #   
     else:
-      file_text += '\n'\
-      '  if (OP_diags>2) {\n'\
-      '    printf(" kernel routine w/o indirection:  '+ name + '");\n'\
-      '  }\n\n'\
-      '  op_mpi_halo_exchanges(set, nargs, args);\n'
+      code('')
+      code('  if (OP_diags>2) {')
+      code('    printf(" kernel routine w/o indirection:  '+ name + '");')
+      code('  }')
+      code('')
+      code('  op_mpi_halo_exchanges(set, nargs, args);')
 
 #
 # start timing
 #
-    file_text += '\n'\
-    '  // initialise timers\n'\
-    '  double cpu_t1, cpu_t2, wall_t1, wall_t2;\n'\
-    '  op_timers_core(&cpu_t1, &wall_t1);\n'\
+    code('')
+    code('  // initialise timers')
+    code('  double cpu_t1, cpu_t2, wall_t1, wall_t2;')
+    code('  op_timers_core(&cpu_t1, &wall_t1);')
+    code('')
 
 #
 # set number of threads in x86 execution and create arrays for reduction
 #
 
     if reduct or ninds==0:
-      file_text +=\
-      '  // set number of threads\n'\
-      '  #ifdef _OPENMP\n'\
-      '    int nthreads = omp_get_max_threads();\n'\
-      '  #else\n'\
-      '    int nthreads = 1;\n'\
-      '  #endif\n'
+      code('  // set number of threads')
+      code('  #ifdef _OPENMP')
+      code('    int nthreads = omp_get_max_threads();')
+      code('  #else')
+      code('    int nthreads = 1;')
+      code('  #endif')
      
     if reduct:
-      file_text +='\n'\
-      '  // allocate and initialise arrays for global reduction\n'
-      for m in range(0,nargs):
-        if maps[m]==OP_GBL and accs[m]<>OP_READ:
-          file_text +='  '+typs[m]+' arg'+str(m)+'_l['+dims[m]+'+64*64];\n'\
-          '  for (int thr=0; thr<nthreads; thr++)\n'
-          if accs[m]==OP_INC:
-            file_text +=\
-            '    for (int d=0; d<'+dims[m]+'; d++) arg'+str(m)+'_l[d+thr*64]=ZERO_'+typs[m]+';\n'
+      code('')
+      code('  // allocate and initialise arrays for global reduction')
+      for g_m in range(0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+          code('  TYP ARG_l[DIM+64*64];')
+          code('  for (int thr=0; thr<nthreads; thr++)')
+          if accs[g_m]==OP_INC:
+            code('    for (int d=0; d<DIM; d++) ARG_l[d+thr*64]=ZERO_TYP;')
           else:
-            file_text +=\
-            '    for (int d=0; d<'+dims[m]+'; d++) arg'+str(m)+'_l[d+thr*64]=arg'+str(m)+'h[d];\n'
-          
-    file_text +='\n  if (set->size >0) {\n\n'
+            code('    for (int d=0; d<DIM; d++) ARG_l[d+thr*64]=ARGh[d];')
+    
+    code('')
+    code('  if (set->size >0) {')
+    code('')
     
 #
 # kernel call for indirect version
 #
     if ninds>0:
-      file_text +=\
-      '    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);\n\n'\
-      '    // execute plan\n'\
-      '    int block_offset = 0;\n'\
-      '    for (int col=0; col < Plan->ncolors; col++) {\n'\
-      '      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);\n'\
-      '      int nblocks = Plan->ncolblk[col];\n\n'\
-      '#pragma omp parallel for\n'\
-      '      for (int blockIdx=0; blockIdx<nblocks; blockIdx++)\n'\
-      '      op_x86_'+name+'( blockIdx,\n'\
+      code('    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
+      code('')
+      code('    // execute plan')
+      code('    int block_offset = 0;')
+      code('    for (int col=0; col < Plan->ncolors; col++) {')
+      code('      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);')
+      code('      int nblocks = Plan->ncolblk[col];')
+      code('')
+      code('      #pragma omp parallel for')
+      code('      for (int blockIdx=0; blockIdx<nblocks; blockIdx++)')
+      code('      op_x86_'+name+'( blockIdx,')
 
       for m in range(1,ninds+1):
-        file_text +='         ('+typs[invinds[m-1]]+' *)arg'+str(invinds[m-1])+'.data,\n'
+        g_m = invinds[m-1]
+        code('         (TYP *)ARG.data,')
     
-      file_text +=\
-      '         Plan->ind_map,\n'\
-      '         Plan->loc_map,\n'
+      code('         Plan->ind_map,')
+      code('         Plan->loc_map,')
 
       for m in range(0,nargs):
+        g_m = m
+        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ:
+          code('         &ARG_l[64*omp_get_thread_num()],')
         if inds[m]==0:
-          file_text +='         ('+typs[m]+' *)arg'+str(m)+'.data,\n'
+          code('         (TYP *)ARG.data,')
       
 
-      file_text +=\
-      '         Plan->ind_sizes,\n'\
-      '         Plan->ind_offs,\n'\
-      '         block_offset,\n'\
-      '         Plan->blkmap,\n'\
-      '         Plan->offset,\n'\
-      '         Plan->nelems,\n'\
-      '         Plan->nthrcol,\n'\
-      '         Plan->thrcol,\n'\
-      '         set_size);\n\n'\
-      '      block_offset += nblocks;\n'\
-      '    }\n'    
+      code('         Plan->ind_sizes,')
+      code('         Plan->ind_offs,')
+      code('         block_offset,')
+      code('         Plan->blkmap,')
+      code('         Plan->offset,')
+      code('         Plan->nelems,')
+      code('         Plan->nthrcol,')
+      code('         Plan->thrcol,')
+      code('         set_size);')
+      code('')
+      
+      if reduct:
+        code('  // combine reduction data')
+        code('    if (col == Plan->ncolors_owned-1) {')
+        for m in range(0,nargs):
+          if maps[m] == OP_GBL and accs[m] <> OP_READ:
+            code('      for (int thr=0; thr<nthreads; thr++)')
+            if accs[m]==OP_INC:
+              code('        for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];')
+            elif accs[m]==OP_MIN:
+              code('        for(int d=0; d<DIM; d++) ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+            elif  accs(m)==OP_MAX:
+              code('        for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+            else:
+              error('internal error: invalid reduction option')
+      
+      code('      block_offset += nblocks;')
+      code('    }')     
+      
 #
 # kernel call for direct version
 #
     else:
-      file_text +=\
-      '  // execute plan\n'\
-       '#pragma omp parallel for\n'\
-           '    for (int thr=0; thr<nthreads; thr++) {\n'\
-           '      int start  = (set->size* thr   )/nthreads;\n'\
-           '      int finish = (set->size*(thr+1))/nthreads;\n'\
-           '      op_x86_'+name+'( '
+      code('    // execute plan')
+      code('    #pragma omp parallel for')
+      code('    for (int thr=0; thr<nthreads; thr++) {')
+      code('      int start  = (set->size* thr   )/nthreads;')
+      code('      int finish = (set->size*(thr+1))/nthreads;')
+      file_text += '      op_x86_'+name+'( '
 
-      for m in range(0,nargs):
+      for g_m in range(0,nargs):
         indent = ''
-        if m <> 0:
+        if g_m <> 0:
           indent = '               '+' '*len(name)
-        if maps[m]==OP_GBL and accs[m] <> OP_READ:
-          file_text +=indent+'arg'+str(m)+'_l + thr*64,\n'
         else:
-          file_text +=indent+'('+typs[m]+' *) arg'+str(m)+'.data,\n'
+          indent = ''
+        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+          code(indent+'ARG_l + thr*64,')
+        else:
+          code(indent+'(TYP *) ARG.data,')
         
-      file_text +=' '*len(name)+'               start, finish );\n    }\n\n'
+      code(' '*len(name)+'               start, finish );\n    }')
+      code('')
     
   
     if ninds>0:
-      file_text +=\
-      '  op_timing_realloc('+str(nk)+');\n'\
-      '  OP_kernels['+str(nk)+'].transfer  += Plan->transfer; \n'\
-      '  OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;\n'
+      code('  op_timing_realloc('+str(nk)+');')
+      code('  OP_kernels['+str(nk)+'].transfer  += Plan->transfer; ')
+      code('  OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
     
-    file_text +='  }\n\n'    
+    code('  }')
+    code('')    
 
 #
 # combine reduction data from multiple OpenMP threads
 #
-    file_text +='  // combine reduction data\n'
-    for m in range(0,nargs):
-      if maps[m]==OP_GBL and accs[m]<>OP_READ:
-        file_text +='  for (int thr=0; thr<nthreads; thr++)\n'
-        if accs[m]==OP_INC:
-          file_text +=\
-          '    for(int d=0; d<'+dims[m]+'; d++) arg'+str(m)+'h[d] += arg'+str(m)+'_l[d+thr*64];';
-        elif accs[m]==OP_MIN:
-          file_text +=\
-          '    for(int d=0; d<'+dims(m)+'; d++) arg'+str(m)+'h[d]  = MIN(arg'+\
-          str(m)+'h[d],arg'+str(m)+'_l[d+thr*64]);\n'
-        elif accs[m]==OP_MAX:
-          file_text +=\
-          '    for(int d=0; d<'+dims[m]+'; d++) '+str(m)+'h[d]  = MAX(arg'+\
-          str(m)+'h[d],arg'+str(m)+'_l[d+thr*64]);\n'
+    code('  // combine reduction data')
+    for g_m in range(0,nargs):
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        code('  for (int thr=0; thr<nthreads; thr++)')
+        if accs[g_m]==OP_INC:
+          code('    for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];')
+        elif accs[g_m]==OP_MIN:
+          code('    for(int d=0; d<DIM; d++) ARGh[d]  = MIN(arg'+\
+          str(g_m)+'h[d],ARG_l[d+thr*64]);')
+        elif accs[g_m]==OP_MAX:
+          code('    for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
         else:
           print 'internal error: invalid reduction option'
-        file_text +='\n'\
-        '  op_mpi_reduce(&arg'+str(m)+',arg'+str(m)+'h);\n'
+        code('')
+        code('  op_mpi_reduce(&ARG,ARGh);')
       
-
-    file_text +='\n  op_mpi_set_dirtybit(nargs, args);\n\n'
+    code('')
+    code('  op_mpi_set_dirtybit(nargs, args);')
+    code('')
 
 #
 # update kernel record
 #
 
-    file_text +=\
-    '  // update kernel record\n'\
-    '  op_timers_core(&cpu_t2, &wall_t2);\n'\
-    '  op_timing_realloc('+str(nk)+');\n'\
-    '  OP_kernels[' +str(nk)+ '].name      = name;\n'\
-    '  OP_kernels[' +str(nk)+ '].count    += 1;\n'\
-    '  OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;\n'
+    code('  // update kernel record')
+    code('  op_timers_core(&cpu_t2, &wall_t2);')
+    code('  op_timing_realloc('+str(nk)+');')
+    code('  OP_kernels[' +str(nk)+ '].name      = name;')
+    code('  OP_kernels[' +str(nk)+ '].count    += 1;')
+    code('  OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = '  OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
-      for m in range (0,nargs):
-        if maps[m]<>OP_GBL:
-          if accs[m]==OP_READ or accs[m]==OP_WRITE:
-            file_text +=line+' arg'+str(m)+'.size;\n'
+      for g_m in range (0,nargs):
+        if maps[g_m]<>OP_GBL:
+          if accs[g_m]==OP_READ or accs[g_m]==OP_WRITE:
+            code(line+' ARG.size;')
           else:
-            file_text +=line+' arg'+str(m)+'.size * 2.0f;\n'
-       
-
-    file_text +='}'
+            code(line+' ARG.size * 2.0f;')
+            
+    code('}')
 
 
 ##########################################################################
@@ -690,31 +741,34 @@ def op2_gen_openmp(master, date, consts, kernels):
 ##########################################################################
 #  output one master kernel file
 ##########################################################################
-    
-  file_text = '// header                 \n'\
-              '#include "op_lib_cpp.h"       \n\n'\
-              '// global constants       \n'
+  
+  file_text =''
+  comm(' header                 ')
+  code('#include "op_lib_cpp.h"       ')
+  code('')
+  comm('// global constants       ')
               
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      file_text += 'extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';\n'
+      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
     
-      file_text += 'extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];\n'
+      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
       
   if any_soa:
-    file_text +='\n'\
-    'extern int op2_stride;\n'\
-    '#define OP2_STRIDE(arr, idx) arr[idx]\n\n'
+    code('')
+    code('extern int op2_stride;')
+    code('#define OP2_STRIDE(arr, idx) arr[idx]')
+    code('')
 
-  file_text +='// user kernel files\n'
+  comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
-    file_text += '#include "'+kernels[nk]['name']+'_kernel.cpp"\n'
+    code('#include "'+kernels[nk]['name']+'_kernel.cpp"')
   master = master.split('.')[0] 
   fid = open(master.split('.')[0]+'_kernels.cpp','w')
   fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
