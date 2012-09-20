@@ -41,6 +41,42 @@ def code(text):
   prefix = ' '*depth
   file_text += prefix+rep(text,g_m)+'\n'
 
+def FOR(i,start,finish):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('do '+i+' = '+start+', '+finish+'-1')
+  elif CPP:
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
+  depth += 2
+
+def ENDFOR():
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  depth -= 2
+  if FORTRAN:
+    code('enddo')
+  elif CPP:
+    code('}')
+    
+def IF(line):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('if ('+line+') then')
+  elif CPP:
+    code('if ('+ line + ') {')
+  depth += 2
+  
+def ENDIF():
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  depth -= 2
+  if FORTRAN:
+    code('endif')
+  elif CPP:
+    code('}')  
+  
 
 def op2_gen_openmp(master, date, consts, kernels):
 
@@ -261,6 +297,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     else:
       code('int   start,    ')
       code('int   finish ) {')
+      code('') 
       
     for g_m in range (0,nargs):
       if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
@@ -268,9 +305,6 @@ def op2_gen_openmp(master, date, consts, kernels):
           code('TYP  ARG_l[DIM];')  
         elif CPP:
           code('TYP  ARG_l[DIM];')     
-        
-    
-    code('') 
     
     for m in range (1,ninds+1):
       g_m = m-1
@@ -279,8 +313,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       if sum(v)>1 and sum(v_i)>0:  
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'] = {')
-          depth += 2
+          code('INDTYP *ARG_vec['+str(ind)+'] = {'); depth += 2;
           for n in range(0,nargs):
             if inds[n] == m:
               g_m = n
@@ -304,8 +337,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       code('char shared[128000];')
       code('')
-      code('if (0==0) {')
-      depth += 2
+      IF('0==0')
       code('')
       code('// get sizes and shift pointers and direct-mapped data')
       code('')
@@ -331,51 +363,44 @@ def op2_gen_openmp(master, date, consts, kernels):
         code('ind_ARG_s = (INDTYP *) &shared[nbytes];')
         if g_m < ninds-1:
           code('nbytes += ROUND_UP(ind_ARG_size*sizeof(INDTYP)*INDDIM);')
-      depth -= 2
-      code('}')
+      ENDIF()
       code('')
       code('// copy indirect datasets into shared memory or zero increment')
       code('')
        
       for g_m in range(0,ninds):
         if indaccs[g_m]==OP_READ or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
-          code('for (int n=0; n<INDARG_size; n++)')
-          depth += 2
-          code('for (int d=0; d<INDDIM; d++)')
-          depth += 2
+          FOR('n','0','INDARG_size')
+          FOR('d','0','INDDIM')
           if indaccs[g_m]==OP_READ or indaccs[g_m]==OP_RW:
             code('INDARG_s[d+n*INDDIM] = INDARG[d+INDARG_map[n]*INDDIM];')
             code('')
           elif indaccs[g_m]==OP_INC:
             code('INDARG_s[d+n*INDDIM] = ZERO_INDTYP;')
-          depth -= 4
+          ENDFOR()
+          ENDFOR()
        
       code('')
       code('// process set elements')
       code('')
       
       if ind_inc:
-        code('for (int n=0; n<nelem; n++) {')
-        depth += 2
+        FOR('n','0','nelem')
         code('// initialise local variables            ')
-        
         for g_m in range(0,nargs):
           if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-            code('for (int d=0; d<DIM; d++)')
-            depth += 2
+            FOR('d','0','DIM')
             code('ARG_l[d] = ZERO_TYP;')
-            depth -= 2
+            ENDFOR()            
       else:
-        code('for (int n=0; n<nelem; n++) {')
-        depth += 2
-      
+        FOR('n','0','nelem')
+        
 #
 # simple alternative when no indirection
 #
     else:
       code('// process set elements')
-      code('for (int n=start; n<finish; n++) {')    
-      depth += 2
+      FOR('n','start','finish')
                         
 #
 # kernel call#   
@@ -389,9 +414,9 @@ def op2_gen_openmp(master, date, consts, kernels):
           ctr = 0
           for n in range(0,nargs):
             if inds[n] == m and vectorised[m]:
-              file_text +='    arg'+str(m-1)+'_vec['+str(ctr)+'] = ind_arg'+\
+              code('arg'+str(m-1)+'_vec['+str(ctr)+'] = ind_arg'+\
               str(inds[n]-1)+'_s+arg_map['+str(cumulative_indirect_index[n])+\
-              '*set_size+n+offset_b]*'+str(dims[n])+';\n'
+              '*set_size+n+offset_b]*'+str(dims[n])+';')
               ctr = ctr+1
     
     code('')
@@ -403,7 +428,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     indent =''
     for m in range (0, nargs):
       if a > 0:
-        indent = '       '+' '*len(name)
+        indent = '     '+' '*len(name)
         
       if maps[m] == OP_GBL:
         line += rep(indent+'ARG,\n',m)
@@ -451,12 +476,11 @@ def op2_gen_openmp(master, date, consts, kernels):
         
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            code('for (int d=0; d<'+str(dims[g_m])+'; d++)')
-            depth += 2
+            FOR('d','0','DIM')
             code('ind_arg'+str(inds[g_m]-1)+'_s[d+ARG_map*DIM] += ARG_l[d];')
-            depth -= 2
-      depth -= 2    
-      code('}')
+            ENDFOR()
+      
+      ENDFOR()
       
       s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
       
@@ -466,13 +490,14 @@ def op2_gen_openmp(master, date, consts, kernels):
         
       for g_m in range(0,ninds):
         if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
-          code('for (int n=0; n<INDARG_size; n++)'); depth += 2;
-          code('for (int d=0; d<INDDIM; d++)'); depth += 2;
+          FOR('n','0','INDARG_size')
+          FOR('d','0','INDDIM')
           if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW:
             code('INDARG[d+INDARG_map[n]*INDDIM] = INDARG_s[d+n*INDDIM];')
           elif indaccs[g_m]==OP_INC:
             code('INDARG[d+INDARG_map[n]*INDDIM] += INDARG_s[d+n*INDDIM];')
-          depth -= 4;
+          ENDFOR()
+          ENDFOR()
 #
 # ... and direct kernels
 #
@@ -510,7 +535,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
-    
+    code('')    
     
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
@@ -521,15 +546,14 @@ def op2_gen_openmp(master, date, consts, kernels):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
-        code('')
-        code('for (int v = 1; v < '+str(sum(v))+'; v++) {'); depth += 2;
+        
+        FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
         str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
-        depth -= 2
-        code('}') 
-        
+        ENDFOR()
+        code('')
       elif vectorised[g_m]>0:
-        file_text = file_text
+        pass
       else:
         code('args['+str(g_m)+'] = ARG;')
         
@@ -537,21 +561,17 @@ def op2_gen_openmp(master, date, consts, kernels):
 #   indirect bits
 #
     if ninds>0:
-      code('')
-      code('int    ninds   = '+str(ninds)+';')
-      file_text += '  int    inds['+str(nargs)+'] = {'
-      depth += 2
+      code('int  ninds   = '+str(ninds)+';')
+      line = 'int  inds['+str(nargs)+'] = {'
       for m in range(0,nargs):
-        file_text += str(inds[m]-1)+','
-      file_text = file_text[:-1]
-      
-      depth -= 2
-      code('};')
+        line += str(inds[m]-1)+','
+      code(line[:-1]+'};')
       code('')
       
-      code('if (OP_diags>2) {');depth += 2;
-      code('printf(" kernel routine with indirection: '+name+'\\n");');depth -= 2;
-      code('}')
+      IF('OP_diags>2')
+      code('printf(" kernel routine with indirection: '+name+'\\n");')
+      ENDIF()
+      
       code('')
       code('// get plan')
       code('#ifdef OP_PART_SIZE_'+ str(nk))
@@ -567,10 +587,9 @@ def op2_gen_openmp(master, date, consts, kernels):
 #   
     else:
       code('')
-      code('if (OP_diags>2) {');depth += 2;
+      IF('OP_diags>2')
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
-      depth -= 2;
-      code('}')
+      ENDIF()
       code('')
       code('op_mpi_halo_exchanges(set, nargs, args);')
 
@@ -601,15 +620,19 @@ def op2_gen_openmp(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
           code('TYP ARG_l[DIM+64*64];')
-          code('for (int thr=0; thr<nthreads; thr++)'); depth += 2;
+          FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
-            code('for (int d=0; d<DIM; d++) ARG_l[d+thr*64]=ZERO_TYP;')
+            FOR('d','0','DIM')
+            code('ARG_l[d+thr*64]=ZERO_TYP;')
+            ENDFOR()
           else:
-            code('for (int d=0; d<DIM; d++) ARG_l[d+thr*64]=ARGh[d];')
-          depth -= 2  
+            FOR('d','0','DIM')
+            code('ARG_l[d+thr*64]=ARGh[d];')
+            ENDFOR()
+          ENDFOR()  
     
     code('')
-    code('if (set->size >0) {'); depth += 2;
+    IF('set->size >0')
     code('')
     
 #
@@ -620,12 +643,14 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       code('// execute plan')
       code('int block_offset = 0;')
-      code('for (int col=0; col < Plan->ncolors; col++) {'); depth += 2;
-      code('if (col==Plan->ncolors_core) op_mpi_wait_all(nargs, args);')
+      FOR('col','0','Plan->ncolors')
+      IF('col==Plan->ncolors_core') 
+      code('op_mpi_wait_all(nargs, args);')
+      ENDIF()
       code('int nblocks = Plan->ncolblk[col];')
       code('')
       code('#pragma omp parallel for')
-      code('for (int blockIdx=0; blockIdx<nblocks; blockIdx++)');depth += 2;
+      FOR('blockIdx','0','nblocks')
       code('op_x86_'+name+'( blockIdx,')
 
       for m in range(1,ninds+1):
@@ -652,27 +677,33 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('Plan->nthrcol,')
       code('Plan->thrcol,')
       code('set_size);')
-      depth -= 2
+      ENDFOR()
       code('')
       
       if reduct:
         code('// combine reduction data')
-        code('if (col == Plan->ncolors_owned-1) {'); depth += 2;
+        IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
           if maps[m] == OP_GBL and accs[m] <> OP_READ:
-            code('for (int thr=0; thr<nthreads; thr++)')
+            FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
-              code('for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];')
+              FOR('d','0','DIM')
+              code('ARGh[d] += ARG_l[d+thr*64];')
+              ENDFOR()
             elif accs[m]==OP_MIN:
-              code('for(int d=0; d<DIM; d++) ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','DIM')
+              code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+              ENDFOR()
             elif  accs(m)==OP_MAX:
-              code('for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','DIM')
+              code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+              ENDFOR()
             else:
               error('internal error: invalid reduction option')
-      
+            ENDFOR()
+        ENDIF()
       code('block_offset += nblocks;'); 
-      depth -= 2
-      code('}')     
+      ENDIF()
       
 #
 # kernel call for direct version
@@ -680,35 +711,27 @@ def op2_gen_openmp(master, date, consts, kernels):
     else:
       code('// execute plan')
       code('#pragma omp parallel for')
-      code('for (int thr=0; thr<nthreads; thr++) {');depth += 2
+      FOR('thr','0','nthreads')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
-      file_text += '      op_x86_'+name+'('
+      code('op_x86_'+name+'(')
 
       for g_m in range(0,nargs):
         indent = ''
-        if g_m <> 0:
-          indent = '        '+' '*len(name)
-        else:
-          indent = ''
         if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
           code(indent+'ARG_l + thr*64,')
         else:
           code(indent+'(TYP *) ARG.data,')
         
-      code(' '*len(name)+'        start, finish );')
-      depth -= 2
-      code('}')
-      
-    
+      code('start, finish );')
+      ENDFOR()
   
     if ninds>0:
       code('op_timing_realloc('+str(nk)+');')
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer; ')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
     
-    depth -= 2
-    code('}')
+    ENDIF()
     code('')    
 
 #
@@ -717,19 +740,23 @@ def op2_gen_openmp(master, date, consts, kernels):
     code('// combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('for (int thr=0; thr<nthreads; thr++)')
+        FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
-          code('for(int d=0; d<DIM; d++) ARGh[d] += ARG_l[d+thr*64];')
+          FOR('d','0','DIM')
+          code('ARGh[d] += ARG_l[d+thr*64];')
+          ENDFOR()
         elif accs[g_m]==OP_MIN:
-          code('for(int d=0; d<DIM; d++) ARGh[d]  = MIN(arg'+\
-          str(g_m)+'h[d],ARG_l[d+thr*64]);')
+          FOR('d','0','DIM')
+          code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+          ENDFOR()
         elif accs[g_m]==OP_MAX:
-          code('for(int d=0; d<DIM; d++) ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+          FOR('d','0','DIM')
+          code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+          ENDFOR()
         else:
           print 'internal error: invalid reduction option'
-        code('')
         code('op_mpi_reduce(&ARG,ARGh);')
-      
+        ENDFOR()
     
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
