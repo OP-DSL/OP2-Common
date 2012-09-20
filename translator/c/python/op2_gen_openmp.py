@@ -296,16 +296,15 @@ def op2_gen_openmp(master, date, consts, kernels):
         code('int   set_size) {    ')
         code('')          
     else:
-      code('int   start,    ')
-      code('int   finish ) {')
+      if FORTRAN:
+        code('start, finish )')
+      elif CPP:
+        code('int  start, int  finish ) {')
       code('') 
       
     for g_m in range (0,nargs):
       if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-        if FORTRAN:
-          code('TYP  ARG_l[DIM];')  
-        elif CPP:
-          code('TYP  ARG_l[DIM];')     
+        code('TYP  ARG_l[DIM];')     
     
     for m in range (1,ninds+1):
       g_m = m-1
@@ -333,10 +332,14 @@ def op2_gen_openmp(master, date, consts, kernels):
         code('int  *ind_ARG_map, ind_ARG_size;')
       for g_m in range (0,ninds):
         code('INDTYP *ind_ARG_s;')
-       
-      code('int    nelem, offset_b;')
-      code('')
-      code('char shared[128000];')
+      
+      if FORTRAN:
+        code('integer(4) :: nelem, offset_b, blockId')
+        code('character :: shared[64000]')      
+      elif CPP:
+        code('int    nelem, offset_b;')
+        code('char shared[128000];')
+      
       code('')
       IF('0==0')
       code('')
@@ -472,7 +475,8 @@ def op2_gen_openmp(master, date, consts, kernels):
         
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            code('int ARG_map = arg_map['+ str(cumulative_indirect_index[g_m])+'*set_size+n+offset_b];')
+            code('int ARG_map = arg_map['+ str(cumulative_indirect_index[g_m])+\
+                '*set_size+n+offset_b];')
         code('')
         
         for g_m in range(0,nargs):
