@@ -14,13 +14,14 @@ import datetime
  
 def comm(line):
   global file_text, FORTRAN, CPP  
-  
+  global depth
+  prefix = ' '*depth
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
     file_text +='!  '+line+'\n'
   elif CPP:
-    file_text +='//  '+line+'\n'
+    file_text +=prefix+'//'+line+'\n'
 
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims  
@@ -223,7 +224,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('#include "'+name+'.h"')
     
     comm('')
-    comm('x86 kernel function')
+    comm(' x86 kernel function')
     
     if FORTRAN:
       code('subroutine op_x86_'+name+'(')
@@ -339,7 +340,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       IF('0==0')
       code('')
-      code('// get sizes and shift pointers and direct-mapped data')
+      comm(' get sizes and shift pointers and direct-mapped data')
       code('')
       code('int blockId = blkmap[blockIdx + block_offset];')
       code('nelem    = nelems[blockId];')
@@ -356,7 +357,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds)+'];')
        
       code('')
-      code('// set shared memory pointers')
+      comm(' set shared memory pointers')
       code('int nbytes = 0;')
        
       for g_m in range(0,ninds):
@@ -365,7 +366,7 @@ def op2_gen_openmp(master, date, consts, kernels):
           code('nbytes += ROUND_UP(ind_ARG_size*sizeof(INDTYP)*INDDIM);')
       ENDIF()
       code('')
-      code('// copy indirect datasets into shared memory or zero increment')
+      comm(' copy indirect datasets into shared memory or zero increment')
       code('')
        
       for g_m in range(0,ninds):
@@ -381,12 +382,12 @@ def op2_gen_openmp(master, date, consts, kernels):
           ENDFOR()
        
       code('')
-      code('// process set elements')
+      comm(' process set elements')
       code('')
       
       if ind_inc:
         FOR('n','0','nelem')
-        code('// initialise local variables            ')
+        comm(' initialise local variables            ')
         for g_m in range(0,nargs):
           if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
             FOR('d','0','DIM')
@@ -399,7 +400,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # simple alternative when no indirection
 #
     else:
-      code('// process set elements')
+      comm(' process set elements')
       FOR('n','start','finish')
                         
 #
@@ -420,7 +421,7 @@ def op2_gen_openmp(master, date, consts, kernels):
               ctr = ctr+1
     
     code('')
-    code('// user-supplied kernel call')
+    comm(' user-supplied kernel call')
     
     line = name+'('
     prefix = ' '*len(name)
@@ -467,7 +468,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     if ninds>0:
       if ind_inc:
         code('')
-        code('// store local variables            ')
+        comm(' store local variables            ')
         
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
@@ -486,7 +487,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       
       if len(s)>0 and max(s)>0:
         code('')
-        code('// apply pointered write/increment')
+        comm(' apply pointered write/increment')
         
       for g_m in range(0,ninds):
         if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
@@ -517,7 +518,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 ##########################################################################
 
     code('')
-    comm('host stub function          ')
+    comm(' host stub function          ')
     code('void op_par_loop_'+name+'(char const *name, op_set set,')
     depth += 2
     
@@ -573,7 +574,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       ENDIF()
       
       code('')
-      code('// get plan')
+      comm(' get plan')
       code('#ifdef OP_PART_SIZE_'+ str(nk))
       code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
       code('#else')
@@ -597,7 +598,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # start timing
 #
     code('')
-    code('// initialise timers')
+    comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('')
@@ -607,7 +608,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
 
     if reduct or ninds==0:
-      code('// set number of threads')
+      comm(' set number of threads')
       code('#ifdef _OPENMP')
       code('  int nthreads = omp_get_max_threads();')
       code('#else')
@@ -616,7 +617,7 @@ def op2_gen_openmp(master, date, consts, kernels):
      
     if reduct:
       code('')
-      code('// allocate and initialise arrays for global reduction')
+      comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
           code('TYP ARG_l[DIM+64*64];')
@@ -641,7 +642,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     if ninds>0:
       code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
       code('')
-      code('// execute plan')
+      comm(' execute plan')
       code('int block_offset = 0;')
       FOR('col','0','Plan->ncolors')
       IF('col==Plan->ncolors_core') 
@@ -681,7 +682,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       
       if reduct:
-        code('// combine reduction data')
+        comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
           if maps[m] == OP_GBL and accs[m] <> OP_READ:
@@ -709,7 +710,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # kernel call for direct version
 #
     else:
-      code('// execute plan')
+      comm(' execute plan')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
       code('int start  = (set->size* thr)/nthreads;')
@@ -737,7 +738,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
 # combine reduction data from multiple OpenMP threads
 #
-    code('// combine reduction data')
+    comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
         FOR('thr','0','nthreads')
@@ -765,7 +766,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # update kernel record
 #
 
-    code('// update kernel record')
+    comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('op_timing_realloc('+str(nk)+');')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
@@ -806,7 +807,7 @@ def op2_gen_openmp(master, date, consts, kernels):
   comm(' header                 ')
   code('#include "op_lib_cpp.h"       ')
   code('')
-  comm('// global constants       ')
+  comm(' global constants       ')
               
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
