@@ -9,10 +9,80 @@
 #
 ##########################################################################
 
+import re
 import datetime
 
+def comm(line):
+  global file_text, FORTRAN, CPP  
+  global depth
+  prefix = ' '*depth
+  if len(line) == 0:
+    file_text +='\n'
+  elif FORTRAN:
+    file_text +='!  '+line+'\n'
+  elif CPP:
+    file_text +=prefix+'//'+line+'\n'
+
+def rep(line,m):
+  global dims, idxs, typs, indtyps, inddims  
+  if m < len(inddims):
+    line = re.sub('INDDIM',str(inddims[m]),line)
+    line = re.sub('INDTYP',str(indtyps[m]),line)
+    
+  line = re.sub('INDARG','ind_arg'+str(m),line)
+  line = re.sub('DIM',str(dims[m]),line)
+  line = re.sub('ARG','arg'+str(m),line)
+  line = re.sub('TYP',typs[m],line)
+  line = re.sub('IDX',str(int(idxs[m])),line)
+  return line
+
+def code(text):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  prefix = ' '*depth
+  file_text += prefix+rep(text,g_m)+'\n'
+
+def FOR(i,start,finish):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('do '+i+' = '+start+', '+finish+'-1')
+  elif CPP:
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
+  depth += 2
+
+def ENDFOR():
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  depth -= 2
+  if FORTRAN:
+    code('enddo')
+  elif CPP:
+    code('}')
+    
+def IF(line):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('if ('+line+') then')
+  elif CPP:
+    code('if ('+ line + ') {')
+  depth += 2
+  
+def ENDIF():
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  depth -= 2
+  if FORTRAN:
+    code('endif')
+  elif CPP:
+    code('}')  
+    
 def op2_gen_cuda(master, date, consts, kernels):
 
+  global dims, idxs, typs, indtyps, inddims
+  global FORTRAN, CPP, g_m, file_text, depth
+  
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
@@ -139,46 +209,89 @@ def op2_gen_cuda(master, date, consts, kernels):
 #  start with CUDA kernel function
 ##########################################################################
 
-    file_text = \
-    '//user function\n'\
-    '__device__\n'\
-    '#include "'+name+'.h"\n\n'\
-    '// CUDA kernel function\n\n'\
-    '__global__ void op_cuda_'+name+'(\n'
+    FORTRAN = 0;
+    CPP     = 1;
+    g_m = 0;
+    file_text = ''
+    depth = 0
+    
+    comm('user function')
+    
+    code('__device__')
+    if FORTRAN:
+      code('include '+name+'.inc')
+    elif CPP:
+      code('#include "'+name+'.h"')
+      
+    comm('')
+    comm(' CUDA kernel function')
 
-    for m in range(0,ninds):
-      file_text += '  '+str(indtyps[m])+' *ind_arg'+str(m)+',\n'
+    if FORTRAN:
+      code('subroutine op_cuda_'+name+'(')
+    elif CPP:
+      code('__global__ void op_cuda_'+name+'(')
+    
+    depth = 2
+
+    for g_m in range(0,ninds):
+      if FORTRAN:
+        code('INDTYP *ind_ARG,')
+      elif CPP:
+        code('INDTYP *ind_ARG,')
 
     if ninds>0:
-      file_text += \
-      '  int   *ind_map,\n'\
-      '  short *arg_map,\n'
+      if FORTRAN:
+        code('int   *ind_map,')
+        code('short *arg_map,')
+      elif CPP:
+        code('int   *ind_map,')
+        code('short *arg_map,')
   
-    for m in range (0,nargs):
-      if maps[m]==OP_GBL and accs[m] == OP_READ:
+    for g_m in range (0,nargs):
+      if maps[g_m]==OP_GBL and accs[g_m] == OP_READ:
         # declared const for performance
-        file_text +='  const '+typs[m]+' *arg'+str(m)+',\n'  
-      elif maps[m]==OP_ID and ninds>0:
-        file_text +='  '+typs[m]+' *arg'+str(m)+',\n'
-      elif maps[m]==OP_GBL or maps[m]==OP_ID:
-        file_text +='  '+typs[m]+' *arg'+str(m)+',\n'
+        if FORTRAN:
+          code('const TYP *ARG,')  
+        elif CPP:
+          code('const TYP *ARG,')          
+      elif maps[g_m]==OP_ID and ninds>0:
+        if FORTRAN:
+          code('ARG,')
+        elif CPP:
+          code('TYP  *ARG,')
+      elif maps[g_m]==OP_GBL or maps[g_m]==OP_ID:
+        if FORTRAN:
+          code('ARG,')
+        elif CPP:
+          code('TYP *ARG,')
     
     if ninds>0:
-      file_text +=\
-      '  int   *ind_arg_sizes,\n'\
-      '  int   *ind_arg_offs,\n'\
-      '  int    block_offset,\n'\
-      '  int   *blkmap,      \n'\
-      '  int   *offset,      \n'\
-      '  int   *nelems,      \n'\
-      '  int   *ncolors,     \n'\
-      '  int   *colors,      \n'\
-      '  int   nblocks,     \n'\
-      '  int   set_size) {   \n\n'
+      if FORTRAN:
+        code('int   *ind_arg_sizes,')
+        code('int   *ind_arg_offs, ')
+        code('int    block_offset, ')
+        code('int   *blkmap,       ')
+        code('int   *offset,       ')
+        code('int   *nelems,       ')
+        code('int   *ncolors,      ')
+        code('int   *colors,       ')
+        code('int   nblocks,       ')
+        code('int   set_size) {    ')
+      if CPP:
+        code('int   *ind_arg_sizes,')
+        code('int   *ind_arg_offs, ')
+        code('int    block_offset, ')
+        code('int   *blkmap,       ')
+        code('int   *offset,       ')
+        code('int   *nelems,       ')
+        code('int   *ncolors,      ')
+        code('int   *colors,       ')
+        code('int   nblocks,       ')
+        code('int   set_size) {    ')
     else:
-      file_text +=\
-      '  int   offset_s,    \n'\
-      '  int   set_size ) {\n\n'
+      code('int   offset_s,    ')
+      code('int   set_size ) {')
+      code('')
     
     for m in range(0,nargs):
       if maps[m]==OP_GBL and accs[m]<>OP_READ:

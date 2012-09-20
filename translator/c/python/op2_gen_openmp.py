@@ -238,8 +238,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         code('integer(4)  blockIdx,')
       elif CPP:
         code('int  blockIdx,')
-      
-  
+        
     for g_m in range(0,ninds):
       if FORTRAN:
         code('INDTYP *ind_ARG,')
