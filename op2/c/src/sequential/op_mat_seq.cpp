@@ -89,6 +89,20 @@ op_mat op_decl_mat( op_sparsity sparsity, int *dims, int ndim, char const * type
   return mat;
 }
 
+void op_mat_destroy ( op_mat m )
+{
+  if ( m->mat == NULL )
+  {
+    return;
+  }
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  MatDestroy ( ((Mat*)&(m->mat)) );
+#else
+  MatDestroy ( ((Mat)(m->mat)) );
+#endif
+  m->mat = NULL;
+}
+
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dims, const char * typ, op_access acc )
 {
   return op_arg_mat_core(mat, rowidx, rowmap, colidx, colmap, dims, typ, acc);

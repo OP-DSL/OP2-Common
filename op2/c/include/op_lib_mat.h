@@ -44,6 +44,8 @@ op_sparsity op_decl_sparsity ( op_map *rowmaps, op_map *colmaps, int nmaps, int 
 
 op_mat op_decl_mat( op_sparsity sparsity, int *dims, int ndim, char const * type, int type_size, char const * name );
 
+void op_mat_destroy ( op_mat m );
+
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dim, const char * typ, op_access acc );
 
 void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
