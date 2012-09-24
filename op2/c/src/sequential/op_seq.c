@@ -33,7 +33,7 @@
 #include <petscsys.h>
 #include <petscmat.h>
 #include <op_lib_c.h>
-
+#include <op_lib_mat.h>
 /*
  * This file implements thw wrappers of core library routines for
  * the OP2 reference implementation. These functions are also used
@@ -131,11 +131,7 @@ void op_exit ()
 {
   for ( int i = 0; i < OP_mat_index; i++ )
   {
-#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
-      MatDestroy ( ((Mat*)&(OP_mat_list[i]->mat)) );
-#else
-      MatDestroy ( ((Mat)(OP_mat_list[i]->mat)) );
-#endif
+    op_mat_destroy ( OP_mat_list[i] );
   }
 
   op_exit_core ();
