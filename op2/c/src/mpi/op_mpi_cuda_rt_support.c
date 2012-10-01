@@ -93,15 +93,20 @@ void op_exchange_halo(op_arg* arg)
 
     gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
 
-    cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec,
+    if (OP_gpu_direct) {
+      ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec = arg->dat->buffer_d;
+      ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec = arg->dat->buffer_d+exp_exec_list->size*arg->dat->size;
+    } else {
+      cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec,
           arg->dat->buffer_d, exp_exec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
 
-    cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec,
+      cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec,
           arg->dat->buffer_d+exp_exec_list->size*arg->dat->size,
           exp_nonexec_list->size*arg->dat->size,
           cudaMemcpyDeviceToHost ) );
 
-    cutilSafeCall(cudaDeviceSynchronize(  ));
+      cutilSafeCall(cudaDeviceSynchronize(  ));
+    }
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
@@ -113,10 +118,11 @@ void op_exchange_halo(op_arg* arg)
           s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
-
     int init = dat->set->size*dat->size;
+    void *ptr;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
+      ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) : &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
+      MPI_Irecv(ptr,
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
