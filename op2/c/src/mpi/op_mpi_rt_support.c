@@ -71,10 +71,18 @@
 
 void op_exchange_halo(op_arg* arg)
 {
-  int my_rank, comm_size;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  //int my_rank, comm_size;
+  //MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  //MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
   op_dat dat = arg->dat;
+
+  if(arg->sent == 1)
+  {
+    printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
+    fflush(stdout);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
 
   if(/*(arg->idx != -1) && need to exchange both direct and indirect data sets if they are dirty*/
      (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
@@ -124,8 +132,8 @@ void op_exchange_halo(op_arg* arg)
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-      //      my_rank, imp_exec_list.ranks[i], dat.name, imp_exec_list.sizes[i]);
+     // printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
+     //       my_rank, imp_exec_list->ranks[i], dat->name, imp_exec_list->sizes[i]);
       MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
@@ -156,8 +164,8 @@ void op_exchange_halo(op_arg* arg)
             buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-                my_rank, exp_nonexec_list->ranks[i], dat->name,exp_nonexec_list->sizes[i]);
+      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
+      //          my_rank, exp_nonexec_list->ranks[i], dat->name,exp_nonexec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
@@ -169,8 +177,8 @@ void op_exchange_halo(op_arg* arg)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-            my_rank, imp_nonexec_list->ranks[i], dat->name, imp_nonexec_list->sizes[i]);
+      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
+      //      my_rank, imp_nonexec_list->ranks[i], dat->name, imp_nonexec_list->sizes[i]);
       MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
@@ -190,8 +198,7 @@ void op_exchange_halo(op_arg* arg)
 
 void op_wait_all(op_arg* arg)
 {
-  if(arg->argtype == OP_ARG_DAT && arg->sent == 1 &&
-    (arg->acc == OP_READ || arg->acc == OP_RW))
+  if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
     op_dat dat = arg->dat;
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,

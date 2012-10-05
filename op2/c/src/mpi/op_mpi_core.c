@@ -2185,13 +2185,21 @@ void op_mpi_exit()
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
+  int direct_flag = 1;
+
+  //check if this is a direct loop
+  for (int n=0; n<nargs; n++)
+    if(args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1) return size;
+
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
-    {
       op_exchange_halo(&args[n]);
-      //set_dirtybit(&args[n]);
-    }
-    if(args[n].idx != -1 && args[n].acc != OP_READ) size = set->size + set->exec_size;
+
+    if(args[n].idx != -1 && args[n].acc != OP_READ)
+      size = set->size + set->exec_size;
   }
   return size;
 }

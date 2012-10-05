@@ -328,7 +328,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t1, &wall_t1);
   for(int iter=1; iter<=niter; iter++) {
 
-   /* op_par_loop(res_calc,"res_calc",cells,
+   op_par_loop(res_calc,"res_calc",cells,
                 op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
                 op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
                 op_arg_dat(p_K,     -1,     OP_ID, 16,"double:soa",OP_WRITE),
@@ -336,7 +336,7 @@ int main(int argc, char **argv)
                 );
 
     op_par_loop(dirichlet,"dirichlet",bnodes,
-                op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));*/
+                op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
 
     double c1 = 0;
     double c2 = 0;
@@ -345,12 +345,12 @@ int main(int argc, char **argv)
     double beta = 0;
 
     //c1 = R'*R;
- /*   op_par_loop(init_cg, "init_cg", nodes,
+    op_par_loop(init_cg, "init_cg", nodes,
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&c1, 1, "double", OP_INC),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
-                op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));*/
+                op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
 
     //set up stopping conditions
     double res0 = sqrt(c1);
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
                   op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
- /*     op_par_loop(dirichlet,"dirichlet",bnodes,
+      op_par_loop(dirichlet,"dirichlet",bnodes,
                   op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
 
       c2 = 0;
@@ -397,7 +397,7 @@ int main(int argc, char **argv)
       op_par_loop(updateP, "updateP", nodes,
                   op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
-                  op_arg_gbl(&beta, 1, "double", OP_READ));*/
+                  op_arg_gbl(&beta, 1, "double", OP_READ));
       c1 = c3;
       res = sqrt(c1);
       inner_iter++;
