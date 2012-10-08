@@ -66,8 +66,9 @@ void op_exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) && /*(arg->idx != -1) &&*/
-    (arg->acc == OP_READ || arg->acc == OP_RW ) &&
+  //need to exchange both direct and indirect data sets if they are dirty
+  if((arg->argtype == OP_ARG_DAT) && (arg->acc == OP_READ || arg->acc == OP_RW
+    /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
 
     //printf("Exchanging Halo of data array %10s\n",dat->name);

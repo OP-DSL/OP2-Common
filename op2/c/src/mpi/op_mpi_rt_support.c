@@ -84,8 +84,8 @@ void op_exchange_halo(op_arg* arg)
     MPI_Abort(OP_MPI_WORLD, 2);
   }
 
-  if(/*(arg->idx != -1) && need to exchange both direct and indirect data sets if they are dirty*/
-     (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+  //need to exchange both direct and indirect data sets if they are dirty
+  if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
      (dat->dirtybit == 1))
   {
     //printf("Exchanging Halo of data array %10s\n",dat->name);
