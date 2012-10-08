@@ -2,8 +2,8 @@
 // Name        : volna2hdf5.cpp
 // Author      : Endre Laszlo
 // Version     :
-// Copyright   : 
-// Description : 
+// Copyright   :
+// Description :
 //============================================================================
 
 #include<stdlib.h>
@@ -33,6 +33,18 @@
 #define MESH_DIM 2
 #define N_NODESPERCELL 3
 #define N_CELLSPEREDGE 2
+
+//
+//helper functions
+//
+#define check_hdf5_error(err)           __check_hdf5_error      (err, __FILE__, __LINE__)
+void __check_hdf5_error(herr_t err, const char *file, const int line) {
+  if (err < 0) {
+    printf("%s(%i) : OP2_HDF5_error() Runtime API error %d.\n", file, line, (int)err);
+      exit(-1);
+  }
+}
+
 
 int main(int argc, char **argv) {
 	if(argc != 2) {
@@ -254,6 +266,23 @@ int main(int argc, char **argv) {
 	double g = 9.81; // Gravity constant
 	op_write_const_hdf5("g", 1, "double", (char *)&g, filename_h5);
 
+	//WRITING VALUES MANUALLY
+	hid_t file;
+	herr_t status;
+	file = H5Fopen(filename_h5, H5F_ACC_RDWR, H5P_DEFAULT);
+
+	check_hdf5_error(H5LTmake_dataset_double(file, "BoreParams/x0", &sim.bore_params.x0));
+	check_hdf5_error(H5LTmake_dataset_double(file, "BoreParams/Hl", &sim.bore_params.Hl));
+	check_hdf5_error(H5LTmake_dataset_double(file, "BoreParams/ul", &sim.bore_params.ul));
+	check_hdf5_error(H5LTmake_dataset_double(file, "BoreParams/vl", &sim.bore_params.vl));
+	check_hdf5_error(H5LTmake_dataset_double(file, "BoreParams/S", &sim.bore_params.S));
+	check_hdf5_error(H5LTmake_dataset_double(file, "GaussianLandslideParams/A", &sim.gaussian_landslide_params.A));
+	check_hdf5_error(H5LTmake_dataset_double(file, "GaussianLandslideParams/v", &sim.gaussian_landslide_params.v));
+	check_hdf5_error(H5LTmake_dataset_double(file, "GaussianLandslideParams/lx", &sim.gaussian_landslide_params.lx));
+	check_hdf5_error(H5LTmake_dataset_double(file, "GaussianLandslideParams/ly", &sim.gaussian_landslide_params.ly));
+
+	//...
+	check_hdf5_error(H5Fclose(file));
 
 	free(cell);
 	free(ecell);
