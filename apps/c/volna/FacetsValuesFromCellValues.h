@@ -1,37 +1,66 @@
-void FacetsValuesFromCellValues(double *CellLeft_H, double *CellLeft_U, double *CellLeft_V, double *CellLeft_Zb,
-                double *CellRight_H, double *CellRight_U, double *CellRight_V, double *CellRight_Zb,
-                double *LeftFacetValues_H, double *LeftFacetValues_U, double *LeftFacetValues_V, double *LeftFacetValues_Zb, //OP_WRITE
-                double *RightFacetValues_H, double *RightFacetValues_U, double *RightFacetValues_V, double *RightFacetValues_Zb, //OP_WRITE
-                double *mesh_FacetNormals_x, double *mesh_FacetNormals_y, int *isRightBoundary //OP_READ
-
+void FacetsValuesFromCellValues(double *CellLeft, double *CellRight,
+                double *LeftFacetValues, //OP_WRITE
+                double *RightFacetValues, //OP_WRITE
+                double *InterfaceBathy, //OP_WRITE
+                double *mesh_FacetNormals, int *isRightBoundary //OP_READ
+                /*,double *t*/
 //EZ PARA, the FacetNormals are only required on boudnary edges.... redundant data movement - split???
  )
 {
-  *LeftFacetValues_H = *CellLeft_H;
-  *LeftFacetValues_U = *CellLeft_U;
-  *LeftFacetValues_V = *CellLeft_V;
-  *LeftFacetValues_Zb = *CellLeft_Zb;
+  LeftFacetValues[0] = CellLeft[0];
+  LeftFacetValues[1] = CellLeft[1];
+  LeftFacetValues[2] = CellLeft[2];
+  LeftFacetValues[3] = CellLeft[3];
 
   if (!isRightBoundary) {
-    *RightFacetValues_H = *CellRight_H;
-    *RightFacetValues_U = *CellRight_U;
-    *RightFacetValues_V = *CellRight_V;
-    *RightFacetValues_Zb = *CellRight_Zb;
+    RightFacetValues[0] = CellRight[0];
+    RightFacetValues[1] = CellRight[1];
+    RightFacetValues[2] = CellRight[2];
+    RightFacetValues[3] = CellRight[3];
   } else {
-    *RightFacetValues_Zb = *CellLeft_Zb;
-    double nx = *mesh_FacetNormals_x;
-    double ny = *mesh_FacetNormals_y;
-    double inNormalVelocity = *CellLeft_U * nx + *CellLeft_V * ny;
-    double inTangentVelocity = *CellLeft_U * ny + *CellLeft_V * nx;
-    //WALL
-    *RightFacetValues_H = *CellLeft_H;
-    double outNormalVelocity = -1.0 * inNormalVelocity;
-    double outTangetVelocity = inTangentVeolcity;
-    //TODO: HEIGHTSUBC, FLOWSUBC
+    RightFacetValues[3] = CellLeft[3];
+    double nx = mesh_FacetNormals[0];
+    double ny = mesh_FacetNormals[1];
+    double inNormalVelocity = CellLeft[1] * nx + CellLeft[2] * ny;
+    double inTangentVelocity = CellLeft[1] * ny + CellLeft[2] * nx;
 
-    *RightFacetValues_U = outNormalVelocity * nx - outTangentVelocity * ny;
-    *RightFacetValues_V = outNormalVelocity * ny - outTangentVelocity * nx;
+    double outNormalVelocity;
+    double outTangetVelocity;
+
+    //WALL
+    RightFacetValues[0] = CellLeft[0];
+    outNormalVelocity = -1.0 * inNormalVelocity;
+    outTangetVelocity = inTangentVeolcity;
+
+
+    /* //HEIGHTSUBC
+    RightFacetValues[0] = -1.0 * RightFacetValues[3];
+    RightFacetValues[0] += 0.1 * sin(10.0*t);
+    outNormalVelocity = inNormalVelocity;
+    outNormalVelocity +=
+        2.0 * sqrt( params_g * CellLeft[0] );
+    outNormalVelocity -=
+        2.0 * sqrt( params_g * RightFacetValues[0] );
+
+    outTangentVelocity = inTangentVelocity;
+    */ //end HEIGHTSUBC
+
+    /* //FLOWSUBC
+    outNormalVelocity = 1;
+
+    //RightFacetValues[0] = - RightFacetValues[3];
+
+    RightFacetValues[0] = (inNormalVelocity - outNormalVelocity);
+    RightFacetValues[0] *= .5 / sqrt( params_g );
+
+    RightFacetValues[0] += sqrt( CellLeft[0] );
+
+    outTangentVelocity = inTangentVelocity;
+    */
+
+    RightFacetValues[1] = outNormalVelocity * nx - outTangentVelocity * ny;
+    RightFacetValues[2] = outNormalVelocity * ny - outTangentVelocity * nx;
   }
 
-  *InterfaceBathy = *LeftFacetValues_Zb > *RightFacetValues_Zb ? *LeftFacetValues_Zb : *RightFacetValues_Zb;
+  *InterfaceBathy = LeftFacetValues[3] > RightFacetValues[3] ? LeftFacetValues[3] : RightFacetValues[3];
 }

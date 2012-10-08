@@ -1,17 +1,17 @@
-void SpaceDiscretization_2(double *H_left, double *U_left, double *V_left, //OP_INC
-              double *H_right, double *U_right, double *V_right, //OP_INC
-              double *FacetFluxes_H, double *FacetFluxes_U, double *FacetFluxes_V, //OP_READ
-              double *BathySourceLeft, double *BathySourceRight, //OP_READ
-              double *mesh_FacetNormals_x, double *mesh_FacetNormals_y, int isRightBoundary //OP_READ
+void SpaceDiscretization_2(double *left, //OP_INC
+              double *right, //OP_INC
+              double *FacetFluxes, //OP_READ
+              double *BathySource, //OP_READ
+              double *mesh_FacetNormals, int isRightBoundary //OP_READ
 )
 {
-  *H_left -= *FacetFluxes_H;
-  *U_left -= (*FacetFluxes_U + *BathySourceLeft * *mesh_FacetNormals_x);
-  *V_left -= (*FacetFluxes_V + *BathySourceLeft * *mesh_FacetNormals_y);
+  left[0] -= FacetFluxes[0];
+  left[1] -= (FacetFluxes[1] + BathySource[0] * *mesh_FacetNormals[0]);
+  left[2] -= (FacetFluxes[2] + BathySource[0] * *mesh_FacetNormals[1]);
 
   if (!isRightBoundary) {
-    *H_right += *FacetFluxes_H;
-    *U_right += (*FacetFluxes_U + *BathySourceRight * *mesh_FacetNormals_x);
-    *V_right += (*FacetFluxes_V + *BathySourceRight * *mesh_FacetNormals_y);
+    right[0] += FacetFluxes[0];
+    right[0] += (FacetFluxes[1] + BathySource[1] * *mesh_FacetNormals[0]);
+    right[0] += (FacetFluxes[2] + BathySource[1] * *mesh_FacetNormals[1]);
   }
 }

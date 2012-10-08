@@ -1,10 +1,9 @@
-void SpaceDiscretization_3(double *H, double *U, double *V, //OP_RW
-              double *Zb, //OP_WRITE
+void SpaceDiscretization_3(double *cell, //OP_RW
               double *CellVolumes //OP_READ
 )
 {
-  *H /= *CellVolumes;
-  *U /= *CellVolumes;
-  *V /= *CellVolumes;
-  *Zb = 0;
+  cell[0] /= *CellVolumes;
+  cell[1] /= *CellVolumes;
+  cell[2] /= *CellVolumes;
+  cell[3] = 0;
 }
