@@ -1939,7 +1939,7 @@ static void op_reset_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) && /*(arg->idx != -1) &&*/
+  if((arg->argtype == OP_ARG_DAT) &&
     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
     (dat->dirtybit == 1))
   {
