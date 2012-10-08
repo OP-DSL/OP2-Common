@@ -50,12 +50,12 @@ ifeq ($(OP2_COMPILER),pgi)
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),cray)
-	CC       := cc
-	CCFLAGS  := -O3
-	CXX      := CC
-	CXXFLAGS := $(CCFLAGS)
-	MPICXX   := CC
-	MPIFLAGS := $(CXXFLAGS)
+  CC       := cc
+  CCFLAGS  := -O3
+  CXX      := CC
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := CC
+  MPIFLAGS := $(CXXFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
