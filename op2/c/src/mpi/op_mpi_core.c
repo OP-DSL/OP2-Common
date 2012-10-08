@@ -2194,6 +2194,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 
   if (direct_flag == 1) return size;
 
+  //not a direct loop ...
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
       op_exchange_halo(&args[n]);
