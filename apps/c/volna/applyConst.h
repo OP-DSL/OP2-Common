@@ -1,4 +1,4 @@
-void applyConst(double *in, double *out, int *variables) {
+void applyConst(float *in, float *out, int *variables) {
   if (*variables & 1) {
     out[0] += in[0];
   }

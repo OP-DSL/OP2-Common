@@ -1,5 +1,5 @@
-void SpaceDiscretization_3(double *cell, //OP_RW
-              double *CellVolumes //OP_READ
+void SpaceDiscretization_3(float *cell, //OP_RW
+              float *CellVolumes //OP_READ
 )
 {
   cell[0] /= *CellVolumes;

@@ -1,8 +1,8 @@
-void SpaceDiscretization_2(double *left, //OP_INC
-              double *right, //OP_INC
-              double *FacetFluxes, //OP_READ
-              double *BathySource, //OP_READ
-              double *mesh_FacetNormals, int isRightBoundary //OP_READ
+void SpaceDiscretization_2(float *left, //OP_INC
+              float *right, //OP_INC
+              float *FacetFluxes, //OP_READ
+              float *BathySource, //OP_READ
+              float *mesh_FacetNormals, int isRightBoundary //OP_READ
 )
 {
   left[0] -= FacetFluxes[0];

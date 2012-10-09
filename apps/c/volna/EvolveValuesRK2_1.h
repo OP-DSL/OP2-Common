@@ -1,7 +1,7 @@
-void EvolveValuesRK2_1(double dT, double *MidPointConservative, //OP_RW //temp
-            double *in, //OP_READ
-            double *inConservative, //OP_WRITE //temp
-            double *MidPoint) //OP_WRITE
+void EvolveValuesRK2_1(float dT, float *MidPointConservative, //OP_RW //temp
+            float *in, //OP_READ
+            float *inConservative, //OP_WRITE //temp
+            float *MidPoint) //OP_WRITE
 {
   MidPointConservative[0] *= dt;
   MidPointConservative[1] *= dt;
@@ -19,7 +19,7 @@ void EvolveValuesRK2_1(double dT, double *MidPointConservative, //OP_RW //temp
   MidPointConservative[3] += inConservative[3];
 
   //call to ToPhysicalVariables inlined
-  double TruncatedH = MidPointConservative[0] < EPS ? EPS : MidPointConservative[0];
+  float TruncatedH = MidPointConservative[0] < EPS ? EPS : MidPointConservative[0];
   MidPoint[0] = MidPointConservative[0];
   MidPoint[1] = MidPointConservative[1] / TruncatedH;
   MidPoint[2] = MidPointConservative[2] / TruncatedH;

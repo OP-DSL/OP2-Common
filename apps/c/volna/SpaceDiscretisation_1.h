@@ -1,7 +1,7 @@
-void SpaceDiscretization_1(double *LeftFacetValues,//double *LeftFacetValues_H, double *LeftFacetValues_Zb, //RW, READ
-              double *RightFacetValues, //double *RightFacetValues_H, double *RightFacetValues_Zb, //RW, READ
-              double *InterfaceBathy, double *mesh_FacetVolumes, //READ
-              double *BathySource //OP_WRITE
+void SpaceDiscretization_1(float *LeftFacetValues,//float *LeftFacetValues_H, float *LeftFacetValues_Zb, //RW, READ
+              float *RightFacetValues, //float *RightFacetValues_H, float *RightFacetValues_Zb, //RW, READ
+              float *InterfaceBathy, float *mesh_FacetVolumes, //READ
+              float *BathySource //OP_WRITE
 )
 {
   BathySource[0] = .5 * params_g * (*LeftFacetValues_H)*(*LeftFacetValues_H);

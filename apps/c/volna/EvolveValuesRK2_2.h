@@ -1,7 +1,7 @@
-void EvolveValuesRK2_2(double dT, double *outConservative, //OP_RW, discard
-            double *inConservative, //OP_READ, discard
-            double *MidPointConservative, //OP_READ, discard
-            double *out) //OP_WRITE
+void EvolveValuesRK2_2(float dT, float *outConservative, //OP_RW, discard
+            float *inConservative, //OP_READ, discard
+            float *MidPointConservative, //OP_READ, discard
+            float *out) //OP_WRITE
 
 {
   outConservative[0] = 0.5*(outConservative[0] * dt + MidPointConservative[0] + inConservative[0]);
@@ -12,7 +12,7 @@ void EvolveValuesRK2_2(double dT, double *outConservative, //OP_RW, discard
   outConservative[3] = *inConservative_Zb;
 
   //call to ToPhysicalVariables inlined
-  double TruncatedH = outConservative[0] < EPS ? EPS : outConservative[0];
+  float TruncatedH = outConservative[0] < EPS ? EPS : outConservative[0];
   *out[0] = outConservative[0];
   *out[1] = outConservative[1] / TruncatedH;
   *out[2] = outConservative[2] / TruncatedH;

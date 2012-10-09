@@ -1,7 +1,7 @@
-void NumericalFluxes_2(double **maxFacetEigenvalues, double **FacetVolumes, double *mesh_CellVolumes, //OP_READ
-            double *minTimeStep ) //OP_MIN
+void NumericalFluxes_2(float **maxFacetEigenvalues, float **FacetVolumes, float *mesh_CellVolumes, //OP_READ
+            float *minTimeStep ) //OP_MIN
 {
-  double local = 0.0;
+  float local = 0.0;
   for (int j = 0; j < 3; j++) {
     local += *maxFacetEigenvalues[j] * *FacetVolumes[j];
   }
