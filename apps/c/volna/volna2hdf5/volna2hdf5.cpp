@@ -2,8 +2,8 @@
 // Name        : volna2hdf5.cpp
 // Author      : Endre Laszlo
 // Version     :
-// Copyright   : 
-// Description : 
+// Copyright   :
+// Description :
 //============================================================================
 
 #include<stdlib.h>
@@ -28,7 +28,7 @@
 //
 #include "simulation.hpp"
 #include "paramFileParser.hpp"
-
+#include "event.hpp"
 //
 // Define meta data
 //
@@ -89,6 +89,40 @@ int main(int argc, char **argv) {
   std::cerr << "Vertical velocity formula is : '" << sim.InitFormulas.V
       << "'" << std::endl;
 
+  int num_events = sim.events.size();
+
+  std::vector<float> timer_start(events.size());
+  std::vector<float> timer_end(events.size());
+  std::vector<float> timer_step(events.size());
+  std::vector<int> timer_istart(events.size());
+  std::vector<int> timer_iend(events.size());
+  std::vector<int> timer_istep(events.size());
+
+  std::vector<float> event_location_x(events.size());
+  std::vector<float> event_location_y(events.size());
+  std::vector<int> event_post_update(events.size());
+  std::vector<std::string> event_className(events.size());
+  std::vector<std::string> event_formula(events.size());
+  std::vector<std::string> event_streamName(events.size());
+
+  for ( int i = 0; i < events.size(); i++ ) {
+    TimerParams t_p;
+    EventParams e_p;
+    sim.events[i].dump(e_p);
+    sim.events[i].timer.dump(e_p);
+    timer_start[i] = t_p.start;
+    timer_step[i] = t_p.step;
+    timer_end[i] = t_p.end;
+    timer_start[i] = t_p.istart;
+    timer_istep[i] = t_p.istep;
+    timer_iend[i] = t_p.iend;
+    event_location_x[i] = e_p.location_x;
+    event_location_y[i] = e_p.location_y;
+    event_post_update[i] = e_p.event_post_update;
+    event_className[i] = e_p.className;
+    event_streamName[i] = e_p.streamName;
+    event_formula[i] = e_p.formula;
+  }
   // Initialize simulation: load mesh, calculate geometry data
   sim.init();
 
@@ -318,32 +352,60 @@ int main(int argc, char **argv) {
   const hsize_t dims = 1;
 
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "BoreParams/x0", 1, &dims,
-          (double*)&sim.bore_params.x0));
+      H5LTmake_dataset_float(h5file, "BoreParams/x0", 1, &dims,
+          (float*)&sim.bore_params.x0));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "BoreParams/Hl", 1, &dims,
-          (double*)&sim.bore_params.Hl));
+      H5LTmake_dataset_float(h5file, "BoreParams/Hl", 1, &dims,
+          (float*)&sim.bore_params.Hl));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "BoreParams/ul", 1, &dims,
-          (double*)&sim.bore_params.ul));
+      H5LTmake_dataset_float(h5file, "BoreParams/ul", 1, &dims,
+          (float*)&sim.bore_params.ul));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "BoreParams/vl", 1, &dims,
-          (double*)&sim.bore_params.vl));
+      H5LTmake_dataset_float(h5file, "BoreParams/vl", 1, &dims,
+          (float*)&sim.bore_params.vl));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "BoreParams/S", 1, &dims,
-          (double*)&sim.bore_params.S));
+      H5LTmake_dataset_float(h5file, "BoreParams/S", 1, &dims,
+          (float*)&sim.bore_params.S));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "GaussianLandslideParams/A", 1,
-          &dims, (double*)&sim.gaussian_landslide_params.A));
+      H5LTmake_dataset_float(h5file, "GaussianLandslideParams/A", 1,
+          &dims, (float*)&sim.gaussian_landslide_params.A));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "GaussianLandslideParams/v", 1,
-          &dims, (double*)&sim.gaussian_landslide_params.v));
+      H5LTmake_dataset_float(h5file, "GaussianLandslideParams/v", 1,
+          &dims, (float*)&sim.gaussian_landslide_params.v));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "GaussianLandslideParams/lx", 1,
-          &dims, (double*)&sim.gaussian_landslide_params.lx));
+      H5LTmake_dataset_float(h5file, "GaussianLandslideParams/lx", 1,
+          &dims, (float*)&sim.gaussian_landslide_params.lx));
   check_hdf5_error(
-      H5LTmake_dataset_double(h5file, "GaussianLandslideParams/ly", 1,
-          &dims, (double*)&sim.gaussian_landslide_params.ly));
+      H5LTmake_dataset_float(h5file, "GaussianLandslideParams/ly", 1,
+          &dims, (float*)&sim.gaussian_landslide_params.ly));
+
+  check_hdf5_error(
+        H5LTmake_dataset_int(h5file, "numEvents", 1,
+            &dims, &num_events));
+
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_start", 1, &num_events, H5T_NATIVE_FLOAT, &timer_start[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_end", 1, &num_events, H5T_NATIVE_FLOAT, &timer_end[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_step", 1, &num_events, H5T_NATIVE_FLOAT, &timer_step[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_istart", 1, &num_events, H5T_NATIVE_INT, &timer_istart[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_iend", 1, &num_events, H5T_NATIVE_INT, &timer_iend[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "timer_istep", 1, &num_events, H5T_NATIVE_INT, &timer_istep[0]));
+
+  check_hdf5_error(H5LTmake_dataset(h5file, "event_location_x", 1, &num_events, H5T_NATIVE_FLOAT, &event_location_x[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "event_location_y", 1, &num_events, H5T_NATIVE_FLOAT, &event_location_y[0]));
+  check_hdf5_error(H5LTmake_dataset(h5file, "event_post_update", 1, &num_events, H5T_NATIVE_INT, &event_post_update[0]));
+
+  char buffer[18];
+  for (int i = 0; i < event_className.size(); i++) {
+    memset(buffer,0,18);
+    sprintf(buffer, "event_className%d",i);
+    check_hdf5_error(H5LTmake_dataset(h5file, buffer, event_className[i].c_str()));
+    memset(buffer,0,18);
+    sprintf(buffer, "event_formula%d",i);
+    check_hdf5_error(H5LTmake_dataset(h5file, buffer, event_formula[i].c_str()));
+    memset(buffer,0,18);
+    sprintf(buffer, "event_streamName%d",i);
+    check_hdf5_error(H5LTmake_dataset(h5file, buffer, event_streamName[i].c_str()));
+  }
 
   //...
   check_hdf5_error(H5Fclose(h5file));
