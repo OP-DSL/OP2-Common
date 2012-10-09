@@ -7,6 +7,10 @@ struct BoreParams {
   float S;
 };
 
+//these are not const, we just don't want to pass them around
+float timestamp = 0.0;
+int itercount = 0;
+
 struct GaussianLandslideParams {
   float A, v, lx, ly;
 };
@@ -25,7 +29,8 @@ void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEt
     // i.e. user should only access values[2]
     op_par_loop(initEta_formula, "initEta_formula", cells,
         op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC));
+        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
+        op_arg_gbl(&timestamp, 1, "float", OP_READ));
   }
 }
 
@@ -34,7 +39,8 @@ void InitU(op_set cells, op_dat cellCenters, op_dat values) {
   // i.e. user should only access values[1]
   op_par_loop(initU_formula, "initU_formula", cells,
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC));
+      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
+      op_arg_gbl(&timestamp, 1, "float", OP_READ));
 
 }
 
@@ -43,7 +49,8 @@ void InitV(op_set cells, op_dat cellCenters, op_dat values) {
   // i.e. user should only access values[2]
   op_par_loop(initV_formula, "initV_formula", cells,
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC));
+      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
+      op_arg_gbl(&timestamp, 1, "float", OP_READ));
 
 }
 
@@ -78,7 +85,8 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp
     // i.e. user should only access values[3]
     op_par_loop(initBathymetry_formula, "initBathymetry_formula", cells,
         op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC));
+        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
+        op_arg_gbl(&timestamp, 1, "float", OP_READ));
   }
 
   op_par_loop(initBathymetry_update, "initBathymetry_update", cells,
@@ -110,14 +118,14 @@ void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params
       op_arg_gbl(&vr, 1, "float", OP_READ));
 }
 
-void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, float time, GaussianLandslideParams params) {
+void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, GaussianLandslideParams params, int firstTime) {
   //again, we only need Zb
   op_par_loop(initGaussianLandslide, "initGaussianLandslide", cells,
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float",OP_READ),
       op_arg_dat(values, -1, OP_ID, 4, "float",OP_RW),
       op_arg_gbl(&mesh_xmin, 1, "float", OP_READ),
       op_arg_gbl(&params.A, 1, "float", OP_READ),
-      op_arg_gbl(&time, 1, "float", OP_READ),
+      op_arg_gbl(&timestamp, 1, "float", OP_READ),
       op_arg_gbl(&params.lx, 1, "float", OP_READ),
       op_arg_gbl(&params.ly, 1, "float", OP_READ),
       op_arg_gbl(&params.v, 1, "float", OP_READ));
@@ -155,8 +163,8 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep) {
     //                                     const PhysicalParams &params )
     { //begin FacetsValuesFromCellValues
       op_par_loop(FacetsValuesFromCellValues, "FacetsValuesFromCellValues", edges,
-          op_arg_dat(data_in, 0, ecell, 4, "float", OP_READ),
-          op_arg_dat(data_in, 1, ecell, 4, "float", OP_READ),
+          op_arg_dat(data_in, 0, edgesToCells, 4, "float", OP_READ),
+          op_arg_dat(data_in, 1, edgesToCells, 4, "float", OP_READ),
           op_arg_dat(leftCellValues, -1, OP_ID, 4, "float", OP_WRITE),
           op_arg_dat(rightCellValues, -1, OP_ID, 4, "float", OP_WRITE),
           op_arg_dat(interfaceBathy, -1, OP_ID, 1, "float", OP_WRITE),
@@ -192,15 +200,15 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep) {
           op_arg_dat(maxEdgeEigenvalues, -1, OP_ID, 1, "float", OP_WRITE));
 
       op_par_loop(NumericalFluxes_2, "NumericalFluxes_2", cells,
-          op_arg_dat(maxEdgeEigenvalues, -3, cedges, 1, "float", OP_READ),
-          op_arg_dat(edgeLength, -3, cedges, 1, "float", OP_READ),
+          op_arg_dat(maxEdgeEigenvalues, -3, cellsToEdges, 1, "float", OP_READ),
+          op_arg_dat(edgeLength, -3, cellsToEdges, 1, "float", OP_READ),
           op_arg_dat(cellVolumes, -1, OP_ID, 1, "float", OP_READ),
           op_arg_gbl(&minTimeStep,1,"float", OP_MIN));
     } //end NumericalFluxes
 #warning should set data_out to 0???
     op_par_loop(SpaceDiscretization_2, "SpaceDiscretization_2", edges,
-        op_arg_dat(data_out, 0, ecell, 4, "float", OP_INC), //again, Zb is not needed
-        op_arg_dat(data_out, 1, ecell, 4, "float", OP_INC),
+        op_arg_dat(data_out, 0, edgesToCells, 4, "float", OP_INC), //again, Zb is not needed
+        op_arg_dat(data_out, 1, edgesToCells, 4, "float", OP_INC),
         op_arg_dat(edgeFluxes, -1, OP_ID, 4, "float", OP_READ),
         op_arg_dat(bathySource, -1, OP_ID, 2, "float", OP_WRITE),
         op_arg_dat(edgeNormals, -1, OP_ID, 2, "float", OP_READ),
@@ -213,8 +221,8 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep) {
 }
 
 struct TimerParams {
-  float start, end, step;
-  unsigned int istart, iend, istep;
+  float start, end, step, localTime, t;
+  unsigned int istart, iend, istep, localIter, iter;
 };
 
 struct EventParams {
@@ -396,17 +404,100 @@ int main(void) {
   op_decl_const(1, "float", &dtmax);
   op_decl_const(1, "float", &g);
 
+  op_dat temp_initEta=NULL, temp_initBathymetry=NULL;
+
+  //Very first Init loop
+  for (int i = 0; i < events.size(); i++) {
+      if (strcmp(events[i].eventName.c_str(), "InitEta")) {
+        if (!strcmp(events[i].streamName, ""))
+          temp_initEta = op_decl_dat_hdf5(cells, 1, "float",
+              filename_h5,
+              "initEta");
+      } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
+        if (!strcmp(events[i].streamName, ""))
+          temp_initBathymetry = op_decl_dat_hdf5(cells, 1, "float",
+              filename_h5,
+              "initBathymetry");
+      }
+  }
+
   op_diagnostic_output();
+
+  op_partition("PTSCOTCH", "KWAY", cells, cellsToEdges, NULL);
+
+  //Very first Init loop
+  int size = timers.size();
+  int i = 0;
+  while (i < size){
+    if (timer_happens(&timers[i])) {
+      if (strcmp(events[i].eventName.c_str(), "InitEta")) {
+        InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
+      } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
+        InitU(cells, cellCenters, values);
+      } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
+        InitV(cells, cellCenters, values);
+      } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
+        InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 1);
+      } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
+        InitBore(cells, cellCenters, values, bore_params);
+      } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
+        InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 1);
+      } else {
+        printf("Unrecognized event %s\n", events[i].eventName.c_str());
+        exit(-1);
+      }
+      //timer.LocalReset();
+      timers[i].localIter = 0;
+      timers[i].localTime = 0;
+    }
+    //timer.update()
+    timers[i].t+= 0.0;
+    timers[i].iter += 1;
+    timers[i].localIter += 1;
+    timers[i].localTime += 0.0;
+
+    //Remove finished events
+    if ((timers[i].iter >= timers[i].iend) || (timers[i].t >= timers[i].end)) {
+      timers.erase(i);
+      size--;
+    } else i++;
+  }
 
 
   //Corresponding to CellValues and tmp in Simulation::run() (simulation.hpp)
   //and in and out in EvolveValuesRK2() (timeStepper.hpp)
 
-  op_dat values_new; //tmp - cells - dim 4
+  float *tmp_elem = NULL;
+  op_dat values_new = op_decl_dat_temp(cells, 4, "float",tmp_elem,"values_new"); //tmp - cells - dim 4
 
-  float timestep = 0.0;
-  int itercount = 0;
+
+
   while (time < FinalTime) {
+
+    for (int i = 0; i < events.size(); i++) {
+      if (timer_happens(&timers[i]) && events[i].post_update == false) {
+        if (strcmp(events[i].eventName.c_str(), "InitEta")) {
+          InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
+        } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
+          InitU(cells, cellCenters, values);
+        } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
+          InitV(cells, cellCenters, values);
+        } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
+          InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 0);
+        } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
+          InitBore(cells, cellCenters, values, bore_params);
+        } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
+          InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 0);
+        } else {
+          printf("Unrecognized event %s\n", events[i].eventName.c_str());
+          exit(-1);
+        }
+        //timer.LocalReset();
+        timers[i].localIter = 0;
+        timers[i].localTime = 0;
+      }
+    }
+
     //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
     //  void EvolveValuesRK2( const Values &in, Values &out, const Mesh &m,
     //            const RealType &CFL, const PhysicalParams &params,
@@ -445,8 +536,49 @@ int main(void) {
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
     timestep = timestep < Dtmax ? timestep : Dtmax;
-    //TODO update time +timestep
+
     itercount++;
+    timestamp += timestep;
+    //TODO: mesh.mathParser.updateTime( timer.t );
+
+    //processing events
+    int size = timers.size();
+    int i = 0;
+    while (i < size){
+      if (timer_happens(&timers[i]) && events[i].post_update == true) {
+        if (strcmp(events[i].eventName.c_str(), "InitEta")) {
+          InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
+        } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
+          InitU(cells, cellCenters, values);
+        } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
+          InitV(cells, cellCenters, values);
+        } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
+          InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 0);
+        } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
+          InitBore(cells, cellCenters, values, bore_params);
+        } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
+          InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 0);
+        } else {
+          printf("Unrecognized event %s\n", events[i].eventName.c_str());
+          exit(-1);
+        }
+        //timer.LocalReset();
+        timers[i].localIter = 0;
+        timers[i].localTime = 0;
+      }
+      //timer.update()
+      timers[i].t+= timestep;
+      timers[i].iter += 1;
+      timers[i].localIter += 1;
+      timers[i].localTime += timestep;
+
+      //Remove finished events
+      if ((timers[i].iter >= timers[i].iend) || (timers[i].t >= timers[i].end)) {
+        timers.erase(i);
+        size--;
+      } else i++;
+    }
+
   }
   return 0;
 }
