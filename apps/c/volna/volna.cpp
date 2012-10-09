@@ -1,244 +1,23 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include "op_seq.h"
-
-struct BoreParams {
-  float x0, Hl, ul, vl;
-  float S;
-};
-
+#include "volna_common.h"
+#include "EvolveValuesRK2_1.h"
+#include "EvolveValuesRK2_2.h"
+#include "simulation_1.h"
 //these are not const, we just don't want to pass them around
 float timestamp = 0.0;
 int itercount = 0;
 
-struct GaussianLandslideParams {
-  float A, v, lx, ly;
-};
+//constants
+float CFL, g, EPS;
 
-void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEta, int fromFile) {
-  if (fromFile) {
-    //overwrite values.H with values stored in temp_initEta
-    int variable = 1; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
-    //TODO: we are only overwriting H, moving the whole thing
-    op_par_loop(applyConst, "applyConst", cells,
-        op_arg_dat(temp_initEta, -1, OP_ID, 4, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
-        op_arg_gbl(&variable, 1, "int", OP_READ));
-  } else {
-    //TODO: document the fact that this actually adds to the value of V
-    // i.e. user should only access values[2]
-    op_par_loop(initEta_formula, "initEta_formula", cells,
-        op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
-        op_arg_gbl(&timestamp, 1, "float", OP_READ));
-  }
-}
+int main(int argc, char **argv) {
 
-void InitU(op_set cells, op_dat cellCenters, op_dat values) {
-  //TODO: document the fact that this actually adds to the value of U
-  // i.e. user should only access values[1]
-  op_par_loop(initU_formula, "initU_formula", cells,
-      op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
-      op_arg_gbl(&timestamp, 1, "float", OP_READ));
-
-}
-
-void InitV(op_set cells, op_dat cellCenters, op_dat values) {
-  //TODO: document the fact that this actually adds to the value of V
-  // i.e. user should only access values[2]
-  op_par_loop(initV_formula, "initV_formula", cells,
-      op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
-      op_arg_gbl(&timestamp, 1, "float", OP_READ));
-
-}
-
-void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {
-
-
-}
-
-void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initBathymetry, int fromFile, int firstTime) {
-  if (firstTime) {
-    int result = 0;
-    int leftOperand = 0;
-    int rightOperand = 3;
-    int operation = 0; //0 +, 1 -, 2 *, 3 /
-    op_par_loop(values_operation2, "values_operation2", cells,
-        op_arg_dat(values, -1, OP_ID, 4, OP_RW).
-        op_arg_gbl(&result, 1, "int", OP_READ),
-        op_arg_gbl(&leftOperand, 1, "int", OP_READ),
-        op_arg_gbl(&rightOperand, 1, "int", OP_READ),
-        op_arg_gbl(&operation, 1, "int", OP_READ));
-  }
-  if (fromFile) {
-    //overwrite values.H with values stored in temp_initEta
-    int variable = 8; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
-    //TODO: we are only overwriting H, moving the whole thing
-    op_par_loop(applyConst, "applyConst", cells,
-        op_arg_dat(temp_initBathymetry, -1, OP_ID, 4, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_RW),
-        op_arg_gbl(&variable, 1, "int", OP_READ));
-  } else {
-    //TODO: document the fact that this actually sets to the value of Zb
-    // i.e. user should only access values[3]
-    op_par_loop(initBathymetry_formula, "initBathymetry_formula", cells,
-        op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
-        op_arg_gbl(&timestamp, 1, "float", OP_READ));
-  }
-
-  op_par_loop(initBathymetry_update, "initBathymetry_update", cells,
-        op_arg_dat(values, -1, OP_ID, 4, "float", OP_RW),
-        op_arg_gbl(&firstTime, 1, "int", OP_READ));
-}
-
-void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params) {
-  float g = 9.81;
-  float Fl = params.ul / sqrt( g * params.Hl );
-  float Fs = params.S / sqrt( g * params.Hl );
-
-  float r = .5 * ( sqrt( 1.0 + 8.0*( Fl - Fs )*(Fl - Fs ) ) - 1.0 );
-
-  float Hr = r * params.Hl;
-  float ur = S + ( params.ul - S ) / r;
-  float vr = params.vl;
-  ur *= -1.0;
-
-  op_par_loop(initBore_select, "initBore_select", cells,
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_RW),
-      op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
-      op_arg_gbl(&params.x0, 1, "float", OP_READ),
-      op_arg_gbl(&params.Hl, 1, "float", OP_READ),
-      op_arg_gbl(&params.ul, 1, "float", OP_READ),
-      op_arg_gbl(&params.vl, 1, "float", OP_READ),
-      op_arg_gbl(&Hr, 1, "float", OP_READ),
-      op_arg_gbl(&ur, 1, "float", OP_READ),
-      op_arg_gbl(&vr, 1, "float", OP_READ));
-}
-
-void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, GaussianLandslideParams params, int firstTime) {
-  //again, we only need Zb
-  op_par_loop(initGaussianLandslide, "initGaussianLandslide", cells,
-      op_arg_dat(cellCenters, -1, OP_ID, 2, "float",OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float",OP_RW),
-      op_arg_gbl(&mesh_xmin, 1, "float", OP_READ),
-      op_arg_gbl(&params.A, 1, "float", OP_READ),
-      op_arg_gbl(&timestamp, 1, "float", OP_READ),
-      op_arg_gbl(&params.lx, 1, "float", OP_READ),
-      op_arg_gbl(&params.ly, 1, "float", OP_READ),
-      op_arg_gbl(&params.v, 1, "float", OP_READ));
-
-  if (firstTime) {
-    int result = 0;
-    int leftOperand = 0;
-    int rightOperand = 3;
-    int operation = 1; //0 +, 1 -, 2 *, 3 /
-    op_par_loop(values_operation2, "values_operation2", cells,
-        op_arg_dat(values, -1, OP_ID, 4, OP_RW).
-        op_arg_gbl(&result, 1, "int", OP_READ),
-        op_arg_gbl(&leftOperand, 1, "int", OP_READ),
-        op_arg_gbl(&rightOperand, 1, "int", OP_READ),
-        op_arg_gbl(&operation, 1, "int", OP_READ));
-  }
-}
-
-void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep) {
-  //    void SpaceDiscretization( const Values &in, Values &out, const Mesh
-  //            &mesh, const PhysicalParams &params,
-  //            RealType &minTimeStep, const RealType &t )
-  { //begin SpaceDiscretization
-    minTimestep = 0.0;
-    op_dat leftCellValues; //temp - edges - dim 4
-    op_dat rightCellValues; //temp - edges - dim 4
-    op_dat interfaceBathy; //temp - edges - dim 1
-    //call to FacetsValuesFromCellValues( in, leftCellValues, rightCellValues,
-    //    interfaceBathy, mesh, t, params );
-    //    void FacetsValuesFromCellValues( const Values &CellValues,
-    //                                     Values &leftCellValues,
-    //                                     Values &rightCellValues,
-    //                                     ScalarValue &interfaceBathy,
-    //                                     const Mesh &mesh, const RealType &t,
-    //                                     const PhysicalParams &params )
-    { //begin FacetsValuesFromCellValues
-      op_par_loop(FacetsValuesFromCellValues, "FacetsValuesFromCellValues", edges,
-          op_arg_dat(data_in, 0, edgesToCells, 4, "float", OP_READ),
-          op_arg_dat(data_in, 1, edgesToCells, 4, "float", OP_READ),
-          op_arg_dat(leftCellValues, -1, OP_ID, 4, "float", OP_WRITE),
-          op_arg_dat(rightCellValues, -1, OP_ID, 4, "float", OP_WRITE),
-          op_arg_dat(interfaceBathy, -1, OP_ID, 1, "float", OP_WRITE),
-          op_arg_dat(edgeNormals, -1, OP_ID, 2, "float", OP_READ),
-          op_arg_dat(isBoundary, -1, OP_ID, 1, "int", OP_READ));
-    } //end FacetsValuesFromCellValues
-
-    op_dat bathySource; //temp - edges - dim 2 (left & right)
-
-    op_par_loop(SpaceDiscretization_1, "SpaceDiscretization_1", edges,
-        op_arg_dat(leftCellValues, -1, OP_ID, 4, "float", OP_RW), // WE ONLY NEED H (RW) and Zb (READ)
-        op_arg_dat(rightCellValues, -1, OP_ID, 4, "float", OP_RW), // WE ONLY NEED H (RW) and Zb (READ)
-        op_arg_dat(interfaceBathy, -1, OP_ID, 1, "float", OP_READ),
-        op_arg_dat(edgeLength, -1, OP_ID, 1, "float", OP_READ),
-        op_arg_dat(bathySource, -1, OP_ID, 2, "float", OP_WRITE));
-
-    op_dat edgeFluxes; //temp - edges - dim 4
-    //call to NumericalFluxes( leftCellValues, rightCellValues,
-    //                     params, mesh, edgeFluxes, minTimeStep );
-    //      void NumericalFluxes( const Values &leftCellValues,
-    //                            const Values &rightCellValues,
-    //                            const PhysicalParams &params,
-    //                            const Mesh &mesh, Values &out, RealType &minTimeStep )
-    { //begin NumericalFluxes
-      op_dat maxEdgeEigenvalues; //temp - edges - dim 1
-
-      op_par_loop(NumericalFluxes_1, "NumericalFluxes_1", edges,
-          op_arg_dat(leftCellValues, -1, OP_ID, 4, "float", OP_READ), // WE do not need Zb
-          op_arg_dat(rightCellValues, -1, OP_ID, 4, "float", OP_READ), // WE do not need Zb
-          op_arg_dat(edgeFluxes, -1, OP_ID, 4, "float", OP_WRITE),
-          op_arg_dat(edgeLength, -1, OP_ID, 1, "float", OP_READ),
-          op_arg_dat(edgeNormals, -1, OP_ID, 2, "float", OP_READ),
-          op_arg_dat(maxEdgeEigenvalues, -1, OP_ID, 1, "float", OP_WRITE));
-
-      op_par_loop(NumericalFluxes_2, "NumericalFluxes_2", cells,
-          op_arg_dat(maxEdgeEigenvalues, -3, cellsToEdges, 1, "float", OP_READ),
-          op_arg_dat(edgeLength, -3, cellsToEdges, 1, "float", OP_READ),
-          op_arg_dat(cellVolumes, -1, OP_ID, 1, "float", OP_READ),
-          op_arg_gbl(&minTimeStep,1,"float", OP_MIN));
-    } //end NumericalFluxes
-#warning should set data_out to 0???
-    op_par_loop(SpaceDiscretization_2, "SpaceDiscretization_2", edges,
-        op_arg_dat(data_out, 0, edgesToCells, 4, "float", OP_INC), //again, Zb is not needed
-        op_arg_dat(data_out, 1, edgesToCells, 4, "float", OP_INC),
-        op_arg_dat(edgeFluxes, -1, OP_ID, 4, "float", OP_READ),
-        op_arg_dat(bathySource, -1, OP_ID, 2, "float", OP_WRITE),
-        op_arg_dat(edgeNormals, -1, OP_ID, 2, "float", OP_READ),
-        op_arg_dat(isBoundary, -1, OP_ID, 1, "int", OP_READ));
-
-    op_par_loop(SpaceDiscretization_3, "SpaceDiscretization_3", cells,
-        op_arg_dat(data_out, -1, OP_ID, 4, "float", OP_RW),
-        op_arg_dat(cellVolumes, -1, OP_ID, 1, "float", OP_READ));
-  } //end SpaceDiscretization
-}
-
-struct TimerParams {
-  float start, end, step, localTime, t;
-  unsigned int istart, iend, istep, localIter, iter;
-};
-
-struct EventParams {
-  float location_x, location_y;
-  int post_update;
-  std::string className;
-  std::string formula;
-  std::string streamName;
-};
-
-int main(void) {
+  op_init(argc, argv, 2);
 
   GaussianLandslideParams gaussian_landslide_params;
   BoreParams bore_params;
   hid_t file;
   herr_t status;
+  char *filename_h5; // = "stlaurent_35k.h5";
   file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
 
   check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsx0", &bore_params.x0));
@@ -253,80 +32,12 @@ int main(void) {
 
   int num_events = 0;
 
-  check_hdf5_error(H5LTread_dataset_int(h5file, "numEvents", &num_events));
-
-  std::vector<float> timer_start(num_events);
-  std::vector<float> timer_end(num_events);
-  std::vector<float> timer_step(num_events);
-  std::vector<int> timer_istart(num_events);
-  std::vector<int> timer_iend(num_events);
-  std::vector<int> timer_istep(num_events);
-
-  std::vector<float> event_location_x(num_events);
-  std::vector<float> event_location_y(num_events);
-  std::vector<int> event_post_update(num_events);
-  std::vector<std::string> event_className(num_events);
-  std::vector<std::string> event_formula(num_events);
-  std::vector<std::string> event_streamName(num_events);
-
-  const hsize_t num_events_hsize = num_events;
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_start", H5T_NATIVE_FLOAT, &timer_start[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_end", H5T_NATIVE_FLOAT, &timer_end[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_step", H5T_NATIVE_FLOAT, &timer_step[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_istart", H5T_NATIVE_INT, &timer_istart[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_iend", H5T_NATIVE_INT, &timer_iend[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_istep", H5T_NATIVE_INT, &timer_istep[0]));
-
-  check_hdf5_error(H5LTread_dataset(h5file, "event_location_x", H5T_NATIVE_FLOAT, &event_location_x[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "event_location_y", H5T_NATIVE_FLOAT, &event_location_y[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "event_post_update", H5T_NATIVE_INT, &event_post_update[0]));
-
+  check_hdf5_error(H5LTread_dataset_int(file, "numEvents", &num_events));
   std::vector<TimerParams> timers(num_events);
   std::vector<EventParams> events(num_events);
 
-  /*
-   * Convert Arrays to AoS
-   */
-  char buffer[18];
-  char* eventbuffer;
-  int length = 0;
-  for (int i = 0; i < event_className.size(); i++) {
-    timers[i].start = timer_start[i];
-    timers[i].end = timer_end[i];
-    timers[i].step = timer_step[i];
-    timers[i].istart = timer_istart[i];
-    timers[i].iend = timer_iend[i];
-    timers[i].istep = timer_istep[i];
+  read_events_hdf5(file, num_events, &timers, &events);
 
-    events[i].location_x = event_location_x[i];
-    events[i].location_y = event_location_y[i];
-    events[i].post_update = event_post_update[i];
-
-    memset(buffer,0,18);
-    sprintf(buffer, "event_className%d",i);
-    /*
-     * If string can not handle a variable size char*, then use the commented lines
-     */
-    //check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, events[i].className.c_str()));
-    events[i].
-    // free(eventbuffer);
-    memset(buffer,0,18);
-    sprintf(buffer, "event_formula%d",i);
-    //check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, events[i].formula.c_str()));
-    // free(eventbuffer);
-    memset(buffer,0,18);
-    sprintf(buffer, "event_streamName%d",i);
-    //heck_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, events[i].streamName.c_str()));
-    // free(eventbuffer);
-  }
-
-  //...
   check_hdf5_error(H5Fclose(file));
 
   /*
@@ -337,8 +48,6 @@ int main(void) {
 //  filename_msh = strdup(sim.MeshFileName.c_str());
 //  filename_h5 = strndup(filename_msh, strlen(filename_msh) - 4);
 //  strcat(filename_h5, ".h5");
-
-  op_init(argc, argv, 2);
 
   /*
    * Define OP2 sets - Read mesh and geometry data from HDF5
@@ -393,28 +102,29 @@ int main(void) {
   /*
    * Read constants and write to HDF5
    */
-  op_get_const_hdf5("cfl", 1, "float", (char *) &cfl, filename_h5);
+  float ftime, dtmax;
+  op_get_const_hdf5("CFL", 1, "float", (char *) &CFL, filename_h5);
+  op_get_const_hdf5("EPS", 1, "float", (char *) &CFL, filename_h5);
   // Final time: as defined by Volna the end of real-time simulation
   op_get_const_hdf5("ftime", 1, "float", (char *) &ftime, filename_h5);
   op_get_const_hdf5("dtmax", 1, "float", (char *) &dtmax, filename_h5);
   op_get_const_hdf5("g", 1, "float", (char *) &g, filename_h5);
 
-  op_decl_const(1, "float", &cfl);
-  op_decl_const(1, "float", &ftime);
-  op_decl_const(1, "float", &dtmax);
+  op_decl_const(1, "float", &CFL);
   op_decl_const(1, "float", &g);
+  op_decl_const(1, "float", &EPS);
 
   op_dat temp_initEta=NULL, temp_initBathymetry=NULL;
 
   //Very first Init loop
   for (int i = 0; i < events.size(); i++) {
-      if (strcmp(events[i].eventName.c_str(), "InitEta")) {
-        if (!strcmp(events[i].streamName, ""))
+      if (strcmp(events[i].className.c_str(), "InitEta")) {
+        if (!strcmp(events[i].streamName.c_str(), ""))
           temp_initEta = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initEta");
-      } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
-        if (!strcmp(events[i].streamName, ""))
+      } else if (strcmp(events[i].className.c_str(), "InitBathymetry")) {
+        if (!strcmp(events[i].streamName.c_str(), ""))
           temp_initBathymetry = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initBathymetry");
@@ -425,43 +135,12 @@ int main(void) {
 
   op_partition("PTSCOTCH", "KWAY", cells, cellsToEdges, NULL);
 
-  //Very first Init loop
-  int size = timers.size();
-  int i = 0;
-  while (i < size){
-    if (timer_happens(&timers[i])) {
-      if (strcmp(events[i].eventName.c_str(), "InitEta")) {
-        InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
-      } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
-        InitU(cells, cellCenters, values);
-      } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
-        InitV(cells, cellCenters, values);
-      } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
-        InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 1);
-      } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
-        InitBore(cells, cellCenters, values, bore_params);
-      } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
-        InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 1);
-      } else {
-        printf("Unrecognized event %s\n", events[i].eventName.c_str());
-        exit(-1);
-      }
-      //timer.LocalReset();
-      timers[i].localIter = 0;
-      timers[i].localTime = 0;
-    }
-    //timer.update()
-    timers[i].t+= 0.0;
-    timers[i].iter += 1;
-    timers[i].localIter += 1;
-    timers[i].localTime += 0.0;
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timers(&cpu_t1, &wall_t1);
 
-    //Remove finished events
-    if ((timers[i].iter >= timers[i].iend) || (timers[i].t >= timers[i].end)) {
-      timers.erase(i);
-      size--;
-    } else i++;
-  }
+  //Very first Init loop
+  processEvents(&timers, &events, 1/*firstTime*/, 1/*update timers*/, 0.0/*=dt*/, 1/*remove finished events*/, 2/*init loop, not pre/post*/,
+                     cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
 
 
   //Corresponding to CellValues and tmp in Simulation::run() (simulation.hpp)
@@ -470,47 +149,46 @@ int main(void) {
   float *tmp_elem = NULL;
   op_dat values_new = op_decl_dat_temp(cells, 4, "float",tmp_elem,"values_new"); //tmp - cells - dim 4
 
+  //temporary dats
+  //EvolveValuesRK2
+  op_dat midPointConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"midPointConservative"); //temp - cells - dim 4
+  op_dat inConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"inConservative"); //temp - cells - dim 4
+  op_dat outConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"outConservative");; //temp - cells - dim 4
+  op_dat midPoint = op_decl_dat_temp(cells, 4, "float",tmp_elem,"midPoint");; //temp - cells - dim 4
+  //SpaceDiscretization
+  op_dat leftCellValues = op_decl_dat_temp(edges, 4, "float",tmp_elem,"leftCellValues"); //temp - edges - dim 4
+  op_dat rightCellValues = op_decl_dat_temp(edges, 4, "float",tmp_elem,"leftCellValues"); //temp - edges - dim 4
+  op_dat interfaceBathy = op_decl_dat_temp(edges, 1, "float",tmp_elem,"interfaceBathy"); //temp - edges - dim 1
+  op_dat bathySource = op_decl_dat_temp(edges, 2, "float",tmp_elem,"interfaceBathy"); //temp - edges - dim 2 (left & right)
+  op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "float",tmp_elem,"edgeFluxes"); //temp - edges - dim 4
+  //NumericalFluxes
+  op_dat maxEdgeEigenvalues = op_decl_dat_temp(edges, 1, "float",tmp_elem,"maxEdgeEigenvalues"); //temp - edges - dim 1
 
+  float timestep;
 
-  while (time < FinalTime) {
+  while (timestamp < ftime) {
 
-    for (int i = 0; i < events.size(); i++) {
-      if (timer_happens(&timers[i]) && events[i].post_update == false) {
-        if (strcmp(events[i].eventName.c_str(), "InitEta")) {
-          InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
-        } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
-          InitU(cells, cellCenters, values);
-        } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
-          InitV(cells, cellCenters, values);
-        } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
-          InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 0);
-        } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
-          InitBore(cells, cellCenters, values, bore_params);
-        } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
-          InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 0);
-        } else {
-          printf("Unrecognized event %s\n", events[i].eventName.c_str());
-          exit(-1);
-        }
-        //timer.LocalReset();
-        timers[i].localIter = 0;
-        timers[i].localTime = 0;
-      }
-    }
+    processEvents(&timers, &events, 0, 0, 0.0, 0, 0,
+                       cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
+
 
     //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
     //  void EvolveValuesRK2( const Values &in, Values &out, const Mesh &m,
     //            const RealType &CFL, const PhysicalParams &params,
     //            RealType &timestep, const RealType &t )
     { //begin EvolveValuesRK2
-      op_dat midPointConservative; //temp - cells - dim 4
+
       float minTimestep = 0.0;
+
       //call to SpaceDiscretization( in, midPointConservative, m, params, minTimestep, t );
-      spaceDiscretization(values, midPointConservative, &minTimestep);
+      spaceDiscretization(values, midPointConservative, &minTimestep,
+          leftCellValues, rightCellValues, interfaceBathy,
+          bathySource, edgeFluxes, maxEdgeEigenvalues,
+          edgeNormals, edgeLength, cellVolumes, isBoundary,
+          cells, edges, edgesToCells, cellsToEdges);
 
       float dT = CFL * minTimestep;
-      op_dat inConservative; //temp - volums - dim 4
-      op_dat midPoint; //temp - volums - dim 4
+
       op_par_loop(EvolveValuesRK2_1, "EvolveValuesRK2_2", cells,
           op_arg_gbl(&dT,1,"float", OP_READ),
           op_arg_dat(midPointConservative, -1, OP_ID, 4, "float", OP_RW),
@@ -518,11 +196,14 @@ int main(void) {
           op_arg_dat(inConservative, -1, OP_ID, 4, "float", OP_WRITE),
           op_arg_dat(midPoint, -1, OP_ID, 4, "float", OP_WRITE));
 
-      op_dat outConservative; //temp - cells - dim 4
       float dummy = 0.0;
 
       //call to SpaceDiscretization( midPoint, outConservative, m, params, dummy_time, t );
-      spaceDiscretization(midPoint, outConservative, &dummy);
+      spaceDiscretization(midPoint, outConservative, &dummy,
+          leftCellValues, rightCellValues, interfaceBathy,
+          bathySource, edgeFluxes, maxEdgeEigenvalues,
+          edgeNormals, edgeLength, cellVolumes, isBoundary,
+          cells, edges, edgesToCells, cellsToEdges);
 
       op_par_loop(EvolveValuesRK2_2, "EvolveValuesRK2_2", cells,
           op_arg_gbl(&dT,1,"float", OP_READ),
@@ -535,50 +216,50 @@ int main(void) {
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
-    timestep = timestep < Dtmax ? timestep : Dtmax;
+    timestep = timestep < dtmax ? timestep : dtmax;
 
     itercount++;
     timestamp += timestep;
-    //TODO: mesh.mathParser.updateTime( timer.t );
+    //TODO: mesh.mathParser.updateTime( timer.t ); ??
 
     //processing events
-    int size = timers.size();
-    int i = 0;
-    while (i < size){
-      if (timer_happens(&timers[i]) && events[i].post_update == true) {
-        if (strcmp(events[i].eventName.c_str(), "InitEta")) {
-          InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
-        } else if (strcmp(events[i].eventName.c_str(), "InitU")) {
-          InitU(cells, cellCenters, values);
-        } else if (strcmp(events[i].eventName.c_str(), "InitV")) {
-          InitV(cells, cellCenters, values);
-        } else if (strcmp(events[i].eventName.c_str(), "InitBathymetry")) {
-          InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, 0);
-        } else if (strcmp(events[i].eventName.c_str(), "InitBore")) {
-          InitBore(cells, cellCenters, values, bore_params);
-        } else if (strcmp(events[i].eventName.c_str(), "InitGaussianLandslide")) {
-          InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, 0);
-        } else {
-          printf("Unrecognized event %s\n", events[i].eventName.c_str());
-          exit(-1);
-        }
-        //timer.LocalReset();
-        timers[i].localIter = 0;
-        timers[i].localTime = 0;
-      }
-      //timer.update()
-      timers[i].t+= timestep;
-      timers[i].iter += 1;
-      timers[i].localIter += 1;
-      timers[i].localTime += timestep;
-
-      //Remove finished events
-      if ((timers[i].iter >= timers[i].iend) || (timers[i].t >= timers[i].end)) {
-        timers.erase(i);
-        size--;
-      } else i++;
-    }
+    processEvents(&timers, &events, 0, 1, timestep, 1, 1,
+                         cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
 
   }
+
+  //simulation
+  if (op_free_dat_temp(values_new) < 0)
+        op_printf("Error: temporary op_dat %s cannot be removed\n",values_new->name);
+  //EvolveValuesRK2
+  if (op_free_dat_temp(midPointConservative) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",midPointConservative->name);
+  if (op_free_dat_temp(inConservative) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",inConservative->name);
+  if (op_free_dat_temp(outConservative) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",outConservative->name);
+  if (op_free_dat_temp(midPoint) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",midPoint->name);
+  //SpaceDiscretization
+  if (op_free_dat_temp(leftCellValues) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",leftCellValues->name);
+  if (op_free_dat_temp(rightCellValues) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",rightCellValues->name);
+  if (op_free_dat_temp(interfaceBathy) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",interfaceBathy->name);
+  if (op_free_dat_temp(bathySource) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",bathySource->name);
+  if (op_free_dat_temp(edgeFluxes) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",edgeFluxes->name);
+  //NumericalFluxes
+  if (op_free_dat_temp(maxEdgeEigenvalues) < 0)
+          op_printf("Error: temporary op_dat %s cannot be removed\n",maxEdgeEigenvalues->name);
+
+  op_timers(&cpu_t2, &wall_t2);
+  op_timing_output();
+    op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+
+    op_exit();
+
   return 0;
 }

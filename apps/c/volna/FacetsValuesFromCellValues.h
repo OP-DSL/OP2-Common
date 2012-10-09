@@ -12,7 +12,7 @@ void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
   LeftFacetValues[2] = CellLeft[2];
   LeftFacetValues[3] = CellLeft[3];
 
-  if (!isRightBoundary) {
+  if (!*isRightBoundary) {
     RightFacetValues[0] = CellRight[0];
     RightFacetValues[1] = CellRight[1];
     RightFacetValues[2] = CellRight[2];
@@ -25,12 +25,12 @@ void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
     float inTangentVelocity = CellLeft[1] * ny + CellLeft[2] * nx;
 
     float outNormalVelocity;
-    float outTangetVelocity;
+    float outTangentVelocity;
 
     //WALL
     RightFacetValues[0] = CellLeft[0];
     outNormalVelocity = -1.0 * inNormalVelocity;
-    outTangetVelocity = inTangentVeolcity;
+    outTangentVelocity = inTangentVelocity;
 
 
     /* //HEIGHTSUBC
@@ -38,9 +38,9 @@ void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
     RightFacetValues[0] += 0.1 * sin(10.0*t);
     outNormalVelocity = inNormalVelocity;
     outNormalVelocity +=
-        2.0 * sqrt( params_g * CellLeft[0] );
+        2.0 * sqrt( g * CellLeft[0] );
     outNormalVelocity -=
-        2.0 * sqrt( params_g * RightFacetValues[0] );
+        2.0 * sqrt( g * RightFacetValues[0] );
 
     outTangentVelocity = inTangentVelocity;
     */ //end HEIGHTSUBC
@@ -51,7 +51,7 @@ void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
     //RightFacetValues[0] = - RightFacetValues[3];
 
     RightFacetValues[0] = (inNormalVelocity - outNormalVelocity);
-    RightFacetValues[0] *= .5 / sqrt( params_g );
+    RightFacetValues[0] *= .5 / sqrt( g );
 
     RightFacetValues[0] += sqrt( CellLeft[0] );
 

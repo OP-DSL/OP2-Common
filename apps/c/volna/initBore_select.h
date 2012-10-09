@@ -5,7 +5,7 @@ void initBore_select(float *values, float *center,
                      float *vl,
                      float *Hr,
                      float *ur,
-                     float *vl) {
+                     float *vr) {
   values[0] = center[0] < *x0 ? *Hl : *Hr;
   values[1] = center[0] < *x0 ? *ul : *ur;
   values[2] = center[0] < *x0 ? *vl : *vr;

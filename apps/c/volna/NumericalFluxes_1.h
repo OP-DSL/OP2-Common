@@ -6,9 +6,9 @@ void NumericalFluxes_1(float *LeftFacetValues, //OP_READ
            float *maxFacetEigenvalues //OP_WRITE
 )
 {
-  float cL = sqrt(params_g * LeftFacetValues[0]);
+  float cL = sqrt(g * LeftFacetValues[0]);
   cL = cL > 0.0 ? cL : 0.0;
-  float cR = sqrt(params_g * RightFacetValues[0]);
+  float cR = sqrt(g * RightFacetValues[0]);
   cR = cR > 0.0 ? cR : 0.0;
 
   float uLn = LeftFacetValues[1] * Normals[0] + LeftFacetValues[2] * Normals[1];
@@ -49,21 +49,21 @@ void NumericalFluxes_1(float *LeftFacetValues, //OP_READ
   LeftFluxes_U = HuDotN * LeftFacetValues[1];
   LeftFluxes_V = HuDotN * LeftFacetValues[2];
 
-  LeftFluxes_U += (.5 * params_g * Normals[0] ) * ( LeftFacetValues[0] * LeftFacetValues[0] );
-  LeftFluxes_V += (.5 * params_g * Normals[1] ) * ( LeftFacetValues[0] * LeftFacetValues[0] );
+  LeftFluxes_U += (.5 * g * Normals[0] ) * ( LeftFacetValues[0] * LeftFacetValues[0] );
+  LeftFluxes_V += (.5 * g * Normals[1] ) * ( LeftFacetValues[0] * LeftFacetValues[0] );
   //end of inlined
 
   float RightFluxes_H, RightFluxes_U, RightFluxes_V;
   //inlined ProjectedPhysicalFluxes(RightFacetValues, Normals, params, RightFluxes);
-  float HuDotN = (RightFacetValues[0] * RightFacetValues[1] * Normals[0]) +
+  HuDotN = (RightFacetValues[0] * RightFacetValues[1] * Normals[0]) +
           (RightFacetValues[0] * RightFacetValues[2] * Normals[1]);
 
   RightFluxes_H =   HuDotN;
   RightFluxes_U =   HuDotN * RightFacetValues[1];
   RightFluxes_V =   HuDotN * RightFacetValues[2];
 
-  RightFluxes_U += (.5 * params_g * Normals[0] ) * ( RightFacetValues[0] * RightFacetValues[0] );
-  RightFluxes_V += (.5 * params_g * Normals[1] ) * ( RightFacetValues[0] * RightFacetValues[0] );
+  RightFluxes_U += (.5 * g * Normals[0] ) * ( RightFacetValues[0] * RightFacetValues[0] );
+  RightFluxes_V += (.5 * g * Normals[1] ) * ( RightFacetValues[0] * RightFacetValues[0] );
   //end of inlined
 
 

@@ -1,11 +1,11 @@
-void EvolveValuesRK2_1(float dT, float *MidPointConservative, //OP_RW //temp
+void EvolveValuesRK2_1(float *dT, float *MidPointConservative, //OP_RW //temp
             float *in, //OP_READ
             float *inConservative, //OP_WRITE //temp
             float *MidPoint) //OP_WRITE
 {
-  MidPointConservative[0] *= dt;
-  MidPointConservative[1] *= dt;
-  MidPointConservative[2] *= dt;
+  MidPointConservative[0] *= *dT;
+  MidPointConservative[1] *= *dT;
+  MidPointConservative[2] *= *dT;
 
   //call to ToConservativeVariables inlined
   inConservative[0] = in[0];
