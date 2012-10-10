@@ -62,6 +62,10 @@ void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n);
 
 void op_mat_zero_rows ( op_mat mat, int n, const int *rows, double val);
 
+int op_ksp_types (char ***array);
+
+int op_pc_types (char ***array);
+
 void op_solve ( const op_mat mat, const op_dat b, op_dat x );
 
 void op_mat_get_array( const op_mat mat);
