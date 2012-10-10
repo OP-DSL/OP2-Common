@@ -412,9 +412,6 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
     if ( set == NULL )
       op_err_print ( "invalid set", m, name );
 
-    if ( arg.map != NULL && strstr( arg.type, ":soa")!= NULL)
-      op_err_print( "SoA dataset accessed indirectly", m, name );
-
     if ( arg.map == NULL && arg.dat->set != set )
       op_err_print ( "dataset set does not match loop set", m, name );
 
