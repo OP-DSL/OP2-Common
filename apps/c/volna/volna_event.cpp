@@ -42,7 +42,7 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
    * Convert Arrays to AoS
    */
   char buffer[18];
-  char* eventbuffer;
+  char* eventBuffer;
   int length = 0;
   for (int i = 0; i < event_className.size(); i++) {
     (*timers)[i].start = timer_start[i];
@@ -56,27 +56,32 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
     (*events)[i].location_y = event_location_y[i];
     (*events)[i].post_update = event_post_update[i];
 
-    memset(buffer,0,18);
-    sprintf(buffer, "event_className%d",i);
     /*
      * If string can not handle a variable size char*, then use the commented lines
      */
-    //check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, (*events)[i].className.c_str()));
-    // free(eventbuffer);
+    memset(buffer,0,18);
+    sprintf(buffer, "event_className%d",i);
+    check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
+    eventBuffer = (char*) malloc(length);
+    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, eventBuffer));
+    (*events)[i].className(eventBuffer);
+    free(eventBuffer);
+
     memset(buffer,0,18);
     sprintf(buffer, "event_formula%d",i);
-    //check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, (*events)[i].formula.c_str()));
-    // free(eventbuffer);
+    check_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
+    eventBuffer = (char*)malloc(length);
+    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, eventBuffer));
+    (*events)[i].formula(eventBuffer);
+    free(eventBuffer);
+
     memset(buffer,0,18);
     sprintf(buffer, "event_streamName%d",i);
-    //heck_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
-    //eventbuffer = (char*)malloc(length);
-    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, (*events)[i].streamName.c_str()));
-    // free(eventbuffer);
+    heck_hdf5_error(H5LTget_attribute_int(h5file, buffer, "length", &length));
+    eventBuffer = (char*)malloc(length);
+    check_hdf5_error(H5LTread_dataset_string(h5file, buffer, eventBuffer));
+    (*events)[i].streamName(eventBuffer);
+    free(eventBuffer);
   }
 
 }

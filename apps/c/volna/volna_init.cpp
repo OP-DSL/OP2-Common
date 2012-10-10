@@ -35,7 +35,6 @@ void InitU(op_set cells, op_dat cellCenters, op_dat values) {
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
       op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
       op_arg_gbl(&timestamp, 1, "float", OP_READ));
-
 }
 
 void InitV(op_set cells, op_dat cellCenters, op_dat values) {
@@ -45,7 +44,6 @@ void InitV(op_set cells, op_dat cellCenters, op_dat values) {
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
       op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
       op_arg_gbl(&timestamp, 1, "float", OP_READ));
-
 }
 
 void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {

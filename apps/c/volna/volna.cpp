@@ -79,15 +79,19 @@ int main(int argc, char **argv) {
   op_dat cellCenters = op_decl_dat_hdf5(cells, MESH_DIM, "float",
                                     filename_h5,
                                     "cellCenters");
+
   op_dat cellVolumes = op_decl_dat_hdf5(cells, 1, "float",
                                     filename_h5,
                                     "cellVolumes");
+
   op_dat edgeNormals = op_decl_dat_hdf5(edges, MESH_DIM, "float",
                                     filename_h5,
                                     "edgeNormals");
+
   op_dat edgeCenters = op_decl_dat_hdf5(edges, MESH_DIM, "float",
                                     filename_h5,
                                     "edgeCenters");
+
   op_dat edgeLength = op_decl_dat_hdf5(edges, 1, "float",
                                     filename_h5,
                                     "edgeLength");
@@ -152,18 +156,18 @@ int main(int argc, char **argv) {
 
   //temporary dats
   //EvolveValuesRK2
-  op_dat midPointConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"midPointConservative"); //temp - cells - dim 4
-  op_dat inConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"inConservative"); //temp - cells - dim 4
-  op_dat outConservative = op_decl_dat_temp(cells, 4, "float",tmp_elem,"outConservative");; //temp - cells - dim 4
-  op_dat midPoint = op_decl_dat_temp(cells, 4, "float",tmp_elem,"midPoint");; //temp - cells - dim 4
+  op_dat midPointConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "midPointConservative"); //temp - cells - dim 4
+  op_dat inConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "inConservative"); //temp - cells - dim 4
+  op_dat outConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "outConservative"); //temp - cells - dim 4
+  op_dat midPoint = op_decl_dat_temp(cells, 4, "float", tmp_elem, "midPoint"); //temp - cells - dim 4
   //SpaceDiscretization
-  op_dat leftCellValues = op_decl_dat_temp(edges, 4, "float",tmp_elem,"leftCellValues"); //temp - edges - dim 4
-  op_dat rightCellValues = op_decl_dat_temp(edges, 4, "float",tmp_elem,"leftCellValues"); //temp - edges - dim 4
-  op_dat interfaceBathy = op_decl_dat_temp(edges, 1, "float",tmp_elem,"interfaceBathy"); //temp - edges - dim 1
-  op_dat bathySource = op_decl_dat_temp(edges, 2, "float",tmp_elem,"interfaceBathy"); //temp - edges - dim 2 (left & right)
-  op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "float",tmp_elem,"edgeFluxes"); //temp - edges - dim 4
+  op_dat leftCellValues = op_decl_dat_temp(edges, 4, "float", tmp_elem, "leftCellValues"); //temp - edges - dim 4
+  op_dat rightCellValues = op_decl_dat_temp(edges, 4, "float", tmp_elem, "rightCellValues"); //temp - edges - dim 4
+  op_dat interfaceBathy = op_decl_dat_temp(edges, 1, "float", tmp_elem, "interfaceBathy"); //temp - edges - dim 1
+  op_dat bathySource = op_decl_dat_temp(edges, 2, "float", tmp_elem, "bathySource"); //temp - edges - dim 2 (left & right)
+  op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "float", tmp_elem, "edgeFluxes"); //temp - edges - dim 4
   //NumericalFluxes
-  op_dat maxEdgeEigenvalues = op_decl_dat_temp(edges, 1, "float",tmp_elem,"maxEdgeEigenvalues"); //temp - edges - dim 1
+  op_dat maxEdgeEigenvalues = op_decl_dat_temp(edges, 1, "float", tmp_elem, "maxEdgeEigenvalues"); //temp - edges - dim 1
 
   float timestep;
 
@@ -212,8 +216,10 @@ int main(int argc, char **argv) {
           op_arg_dat(inConservative, -1, OP_ID, 4, "float", OP_READ),
           op_arg_dat(midPointConservative, -1, OP_ID, 4, "float", OP_READ),
           op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_WRITE));
+
       timestep = dT;
     } //end EvolveValuesRK2
+
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
@@ -226,7 +232,6 @@ int main(int argc, char **argv) {
     //processing events
     processEvents(&timers, &events, 0, 1, timestep, 1, 1,
                          cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
-
   }
 
   //simulation

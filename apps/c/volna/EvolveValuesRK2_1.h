@@ -1,11 +1,11 @@
-void EvolveValuesRK2_1(float *dT, float *MidPointConservative, //OP_RW //temp
+void EvolveValuesRK2_1(float *dT, float *midPointConservative, //OP_RW //temp
             float *in, //OP_READ
             float *inConservative, //OP_WRITE //temp
-            float *MidPoint) //OP_WRITE
+            float *midPoint) //OP_WRITE
 {
-  MidPointConservative[0] *= *dT;
-  MidPointConservative[1] *= *dT;
-  MidPointConservative[2] *= *dT;
+  midPointConservative[0] *= *dT;
+  midPointConservative[1] *= *dT;
+  midPointConservative[2] *= *dT;
 
   //call to ToConservativeVariables inlined
   inConservative[0] = in[0];
@@ -13,15 +13,15 @@ void EvolveValuesRK2_1(float *dT, float *MidPointConservative, //OP_RW //temp
   inConservative[2] = in[0] * (in[2]);
   inConservative[3] = in[3];
 
-  MidPointConservative[0] += inConservative[0];
-  MidPointConservative[1] += inConservative[1];
-  MidPointConservative[2] += inConservative[2];
-  MidPointConservative[3] += inConservative[3];
+  midPointConservative[0] += inConservative[0];
+  midPointConservative[1] += inConservative[1];
+  midPointConservative[2] += inConservative[2];
+  midPointConservative[3] += inConservative[3];
 
   //call to ToPhysicalVariables inlined
-  float TruncatedH = MidPointConservative[0] < EPS ? EPS : MidPointConservative[0];
-  MidPoint[0] = MidPointConservative[0];
-  MidPoint[1] = MidPointConservative[1] / TruncatedH;
-  MidPoint[2] = MidPointConservative[2] / TruncatedH;
-  MidPoint[3] = MidPointConservative[3];
+  float TruncatedH = midPointConservative[0] < EPS ? EPS : midPointConservative[0];
+  midPoint[0] = midPointConservative[0];
+  midPoint[1] = midPointConservative[1] / TruncatedH;
+  midPoint[2] = midPointConservative[2] / TruncatedH;
+  midPoint[3] = midPointConservative[3];
 }
