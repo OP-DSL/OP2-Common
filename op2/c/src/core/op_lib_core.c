@@ -801,6 +801,42 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
     fclose(fp);
     free(array);
   }
+  else if(strcmp(dat->type,"long") == 0)
+  {
+    size_t elem_size = dat->dim;
+    int count = dat->set->size;
+
+    long* array  = (long *)malloc(dat->dim*(count)*sizeof(long));
+    memcpy(array, (void *)&(dat->data[0]), dat->size*count);
+
+    FILE *fp;
+    if ( (fp = fopen(file_name,"wb")) == NULL) {
+      printf("can't open file %s\n",file_name);
+      exit(2);
+    }
+
+    if (fwrite(&count, sizeof(int),1, fp)<1)
+    {
+      printf("error writing to %s",file_name);
+      exit(2);
+    }
+    if (fwrite(&elem_size, sizeof(int),1, fp)<1)
+    {
+      printf("error writing to %s\n",file_name);
+      exit(2);
+    }
+
+    for(int i = 0; i< count; i++)
+    {
+      if (fwrite(&array[i*elem_size], sizeof(long), elem_size, fp ) < elem_size)
+      {
+        printf("error writing to %s\n",file_name);
+        exit(2);
+      }
+    }
+    fclose(fp);
+    free(array);
+  }
    else
   {
     printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
