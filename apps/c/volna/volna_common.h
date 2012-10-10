@@ -55,6 +55,8 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp
 void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params);
 void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, GaussianLandslideParams params, int firstTime);
 
+void OutputTime(TimerParams *timer);
+
 void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,
     op_dat bathySource, op_dat edgeFluxes, op_dat maxEdgeEigenvalues,

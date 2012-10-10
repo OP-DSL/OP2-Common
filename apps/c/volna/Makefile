@@ -64,7 +64,7 @@ all: clean volna
 
 volna: volna.cpp Makefile 
 	#$(CPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) $(VOLNA_INC) $(OP2_INC) $(MPI_INC) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
-	$(CPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(MPI_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
+	$(CPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(MPI_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
 
 #
 # cleanup

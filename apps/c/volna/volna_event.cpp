@@ -116,6 +116,9 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
         InitBore(cells, cellCenters, values, bore_params);
       } else if (strcmp((*events)[i].className.c_str(), "InitGaussianLandslide")) {
         InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, firstTime);
+      } else if (strcmp((*events)[i].className.c_str(), "OutputTime")) {
+        OutputTime(&(*timers)[i]);
+        op_printf("Output iter: %d \n", (*timers)[i].iter);
       } else {
         printf("Unrecognized event %s\n", (*events)[i].className.c_str());
         exit(-1);

@@ -10,6 +10,7 @@
 #include "values_operation2.h"
 
 void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEta, int fromFile) {
+  op_printf("InitEta...");
   if (fromFile) {
     //overwrite values.H with values stored in temp_initEta
     int variable = 1; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
@@ -26,24 +27,29 @@ void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEt
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
         op_arg_gbl(&timestamp, 1, "float", OP_READ));
   }
+  op_printf("done\n");
 }
 
 void InitU(op_set cells, op_dat cellCenters, op_dat values) {
   //TODO: document the fact that this actually adds to the value of U
   // i.e. user should only access values[1]
+  op_printf("InitU...");
   op_par_loop(initU_formula, "initU_formula", cells,
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
       op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
       op_arg_gbl(&timestamp, 1, "float", OP_READ));
+  op_printf("done\n");
 }
 
 void InitV(op_set cells, op_dat cellCenters, op_dat values) {
   //TODO: document the fact that this actually adds to the value of V
   // i.e. user should only access values[2]
+  op_printf("InitV...");
   op_par_loop(initV_formula, "initV_formula", cells,
       op_arg_dat(cellCenters, -1, OP_ID, 2, "float", OP_READ),
       op_arg_dat(values, -1, OP_ID, 4, "float", OP_INC),
       op_arg_gbl(&timestamp, 1, "float", OP_READ));
+  op_printf("done\n");
 }
 
 void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {
@@ -52,6 +58,7 @@ void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {
 }
 
 void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initBathymetry, int fromFile, int firstTime) {
+  op_printf("InitBathymetry...");
   if (firstTime) {
     int result = 0;
     int leftOperand = 0;
@@ -84,9 +91,12 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp
   op_par_loop(initBathymetry_update, "initBathymetry_update", cells,
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_RW),
         op_arg_gbl(&firstTime, 1, "int", OP_READ));
+
+  op_printf("done\n");
 }
 
 void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params) {
+  op_printf("InitBore...");
   float g = 9.81;
   float Fl = params.ul / sqrt( g * params.Hl );
   float Fs = params.S / sqrt( g * params.Hl );
@@ -108,6 +118,7 @@ void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params
       op_arg_gbl(&Hr, 1, "float", OP_READ),
       op_arg_gbl(&ur, 1, "float", OP_READ),
       op_arg_gbl(&vr, 1, "float", OP_READ));
+  op_printf("done\n");
 }
 
 void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, GaussianLandslideParams params, int firstTime) {
