@@ -311,10 +311,13 @@ int main(int argc, char **argv)
   }
 
   op_timers(&cpu_t2, &wall_t2);
+
+  //output the result dat array to files
+  //print_dat_tofile(temp, "out_grid.dat"); //ASCI
+  //op_print_dat_to_binfile(p_q, "out_grid_op.bin"); //Binary
+
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
-
-  op_print_dat_to_binfile(p_q, "out_grid_cuda.bin"); //Binary
 
   op_exit();
 

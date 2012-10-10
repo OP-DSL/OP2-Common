@@ -458,15 +458,9 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //output the result dat array to files
-  //print_dat_tofile(temp, "out_grid.dat"); //ASCI
-
-  op_print_dat_to_binfile(p_q, "out_grid.bin"); //Binary
-
   op_timing_output();
-
-  //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+
   op_exit();
 
   free(cell);
