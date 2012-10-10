@@ -40,6 +40,8 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_mpi_core.h>
+#include <op_lib_mpi.h>
+#include <op_util.h>
 #include <petsc.h>
 /*
  * Routines called by user code and kernels

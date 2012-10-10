@@ -1669,7 +1669,7 @@ void op_mpi_reduce_unsigned_int(op_arg* arg, unsigned int* data)
   unsigned int result;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    MPI_Op op;
+    MPI_Op op = NULL;
 
     if(arg->acc == OP_INC)//global reduction
     {
