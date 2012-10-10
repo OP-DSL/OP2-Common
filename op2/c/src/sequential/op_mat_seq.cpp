@@ -240,6 +240,37 @@ void op_mat_zero ( op_mat mat )
   MatZeroEntries((Mat) mat->mat);
 }
 
+int op_ksp_types(char ***array)
+{
+  // Create and destroy a KSP context to ensure that KSPList is populated.
+  KSP ksp;
+  KSPCreate(PETSC_COMM_WORLD,&ksp);
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  KSPDestroy(&ksp);
+#else
+  KSPDestroy(ksp);
+#endif
+
+  int n;
+  PetscFListGet(KSPList, array, &n);
+  return n;
+}
+
+int op_pc_types(char ***array)
+{
+  PC pc;
+  PCCreate(PETSC_COMM_WORLD, &pc);
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  PCDestroy(&pc);
+#else
+  PCDestroy(pc);
+#endif
+
+  int n;
+  PetscFListGet(PCList, array, &n);
+  return n;
+}
+
 void op_solve ( const op_mat mat, const op_dat b, op_dat x )
 {
   assert( mat && b && x );
