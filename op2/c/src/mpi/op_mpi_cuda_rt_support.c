@@ -67,8 +67,7 @@ void op_exchange_halo(op_arg* arg)
   op_dat dat = arg->dat;
 
   //need to exchange both direct and indirect data sets if they are dirty
-  if((arg->argtype == OP_ARG_DAT) && (arg->acc == OP_READ || arg->acc == OP_RW
-    /* good for debug || arg->acc == OP_INC*/) &&
+  if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
 
     //printf("Exchanging Halo of data array %10s\n",dat->name);
@@ -177,18 +176,25 @@ void op_wait_all(op_arg* arg)
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
 
-    int init = dat->set->size*dat->size;
-    cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
-          OP_import_exec_list[dat->set->index]->size*arg->dat->size,
-          cudaMemcpyHostToDevice ) );
-
-    int nonexec_init = (dat->set->size+OP_import_exec_list[dat->set->index]->size)*dat->size;
-    cutilSafeCall( cudaMemcpy( dat->data_d + nonexec_init, dat->data + nonexec_init,
-          OP_import_nonexec_list[dat->set->index]->size*arg->dat->size,
-          cudaMemcpyHostToDevice ) );
+    if (strstr( arg->dat->type, ":soa")!= NULL)
+    {
+      int init = dat->set->size*dat->size;
+      int size = (dat->set->exec_size+dat->set->nonexec_size)*dat->size;
+      cutilSafeCall( cudaMemcpy( dat->buffer_d_r, dat->data + init,
+          size, cudaMemcpyHostToDevice ) );
+      scatter_data_from_buffer(*arg);
+    }
+    else{
+      int init = dat->set->size*dat->size;
+      cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
+        (OP_import_exec_list[dat->set->index]->size+
+         OP_import_nonexec_list[dat->set->index]->size)*arg->dat->size,
+        cudaMemcpyHostToDevice ) );
+    }
 
     cutilSafeCall(cudaThreadSynchronize ());
   }
+  arg->sent = 0;
 }
 
 void op_partition(const char* lib_name, const char* lib_routine,
