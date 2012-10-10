@@ -93,9 +93,12 @@ void op_exchange_halo(op_arg* arg)
 
     gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
 
+    char *outptr_exec = NULL;
+    char *outptr_nonexec = NULL;
     if (OP_gpu_direct) {
-      ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec = arg->dat->buffer_d;
-      ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec = arg->dat->buffer_d+exp_exec_list->size*arg->dat->size;
+      outptr_exec = arg->dat->buffer_d;
+      outptr_nonexec = arg->dat->buffer_d+exp_exec_list->size*arg->dat->size;
+      cutilSafeCall(cudaDeviceSynchronize(  ));
     } else {
       cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec,
           arg->dat->buffer_d, exp_exec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
@@ -106,11 +109,14 @@ void op_exchange_halo(op_arg* arg)
           cudaMemcpyDeviceToHost ) );
 
       cutilSafeCall(cudaDeviceSynchronize(  ));
+      outptr_exec = ((op_mpi_buffer)(dat->mpi_buffer))-> buf_exec;
+      outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec;
     }
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
-      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
-          buf_exec[exp_exec_list->disps[i]*dat->size],
+      MPI_Isend(&outptr_exec[exp_exec_list->disps[i]*dat->size],
+        /*&((op_mpi_buffer)(dat->mpi_buffer))->
+            buf_exec[exp_exec_list->disps[i]*dat->size],*/
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -119,7 +125,7 @@ void op_exchange_halo(op_arg* arg)
     }
 
     int init = dat->set->size*dat->size;
-    void *ptr;
+    char *ptr = NULL;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
       ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) : &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
       MPI_Irecv(ptr,
@@ -143,8 +149,9 @@ void op_exchange_halo(op_arg* arg)
     }
 
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
-      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
-          buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
+      MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i]*dat->size],
+        /*&((op_mpi_buffer)(dat->mpi_buffer))->
+            buf_nonexec[exp_nonexec_list->disps[i]*dat->size],*/
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -154,7 +161,8 @@ void op_exchange_halo(op_arg* arg)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
+      ptr = OP_gpu_direct ? &(dat->data_d[nonexec_init+imp_nonexec_list->disps[i]*dat->size]) : &(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]);
+      MPI_Irecv(ptr,
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
