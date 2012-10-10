@@ -13,6 +13,7 @@ int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
 
+  EPS = 1e-6; //for doubles 1e-11
   GaussianLandslideParams gaussian_landslide_params;
   BoreParams bore_params;
   hid_t file;
