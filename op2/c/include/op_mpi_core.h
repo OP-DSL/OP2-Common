@@ -229,7 +229,7 @@ void mpi_timing_output();
 
 void op_mpi_exit();
 
-void print_dat_to_file_mpi(op_dat dat, const char *file_name);
+void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name);
 
 void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 

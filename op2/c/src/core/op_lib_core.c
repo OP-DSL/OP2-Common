@@ -698,6 +698,10 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
     int count = dat->set->size;
 
     double* array  = (double *)malloc(dat->dim*(count)*sizeof(double));
+    if (array == NULL) {
+      printf ( " op_print_dat_to_binfile_core error -- error allocating memory to double array\n" );
+      exit ( -1 );
+    }
     memcpy(array, (void *)&(dat->data[0]), dat->size*count);
 
     FILE *fp;
@@ -735,6 +739,10 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
     int count = dat->set->size;
 
     float* array  = (float *)malloc(dat->dim*(count)*sizeof(float));
+    if (array == NULL) {
+      printf ( " op_print_dat_to_binfile_core error -- error allocating memory to float array\n" );
+      exit ( -1 );
+    }
     memcpy(array, (void *)&(dat->data[0]), dat->size*count);
 
     FILE *fp;
@@ -771,6 +779,10 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
     int count = dat->set->size;
 
     int* array  = (int *)malloc(dat->dim*(count)*sizeof(int));
+    if (array == NULL) {
+      printf ( " op_print_dat_to_binfile_core error -- error allocating memory to int array\n" );
+      exit ( -1 );
+    }
     memcpy(array, (void *)&(dat->data[0]), dat->size*count);
 
     FILE *fp;
@@ -807,6 +819,10 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
     int count = dat->set->size;
 
     long* array  = (long *)malloc(dat->dim*(count)*sizeof(long));
+    if (array == NULL) {
+      printf ( " op_print_dat_to_binfile_core error -- error allocating memory to long array\n" );
+      exit ( -1 );
+    }
     memcpy(array, (void *)&(dat->data[0]), dat->size*count);
 
     FILE *fp;
@@ -841,5 +857,132 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
   {
     printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
   }
+}
+
+void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
+{
+  FILE *fp;
+  if ( (fp = fopen(file_name,"w")) == NULL) {
+    printf("can't open file %s\n",file_name);
+    exit(2);
+  }
+
+  if( (strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
+  {
+    double *dat_array = (double *)malloc(dat->dim*(dat->set->size)*sizeof(double));
+    if (dat_array == NULL) {
+      printf ( " op_print_dat_to_txtfile_core error -- error allocating memory to double array\n" );
+      exit ( -1 );
+    }
+    memcpy(dat_array, (void *)&(dat->data[0]), dat->size*dat->set->size);
+    if (fprintf(fp,"%d %d\n",dat->set->size, dat->dim)<0)
+    {
+      printf("error writing to %s\n",file_name);
+      exit(2);
+    }
+
+    for(int i = 0; i< dat->set->size; i++)
+    {
+      for(int j = 0; j < dat->dim; j++ )
+      {
+        if (fprintf(fp,"%lf ",dat_array[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      fprintf(fp,"\n");
+    }
+    free(dat_array);
+  }
+  else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
+  {
+    float *dat_array = (float *)malloc(dat->dim*(dat->set->size)*sizeof(float));
+    if (dat_array == NULL) {
+      printf ( " op_print_dat_to_txtfile_core error -- error allocating memory to float array\n" );
+      exit ( -1 );
+    }
+    memcpy(dat_array, (void *)&(dat->data[0]), dat->size*dat->set->size);
+    if (fprintf(fp,"%d %d\n",dat->set->size, dat->dim)<0)
+    {
+      printf("error writing to %s\n",file_name);
+      exit(2);
+    }
+
+    for(int i = 0; i< dat->set->size; i++)
+    {
+      for(int j = 0; j < dat->dim; j++ )
+      {
+        if (fprintf(fp,"%f ",dat_array[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      fprintf(fp,"\n");
+    }
+    free(dat_array);
+  }
+  else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
+  {
+    int *dat_array = (int *)malloc(dat->dim*(dat->set->size)*sizeof(int));
+    if (dat_array == NULL) {
+      printf ( " op_print_dat_to_txtfile_core error -- error allocating memory to int array\n" );
+      exit ( -1 );
+    }
+    memcpy(dat_array, (void *)&(dat->data[0]), dat->size*dat->set->size);
+    if (fprintf(fp,"%d %d\n",dat->set->size, dat->dim)<0)
+    {
+      printf("error writing to %s\n",file_name);
+      exit(2);
+    }
+
+    for(int i = 0; i< dat->set->size; i++)
+    {
+      for(int j = 0; j < dat->dim; j++ )
+      {
+        if (fprintf(fp,"%d ",dat_array[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      fprintf(fp,"\n");
+    }
+    free(dat_array);
+  }
+  else if((strcmp(dat->type,"long") == 0) || (strcmp(dat->type,"long:soa") == 0))
+  {
+    long *dat_array = (long *)malloc(dat->dim*(dat->set->size)*sizeof(long));
+    if (dat_array == NULL) {
+      printf ( " op_print_dat_to_txtfile_core error -- error allocating memory to long array\n" );
+      exit ( -1 );
+    }
+    memcpy(dat_array, (void *)&(dat->data[0]), dat->size*dat->set->size);
+    if (fprintf(fp,"%d %d\n",dat->set->size, dat->dim)<0)
+    {
+      printf("error writing to %s\n",file_name);
+      exit(2);
+    }
+
+    for(int i = 0; i< dat->set->size; i++)
+    {
+      for(int j = 0; j < dat->dim; j++ )
+      {
+        if (fprintf(fp,"%ld ",dat_array[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      fprintf(fp,"\n");
+    }
+    free(dat_array);
+  }
+  else
+  {
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
+  }
+  fclose(fp);
 }
 
