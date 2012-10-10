@@ -350,27 +350,27 @@ int main(int argc, char **argv) {
   // Define OP2 set maps
   //
   op_map pcell = op_decl_map(cells, nodes, N_NODESPERCELL, cell,
-      "cell");
+      "cellsToNodes");
   op_map pecell = op_decl_map(edges, cells, N_CELLSPEREDGE, ecell,
-      "ecell");
+      "edgesToCells");
   op_map pccell = op_decl_map(cells, cells, N_NODESPERCELL, ccell,
-      "ccell");
+      "cellsToCells");
   op_map pcedge = op_decl_map(cells, edges, N_NODESPERCELL, cedge,
-      "cedge");
+      "cellsToEdges");
 
   //
   // Define OP2 datasets
   //
   op_dat p_ccent = op_decl_dat(cells, MESH_DIM, "float", ccent,
-      "ccent");
-  op_dat p_carea = op_decl_dat(cells, 1, "float", carea, "carea");
+      "cellCenters");
+  op_dat p_carea = op_decl_dat(cells, 1, "float", carea, "cellVolumes");
   op_dat p_enorm = op_decl_dat(edges, MESH_DIM, "float", enorm,
-      "enorm");
+      "edgeNormals");
   op_dat p_ecent = op_decl_dat(edges, MESH_DIM, "float", ecent,
-      "ecent");
-  op_dat p_eleng = op_decl_dat(edges, 1, "float", eleng, "eleng");
-  op_dat p_x = op_decl_dat(nodes, MESH_DIM, "float", x, "x");
-  op_dat p_w = op_decl_dat(cells, N_STATEVAR, "float", w, "w");
+      "edgeCenters");
+  op_dat p_eleng = op_decl_dat(edges, 1, "float", eleng, "edgeLength");
+  op_dat p_x = op_decl_dat(nodes, MESH_DIM, "float", x, "nodeCoords");
+  op_dat p_w = op_decl_dat(cells, N_STATEVAR, "float", w, "values");
   op_dat p_isBoundary = op_decl_dat(edges, 1, "int", isBoundary, "isBoundary");
   op_dat p_initEta = op_decl_dat(cells, 1, "float", initEta, "initEta");
   op_dat p_initBathymetry = op_decl_dat(cells, 1, "float", initBathymetry, "initBathymetry");
@@ -398,7 +398,7 @@ int main(int argc, char **argv) {
   // Read constants and write to HDF5
   //
   float cfl = sim.CFL; // CFL condition
-  op_write_const_hdf5("cfl", 1, "float", (char *) &cfl, filename_h5);
+  op_write_const_hdf5("CFL", 1, "float", (char *) &cfl, filename_h5);
   // Final time: as defined by Volna the end of real-time simulation
   float ftime = sim.FinalTime;
   op_write_const_hdf5("ftime", 1, "float", (char *) &ftime,
@@ -473,21 +473,21 @@ int main(int argc, char **argv) {
     sprintf(buffer, "event_className%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_className[i].c_str()));
-    length = strlen(event_className[i].c_str());
+    length = strlen(event_className[i].c_str())+1;
     check_hdf5_error(
         H5LTset_attribute_int(h5file, buffer, "length", &length, 1));
     memset(buffer, 0, 18);
     sprintf(buffer, "event_formula%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_formula[i].c_str()));
-    length = strlen(event_className[i].c_str());
+    length = strlen(event_formula[i].c_str())+1;
     check_hdf5_error(
         H5LTset_attribute_int(h5file, buffer, "length", &length, 1));
     memset(buffer, 0, 18);
     sprintf(buffer, "event_streamName%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_streamName[i].c_str()));
-    length = strlen(event_className[i].c_str());
+    length = strlen(event_streamName[i].c_str())+1;
     check_hdf5_error(
         H5LTset_attribute_int(h5file, buffer, "length", &length, 1));
   }

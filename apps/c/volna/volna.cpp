@@ -9,7 +9,15 @@ int itercount = 0;
 //constants
 float CFL, g, EPS;
 
+
 int main(int argc, char **argv) {
+  if (argc != 2) {
+    printf("Wrong parameters! Please specify the OP2 HDF5 data file "
+        "name, that was created by volna2hdf5 tool "
+        "script filename with the *.vln extension, "
+        "e.g. ./volna filename.h5 \n");
+    exit(-1);
+  }
 
   op_init(argc, argv, 2);
 
@@ -18,7 +26,7 @@ int main(int argc, char **argv) {
   BoreParams bore_params;
   hid_t file;
   herr_t status;
-  char *filename_h5; // = "stlaurent_35k.h5";
+  const char *filename_h5 = argv[1]; // = "stlaurent_35k.h5";
   file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
 
   check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsx0", &bore_params.x0));
@@ -40,6 +48,7 @@ int main(int argc, char **argv) {
   read_events_hdf5(file, num_events, &timers, &events);
 
   check_hdf5_error(H5Fclose(file));
+
 
   /*
    * Define HDF5 filename
@@ -65,13 +74,13 @@ int main(int argc, char **argv) {
                                   "cellsToNodes");
   op_map edgesToCells = op_decl_map_hdf5(edges, cells, N_CELLSPEREDGE,
                                   filename_h5,
-                                  "cellsToNodes");
+                                  "edgesToCells");
   op_map cellsToCells = op_decl_map_hdf5(cells, cells, N_NODESPERCELL,
                                   filename_h5,
                                   "cellsToCells");
   op_map cellsToEdges = op_decl_map_hdf5(cells, edges, N_NODESPERCELL,
                                   filename_h5,
-                                  "cellsToCells");
+                                  "cellsToEdges");
 
   /*
    * Define OP2 datasets
@@ -96,30 +105,34 @@ int main(int argc, char **argv) {
                                     filename_h5,
                                     "edgeLength");
 
-  op_dat nodeCoords = op_decl_dat_hdf5(cells, N_STATEVAR, "float",
+  op_dat nodeCoords = op_decl_dat_hdf5(nodes, MESH_DIM, "float",
                                       filename_h5,
                                       "nodeCoords");
 
-  op_dat values = op_decl_dat_hdf5(nodes, MESH_DIM, "float",
+  op_dat values = op_decl_dat_hdf5(cells, N_STATEVAR, "float",
                                     filename_h5,
                                     "values");
+  op_dat isBoundary = op_decl_dat_hdf5(edges, 1, "int",
+                                    filename_h5,
+                                    "isBoundary");
 
   /*
-   * Read constants and write to HDF5
+   * Read constants from HDF5
    */
   float ftime, dtmax;
   op_get_const_hdf5("CFL", 1, "float", (char *) &CFL, filename_h5);
-  op_get_const_hdf5("EPS", 1, "float", (char *) &CFL, filename_h5);
+//  op_get_const_hdf5("EPS", 1, "float", (char *) &EPS, filename_h5);
   // Final time: as defined by Volna the end of real-time simulation
   op_get_const_hdf5("ftime", 1, "float", (char *) &ftime, filename_h5);
   op_get_const_hdf5("dtmax", 1, "float", (char *) &dtmax, filename_h5);
   op_get_const_hdf5("g", 1, "float", (char *) &g, filename_h5);
 
   op_decl_const(1, "float", &CFL);
-  op_decl_const(1, "float", &g);
   op_decl_const(1, "float", &EPS);
+  op_decl_const(1, "float", &g);
 
-  op_dat temp_initEta=NULL, temp_initBathymetry=NULL;
+  op_dat temp_initEta        = NULL;
+  op_dat temp_initBathymetry = NULL;
 
   //Very first Init loop
   for (int i = 0; i < events.size(); i++) {
@@ -263,9 +276,9 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-    op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
-    op_exit();
+  op_exit();
 
   return 0;
 }

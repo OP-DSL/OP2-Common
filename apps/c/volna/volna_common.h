@@ -30,7 +30,6 @@ struct GaussianLandslideParams {
   float A, v, lx, ly, mesh_xmin;//TODO: mesh_xmin compute
 };
 
-
 struct TimerParams {
   float start, end, step, localTime, t;
   unsigned int istart, iend, istep, localIter, iter;
@@ -66,10 +65,4 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep,
 //helper functions
 //
 #define check_hdf5_error(err) __check_hdf5_error(err, __FILE__, __LINE__)
-void __check_hdf5_error(herr_t err, const char *file, const int line) {
-  if (err < 0) {
-    printf("%s(%i) : OP2_HDF5_error() Runtime API error %d.\n", file,
-        line, (int) err);
-    exit(-1);
-  }
-}
+void __check_hdf5_error(herr_t err, const char *file, const int line);

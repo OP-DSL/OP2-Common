@@ -3,7 +3,6 @@
 #
 # OP2_INSTALL_PATH
 # HDF5_INSTALL_PATH
-# VOLNA_INSTALL_PATH
 # MPI_INSTALL_PATH
 #
 
@@ -17,8 +16,8 @@ LIBMESH_LIB = -L$(LIBMESH_INSTALL_PATH)/lib
 OP2_INC = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB = -L$(OP2_INSTALL_PATH)/c/lib
 
-VOLNA_INC = -I$(VOLNA_INSTALL_PATH)/src
-VOLNA_SRC = $(VOLNA_INSTALL_PATH)/src
+#VOLNA_INC = -I$(VOLNA_INSTALL_PATH)/src
+#VOLNA_SRC = $(VOLNA_INSTALL_PATH)/src
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_fortran -lhdf5 -lhdf5_hl -lz
@@ -36,7 +35,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
+	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel	
 	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2
@@ -54,25 +53,25 @@ endif
 #
 
 
-VOLNA_SOURCES = \
- 	$(VOLNA_SRC)/values.cpp\
-	$(VOLNA_SRC)/event.cpp\
-	$(VOLNA_SRC)/geom.cpp
+#VOLNA_SOURCES = \
+# 	$(VOLNA_SRC)/values.cpp\
+#	$(VOLNA_SRC)/event.cpp\
+#	$(VOLNA_SRC)/geom.cpp
 
-VOLNA_OBJECTS = $(VOLNA_SOURCES:.cpp=.o)
+#VOLNA_OBJECTS = $(VOLNA_SOURCES:.cpp=.o)
 
-all: clean volna2hdf5
+all: clean volna
 
-volna2hdf5: volna2hdf5.cpp $(VOLNA_OBJECTS) Makefile 
+volna: volna.cpp Makefile 
 	#$(CPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) $(VOLNA_INC) $(OP2_INC) $(MPI_INC) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
-	$(CPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) $(VOLNA_INC) $(HDF5_INC) $(OP2_INC) $(MPI_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
+	$(CPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(MPI_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
 
 #
 # cleanup
 #
 
 clean:
-		rm -f volna2hdf5 *.o $(VOLNA_OBJECTS)
+		rm -f volna *.o 
 
-%.o: %.cpp %.hpp
-	$(CPP) $(CPPFLAGS) -c -o $@ $<
+#%.o: %.cpp %.hpp
+#	$(CPP) $(CPPFLAGS) -c -o $@ $<

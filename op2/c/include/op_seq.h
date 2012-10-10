@@ -8,12 +8,12 @@
 
 #include "op_lib_cpp.h"
 
-int op2_stride = 1;
+static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 // scratch space to use for double counting in indirect reduction
-int blank_args_size = 512;
-char* blank_args = (char *)malloc(blank_args_size);
+static int blank_args_size = 512;
+static char* blank_args = (char *)malloc(blank_args_size);
 
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   *p_arg = arg.data;
