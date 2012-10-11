@@ -28,7 +28,7 @@ MPI_INC = -I$(MPI_INSTALL_PATH)/include
 ifeq ($(OP2_COMPILER),gnu)
 	CPP = g++
 #	CPPFLAGS = -g0 -msse3 -fPIC -DUNIX -Wall
-	CPPFLAGS = -g -fPIC -DUNIX -Wall
+	CPPFLAGS = -g -O0 -msse4.2 -fPIC -DUNIX -Wall
 	#CPPFLAGS = -g -fPIC -DUNIX -Wall
 	OMPFLAGS = -fopenmp
 	MPICPP = /usr/bin/mpiCC
@@ -36,7 +36,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
+	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel	
 	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2
