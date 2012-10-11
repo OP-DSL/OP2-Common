@@ -83,7 +83,7 @@ int main(int argc, char **argv)
               op_arg_dat(xn, -3, elem_node, 2, VALUESTR, OP_READ),
               op_arg_dat(f, -3, elem_node, 1, VALUESTR, OP_READ));
 
-  op_solve(mat, b, x);
+  op_solve(mat, b, x, "cg", "jacobi", 1.0e-7, 100);
 
   // Check result
   int failed = 0;

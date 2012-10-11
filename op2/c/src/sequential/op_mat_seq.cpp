@@ -258,6 +258,7 @@ int op_ksp_types(char ***array)
 
 int op_pc_types(char ***array)
 {
+  // Create and destroy a KSP context to ensure that KSPList is populated.
   PC pc;
   PCCreate(PETSC_COMM_WORLD, &pc);
 #if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
@@ -271,7 +272,8 @@ int op_pc_types(char ***array)
   return n;
 }
 
-void op_solve ( const op_mat mat, const op_dat b, op_dat x )
+void op_solve ( const op_mat mat, const op_dat b, op_dat x, char *ksptype,
+                char *pctype, double tol, int maxits )
 {
   assert( mat && b && x );
 
@@ -282,11 +284,12 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x )
   PC pc;
 
   KSPCreate(PETSC_COMM_WORLD,&ksp);
+  KSPSetFromOptions(ksp);
+  KSPSetType(ksp,ksptype);
   KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN);
   KSPGetPC(ksp,&pc);
-  PCSetType(pc,PCJACOBI);
-  KSPSetTolerances(ksp,1.e-7,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT);
-  KSPSetFromOptions(ksp);
+  PCSetType(pc,pctype);
+  KSPSetTolerances(ksp,tol,PETSC_DEFAULT,PETSC_DEFAULT,maxits);
 
   KSPSolve(ksp,p_b,p_x);
 

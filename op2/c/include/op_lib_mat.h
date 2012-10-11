@@ -66,7 +66,7 @@ int op_ksp_types (char ***array);
 
 int op_pc_types (char ***array);
 
-void op_solve ( const op_mat mat, const op_dat b, op_dat x );
+void op_solve ( const op_mat mat, const op_dat b, op_dat x, char *ksptype, char *pctype, double tol, int maxits);
 
 void op_mat_get_array( const op_mat mat);
 

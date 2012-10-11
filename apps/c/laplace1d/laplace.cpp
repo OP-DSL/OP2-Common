@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
               op_arg_dat(xn,  -2, elem_node, 1, REAL, OP_READ));
 
   // solve
-  op_solve(mat, x, y);
+  op_solve(mat, x, y, "cg", "jacobi", 1.0e-7, 100);
 
   op_exit();
 }
