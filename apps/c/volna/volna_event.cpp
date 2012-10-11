@@ -99,7 +99,7 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
 }
 
 void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, float timeIncrement, int removeFinished, int initPrePost,
-    op_set cells, op_dat values, op_dat cellCenters, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params) {
+    op_set cells, op_dat values, op_dat cellVolumes, op_dat cellCenters, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params) {
   op_printf("processEvents()... \n");
   int size = (*timers).size();
   int i = 0;
@@ -120,6 +120,8 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
       } else if (strcmp((*events)[i].className.c_str(), "OutputTime") == 0) {
         OutputTime(&(*timers)[i]);
         op_printf("Output iter: %d \n", (*timers)[i].iter);
+      } else if (strcmp((*events)[i].className.c_str(), "OutputConservedQuantities") == 0) {
+        OutputConservedQuantities(cells, cellVolumes, values);
       } else {
         op_printf("Unrecognized event %s\n", (*events)[i].className.c_str());
 //        exit(-1);
