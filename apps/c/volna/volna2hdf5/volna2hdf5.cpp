@@ -289,6 +289,7 @@ int main(int argc, char **argv) {
       ecell[i * N_CELLSPEREDGE + 1] = leftCellId;
       isBoundary[i] = 1;
     } else {
+      ecell[i * N_CELLSPEREDGE + 1] = rightCellId;
       isBoundary[i] = 0;
     }
 
@@ -404,6 +405,7 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("ftime", 1, "float", (char *) &ftime,
       filename_h5);
   float dtmax = sim.Dtmax; // Maximum timestep
+  op_printf("dtmax = %f <====================== \n", dtmax);
   op_write_const_hdf5("dtmax", 1, "float", (char *) &dtmax,
       filename_h5);
   float g = 9.81; // Gravity constant

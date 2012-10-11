@@ -100,34 +100,36 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
 
 void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, float timeIncrement, int removeFinished, int initPrePost,
     op_set cells, op_dat values, op_dat cellCenters, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params) {
+  op_printf("processEvents()... \n");
   int size = (*timers).size();
   int i = 0;
   while (i < size){
     if (timer_happens(&(*timers)[i]) && (initPrePost==2 || (*events)[i].post_update==initPrePost)) {
-      if (strcmp((*events)[i].className.c_str(), "InitEta")) {
+      if (strcmp((*events)[i].className.c_str(), "InitEta") == 0) {
         InitEta(cells, cellCenters, values, temp_initEta, temp_initEta!=NULL);
-      } else if (strcmp((*events)[i].className.c_str(), "InitU")) {
+      } else if (strcmp((*events)[i].className.c_str(), "InitU") == 0) {
         InitU(cells, cellCenters, values);
-      } else if (strcmp((*events)[i].className.c_str(), "InitV")) {
+      } else if (strcmp((*events)[i].className.c_str(), "InitV") == 0) {
         InitV(cells, cellCenters, values);
-      } else if (strcmp((*events)[i].className.c_str(), "InitBathymetry")) {
+      } else if (strcmp((*events)[i].className.c_str(), "InitBathymetry") == 0) {
         InitBathymetry(cells, cellCenters, values, temp_initBathymetry, temp_initBathymetry!=NULL, firstTime);
-      } else if (strcmp((*events)[i].className.c_str(), "InitBore")) {
+      } else if (strcmp((*events)[i].className.c_str(), "InitBore") == 0) {
         InitBore(cells, cellCenters, values, bore_params);
-      } else if (strcmp((*events)[i].className.c_str(), "InitGaussianLandslide")) {
+      } else if (strcmp((*events)[i].className.c_str(), "InitGaussianLandslide") == 0) {
         InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, firstTime);
-      } else if (strcmp((*events)[i].className.c_str(), "OutputTime")) {
+      } else if (strcmp((*events)[i].className.c_str(), "OutputTime") == 0) {
         OutputTime(&(*timers)[i]);
         op_printf("Output iter: %d \n", (*timers)[i].iter);
       } else {
-        printf("Unrecognized event %s\n", (*events)[i].className.c_str());
-        exit(-1);
+        op_printf("Unrecognized event %s\n", (*events)[i].className.c_str());
+//        exit(-1);
       }
       //timer.LocalReset();
       (*timers)[i].localIter = 0;
       (*timers)[i].localTime = 0;
     }
     if (updateTimers) {
+      op_printf("if(updatesTimers) => true \n");
       //timer.update()
       (*timers)[i].t+= timeIncrement;
       (*timers)[i].iter += 1;
@@ -136,11 +138,13 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
     }
 
     if (removeFinished) {
+      op_printf("if(removeFinished) => true \n");
       //Remove finished events
       if (((*timers)[i].iter >= (*timers)[i].iend) || ((*timers)[i].t >= (*timers)[i].end)) {
         (*timers).erase((*timers).begin()+i);
+        (*events).erase((*events).begin()+i);
         size--;
       } else i++;
-    }
+    } else i++;
   }
 }

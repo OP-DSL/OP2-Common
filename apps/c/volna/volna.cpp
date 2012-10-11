@@ -206,6 +206,7 @@ int main(int argc, char **argv) {
           cells, edges, edgesToCells, cellsToEdges);
 
       float dT = CFL * minTimestep;
+      op_printf("CFL = %f\n", CFL);
 
       op_par_loop(EvolveValuesRK2_1, "EvolveValuesRK2_2", cells,
           op_arg_gbl(&dT,1,"float", OP_READ),
@@ -233,10 +234,13 @@ int main(int argc, char **argv) {
       timestep = dT;
     } //end EvolveValuesRK2
 
+    op_printf("op_par_loop(simulation_1...) running \n");
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
     timestep = timestep < dtmax ? timestep : dtmax;
+    op_printf("timestep = %f \ndtmax = %f \n", timestep, dtmax);
+    op_printf("op_par_loop(simulation_1...) done \n");
 
     itercount++;
     timestamp += timestep;
