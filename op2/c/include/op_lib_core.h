@@ -124,6 +124,7 @@ typedef struct
   char const *type,   /* datatype */
              *name;   /* name of dataset */
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
+  char*       buffer_d_r; /* buffer for MPI halo receives on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
   int         user_managed; /* indicates whether the user is managing memory */
   void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
