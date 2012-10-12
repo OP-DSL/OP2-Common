@@ -302,6 +302,74 @@ void op_solve ( const op_mat mat, const op_dat b, op_dat x, char *ksptype,
 #endif
 }
 
+void* op_create_ksp()
+{
+  KSP ksp;
+  KSPCreate(PETSC_COMM_WORLD,&ksp);
+  KSPSetFromOptions(ksp);
+  return (void*)ksp;
+}
+
+void op_destroy_ksp(void *ksp)
+{
+#if (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR >= 2)
+  KSPDestroy((KSP*)(&ksp));
+#else
+  KSPDestroy((KSP)ksp);
+#endif
+}
+
+int op_get_converged_reason(void *ksp)
+{
+  KSPConvergedReason reason;
+  KSPGetConvergedReason((KSP)ksp, &reason);
+  return (int)reason;
+}
+
+int op_ksp_get_iteration_number(void *ksp)
+{
+  int its;
+  KSPGetIterationNumber((KSP)ksp, &its);
+  return its;
+}
+
+void op_ksp_set_type(void *ksp, const char *type)
+{
+  KSPSetType((KSP)ksp, type);
+}
+
+void* op_ksp_get_pc(void *ksp)
+{
+  PC pc;
+  KSPGetPC((KSP)ksp, &pc);
+  return (void*)pc;
+}
+
+void op_pc_set_type(void *pc, const char *type)
+{
+  PCSetType((PC)pc, type);
+}
+
+void op_ksp_set_tolerances(void *ksp, double rtol, double atol, double dtol, int maxits)
+{
+  KSPSetTolerances((KSP)ksp, rtol, atol, dtol, maxits);
+}
+
+void op_ksp_solve(void *ksp, op_mat mat, op_dat x, op_dat b)
+{
+  assert( mat && b && x );
+
+  Vec p_b = op_create_vec(b);
+  Vec p_x = op_create_vec(x);
+  Mat A = (Mat) mat->mat;
+
+  KSPSetOperators((KSP)ksp,A,A,DIFFERENT_NONZERO_PATTERN);
+  KSPSolve((KSP)ksp,p_b,p_x);
+
+  op_destroy_vec(p_b, b);
+  op_destroy_vec(p_x, x);
+}
+
 // FIXME: Only correct for PETSc configured with --with-scalar-type=real,
 // --with-precision=double
 void op_mat_get_values ( const op_mat mat, double **v, int *m, int *n)

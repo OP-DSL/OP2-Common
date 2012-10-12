@@ -66,6 +66,24 @@ int op_ksp_types (char ***array);
 
 int op_pc_types (char ***array);
 
+void* op_create_ksp();
+
+void op_destroy_ksp(void *ksp);
+
+int op_get_converged_reason(void *ksp);
+
+void op_ksp_set_type(void *ksp, const char *type);
+
+void* op_ksp_get_pc(void *ksp);
+
+void op_pc_set_type(void *pc, const char *type);
+
+void op_ksp_set_tolerances(void *ksp, double rtol, double atol, double dtol, int maxits);
+
+void op_ksp_solve(void *ksp, op_mat mat, op_dat x, op_dat b);
+
+int op_ksp_get_iteration_number(void *ksp);
+
 void op_solve ( const op_mat mat, const op_dat b, op_dat x, char *ksptype, char *pctype, double tol, int maxits);
 
 void op_mat_get_array( const op_mat mat);
