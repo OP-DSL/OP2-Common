@@ -136,13 +136,13 @@ int main(int argc, char **argv) {
 
   //Very first Init loop
   for (int i = 0; i < events.size(); i++) {
-      if (strcmp(events[i].className.c_str(), "InitEta")) {
-        if (!strcmp(events[i].streamName.c_str(), ""))
+      if (!strcmp(events[i].className.c_str(), "InitEta")) {
+        if (strcmp(events[i].streamName.c_str(), ""))
           temp_initEta = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initEta");
-      } else if (strcmp(events[i].className.c_str(), "InitBathymetry")) {
-        if (!strcmp(events[i].streamName.c_str(), ""))
+      } else if (!strcmp(events[i].className.c_str(), "InitBathymetry")) {
+        if (strcmp(events[i].streamName.c_str(), ""))
           temp_initBathymetry = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initBathymetry");
