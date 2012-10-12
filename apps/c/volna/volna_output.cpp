@@ -51,8 +51,10 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
   float* values_data;
   values_data = (float*) values->data;
 
-  fprintf(fp, "SCALARS Eta double 1\n"
-              "LOOKUP_TABLE default\n");
+  fprintf(fp, "CELL_DATA %d\n"
+              "SCALARS Eta double 1\n"
+              "LOOKUP_TABLE default\n",
+              ncell);
   for ( i=0; i<ncell; ++i )
     fprintf(fp, "%f \n", values_data[i*N_STATEVAR] + values_data[N_STATEVAR+3]);
   fprintf(fp, "\n");
