@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 
   //Very first Init loop
   processEvents(&timers, &events, 1/*firstTime*/, 1/*update timers*/, 0.0/*=dt*/, 1/*remove finished events*/, 2/*init loop, not pre/post*/,
-                     cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
+                     cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
 
 
   //Corresponding to CellValues and tmp in Simulation::run() (simulation.hpp)
@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
   while (timestamp < ftime) {
 
     processEvents(&timers, &events, 0, 0, 0.0, 0, 0,
-                       cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
+                       cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
 
 
     //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
 
     //processing events
     processEvents(&timers, &events, 0, 1, timestep, 1, 1,
-                         cells, values, cellCenters, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
+                         cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
   }
 
   //simulation
