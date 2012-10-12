@@ -219,8 +219,8 @@ int main(int argc, char **argv) {
 
   // Import node coordinates
   for (i = 0; i < sim.mesh.NPoints; i++) {
-    x[i * MESH_DIM] = sim.mesh.Nodes[i].x();
-    x[i * MESH_DIM + 1] = sim.mesh.Nodes[i].y();
+    x[i * MESH_DIM] = sim.mesh.Nodes[i+1].x();
+    x[i * MESH_DIM + 1] = sim.mesh.Nodes[i+1].y();
     //    std::cout << i << "  x,y,z = " << sim.mesh.Nodes[i].x() << " "
     //        << sim.mesh.Nodes[i].y() << " " << sim.mesh.Nodes[i].z()
     //        << endl;
@@ -236,9 +236,9 @@ int main(int argc, char **argv) {
     neighbors = sim.mesh.Cells[i].neighbors();
     facet_ids = sim.mesh.Cells[i].facets();
 
-    cell[i * N_NODESPERCELL] = vertices[0];
-    cell[i * N_NODESPERCELL + 1] = vertices[1];
-    cell[i * N_NODESPERCELL + 2] = vertices[2];
+    cell[i * N_NODESPERCELL] = vertices[0]    -1;
+    cell[i * N_NODESPERCELL + 1] = vertices[1]-1;
+    cell[i * N_NODESPERCELL + 2] = vertices[2]-1;
 
     ccell[i * N_NODESPERCELL] = neighbors[0];
     ccell[i * N_NODESPERCELL + 1] = neighbors[1];
@@ -248,8 +248,8 @@ int main(int argc, char **argv) {
     cedge[i * N_NODESPERCELL + 1] = facet_ids[1];
     cedge[i * N_NODESPERCELL + 2] = facet_ids[2];
 
-    ccent[i * MESH_DIM] = sim.mesh.CellCenters.x(i);
-    ccent[i * MESH_DIM + 1] = sim.mesh.CellCenters.y(i);
+    ccent[i * N_NODESPERCELL] = sim.mesh.CellCenters.x(i);
+    ccent[i * N_NODESPERCELL + 1] = sim.mesh.CellCenters.y(i);
 
     carea[i] = sim.mesh.CellVolumes(i);
 
