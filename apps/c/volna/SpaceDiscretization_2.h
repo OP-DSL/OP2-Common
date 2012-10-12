@@ -11,7 +11,7 @@ void SpaceDiscretization_2(float *left, //OP_INC
 
   if (!*isRightBoundary) {
     right[0] += FacetFluxes[0];
-    right[0] += (FacetFluxes[1] + BathySource[1] * mesh_FacetNormals[0]);
-    right[0] += (FacetFluxes[2] + BathySource[1] * mesh_FacetNormals[1]);
+    right[1] += (FacetFluxes[1] + BathySource[1] * mesh_FacetNormals[0]);
+    right[2] += (FacetFluxes[2] + BathySource[1] * mesh_FacetNormals[1]);
   }
 }
