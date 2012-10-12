@@ -107,7 +107,8 @@ void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values) 
 }
 
 void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
-  const char* filename = event->streamName.c_str();
+  char filename[255];
+  strcpy(filename, event->streamName.c_str());
   op_printf("Write output to file: %s \n", filename);
   int nnode = nodeCoords->set->size;
   int ncell = cellsToNodes->from->size;

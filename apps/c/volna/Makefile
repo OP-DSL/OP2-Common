@@ -20,7 +20,7 @@ OP2_LIB = -L$(OP2_INSTALL_PATH)/c/lib
 #VOLNA_SRC = $(VOLNA_INSTALL_PATH)/src
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_fortran -lhdf5 -lhdf5_hl -lz
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lhdf5_hl -lz
 
 MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
