@@ -114,7 +114,7 @@ void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords,
   const char* substituteIndexPattern = "%i";
   char* pos;
   pos = strstr(filename, substituteIndexPattern);
-  char* substituteIndex;
+  char substituteIndex[255];
   sprintf(substituteIndex, "%04d.vtk", timer->iter);
   strcpy(pos, substituteIndex);
   WriteVTKAscii(filename, nodeCoords, nnode, cellsToNodes, ncell, values);
