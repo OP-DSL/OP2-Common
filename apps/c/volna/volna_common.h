@@ -58,6 +58,7 @@ void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, Gaus
 void OutputTime(TimerParams *timer);
 void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values);
 void OutputSimulation( EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values);
+double normcomp(op_dat dat, int off);
 
 void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,

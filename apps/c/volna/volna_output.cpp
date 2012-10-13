@@ -34,9 +34,9 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
 
   for ( i = 0; i < ncell; ++i ) {
     fprintf(fp, "3 %d %d %d \n",
-        cellsToNodes->map[i*N_NODESPERCELL  ]-1,
-        cellsToNodes->map[i*N_NODESPERCELL+1]-1,
-        cellsToNodes->map[i*N_NODESPERCELL+2]-1);
+        cellsToNodes->map[i*N_NODESPERCELL  ],
+        cellsToNodes->map[i*N_NODESPERCELL+1],
+        cellsToNodes->map[i*N_NODESPERCELL+2]);
   }
   fprintf(fp, "\n");
 
@@ -123,3 +123,12 @@ void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords,
   WriteVTKAscii(filename, nodeCoords, nnode, cellsToNodes, ncell, values);
 }
 
+double normcomp(op_dat dat, int off) {
+  int dim = dat->dim;
+  float *data = (float *)(dat->data);
+  double norm = 0.0;
+  for (int i = 0; i < dat->set->size; i++) {
+    norm += data[dim*i + off]*data[dim*i + off];
+  }
+  return sqrt(norm);
+}

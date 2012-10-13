@@ -248,8 +248,8 @@ int main(int argc, char **argv) {
     cedge[i * N_NODESPERCELL + 1] = facet_ids[1];
     cedge[i * N_NODESPERCELL + 2] = facet_ids[2];
 
-    ccent[i * N_NODESPERCELL] = sim.mesh.CellCenters.x(i);
-    ccent[i * N_NODESPERCELL + 1] = sim.mesh.CellCenters.y(i);
+    ccent[i * MESH_DIM] = sim.mesh.CellCenters.x(i);
+    ccent[i * MESH_DIM + 1] = sim.mesh.CellCenters.y(i);
 
     carea[i] = sim.mesh.CellVolumes(i);
 

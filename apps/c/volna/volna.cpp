@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     processEvents(&timers, &events, 0, 0, 0.0, 0, 0,
                        cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
 
-
+    printf("Call to EvolveValuesRK2 CellValues H %lf U %lf V %lf Zb %lf\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
     //  void EvolveValuesRK2( const Values &in, Values &out, const Mesh &m,
     //            const RealType &CFL, const PhysicalParams &params,
@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges);
-
+      printf("Return of SpaceDiscretization #1 midPointConservative H %lf U %lf V %lf Zb %lf\n", normcomp(midPointConservative, 0), normcomp(midPointConservative, 1),normcomp(midPointConservative, 2),normcomp(midPointConservative, 3));
       float dT = CFL * minTimestep;
       op_printf("CFL = %f\n", CFL);
 
@@ -238,9 +238,10 @@ int main(int argc, char **argv) {
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
+    
+    printf("New cell values %lf %lf %lf %lf\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     timestep = timestep < dtmax ? timestep : dtmax;
-    op_printf("timestep = %f \ndtmax = %f \n", timestep, dtmax);
-    op_printf("op_par_loop(simulation_1...) done \n");
+    op_printf("timestep = %f\n", timestep);
 
     itercount++;
     timestamp += timestep;

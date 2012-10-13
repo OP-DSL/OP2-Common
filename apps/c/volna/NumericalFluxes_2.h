@@ -10,5 +10,5 @@ void NumericalFluxes_2(float **maxFacetEigenvalues, float **facetVolumes, float 
   zeroInit[2] = 0.0f;
   zeroInit[3] = 0.0f;
   
-  *minTimeStep = 2.0f * *mesh_CellVolumes / local;
+  *minTimeStep = MIN(*minTimeStep, 2.0f * *mesh_CellVolumes / local);
 }
