@@ -204,7 +204,9 @@ int main(int argc, char **argv) {
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges);
+      
       printf("Return of SpaceDiscretization #1 midPointConservative H %g U %g V %g Zb %g\n", normcomp(midPointConservative, 0), normcomp(midPointConservative, 1),normcomp(midPointConservative, 2),normcomp(midPointConservative, 3));
+
       double dT = CFL * minTimestep;
 
       op_par_loop(EvolveValuesRK2_1, "EvolveValuesRK2_2", cells,
@@ -215,7 +217,8 @@ int main(int argc, char **argv) {
           op_arg_dat(midPoint, -1, OP_ID, 4, "double", OP_WRITE));
 
       double dummy = 0.0;
-
+      
+      
       //call to SpaceDiscretization( midPoint, outConservative, m, params, dummy_time, t );
       spaceDiscretization(midPoint, outConservative, &dummy,
           leftCellValues, rightCellValues, interfaceBathy,
@@ -223,6 +226,12 @@ int main(int argc, char **argv) {
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges);
 
+//      dumpme(outConservative,0);
+//      dumpme(outConservative,1);
+//      dumpme(outConservative,2);
+//      dumpme(outConservative,3);
+//      exit(-1);
+      
       op_par_loop(EvolveValuesRK2_2, "EvolveValuesRK2_2", cells,
           op_arg_gbl(&dT,1,"double", OP_READ),
           op_arg_dat(outConservative, -1, OP_ID, 4, "double", OP_RW),

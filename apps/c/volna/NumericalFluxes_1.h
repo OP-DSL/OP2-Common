@@ -42,8 +42,8 @@ void NumericalFluxes_1(double *leftCellValues, //OP_READ
 
   double LeftFluxes_H, LeftFluxes_U, LeftFluxes_V;
   //inlined ProjectedPhysicalFluxes(leftCellValues, Normals, params, LeftFluxes);
-  double HuDotN = (leftCellValues[0] * leftCellValues[1] * Normals[0]) +
-          (leftCellValues[0] * leftCellValues[2] * Normals[1]);
+  double HuDotN = (leftCellValues[0] * leftCellValues[1]) * Normals[0] +
+          (leftCellValues[0] * leftCellValues[2]) * Normals[1];
 
   LeftFluxes_H = HuDotN;
   LeftFluxes_U = HuDotN * leftCellValues[1];

@@ -47,7 +47,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
         op_arg_dat(interfaceBathy, -1, OP_ID, 1, "double", OP_READ),
         op_arg_dat(edgeLength, -1, OP_ID, 1, "double", OP_READ),
         op_arg_dat(bathySource, -1, OP_ID, 2, "double", OP_WRITE));
-
+    
     //decl edgeFluxes
     //memset(edgeFluxes->data, 0, edgeFluxes->set->size * edgeFluxes->size);
     //call to NumericalFluxes( leftCellValues, rightCellValues,
@@ -75,7 +75,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
           op_arg_dat(data_out, -1, OP_ID, 4, "double", OP_WRITE),
           op_arg_gbl(minTimestep,1,"double", OP_MIN));
     } //end NumericalFluxes
-
+    
     op_par_loop(SpaceDiscretization_2, "SpaceDiscretization_2", edges,
         op_arg_dat(data_out, 0, edgesToCells, 4, "double", OP_INC), //again, Zb is not needed
         op_arg_dat(data_out, 1, edgesToCells, 4, "double", OP_INC),
@@ -83,7 +83,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
         op_arg_dat(bathySource, -1, OP_ID, 2, "double", OP_READ),
         op_arg_dat(edgeNormals, -1, OP_ID, 2, "double", OP_READ),
         op_arg_dat(isBoundary, -1, OP_ID, 1, "int", OP_READ));
-
+        
     op_par_loop(SpaceDiscretization_3, "SpaceDiscretization_3", cells,
         op_arg_dat(data_out, -1, OP_ID, 4, "double", OP_RW),
         op_arg_dat(cellVolumes, -1, OP_ID, 1, "double", OP_READ));

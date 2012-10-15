@@ -58,7 +58,6 @@ void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {
 }
 
 void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initBathymetry, int fromFile, int firstTime) {
-  op_printf("InitBathymetry executing\n");
   if (firstTime) {
     int result = 0;
     int leftOperand = 0;
@@ -87,11 +86,10 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp
         op_arg_dat(values, -1, OP_ID, 4, "double", OP_INC),
         op_arg_gbl(&timestamp, 1, "double", OP_READ));
   }
-
   op_par_loop(initBathymetry_update, "initBathymetry_update", cells,
         op_arg_dat(values, -1, OP_ID, 4, "double", OP_RW),
         op_arg_gbl(&firstTime, 1, "int", OP_READ));
-
+  printf("InitBathymetry executing H: %g Zb: %g\n", normcomp(values, 0), normcomp(values, 3));
 }
 
 void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params) {
