@@ -1,8 +1,8 @@
-void initU_formula(float *coords, float *values, float *time) {
-  float x = coords[0];
-  float y = coords[1];
-  float t = *time;
+void initU_formula(double *coords, double *values, double *time) {
+  double x = coords[0];
+  double y = coords[1];
+  double t = *time;
   //insert user formula here
-  float val = /*...*/0.0;
+  double val = /*...*/0.0;
   values[1] += val;
 }

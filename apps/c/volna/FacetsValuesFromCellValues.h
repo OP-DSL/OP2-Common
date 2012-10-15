@@ -1,9 +1,9 @@
-void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
-                float *LeftFacetValues, //OP_WRITE
-                float *RightFacetValues, //OP_WRITE
-                float *InterfaceBathy, //OP_WRITE
-                float *mesh_FacetNormals, int *isRightBoundary //OP_READ
-                /*,float *t*/
+void FacetsValuesFromCellValues(double *CellLeft, double *CellRight,
+                double *LeftFacetValues, //OP_WRITE
+                double *RightFacetValues, //OP_WRITE
+                double *InterfaceBathy, //OP_WRITE
+                double *mesh_FacetNormals, int *isRightBoundary //OP_READ
+                /*,double *t*/
 //EZ PARA, the FacetNormals are only required on boudnary edges.... redundant data movement - split???
  )
 {
@@ -19,13 +19,13 @@ void FacetsValuesFromCellValues(float *CellLeft, float *CellRight,
     RightFacetValues[3] = CellRight[3];
   } else {
     RightFacetValues[3] = CellLeft[3];
-    float nx = mesh_FacetNormals[0];
-    float ny = mesh_FacetNormals[1];
-    float inNormalVelocity = CellLeft[1] * nx + CellLeft[2] * ny;
-    float inTangentVelocity = CellLeft[1] * ny + CellLeft[2] * nx;
+    double nx = mesh_FacetNormals[0];
+    double ny = mesh_FacetNormals[1];
+    double inNormalVelocity = CellLeft[1] * nx + CellLeft[2] * ny;
+    double inTangentVelocity = CellLeft[1] * ny + CellLeft[2] * nx;
 
-    float outNormalVelocity;
-    float outTangentVelocity;
+    double outNormalVelocity;
+    double outTangentVelocity;
 
     //WALL
     RightFacetValues[0] = CellLeft[0];

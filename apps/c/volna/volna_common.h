@@ -15,28 +15,28 @@
 #define N_CELLSPEREDGE 2
 
 struct BoreParams {
-  float x0, Hl, ul, vl;
-  float S;
+  double x0, Hl, ul, vl;
+  double S;
 };
 
 //these are not const, we just don't want to pass them around
-extern float timestamp;
+extern double timestamp;
 extern int itercount;
 
 //constants
-extern float EPS, CFL, g;
+extern double EPS, CFL, g;
 
 struct GaussianLandslideParams {
-  float A, v, lx, ly, mesh_xmin;//TODO: mesh_xmin compute
+  double A, v, lx, ly, mesh_xmin;//TODO: mesh_xmin compute
 };
 
 struct TimerParams {
-  float start, end, step, localTime, t;
+  double start, end, step, localTime, t;
   unsigned int istart, iend, istep, localIter, iter;
 };
 
 struct EventParams {
-  float location_x, location_y;
+  double location_x, location_y;
   int post_update;
   std::string className;
   std::string formula;
@@ -45,7 +45,7 @@ struct EventParams {
 
 int timer_happens(TimerParams *p);
 void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *timers, std::vector<EventParams> *events);
-void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, float timeIncrement, int removeFinished, int initPrePost,
+void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, double timeIncrement, int removeFinished, int initPrePost,
                    op_set cells, op_dat values, op_dat cellVolumes, op_dat cellCenters, op_dat nodeCoords, op_map cellsToNodes, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params);
 
 void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEta, int fromFile);
@@ -60,7 +60,7 @@ void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values);
 void OutputSimulation( EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values);
 double normcomp(op_dat dat, int off);
 
-void spaceDiscretization(op_dat data_in, op_dat data_out, float *minTimestep,
+void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,
     op_dat bathySource, op_dat edgeFluxes, op_dat maxEdgeEigenvalues,
     op_dat edgeNormals, op_dat edgeLength, op_dat cellVolumes, op_dat isBoundary,

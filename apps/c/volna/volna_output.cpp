@@ -14,18 +14,18 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
   fprintf(fp,"ASCII \nDATASET UNSTRUCTURED_GRID\n\n");
 
   // write vertices
-  fprintf(fp,"POINTS %d float\n", nnode);
+  fprintf(fp,"POINTS %d double\n", nnode);
 
-  float* nodeCoords_data;
-  nodeCoords_data = (float*)nodeCoords->data;
+  double* nodeCoords_data;
+  nodeCoords_data = (double*)nodeCoords->data;
 
   int i = 0;
 //  for (i = 0; i < nodeCoords->size/nodeCoords->dim; ++i) {
   for (i = 0; i < nnode; ++i) {
-    fprintf(fp, "%f %f %f \n",
-        (float)nodeCoords_data[i*MESH_DIM  ],
-        (float)nodeCoords_data[i*MESH_DIM+1],
-        0.0f);
+    fprintf(fp, "%g %g %g \n",
+        (double)nodeCoords_data[i*MESH_DIM  ],
+        (double)nodeCoords_data[i*MESH_DIM+1],
+        0.0);
   }
   fprintf(fp, "\n");
 
@@ -48,33 +48,35 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
 //    os << VTK_TYPE<3,2>::value() << "\n";
   fprintf(fp, "\n");
 
-  float* values_data;
-  values_data = (float*) values->data;
+  double* values_data;
+  values_data = (double*) values->data;
 
   fprintf(fp, "CELL_DATA %d\n"
               "SCALARS Eta double 1\n"
               "LOOKUP_TABLE default\n",
               ncell);
+
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%f \n", values_data[i*N_STATEVAR] + values_data[N_STATEVAR+3]);
+    fprintf(fp, "%g \n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
+
   fprintf(fp, "\n");
 
   fprintf(fp, "SCALARS U double 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%f \n", values_data[i*N_STATEVAR+1]);
+    fprintf(fp, "%g \n", values_data[i*N_STATEVAR+1]);
   fprintf(fp, "\n");
 
   fprintf(fp, "SCALARS V double 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%f \n", values_data[i*N_STATEVAR+2]);
+    fprintf(fp, "%g \n", values_data[i*N_STATEVAR+2]);
   fprintf(fp, "\n");
 
   fprintf(fp, "SCALARS Bathymetry double 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%f \n", values_data[i*N_STATEVAR+3]);
+    fprintf(fp, "%g \n", values_data[i*N_STATEVAR+3]);
   fprintf(fp, "\n");
 
 
@@ -82,9 +84,9 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i ) {
     if(values_data[i*N_STATEVAR] < 1e-3)
-      fprintf(fp, "%f \n", 100.0f);
+      fprintf(fp, "%g \n", 100.0);
     else
-      fprintf(fp, "%f \n", values_data[i*N_STATEVAR] + values_data[N_STATEVAR+3]);
+      fprintf(fp, "%g \n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
   }
   fprintf(fp, "\n");
 
@@ -95,17 +97,17 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
 }
 
 void OutputTime(TimerParams *timer) {
-  op_printf("Iteration: %d, time: %f \n", (*timer).iter, (*timer).t);
+  op_printf("Iteration: %d, time: %lf \n", (*timer).iter, (*timer).t);
 }
 
 void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values) {
-  float totalVol = 0.0f;
+  double totalVol = 0.0;
   op_par_loop(getTotalVol, "getTotalVol", cells,
-      op_arg_dat(cellVolumes, -1, OP_ID, 1, "float", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "float", OP_READ),
-      op_arg_gbl(&totalVol, 1, "float", OP_INC));
+      op_arg_dat(cellVolumes, -1, OP_ID, 1, "double", OP_READ),
+      op_arg_dat(values, -1, OP_ID, 4, "double", OP_READ),
+      op_arg_gbl(&totalVol, 1, "double", OP_INC));
 
-  op_printf("mass(volume): %f \n", totalVol);
+  op_printf("mass(volume): %lf \n", totalVol);
 }
 
 void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
@@ -125,7 +127,7 @@ void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords,
 
 double normcomp(op_dat dat, int off) {
   int dim = dat->dim;
-  float *data = (float *)(dat->data);
+  double *data = (double *)(dat->data);
   double norm = 0.0;
   for (int i = 0; i < dat->set->size; i++) {
     norm += data[dim*i + off]*data[dim*i + off];

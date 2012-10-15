@@ -20,30 +20,30 @@ int timer_happens(TimerParams *p) {
 }
 
 void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *timers, std::vector<EventParams> *events) {
-  std::vector<float> timer_start(num_events);
-  std::vector<float> timer_end(num_events);
-  std::vector<float> timer_step(num_events);
+  std::vector<double> timer_start(num_events);
+  std::vector<double> timer_end(num_events);
+  std::vector<double> timer_step(num_events);
   std::vector<int> timer_istart(num_events);
   std::vector<int> timer_iend(num_events);
   std::vector<int> timer_istep(num_events);
 
-  std::vector<float> event_location_x(num_events);
-  std::vector<float> event_location_y(num_events);
+  std::vector<double> event_location_x(num_events);
+  std::vector<double> event_location_y(num_events);
   std::vector<int> event_post_update(num_events);
 //  std::vector<std::string> event_className(num_events);
 //  std::vector<std::string> event_formula(num_events);
 //  std::vector<std::string> event_streamName(num_events);
 
   const hsize_t num_events_hsize = num_events;
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_start", H5T_NATIVE_FLOAT, &timer_start[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_end", H5T_NATIVE_FLOAT, &timer_end[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "timer_step", H5T_NATIVE_FLOAT, &timer_step[0]));
+  check_hdf5_error(H5LTread_dataset(h5file, "timer_start", H5T_NATIVE_DOUBLE, &timer_start[0]));
+  check_hdf5_error(H5LTread_dataset(h5file, "timer_end", H5T_NATIVE_DOUBLE, &timer_end[0]));
+  check_hdf5_error(H5LTread_dataset(h5file, "timer_step", H5T_NATIVE_DOUBLE, &timer_step[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "timer_istart", H5T_NATIVE_INT, &timer_istart[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "timer_iend", H5T_NATIVE_INT, &timer_iend[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "timer_istep", H5T_NATIVE_INT, &timer_istep[0]));
 
-  check_hdf5_error(H5LTread_dataset(h5file, "event_location_x", H5T_NATIVE_FLOAT, &event_location_x[0]));
-  check_hdf5_error(H5LTread_dataset(h5file, "event_location_y", H5T_NATIVE_FLOAT, &event_location_y[0]));
+  check_hdf5_error(H5LTread_dataset(h5file, "event_location_x", H5T_NATIVE_DOUBLE, &event_location_x[0]));
+  check_hdf5_error(H5LTread_dataset(h5file, "event_location_y", H5T_NATIVE_DOUBLE, &event_location_y[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "event_post_update", H5T_NATIVE_INT, &event_post_update[0]));
 
   /*
@@ -98,9 +98,9 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
 
 }
 
-void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, float timeIncrement, int removeFinished, int initPrePost,
+void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, double timeIncrement, int removeFinished, int initPrePost,
     op_set cells, op_dat values, op_dat cellVolumes, op_dat cellCenters, op_dat nodeCoords, op_map cellsToNodes, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params) {
-  op_printf("processEvents()... \n");
+  //op_printf("processEvents()... \n");
   int size = (*timers).size();
   int i = 0;
   while (i < size){
@@ -133,7 +133,7 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
       (*timers)[i].localTime = 0;
     }
     if (updateTimers) {
-      op_printf("if(updatesTimers) => true \n");
+      //op_printf("if(updatesTimers) => true \n");
       //timer.update()
       (*timers)[i].t+= timeIncrement;
       (*timers)[i].iter += 1;
@@ -142,7 +142,7 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
     }
 
     if (removeFinished) {
-      op_printf("if(removeFinished) => true \n");
+      //op_printf("if(removeFinished) => true \n");
       //Remove finished events
       if (((*timers)[i].iter >= (*timers)[i].iend) || ((*timers)[i].t >= (*timers)[i].end)) {
         (*timers).erase((*timers).begin()+i);

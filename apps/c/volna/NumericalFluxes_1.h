@@ -1,59 +1,59 @@
-void NumericalFluxes_1(float *leftCellValues, //OP_READ
-           float *rightCellValues, //OP_READ
-           float *out, //OP_WRITE
-           float *FacetVolumes, //OP_READ,
-           float *Normals, //OP_READ,
-           float *maxFacetEigenvalues //OP_WRITE
+void NumericalFluxes_1(double *leftCellValues, //OP_READ
+           double *rightCellValues, //OP_READ
+           double *out, //OP_WRITE
+           double *FacetVolumes, //OP_READ,
+           double *Normals, //OP_READ,
+           double *maxFacetEigenvalues //OP_WRITE
 )
 {
-  float cL = sqrt(g * leftCellValues[0]);
-  cL = cL > 0.0f ? cL : 0.0f;
-  float cR = sqrt(g * rightCellValues[0]);
-  cR = cR > 0.0f ? cR : 0.0f;
+  double cL = sqrt(g * leftCellValues[0]);
+  cL = cL > 0.0 ? cL : 0.0;
+  double cR = sqrt(g * rightCellValues[0]);
+  cR = cR > 0.0 ? cR : 0.0;
 
-  float uLn = leftCellValues[1] * Normals[0] + leftCellValues[2] * Normals[1];
-  float uRn = rightCellValues[1] * Normals[0] + rightCellValues[2] * Normals[1];
+  double uLn = leftCellValues[1] * Normals[0] + leftCellValues[2] * Normals[1];
+  double uRn = rightCellValues[1] * Normals[0] + rightCellValues[2] * Normals[1];
 
-  float unStar = 0.5f * (uLn + uRn) - 0.25f* (cL+cR);
-  float cStar = 0.5f * (cL + cR) - 0.25f* (uLn-uRn);
+  double unStar = 0.5 * (uLn + uRn) - 0.25* (cL+cR);
+  double cStar = 0.5 * (cL + cR) - 0.25* (uLn-uRn);
 
-  float sL = (uLn - cL) < (unStar - cStar) ? (uLn - cL) : (unStar - cStar);
-  float sLMinus = sL < 0.0f ? sL : 0.0f;
+  double sL = (uLn - cL) < (unStar - cStar) ? (uLn - cL) : (unStar - cStar);
+  double sLMinus = sL < 0.0 ? sL : 0.0;
 
-  float sR = (uRn + cR) > (unStar + cStar) ? (uRn + cR) : (unStar + cStar);
-  float sRPlus = sR > 0.0f ? sR : 0.0f;
+  double sR = (uRn + cR) > (unStar + cStar) ? (uRn + cR) : (unStar + cStar);
+  double sRPlus = sR > 0.0 ? sR : 0.0;
 
-  sL = leftCellValues[0] < EPS ? uRn - 2.0f*cR : sL; // is this 2.0f or 2? (i.e. float/int)
+  sL = leftCellValues[0] < EPS ? uRn - 2.0*cR : sL; // is this 2.0 or 2? (i.e. double/int)
   sR = leftCellValues[0] < EPS ? uRn + cR : sR;
 
-  sR = rightCellValues[0] < EPS ? uLn + 2.0f*cL : sR; // is this 2.0f or 2? (i.e. float/int)
+  sR = rightCellValues[0] < EPS ? uLn + 2.0*cL : sR; // is this 2.0 or 2? (i.e. double/int)
   sL = rightCellValues[0] < EPS ? uLn - cL : sL;
 
-  float sRMinussL = sRPlus - sLMinus;
+  double sRMinussL = sRPlus - sLMinus;
   sRMinussL = sRMinussL < EPS ? EPS : sRMinussL;
 
-  float t1 = sRPlus / sRMinussL;
+  double t1 = sRPlus / sRMinussL;
   //assert( ( 0 <= t1 ) && ( t1 <= 1 ) );
 
-  float t2 = ( -1.0f * sLMinus ) / sRMinussL;
+  double t2 = ( -1.0 * sLMinus ) / sRMinussL;
   //assert( ( 0 <= t2 ) && ( t2 <= 1 ) );
 
-  float t3 = ( sRPlus * sLMinus ) / sRMinussL;
+  double t3 = ( sRPlus * sLMinus ) / sRMinussL;
 
-  float LeftFluxes_H, LeftFluxes_U, LeftFluxes_V;
+  double LeftFluxes_H, LeftFluxes_U, LeftFluxes_V;
   //inlined ProjectedPhysicalFluxes(leftCellValues, Normals, params, LeftFluxes);
-  float HuDotN = (leftCellValues[0] * leftCellValues[1] * Normals[0]) +
+  double HuDotN = (leftCellValues[0] * leftCellValues[1] * Normals[0]) +
           (leftCellValues[0] * leftCellValues[2] * Normals[1]);
 
   LeftFluxes_H = HuDotN;
   LeftFluxes_U = HuDotN * leftCellValues[1];
   LeftFluxes_V = HuDotN * leftCellValues[2];
 
-  LeftFluxes_U += (.5f * g * Normals[0] ) * ( leftCellValues[0] * leftCellValues[0] );
-  LeftFluxes_V += (.5f * g * Normals[1] ) * ( leftCellValues[0] * leftCellValues[0] );
+  LeftFluxes_U += (.5 * g * Normals[0] ) * ( leftCellValues[0] * leftCellValues[0] );
+  LeftFluxes_V += (.5 * g * Normals[1] ) * ( leftCellValues[0] * leftCellValues[0] );
   //end of inlined
 
-  float RightFluxes_H, RightFluxes_U, RightFluxes_V;
+  double RightFluxes_H, RightFluxes_U, RightFluxes_V;
   //inlined ProjectedPhysicalFluxes(rightCellValues, Normals, params, RightFluxes);
   HuDotN = (rightCellValues[0] * rightCellValues[1] * Normals[0]) +
           (rightCellValues[0] * rightCellValues[2] * Normals[1]);
@@ -62,8 +62,8 @@ void NumericalFluxes_1(float *leftCellValues, //OP_READ
   RightFluxes_U =   HuDotN * rightCellValues[1];
   RightFluxes_V =   HuDotN * rightCellValues[2];
 
-  RightFluxes_U += (.5f * g * Normals[0] ) * ( rightCellValues[0] * rightCellValues[0] );
-  RightFluxes_V += (.5f * g * Normals[1] ) * ( rightCellValues[0] * rightCellValues[0] );
+  RightFluxes_U += (.5 * g * Normals[0] ) * ( rightCellValues[0] * rightCellValues[0] );
+  RightFluxes_V += (.5 * g * Normals[1] ) * ( rightCellValues[0] * rightCellValues[0] );
   //end of inlined
 
 
@@ -87,9 +87,9 @@ void NumericalFluxes_1(float *leftCellValues, //OP_READ
   out[0] *= *FacetVolumes;
   out[1] *= *FacetVolumes;
   out[2] *= *FacetVolumes;
-  out[3] = 0.0f;
+  out[3] = 0.0;
 
-  float maximum = fabs(uLn + cL);
+  double maximum = fabs(uLn + cL);
   maximum = maximum > fabs(uLn - cL) ? maximum : fabs(uLn - cL);
   maximum = maximum > fabs(uRn + cR) ? maximum : fabs(uRn + cR);
   maximum = maximum > fabs(uRn - cR) ? maximum : fabs(uRn - cR);

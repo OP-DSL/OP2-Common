@@ -1,4 +1,4 @@
-void getTotalVol(float* cellVolume, float* value, float* totalVol) {
+void getTotalVol(double* cellVolume, double* value, double* totalVol) {
   (*totalVol) += (*cellVolume) * value[0];
 }
 

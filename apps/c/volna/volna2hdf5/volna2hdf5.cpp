@@ -41,7 +41,7 @@ void __check_hdf5_error(herr_t err, const char *file, const int line) {
   }
 }
 
-void read_event_data(const char *streamname, float** event_data, int ncell) {
+void read_event_data(const char *streamname, double** event_data, int ncell) {
   op_printf("File: %s \n", streamname);
   FILE* fp;
   fp = fopen(streamname, "r");
@@ -49,11 +49,11 @@ void read_event_data(const char *streamname, float** event_data, int ncell) {
     op_printf("can't open file %s\n",streamname);
     exit(-1);
   }
-  float a;
+  double a;
   for(int i=0; i<ncell; i++) {
     if(fscanf(fp, "%e \n", &a)) {
       (*event_data)[i] = a;
-  //    op_printf("a = %f \n",(*event_data)[i]);
+  //    op_printf("a = %lf \n",(*event_data)[i]);
     }
 //    if(fscanf(fp, "%e \n", (*event_data)[i])) {
 //      op_printf("Error reading file %s \n", streamname);
@@ -109,15 +109,15 @@ int main(int argc, char **argv) {
 
   int num_events = sim.events.size();
 
-  std::vector<float> timer_start(num_events);
-  std::vector<float> timer_end(num_events);
-  std::vector<float> timer_step(num_events);
+  std::vector<double> timer_start(num_events);
+  std::vector<double> timer_end(num_events);
+  std::vector<double> timer_step(num_events);
   std::vector<int> timer_istart(num_events);
   std::vector<int> timer_iend(num_events);
   std::vector<int> timer_istep(num_events);
 
-  std::vector<float> event_location_x(num_events);
-  std::vector<float> event_location_y(num_events);
+  std::vector<double> event_location_x(num_events);
+  std::vector<double> event_location_y(num_events);
   std::vector<int> event_post_update(num_events);
   std::vector < std::string > event_className(num_events);
   std::vector < std::string > event_formula(num_events);
@@ -155,19 +155,19 @@ int main(int argc, char **argv) {
   int *ecell = NULL; // Cell IDs of edge
   int *ccell = NULL; // Cell IDs of neighbouring cells
   int *cedge = NULL; // Edge IDs of cells
-  float *ccent = NULL; // Cell centre vectors
-  float *carea = NULL; // Cell area
-  float *enorm = NULL; // Edge normal vectors. Pointing from left cell to the right???
-  float *ecent = NULL; // Edge center vectors
-  float *eleng = NULL; // Edge length
+  double *ccent = NULL; // Cell centre vectors
+  double *carea = NULL; // Cell area
+  double *enorm = NULL; // Edge normal vectors. Pointing from left cell to the right???
+  double *ecent = NULL; // Edge center vectors
+  double *eleng = NULL; // Edge length
   int   *isBoundary = NULL;
-  float *initEta = NULL;
-  float *initBathymetry = NULL;
-  float *x = NULL; // Node coordinates in 2D
-  float *w = NULL; // Conservative variables
-  //float *wold = NULL; // Old conservative variables
-  //float *res = NULL; // Per edge residuals
-  //float *dt = NULL; // Time step
+  double *initEta = NULL;
+  double *initBathymetry = NULL;
+  double *x = NULL; // Node coordinates in 2D
+  double *w = NULL; // Conservative variables
+  //double *wold = NULL; // Old conservative variables
+  //double *res = NULL; // Per edge residuals
+  //double *dt = NULL; // Time step
 
   // Number of nodes, cells, edges and iterations
   int nnode = 0, ncell = 0, nedge = 0, niter = 0;
@@ -190,21 +190,21 @@ int main(int argc, char **argv) {
   ecell = (int*) malloc(N_CELLSPEREDGE * nedge * sizeof(int));
   ccell = (int*) malloc(N_NODESPERCELL * ncell * sizeof(int));
   cedge = (int*) malloc(N_NODESPERCELL * ncell * sizeof(int));
-  ccent = (float*) malloc(MESH_DIM * ncell * sizeof(float));
-  carea = (float*) malloc(ncell * sizeof(float));
-  enorm = (float*) malloc(MESH_DIM * nedge * sizeof(float));
-  ecent = (float*) malloc(MESH_DIM * nedge * sizeof(float));
-  eleng = (float*) malloc(nedge * sizeof(float));
+  ccent = (double*) malloc(MESH_DIM * ncell * sizeof(double));
+  carea = (double*) malloc(ncell * sizeof(double));
+  enorm = (double*) malloc(MESH_DIM * nedge * sizeof(double));
+  ecent = (double*) malloc(MESH_DIM * nedge * sizeof(double));
+  eleng = (double*) malloc(nedge * sizeof(double));
   isBoundary = (int*) malloc(nedge * sizeof(int));
-  initEta = (float*) malloc(ncell * sizeof(float));
-  initBathymetry = (float*) malloc(ncell * sizeof(float));
-  x = (float*) malloc(MESH_DIM * nnode * sizeof(float));
-  w = (float*) malloc(N_STATEVAR * ncell * sizeof(float));
-  //wold = (float*) malloc(N_STATEVAR * ncell * sizeof(float));
-  //res = (float*) malloc(N_STATEVAR * nedge * sizeof(float));
+  initEta = (double*) malloc(ncell * sizeof(double));
+  initBathymetry = (double*) malloc(ncell * sizeof(double));
+  x = (double*) malloc(MESH_DIM * nnode * sizeof(double));
+  w = (double*) malloc(N_STATEVAR * ncell * sizeof(double));
+  //wold = (double*) malloc(N_STATEVAR * ncell * sizeof(double));
+  //res = (double*) malloc(N_STATEVAR * nedge * sizeof(double));
 
-  float *event_data;
-  event_data = (float*) malloc(ncell*sizeof(float));
+  double *event_data;
+  event_data = (double*) malloc(ncell*sizeof(double));
 
 
   //
@@ -362,23 +362,23 @@ int main(int argc, char **argv) {
   //
   // Define OP2 datasets
   //
-  op_dat p_ccent = op_decl_dat(cells, MESH_DIM, "float", ccent,
+  op_dat p_ccent = op_decl_dat(cells, MESH_DIM, "double", ccent,
       "cellCenters");
-  op_dat p_carea = op_decl_dat(cells, 1, "float", carea, "cellVolumes");
-  op_dat p_enorm = op_decl_dat(edges, MESH_DIM, "float", enorm,
+  op_dat p_carea = op_decl_dat(cells, 1, "double", carea, "cellVolumes");
+  op_dat p_enorm = op_decl_dat(edges, MESH_DIM, "double", enorm,
       "edgeNormals");
-  op_dat p_ecent = op_decl_dat(edges, MESH_DIM, "float", ecent,
+  op_dat p_ecent = op_decl_dat(edges, MESH_DIM, "double", ecent,
       "edgeCenters");
-  op_dat p_eleng = op_decl_dat(edges, 1, "float", eleng, "edgeLength");
-  op_dat p_x = op_decl_dat(nodes, MESH_DIM, "float", x, "nodeCoords");
-  op_dat p_w = op_decl_dat(cells, N_STATEVAR, "float", w, "values");
+  op_dat p_eleng = op_decl_dat(edges, 1, "double", eleng, "edgeLength");
+  op_dat p_x = op_decl_dat(nodes, MESH_DIM, "double", x, "nodeCoords");
+  op_dat p_w = op_decl_dat(cells, N_STATEVAR, "double", w, "values");
   op_dat p_isBoundary = op_decl_dat(edges, 1, "int", isBoundary, "isBoundary");
-  op_dat p_initEta = op_decl_dat(cells, 1, "float", initEta, "initEta");
-  op_dat p_initBathymetry = op_decl_dat(cells, 1, "float", initBathymetry, "initBathymetry");
+  op_dat p_initEta = op_decl_dat(cells, 1, "double", initEta, "initEta");
+  op_dat p_initBathymetry = op_decl_dat(cells, 1, "double", initBathymetry, "initBathymetry");
 
-  //  op_dat p_wold = op_decl_dat(cells, N_STATEVAR, "float", wold,
+  //  op_dat p_wold = op_decl_dat(cells, N_STATEVAR, "double", wold,
   //      "p_wold");
-  //  op_dat p_res = op_decl_dat(cells, N_STATEVAR, "float", res,
+  //  op_dat p_res = op_decl_dat(cells, N_STATEVAR, "double", res,
   //      "p_res");
 
   //
@@ -398,18 +398,18 @@ int main(int argc, char **argv) {
   //
   // Read constants and write to HDF5
   //
-  float cfl = sim.CFL; // CFL condition
-  op_write_const_hdf5("CFL", 1, "float", (char *) &cfl, filename_h5);
+  double cfl = sim.CFL; // CFL condition
+  op_write_const_hdf5("CFL", 1, "double", (char *) &cfl, filename_h5);
   // Final time: as defined by Volna the end of real-time simulation
-  float ftime = sim.FinalTime;
-  op_write_const_hdf5("ftime", 1, "float", (char *) &ftime,
+  double ftime = sim.FinalTime;
+  op_write_const_hdf5("ftime", 1, "double", (char *) &ftime,
       filename_h5);
-  float dtmax = sim.Dtmax; // Maximum timestep
-  op_printf("dtmax = %f <====================== \n", dtmax);
-  op_write_const_hdf5("dtmax", 1, "float", (char *) &dtmax,
+  double dtmax = sim.Dtmax; // Maximum timestep
+  op_printf("dtmax = %lf <====================== \n", dtmax);
+  op_write_const_hdf5("dtmax", 1, "double", (char *) &dtmax,
       filename_h5);
-  float g = 9.81; // Gravity constant
-  op_write_const_hdf5("g", 1, "float", (char *) &g, filename_h5);
+  double g = 9.81; // Gravity constant
+  op_write_const_hdf5("g", 1, "double", (char *) &g, filename_h5);
 
   //WRITING VALUES MANUALLY
   hid_t h5file;
@@ -420,23 +420,23 @@ int main(int argc, char **argv) {
   const hsize_t dims = 1;
 
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "BoreParamsx0", 1, &dims, (float*)&sim.bore_params.x0));
+      H5LTmake_dataset_double(h5file, "BoreParamsx0", 1, &dims, (double*)&sim.bore_params.x0));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "BoreParamsHl", 1, &dims, (float*)&sim.bore_params.Hl));
+      H5LTmake_dataset_double(h5file, "BoreParamsHl", 1, &dims, (double*)&sim.bore_params.Hl));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "BoreParamsul", 1, &dims, (float*)&sim.bore_params.ul));
+      H5LTmake_dataset_double(h5file, "BoreParamsul", 1, &dims, (double*)&sim.bore_params.ul));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "BoreParamsvl", 1, &dims, (float*)&sim.bore_params.vl));
+      H5LTmake_dataset_double(h5file, "BoreParamsvl", 1, &dims, (double*)&sim.bore_params.vl));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "BoreParamsS", 1, &dims, (float*)&sim.bore_params.S));
+      H5LTmake_dataset_double(h5file, "BoreParamsS", 1, &dims, (double*)&sim.bore_params.S));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "GaussianLandslideParamsA", 1, &dims, (float*)&sim.gaussian_landslide_params.A));
+      H5LTmake_dataset_double(h5file, "GaussianLandslideParamsA", 1, &dims, (double*)&sim.gaussian_landslide_params.A));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "GaussianLandslideParamsv", 1, &dims, (float*)&sim.gaussian_landslide_params.v));
+      H5LTmake_dataset_double(h5file, "GaussianLandslideParamsv", 1, &dims, (double*)&sim.gaussian_landslide_params.v));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "GaussianLandslideParamslx", 1, &dims, (float*)&sim.gaussian_landslide_params.lx));
+      H5LTmake_dataset_double(h5file, "GaussianLandslideParamslx", 1, &dims, (double*)&sim.gaussian_landslide_params.lx));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "GaussianLandslideParamsly", 1, &dims, (float*)&sim.gaussian_landslide_params.ly));
+      H5LTmake_dataset_double(h5file, "GaussianLandslideParamsly", 1, &dims, (double*)&sim.gaussian_landslide_params.ly));
 
 
   /*
@@ -448,11 +448,11 @@ int main(int argc, char **argv) {
   // Timer data (contained in every Event struct)
   const hsize_t num_events_hsize = num_events;
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_start", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_start[0]));
+      H5LTmake_dataset(h5file, "timer_start", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_start[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_end", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_end[0]));
+      H5LTmake_dataset(h5file, "timer_end", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_end[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_step", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_step[0]));
+      H5LTmake_dataset(h5file, "timer_step", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_step[0]));
   check_hdf5_error(
       H5LTmake_dataset(h5file, "timer_istart", 1, &num_events_hsize, H5T_NATIVE_INT, &timer_istart[0]));
   check_hdf5_error(
@@ -461,9 +461,9 @@ int main(int argc, char **argv) {
       H5LTmake_dataset(h5file, "timer_istep", 1, &num_events_hsize, H5T_NATIVE_INT, &timer_istep[0]));
 
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "event_location_x", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &event_location_x[0]));
+      H5LTmake_dataset(h5file, "event_location_x", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &event_location_x[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "event_location_y", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &event_location_y[0]));
+      H5LTmake_dataset(h5file, "event_location_y", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &event_location_y[0]));
   check_hdf5_error(
       H5LTmake_dataset(h5file, "event_post_update", 1, &num_events_hsize, H5T_NATIVE_INT, &event_post_update[0]));
 
