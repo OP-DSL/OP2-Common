@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
           leftCellValues, rightCellValues, interfaceBathy,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
-          cells, edges, edgesToCells, cellsToEdges);
+          cells, edges, edgesToCells, cellsToEdges, 0);
       
       printf("Return of SpaceDiscretization #1 midPointConservative H %g U %g V %g Zb %g\n", normcomp(midPointConservative, 0), normcomp(midPointConservative, 1),normcomp(midPointConservative, 2),normcomp(midPointConservative, 3));
 
@@ -224,13 +224,7 @@ int main(int argc, char **argv) {
           leftCellValues, rightCellValues, interfaceBathy,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
-          cells, edges, edgesToCells, cellsToEdges);
-
-//      dumpme(outConservative,0);
-//      dumpme(outConservative,1);
-//      dumpme(outConservative,2);
-//      dumpme(outConservative,3);
-//      exit(-1);
+          cells, edges, edgesToCells, cellsToEdges, 1);
       
       op_par_loop(EvolveValuesRK2_2, "EvolveValuesRK2_2", cells,
           op_arg_gbl(&dT,1,"double", OP_READ),
@@ -245,6 +239,7 @@ int main(int argc, char **argv) {
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "double", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "double", OP_READ));
+
     
     printf("New cell values %g %g %g %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     timestep = timestep < dtmax ? timestep : dtmax;

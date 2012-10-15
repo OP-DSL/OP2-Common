@@ -65,7 +65,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,
     op_dat bathySource, op_dat edgeFluxes, op_dat maxEdgeEigenvalues,
     op_dat edgeNormals, op_dat edgeLength, op_dat cellVolumes, op_dat isBoundary,
-    op_set cells, op_set edges, op_map edgesToCells, op_map cellsToEdges);
+    op_set cells, op_set edges, op_map edgesToCells, op_map cellsToEdges, int most);
 
 //
 //helper functions

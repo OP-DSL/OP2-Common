@@ -22,10 +22,10 @@ void FacetsValuesFromCellValues(double *CellLeft, double *CellRight,
     double nx = mesh_FacetNormals[0];
     double ny = mesh_FacetNormals[1];
     double inNormalVelocity = CellLeft[1] * nx + CellLeft[2] * ny;
-    double inTangentVelocity = CellLeft[1] * ny + CellLeft[2] * nx;
+    double inTangentVelocity = -1.0 *  CellLeft[1] * ny + CellLeft[2] * nx;
 
-    double outNormalVelocity;
-    double outTangentVelocity;
+    double outNormalVelocity = 0.0;
+    double outTangentVelocity = 0.0;
 
     //WALL
     RightFacetValues[0] = CellLeft[0];
@@ -59,7 +59,7 @@ void FacetsValuesFromCellValues(double *CellLeft, double *CellRight,
     */
 
     RightFacetValues[1] = outNormalVelocity * nx - outTangentVelocity * ny;
-    RightFacetValues[2] = outNormalVelocity * ny - outTangentVelocity * nx;
+    RightFacetValues[2] = outNormalVelocity * ny + outTangentVelocity * nx;
   }
 
   *InterfaceBathy = LeftFacetValues[3] > RightFacetValues[3] ? LeftFacetValues[3] : RightFacetValues[3];

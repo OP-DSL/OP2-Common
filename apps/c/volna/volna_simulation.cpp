@@ -10,7 +10,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,
     op_dat bathySource, op_dat edgeFluxes, op_dat maxEdgeEigenvalues,
     op_dat edgeNormals, op_dat edgeLength, op_dat cellVolumes, op_dat isBoundary,
-    op_set cells, op_set edges, op_map edgesToCells, op_map cellsToEdges) {
+    op_set cells, op_set edges, op_map edgesToCells, op_map cellsToEdges, int most) {
   //    void SpaceDiscretization( const Values &in, Values &out, const Mesh
   //            &mesh, const PhysicalParams &params,
   //            RealType &minTimeStep, const RealType &t )
@@ -38,6 +38,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
           op_arg_dat(edgeNormals, -1, OP_ID, 2, "double", OP_READ),
           op_arg_dat(isBoundary, -1, OP_ID, 1, "int", OP_READ));
     } //end FacetsValuesFromCellValues
+
     printf("FacetsValuesFromCellValues Left H %g U %g V %g Zb %g InterfaceBathy %g\n", normcomp(leftCellValues,0), normcomp(leftCellValues, 1),normcomp(leftCellValues, 2),normcomp(leftCellValues, 3),normcomp(interfaceBathy,0));
     //decl bathySource
     //memset(bathySource->data, 0, bathySource->set->size * bathySource->size);
@@ -47,6 +48,7 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
         op_arg_dat(interfaceBathy, -1, OP_ID, 1, "double", OP_READ),
         op_arg_dat(edgeLength, -1, OP_ID, 1, "double", OP_READ),
         op_arg_dat(bathySource, -1, OP_ID, 2, "double", OP_WRITE));
+
     
     //decl edgeFluxes
     //memset(edgeFluxes->data, 0, edgeFluxes->set->size * edgeFluxes->size);
@@ -75,7 +77,6 @@ void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
           op_arg_dat(data_out, -1, OP_ID, 4, "double", OP_WRITE),
           op_arg_gbl(minTimestep,1,"double", OP_MIN));
     } //end NumericalFluxes
-    
     op_par_loop(SpaceDiscretization_2, "SpaceDiscretization_2", edges,
         op_arg_dat(data_out, 0, edgesToCells, 4, "double", OP_INC), //again, Zb is not needed
         op_arg_dat(data_out, 1, edgesToCells, 4, "double", OP_INC),
