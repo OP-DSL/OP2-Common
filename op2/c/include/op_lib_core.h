@@ -155,6 +155,7 @@ typedef struct
   char const *name;     /* name of kernel function */
   int         count;    /* number of times called */
   float       time;     /* total execution time */
+  float       plan_time;/* time spent in op_plan_get */
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
 } op_kernel;
