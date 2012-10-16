@@ -556,20 +556,21 @@ void op_timing_output_core()
 {
   if ( OP_kern_max > 0 )
   {
-    printf ( "\n  count     time     GB/s     GB/s   kernel name " );
+    printf ( "\n  count   plan time   time     GB/s     GB/s   kernel name " );
     printf ( "\n ----------------------------------------------- \n" );
     for ( int n = 0; n < OP_kern_max; n++ )
     {
       if ( OP_kernels[n].count > 0 )
       {
         if ( OP_kernels[n].transfer2 < 1e-8f )
-          printf ( " %6d  %8.4f %8.4f            %s \n",
+          printf ( " %6d            %8.4f %8.4f            %s \n",
                    OP_kernels[n].count,
                    OP_kernels[n].time,
                    OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
         else
-          printf ( " %6d  %8.4f %8.4f %8.4f   %s \n",
+          printf ( " %6d  %8.4f  %8.4f %8.4f %8.4f   %s \n",
                    OP_kernels[n].count,
+                   OP_kernels[n].plan_time,
                    OP_kernels[n].time,
                    OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ),
                    OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
@@ -652,6 +653,7 @@ op_timing_realloc ( int kernel )
     {
       OP_kernels[n].count = 0;
       OP_kernels[n].time = 0.0f;
+      OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
       OP_kernels[n].name = "unused";
