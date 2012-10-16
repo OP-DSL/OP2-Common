@@ -14,6 +14,11 @@
 #define N_NODESPERCELL 3
 #define N_CELLSPEREDGE 2
 
+struct RectangleDomainParams {
+  int nx, ny;
+  double xmin, xmax, ymin, ymax;
+};
+
 struct BoreParams {
   double x0, Hl, ul, vl;
   double S;

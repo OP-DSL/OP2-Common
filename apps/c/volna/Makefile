@@ -20,7 +20,7 @@ OP2_LIB = -L$(OP2_INSTALL_PATH)/c/lib
 #VOLNA_SRC = $(VOLNA_INSTALL_PATH)/src
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_fortran -lhdf5 -lhdf5_hl -lz
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_hl -lhdf5 -lz
 
 MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
@@ -64,7 +64,7 @@ all: clean volna
 
 volna: volna.cpp Makefile 
 	#$(CPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) $(VOLNA_INC) $(OP2_INC) $(MPI_INC) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
-	$(CPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(MPI_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
+	$(MPICPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
 
 #
 # cleanup

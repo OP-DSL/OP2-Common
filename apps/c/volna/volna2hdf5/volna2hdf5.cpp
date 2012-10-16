@@ -438,6 +438,24 @@ int main(int argc, char **argv) {
   check_hdf5_error(
       H5LTmake_dataset_double(h5file, "GaussianLandslideParamsly", 1, &dims, (double*)&sim.gaussian_landslide_params.ly));
 
+  /*
+   * Rectangle mesh geometry and step data (originally defined in the
+   * *.vln config file)
+   */
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "nx", 1, &dims, (double*)&sim.mesh.nx));
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "ny", 1, &dims, (double*)&sim.mesh.ny));
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "xmin", 1, &dims, (double*)&sim.mesh.xmin));
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "xmax", 1, &dims, (double*)&sim.mesh.xmax));
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "ymin", 1, &dims, (double*)&sim.mesh.ymin));
+  check_hdf5_error(
+      H5LTmake_dataset_double(h5file, "ymax", 1, &dims, (double*)&sim.mesh.ymax));
+
+
 
   /*
    * Put event (and init) data to HDF5

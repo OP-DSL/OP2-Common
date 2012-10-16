@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
   EPS = 1e-6; //for doubles 1e-11
   GaussianLandslideParams gaussian_landslide_params;
   BoreParams bore_params;
+  RectangleDomainParams rect_params;
   hid_t file;
   //herr_t status;
   const char *filename_h5 = argv[1]; // = "stlaurent_35k.h5";
@@ -40,6 +41,12 @@ int main(int argc, char **argv) {
   check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamsv", &gaussian_landslide_params.v));
   check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamslx", &gaussian_landslide_params.lx));
   check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamsly", &gaussian_landslide_params.ly));
+  check_hdf5_error(H5LTread_dataset_int(file, "nx", &rect_params.nx));
+  check_hdf5_error(H5LTread_dataset_int(file, "ny", &rect_params.ny));
+  check_hdf5_error(H5LTread_dataset_double(file, "xmin", &rect_params.xmin));
+  check_hdf5_error(H5LTread_dataset_double(file, "xmax", &rect_params.xmax));
+  check_hdf5_error(H5LTread_dataset_double(file, "ymin", &rect_params.ymin));
+  check_hdf5_error(H5LTread_dataset_double(file, "ymax", &rect_params.ymax));
 
   int num_events = 0;
 
