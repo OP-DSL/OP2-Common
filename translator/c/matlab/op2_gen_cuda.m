@@ -1018,12 +1018,12 @@ for nc = 1:length(consts)
   end
   file = strvcat(file,...
     ['  cutilSafeCall(cudaMemcpyToSymbol(' consts{nc}.name ' , dat, dim*sizeof(' consts{nc}.type ')));'],...
-    '} ',' ');
+    '} ');
 
 end
 
 file = strvcat(file,...
-      '// user kernel files',' ');
+      ' ','// user kernel files',' ');
 % end
 %
 % file = strvcat(file,' ',...

@@ -767,10 +767,7 @@ end
 
 for nc = 1:length(consts)
   file = strvcat(file,' ',...
-    ['void op_decl_const_' consts{nc}.name '(int dim,'],...
-    ['            char const *type, ' consts{nc}.type ' *dat){']);
-  file = strvcat(file,...
-    '} ',' ');
+    ['void op_decl_const_' consts{nc}.name '(int dim, char const *type, ' consts{nc}.type ' *dat){};']);
 end
 
 if (any_soa)
