@@ -1,16 +1,9 @@
 #include "volna_common.h"
 #include "getTotalVol.h"
-
+#include "getMaxElevation.h"
 #include "op_seq.h"
 
-inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
-  FILE* fp;
-  fp = fopen(filename, "w");
-  if(fp == NULL) {
-    op_printf("can't open file for write %s\n",filename);
-    exit(-1);
-  }
-
+inline void WriteMeshToVTKAscii(FILE* fp, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
   // write header
   fprintf(fp,"# vtk DataFile Version 2.0\n Output from OP2 Volna.\n");
   fprintf(fp,"ASCII \nDATASET UNSTRUCTURED_GRID\n\n");
@@ -47,8 +40,122 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
 
   for ( i=0; i<ncell; ++i )
     fprintf(fp, "5 \n");
-//    os << VTK_TYPE<3,2>::value() << "\n";
+
   fprintf(fp, "\n");
+}
+
+void OutputTime(TimerParams *timer) {
+  op_printf("Iteration: %d, time: %lf \n", (*timer).iter, (*timer).t);
+}
+
+void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values) {
+  double totalVol = 0.0;
+  op_par_loop(getTotalVol, "getTotalVol", cells,
+      op_arg_dat(cellVolumes, -1, OP_ID, 1, "double", OP_READ),
+      op_arg_dat(values, -1, OP_ID, 4, "double", OP_READ),
+      op_arg_gbl(&totalVol, 1, "double", OP_INC));
+
+  op_printf("mass(volume): %lf \n", totalVol);
+}
+
+void OutputMaxElevation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values, op_set cells) {
+// Warning: The function only finds the maximum of every
+// "timer.istep"-th step. Therefore intermediate maximums might be neglected.
+
+  // first time the event is executed
+  double *temp = NULL;
+  if (timer->iter == timer->istart)
+    currentMaxElevation = op_decl_dat_temp(cells, 1, "double",
+                                            temp,
+                                            "maxElevation");
+  // Get the max elevation
+  op_par_loop(getMaxElevation, "getMaxElevation", cells,
+              op_arg_dat(values, -1, OP_ID, 4, "double", OP_READ),
+              op_arg_dat(currentMaxElevation, -1, OP_ID, 1, "double", OP_RW));
+
+
+  char filename[255];
+  strcpy(filename, event->streamName.c_str());
+  op_printf("Write output to file: %s \n", filename);
+  int nnode = nodeCoords->set->size;
+  int ncell = cellsToNodes->from->size;
+  const char* substituteIndexPattern = "%i";
+  char* pos;
+  pos = strstr(filename, substituteIndexPattern);
+  char substituteIndex[255];
+  sprintf(substituteIndex, "%04d.vtk", timer->iter);
+  strcpy(pos, substituteIndex);
+
+  FILE* fp;
+  fp = fopen(filename, "w");
+  if(fp == NULL) {
+    op_printf("can't open file for write %s\n",filename);
+    exit(-1);
+  }
+
+  // Write Mesh points and cells to VTK file
+  WriteMeshToVTKAscii(fp, nodeCoords, nnode, cellsToNodes, ncell, values);
+
+  double *data;
+  data = (double*) currentMaxElevation->data;
+
+  fprintf(fp, "CELL_DATA %d\n"
+      "SCALARS Maximum_elevation double 1\n"
+      "LOOKUP_TABLE default\n",
+      ncell);
+
+  int i=0;
+  for ( i=0; i<ncell; ++i )
+    fprintf(fp, "%g\n", data[i]);
+  fprintf(fp, "\n");
+
+  if(fclose(fp) != 0) {
+    op_printf("can't close file %s\n",filename);
+    exit(-1);
+  }
+}
+
+//// TODO -- erase the gage file at the beginning of the simulation
+//void OutputLocation::execute( Mesh &mesh, Values &V ) {
+//
+//  // erase the file if it already exists, first time the event
+//  // happens
+//  if ( (timer.istart == 0 || timer.start == 0) && timer.iter == 0 ) {
+//    std::ofstream stream( streamName.c_str());
+//    stream.close();
+//  }
+//
+//
+//  const Point point( x, y, 0. );
+//  int id = mesh.TriangleIndex( point );
+//  std::ofstream stream( streamName.c_str(), std::ofstream::app );
+//  stream << timer.t << " "
+//   << V.H(id) + V.Zb( id ) << "\n";
+//  stream.close();
+//}
+
+void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
+  char filename[255];
+  strcpy(filename, event->streamName.c_str());
+  op_printf("Write output to file: %s \n", filename);
+  int nnode = nodeCoords->set->size;
+  int ncell = cellsToNodes->from->size;
+  const char* substituteIndexPattern = "%i";
+  char* pos;
+  pos = strstr(filename, substituteIndexPattern);
+  char substituteIndex[255];
+  sprintf(substituteIndex, "%04d.vtk", timer->iter);
+  strcpy(pos, substituteIndex);
+
+  FILE* fp;
+  fp = fopen(filename, "w");
+  if(fp == NULL) {
+    op_printf("can't open file for write %s\n",filename);
+    exit(-1);
+  }
+
+  // Write Mesh points and cells to VTK file
+  WriteMeshToVTKAscii(fp, nodeCoords, nnode, cellsToNodes, ncell, values);
 
   double* values_data;
   values_data = (double*) values->data;
@@ -58,6 +165,7 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
               "LOOKUP_TABLE default\n",
               ncell);
 
+  int i=0;
   for ( i=0; i<ncell; ++i )
     fprintf(fp, "%g \n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
 
@@ -96,35 +204,6 @@ inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op
     op_printf("can't close file %s\n",filename);
     exit(-1);
   }
-}
-
-void OutputTime(TimerParams *timer) {
-  op_printf("Iteration: %d, time: %lf \n", (*timer).iter, (*timer).t);
-}
-
-void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values) {
-  double totalVol = 0.0;
-  op_par_loop(getTotalVol, "getTotalVol", cells,
-      op_arg_dat(cellVolumes, -1, OP_ID, 1, "double", OP_READ),
-      op_arg_dat(values, -1, OP_ID, 4, "double", OP_READ),
-      op_arg_gbl(&totalVol, 1, "double", OP_INC));
-
-  op_printf("mass(volume): %lf \n", totalVol);
-}
-
-void OutputSimulation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
-  char filename[255];
-  strcpy(filename, event->streamName.c_str());
-  op_printf("Write output to file: %s \n", filename);
-  int nnode = nodeCoords->set->size;
-  int ncell = cellsToNodes->from->size;
-  const char* substituteIndexPattern = "%i";
-  char* pos;
-  pos = strstr(filename, substituteIndexPattern);
-  char substituteIndex[255];
-  sprintf(substituteIndex, "%04d.vtk", timer->iter);
-  strcpy(pos, substituteIndex);
-  WriteVTKAscii(filename, nodeCoords, nnode, cellsToNodes, ncell, values);
 }
 
 double normcomp(op_dat dat, int off) {

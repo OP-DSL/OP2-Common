@@ -25,6 +25,7 @@ extern int itercount;
 
 //constants
 extern double EPS, CFL, g;
+extern op_dat currentMaxElevation;
 
 struct GaussianLandslideParams {
   double A, v, lx, ly, mesh_xmin;//TODO: mesh_xmin compute
@@ -58,6 +59,7 @@ void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, Gaus
 void OutputTime(TimerParams *timer);
 void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values);
 void OutputSimulation( EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values);
+void OutputMaxElevation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values, op_set cells);
 double normcomp(op_dat dat, int off);
 void dumpme(op_dat dat, int off);
 

@@ -9,9 +9,11 @@
 double timestamp = 0.0;
 int itercount = 0;
 
-//constants
+// Constants
 double CFL, g, EPS;
 
+// Store maximum elevation in global variable, for the sake of max search
+op_dat currentMaxElevation;
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -118,6 +120,7 @@ int main(int argc, char **argv) {
   op_dat isBoundary = op_decl_dat_hdf5(edges, 1, "int",
                                     filename_h5,
                                     "isBoundary");
+
 
   /*
    * Read constants from HDF5
