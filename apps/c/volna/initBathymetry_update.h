@@ -1,4 +1,4 @@
-void initBathymetry_update(double *values, int *firstTime) {
+void initBathymetry_update(double *values, const int *firstTime) {
   if (*firstTime)
     values[0] -= values[3];
 

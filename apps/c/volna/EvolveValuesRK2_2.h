@@ -1,4 +1,4 @@
-void EvolveValuesRK2_2(double *dT, double *outConservative, //OP_RW, discard
+void EvolveValuesRK2_2(const double *dT, double *outConservative, //OP_RW, discard
             double *inConservative, //OP_READ, discard
             double *midPointConservative, //OP_READ, discard
             double *out) //OP_WRITE

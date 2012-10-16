@@ -6,6 +6,8 @@
 #include "SpaceDiscretization_2.h"
 #include "SpaceDiscretization_3.h"
 
+#include "op_seq.h"
+
 void spaceDiscretization(op_dat data_in, op_dat data_out, double *minTimestep,
     op_dat leftCellValues, op_dat rightCellValues, op_dat interfaceBathy,
     op_dat bathySource, op_dat edgeFluxes, op_dat maxEdgeEigenvalues,

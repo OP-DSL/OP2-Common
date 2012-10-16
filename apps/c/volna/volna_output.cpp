@@ -1,6 +1,8 @@
 #include "volna_common.h"
 #include "getTotalVol.h"
 
+#include "op_seq.h"
+
 inline void WriteVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
   FILE* fp;
   fp = fopen(filename, "w");

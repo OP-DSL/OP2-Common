@@ -2,6 +2,9 @@
 #include "EvolveValuesRK2_1.h"
 #include "EvolveValuesRK2_2.h"
 #include "simulation_1.h"
+
+#include "op_seq.h"
+
 //these are not const, we just don't want to pass them around
 double timestamp = 0.0;
 int itercount = 0;
