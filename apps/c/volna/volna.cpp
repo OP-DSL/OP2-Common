@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
   GaussianLandslideParams gaussian_landslide_params;
   BoreParams bore_params;
   hid_t file;
-  herr_t status;
+  //herr_t status;
   const char *filename_h5 = argv[1]; // = "stlaurent_35k.h5";
   file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -77,9 +77,9 @@ int main(int argc, char **argv) {
   op_map edgesToCells = op_decl_map_hdf5(edges, cells, N_CELLSPEREDGE,
                                   filename_h5,
                                   "edgesToCells");
-  op_map cellsToCells = op_decl_map_hdf5(cells, cells, N_NODESPERCELL,
-                                  filename_h5,
-                                  "cellsToCells");
+  //op_map cellsToCells = op_decl_map_hdf5(cells, cells, N_NODESPERCELL,
+  //                                filename_h5,
+  //                                "cellsToCells");
   op_map cellsToEdges = op_decl_map_hdf5(cells, edges, N_NODESPERCELL,
                                   filename_h5,
                                   "cellsToEdges");
@@ -99,9 +99,9 @@ int main(int argc, char **argv) {
                                     filename_h5,
                                     "edgeNormals");
 
-  op_dat edgeCenters = op_decl_dat_hdf5(edges, MESH_DIM, "double",
-                                    filename_h5,
-                                    "edgeCenters");
+//  op_dat edgeCenters = op_decl_dat_hdf5(edges, MESH_DIM, "double",
+//                                    filename_h5,
+//                                    "edgeCenters");
 
   op_dat edgeLength = op_decl_dat_hdf5(edges, 1, "double",
                                     filename_h5,
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
   op_dat temp_initBathymetry = NULL;
 
   //Very first Init loop
-  for (int i = 0; i < events.size(); i++) {
+  for (unsigned int i = 0; i < events.size(); i++) {
       if (!strcmp(events[i].className.c_str(), "InitEta")) {
         if (strcmp(events[i].streamName.c_str(), ""))
           temp_initEta = op_decl_dat_hdf5(cells, 1, "double",
@@ -192,7 +192,9 @@ int main(int argc, char **argv) {
     processEvents(&timers, &events, 0, 0, 0.0, 0, 0,
                        cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
     //memset(values_new->data, 0, values_new->set->size * values_new->size);
+#ifdef DEBUG
     printf("Call to EvolveValuesRK2 CellValues H %g U %g V %g Zb %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
+#endif
     //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
     //  void EvolveValuesRK2( const Values &in, Values &out, const Mesh &m,
     //            const RealType &CFL, const PhysicalParams &params,
@@ -207,9 +209,9 @@ int main(int argc, char **argv) {
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges, 0);
-      
+#ifdef DEBUG
       printf("Return of SpaceDiscretization #1 midPointConservative H %g U %g V %g Zb %g\n", normcomp(midPointConservative, 0), normcomp(midPointConservative, 1),normcomp(midPointConservative, 2),normcomp(midPointConservative, 3));
-
+#endif
       double dT = CFL * minTimestep;
 
       op_par_loop(EvolveValuesRK2_1, "EvolveValuesRK2_2", cells,
@@ -242,10 +244,19 @@ int main(int argc, char **argv) {
     op_par_loop(simulation_1, "simulation_1", cells,
         op_arg_dat(values, -1, OP_ID, 4, "double", OP_WRITE),
         op_arg_dat(values_new, -1, OP_ID, 4, "double", OP_READ));
-
     
-    printf("New cell values %g %g %g %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     timestep = timestep < dtmax ? timestep : dtmax;
+    
+#ifdef DEBUG
+    if (itercount%50 == 0) {
+      printf("itercount %d\n", itercount);
+      dumpme(values,0);
+      dumpme(values,1);
+      dumpme(values,2);
+      dumpme(values,3);
+      if (itercount==300) exit(-1);
+    }
+    printf("New cell values %g %g %g %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     op_printf("timestep = %g\n", timestep);
     {
       int dim = values->dim;
@@ -256,7 +267,8 @@ int main(int argc, char **argv) {
       }
       printf("H+Zb: %g\n", sqrt(norm));
     }
-
+#endif
+    
     itercount++;
     timestamp += timestep;
     //TODO: mesh.mathParser.updateTime( timer.t ); ??

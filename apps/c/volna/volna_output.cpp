@@ -218,7 +218,6 @@ double normcomp(op_dat dat, int off) {
 void dumpme(op_dat dat, int off) {
   int dim = dat->dim;
   double *data = (double *)(dat->data);
-  double norm = 0.0;
   for (int i = 0; i < dat->set->size; i++) {
     printf("%g\n",data[dim*i + off]);
   }

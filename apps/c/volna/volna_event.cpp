@@ -34,7 +34,7 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
 //  std::vector<std::string> event_formula(num_events);
 //  std::vector<std::string> event_streamName(num_events);
 
-  const hsize_t num_events_hsize = num_events;
+  //const hsize_t num_events_hsize = num_events;
   check_hdf5_error(H5LTread_dataset(h5file, "timer_start", H5T_NATIVE_DOUBLE, &timer_start[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "timer_end", H5T_NATIVE_DOUBLE, &timer_end[0]));
   check_hdf5_error(H5LTread_dataset(h5file, "timer_step", H5T_NATIVE_DOUBLE, &timer_step[0]));
@@ -119,7 +119,7 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
         InitGaussianLandslide(cells, cellCenters, values, gaussian_landslide_params, firstTime);
       } else if (strcmp((*events)[i].className.c_str(), "OutputTime") == 0) {
         OutputTime(&(*timers)[i]);
-        op_printf("Output iter: %d \n", (*timers)[i].iter);
+        //op_printf("Output iter: %d \n", (*timers)[i].iter);
       } else if (strcmp((*events)[i].className.c_str(), "OutputConservedQuantities") == 0) {
         OutputConservedQuantities(cells, cellVolumes, values);
       } else if (strcmp((*events)[i].className.c_str(), "OutputSimulation") == 0) {
