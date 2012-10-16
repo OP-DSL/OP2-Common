@@ -111,7 +111,11 @@ for narg = 1: nargin
     if (name(1)=='&')
       name = name(2:end);
       const_args{const_index}.name = name;
+      ptr = 0;
+    else
+      ptr = 1;
     end
+
 
     type = const_args{const_index}.type(2:end-1);
 
@@ -133,6 +137,9 @@ for narg = 1: nargin
         if (dim ~= consts{c}.dim)
           error(sprintf('size mismatch in repeated op_decl_const'));
         end
+        if (ptr ~= consts{c}.ptr)
+          error(sprintf('pointer/nonpointer mismatch in repeated op_decl_const'));
+        end
       end
     end
 
@@ -153,6 +160,7 @@ for narg = 1: nargin
       consts{nconsts}.name = name;
       consts{nconsts}.type = type;
       consts{nconsts}.dim  = dim;
+      consts{nconsts}.ptr  = ptr;
     end
 
   end  % end of loop over consts
@@ -391,7 +399,10 @@ for narg = 1: nargin
         end
         fprintf(fid,'  op_arg );\n');
       end
-
+      fprintf(fid,'\n');
+      for k = 1:length(consts)
+          fprintf(fid,'void op_decl_const_%s(int dim, char const *type, %s *dat );\n', consts{k}.name, consts{k}.type);
+      end
       loc_old = loc+11;
     end
 
@@ -424,7 +435,7 @@ for narg = 1: nargin
       while (src_file(loc)~='(' || ~active(src_file(loc_old:loc)))
         loc = loc+1;
       end
-      fprintf(fid,'2("%s",',name);
+      fprintf(fid,'_%s(',name);
       loc_old = loc+1;
     end
   end
