@@ -2,6 +2,8 @@
 #include "getTotalVol.h"
 #include "getMaxElevation.h"
 #include <stdio.h>
+#include "op_seq.h"
+
 
 inline void WriteMeshToVTKAscii(FILE* fp, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
   // write header

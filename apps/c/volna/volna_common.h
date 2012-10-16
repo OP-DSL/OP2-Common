@@ -4,7 +4,7 @@
 #include <vector>
 #include <hdf5.h>
 #include <hdf5_hl.h>
-#include "op_seq.h"
+#include "op_lib_cpp.h"
 
 //
 // Define meta data
@@ -54,10 +54,10 @@ void read_events_hdf5(hid_t h5file, int num_events, std::vector<TimerParams> *ti
 void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *events, int firstTime, int updateTimers, double timeIncrement, int removeFinished, int initPrePost,
                    op_set cells, op_dat values, op_dat cellVolumes, op_dat cellCenters, op_dat nodeCoords, op_map cellsToNodes, op_dat temp_initEta, op_dat temp_initBathymetry, BoreParams bore_params, GaussianLandslideParams gaussian_landslide_params);
 
-void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEta, int fromFile);
+void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat initValues, int fromFile);
 void InitU(op_set cells, op_dat cellCenters, op_dat values);
 void InitV(op_set cells, op_dat cellCenters, op_dat values);
-void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initBathymetry, int fromFile, int firstTime);
+void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat initValues, int fromFile, int firstTime);
 void InitBore(op_set cells, op_dat cellCenters, op_dat values, BoreParams params);
 void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, GaussianLandslideParams params, int firstTime);
 

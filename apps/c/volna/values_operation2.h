@@ -1,4 +1,4 @@
-void values_operation2(double *values, int *result, int *left, int *right, int *op) {
+void values_operation2(double *values, const int *result, const int *left, const int *right, const int *op) {
   switch (*op) {
   case 0:
     values[*result] = values[*left] + values[*right];

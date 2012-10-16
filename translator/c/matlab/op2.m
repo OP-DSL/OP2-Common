@@ -56,6 +56,7 @@ nconsts  = 0;
 nkernels = 0;
 consts = {};
 kernels = {};
+kernels_in_files = cell(nargin,1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  loop over all input source files
@@ -68,6 +69,7 @@ for narg = 1: nargin
                narg,nargin,[filename '.cpp']));
 
   src_file = fileread([filename '.cpp']);
+  kernels_in_files{narg} = [];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -265,16 +267,17 @@ for narg = 1: nargin
       invinds(ninds) = j(1);
       j = j(find(~match));          % find remaining indirect arguments
     end
-
+    
 %
 % check for repeats
 %
     repeat = 0;
-
+    which = -1;
     for nk = 1:nkernels
       rep1 = strcmp(kernels{nk}.name,  name ) && ...
                    (kernels{nk}.nargs==nargs) && ...
                    (kernels{nk}.ninds==ninds);
+               
       if (rep1)
         rep2 = 1;
         for arg = 1:nargs
@@ -286,6 +289,7 @@ for narg = 1: nargin
                    (kernels{nk}.idxs(arg)    == idxs(arg)) && ...
                    (kernels{nk}.soaflags(arg)== soaflags(arg)) && ...
                    (kernels{nk}.inds(arg)    == inds(arg));
+               
         end
 
         for arg = 1:ninds
@@ -299,6 +303,7 @@ for narg = 1: nargin
         if (rep2)
           disp('  repeated kernel with compatible arguments');
           repeat = 1;
+          which = nk;
         else
           error('  repeated kernel with incompatible arguments');
         end
@@ -342,6 +347,9 @@ for narg = 1: nargin
       kernels{nkernels}.indaccs = indaccs;
       kernels{nkernels}.indtyps = indtyps;
       kernels{nkernels}.invinds = invinds;
+      kernels_in_files{narg} = [kernels_in_files{narg} nkernels];
+    else
+        kernels_in_files{narg} = [kernels_in_files{narg} which];
     end
   end
 
@@ -383,13 +391,16 @@ for narg = 1: nargin
       fprintf(fid,' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n');
       fprintf(fid,'//\n// op_par_loop declarations\n//\n');
 
-      for k=1:nkernels
-        fprintf(fid,'\nvoid op_par_loop_%s(char const *, op_set,\n',...
-                kernels{k}.name);
-        for n = 1:kernels{k}.nargs-1
-          fprintf(fid,'  op_arg,\n');
+      for k_iter=1:length(kernels_in_files{narg})%1:nkernels
+        k = kernels_in_files{narg}(k_iter);
+        if (k_iter == find(kernels_in_files{narg}(k_iter)==kernels_in_files{narg},1,'first'))
+          fprintf(fid,'\nvoid op_par_loop_%s(char const *, op_set,\n',...
+                  kernels{k}.name);
+          for n = 1:kernels{k}.nargs-1
+            fprintf(fid,'  op_arg,\n');
+          end
+          fprintf(fid,'  op_arg );\n');
         end
-        fprintf(fid,'  op_arg );\n');
       end
 
       loc_old = loc+11;

@@ -1,4 +1,5 @@
 #include "volna_common.h"
+#include "op_lib_cpp.h"
 
 void __check_hdf5_error(herr_t err, const char *file, const int line){
   if (err < 0) {

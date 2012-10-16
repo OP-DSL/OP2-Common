@@ -9,17 +9,19 @@
 #include "initV_formula.h"
 #include "values_operation2.h"
 
-void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initEta, int fromFile) {
+#include "op_seq.h"
+
+void InitEta(op_set cells, op_dat cellCenters, op_dat values, op_dat initValues, int fromFile) {
 #ifdef DEBUG
   op_printf("InitEta...");
 #endif
   if (fromFile) {
-    //overwrite values.H with values stored in temp_initEta
+    //overwrite values.H with values stored in initValues
     int variable = 1; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
     //TODO: we are only overwriting H, moving the whole thing
     op_par_loop(applyConst, "applyConst", cells,
-                op_arg_dat(temp_initEta, -1, OP_ID, 4, "double", OP_READ),
-                op_arg_dat(values, -1, OP_ID, 4, "double", OP_WRITE),
+                op_arg_dat(initValues, -1, OP_ID, 4, "double", OP_READ),
+                op_arg_dat(values, -1, OP_ID, 4, "double", OP_RW),
                 op_arg_gbl(&variable, 1, "int", OP_READ));
   } else {
     //TODO: document the fact that this actually adds to the value of V
@@ -69,7 +71,7 @@ void OutputSimulation(op_set points, op_set cells, op_dat p_x, op_dat values) {
   
 }
 
-void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp_initBathymetry, int fromFile, int firstTime) {
+void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat initValues, int fromFile, int firstTime) {
   if (firstTime) {
     int result = 0;
     int leftOperand = 0;
@@ -83,11 +85,11 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat temp
                 op_arg_gbl(&operation, 1, "int", OP_READ));
   }
   if (fromFile) {
-    //overwrite values.H with values stored in temp_initEta
+    //overwrite values.H with values stored in initValues
     int variable = 8; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
     //TODO: we are only overwriting H, moving the whole thing
     op_par_loop(applyConst, "applyConst", cells,
-                op_arg_dat(temp_initBathymetry, -1, OP_ID, 4, "double", OP_READ),
+                op_arg_dat(initValues, -1, OP_ID, 4, "double", OP_READ),
                 op_arg_dat(values, -1, OP_ID, 4, "double", OP_RW),
                 op_arg_gbl(&variable, 1, "int", OP_READ));
   } else {
