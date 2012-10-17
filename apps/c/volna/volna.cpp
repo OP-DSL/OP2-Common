@@ -198,19 +198,13 @@ int main(int argc, char **argv) {
 
     processEvents(&timers, &events, 0, 0, 0.0, 0, 0,
                        cells, values, cellVolumes, cellCenters, nodeCoords, cellsToNodes, temp_initEta, temp_initBathymetry, bore_params, gaussian_landslide_params);
-    //memset(values_new->data, 0, values_new->set->size * values_new->size);
+
 #ifdef DEBUG
     printf("Call to EvolveValuesRK2 CellValues H %g U %g V %g Zb %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
 #endif
-    //Call to EvolveValuesRK2( CellValues, tmp, mesh, CFL, Params, dt, timer.t );
-    //  void EvolveValuesRK2( const Values &in, Values &out, const Mesh &m,
-    //            const RealType &CFL, const PhysicalParams &params,
-    //            RealType &timestep, const RealType &t )
+
     { //begin EvolveValuesRK2
-
       double minTimestep = 0.0;
-
-      //call to SpaceDiscretization( in, midPointConservative, m, params, minTimestep, t );
       spaceDiscretization(values, midPointConservative, &minTimestep,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
@@ -228,7 +222,6 @@ int main(int argc, char **argv) {
           op_arg_dat(midPoint, -1, OP_ID, 4, "double", OP_WRITE));
 
       double dummy = 0.0;
-      
       
       //call to SpaceDiscretization( midPoint, outConservative, m, params, dummy_time, t );
       spaceDiscretization(midPoint, outConservative, &dummy,

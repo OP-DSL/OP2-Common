@@ -27,10 +27,10 @@ MPI_INC = -I$(MPI_INSTALL_PATH)/include
 ifeq ($(OP2_COMPILER),gnu)
 	CPP = g++
 #	CPPFLAGS = -g0 -msse3 -fPIC -DUNIX -Wall
-	CPPFLAGS = -g -fPIC -DUNIX -Wall -O3
+	CPPFLAGS = -g -fPIC -DUNIX -Wall -O0 -DDEBUG -arch x86_64
 	#CPPFLAGS = -g -fPIC -DUNIX -Wall
 	OMPFLAGS = -fopenmp
-	MPICPP = /usr/bin/mpiCC
+	MPICPP = mpic++
 	MPIFLAGS = $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
