@@ -265,7 +265,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
 
   //output the result dat array to files
-  op_print_dat_to_txtfile(p_x, "out_grid_seq.dat"); //ASCI
+  op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
   op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
 
   op_timing_output();

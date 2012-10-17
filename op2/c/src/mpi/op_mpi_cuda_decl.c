@@ -333,6 +333,7 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name)
   print_dat_to_binfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp);
 }
 
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
@@ -345,4 +346,5 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   print_dat_to_txtfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp);
 }

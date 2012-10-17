@@ -190,7 +190,6 @@ op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * nam
   op_map out_map= op_decl_map_core ( from, to, dim, m, name );
   out_map-> user_managed = 0;
   return out_map;
-  //return op_decl_map_core ( from, to, dim, imap, name );
 }
 
 op_arg op_arg_dat( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
@@ -225,7 +224,7 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name)
   print_dat_to_binfile_mpi(temp, file_name);
 
   free(temp->data);
-
+  free(temp);
 }
 
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
@@ -235,5 +234,5 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   print_dat_to_txtfile_mpi(temp, file_name);
 
   free(temp->data);
-
+  free(temp);
 }
