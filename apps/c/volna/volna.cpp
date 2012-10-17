@@ -187,9 +187,6 @@ int main(int argc, char **argv) {
   op_dat outConservative = op_decl_dat_temp(cells, 4, "double", tmp_elem, "outConservative"); //temp - cells - dim 4
   op_dat midPoint = op_decl_dat_temp(cells, 4, "double", tmp_elem, "midPoint"); //temp - cells - dim 4
   //SpaceDiscretization
-  op_dat leftCellValues = op_decl_dat_temp(edges, 4, "double", tmp_elem, "leftCellValues"); //temp - edges - dim 4
-  op_dat rightCellValues = op_decl_dat_temp(edges, 4, "double", tmp_elem, "rightCellValues"); //temp - edges - dim 4
-  op_dat interfaceBathy = op_decl_dat_temp(edges, 1, "double", tmp_elem, "interfaceBathy"); //temp - edges - dim 1
   op_dat bathySource = op_decl_dat_temp(edges, 2, "double", tmp_elem, "bathySource"); //temp - edges - dim 2 (left & right)
   op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "double", tmp_elem, "edgeFluxes"); //temp - edges - dim 4
   //NumericalFluxes
@@ -215,7 +212,6 @@ int main(int argc, char **argv) {
 
       //call to SpaceDiscretization( in, midPointConservative, m, params, minTimestep, t );
       spaceDiscretization(values, midPointConservative, &minTimestep,
-          leftCellValues, rightCellValues, interfaceBathy,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges, 0);
@@ -236,7 +232,6 @@ int main(int argc, char **argv) {
       
       //call to SpaceDiscretization( midPoint, outConservative, m, params, dummy_time, t );
       spaceDiscretization(midPoint, outConservative, &dummy,
-          leftCellValues, rightCellValues, interfaceBathy,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges, 1);
@@ -258,14 +253,14 @@ int main(int argc, char **argv) {
     timestep = timestep < dtmax ? timestep : dtmax;
     
 #ifdef DEBUG
-    if (itercount%50 == 0) {
-      printf("itercount %d\n", itercount);
-      dumpme(values,0);
-      dumpme(values,1);
-      dumpme(values,2);
-      dumpme(values,3);
-      if (itercount==300) exit(-1);
-    }
+//    if (itercount%50 == 0) {
+//      printf("itercount %d\n", itercount);
+//      dumpme(values,0);
+//      dumpme(values,1);
+//      dumpme(values,2);
+//      dumpme(values,3);
+//      if (itercount==300) exit(-1);
+//    }
     printf("New cell values %g %g %g %g\n", normcomp(values, 0), normcomp(values, 1),normcomp(values, 2),normcomp(values, 3));
     op_printf("timestep = %g\n", timestep);
     {
@@ -301,12 +296,6 @@ int main(int argc, char **argv) {
   if (op_free_dat_temp(midPoint) < 0)
           op_printf("Error: temporary op_dat %s cannot be removed\n",midPoint->name);
   //SpaceDiscretization
-  if (op_free_dat_temp(leftCellValues) < 0)
-          op_printf("Error: temporary op_dat %s cannot be removed\n",leftCellValues->name);
-  if (op_free_dat_temp(rightCellValues) < 0)
-          op_printf("Error: temporary op_dat %s cannot be removed\n",rightCellValues->name);
-  if (op_free_dat_temp(interfaceBathy) < 0)
-          op_printf("Error: temporary op_dat %s cannot be removed\n",interfaceBathy->name);
   if (op_free_dat_temp(bathySource) < 0)
           op_printf("Error: temporary op_dat %s cannot be removed\n",bathySource->name);
   if (op_free_dat_temp(edgeFluxes) < 0)
