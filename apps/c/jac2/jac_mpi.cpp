@@ -339,5 +339,11 @@ int main(int argc, char **argv)
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
+
+  free(u);
+  free(pp);
+  free(A);
+  free(r);
+  free(du);
 }
 
