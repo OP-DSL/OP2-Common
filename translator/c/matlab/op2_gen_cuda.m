@@ -663,8 +663,8 @@ for nk = 1:length(kernels)
   file = strvcat(file,' ','  if (set->size >0) {',' ');
 
   if (sum(soaflags))
-      file = strvcat(file,'    int op2_stride = set->size + set->exec_size + set->nonexec_size;');
-      file = strvcat(file,'    op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");',' ');
+      file = strvcat(file,'    int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;');
+      file = strvcat(file,'    cutilSafeCall(cudaMemcpyToSymbol(op2_stride , &op2_stride_internal, sizeof(int)));',' ');
   end
 
   if (ninds>0)
