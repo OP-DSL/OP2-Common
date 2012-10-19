@@ -46,6 +46,9 @@
 int OP_plan_index = 0, OP_plan_max = 0;
 op_plan * OP_plans;
 
+extern op_kernel * OP_kernels;
+extern int OP_kern_max;
+
 void
 op_rt_exit (  )
 {
@@ -362,7 +365,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     if ( OP_diags > 1 )
       printf ( " new execution plan #%d for kernel %s\n", ip, name );
   }
-
+  double wall_t1, wall_t2, cpu_t1, cpu_t2;
+  op_timers_core(&cpu_t1, &wall_t1);
   /* work out worst case shared memory requirement per element */
 
   int maxbytes = 0;
@@ -947,6 +951,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   free ( work2 );
   free ( blk_col );
 
+  op_timers_core(&cpu_t2, &wall_t2);
+  for (int i = 0; i < OP_kern_max; i++) {
+    if (strcmp(name, OP_kernels[i].name)==0) {
+      OP_kernels[i].plan_time += wall_t2-wall_t1;
+      break;
+    }
+  }
   /* return pointer to plan */
 
   return &( OP_plans[ip] );
