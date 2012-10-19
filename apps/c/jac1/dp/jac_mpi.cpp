@@ -298,11 +298,17 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
-  op_dat temp = op_mpi_get_data(p_u);
+  op_fetch_data(p_u, u);
 
   //output the result dat array to files
   op_print_dat_to_txtfile(p_u, "out_grid_mpi.dat"); //ASCI
   op_print_dat_to_binfile(p_u, "out_grid_mpi.bin"); //Binary
+
+  printf("solution on rank %d\n", my_rank);
+  for (int i = 0; i<nnode; i++) {
+    printf(" %7.4f",u[i]);fflush(stdout);
+  }
+  printf("\n");
 
   //print each mpi process's timing info for each kernel
   op_timing_output();

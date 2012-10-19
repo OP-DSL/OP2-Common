@@ -73,7 +73,7 @@ int op_free_dat_temp_char ( op_dat dat )
 }
 
 void
-op_fetch_data ( op_dat dat )
+op_fetch_data_char( op_dat dat, char * usr_ptr )
 {
   (void)dat;
 }

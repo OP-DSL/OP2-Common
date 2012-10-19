@@ -180,6 +180,16 @@ inline int op_free_dat_temp ( op_dat dat )
   return op_free_dat_temp_char ( dat );
 }
 
+
+//
+//fetch data
+//
+template < class T >
+void op_fetch_data ( op_dat dat, T* usr_ptr)
+{
+  op_fetch_data_char(dat, (char * ) usr_ptr);
+}
+
 //
 // wrapper functions to handle MPI global reductions
 //

@@ -326,25 +326,27 @@ void op_timing_output()
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)
 {
   //need to get data from GPU
-  op_fetch_data (dat );
+  op_fetch_data_char(dat, NULL );
 
   //rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
   print_dat_to_binfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp->set);
   free(temp);
 }
 
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
 {
   //need to get data from GPU
-  op_fetch_data (dat );
+  op_fetch_data_char(dat, NULL );
 
   //rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
   print_dat_to_txtfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp->set);
   free(temp);
 }

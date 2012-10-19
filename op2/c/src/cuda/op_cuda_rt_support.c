@@ -138,7 +138,7 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
   cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
-void op_fetch_data ( op_dat dat )
+void op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
 
   //transpose data

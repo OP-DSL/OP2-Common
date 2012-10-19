@@ -123,9 +123,17 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
-void op_fetch_data ( op_dat dat )
+void op_fetch_data_char(op_dat dat, char * usr_ptr)
 {
-  (void)dat;
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //copy data into usr_ptr
+  memcpy((void *)usr_ptr, (void *)temp->data, temp->set->size*temp->size);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
 }
 
 /*
@@ -224,6 +232,7 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name)
   print_dat_to_binfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp->set);
   free(temp);
 }
 
@@ -234,5 +243,6 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   print_dat_to_txtfile_mpi(temp, file_name);
 
   free(temp->data);
+  free(temp->set);
   free(temp);
 }

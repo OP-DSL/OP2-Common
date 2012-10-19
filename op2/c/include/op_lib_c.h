@@ -90,7 +90,7 @@ op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );
 
 op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
-void op_fetch_data ( op_dat );
+void op_fetch_data_char ( op_dat , char* );
 
 void op_exit (  );
 
