@@ -136,6 +136,11 @@ void op_fetch_data_char(op_dat dat, char * usr_ptr)
   free(temp);
 }
 
+void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr)
+{
+  op_fetch_data_hdf5_mpi(dat, usr_ptr);
+}
+
 /*
  * No specific action is required for constants in MPI
  */

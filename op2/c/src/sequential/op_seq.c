@@ -107,6 +107,12 @@ op_fetch_data_char ( op_dat dat, char * usr_ptr )
   (void)dat;
 }
 
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr )
+{
+  //need to copy data into usr_ptr
+}
+
 
 int op_get_size(op_set set)
 {

@@ -258,8 +258,12 @@ int main(int argc, char **argv)
       op_printf(" %d  %10.5e \n",iter,rms);
   }
 
+  //allocate memory to hold the whole data array
+  double* q = (double *)malloc(sizeof(double)*op_get_size(cells));
+  op_fetch_data_hdf5(p_q, q);
+
   op_timers(&cpu_t2, &wall_t2);
-  
+
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");
 

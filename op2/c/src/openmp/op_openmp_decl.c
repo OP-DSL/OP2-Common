@@ -73,9 +73,15 @@ int op_free_dat_temp_char ( op_dat dat )
 }
 
 void
-op_fetch_data_char( op_dat dat, char * usr_ptr )
+op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
   (void)dat;
+}
+
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr )
+{
+  //need to copy data into usr_ptr
 }
 
 

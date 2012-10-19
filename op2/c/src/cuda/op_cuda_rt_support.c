@@ -165,6 +165,11 @@ void op_fetch_data_char ( op_dat dat, char * usr_ptr )
   }
 }
 
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr )
+{
+  //need to copy data into usr_ptr
+}
 
 
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,

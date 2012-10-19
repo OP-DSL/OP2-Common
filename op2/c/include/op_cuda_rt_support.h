@@ -88,7 +88,7 @@ void op_mvHostToDevice ( void ** map, int size );
 
 void op_cpHostToDevice ( void ** data_d, void ** data_h, int size );
 
-void op_fetch_data ( op_dat dat );
+void op_fetch_data ( op_dat dat ); // --- should this be in here ??
 
 /*
  * Plan interface for generated code: the implementation changes depending

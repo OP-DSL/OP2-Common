@@ -56,6 +56,8 @@ void op_write_hdf5(char const * file_name);
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name);
 
+void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr);
+
 #ifdef __cplusplus
 }
 #endif

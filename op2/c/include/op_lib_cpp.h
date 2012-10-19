@@ -190,6 +190,12 @@ void op_fetch_data ( op_dat dat, T* usr_ptr)
   op_fetch_data_char(dat, (char * ) usr_ptr);
 }
 
+template < class T >
+void op_fetch_data_hdf5(op_dat dat, T* usr_ptr)
+{
+  op_fetch_data_hdf5_char(dat, (char* )usr_ptr);
+}
+
 //
 // wrapper functions to handle MPI global reductions
 //
@@ -216,6 +222,8 @@ void op_mpi_reduce(op_arg* args, T* data)
 {
 
 }
+
+
 
 #endif /* __OP_LIB_CPP_H */
 

@@ -987,3 +987,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
+
+void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
+{
+  //do a normal op_mpi_get_data which will rearrange to the way it was read from hdf5 file - for consistancy
+  //need to all-gather data and copy this to the memory block pointed by usr_ptr
+}

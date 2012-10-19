@@ -92,6 +92,8 @@ op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
 void op_fetch_data_char ( op_dat , char* );
 
+void op_fetch_data_hdf5_char ( op_dat , char* );
+
 void op_exit (  );
 
 void op_timing_output();
@@ -103,6 +105,7 @@ void op_printf(const char* format, ...);
 void op_timers( double *cpu, double *et );
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name);
+
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name);
 
 #ifdef __cplusplus
