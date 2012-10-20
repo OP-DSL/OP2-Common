@@ -21,7 +21,7 @@ VOLNA_INC = -I$(VOLNA_INSTALL_PATH)/src
 VOLNA_SRC = $(VOLNA_INSTALL_PATH)/src
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_hl -lhdf5 -lz 
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_hl -lhdf5 -lz
 
 MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
@@ -36,14 +36,14 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel	
-	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
+	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel
+	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2
 	MPICPP = mpiCC
 	MPIFLAGS = $(CPPFLAGS)
 else
-print: 
+print:
 		@echo "unrecognized value for OP2_COMPILER"
 endif
 endif
@@ -55,7 +55,7 @@ endif
 
 
 VOLNA_SOURCES = \
- 	$(VOLNA_SRC)/values.cpp\
+	$(VOLNA_SRC)/values.cpp\
 	$(VOLNA_SRC)/event.cpp\
 	$(VOLNA_SRC)/geom.cpp
 
@@ -63,7 +63,7 @@ VOLNA_OBJECTS = $(VOLNA_SOURCES:.cpp=.o)
 
 all: clean volna2hdf5
 
-volna2hdf5: volna2hdf5.cpp $(VOLNA_OBJECTS) Makefile 
+volna2hdf5: volna2hdf5.cpp $(VOLNA_OBJECTS) Makefile
 	#$(CPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) $(VOLNA_INC) $(OP2_INC) $(MPI_INC) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
 	$(MPICPP) $(CPPFLAGS) volna2hdf5.cpp $(VOLNA_OBJECTS) -I$(VOLNA_INSTALL_PATH) $(VOLNA_INC) $(HDF5_INC) $(OP2_INC) $(OP2_LIB) $(HDF5_LIB) -lop2_seq -lop2_hdf5 -o volna2hdf5
 

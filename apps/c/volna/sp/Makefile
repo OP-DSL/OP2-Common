@@ -35,14 +35,14 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel	
-	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel	
+	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel
+	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2
 	MPICPP = mpiCC
 	MPIFLAGS = $(CPPFLAGS)
 else
-print: 
+print:
 		@echo "unrecognized value for OP2_COMPILER"
 endif
 endif
@@ -68,7 +68,7 @@ all: clean volna volna_openmp volna_cuda
 
 volna: volna.cpp Makefile
 	$(MPICPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
-  
+
 volna_openmp: volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp
 	$(MPICPP) $(CPPFLAGS) $(OMPFLAGS)  volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp volna_event.cpp volna_kernels.cpp $(HDF5_INC) $(OP2_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_openmp -lop2_hdf5 -o volna_openmp
 
@@ -92,14 +92,15 @@ volna_kernels_cu.o:	volna_kernels.cu \
 		initGaussianLandslide_kernel.cu initU_formula_kernel.cu initV_formula_kernel.cu NumericalFluxes_1_kernel.cu NumericalFluxes_2_kernel.cu \
 		simulation_1_kernel.cu SpaceDiscretization_1_kernel.cu SpaceDiscretization_2_kernel.cu SpaceDiscretization_3_kernel.cu \
 		values_operation2_kernel.cu Makefile
-        
-		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -I /home/gihan/openmpi-intel/include -c -o volna_kernels_cu.o volna_kernels.cu	
+
+		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -I /home/gihan/openmpi-intel/include -c -o volna_kernels_cu.o volna_kernels.cu
+
 #
 # cleanup
 #
 
 clean:
-		rm -f volna volna_openmp volna_cuda *.o 
+		rm -f volna volna_openmp volna_cuda *.o
 
 #%.o: %.cpp %.hpp
 #	$(CPP) $(CPPFLAGS) -c -o $@ $<

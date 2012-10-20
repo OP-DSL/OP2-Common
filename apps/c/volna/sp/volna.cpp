@@ -6,17 +6,17 @@
 #include "op_seq.h"
 
 //these are not const, we just don't want to pass them around
-double timestamp = 0.0;
+float timestamp = 0.0;
 int itercount = 0;
 
 // Constants
-double CFL, g, EPS;
+float CFL, g, EPS;
 
 // Store maximum elevation in global variable, for the sake of max search
 op_dat currentMaxElevation;
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
+  if (argc < 2) {
     printf("Wrong parameters! Please specify the OP2 HDF5 data file "
         "name, that was created by volna2hdf5 tool "
         "script filename with the *.vln extension, "
@@ -35,21 +35,21 @@ int main(int argc, char **argv) {
   const char *filename_h5 = argv[1]; // = "stlaurent_35k.h5";
   file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
 
-  check_hdf5_error(H5LTread_dataset_double(file, "BoreParamsx0", &bore_params.x0));
-  check_hdf5_error(H5LTread_dataset_double(file, "BoreParamsHl", &bore_params.Hl));
-  check_hdf5_error(H5LTread_dataset_double(file, "BoreParamsul", &bore_params.ul));
-  check_hdf5_error(H5LTread_dataset_double(file, "BoreParamsvl", &bore_params.vl));
-  check_hdf5_error(H5LTread_dataset_double(file, "BoreParamsS", &bore_params.S));
-  check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamsA", &gaussian_landslide_params.A));
-  check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamsv", &gaussian_landslide_params.v));
-  check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamslx", &gaussian_landslide_params.lx));
-  check_hdf5_error(H5LTread_dataset_double(file, "GaussianLandslideParamsly", &gaussian_landslide_params.ly));
+  check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsx0", &bore_params.x0));
+  check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsHl", &bore_params.Hl));
+  check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsul", &bore_params.ul));
+  check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsvl", &bore_params.vl));
+  check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsS", &bore_params.S));
+  check_hdf5_error(H5LTread_dataset_float(file, "GaussianLandslideParamsA", &gaussian_landslide_params.A));
+  check_hdf5_error(H5LTread_dataset_float(file, "GaussianLandslideParamsv", &gaussian_landslide_params.v));
+  check_hdf5_error(H5LTread_dataset_float(file, "GaussianLandslideParamslx", &gaussian_landslide_params.lx));
+  check_hdf5_error(H5LTread_dataset_float(file, "GaussianLandslideParamsly", &gaussian_landslide_params.ly));
   check_hdf5_error(H5LTread_dataset_int(file, "nx", &rect_params.nx));
   check_hdf5_error(H5LTread_dataset_int(file, "ny", &rect_params.ny));
-  check_hdf5_error(H5LTread_dataset_double(file, "xmin", &rect_params.xmin));
-  check_hdf5_error(H5LTread_dataset_double(file, "xmax", &rect_params.xmax));
-  check_hdf5_error(H5LTread_dataset_double(file, "ymin", &rect_params.ymin));
-  check_hdf5_error(H5LTread_dataset_double(file, "ymax", &rect_params.ymax));
+  check_hdf5_error(H5LTread_dataset_float(file, "xmin", &rect_params.xmin));
+  check_hdf5_error(H5LTread_dataset_float(file, "xmax", &rect_params.xmax));
+  check_hdf5_error(H5LTread_dataset_float(file, "ymin", &rect_params.ymin));
+  check_hdf5_error(H5LTread_dataset_float(file, "ymax", &rect_params.ymax));
 
   int num_events = 0;
 
@@ -97,31 +97,31 @@ int main(int argc, char **argv) {
   /*
    * Define OP2 datasets
    */
-  op_dat cellCenters = op_decl_dat_hdf5(cells, MESH_DIM, "double",
+  op_dat cellCenters = op_decl_dat_hdf5(cells, MESH_DIM, "float",
                                     filename_h5,
                                     "cellCenters");
 
-  op_dat cellVolumes = op_decl_dat_hdf5(cells, 1, "double",
+  op_dat cellVolumes = op_decl_dat_hdf5(cells, 1, "float",
                                     filename_h5,
                                     "cellVolumes");
 
-  op_dat edgeNormals = op_decl_dat_hdf5(edges, MESH_DIM, "double",
+  op_dat edgeNormals = op_decl_dat_hdf5(edges, MESH_DIM, "float",
                                     filename_h5,
                                     "edgeNormals");
 
-//  op_dat edgeCenters = op_decl_dat_hdf5(edges, MESH_DIM, "double",
+//  op_dat edgeCenters = op_decl_dat_hdf5(edges, MESH_DIM, "float",
 //                                    filename_h5,
 //                                    "edgeCenters");
 
-  op_dat edgeLength = op_decl_dat_hdf5(edges, 1, "double",
+  op_dat edgeLength = op_decl_dat_hdf5(edges, 1, "float",
                                     filename_h5,
                                     "edgeLength");
 
-  op_dat nodeCoords = op_decl_dat_hdf5(nodes, MESH_DIM, "double",
+  op_dat nodeCoords = op_decl_dat_hdf5(nodes, MESH_DIM, "float",
                                       filename_h5,
                                       "nodeCoords");
 
-  op_dat values = op_decl_dat_hdf5(cells, N_STATEVAR, "double",
+  op_dat values = op_decl_dat_hdf5(cells, N_STATEVAR, "float",
                                     filename_h5,
                                     "values");
   op_dat isBoundary = op_decl_dat_hdf5(edges, 1, "int",
@@ -132,17 +132,17 @@ int main(int argc, char **argv) {
   /*
    * Read constants from HDF5
    */
-  double ftime, dtmax;
-  op_get_const_hdf5("CFL", 1, "double", (char *) &CFL, filename_h5);
-//  op_get_const_hdf5("EPS", 1, "double", (char *) &EPS, filename_h5);
+  float ftime, dtmax;
+  op_get_const_hdf5("CFL", 1, "float", (char *) &CFL, filename_h5);
+//  op_get_const_hdf5("EPS", 1, "float", (char *) &EPS, filename_h5);
   // Final time: as defined by Volna the end of real-time simulation
-  op_get_const_hdf5("ftime", 1, "double", (char *) &ftime, filename_h5);
-  op_get_const_hdf5("dtmax", 1, "double", (char *) &dtmax, filename_h5);
-  op_get_const_hdf5("g", 1, "double", (char *) &g, filename_h5);
+  op_get_const_hdf5("ftime", 1, "float", (char *) &ftime, filename_h5);
+  op_get_const_hdf5("dtmax", 1, "float", (char *) &dtmax, filename_h5);
+  op_get_const_hdf5("g", 1, "float", (char *) &g, filename_h5);
 
-  op_decl_const(1, "double", &CFL);
-  op_decl_const(1, "double", &EPS);
-  op_decl_const(1, "double", &g);
+  op_decl_const(1, "float", &CFL);
+  op_decl_const(1, "float", &EPS);
+  op_decl_const(1, "float", &g);
 
   op_dat temp_initEta        = NULL;
   op_dat temp_initBathymetry = NULL;
@@ -151,12 +151,12 @@ int main(int argc, char **argv) {
   for (unsigned int i = 0; i < events.size(); i++) {
       if (!strcmp(events[i].className.c_str(), "InitEta")) {
         if (strcmp(events[i].streamName.c_str(), ""))
-          temp_initEta = op_decl_dat_hdf5(cells, 1, "double",
+          temp_initEta = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initEta");
       } else if (!strcmp(events[i].className.c_str(), "InitBathymetry")) {
         if (strcmp(events[i].streamName.c_str(), ""))
-          temp_initBathymetry = op_decl_dat_hdf5(cells, 1, "double",
+          temp_initBathymetry = op_decl_dat_hdf5(cells, 1, "float",
               filename_h5,
               "initBathymetry");
       }
@@ -177,20 +177,20 @@ int main(int argc, char **argv) {
   //Corresponding to CellValues and tmp in Simulation::run() (simulation.hpp)
   //and in and out in EvolveValuesRK2() (timeStepper.hpp)
 
-  double *tmp_elem = NULL;
-  op_dat values_new = op_decl_dat_temp(cells, 4, "double",tmp_elem,"values_new"); //tmp - cells - dim 4
+  float *tmp_elem = NULL;
+  op_dat values_new = op_decl_dat_temp(cells, 4, "float",tmp_elem,"values_new"); //tmp - cells - dim 4
 
   //temporary dats
   //EvolveValuesRK2
-  op_dat midPointConservative = op_decl_dat_temp(cells, 4, "double", tmp_elem, "midPointConservative"); //temp - cells - dim 4
-  op_dat inConservative = op_decl_dat_temp(cells, 4, "double", tmp_elem, "inConservative"); //temp - cells - dim 4
-  op_dat outConservative = op_decl_dat_temp(cells, 4, "double", tmp_elem, "outConservative"); //temp - cells - dim 4
-  op_dat midPoint = op_decl_dat_temp(cells, 4, "double", tmp_elem, "midPoint"); //temp - cells - dim 4
+  op_dat midPointConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "midPointConservative"); //temp - cells - dim 4
+  op_dat inConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "inConservative"); //temp - cells - dim 4
+  op_dat outConservative = op_decl_dat_temp(cells, 4, "float", tmp_elem, "outConservative"); //temp - cells - dim 4
+  op_dat midPoint = op_decl_dat_temp(cells, 4, "float", tmp_elem, "midPoint"); //temp - cells - dim 4
   //SpaceDiscretization
-  op_dat bathySource = op_decl_dat_temp(edges, 2, "double", tmp_elem, "bathySource"); //temp - edges - dim 2 (left & right)
-  op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "double", tmp_elem, "edgeFluxes"); //temp - edges - dim 4
+  op_dat bathySource = op_decl_dat_temp(edges, 2, "float", tmp_elem, "bathySource"); //temp - edges - dim 2 (left & right)
+  op_dat edgeFluxes = op_decl_dat_temp(edges, 4, "float", tmp_elem, "edgeFluxes"); //temp - edges - dim 4
   //NumericalFluxes
-  op_dat maxEdgeEigenvalues = op_decl_dat_temp(edges, 1, "double", tmp_elem, "maxEdgeEigenvalues"); //temp - edges - dim 1
+  op_dat maxEdgeEigenvalues = op_decl_dat_temp(edges, 1, "float", tmp_elem, "maxEdgeEigenvalues"); //temp - edges - dim 1
 
   double timestep;
 
@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
 #endif
 
     { //begin EvolveValuesRK2
-      double minTimestep = 0.0;
+      float minTimestep = 0.0;
       spaceDiscretization(values, midPointConservative, &minTimestep,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
@@ -212,39 +212,39 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
       printf("Return of SpaceDiscretization #1 midPointConservative H %g U %g V %g Zb %g\n", normcomp(midPointConservative, 0), normcomp(midPointConservative, 1),normcomp(midPointConservative, 2),normcomp(midPointConservative, 3));
 #endif
-      double dT = CFL * minTimestep;
+      float dT = CFL * minTimestep;
 
       op_par_loop(EvolveValuesRK2_1, "EvolveValuesRK2_2", cells,
-          op_arg_gbl(&dT,1,"double", OP_READ),
-          op_arg_dat(midPointConservative, -1, OP_ID, 4, "double", OP_RW),
-          op_arg_dat(values, -1, OP_ID, 4, "double", OP_READ),
-          op_arg_dat(inConservative, -1, OP_ID, 4, "double", OP_WRITE),
-          op_arg_dat(midPoint, -1, OP_ID, 4, "double", OP_WRITE));
+          op_arg_gbl(&dT,1,"float", OP_READ),
+          op_arg_dat(midPointConservative, -1, OP_ID, 4, "float", OP_RW),
+          op_arg_dat(values, -1, OP_ID, 4, "float", OP_READ),
+          op_arg_dat(inConservative, -1, OP_ID, 4, "float", OP_WRITE),
+          op_arg_dat(midPoint, -1, OP_ID, 4, "float", OP_WRITE));
 
-      double dummy = 0.0;
-      
+      float dummy = 0.0;
+
       //call to SpaceDiscretization( midPoint, outConservative, m, params, dummy_time, t );
       spaceDiscretization(midPoint, outConservative, &dummy,
           bathySource, edgeFluxes, maxEdgeEigenvalues,
           edgeNormals, edgeLength, cellVolumes, isBoundary,
           cells, edges, edgesToCells, cellsToEdges, 1);
-      
+
       op_par_loop(EvolveValuesRK2_2, "EvolveValuesRK2_2", cells,
-          op_arg_gbl(&dT,1,"double", OP_READ),
-          op_arg_dat(outConservative, -1, OP_ID, 4, "double", OP_RW),
-          op_arg_dat(inConservative, -1, OP_ID, 4, "double", OP_READ),
-          op_arg_dat(midPointConservative, -1, OP_ID, 4, "double", OP_READ),
-          op_arg_dat(values_new, -1, OP_ID, 4, "double", OP_WRITE));
+          op_arg_gbl(&dT,1,"float", OP_READ),
+          op_arg_dat(outConservative, -1, OP_ID, 4, "float", OP_RW),
+          op_arg_dat(inConservative, -1, OP_ID, 4, "float", OP_READ),
+          op_arg_dat(midPointConservative, -1, OP_ID, 4, "float", OP_READ),
+          op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_WRITE));
 
       timestep = dT;
     } //end EvolveValuesRK2
 
     op_par_loop(simulation_1, "simulation_1", cells,
-        op_arg_dat(values, -1, OP_ID, 4, "double", OP_WRITE),
-        op_arg_dat(values_new, -1, OP_ID, 4, "double", OP_READ));
-    
+        op_arg_dat(values, -1, OP_ID, 4, "float", OP_WRITE),
+        op_arg_dat(values_new, -1, OP_ID, 4, "float", OP_READ));
+
     timestep = timestep < dtmax ? timestep : dtmax;
-    
+
 #ifdef DEBUG
 //    if (itercount%50 == 0) {
 //      printf("itercount %d\n", itercount);
@@ -258,15 +258,15 @@ int main(int argc, char **argv) {
     op_printf("timestep = %g\n", timestep);
     {
       int dim = values->dim;
-      double *data = (double *)(values->data);
-      double norm = 0.0;
+      float *data = (float *)(values->data);
+      float norm = 0.0;
       for (int i = 0; i < values->set->size; i++) {
         norm += (data[dim*i]+data[dim*i+3])*(data[dim*i]+data[dim*i+3]);
       }
       printf("H+Zb: %g\n", sqrt(norm));
     }
 #endif
-    
+
     itercount++;
     timestamp += timestep;
     //TODO: mesh.mathParser.updateTime( timer.t ); ??
