@@ -124,6 +124,7 @@ typedef struct
   char const *type,   /* datatype */
              *name;   /* name of dataset */
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
+  char*       buffer_d_r; /* buffer for MPI halo receives on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
   int         user_managed; /* indicates whether the user is managing memory */
   void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
@@ -154,6 +155,7 @@ typedef struct
   char const *name;     /* name of kernel function */
   int         count;    /* number of times called */
   float       time;     /* total execution time */
+  float       plan_time;/* time spent in op_plan_get */
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
 } op_kernel;

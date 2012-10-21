@@ -32,7 +32,9 @@
 
 #include <op_lib_mpi.h>
 
-__global__ void export_halo_gather(int* list, char * dat, int copy_size, int elem_size, char * export_buffer)
+
+__global__ void export_halo_gather(int* list, char * dat, int copy_size,
+  int elem_size, char * export_buffer)
 {
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   if (id<copy_size) {
@@ -42,15 +44,83 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size, int ele
   }
 }
 
+__global__ void export_halo_gather_soa(int* list, char * dat, int copy_size,
+  int elem_size, char * export_buffer, int set_size, int dim)
+{
+  int id = blockIdx.x*blockDim.x+threadIdx.x;
+  int size_of = elem_size/dim;
+  if (id<copy_size) {
+    for (int i =0;i<dim;i++) {
+      for (int j =0;j<size_of;j++) {
+        export_buffer[id*elem_size+i*size_of+j] = dat[list[id]*size_of+i*set_size*size_of+j];
+      }
+    }
+  }
+}
+
+__global__ void import_halo_scatter_soa(int offset, char * dat, int copy_size,
+  int elem_size, char * import_buffer, int set_size, int dim)
+{
+  int id = blockIdx.x*blockDim.x+threadIdx.x;
+  int size_of = elem_size/dim;
+  if (id<copy_size) {
+    for (int i =0;i<dim;i++) {
+      for (int j =0;j<size_of;j++) {
+        dat[(offset+id)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+      }
+    }
+  }
+}
+
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)
 {
   int threads = 192;
   int blocks = 1+((exp_exec_list->size-1)/192);
-  export_halo_gather<<<blocks,threads>>>(export_exec_list_d[arg.dat->set->index],
+
+  if (strstr( arg.dat->type, ":soa")!= NULL) {
+
+    int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
+
+    export_halo_gather_soa<<<blocks,threads>>>(export_exec_list_d[arg.dat->set->index],
+      arg.data_d, exp_exec_list->size, arg.dat->size, arg.dat->buffer_d, set_size, arg.dat->dim );
+
+    int blocks2 = 1+((exp_nonexec_list->size-1)/192);
+    export_halo_gather_soa<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index],
+      arg.data_d, exp_nonexec_list->size, arg.dat->size,
+      arg.dat->buffer_d+exp_exec_list->size*arg.dat->size, set_size, arg.dat->dim );
+  }
+  else
+  {
+    export_halo_gather<<<blocks,threads>>>(export_exec_list_d[arg.dat->set->index],
       arg.data_d, exp_exec_list->size, arg.dat->size, arg.dat->buffer_d);
 
-  int blocks2 = 1+((exp_nonexec_list->size-1)/192);
-  export_halo_gather<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index],
+    int blocks2 = 1+((exp_nonexec_list->size-1)/192);
+    export_halo_gather<<<blocks2,threads>>>(export_nonexec_list_d[arg.dat->set->index],
       arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d+exp_exec_list->size*arg.dat->size);
+  }
 }
 
+
+void scatter_data_from_buffer(op_arg arg)
+{
+  int threads = 192;
+  int blocks = 1+((arg.dat->set->exec_size-1)/192);
+
+  if (strstr( arg.dat->type, ":soa")!= NULL) {
+
+    int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
+    int offset = arg.dat->set->size;
+    int copy_size = arg.dat->set->exec_size;
+
+    import_halo_scatter_soa<<<blocks,threads>>>(offset, arg.data_d, copy_size,
+      arg.dat->size, arg.dat->buffer_d_r, set_size, arg.dat->dim );
+
+    offset += arg.dat->set->exec_size;
+    copy_size = arg.dat->set->nonexec_size;
+
+    int blocks2 = 1+((arg.dat->set->nonexec_size-1)/192);
+    import_halo_scatter_soa<<<blocks2,threads>>>(offset, arg.data_d, copy_size,
+      arg.dat->size, arg.dat->buffer_d_r+arg.dat->set->exec_size*arg.dat->size,
+      set_size, arg.dat->dim );
+  }
+}
