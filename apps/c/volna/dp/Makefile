@@ -24,6 +24,15 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5_hl -lhdf5 -lz
 
 MPI_INC = -I$(MPI_INSTALL_PATH)/include
 
+PARMETIS_INC 	= -I$(PARMETIS_INSTALL_PATH) -DHAVE_PARMETIS
+PARMETIS_LIB 	= -L$(PARMETIS_INSTALL_PATH) -lparmetis \
+	       	  -L$(PARMETIS_INSTALL_PATH) -lmetis
+
+PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
+PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+
+
 ifeq ($(OP2_COMPILER),gnu)
 	CPP = g++
 #	CPPFLAGS = -g0 -msse3 -fPIC -DUNIX -Wall
@@ -31,11 +40,11 @@ ifeq ($(OP2_COMPILER),gnu)
 	#CPPFLAGS = -g -fPIC -DUNIX -Wall
 	OMPFLAGS = -fopenmp
 	MPICPP = mpic++
-	MPIFLAGS = $(CCFLAGS)
+	MPIFLAGS = $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel
+	CCFLAGS = -O3 -vec-report -xSSE4.2 -parallel
 	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2
@@ -50,7 +59,7 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O0 #-g -G
+NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O3 #-g -G
 
 #
 # master to make all versions
@@ -58,18 +67,18 @@ NVCCFLAGS	= -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math -O0 #-g -G
 
 
 #VOLNA_SOURCES = \
-#	$(VOLNA_SRC)/values.cpp\
+# 	$(VOLNA_SRC)/values.cpp\
 #	$(VOLNA_SRC)/event.cpp\
 #	$(VOLNA_SRC)/geom.cpp
 
 #VOLNA_OBJECTS = $(VOLNA_SOURCES:.cpp=.o)
 
-all: clean volna volna_openmp volna_cuda
+all: clean volna volna_openmp volna_cuda volna_mpi volna_mpi_openmp volna_mpi_cuda
 
 volna: volna.cpp Makefile
 	$(MPICPP) $(CPPFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(HDF5_INC) $(OP2_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_seq -lop2_hdf5 -o volna
 
-volna_openmp: volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp
+volna_openmp: volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp Makefile
 	$(MPICPP) $(CPPFLAGS) $(OMPFLAGS)  volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp volna_event.cpp volna_kernels.cpp $(HDF5_INC) $(OP2_INC) $(HDF5_LIB) $(OP2_LIB) -lop2_openmp -lop2_hdf5 -o volna_openmp
 
 
@@ -83,23 +92,43 @@ volna_cuda:	volna_op.cpp volna_kernels_cu.o volna_simulation_op.cpp volna_init_o
 		$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o volna_cuda
 
 volna_kernels_cu.o:	volna_kernels.cu \
-		EvolveValuesRK2_1.h EvolveValuesRK2_2.h FacetsValuesFromCellValues.h getMaxElevation.h getTotalVol.h \
+		EvolveValuesRK2_1.h EvolveValuesRK2_2.h applyConst.h getMaxElevation.h getTotalVol.h \
 		initBathymetry_formula.h initBathymetry_update.h initBore_select.h initEta_formula.h initGaussianLandslide.h \
-		initU_formula.h initV_formula.h NumericalFluxes_1.h NumericalFluxes_2.h simulation_1.h SpaceDiscretization_1.h \
-		SpaceDiscretization_2.h SpaceDiscretization_3.h values_operation2.h applyConst_kernel.cu EvolveValuesRK2_1_kernel.cu \
-		EvolveValuesRK2_2_kernel.cu FacetsValuesFromCellValues_kernel.cu getMaxElevation_kernel.cu getTotalVol_kernel.cu \
+		initU_formula.h initV_formula.h NumericalFluxes.h simulation_1.h SpaceDiscretization.h \
+		values_operation2.h applyConst_kernel.cu EvolveValuesRK2_1_kernel.cu \
+		EvolveValuesRK2_2_kernel.cu applyConst_kernel.cu getMaxElevation_kernel.cu getTotalVol_kernel.cu \
 		initBathymetry_formula_kernel.cu initBathymetry_update_kernel.cu initBore_select_kernel.cu initEta_formula_kernel.cu \
-		initGaussianLandslide_kernel.cu initU_formula_kernel.cu initV_formula_kernel.cu NumericalFluxes_1_kernel.cu NumericalFluxes_2_kernel.cu \
-		simulation_1_kernel.cu SpaceDiscretization_1_kernel.cu SpaceDiscretization_2_kernel.cu SpaceDiscretization_3_kernel.cu \
+		initGaussianLandslide_kernel.cu initU_formula_kernel.cu initV_formula_kernel.cu NumericalFluxes_kernel.cu \
+		simulation_1_kernel.cu SpaceDiscretization_kernel.cu \
 		values_operation2_kernel.cu Makefile
 
-		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -I /home/gihan/openmpi-intel/include -c -o volna_kernels_cu.o volna_kernels.cu
+		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -I$(MPI_INC) -c -o volna_kernels_cu.o volna_kernels.cu
+
+volna_mpi: volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp Makefile
+    $(MPICPP) $(MPIFLAGS) volna.cpp volna_event.cpp volna_init.cpp volna_output.cpp volna_simulation.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+    $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o volna_mpi
+    
+volna_mpi_openmp: volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp Makefile
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(PARMETIS_INC) $(PTSCOTCH_INC) \
+		volna_op.cpp volna_init_op.cpp volna_output_op.cpp volna_simulation_op.cpp -lm volna_kernels.cpp $(OP2_LIB) -lop2_mpi \
+		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o volna_mpi_openmp
+
+volna_mpi_cuda: volna_op.cpp volna_simulation_op.cpp volna_init_op.cpp volna_output_op.cpp volna_kernels_mpi_cu.o Makefile
+		  $(MPICPP) $(MPIFLAGS) volna_op.cpp volna_simulation_op.cpp volna_init_op.cpp volna_output_op.cpp -lm volna_kernels_mpi_cu.o \
+		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o volna_mpi_cuda
+
+volna_kernels_mpi_cu.o: volna_kernels.cu Makefile
+		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		-c -o volna_kernels_mpi_cu.o volna_kernels.cu
 #
 # cleanup
 #
 
 clean:
-		rm -f volna volna_openmp volna_cuda *.o
+		rm -f volna volna_openmp volna_cuda volna_mpi volna_mpi_openmp volna_mpi_cuda *.o
 
 #%.o: %.cpp %.hpp
 #	$(CPP) $(CPPFLAGS) -c -o $@ $<
