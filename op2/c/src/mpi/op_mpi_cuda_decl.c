@@ -326,7 +326,7 @@ void op_timing_output()
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)
 {
   //need to get data from GPU
-  op_fetch_data_char(dat, NULL );
+  op_cuda_get_data(dat);
 
   //rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
@@ -340,11 +340,42 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name)
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
 {
   //need to get data from GPU
-  op_fetch_data_char(dat, NULL );
+  op_cuda_get_data(dat);
 
   //rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
   print_dat_to_txtfile_mpi(temp, file_name);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
+}
+
+void op_fetch_data_char ( op_dat dat, char * usr_ptr )
+{
+  //need to get data from GPU
+  op_cuda_get_data(dat);
+
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //copy data into usr_ptr
+  memcpy((void *)usr_ptr, (void *)temp->data, temp->set->size*temp->size);
+  free(temp->data);
+  free(temp->set);
+  free(temp);
+}
+
+void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr)
+{
+  //need to get data from GPU
+  op_cuda_get_data(dat);
+
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //do allgather on temp->data and copy it to memory block pointed to by use_ptr
+  op_fetch_data_hdf5_mpi(dat, usr_ptr);
 
   free(temp->data);
   free(temp->set);

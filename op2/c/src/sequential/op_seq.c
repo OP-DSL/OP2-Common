@@ -104,13 +104,14 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void
 op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
-  (void)dat;
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);
 }
 
 void
 op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr )
 {
-  //need to copy data into usr_ptr
+  op_fetch_data_char (dat, usr_ptr );
 }
 
 

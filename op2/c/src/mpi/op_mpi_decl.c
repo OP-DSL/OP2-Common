@@ -138,7 +138,15 @@ void op_fetch_data_char(op_dat dat, char * usr_ptr)
 
 void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr)
 {
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //do allgather on temp->data and copy it to memory block pointed to by use_ptr
   op_fetch_data_hdf5_mpi(dat, usr_ptr);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
 }
 
 /*

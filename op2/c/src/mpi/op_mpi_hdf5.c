@@ -383,7 +383,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(double))
     {
-      printf("dat.size %zu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -396,7 +396,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(float))
     {
-      printf("dat.size %zu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -409,7 +409,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(int))
     {
-      printf("dat.size %zu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -988,8 +988,127 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
 
+
+/*******************************************************************************
+* Routine to fetch data from an op_dat to user allocated memory block
+*******************************************************************************/
+
 void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
 {
-  //do a normal op_mpi_get_data which will rearrange to the way it was read from hdf5 file - for consistancy
-  //need to all-gather data and copy this to the memory block pointed by usr_ptr
+  //create new communicator
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
+
+  //compute local number of elements in dat
+  int count = dat->set->size;
+  if(strcmp(dat->type,"double") == 0)
+  {
+    double *l_array  = (double *) xmalloc(dat->dim*(count)*sizeof(double));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+    int l_size = count;
+    size_t elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
+    }
+
+    //need to all-gather dat->data and copy this to the memory block
+    //pointed by usr_ptr
+    MPI_Allgatherv(l_array, l_size*elem_size, MPI_DOUBLE,
+                   usr_ptr, recevcnts, displs,
+                   MPI_DOUBLE, OP_MPI_HDF5_WORLD);
+
+    free(l_array);free(recevcnts);free(displs);
+
+  }
+  else if(strcmp(dat->type,"float") == 0)
+  {
+    float *l_array  = (float *) xmalloc(dat->dim*(count)*sizeof(float));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+    int l_size = count;
+    size_t elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
+    }
+
+    //need to all-gather dat->data and copy this to the memory block
+    //pointed by usr_ptr
+    MPI_Allgatherv(l_array, l_size*elem_size, MPI_FLOAT,
+                   usr_ptr, recevcnts, displs,
+                   MPI_FLOAT, OP_MPI_HDF5_WORLD);
+
+    free(l_array);free(recevcnts);free(displs);
+
+  }
+  else if(strcmp(dat->type,"int") == 0)
+  {
+    int *l_array  = (int *) xmalloc(dat->dim*(count)*sizeof(int));
+    memcpy(l_array, (void *)&(dat->data[0]),
+        dat->size*count);
+    int l_size = count;
+    size_t elem_size = dat->dim;
+    int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+    int* displs = (int *) xmalloc(comm_size*sizeof(int));
+    int disp = 0;
+
+    MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+
+    int g_size = 0;
+    for(int i = 0; i<comm_size; i++)
+    {
+      g_size += recevcnts[i];
+      recevcnts[i] =   elem_size*recevcnts[i];
+    }
+    for(int i = 0; i<comm_size; i++)
+    {
+      displs[i] =   disp;
+      disp = disp + recevcnts[i];
+    }
+
+    //need to all-gather dat->data and copy this to the memory block
+    //pointed by usr_ptr
+    MPI_Allgatherv(l_array, l_size*elem_size, MPI_INT,
+                   usr_ptr, recevcnts, displs,
+                   MPI_INT, OP_MPI_HDF5_WORLD);
+
+    free(l_array);free(recevcnts);free(displs);
+
+  }
+  else
+  {
+    printf("Unknown type %s, cannot error in op_fetch_data_hdf5_mpi() \n",dat->type);
+  }
+
+  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
