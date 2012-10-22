@@ -124,7 +124,7 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
       } else if (strcmp((*events)[i].className.c_str(), "OutputConservedQuantities") == 0) {
         OutputConservedQuantities(cells, cellVolumes, values);
       } else if (strcmp((*events)[i].className.c_str(), "OutputSimulation") == 0) {
-        OutputSimulation(&(*events)[i], &(*timers)[i], nodeCoords, cellsToNodes, values);
+        OutputSimulation(1, &(*events)[i], &(*timers)[i], nodeCoords, cellsToNodes, values);
       } else if (strcmp((*events)[i].className.c_str(), "OutputMaxElevation") == 0) {
          OutputMaxElevation(&(*events)[i], &(*timers)[i], nodeCoords, cellsToNodes, values, cells);
       } else {
