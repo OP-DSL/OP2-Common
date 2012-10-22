@@ -164,7 +164,7 @@ int main(int argc, char **argv) {
 
   op_diagnostic_output();
 
-  op_partition("PTSCOTCH", "KWAY", cells, cellsToEdges, NULL);
+  op_partition("PARMETIS", "GEOM", NULL, NULL, cellCenters);
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers(&cpu_t1, &wall_t1);
