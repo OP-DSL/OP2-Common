@@ -197,9 +197,9 @@ void op_fetch_data_hdf5(op_dat dat, T* usr_ptr, int low, int high)
 }
 
 
-inline void op_fetch_data_hdf5(op_dat dat, char* const file_name)
+inline void op_fetch_data_hdf5(op_dat dat, char const *file_name)
 {
-  //op_fetch_data_hdf5_file(dat, file_name);
+  op_fetch_data_hdf5_file(dat, file_name);
 }
 
 //

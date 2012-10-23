@@ -778,3 +778,30 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 
   H5Fclose(file_id);
 }
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file,
+* if file does not exist, creates it
+* if the data set does not exists in file creates it
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
+{
+  //HDF5 APIs definitions
+  hid_t file_id;   //file identifier
+
+  file_id = H5Fopen(file_name, H5F_ACC_RDONLY, H5P_DEFAULT);
+
+  if(H5Lexists(file_id, dat->name, H5P_DEFAULT) != 0)
+    printf("op_dat %s exists in the file\n", dat->name);
+
+  //if file exists
+  //  if data set exsits
+  //     update data set with new op_dat values
+  //  else
+  //     create data set and put op_dat values in to it
+  //else - no file
+  //   create file, create data set, and put op_dat values into it
+
+  H5Fclose(file_id);
+}

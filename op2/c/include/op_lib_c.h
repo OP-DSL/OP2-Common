@@ -94,6 +94,8 @@ void op_fetch_data_char ( op_dat , char* );
 
 void op_fetch_data_hdf5_char ( op_dat , char* , int, int);
 
+void op_fetch_data_hdf5_file ( op_dat , char const * );
+
 void op_exit (  );
 
 void op_timing_output();
