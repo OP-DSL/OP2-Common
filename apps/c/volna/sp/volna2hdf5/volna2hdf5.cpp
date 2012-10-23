@@ -165,9 +165,6 @@ int main(int argc, char **argv) {
   float *initBathymetry = NULL;
   float *x = NULL; // Node coordinates in 2D
   float *w = NULL; // Conservative variables
-  //float *wold = NULL; // Old conservative variables
-  //float *res = NULL; // Per edge residuals
-  //float *dt = NULL; // Time step
 
   // Number of nodes, cells, edges and iterations
   int nnode = 0, ncell = 0, nedge = 0, niter = 0;
@@ -183,7 +180,6 @@ int main(int argc, char **argv) {
   printf("  No. cells = %d\n", ncell);
   printf("Connectivity data statistics: \n");
   printf("  No. of edges           = %d\n", nedge);
-  //printf("  No. of boundary edges  = %d\n\n", nbedge);
 
   // Arrays for mapping data
   cell = (int*) malloc(N_NODESPERCELL * ncell * sizeof(int));
@@ -384,12 +380,15 @@ int main(int argc, char **argv) {
   //
   // Define HDF5 filename
   //
-  char *filename_msh; // = "stlaurent_35k.msh";
-  char *filename_h5; // = "stlaurent_35k.h5";
-  filename_msh = strdup(sim.MeshFileName.c_str());
-  filename_h5 = strndup(filename_msh, strlen(filename_msh) - 4);
-  strcat(filename_h5, ".h5");
-
+  char *filename_h5; // gaussian_landslide.vln -->  gaussian_landslide.h5
+  strcpy(filename_h5, file);
+  const char* substituteIndexPattern = ".vln";
+  char* pos;
+  pos = strstr(filename_h5, substituteIndexPattern);
+  char substituteIndex[255];
+  sprintf(substituteIndex, ".h5");
+  strcpy(pos, substituteIndex);
+  op_printf("Writing data to HDF5 file: %s \n", filename_h5);
   //
   // Write mesh and geometry data to HDF5
   //
@@ -443,9 +442,9 @@ int main(int argc, char **argv) {
    * *.vln config file)
    */
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "nx", 1, &dims, (float*)&sim.mesh.nx));
+      H5LTmake_dataset_int(h5file, "nx", 1, &dims, (int*)&sim.mesh.nx));
   check_hdf5_error(
-      H5LTmake_dataset_float(h5file, "ny", 1, &dims, (float*)&sim.mesh.ny));
+      H5LTmake_dataset_int(h5file, "ny", 1, &dims, (int*)&sim.mesh.ny));
   check_hdf5_error(
       H5LTmake_dataset_float(h5file, "xmin", 1, &dims, (float*)&sim.mesh.xmin));
   check_hdf5_error(
@@ -514,6 +513,7 @@ int main(int argc, char **argv) {
 
   //...
   check_hdf5_error(H5Fclose(h5file));
+  op_printf("HDF5 file written and closed successfully.\n");
 
   free(cell);
   free(ecell);
