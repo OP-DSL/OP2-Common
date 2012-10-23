@@ -993,7 +993,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 * Routine to fetch data from an op_dat to user allocated memory block
 *******************************************************************************/
 
-void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
+void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr, int low, int high)
 {
   //create new communicator
   int my_rank, comm_size;
@@ -1013,6 +1013,7 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
     int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     int* displs = (int *) xmalloc(comm_size*sizeof(int));
     int disp = 0;
+    double *g_array = 0;
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
 
@@ -1028,13 +1029,24 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
       disp = disp + recevcnts[i];
     }
 
+    g_array  = (double *) xmalloc(elem_size*g_size*sizeof(double));
+
     //need to all-gather dat->data and copy this to the memory block
     //pointed by usr_ptr
     MPI_Allgatherv(l_array, l_size*elem_size, MPI_DOUBLE,
-                   usr_ptr, recevcnts, displs,
+                   g_array, recevcnts, displs,
                    MPI_DOUBLE, OP_MPI_HDF5_WORLD);
 
-    free(l_array);free(recevcnts);free(displs);
+    if(low < 0 || high > g_size -1)
+    {
+      printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+        dat->name);
+      MPI_Abort(OP_MPI_HDF5_WORLD, -1);
+    }
+    memcpy((void *)usr_ptr, (void *)&g_array[low*dat->size],
+    (high+1)*dat->size);
+
+    free(l_array);free(recevcnts);free(displs);free(g_array);
 
   }
   else if(strcmp(dat->type,"float") == 0)
@@ -1047,6 +1059,7 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
     int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     int* displs = (int *) xmalloc(comm_size*sizeof(int));
     int disp = 0;
+    float *g_array = 0;
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
 
@@ -1062,13 +1075,24 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
       disp = disp + recevcnts[i];
     }
 
+    g_array  = (float *) xmalloc(elem_size*g_size*sizeof(float));
+
     //need to all-gather dat->data and copy this to the memory block
     //pointed by usr_ptr
     MPI_Allgatherv(l_array, l_size*elem_size, MPI_FLOAT,
-                   usr_ptr, recevcnts, displs,
+                   g_array, recevcnts, displs,
                    MPI_FLOAT, OP_MPI_HDF5_WORLD);
 
-    free(l_array);free(recevcnts);free(displs);
+    if(low < 0 || high > g_size -1)
+    {
+      printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+        dat->name);
+      MPI_Abort(OP_MPI_HDF5_WORLD, -1);
+    }
+    memcpy((void *)usr_ptr, (void *)&g_array[low*dat->size],
+    (high+1)*dat->size);
+
+    free(l_array);free(recevcnts);free(displs);free(g_array);
 
   }
   else if(strcmp(dat->type,"int") == 0)
@@ -1081,6 +1105,7 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
     int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
     int* displs = (int *) xmalloc(comm_size*sizeof(int));
     int disp = 0;
+    int *g_array = 0;
 
     MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_HDF5_WORLD);
 
@@ -1096,13 +1121,24 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr)
       disp = disp + recevcnts[i];
     }
 
+    g_array  = (int *) xmalloc(elem_size*g_size*sizeof(int));
+
     //need to all-gather dat->data and copy this to the memory block
     //pointed by usr_ptr
     MPI_Allgatherv(l_array, l_size*elem_size, MPI_INT,
                    usr_ptr, recevcnts, displs,
                    MPI_INT, OP_MPI_HDF5_WORLD);
 
-    free(l_array);free(recevcnts);free(displs);
+    if(low < 0 || high > g_size -1)
+    {
+      printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+        dat->name);
+      MPI_Abort(OP_MPI_HDF5_WORLD, -1);
+    }
+    memcpy((void *)usr_ptr, (void *)&g_array[low*dat->size],
+    (high+1)*dat->size);
+
+    free(l_array);free(recevcnts);free(displs);free(g_array);
 
   }
   else

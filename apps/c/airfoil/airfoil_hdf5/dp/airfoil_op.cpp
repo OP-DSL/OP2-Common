@@ -261,15 +261,15 @@ int main(int argc, char **argv)
 
   //allocate memory to hold the whole data array
   double* q = (double *)malloc(sizeof(double)*op_get_size(cells)*4);
-  op_fetch_data_hdf5(p_q, q);
+  op_fetch_data_hdf5(p_q, q, 0, op_get_size(cells));
 
-  //printf("number of cells %d\n",op_get_size(cells));
-  //for(int i = 0; i< op_get_size(cells)*4; i++)
-  //  printf("(%d) %lf",i,(double)q[i]);
-
+  /*printf("number of cells %d\n",op_get_size(cells));
+  for(int i = 0; i< op_get_size(cells)*4; i++)
+    printf("(%d) %lf",i,(double)q[i]);
+  */
   free(q);
 
-  //op_fetch_data_hdf5_file(p_q, "q_file.h5");
+  op_fetch_data_hdf5(p_q, "file_name.h5");
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");

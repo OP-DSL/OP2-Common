@@ -366,7 +366,7 @@ void op_fetch_data_char ( op_dat dat, char * usr_ptr )
   free(temp);
 }
 
-void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr)
+void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
 {
   //need to get data from GPU
   op_cuda_get_data(dat);
@@ -375,7 +375,7 @@ void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr)
   op_dat temp = op_mpi_get_data(dat);
 
   //do allgather on temp->data and copy it to memory block pointed to by use_ptr
-  op_fetch_data_hdf5_mpi(dat, usr_ptr);
+  op_fetch_data_hdf5_mpi(dat, usr_ptr, low, high);
 
   free(temp->data);
   free(temp->set);

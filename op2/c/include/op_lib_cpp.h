@@ -191,15 +191,20 @@ void op_fetch_data ( op_dat dat, T* usr_ptr)
 }
 
 template < class T >
-void op_fetch_data_hdf5(op_dat dat, T* usr_ptr)
+void op_fetch_data_hdf5(op_dat dat, T* usr_ptr, int low, int high)
 {
-  op_fetch_data_hdf5_char(dat, (char* )usr_ptr);
+  op_fetch_data_hdf5_char(dat, (char* )usr_ptr, low, high);
+}
+
+
+inline void op_fetch_data_hdf5(op_dat dat, char* const file_name)
+{
+  //op_fetch_data_hdf5_file(dat, file_name);
 }
 
 //
 // wrapper functions to handle MPI global reductions
 //
-
 
 inline void op_mpi_reduce(op_arg* args, float *data)
 {

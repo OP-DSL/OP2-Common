@@ -80,9 +80,17 @@ op_fetch_data_char ( op_dat dat, char * usr_ptr )
 }
 
 void
-op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr )
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high )
 {
-  op_fetch_data_char (dat, usr_ptr );
+  if(low < 0 || high > dat->set->size -1)
+  {
+    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+      dat->name);
+    exit(2);
+  }
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)&dat->data[low*dat->size],
+    (high+1)*dat->size);
 }
 
 
