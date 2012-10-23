@@ -89,7 +89,7 @@ void InitBathymetry(op_set cells, op_dat cellCenters, op_dat values, op_dat init
     int variable = 8; //bitmask 1 - H, 2 - U, 4 - V, 8 - Zb
     //TODO: we are only overwriting H, moving the whole thing
     op_par_loop(applyConst, "applyConst", cells,
-                op_arg_dat(initValues, -1, OP_ID, 4, "float", OP_READ),
+                op_arg_dat(initValues, -1, OP_ID, 1, "float", OP_READ),
                 op_arg_dat(values, -1, OP_ID, 4, "float", OP_RW),
                 op_arg_gbl(&variable, 1, "int", OP_READ));
   } else {
