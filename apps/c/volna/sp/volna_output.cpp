@@ -1,6 +1,7 @@
 #include "volna_common.h"
 #include "getTotalVol.h"
 #include "getMaxElevation.h"
+#include "triangleIndex.h"
 #include <stdio.h>
 #include "op_seq.h"
 
@@ -49,7 +50,7 @@ inline int swapEndiannesInt(int d) {
 }
 
 inline void WriteMeshToVTKBinary(const char* filename, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
-  op_printf("BINNNNNNNNNNARRRRRRRRRRRRRRRRRYYYYYYYYYY\n");
+  op_printf("Writing binary output file: %s \n",filename);
   FILE* fp;
   fp = fopen(filename, "w");
   if(fp == NULL) {
@@ -280,7 +281,7 @@ void OutputMaxElevation(EventParams *event, TimerParams* timer, op_dat nodeCoord
 
   char filename[255];
   strcpy(filename, event->streamName.c_str());
-  op_printf("Write output to file: %s \n", filename);
+  op_printf("Write OutputMaxElevation to file: %s \n", filename);
   int nnode = nodeCoords->set->size;
   int ncell = cellsToNodes->from->size;
   const char* substituteIndexPattern = "%i";
@@ -319,29 +320,76 @@ void OutputMaxElevation(EventParams *event, TimerParams* timer, op_dat nodeCoord
   }
 }
 
-//// TODO -- erase the gage file at the beginning of the simulation
-//void OutputLocation::execute( Mesh &mesh, Values &V ) {
-//
-//  // erase the file if it already exists, first time the event
-//  // happens
-//  if ( (timer.istart == 0 || timer.start == 0) && timer.iter == 0 ) {
-//    std::ofstream stream( streamName.c_str());
-//    stream.close();
+
+void OutputLocation(EventParams *event, TimerParams* timer, op_set cells, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
+  char filename[255];
+  strcpy(filename, event->streamName.c_str());
+  op_printf("Write OutputLocation to file: %s \n", filename);
+  int nnode = nodeCoords->set->size;
+  int ncell = cellsToNodes->from->size;
+  //const char* substituteIndexPattern = "%i";
+  //char* pos;
+  //pos = strstr(filename, substituteIndexPattern);
+  //char substituteIndex[255];
+  //sprintf(substituteIndex, "%04d.vtk", timer->iter);
+  //strcpy(pos, substituteIndex);
+
+  FILE* fp;
+
+  // erase the file if it already exists, first time the event
+  // happens
+  if ( (timer->istart == 0 || timer->start == 0) && timer->iter == 0 ) {
+    fp = fopen(filename, "w");
+  } else {
+    fp = fopen(filename, "a");
+  }
+
+  if(fp == NULL) {
+    op_printf("can't open file for write %s\n",filename);
+    exit(-1);
+  }
+
+  float val = 0.0f;
+  op_par_loop(triangleIndex, "triangleIndex", cells,
+      op_arg_gbl(&val, 1, "float", OP_MAX),
+      op_arg_gbl(&(event->location_x), 1, "float", OP_READ),
+      op_arg_gbl(&(event->location_y), 1, "float", OP_READ),
+      op_arg_dat(nodeCoords, 0, cellsToNodes, 2, "float", OP_READ),
+      op_arg_dat(nodeCoords, 1, cellsToNodes, 2, "float", OP_READ),
+      op_arg_dat(nodeCoords, 2, cellsToNodes, 2, "float", OP_READ),
+      op_arg_dat(values, -1, OP_ID, 4, "float", OP_READ)
+      );
+
+//  if ( val == 0.0f ) {
+//    op_printf("Warning: data might not be relevant! "
+//        "Given point ( %f, %f ) might not be inside any cell. \n",
+//        event->location_x, event->location_y);
+//  } else {
+////    op_fetch_data(values);
+////    float* values_data;
+////    values_data = (float*) (values->data);
+////    fprintf(fp, "%lf %10.20g\n", timer->t, values_data[id*4]+values_data[id*4+3]);
+    fprintf(fp, "%lf %10.20g\n", timer->t, val);
 //  }
-//
-//
+
+  if(fclose(fp)) {
+    op_printf("can't close file %s\n",filename);
+    exit(-1);
+  }
+
+
 //  const Point point( x, y, 0. );
 //  int id = mesh.TriangleIndex( point );
 //  std::ofstream stream( streamName.c_str(), std::ofstream::app );
 //  stream << timer.t << " "
 //   << V.H(id) + V.Zb( id ) << "\n";
 //  stream.close();
-//}
+}
 
 void OutputSimulation(int type, EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values) {
   char filename[255];
   strcpy(filename, event->streamName.c_str());
-  op_printf("Write output to file: %s \n", filename);
+  op_printf("Write OutputSimulation to file: %s \n", filename);
   int nnode = nodeCoords->set->size;
   int ncell = cellsToNodes->from->size;
   const char* substituteIndexPattern = "%i";

@@ -123,6 +123,8 @@ void processEvents(std::vector<TimerParams> *timers, std::vector<EventParams> *e
         //op_printf("Output iter: %d \n", (*timers)[i].iter);
       } else if (strcmp((*events)[i].className.c_str(), "OutputConservedQuantities") == 0) {
         OutputConservedQuantities(cells, cellVolumes, values);
+      } else if (strcmp((*events)[i].className.c_str(), "OutputLocation") == 0) {
+        OutputLocation(&(*events)[i], &(*timers)[i], cells, nodeCoords, cellsToNodes, values);
       } else if (strcmp((*events)[i].className.c_str(), "OutputSimulation") == 0) {
         OutputSimulation(1, &(*events)[i], &(*timers)[i], nodeCoords, cellsToNodes, values);
       } else if (strcmp((*events)[i].className.c_str(), "OutputMaxElevation") == 0) {

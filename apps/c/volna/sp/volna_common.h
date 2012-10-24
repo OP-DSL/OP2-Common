@@ -63,6 +63,7 @@ void InitGaussianLandslide(op_set cells, op_dat cellCenters, op_dat values, Gaus
 
 void OutputTime(TimerParams *timer);
 void OutputConservedQuantities(op_set cells, op_dat cellVolumes, op_dat values);
+void OutputLocation(EventParams *event, TimerParams* timer, op_set cells, op_dat nodeCoords, op_map cellsToNodes, op_dat values);
 void OutputSimulation(int type, EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values);
 void OutputMaxElevation(EventParams *event, TimerParams* timer, op_dat nodeCoords, op_map cellsToNodes, op_dat values, op_set cells);
 float normcomp(op_dat dat, int off);
