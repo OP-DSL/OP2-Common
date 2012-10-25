@@ -48,9 +48,9 @@ void op_mat_destroy ( op_mat m );
 
 op_arg op_arg_mat ( op_mat mat, int rowidx, op_map rowmap, int colidx, op_map colmap, int *dim, const char * typ, op_access acc );
 
-void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols );
+void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols, int insert);
 
-void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col );
+void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col, int insert );
 
 void op_mat_assemble( op_mat mat );
 

@@ -129,7 +129,7 @@ static inline PetscScalar * to_petsc(T dat, const void * values, int size)
   return dvalues;
 }
 
-void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col )
+void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col, int insert)
 {
   assert( mat && value);
   PetscScalar v[1];
@@ -138,7 +138,9 @@ void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col )
   else
     v[0] = ((const PetscScalar *)value)[0];
 
-  if ( v[0] == 0.0 ) {
+  InsertMode mode = insert ? INSERT_VALUES : ADD_VALUES;
+
+  if ( v[0] == 0.0 && mode == ADD_VALUES ) {
     return;
   }
   op_set s = mat->sparsity->rowmaps[0]->to;
@@ -148,10 +150,10 @@ void op_mat_addto_scalar( op_mat mat, const void* value, int row, int col )
   MatSetValues( (Mat) mat->mat,
                 1, (const PetscInt *)&row,
                 1, (const PetscInt *)&col,
-                v, ADD_VALUES );
+                v, mode );
 }
 
-void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols )
+void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, int ncols, const int *icols, int insert )
 {
   assert( mat && values && irows && icols );
 
@@ -166,10 +168,13 @@ void op_mat_addto( op_mat mat, const void* values, int nrows, const int *irows, 
   for ( int i = 0; i < ncols; i++ ) {
     cols[i] = op_global_index(s, icols[i]);
   }
+
+  InsertMode mode = insert ? INSERT_VALUES : ADD_VALUES;
+
   MatSetValues( (Mat) mat->mat,
                 nrows, (const PetscInt *)rows,
                 ncols, (const PetscInt *)cols,
-                dvalues, ADD_VALUES);
+                dvalues, mode);
 
   free(rows);
   free(cols);
