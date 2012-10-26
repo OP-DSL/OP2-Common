@@ -792,7 +792,7 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
   hid_t dset_id;   //dataset identifier
   hid_t dataspace; //data space identifier
 
-  hsize_t     dimsf[2]; // dataset dimensions
+  hsize_t  dimsf[2]; // dataset dimensions
 
   if (file_exist(file_name) == 0)
   {
@@ -909,25 +909,15 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
       dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
 
       if((strcmp(dat->type,"double")==0) || (strcmp(dat->type,"double:soa") == 0))
-      {
         H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      }
       else if((strcmp(dat->type,"float")==0) || (strcmp(dat->type,"float:soa") == 0))
-      {
         H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      }
       else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
-      {
         H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      }
       else if((strcmp(dat->type,"long")==0) || (strcmp(dat->type,"long:soa") == 0))
-      {
         H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      }
       else if((strcmp(dat->type,"long long")==0) || (strcmp(dat->type,"long long:soa") == 0))
-      {
         H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      }
       else
       {
         printf("Unknown type for data elements\n");

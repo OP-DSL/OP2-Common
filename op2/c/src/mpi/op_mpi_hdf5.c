@@ -451,10 +451,10 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   MPI_Info info  = MPI_INFO_NULL;
 
   //HDF5 APIs definitions
-  hid_t       file_id; //file identifier
+  hid_t file_id; //file identifier
   hid_t plist_id;  //property list identifier
   hid_t dset_id; //dataset identifier
-  hid_t       dataspace; //data space identifier
+  hid_t dataspace; //data space identifier
   hid_t attr;   //attribute identifier
 
   //Set up file access property list with parallel I/O access
@@ -740,7 +740,7 @@ void op_write_hdf5(char const * file_name)
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
 
-    //find total size of map
+    //find total size of dat
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
     MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
@@ -796,6 +796,10 @@ void op_write_hdf5(char const * file_name)
       H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, dat->data);
     else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
       H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
+    else if((strcmp(dat->type,"long") == 0) || (strcmp(dat->type,"long:soa") == 0))
+      H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, dat->data);
+    else if((strcmp(dat->type,"long long") == 0) || (strcmp(dat->type,"long long:soa") == 0))
+      H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, dat->data);
     else printf("Unknown type\n");
 
     H5Pclose(plist_id);
@@ -1152,5 +1156,204 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr, int low, int high)
     printf("Unknown type %s, cannot error in op_fetch_data_hdf5_mpi() \n",dat->type);
   }
 
+  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+}
+
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file,
+* if file does not exist, creates it
+* if the data set does not exists in file creates data set
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
+{
+  // NEED TO DO AN OP_GET_DATA_MPI first ....
+
+   //create new communicator
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
+
+  //MPI variables
+  MPI_Info info  = MPI_INFO_NULL;
+
+  //HDF5 APIs definitions
+  hid_t file_id;   //file identifier
+  hid_t dset_id = 0;   //dataset identifier
+  hid_t dataspace; //data space identifier
+  hid_t plist_id;  //property list identifier
+  hid_t memspace; //memory space identifier
+
+  hsize_t dimsf[2]; // dataset dimensions
+  hsize_t count[2]; //hyperslab selection parameters
+  hsize_t offset[2];
+
+  //Set up file access property list with parallel I/O access
+  plist_id = H5Pcreate(H5P_FILE_ACCESS);
+  H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
+
+  if (file_exist(file_name) == 0)
+  {
+    op_printf("File %s does not exist .... creating file\n", file_name);
+    file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, plist_id);
+  }
+  else
+  {
+    op_printf("File %s exists .... checking for dataset %s in file\n", file_name, dat->name);
+    file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
+    if(H5Lexists(file_id, dat->name, H5P_DEFAULT) != 0)
+    {
+      op_printf("op_dat %s exists in the file ... updating data\n", dat->name);
+      dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
+      //do various atribute checks
+
+
+      //
+      //all good .. we can update existing dat now
+      //
+
+      //find total size of dat
+      int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
+      int g_size = 0;
+      MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+      for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
+
+      //Create the dataspace for the dataset.
+      dimsf[0] = g_size;
+      dimsf[1] = dat->dim;
+
+      //Each process defines dataset in memory and writes it to a hyperslab
+      //in the file.
+      int disp = 0;
+      for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
+      count[0] = dat->set->size;
+      count[1] = dimsf[1];
+      offset[0] = disp;
+      offset[1] = 0;
+      memspace = H5Screate_simple(2, count, NULL);
+
+      //Select hyperslab in the file.
+      dataspace = H5Dget_space(dset_id);
+      H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
+
+      //Create property list for collective dataset write.
+      H5Pclose(plist_id);
+      plist_id = H5Pcreate(H5P_DATASET_XFER);
+      H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+      //write data
+      if((strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
+        H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, dat->data);
+      else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
+        H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, dat->data);
+      else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
+        H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
+      else if((strcmp(dat->type,"long") == 0) || (strcmp(dat->type,"long:soa") == 0))
+        H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, dat->data);
+      else if((strcmp(dat->type,"long long") == 0) || (strcmp(dat->type,"long long:soa") == 0))
+        H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, dat->data);
+      else
+      {
+        printf("Unknown type\n");
+        MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+      }
+
+      H5Dclose(dset_id);
+      H5Sclose(dataspace);
+      H5Fclose(file_id);
+      H5Pclose(plist_id);
+      MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+      return;
+    }
+    else
+    {
+      op_printf("op_dat %s does not exists in the file ... creating data set\n", dat->name);
+    }
+  }
+
+  //
+  // new file and new data set ...
+  //
+
+  //find total size of dat
+  int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
+  int g_size = 0;
+  MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+  for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
+
+  //Create the dataspace for the dataset.
+  dimsf[0] = g_size;
+  dimsf[1] = dat->dim;
+  dataspace = H5Screate_simple(2, dimsf, NULL);
+
+  //Create the dataset with default properties and close dataspace.
+  if((strcmp(dat->type,"double")==0) || (strcmp(dat->type,"double:soa") == 0))
+    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  else if((strcmp(dat->type,"float")==0) || (strcmp(dat->type,"float:soa") == 0))
+    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
+    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  else if((strcmp(dat->type,"long")==0) || (strcmp(dat->type,"long:soa") == 0))
+    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LONG, dataspace,
+      H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  else if((strcmp(dat->type,"long long")==0) || (strcmp(dat->type,"long long:soa") == 0))
+    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LLONG, dataspace,
+      H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  else
+  {
+    printf("Unknown type\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
+
+  H5Sclose(dataspace);
+  H5Pclose(plist_id);
+
+  //Each process defines dataset in memory and writes it to a hyperslab
+  //in the file.
+  int disp = 0;
+  for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
+  count[0] = dat->set->size;
+  count[1] = dimsf[1];
+  offset[0] = disp;
+  offset[1] = 0;
+  memspace = H5Screate_simple(2, count, NULL);
+
+  //Select hyperslab in the file.
+  dataspace = H5Dget_space(dset_id);
+  H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
+
+  //Create property list for collective dataset write.
+  plist_id = H5Pcreate(H5P_DATASET_XFER);
+  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+  //write data
+  if((strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
+    H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, dat->data);
+  else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
+    H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, dat->data);
+  else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
+    H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
+  else if((strcmp(dat->type,"long") == 0) || (strcmp(dat->type,"long:soa") == 0))
+    H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, dat->data);
+  else if((strcmp(dat->type,"long long") == 0) || (strcmp(dat->type,"long long:soa") == 0))
+    H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, dat->data);
+  else
+  {
+    printf("Unknown type\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
+
+  free(sizes);
+  H5Pclose(plist_id);
+  H5Sclose(memspace);
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
+
+  H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }

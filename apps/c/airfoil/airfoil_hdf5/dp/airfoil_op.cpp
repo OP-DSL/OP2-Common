@@ -261,7 +261,7 @@ int main(int argc, char **argv)
 
   //allocate memory to hold the whole data array
   double* q = (double *)malloc(sizeof(double)*op_get_size(cells)*4);
-  op_fetch_data_hdf5(p_q, q, 0, op_get_size(cells));
+  op_fetch_data_hdf5(p_q, q, 0, op_get_size(cells)-1);
 
   /*printf("number of cells %d\n",op_get_size(cells));
   for(int i = 0; i< op_get_size(cells)*4; i++)
