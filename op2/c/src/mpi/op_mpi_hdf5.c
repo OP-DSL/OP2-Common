@@ -761,6 +761,12 @@ void op_write_hdf5(char const * file_name)
     else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if((strcmp(dat->type,"long")==0) || (strcmp(dat->type,"long:soa") == 0))
+      dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LONG, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    else if((strcmp(dat->type,"long long")==0) || (strcmp(dat->type,"long long:soa") == 0))
+      dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LLONG, dataspace,
+        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     else printf("Unknown type\n");
 
     H5Sclose(dataspace);
