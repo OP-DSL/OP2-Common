@@ -1,4 +1,4 @@
-void applyConst(float *in, float *out, const int *variables) {
+inline void applyConst(float *in, float *out, const int *variables) {
   if (*variables & 1) {
     out[0] += in[0];
   }

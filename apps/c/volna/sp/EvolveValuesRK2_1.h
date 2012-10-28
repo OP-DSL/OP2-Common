@@ -1,4 +1,4 @@
-void EvolveValuesRK2_1(const float *dT, float *midPointConservative, //OP_RW //temp
+inline void EvolveValuesRK2_1(const float *dT, float *midPointConservative, //OP_RW //temp
             float *in, //OP_READ
             float *inConservative, //OP_WRITE //temp
             float *midPoint) //OP_WRITE

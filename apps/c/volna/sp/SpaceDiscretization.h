@@ -1,4 +1,4 @@
-void SpaceDiscretization(float *left, //OP_INC
+inline void SpaceDiscretization(float *left, //OP_INC
               float *right, //OP_INC
               float *edgeFluxes, //OP_READ
               float *bathySource, //OP_READ

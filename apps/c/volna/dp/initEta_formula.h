@@ -1,4 +1,4 @@
-void initEta_formula(double *coords, double *values, const double *time) {
+inline void initEta_formula(double *coords, double *values, const double *time) {
   double x = coords[0];
   double y = coords[1];
   double t = *time;

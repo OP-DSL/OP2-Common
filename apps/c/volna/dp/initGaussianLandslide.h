@@ -1,4 +1,4 @@
-void initGaussianLandslide( double *center, double *values, const double *mesh_xmin, const double *A, const double *t, const double *lx, const double *ly, const double *v) {
+inline void initGaussianLandslide( double *center, double *values, const double *mesh_xmin, const double *A, const double *t, const double *lx, const double *ly, const double *v) {
   double x = center[0];
   double y = center[1];
   values[3] = (*mesh_xmin-x)*(x<0.0)-5.0*(x>=0.0)+

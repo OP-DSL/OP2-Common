@@ -1,4 +1,4 @@
-void initBore_select(double *values, double *center,
+inline void initBore_select(double *values, double *center,
                      const double *x0,
                      const double *Hl,
                      const double *ul,

@@ -1,4 +1,4 @@
-void computeFluxes(double *cellLeft, double *cellRight,
+inline void computeFluxes(double *cellLeft, double *cellRight,
                                 double *edgeLength, double *edgeNormals,
                                 int *isRightBoundary, //OP_READ
                                 double *bathySource, double *out, //OP_WRITE
