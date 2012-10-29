@@ -785,7 +785,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 * if the data set does not exists in file creates data set
 *******************************************************************************/
 
-void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
+void fetch_data_hdf5_file(op_dat dat, char const *file_name)
 {
   //HDF5 APIs definitions
   hid_t file_id;   //file identifier

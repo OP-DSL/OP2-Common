@@ -993,7 +993,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 * Routine to fetch data from an op_dat to user allocated memory block
 *******************************************************************************/
 
-void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr, int low, int high)
+void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
 {
   //create new communicator
   int my_rank, comm_size;
@@ -1141,7 +1141,7 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr, int low, int high)
   }
   else
   {
-    printf("Unknown type %s, cannot error in op_fetch_data_hdf5_mpi() \n",dat->type);
+    printf("Unknown type %s, cannot error in fetch_data_hdf5() \n",dat->type);
   }
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
@@ -1154,7 +1154,7 @@ void op_fetch_data_hdf5_mpi(op_dat dat, char* usr_ptr, int low, int high)
 * if the data set does not exists in file creates data set
 *******************************************************************************/
 
-void fetch_data_hdf5_file_mpi(op_dat dat, char const *file_name)
+void fetch_data_hdf5_file(op_dat dat, char const *file_name)
 {
   //create new communicator
   int my_rank, comm_size;
@@ -1455,15 +1455,4 @@ void fetch_data_hdf5_file_mpi(op_dat dat, char const *file_name)
 
   H5Fclose(file_id);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
-}
-
-void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
-{
-  //rearrange data backe to original order in mpi
-  op_dat temp= op_mpi_get_data(dat);
-  fetch_data_hdf5_file_mpi(temp, file_name);
-
-  free(temp->data);
-  free(temp->set);
-  free(temp);
 }
