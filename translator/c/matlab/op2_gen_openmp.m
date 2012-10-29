@@ -765,11 +765,6 @@ for nc = 1:length(consts)
   end
 end
 
-for nc = 1:length(consts)
-  file = strvcat(file,' ',...
-    ['void op_decl_const_' consts{nc}.name '(int dim, char const *type, ' consts{nc}.type ' *dat){};']);
-end
-
 if (any_soa)
    file = strvcat(file, ' ','extern int op2_stride;','#define OP2_STRIDE(arr, idx) arr[idx]',' ');
 end
