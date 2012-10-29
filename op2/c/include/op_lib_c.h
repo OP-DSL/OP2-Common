@@ -51,7 +51,7 @@
  * external variables declared in op_lib_core.cpp
  */
 
-extern int OP_diags, OP_part_size, OP_block_size;
+extern int OP_diags, OP_part_size, OP_block_size, OP_gpu_direct;
 
 extern int OP_set_index, OP_set_max,
            OP_map_index, OP_map_max,
