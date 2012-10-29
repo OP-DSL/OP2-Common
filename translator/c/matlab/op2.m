@@ -113,6 +113,7 @@ for narg = 1: nargin
       const_args{const_index}.name = name;
     end
 
+
     type = const_args{const_index}.type(2:end-1);
 
     [dim,ok] = str2num(const_args{const_index}.dim);
@@ -391,7 +392,7 @@ for narg = 1: nargin
         end
         fprintf(fid,'  op_arg );\n');
       end
-
+      fprintf(fid,'\n');
       loc_old = loc+11;
     end
 
