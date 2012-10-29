@@ -101,7 +101,7 @@ void op_exchange_halo(op_arg* arg)
           exp_nonexec_list->size*arg->dat->size,
           cudaMemcpyDeviceToHost ) );
 
-    cutilSafeCall(cudaThreadSynchronize(  ));
+    cutilSafeCall(cudaDeviceSynchronize(  ));
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
@@ -192,7 +192,7 @@ void op_wait_all(op_arg* arg)
         cudaMemcpyHostToDevice ) );
     }
 
-    cutilSafeCall(cudaThreadSynchronize ());
+    cutilSafeCall(cudaDeviceSynchronize ());
   }
   arg->sent = 0;
 }
