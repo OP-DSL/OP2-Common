@@ -383,7 +383,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(double))
     {
-      printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
+      printf("dat.size %zu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -396,7 +396,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(float))
     {
-      printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
+      printf("dat.size %zu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
@@ -409,7 +409,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
     if(dat_size != dim*sizeof(int))
     {
-      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      printf("dat.size %zu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
     else
