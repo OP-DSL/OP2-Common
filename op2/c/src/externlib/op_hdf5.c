@@ -53,7 +53,7 @@
 #include <op_util.h> //just to include xmalloc routine
 
 /*******************************************************************************
-* Routine to read an op_set to an already open hdf5 file
+* Routine to read an op_set from an hdf5 file
 *******************************************************************************/
 
 op_set op_decl_set_hdf5(char const *file, char const *name)
@@ -61,6 +61,12 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   //HDF5 APIs definitions
   hid_t       file_id; //file identifier
   hid_t dset_id; //dataset identifier
+
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_set_hdf5()\n", file);
+    exit(2);
+  }
 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -78,7 +84,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 }
 
 /*******************************************************************************
-* Routine to read an op_map to an already open hdf5 file
+* Routine to read an op_map from an hdf5 file
 *******************************************************************************/
 
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name)
@@ -88,8 +94,13 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   hid_t dset_id; //dataset identifier
   hid_t       dataspace; //data space identifier
 
-  file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT );
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_map_hdf5()\n", file);
+    exit(2);
+  }
 
+  file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT );
 
   /*find total size of this map by reading attributes*/
   int g_size;
@@ -177,7 +188,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 }
 
 /*******************************************************************************
-* Routine to read an op_map to an already open hdf5 file
+* Routine to read an op_dat from an hdf5 file
 *******************************************************************************/
 
 op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name)
@@ -187,6 +198,12 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hid_t dset_id; //dataset identifier
   hid_t       dataspace; //data space identifier
   hid_t attr;   //attribute identifier
+
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n", file);
+    exit(2);
+  }
 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -574,6 +591,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   hid_t       dataspace; //data space identifier
   hid_t attr;   //attribute identifier
 
+  if (file_exist(file_name) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_get_const_hdf5()\n", file_name);
+    exit(2);
+  }
+
   file_id = H5Fopen(file_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
   /*find dimension of this constant with available attributes*/
@@ -672,12 +695,19 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
                          char const *file_name)
 {
-  printf("Writing constant to %s\n",file_name);
-
   //HDF5 APIs definitions
   hid_t file_id;   //file identifier
   hid_t dset_id;   //dataset identifier
   hid_t dataspace; //data space identifier
+
+  if (file_exist(file_name) == 0)
+  {
+    op_printf("File %s does not exist .... creating file\n", file_name);
+    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    H5Fclose(file_id);
+  }
+
+  printf("Writing constant to %s\n",file_name);
 
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);

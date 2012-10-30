@@ -64,7 +64,7 @@
 MPI_Comm OP_MPI_HDF5_WORLD;
 
 /*******************************************************************************
-* Routine to write an op_set to an already open hdf5 file
+* Routine to read an op_set from an hdf5 file
 *******************************************************************************/
 
 op_set op_decl_set_hdf5(char const *file, char const *name)
@@ -82,6 +82,12 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   hid_t       file_id; //file identifier
   hid_t plist_id;  //property list identifier
   hid_t dset_id; //dataset identifier
+
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_set_hdf5()\n", file);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -114,7 +120,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 }
 
 /*******************************************************************************
-* Routine to write an op_map to an already open hdf5 file
+* Routine to read an op_map from an hdf5 file
 *******************************************************************************/
 
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name)
@@ -137,6 +143,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 
   hsize_t count[2]; //hyperslab selection parameters
   hsize_t offset[2];
+
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_map_hdf5()\n", file);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -261,7 +273,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 }
 
 /*******************************************************************************
-* Routine to write an op_map to an already open hdf5 file
+* Routine to read an op_dat from an hdf5 file
 *******************************************************************************/
 
 op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name)
@@ -285,6 +297,12 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hsize_t count[2]; //hyperslab selection parameters
   hsize_t offset[2];
   hid_t attr;   //attribute identifier
+
+  if (file_exist(file) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n", file);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -456,6 +474,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   hid_t dset_id; //dataset identifier
   hid_t dataspace; //data space identifier
   hid_t attr;   //attribute identifier
+
+  if (file_exist(file_name) == 0)
+  {
+    op_printf("File %s does not exist .... aborting op_get_const_hdf5()\n", file_name);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -860,8 +884,6 @@ void op_write_hdf5(char const * file_name)
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name)
 {
-  op_printf("Writing constant to %s\n",file_name);
-
   //create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
@@ -880,6 +902,15 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   //Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
+
+  if (file_exist(file_name) == 0)
+  {
+    op_printf("File %s does not exist .... creating file\n", file_name);
+    file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, plist_id);
+    H5Fclose(file_id);
+  }
+
+  op_printf("Writing constant to %s\n",file_name);
 
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
