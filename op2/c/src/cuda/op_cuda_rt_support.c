@@ -125,7 +125,7 @@ void op_mvHostToDevice ( void ** map, int size )
   cutilSafeCall ( cudaMalloc ( &tmp, size ) );
   cutilSafeCall ( cudaMemcpy ( tmp, *map, size,
                                cudaMemcpyHostToDevice ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
   free ( *map );
   *map = tmp;
 }
@@ -135,7 +135,7 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
   cutilSafeCall ( cudaMalloc ( data_d, size ) );
   cutilSafeCall ( cudaMemcpy ( *data_d, *data_h, size,
                                cudaMemcpyHostToDevice ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
 void op_fetch_data ( op_dat dat )
@@ -147,7 +147,7 @@ void op_fetch_data ( op_dat dat )
     cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
                                  dat->size * dat->set->size,
                                  cudaMemcpyDeviceToHost ) );
-    cutilSafeCall ( cudaThreadSynchronize (  ) );
+    cutilSafeCall ( cudaDeviceSynchronize (  ) );
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < dat->set->size; j++) {
@@ -161,7 +161,7 @@ void op_fetch_data ( op_dat dat )
   cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
                                dat->size * dat->set->size,
                                cudaMemcpyDeviceToHost ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
   }
 }
 
@@ -244,7 +244,7 @@ void op_cuda_exit ( )
     OP_plans[ip].nelems = NULL;
     OP_plans[ip].blkmap = NULL;
   }
-  cudaThreadExit ( );
+  cudaDeviceReset ( );
 }
 
 //
@@ -287,20 +287,20 @@ void mvConstArraysToDevice ( int consts_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_consts_d, OP_consts_h, consts_bytes,
                                cudaMemcpyHostToDevice ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
 void mvReductArraysToDevice ( int reduct_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_reduct_d, OP_reduct_h, reduct_bytes,
                                cudaMemcpyHostToDevice ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
 void mvReductArraysToHost ( int reduct_bytes )
 {
   cutilSafeCall ( cudaMemcpy ( OP_reduct_h, OP_reduct_d, reduct_bytes,
                                cudaMemcpyDeviceToHost ) );
-  cutilSafeCall ( cudaThreadSynchronize (  ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 

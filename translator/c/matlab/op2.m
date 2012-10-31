@@ -115,6 +115,7 @@ for narg = 1: nargin
       const_args{const_index}.name = name;
     end
 
+
     type = const_args{const_index}.type(2:end-1);
 
     [dim,ok] = str2num(const_args{const_index}.dim);
@@ -277,7 +278,7 @@ for narg = 1: nargin
       rep1 = strcmp(kernels{nk}.name,  name ) && ...
                    (kernels{nk}.nargs==nargs) && ...
                    (kernels{nk}.ninds==ninds);
-               
+
       if (rep1)
         rep2 = 1;
         for arg = 1:nargs
@@ -402,7 +403,7 @@ for narg = 1: nargin
           fprintf(fid,'  op_arg );\n');
         end
       end
-
+      fprintf(fid,'\n');
       loc_old = loc+11;
     end
 

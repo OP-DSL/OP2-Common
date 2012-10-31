@@ -45,7 +45,8 @@
 int OP_diags = 0,
     OP_part_size = 0,
     OP_block_size = 64,
-    OP_cache_line_size = 128;
+    OP_cache_line_size = 128,
+    OP_gpu_direct = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
@@ -135,6 +136,12 @@ void
     {
       OP_cache_line_size = atoi ( argv[n] + 19 );
       printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
+    }
+
+    if ( strncmp ( argv[n], "-gpudirect", 10 ) == 0 )
+    {
+      OP_gpu_direct = 1;
+      printf ( "\n Enabling GPU Direct \n" );
     }
 
   }
