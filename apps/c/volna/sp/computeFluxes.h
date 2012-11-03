@@ -1,4 +1,4 @@
-void computeFluxes(float *cellLeft, float *cellRight,
+inline void computeFluxes(float *cellLeft, float *cellRight,
                                 float *edgeLength, float *edgeNormals,
                                 int *isRightBoundary, //OP_READ
                                 float *bathySource, float *out, //OP_WRITE

@@ -1,4 +1,4 @@
-void NumericalFluxes(float **maxEdgeEigenvalues, float **EdgeVolumes, float *cellVolumes, //OP_READ
+inline void NumericalFluxes(float **maxEdgeEigenvalues, float **EdgeVolumes, float *cellVolumes, //OP_READ
             float *zeroInit, float *minTimeStep ) //OP_MIN
 {
   float local = 0.0;
