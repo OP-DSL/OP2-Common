@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
     //        << std::endl;
   }
 
-  std::cout << "Number of edges according to sim.mesh.Nodes.size() = "
+  std::cout << "Number of edges according to sim.mesh.Facets.size() = "
       << sim.mesh.Facets.size() << std::endl;
   std::cout << "Number of edges according to sim.mesh.NFaces      = "
       << sim.mesh.NFaces << "  <=== Accept this one! " << std::endl;
@@ -380,7 +380,7 @@ int main(int argc, char **argv) {
   //
   // Define HDF5 filename
   //
-  char *filename_h5; // gaussian_landslide.vln -->  gaussian_landslide.h5
+  char *filename_h5 = (char*)malloc(strlen(file)); // gaussian_landslide.vln -->  gaussian_landslide.h5
   strcpy(filename_h5, file);
   const char* substituteIndexPattern = ".vln";
   char* pos;
@@ -465,11 +465,11 @@ int main(int argc, char **argv) {
   // Timer data (contained in every Event struct)
   const hsize_t num_events_hsize = num_events;
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_start", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_start[0]));
+      H5LTmake_dataset(h5file, "timer_start", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_start[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_end", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_end[0]));
+      H5LTmake_dataset(h5file, "timer_end", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_end[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "timer_step", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &timer_step[0]));
+      H5LTmake_dataset(h5file, "timer_step", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &timer_step[0]));
   check_hdf5_error(
       H5LTmake_dataset(h5file, "timer_istart", 1, &num_events_hsize, H5T_NATIVE_INT, &timer_istart[0]));
   check_hdf5_error(
@@ -478,31 +478,31 @@ int main(int argc, char **argv) {
       H5LTmake_dataset(h5file, "timer_istep", 1, &num_events_hsize, H5T_NATIVE_INT, &timer_istep[0]));
 
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "event_location_x", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &event_location_x[0]));
+      H5LTmake_dataset(h5file, "event_location_x", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &event_location_x[0]));
   check_hdf5_error(
-      H5LTmake_dataset(h5file, "event_location_y", 1, &num_events_hsize, H5T_NATIVE_DOUBLE, &event_location_y[0]));
+      H5LTmake_dataset(h5file, "event_location_y", 1, &num_events_hsize, H5T_NATIVE_FLOAT, &event_location_y[0]));
   check_hdf5_error(
       H5LTmake_dataset(h5file, "event_post_update", 1, &num_events_hsize, H5T_NATIVE_INT, &event_post_update[0]));
 
   // Store event names and their value sources (formula or filename)
-  char buffer[18];
+  char buffer[22];
   int length = 0;
   for (int i = 0; i < event_className.size(); i++) {
-    memset(buffer, 0, 18);
+    memset(buffer, 0, 22);
     sprintf(buffer, "event_className%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_className[i].c_str()));
     length = strlen(event_className[i].c_str())+1;
     check_hdf5_error(
         H5LTset_attribute_int(h5file, buffer, "length", &length, 1));
-    memset(buffer, 0, 18);
+    memset(buffer, 0, 22);
     sprintf(buffer, "event_formula%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_formula[i].c_str()));
     length = strlen(event_formula[i].c_str())+1;
     check_hdf5_error(
         H5LTset_attribute_int(h5file, buffer, "length", &length, 1));
-    memset(buffer, 0, 18);
+    memset(buffer, 0, 22);
     sprintf(buffer, "event_streamName%d", i);
     check_hdf5_error(
         H5LTmake_dataset_string(h5file, buffer, event_streamName[i].c_str()));

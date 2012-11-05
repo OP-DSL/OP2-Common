@@ -31,7 +31,7 @@ ifeq ($(OP2_COMPILER),gnu)
 	CPPFLAGS = -g -O0 -msse4.2 -fPIC -DUNIX -Wall
 	#CPPFLAGS = -g -fPIC -DUNIX -Wall
 	OMPFLAGS = -fopenmp
-	MPICPP = /usr/bin/mpiCC
+	MPICPP = mpic++
 	MPIFLAGS = $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
