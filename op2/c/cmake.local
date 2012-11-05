@@ -16,6 +16,7 @@ mkdir -p build && cd build &&
              -DCMAKE_BUILD_TYPE=Developer \
              -DCMAKE_VERBOSE_CONFIGURE=ON \
              -DINSTALLATION_APPS_DIR='' \
+             -DOP2_WITH_WITH_CUDA=0 \
              $CMAKE_EXTRA_ARGS \
              .. &&
 
