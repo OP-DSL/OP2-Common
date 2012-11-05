@@ -20,6 +20,7 @@ LIB = lib
 OBJ = obj
 
 CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
+OPENCL_INC = $(CUDA_INC)
 
 #
 # compiler settings
@@ -27,15 +28,15 @@ CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
 
 ifeq ($(OP2_COMPILER),gnu)
 	CC       := gcc
-	CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+	CCFLAGS  := -g3 -O0 -std=c99 -fPIC -DUNIX -Wall #-g
 	CXX      := g++
-	CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
+	CXXFLAGS := -g3 -O0 -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
 	MPICXX   := /usr/bin/mpiCC
 	MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CC       := icc
-	CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
+	CCFLAGS  := -g3 -O0 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
 	CXX      := icpc
 	CXXFLAGS := $(CCFLAGS)
 	MPICXX   := mpiCC
@@ -72,7 +73,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda opencl mpi_cuda
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
@@ -105,6 +106,20 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
+
+opencl: mklib $(INC)/op_opencl_rt_support.h $(INC)/op_opencl_reduction.h $(SRC)/opencl/op_opencl_decl.c \
+	$(SRC)/opencl/op_opencl_rt_support.c $(OBJ)/op_lib_core.o
+
+	$(CXX) $(CCFLAGS) $(OPENCL_INC) -I$(INC) \
+	-c $(SRC)/opencl/op_opencl_decl.c -o $(OBJ)/op_opencl_decl.o
+	$(CXX) $(CXXFLAGS) $(OPENCL_INC) -I$(INC) -c $(SRC)/opencl/op_opencl_rt_support.c \
+	-o $(OBJ)/op_opencl_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+
+	ar -r $(LIB)/libop2_opencl.a $(OBJ)/op_opencl_rt_support.o \
+	$(OBJ)/op_opencl_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
+
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
@@ -188,6 +203,7 @@ clean:
 	-rm -if $(SRC)/*~
 	-rm -if $(SRC)/sequential/*~
 	-rm -if $(SRC)/cuda/*~
+	-rm -if $(SRC)/opencl/*~
 	-rm -if $(SRC)/openmp/*~
 	-rm -if $(SRC)/mpi/*~
 	-rm -if $(SRC)/externlib/*~

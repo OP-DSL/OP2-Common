@@ -34,6 +34,11 @@ int main(int argc, char **argv) {
   //herr_t status;
   const char *filename_h5 = argv[1]; // = "stlaurent_35k.h5";
   file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
+  check_hdf5_error(H5Fclose(file));
+
+  op_printf("Before \n");
+  file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
+  op_printf("After \n");
 
   check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsx0", &bore_params.x0));
   check_hdf5_error(H5LTread_dataset_float(file, "BoreParamsHl", &bore_params.Hl));
@@ -61,7 +66,9 @@ int main(int argc, char **argv) {
 
   check_hdf5_error(H5Fclose(file));
 
-
+  op_printf("Before \n");
+  file = H5Fopen(filename_h5, H5F_ACC_RDONLY, H5P_DEFAULT);
+  op_printf("After \n");
   /*
    * Define HDF5 filename
    */
@@ -164,7 +171,11 @@ int main(int argc, char **argv) {
 
   op_diagnostic_output();
 
-  op_partition("PARMETIS", "GEOM", NULL, NULL, cellCenters);
+//  op_partition("PARMETIS", "GEOM", NULL, NULL, cellCenters);
+  op_partition("PARMETIS", "KWAY", NULL, edgesToCells, NULL);
+//  extern part;
+//extern part *OP_part_list;
+//  op_printf("\n+++++++++++++++++++++++++ \nOP_part_list = %d \n ++++++++++++++++++++++++++++++++++++++++++ \n",(*(OP_part_list[edgesToCells->to->index]))->elem_part[0]);
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers(&cpu_t1, &wall_t1);

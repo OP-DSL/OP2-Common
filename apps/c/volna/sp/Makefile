@@ -44,7 +44,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CPP = icpc
-	CCFLAGS = -O3 -vec-report -xSSE4.2 -parallel
+	CCFLAGS = -g -O0 -vec-report -xSSE4.2 -parallel
 	#CCFLAGS = -g -vec-report -xSSE4.2 -parallel
 	CPPFLAGS = $(CCFLAGS)
 	OMPFLAGS = -openmp -openmp-report2

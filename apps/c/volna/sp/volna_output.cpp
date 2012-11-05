@@ -166,6 +166,9 @@ inline void WriteMeshToVTKBinary(const char* filename, op_dat nodeCoords, int nn
 }
 
 inline void WriteMeshToVTKAscii(const char* filename, op_dat nodeCoords, int nnode, op_map cellsToNodes, int ncell, op_dat values) {
+  float* values_data;
+  values_data = (float*) values->data;
+
   FILE* fp;
   fp = fopen(filename, "w");
   if(fp == NULL) {
@@ -182,15 +185,15 @@ inline void WriteMeshToVTKAscii(const char* filename, op_dat nodeCoords, int nno
   nodeCoords_data = (float*)nodeCoords->data;
   int i = 0;
   for (i = 0; i < nnode; ++i) {
-    fprintf(fp, "%g %g %g \n",
+    fprintf(fp, "%g %g %g\n",
         (float)nodeCoords_data[i*MESH_DIM  ],
         (float)nodeCoords_data[i*MESH_DIM+1],
-        0.0);
+        0.0f);
   }
   fprintf(fp, "\n");
   fprintf(fp, "CELLS %d %d\n", ncell, 4*ncell);
   for ( i = 0; i < ncell; ++i ) {
-    fprintf(fp, "3 %d %d %d \n",
+    fprintf(fp, "3 %d %d %d\n",
         cellsToNodes->map[i*N_NODESPERCELL  ],
         cellsToNodes->map[i*N_NODESPERCELL+1],
         cellsToNodes->map[i*N_NODESPERCELL+2]);
@@ -199,49 +202,43 @@ inline void WriteMeshToVTKAscii(const char* filename, op_dat nodeCoords, int nno
   // write cell types (5 for triangles)
   fprintf(fp, "CELL_TYPES %d\n", ncell);
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "5 \n");
+    fprintf(fp, "5\n");
   fprintf(fp, "\n");
 
-  float* values_data;
-  values_data = (float*) values->data;
-  fprintf(fp, "CELL_DATA %d\n"
-              "SCALARS Eta float 1\n"
-              "LOOKUP_TABLE default\n",
+//  float* values_data;
+//  values_data = (float*) values->data;
+  fprintf(fp, "CELL_DATA %d \n"
+              "SCALARS Eta float 1 \n"
+              "LOOKUP_TABLE default \n",
               ncell);
   float tmp = 0.0;
   for ( i=0; i<ncell; ++i ) {
-    tmp = values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3];
+//    tmp = values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3];
     fprintf(fp, "%g\n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
   }
-
-  fprintf(fp, "\n");
   fprintf(fp, "SCALARS U float 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%g\n", values_data[i*N_STATEVAR+1]);
+    fprintf(fp, "%10.10f\n", values_data[i*N_STATEVAR+1]);
   fprintf(fp, "\n");
   fprintf(fp, "SCALARS V float 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%g\n", values_data[i*N_STATEVAR+2]);
-  fprintf(fp, "\n");
+    fprintf(fp, "%10.10f\n", values_data[i*N_STATEVAR+2]);
   fprintf(fp, "SCALARS Bathymetry float 1\n"
               "LOOKUP_TABLE default\n");
   for ( i=0; i<ncell; ++i )
-    fprintf(fp, "%g\n", values_data[i*N_STATEVAR+3]);
-  fprintf(fp, "\n");
-
+    fprintf(fp, "%10.10f\n", values_data[i*N_STATEVAR+3]);
   fprintf(fp, "SCALARS Visual float 1\n"
               "LOOKUP_TABLE default\n");
   float hundred = 100.0;
   for ( i=0; i<ncell; ++i ) {
     if(values_data[i*N_STATEVAR] < 1e-3)
-      fprintf(fp, "%g\n", 100.0);
+      fprintf(fp, "%10.10f\n", 100.0);
     else
       tmp = values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3];
-      fprintf(fp, "%g\n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
+      fprintf(fp, "%10.10f\n", values_data[i*N_STATEVAR] + values_data[i*N_STATEVAR+3]);
   }
-  fprintf(fp, "\n");
 
   if(fclose(fp) != 0) {
     op_printf("can't close file %s\n",filename);

@@ -107,11 +107,11 @@ void op_par_loop_update(char const *, op_set,
 // kernel routines for parallel loops
 //
 
-#include "save_soln.h"
-#include "adt_calc.h"
-#include "res_calc.h"
-#include "bres_calc.h"
-#include "update.h"
+//#include "save_soln.h"
+//#include "adt_calc.h"
+//#include "res_calc.h"
+//#include "bres_calc.h"
+//#include "update.h"
 
 // main program
 
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 
   // main time-marching loop
 
-  niter = 1000;
+  niter = 1;
 
   for(int iter=1; iter<=niter; iter++) {
 
@@ -312,6 +312,16 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+
+  op_fetch_data(p_qold);
+  op_fetch_data(p_adt);
+
+  for(int i=0; i<10; i++)
+    op_printf("qold[4*%d] = %f \n", i, qold[4*i]);
+
+  for(int i=0; i<10000; i++)
+    op_printf("adt[%d] = %f \n", i, adt[i]);
+
 
   op_exit();
 
