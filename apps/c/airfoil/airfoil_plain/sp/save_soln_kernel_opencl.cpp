@@ -76,5 +76,5 @@
     OP_kernels[0].time     += wall_t2 - wall_t1;
     OP_kernels[0].transfer += (float)set->size * arg0.size;
     OP_kernels[0].transfer += (float)set->size * arg1.size;
-    op_printf("op_par_loop_save_soln() ran \n");
+//    op_printf("op_par_loop_save_soln() ran \n");
   }

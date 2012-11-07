@@ -466,6 +466,17 @@ void reallocConstArrays ( int consts_bytes )
 
 void reallocReductArrays ( int reduct_bytes )
 {
+  cl_int ret;
+    if ( reduct_bytes > OP_reduct_bytes ) {
+      if ( OP_reduct_bytes > 0 ) {
+        free ( OP_reduct_h );
+        clSafeCall( clReleaseMemObject((cl_mem)OP_reduct_d) );
+      }
+      OP_reduct_bytes = 4 * reduct_bytes;  // 4 is arbitrary, more than needed
+      OP_reduct_h = ( char * ) malloc ( OP_reduct_bytes );
+      OP_reduct_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_reduct_bytes, NULL, &ret);
+      clSafeCall( ret );
+    }
 //  if ( reduct_bytes > OP_reduct_bytes ) {
 //    if ( OP_reduct_bytes > 0 ) {
 //      free ( OP_reduct_h );
@@ -491,6 +502,9 @@ void mvConstArraysToDevice ( int consts_bytes )
 
 void mvReductArraysToDevice ( int reduct_bytes )
 {
+  clSafeCall( clEnqueueWriteBuffer(OP_opencl_core.command_queue, (cl_mem) OP_reduct_d, CL_TRUE, 0, reduct_bytes, (void*) OP_reduct_h, 0, NULL, NULL) );
+  clSafeCall( clFlush(OP_opencl_core.command_queue) );
+  clSafeCall( clFinish(OP_opencl_core.command_queue) );
 //  cutilSafeCall ( cudaMemcpy ( OP_reduct_d, OP_reduct_h, reduct_bytes,
 //                               cudaMemcpyHostToDevice ) );
 //  cutilSafeCall ( cudaThreadSynchronize (  ) );

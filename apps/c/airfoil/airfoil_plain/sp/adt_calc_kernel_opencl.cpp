@@ -76,8 +76,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       size_t globalWorkSize[3] = {nblocks[0]*nthread, nblocks[1], nblocks[2]};
       size_t localWorkSize[3] = {nthread, 1, 1};
 
-      printf("global: %d %d %d\n",globalWorkSize[0],globalWorkSize[1],globalWorkSize[2]);
-      printf("local: %d %d %d\n",localWorkSize[0],localWorkSize[1],localWorkSize[2]);
+//      printf("global: %d %d %d\n",globalWorkSize[0],globalWorkSize[1],globalWorkSize[2]);
+//      printf("local: %d %d %d\n",localWorkSize[0],localWorkSize[1],localWorkSize[2]);
 //      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
 //                      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
@@ -145,6 +145,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[1].time     += wall_t2 - wall_t1;
-  op_printf("op_par_loop_adt_calc() ran \n");
+//  op_printf("op_par_loop_adt_calc() ran \n");
 }
 
