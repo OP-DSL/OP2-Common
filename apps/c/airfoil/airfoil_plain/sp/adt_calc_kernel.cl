@@ -31,8 +31,7 @@ inline void adt_calc(__local float *x1, __local float *x2, __local float *x3, __
   dy = x1[1] - x4[1];
   *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
-    *adt = (*adt) / cfl;
-//  *adt = x1[0];
+  *adt = (*adt) / cfl;
 }
 
 __kernel void op_opencl_adt_calc(

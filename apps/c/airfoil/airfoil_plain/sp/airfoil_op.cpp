@@ -315,13 +315,16 @@ int main(int argc, char **argv)
 
   op_fetch_data(p_qold);
   op_fetch_data(p_adt);
+  op_fetch_data(p_res);
 
   for(int i=0; i<10; i++)
     op_printf("qold[4*%d] = %f \n", i, qold[4*i]);
 
-  for(int i=0; i<10000; i++)
+  for(int i=0; i<10; i++)
     op_printf("adt[%d] = %f \n", i, adt[i]);
 
+  for(int i=0; i<10; i++)
+    op_printf("res[%d] = %f \n", i, res[i]);
 
   op_exit();
 

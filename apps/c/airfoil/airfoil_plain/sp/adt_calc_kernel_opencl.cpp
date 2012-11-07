@@ -1,8 +1,8 @@
 // host stub function
 
-extern float gam;
-extern float gm1;
-extern float cfl;
+//extern float gam;
+//extern float gm1;
+//extern float cfl;
 
 void op_par_loop_adt_calc(char const *name, op_set set,
   op_arg arg0,
@@ -120,13 +120,12 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 ////          printf("cl_mem %d = %d \n", i, &OP_opencl_core.constant[i]);
 ////        }
 
-        printf("BNFKJLDFKAJKFSJLKJ\n");
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],16, sizeof(cl_mem), (void*) &OP_opencl_core.constant[0]) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[2]) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],16, sizeof(cl_mem), (void*) &OP_opencl_core.constant[0]) ); // gam
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[2]) ); // cfl
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[1], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
-        clSafeCall( clFlush(OP_opencl_core.command_queue) );
+//        clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
       }
 
