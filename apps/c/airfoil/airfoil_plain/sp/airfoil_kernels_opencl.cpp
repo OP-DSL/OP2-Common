@@ -90,7 +90,7 @@ void buildOpenCLKernels() {
     char *source_str[5];
     size_t source_size[5];
 
-    for(int i=0; i<3; i++) {
+    for(int i=0; i<4; i++) {
       fid = fopen(source_filename[i], "r");
       if (!fid) {
         fprintf(stderr, "Can't open the kernel source file!\n");
@@ -114,7 +114,7 @@ void buildOpenCLKernels() {
     printf(" compiling sources \n");
 
       // Create a program from the source
-      OP_opencl_core.program = clCreateProgramWithSource(OP_opencl_core.context, 3, (const char **) &source_str, (const size_t *) &source_size, &ret);
+      OP_opencl_core.program = clCreateProgramWithSource(OP_opencl_core.context, 4, (const char **) &source_str, (const size_t *) &source_size, &ret);
       clSafeCall( ret );
 
       // Build the program
@@ -143,6 +143,8 @@ void buildOpenCLKernels() {
     OP_opencl_core.kernel[1] = clCreateKernel(OP_opencl_core.program, "op_opencl_adt_calc", &ret);
     clSafeCall( ret );
     OP_opencl_core.kernel[2] = clCreateKernel(OP_opencl_core.program, "op_opencl_res_calc", &ret);
+    clSafeCall( ret );
+    OP_opencl_core.kernel[3] = clCreateKernel(OP_opencl_core.program, "op_opencl_bres_calc", &ret);
     clSafeCall( ret );
 
     isbuilt = true;

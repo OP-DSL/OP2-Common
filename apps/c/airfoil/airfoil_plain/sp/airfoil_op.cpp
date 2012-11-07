@@ -323,8 +323,9 @@ int main(int argc, char **argv)
   for(int i=0; i<10; i++)
     op_printf("adt[%d] = %f \n", i, adt[i]);
 
-  for(int i=0; i<10; i++)
+  for(int i=0; i<100; i++)
     op_printf("res[%d] = %f \n", i, res[i]);
+
 
   op_exit();
 

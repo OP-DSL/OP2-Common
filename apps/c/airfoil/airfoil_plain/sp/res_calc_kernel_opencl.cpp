@@ -140,6 +140,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[2].time     += wall_t2 - wall_t1;
-  op_printf("op_par_loop_res_calc() ran \n");
+//  op_printf("op_par_loop_res_calc() ran \n");
 }
 
