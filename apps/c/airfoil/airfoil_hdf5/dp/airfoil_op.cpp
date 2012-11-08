@@ -151,7 +151,7 @@ int main(int argc, char **argv)
   op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double",file,"p_adt");
   op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
 
-  op_get_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid45.h5");
+  op_get_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid.h5");
   op_get_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid.h5");
   op_get_const_hdf5("cfl", 1, "double", (char *)&cfl, "new_grid.h5");
   op_get_const_hdf5("eps", 1, "double", (char *)&eps, "new_grid.h5");
@@ -269,7 +269,7 @@ int main(int argc, char **argv)
   */
   free(q);
 
-  //op_fetch_data_hdf5(p_q, "file_name.h5");
+  op_fetch_data_hdf52(p_q, "file_name.h5");
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");

@@ -56,7 +56,7 @@ void op_write_hdf5(char const * file_name);
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name);
 
-void fetch_data_hdf5_file(op_dat dat, char const *file_name);
+void op_fetch_data_hdf52(op_dat dat, char const *file_name);
 
 #ifdef __cplusplus
 }

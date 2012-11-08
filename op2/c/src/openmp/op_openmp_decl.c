@@ -93,12 +93,6 @@ op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high )
     (high+1)*dat->size);
 }
 
-//void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
-//{
-//  fetch_data_hdf5_file(dat, file_name);
-//}
-
-
 /*
  * No specific action is required for constants in OpenMP
  */

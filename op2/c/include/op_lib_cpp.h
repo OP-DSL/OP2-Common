@@ -196,12 +196,6 @@ void op_fetch_data_hdf5(op_dat dat, T* usr_ptr, int low, int high)
   op_fetch_data_hdf5_char(dat, (char* )usr_ptr, low, high);
 }
 
-
-//inline void op_fetch_data_hdf5(op_dat dat, char const *file_name)
-//{
-// op_fetch_data_hdf5_file(dat, file_name);
-//}
-
 //
 // wrapper functions to handle MPI global reductions
 //

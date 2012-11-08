@@ -2691,6 +2691,7 @@ int op_get_size(op_set set)
 
 /*******************************************************************************
 * Routine to fetch data from an op_dat to user allocated memory block under hdf5
+* -- placed in op_mpi_core.c as this routine does not use any hdf5 functions
 *******************************************************************************/
 
 void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
