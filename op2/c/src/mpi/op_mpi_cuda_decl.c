@@ -382,7 +382,7 @@ void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
   free(temp);
 }
 
-void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
+/*void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
 {
   //need to get data from GPU
   op_cuda_get_data(dat);
@@ -394,4 +394,4 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
   free(temp->data);
   free(temp->set);
   free(temp);
-}
+}*/

@@ -269,7 +269,7 @@ int main(int argc, char **argv)
   */
   free(q);
 
-  op_fetch_data_hdf5(p_q, "file_name.h5");
+  //op_fetch_data_hdf5(p_q, "file_name.h5");
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");

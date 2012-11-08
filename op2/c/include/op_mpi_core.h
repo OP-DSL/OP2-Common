@@ -225,6 +225,8 @@ void op_halo_destroy();
 
 op_dat op_mpi_get_data(op_dat dat);
 
+void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high);
+
 void mpi_timing_output();
 
 void op_mpi_exit();
