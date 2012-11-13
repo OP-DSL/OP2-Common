@@ -45,25 +45,28 @@
     #include <CL/cl.h>
 #endif
 
+#include "op_lib_core.h" // Contains the op_access enumeration
+
 /*
  * reduction routine for arbitrary datatypes
  */
 
-//inline  void op_reduction_OP_INC( volatile T * dat_g, T dat_l )
+//typedef float T
+//
+//inline void op_reduction(op_access reduction, __global volatile T * dat_g, T dat_l, __local volatile float* temp ) // I'm not sure if the temp has to be in __local
 //{
-//  extern __shared__ volatile T temp[];
 //  T   dat_t;
 //
-//  __syncthreads();     /* important to finish all previous activity */
+//  barrier(CLK_LOCAL_MEM_FENCE);     /* important to finish all previous activity */
 //
-//  int tid   = threadIdx.x;
+//  int tid   = get_local_id(0);
 //  temp[tid] = dat_l;
 //
 //  // first, cope with blockDim.x perhaps not being a power of 2
 //
-//  __syncthreads();
+//  barrier(CLK_LOCAL_MEM_FENCE);
 //
-//  int d = 1 << (31 - __clz(((int)blockDim.x-1)) );
+//  int d = 1 << (31 - clz(((int)get_local_size(0)-1)) );
 //  // d = blockDim.x/2 rounded up to nearest power of 2
 //
 //  if ( tid+d < blockDim.x ) {

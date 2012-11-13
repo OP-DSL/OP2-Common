@@ -1,3 +1,5 @@
+//#include "op_opencl_reduction.h"
+
 inline void update(float *qold, float *q, float *res, __global float *adt, float *rms){
   float del, adti;
 
@@ -11,7 +13,7 @@ inline void update(float *qold, float *q, float *res, __global float *adt, float
   }
 }
 
-#define OP_WARPSIZE 32
+//#define OP_WARPSIZE 32
 
 // OpenCL kernel function
 
@@ -29,6 +31,7 @@ __kernel void op_opencl_update(
   float arg1_l[4];
   float arg2_l[4];
   float arg4_l[1];
+
   for (int d=0; d<1; d++) arg4_l[d]=ZERO_float;
   int   tid = get_local_id(0)%OP_WARPSIZE;
 //  int   tid = threadIdx.x%OP_WARPSIZE;
@@ -50,19 +53,23 @@ __kernel void op_opencl_update(
 
     for (int m=0; m<4; m++)
       ((__local float *)arg_s)[tid+m*nelems] = arg0[tid+m*nelems+offset*4];
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       arg0_l[m] = ((__local float *)arg_s)[m+tid*4];
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       ((__local float *)arg_s)[tid+m*nelems] = arg2[tid+m*nelems+offset*4];
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       arg2_l[m] = ((__local float *)arg_s)[m+tid*4];
+    barrier(CLK_LOCAL_MEM_FENCE);
 
 
     // user-supplied kernel call
-
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     update(  arg0_l,
              arg1_l,
@@ -70,24 +77,34 @@ __kernel void op_opencl_update(
              arg3+n,
              arg4_l );
 
+//    arg1_l[0] = 1.1f;
+//    arg1_l[1] = 1.2f;
+//    arg1_l[2] = 1.3f;
+//    arg1_l[3] = 1.4f;
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     // copy back into shared memory, then to device
 
     for (int m=0; m<4; m++)
+//      ((__local float *)arg_s)[m+tid*4] = 1+0.1*m;
       ((__local float *)arg_s)[m+tid*4] = arg1_l[m];
+    barrier(CLK_GLOBAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       arg1[tid+m*nelems+offset*4] = ((__local float *)arg_s)[tid+m*nelems];
+    barrier(CLK_GLOBAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       ((__local float *)arg_s)[m+tid*4] = arg2_l[m];
+    barrier(CLK_GLOBAL_MEM_FENCE);
 
     for (int m=0; m<4; m++)
       arg2[tid+m*nelems+offset*4] = ((__local float *)arg_s)[tid+m*nelems];
-
+    barrier(CLK_GLOBAL_MEM_FENCE);
   }
 
   // global reductions
 
 //  for(int d=0; d<1; d++)
-//    op_reduction_OP_INC(&arg4[d+blockIdx.x*1],arg4_l[d]);
+//    op_reduction(OP_INC, &arg4[d+get_local_id(0)*1],arg4_l[d], shared);
 }

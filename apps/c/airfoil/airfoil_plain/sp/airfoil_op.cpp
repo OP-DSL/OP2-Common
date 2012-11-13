@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 
   // main time-marching loop
 
-  niter = 100;
+  niter = 1000;
 
   for(int iter=1; iter<=niter; iter++) {
 
@@ -313,18 +313,33 @@ int main(int argc, char **argv)
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
+  op_fetch_data(p_q);
   op_fetch_data(p_qold);
   op_fetch_data(p_adt);
   op_fetch_data(p_res);
 
   for(int i=0; i<10; i++)
-    op_printf("qold[4*%d] = %f \n", i, qold[4*i]);
+    op_printf("q %d= %e %e %e %e\n", i, q[4*i], q[4*i+1], q[4*i+2], q[4*i+3]);
+
+  for(int i=0; i<10; i++)
+    op_printf("qold %d = %e %e %e %e\n", i, qold[4*i], qold[4*i+1], qold[4*i+2], qold[4*i+3]);
 
   for(int i=0; i<10; i++)
     op_printf("adt[%d] = %f \n", i, adt[i]);
 
   for(int i=0; i<10; i++)
-    op_printf("res[%d] = %f \n", i, res[i]);
+    op_printf("res %d = %e %e %e %e\n", i, res[i], res[i+1], res[i+2], res[i+3]);
+
+//  op_fetch_data(p_q);
+  for(int i=0; i<15; i++)
+    op_printf("Plan->nelems[%d] = On Device %f \n",i,adt[i]);
+
+
+  FILE* fp_out;
+  fp_out = fopen("out.txt","w");
+  for(int i=0; i<ncell; i++)
+    fprintf(fp_out,"%e\n", q[i]);
+  fclose(fp_out);
 
 
   op_exit();

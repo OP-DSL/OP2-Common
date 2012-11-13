@@ -68,6 +68,11 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       size_t nthread = OP_block_size;
     #endif
 
+
+//      op_printf("part_size = %d\n",part_size);
+//      op_printf("block_size = %d\n",nthread);
+
+
       size_t nblocks[3] = {
           Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
           Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1,
@@ -145,6 +150,9 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[1].time     += wall_t2 - wall_t1;
+
+//  for(int i=0;i < set->size; i++)
+//    ((float*)(arg5.dat->data))[i] = 1.1f;
 //  op_printf("op_par_loop_adt_calc() ran \n");
 }
 

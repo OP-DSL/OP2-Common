@@ -62,21 +62,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
       if (col==Plan->ncolors_core) op_mpi_wait_all(nargs,args);
 
-    #ifdef OP_BLOCK_SIZE_2
+#ifdef OP_BLOCK_SIZE_2
       int nthread = OP_BLOCK_SIZE_2;
-    #else
+#else
       int nthread = OP_block_size;
-    #endif
+#endif
 
       size_t nblocks[3] = {
           Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
-          Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1,
-          1 };
+              Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1,
+                  1 };
 
       size_t globalWorkSize[3] = {nblocks[0]*nthread, nblocks[1], nblocks[2]};
       size_t localWorkSize[3] = {nthread, 1, 1};
-//      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
-//                      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
+      //      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
+      //                      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
         int nshared = Plan->nsharedCol[col];
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2], 0, sizeof(cl_mem), (void*) &arg0.data_d) );
@@ -100,28 +100,28 @@ void op_par_loop_res_calc(char const *name, op_set set,
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[3]) ); // eps
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[2], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
-//        clSafeCall( clFlush(OP_opencl_core.command_queue) );
+        //        clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
-//        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
-//           (float *)arg0.data_d,
-//           (float *)arg2.data_d,
-//           (float *)arg4.data_d,
-//           (float *)arg6.data_d,
-//           Plan->ind_map,
-//           Plan->loc_map,
-//           Plan->ind_sizes,
-//           Plan->ind_offs,
-//           block_offset,
-//           Plan->blkmap,
-//           Plan->offset,
-//           Plan->nelems,
-//           Plan->nthrcol,
-//           Plan->thrcol,
-//           Plan->ncolblk[col],
-//           set_size);
+        //        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
+        //           (float *)arg0.data_d,
+        //           (float *)arg2.data_d,
+        //           (float *)arg4.data_d,
+        //           (float *)arg6.data_d,
+        //           Plan->ind_map,
+        //           Plan->loc_map,
+        //           Plan->ind_sizes,
+        //           Plan->ind_offs,
+        //           block_offset,
+        //           Plan->blkmap,
+        //           Plan->offset,
+        //           Plan->nelems,
+        //           Plan->nthrcol,
+        //           Plan->thrcol,
+        //           Plan->ncolblk[col],
+        //           set_size);
 
-//        cutilSafeCall(cudaThreadSynchronize());
-//        cutilCheckMsg("op_cuda_res_calc execution failed\n");
+        //        cutilSafeCall(cudaThreadSynchronize());
+        //        cutilCheckMsg("op_cuda_res_calc execution failed\n");
       }
 
       block_offset += Plan->ncolblk[col];
