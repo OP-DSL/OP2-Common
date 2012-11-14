@@ -207,7 +207,7 @@ void openclDeviceInit( int argc, char ** argv )
 //  break;
 // }
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_GPU, 4, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[1], CL_DEVICE_TYPE_GPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
   if(OP_opencl_core.n_platforms == 0 && OP_opencl_core.n_devices == 0) {

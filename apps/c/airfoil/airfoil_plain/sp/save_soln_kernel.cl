@@ -1,5 +1,8 @@
 // user function definition in separate header file
-#include "save_soln.h"
+//#include "save_soln.h"
+inline void save_soln(float *q, float *qold){
+  for (int n=0; n<4; n++) qold[n] = q[n];
+}
 
 ///* Header to make Clang compatible with OpenCL */
 //#define __global __attribute__((address_space(1)))
