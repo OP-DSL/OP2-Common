@@ -959,10 +959,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 * if the data set does not exists in file creates data set
 *******************************************************************************/
 
-void op_fetch_data_hdf52(op_dat dat, char const *file_name)
+void op_fetch_data_hdf52(op_dat data, char const *file_name)
 {
   //fetch data based on the backend
-  op_fetch_data_char(dat, dat->data);
+  op_dat dat = op_fetch_data_char2(data);
 
   //create new communicator
   int my_rank, comm_size;
@@ -981,7 +981,7 @@ void op_fetch_data_hdf52(op_dat dat, char const *file_name)
   hid_t memspace;     //memory space identifier
   hid_t attr;         //attribute identifier
 
-  hsize_t dimsf[2];   // dataset dimensions
+  hsize_t dimsf[2];   //dataset dimensions
   hsize_t count[2];   //hyperslab selection parameters
   hsize_t offset[2];
 
@@ -1118,6 +1118,12 @@ void op_fetch_data_hdf52(op_dat dat, char const *file_name)
       H5Sclose(memspace);
       H5Sclose(dataspace);
       H5Fclose(file_id);
+
+      //free the temp op_dat used for this write
+      free(dat->data);
+      free(dat->set);
+      free(dat);
+
       MPI_Comm_free(&OP_MPI_HDF5_WORLD);
       return;
     }
@@ -1229,5 +1235,11 @@ void op_fetch_data_hdf52(op_dat dat, char const *file_name)
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   H5Fclose(file_id);
+
+  //free the temp op_dat used for this write
+  free(dat->data);
+  free(dat->set);
+  free(dat);
+
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }

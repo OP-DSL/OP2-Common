@@ -366,6 +366,14 @@ void op_fetch_data_char ( op_dat dat, char * usr_ptr )
   free(temp);
 }
 
+op_dat op_fetch_data_char2(op_dat dat)
+{
+  //need to get data from GPU
+  op_cuda_get_data(dat);
+  //rearrange data backe to original order in mpi
+  return op_mpi_get_data(dat);
+}
+
 void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
 {
   //need to get data from GPU

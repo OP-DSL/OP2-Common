@@ -123,7 +123,7 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
-void op_fetch_data_char(op_dat dat, char * usr_ptr)
+void op_fetch_data_char(op_dat dat, char* usr_ptr)
 {
   //rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
@@ -148,6 +148,13 @@ void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
   free(temp->set);
   free(temp);
 }
+
+op_dat op_fetch_data_char2(op_dat dat)
+{
+  //rearrange data backe to original order in mpi
+  return op_mpi_get_data(dat);
+}
+
 
 /*
  * No specific action is required for constants in MPI
