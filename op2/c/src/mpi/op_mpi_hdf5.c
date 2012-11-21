@@ -486,30 +486,35 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   //initialize data buffer and read data
   if(strcmp(typ,"int") == 0) {
      data = (char *)xmalloc(sizeof(int)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, const_data);
+     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, data);
+     memcpy((void *)const_data, (void *)data,sizeof(int)*const_dim);
   }
   else if(strcmp(typ,"long") == 0) {
      data = (char *)xmalloc(sizeof(long)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, plist_id, const_data);
+     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, plist_id, data);
+     memcpy((void *)const_data, (void *)data,sizeof(long)*const_dim);
   }
   else if(strcmp(typ,"long long") == 0) {
      data = (char *)xmalloc(sizeof(long long)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, const_data);
+     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, data);
+     memcpy((void *)const_data, (void *)data,sizeof(long long)*const_dim);
   }
   else if(strcmp(typ,"float") == 0) {
      data = (char *)xmalloc(sizeof(float)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, plist_id, const_data);
+     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, plist_id, data);
+     memcpy((void *)const_data, (void *)data,sizeof(float)*const_dim);
   }
   else if(strcmp(typ,"double") == 0) {
      data = (char *)xmalloc(sizeof(double)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id, const_data);
+     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id, data);
+     memcpy((void *)const_data, (void *)data,sizeof(double)*const_dim);
   }
   else {
     printf("Unknown type in file %s for constant %s\n",file_name, name);
     exit(2);
   }
 
-  const_data = data;
+  free(data);
 
   H5Pclose(plist_id);
   H5Dclose(dset_id);
@@ -1118,6 +1123,7 @@ void op_fetch_data_hdf52(op_dat data, char const *file_name)
       H5Sclose(memspace);
       H5Sclose(dataspace);
       H5Fclose(file_id);
+      free(sizes);
 
       //free the temp op_dat used for this write
       free(dat->data);
