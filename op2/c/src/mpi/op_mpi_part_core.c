@@ -2108,6 +2108,8 @@ void op_partition_kway(op_map primary_map)
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if(my_rank==MPI_ROOT)printf("Max total Kway partitioning time = %lf\n",max_time);
+
+//  OP_part_list
 }
 
 /*******************************************************************************

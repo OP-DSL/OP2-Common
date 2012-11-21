@@ -16,6 +16,18 @@ extern float mach;
 extern float alpha;
 extern float qinf[4];
 
+//void op_decl_const_char(int dim, char const *type,
+//            int size, char *dat, char const *name){
+//  cl_int ret = 0;
+//  cl_mem constant
+//  *data_d = (cl_mem) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, size, NULL, &ret);
+//  clSafeCall( ret );
+//  clSafeCall( clEnqueueWriteBuffer(OP_opencl_core.command_queue, (cl_mem) *data_d, CL_TRUE, 0, size, *data_h, 0, NULL, NULL) );
+//  clSafeCall( clFlush(OP_opencl_core.command_queue) );
+//  clSafeCall( clFinish(OP_opencl_core.command_queue) );
+////  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));
+//}
+
 // user kernel files
 
 #include "save_soln_kernel.cpp"

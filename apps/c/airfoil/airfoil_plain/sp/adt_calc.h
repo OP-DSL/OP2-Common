@@ -1,4 +1,12 @@
-inline void adt_calc(float *x1,float *x2,float *x3,float *x4,float *q,float *adt){
+#ifdef __OPENCL_VERSION__
+extern __constant float gam;
+extern __constant float gm1;
+extern __constant float cfl;
+  inline void adt_calc(__local float *x1, __local float *x2, __local float *x3, __local float *x4, __global float *q, __global float *adt){
+#else
+  inline void adt_calc(float *x1,float *x2,float *x3,float *x4,float *q,float *adt){
+#endif
+
   float dx,dy, ri,u,v,c;
 
   ri =  1.0f/q[0];
@@ -23,5 +31,7 @@ inline void adt_calc(float *x1,float *x2,float *x3,float *x4,float *q,float *adt
   *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
   *adt = (*adt) / cfl;
+//  *adt = dx;
+//  *adt = x1[0];
 }
 
