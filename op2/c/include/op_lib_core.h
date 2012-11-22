@@ -286,6 +286,8 @@ void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
 int compare_sets(op_set set1, op_set set2);
 op_dat search_dat(op_set set, int dim, char const * type, int size, char const * name);
 
+int op_is_root();
+
 #ifdef __cplusplus
 }
 #endif
