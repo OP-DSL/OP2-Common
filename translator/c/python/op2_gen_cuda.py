@@ -592,6 +592,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 			if use_shared:
 				comm('copy back into shared memory, then to device')
 			for m in range(0,nargs):
+				g_m = m
 				if (maps[m]<>OP_GBL and accs[m]<>OP_READ and dims[m]<>'1') and not(soaflags[m]):
 					code('')
 					FOR('m','0','DIM')
@@ -724,8 +725,9 @@ def op2_gen_cuda(master, date, consts, kernels):
 		IF('set->size > 0')
 
 		if sum(soaflags):
-			code('int op2_stride = set->size + set->exec_size + set->nonexec_size;')
-			code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
+			code('int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;')
+			#code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
+			code('cutilSafeCall(cudaMemcpyToSymbol(op2_stride , &op2_stride_internal, sizeof(int)));');
 			code('')
 
 #
@@ -844,86 +846,79 @@ def op2_gen_cuda(master, date, consts, kernels):
 			code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
 
 			for m in range(1,ninds+1):
-				file_text = file_text +\
-				'         ('+typs[invinds[m-1]]+' *)arg'+str(invinds[m-1])+'.data_d,\n'
+				g_m = invinds[m-1]
+				code('(TYP *)ARG.data_d,')
 
-			file_text = file_text +\
-			'         Plan->ind_map,\n'\
-			'         Plan->loc_map,\n'
+			code('Plan->ind_map,')
+			code('Plan->loc_map,')
 
-			for m in range(0,nargs):
-				if inds[m]==0:
-					file_text = file_text +\
-					'         ('+typs[m]+' *)arg'+str(m)+'.data_d,\n'
+			for g_m in range(0,nargs):
+				if inds[g_m]==0:
+					code('(TYP*)ARG.data_d,')
 
 
-			file_text +=\
-			'         Plan->ind_sizes,\n'\
-			'         Plan->ind_offs,\n'\
-			'         block_offset,\n'\
-			'         Plan->blkmap,\n'\
-			'         Plan->offset,\n'\
-			'         Plan->nelems,\n'\
-			'         Plan->nthrcol,\n'\
-			'         Plan->thrcol,\n'\
-			'         Plan->ncolblk[col],\n'\
-			'         set_size);\n\n'\
-			'         cutilSafeCall(cudaThreadSynchronize());\n'\
-			'         cutilCheckMsg("op_cuda_'+name+' execution failed\\n");\n'
+			code('Plan->ind_sizes,')
+			code('Plan->ind_offs,')
+			code('block_offset,')
+			code('Plan->blkmap,')
+			code('Plan->offset,')
+			code('Plan->nelems,')
+			code('Plan->nthrcol,')
+			code('Plan->thrcol,')
+			code('Plan->ncolblk[col],')
+			code('set_size);')
+			code('')
+			code('cutilSafeCall(cudaThreadSynchronize());')
+			code('cutilCheckMsg("op_cuda_'+name+' execution failed\\n");')
 			if reduct:
-				file_text +=\
-				'        // transfer global reduction data back to CPU\n'
-				'        if (col == Plan->ncolors_owned)\n'
-				'          mvReductArraysToHost(reduct_bytes);\n'
+				comm('transfer global reduction data back to CPU')
+				IF('col == Plan->ncolors_owned')
+				code('mvReductArraysToHost(reduct_bytes);')
+				ENDIF()
 
-			file_text +=\
-			'      }\n\n'\
-			'      block_offset += Plan->ncolblk[col]; \n'\
-			'    }\n'
+			ENDFOR()
+			code('block_offset += Plan->ncolblk[col];')
+			ENDIF()
 #
 # kernel call for direct version
 #
 		else:
-			file_text = file_text +\
-			 '    // work out shared memory requirements per element\n\n'\
-			 '    int nshared = 0;\n'
+			comm('work out shared memory requirements per element')
+			code('')
+			code('int nshared = 0;')
 
-			for m in range(0,nargs):
-				 if maps[m]<>OP_GBL and dims[m]<>'1':
-					 file_text = file_text +\
-					 '    nshared = MAX(nshared,sizeof('+typs[m]+')*'+dims[m]+');\n\n'
+			for g_m in range(0,nargs):
+				 if maps[g_m]<>OP_GBL and dims[g_m]<>'1':
+					 code('nshared = MAX(nshared,sizeof(TYP)*DIM);')
 
-			file_text = file_text +'\n'\
-			 '    // execute plan\n\n'\
-			 '    int offset_s = nshared*OP_WARPSIZE;\n\n'
+			code('')
+			comm('execute plan')
+			code('int offset_s = nshared*OP_WARPSIZE;')
+			code('')
 
 			if reduct:
-				file_text = file_text +\
-				'    nshared = MAX(nshared*nthread,reduct_size*nthread);\n\n'
+				code('nshared = MAX(nshared*nthread,reduct_size*nthread);')
 			else:
-				file_text = file_text +\
-				'    nshared = nshared*nthread;\n\n'
+				code('nshared = nshared*nthread;')
 
-			file_text = file_text +\
-			'    op_cuda_'+name+'<<<nblocks,nthread,nshared>>>('
+			code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
 
-			indent = ' '*(len(name)+42)
-			for m in range(0,nargs):
-				if m > 0:
-					file_text = file_text +indent+'('+typs[m]+' *) arg'+str(m)+'.data_d,\n'
+			indent = '  '#*(len(name)+42)
+			for g_m in range(0,nargs):
+				if g_m > 0:
+					code(indent+'(TYP *) ARG.data_d,')
 				else:
-					file_text = file_text +'('+typs[m]+' *) arg'+str(m)+'.data_d,\n'
+					code(indent+'(TYP *) ARG.data_d,')
 
-			file_text = file_text +indent+'offset_s,\n'
-			file_text = file_text +indent+'set->size );\n'
-			file_text = file_text +'    cutilSafeCall(cudaThreadSynchronize());\n'\
-			'    cutilCheckMsg("op_cuda_'+name+' execution failed\\n");\n'
+			code(indent+'offset_s,')
+			code(indent+'set->size );')
+			code('cutilSafeCall(cudaThreadSynchronize());')
+			code('cutilCheckMsg("op_cuda_'+name+' execution failed\\n");')
 
 		if ninds>0:
-			file_text = file_text +\
-			'    op_timing_realloc('+str(nk)+');\n'\
-			'    OP_kernels['+str(nk)+'].transfer  += Plan->transfer; \n'\
-			'    OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;\n'
+			code('op_timing_realloc('+str(nk)+');')
+			code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
+			code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
 
 #
@@ -931,56 +926,52 @@ def op2_gen_cuda(master, date, consts, kernels):
 #
 		if reduct:
 			if ninds == 0:
-				file_text = file_text +\
-				'\n    // transfer global reduction data back to CPU\n\n'\
-				'    mvReductArraysToHost(reduct_bytes);\n\n'
+				comm('transfer global reduction data back to CPU')
+				code('mvReductArraysToHost(reduct_bytes);')
 
 			for m in range(0,nargs):
+				g_m = m
 				if maps[m]==OP_GBL and accs[m]<>OP_READ:
-					file_text +=\
-					'    for (int b=0; b<maxblocks; b++)\n'\
-					'        for (int d=0; d<'+dims[m]+'; d++)\n'
+					FOR('b','0','maxblocks')
+					FOR('d','0','DIM')
 					if accs[m]==OP_INC:
-						file_text +=\
-						'          arg'+str(m)+'h[d] = arg'+str(m)+'h[d] + (('+typs[m]+' *)arg'+str(m)+'.data)[d+b*'+dims[m]+'];\n'
+						code('ARGh[d] = ARGh[d] + ((TYP *)ARG.data)[d+b*DIM];')
 					elif accs[m]==OP_MIN:
-						file_text = file_text +\
-						'          arg'+str(m)+'h[d] = MIN(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);\n'
+						code('ARGh[d] = MIN(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);')
 					elif accs[m]==OP_MAX:
-						file_text +=\
-						'          ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);\n'
+						code('ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);')
+					ENDFOR()
+					ENDFOR()
 
-					file_text +='\n'\
-					'    arg'+str(m)+'.data = (char *)arg'+str(m)+'h;\n\n'\
-					'    op_mpi_reduce(&arg'+str(m)+',arg'+str(m)+'h);\n'
+					code('ARG.data = (char *)ARGh;')
+					code('op_mpi_reduce(&ARG,ARGh);')
 
-		file_text +=\
-		'  }\n'\
-		'\n  op_mpi_set_dirtybit(nargs, args);\n\n'
+		ENDIF()
+		code('op_mpi_set_dirtybit(nargs, args);')
 
 #
 # update kernel record
 #
 
-		file_text +=\
-		'  // update kernel record\n'\
-		'  op_timers_core(&cpu_t2, &wall_t2);\n'\
-		'  op_timing_realloc('+str(nk)+');\n'\
-		'  OP_kernels[' +str(nk)+ '].name      = name;\n'\
-		'  OP_kernels[' +str(nk)+ '].count    += 1;\n'\
-		'  OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;\n'
+		comm('update kernel record')
+		code('op_timers_core(&cpu_t2, &wall_t2);')
+		code('op_timing_realloc('+str(nk)+');')
+		code('OP_kernels[' +str(nk)+ '].name      = name;')
+		code('OP_kernels[' +str(nk)+ '].count    += 1;')
+		code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
 		if ninds == 0:
-			line = '  OP_kernels['+str(nk)+'].transfer += (float)set->size *'
+			line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
-			for m in range (0,nargs):
-				if maps[m]<>OP_GBL:
-					if accs[m]==OP_READ or accs[m]==OP_WRITE:
-						file_text +=line+' arg'+str(m)+'.size;\n'
+			for g_m in range (0,nargs):
+				if maps[g_m]<>OP_GBL:
+					if accs[g_m]==OP_READ or accs[g_m]==OP_WRITE:
+						code(line+' ARG.size;')
 					else:
-						file_text +=line+' arg'+str(m)+'.size * 2.0f;\n'
+						code(line+' ARG.size * 2.0f;')
 
-		file_text +='}'
+		depth = depth - 2
+		code('}')
 
 
 ##########################################################################
@@ -999,48 +990,59 @@ def op2_gen_cuda(master, date, consts, kernels):
 #  output one master kernel file
 ##########################################################################
 
-	file_text = '// header\n'\
-							 '#include "op_lib_cpp.h"\n'\
-							 '#include "op_cuda_rt_support.h"\n'\
-							 '#include "op_cuda_reduction.h"\n\n'\
-							 '// global constants\n'\
-							 '#ifndef MAX_CONST_SIZE\n'\
-							 '#define MAX_CONST_SIZE 128\n'\
-							 '#endif\n\n'
+	file_text = ''
+	comm('header')
+	code('#include "op_lib_cpp.h"')
+	code('#include "op_cuda_rt_support.h"')
+	code('#include "op_cuda_reduction.h"')
+	code('')
+	comm('global constants')
+	code('#ifndef MAX_CONST_SIZE')
+	code('#define MAX_CONST_SIZE 128')
+	code('#endif')
+	code('')
 
 	for nc in range (0,len(consts)):
 		if consts[nc]['dim']==1:
-			file_text = file_text +\
-			'__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';\n'
+			code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
 		else:
 			if consts[nc]['dim'] > 0:
 				num = str(consts[nc]['dim'])
 			else:
 				num = 'MAX_CONST_SIZE'
 
-			file_text = file_text +\
-			'__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];\n'
+			code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
 
 	if any_soa:
-		file_text = file_text +\
-		'__constant__ int op2_stride;\n\n'\
-		'#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n'
+		code('__constant__ int op2_stride;')
+		code('')
+		code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
 
-	file_text = file_text +\
-			'\nvoid op_decl_const_char(int dim, char const *type,\n'\
-			'            int size, char *dat, char const *name){\n'
+	code('')
+	code('void op_decl_const_char(int dim, char const *type,')
+	code('int size, char *dat, char const *name){')
+	depth = depth + 2
 
 	for nc in range(0,len(consts)):
+		IF('!strcmp(name,"'+consts[nc]['name']+'")')
 		if consts[nc]['dim'] < 0:
-			file_text = file_text +\
-			'  if(~strcmp(name,"'+name+'") && size>MAX_CONST_SIZE) {\n'\
-			'    printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);\n'\
-			'  }\n'
+			IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE) {')
+			code('printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);')
+			ENDIF()
+		code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+', dat, dim*size));')
+		ENDIF()
+		code('else ')
 
-	file_text = file_text +\
-	'  cutilSafeCall(cudaMemcpyToSymbol(name, dat, dim*size));\n'\
-	'}\n\n'\
-	'// user kernel files\n'
+	code('{')
+	depth = depth + 2
+	code('printf("error: unknown const name\\n"); exit(1);')
+	ENDIF()
+
+
+	depth = depth - 2
+	code('}')
+	code('')
+	comm('user kernel files')
 
 	for nk in range(0,len(kernels)):
 		file_text = file_text +\
