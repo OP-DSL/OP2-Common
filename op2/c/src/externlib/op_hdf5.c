@@ -59,7 +59,7 @@
 op_set op_decl_set_hdf5(char const *file, char const *name)
 {
   //HDF5 APIs definitions
-  hid_t       file_id; //file identifier
+  hid_t file_id; //file identifier
   hid_t dset_id; //dataset identifier
 
   if (file_exist(file) == 0)
