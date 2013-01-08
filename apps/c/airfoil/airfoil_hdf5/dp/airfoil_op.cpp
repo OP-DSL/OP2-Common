@@ -269,7 +269,7 @@ int main(int argc, char **argv)
   */
   free(q);
 
-  op_fetch_data_hdf52(p_q, "file_name.h5");
+  op_fetch_data_hdf5_file(p_q, "file_name.h5");
 
   printf("Root process = %d\n",op_is_root());
 

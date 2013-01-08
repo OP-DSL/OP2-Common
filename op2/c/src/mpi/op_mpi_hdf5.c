@@ -964,10 +964,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 * if the data set does not exists in file creates data set
 *******************************************************************************/
 
-void op_fetch_data_hdf52(op_dat data, char const *file_name)
+void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
 {
   //fetch data based on the backend
-  op_dat dat = op_fetch_data_char2(data);
+  op_dat dat = op_fetch_data_file_char(data);
 
   //create new communicator
   int my_rank, comm_size;
