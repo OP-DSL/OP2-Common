@@ -78,6 +78,8 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim);
 
 int removeDups(int a[], int array_size);
 
+int file_exist (char const *filename);
+
 #ifdef __cplusplus
 }
 #endif

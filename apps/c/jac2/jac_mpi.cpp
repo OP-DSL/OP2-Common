@@ -327,11 +327,11 @@ int main(int argc, char **argv)
   op_timers(&cpu_t2, &wall_t2);
 
   //get results data array
-  op_dat temp = op_mpi_get_data(p_u);
+  op_fetch_data(p_u, u);
 
   //output the result dat array to files
-  print_dat_tofile(temp, "out_grid.dat"); //ASCI
-  //print_dat_tobinfile(temp, "out_grid.bin"); //Binary
+  op_print_dat_to_txtfile(p_u, "out_grid_mpi.dat"); //ASCI
+  op_print_dat_to_binfile(p_u, "out_grid_mpi.bin"); //Binary
 
   //print each mpi process's timing info for each kernel
   op_timing_output();
@@ -339,5 +339,11 @@ int main(int argc, char **argv)
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
+
+  free(u);
+  free(pp);
+  free(A);
+  free(r);
+  free(du);
 }
 

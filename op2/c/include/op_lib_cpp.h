@@ -180,10 +180,25 @@ inline int op_free_dat_temp ( op_dat dat )
   return op_free_dat_temp_char ( dat );
 }
 
+
+//
+//fetch data
+//
+template < class T >
+void op_fetch_data ( op_dat dat, T* usr_ptr)
+{
+  op_fetch_data_char(dat, (char * ) usr_ptr);
+}
+
+template < class T >
+void op_fetch_data_hdf5(op_dat dat, T* usr_ptr, int low, int high)
+{
+  op_fetch_data_hdf5_char(dat, (char* )usr_ptr, low, high);
+}
+
 //
 // wrapper functions to handle MPI global reductions
 //
-
 
 inline void op_mpi_reduce(op_arg* args, float *data)
 {
@@ -206,6 +221,8 @@ void op_mpi_reduce(op_arg* args, T* data)
 {
 
 }
+
+
 
 #endif /* __OP_LIB_CPP_H */
 

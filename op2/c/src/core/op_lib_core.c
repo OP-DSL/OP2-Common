@@ -273,9 +273,9 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->mpi_buffer = NULL;
 
   /* Create a pointer to an item in the op_dats doubly linked list */
-	op_dat_entry* item;
+  op_dat_entry* item;
 
-	//add the newly created op_dat to list
+  //add the newly created op_dat to list
   item = (op_dat_entry *)malloc(sizeof(op_dat_entry));
   if (item == NULL) {
     printf ( " op_decl_dat error -- error allocating memory to double linked list entry\n" );
@@ -378,9 +378,9 @@ op_exit_core (  )
       free((item->dat)->data);
     free((char*)(item->dat)->name);
     free((char*)(item->dat)->type);
-		TAILQ_REMOVE(&OP_dat_list, item, entries);
-		free(item);
-	}
+    TAILQ_REMOVE(&OP_dat_list, item, entries);
+    free(item);
+  }
 
   // free storage for timing info
 
@@ -554,7 +554,7 @@ op_diagnostic_output (  )
     {
       printf ( "%10s %10d %10s\n", (item->dat)->name,
                (item->dat)->dim, (item->dat)->set->name );
-		}
+    }
     printf ( "\n" );
   }
 }
@@ -690,3 +690,95 @@ op_dump_dat ( op_dat data )
   fflush (stdout);
 }
 
+
+void op_print_dat_to_binfile_core(op_dat dat, const char *file_name)
+{
+  size_t elem_size = dat->dim;
+  int count = dat->set->size;
+
+  FILE *fp;
+  if ( (fp = fopen(file_name,"wb")) == NULL) {
+    printf("can't open file %s\n",file_name);
+    exit(2);
+  }
+
+  if (fwrite(&count, sizeof(int),1, fp)<1)
+  {
+    printf("error writing to %s",file_name);
+    exit(2);
+  }
+  if (fwrite(&elem_size, sizeof(int),1, fp)<1)
+  {
+    printf("error writing to %s\n",file_name);
+    exit(2);
+  }
+
+  if(fwrite(dat->data, dat->size, dat->set->size, fp) < dat->set->size)
+  {
+    printf("error writing to %s\n",file_name);
+    exit(2);
+  }
+  fclose(fp);
+
+}
+
+void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
+{
+  FILE *fp;
+  if ( (fp = fopen(file_name,"w")) == NULL) {
+    printf("can't open file %s\n",file_name);
+    exit(2);
+  }
+
+  if (fprintf(fp,"%d %d\n",dat->set->size, dat->dim)<0)
+  {
+    printf("error writing to %s\n",file_name);
+    exit(2);
+  }
+
+  for(int i = 0; i< dat->set->size; i++)
+  {
+    for(int j = 0; j < dat->dim; j++ )
+    {
+      if( (strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
+      {
+        if(fprintf(fp, "%lf ", ((double *)dat->data)[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
+      {
+        if(fprintf(fp, "%f ", ((float *)dat->data)[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
+      {
+        if(fprintf(fp, "%d ", ((int *)dat->data)[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      else if((strcmp(dat->type,"long") == 0) || (strcmp(dat->type,"long:soa") == 0))
+      {
+        if(fprintf(fp, "%ld ", ((long *)dat->data)[i*dat->dim+j])<0)
+        {
+          printf("error writing to %s\n",file_name);
+          exit(2);
+        }
+      }
+      else
+      {
+        printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
+        exit(2);
+      }
+    }
+    fprintf(fp,"\n");
+  }
+  fclose(fp);
+}

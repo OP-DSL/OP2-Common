@@ -43,6 +43,10 @@
 #include <string.h>
 #include <math.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <op_lib_core.h>
 #include <op_util.h>
 
@@ -314,3 +318,11 @@ int removeDups(int a[], int array_size)
   return array_size;
 }
 
+/*******************************************************************************
+* Check if a file exists
+*******************************************************************************/
+int file_exist (char const *filename)
+{
+  struct stat   buffer;
+  return (stat (filename, &buffer) == 0);
+}

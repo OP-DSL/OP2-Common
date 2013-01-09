@@ -213,3 +213,39 @@ void op_timing_output()
 {
   op_timing_output_core();
 }
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  //need to get data from GPU
+  op_cuda_get_data(dat);
+  op_print_dat_to_binfile_core(dat, file_name);
+}
+
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
+{
+  //need to get data from GPU
+  op_cuda_get_data(dat);
+  op_print_dat_to_txtfile_core(dat, file_name);
+}
+
+void op_fetch_data_char ( op_dat dat, char * usr_ptr )
+{
+  op_cuda_get_data(dat);
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);
+}
+
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high)
+{
+  op_cuda_get_data(dat);
+  if(low < 0 || high > dat->set->size -1)
+  {
+    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+      dat->name);
+    exit(2);
+  }
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)&dat->data[low*dat->size],
+    (high+1)*dat->size);
+}

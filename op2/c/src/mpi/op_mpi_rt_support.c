@@ -218,5 +218,11 @@ void op_partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )
 {
   partition(lib_name, lib_routine, prime_set, prime_map, coords );
+}
 
+int op_is_root()
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  return (my_rank==MPI_ROOT);
 }
