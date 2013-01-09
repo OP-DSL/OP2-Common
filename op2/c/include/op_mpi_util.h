@@ -38,6 +38,8 @@
 #include <op_lib_core.h>
 #include <op_util.h>
 
+MPI_Comm OP_MPI_IO_WORLD;
+
 void _mpi_allgather(int *l, int *g, int size, int *recevcnts, int *displs,
     MPI_Comm comm)
 {
@@ -79,7 +81,6 @@ void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm OP_MPI_IO_WORLD;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
@@ -129,12 +130,42 @@ void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
+void checked_write(int v, const char *file_name)
+{
+  if (v) {
+    printf("error writing to %s\n",file_name);
+    MPI_Abort(OP_MPI_IO_WORLD, -1);
+  }
+}
+
+template < typename T >
+void write_bin(FILE* fp, int g_size, int elem_size, T *g_array, const char *file_name)
+{
+  checked_write (fwrite(&g_size, sizeof(int),1, fp)<1, file_name);
+  checked_write (fwrite(&elem_size, sizeof(int),1, fp)<1, file_name);
+
+  for(int i = 0; i< g_size; i++)
+    checked_write (fwrite( &g_array[i*elem_size], sizeof(T), elem_size, fp ) < (size_t)elem_size, file_name);
+}
+
 template < typename T, const char *fmt >
-void write_txtfile(op_dat dat, const char* file_name)
+void write_txt(FILE* fp, int g_size, int elem_size, T *g_array, const char *file_name)
+{
+  checked_write (fprintf(fp,"%d %d\n",g_size, elem_size)<0, file_name);
+
+  for(int i = 0; i< g_size; i++)
+  {
+    for(int j = 0; j < elem_size; j++ )
+      checked_write (fprintf(fp,fmt,g_array[i*elem_size+j])<0, file_name);
+    fprintf(fp,"\n");
+  }
+}
+
+template < typename T, void (*F)(FILE*, int, int, T*, const char*) >
+void write_file(op_dat dat, const char* file_name)
 {
   //create new communicator for output
   int rank, comm_size;
-  MPI_Comm OP_MPI_IO_WORLD;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
@@ -177,24 +208,9 @@ void write_txtfile(op_dat dat, const char* file_name)
       MPI_Abort(OP_MPI_IO_WORLD, -1);
     }
 
-    if (fprintf(fp,"%d %d\n",g_size, elem_size)<0)
-    {
-      printf("error writing to %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
+    // Write binary or text as requested by the caller
+    F(fp, g_size, elem_size, g_array, file_name);
 
-    for(int i = 0; i< g_size; i++)
-    {
-      for(int j = 0; j < elem_size; j++ )
-      {
-        if (fprintf(fp,fmt,g_array[i*elem_size+j])<0)
-        {
-          printf("error writing to %s\n",file_name);
-          MPI_Abort(OP_MPI_IO_WORLD, -1);
-        }
-      }
-      fprintf(fp,"\n");
-    }
     fclose(fp);
     free(g_array);
   }
@@ -203,78 +219,4 @@ void write_txtfile(op_dat dat, const char* file_name)
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
-template < typename T >
-void write_binfile(op_dat dat, const char* file_name)
-{
-  //create new communicator for output
-  int rank, comm_size;
-  MPI_Comm OP_MPI_IO_WORLD;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
-  MPI_Comm_rank(OP_MPI_IO_WORLD, &rank);
-  MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
-
-  //compute local number of elements in dat
-  int count = dat->set->size;
-
-  T *l_array  = (T *) xmalloc(dat->dim*(count)*sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]),
-      dat->size*count);
-
-  int l_size = count;
-  size_t elem_size = dat->dim;
-  int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
-  int* displs = (int *) xmalloc(comm_size*sizeof(int));
-  int disp = 0;
-  T *g_array = 0;
-
-  MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
-
-  int g_size = 0;
-  for(int i = 0; i<comm_size; i++)
-  {
-    g_size += recevcnts[i];
-    recevcnts[i] =   elem_size*recevcnts[i];
-  }
-  for(int i = 0; i<comm_size; i++)
-  {
-    displs[i] =   disp;
-    disp = disp + recevcnts[i];
-  }
-  if(rank==MPI_ROOT) g_array  = (T *) xmalloc(elem_size*g_size*sizeof(T));
-  _mpi_gather(l_array, g_array, l_size*elem_size, recevcnts, displs, OP_MPI_IO_WORLD);
-
-  if(rank==MPI_ROOT)
-  {
-    FILE *fp;
-    if ( (fp = fopen(file_name,"wb")) == NULL) {
-      printf("can't open file %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
-
-    if (fwrite(&g_size, sizeof(int),1, fp)<1)
-    {
-      printf("error writing to %s",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
-    if (fwrite(&elem_size, sizeof(int),1, fp)<1)
-    {
-      printf("error writing to %s\n",file_name);
-      MPI_Abort(OP_MPI_IO_WORLD, -1);
-    }
-
-    for(int i = 0; i< g_size; i++)
-    {
-      if (fwrite( &g_array[i*elem_size], sizeof(T), elem_size, fp ) < elem_size)
-      {
-        printf("error writing to %s\n",file_name);
-        MPI_Abort(OP_MPI_IO_WORLD, -1);
-      }
-    }
-    fclose(fp);
-    free(g_array);
-  }
-
-  free(l_array);free(recevcnts);free(displs);
-  MPI_Comm_free(&OP_MPI_IO_WORLD);
-}
 #endif /* __OP_MPI_UTIL_H */

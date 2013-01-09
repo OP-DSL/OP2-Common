@@ -61,11 +61,11 @@ extern const char fmt_int[] = "%d ";
 void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name)
 {
   if(strcmp(dat->type,"double") == 0)
-    write_txtfile<double, fmt_double>(dat, file_name);
+    write_file< double, write_txt<double, fmt_double> >(dat, file_name);
   else if(strcmp(dat->type,"float") == 0)
-    write_txtfile<float, fmt_float>(dat, file_name);
+    write_file< float, write_txt<float, fmt_float> >(dat, file_name);
   else if(strcmp(dat->type,"int") == 0)
-    write_txtfile<int, fmt_int>(dat, file_name);
+    write_file< int, write_txt<int, fmt_int> >(dat, file_name);
   else
     printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
 }
@@ -77,11 +77,11 @@ void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name)
 void print_dat_to_binfile_mpi(op_dat dat, const char *file_name)
 {
   if(strcmp(dat->type,"double") == 0)
-    write_binfile<double>(dat, file_name);
+    write_file<double, write_bin<double> >(dat, file_name);
   else if(strcmp(dat->type,"float") == 0)
-    write_binfile<float>(dat, file_name);
+    write_file<float, write_bin<float> >(dat, file_name);
   else if(strcmp(dat->type,"int") == 0)
-    write_binfile<int>(dat, file_name);
+    write_file<int, write_bin<int> >(dat, file_name);
   else
     printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
 }
