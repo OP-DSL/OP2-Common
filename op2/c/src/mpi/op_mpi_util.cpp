@@ -69,3 +69,19 @@ void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name)
   else
     printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
 }
+
+/*******************************************************************************
+ * Write a op_dat to a named Binary file
+ *******************************************************************************/
+
+void print_dat_to_binfile_mpi(op_dat dat, const char *file_name)
+{
+  if(strcmp(dat->type,"double") == 0)
+    write_binfile<double>(dat, file_name);
+  else if(strcmp(dat->type,"float") == 0)
+    write_binfile<float>(dat, file_name);
+  else if(strcmp(dat->type,"int") == 0)
+    write_binfile<int>(dat, file_name);
+  else
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
+}
