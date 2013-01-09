@@ -49,3 +49,23 @@ void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
   else
     printf("Unknown type %s, cannot error in fetch_data_hdf5() \n",dat->type);
 }
+
+/*******************************************************************************
+ * Write a op_dat to a named ASCI file
+ *******************************************************************************/
+
+extern const char fmt_double[] = "%f ";
+extern const char fmt_float[] = "%f ";
+extern const char fmt_int[] = "%d ";
+
+void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name)
+{
+  if(strcmp(dat->type,"double") == 0)
+    write_txtfile<double, fmt_double>(dat, file_name);
+  else if(strcmp(dat->type,"float") == 0)
+    write_txtfile<float, fmt_float>(dat, file_name);
+  else if(strcmp(dat->type,"int") == 0)
+    write_txtfile<int, fmt_int>(dat, file_name);
+  else
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
+}
