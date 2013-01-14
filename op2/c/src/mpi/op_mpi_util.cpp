@@ -239,7 +239,7 @@ void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
  * Write a op_dat to a named ASCI file
  *******************************************************************************/
 
-extern const char fmt_double[] = "%f ";
+extern const char fmt_double[] = "%lf ";
 extern const char fmt_float[] = "%f ";
 extern const char fmt_int[] = "%d ";
 
