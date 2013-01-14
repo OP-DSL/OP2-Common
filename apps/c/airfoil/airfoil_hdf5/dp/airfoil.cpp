@@ -218,7 +218,7 @@ int main(int argc, char **argv)
 
   op_fetch_data_hdf5_file(p_q, "file_name.h5");
 
-  printf("Root process = %d\n",op_is_root());
+  //printf("Root process = %d\n",op_is_root());
 
   //output the result dat array to files
   //op_write_hdf5("new_grid_out.h5");

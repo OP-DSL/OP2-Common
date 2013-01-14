@@ -34,6 +34,7 @@
 
 #include <op_lib_core.h>
 #include <op_util.h>
+#include <op_mpi_core.h>
 
 MPI_Comm OP_MPI_IO_WORLD;
 
@@ -142,7 +143,8 @@ void write_bin(FILE* fp, int g_size, int elem_size, T *g_array, const char *file
   checked_write (fwrite(&elem_size, sizeof(int),1, fp)<1, file_name);
 
   for(int i = 0; i< g_size; i++)
-    checked_write (fwrite( &g_array[i*elem_size], sizeof(T), elem_size, fp ) < (size_t)elem_size, file_name);
+    checked_write (fwrite( &g_array[i*elem_size], sizeof(T), elem_size, fp )
+      < (size_t)elem_size, file_name);
 }
 
 template < typename T, const char *fmt >
