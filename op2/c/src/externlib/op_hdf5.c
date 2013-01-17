@@ -483,7 +483,7 @@ void op_write_hdf5(char const * file_name)
   /*loop over all the op_dats and write them to file*/
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
-		op_dat dat = item->dat;
+    op_dat dat = item->dat;
 
     //find total size of dat
     int g_size = dat->set->size;
@@ -599,7 +599,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 
   file_id = H5Fopen(file_name, H5F_ACC_RDONLY, H5P_DEFAULT);
 
-  /*find dimension of this constant with available attributes*/
+  ///find dimension of this constant with available attributes
   int const_dim = 0;
 
   //open existing data set
@@ -607,7 +607,6 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 
   //get OID of the dim attribute
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
-  //read attribute
   H5Aread(attr,H5T_NATIVE_INT,&const_dim);
   H5Aclose(attr);
   H5Dclose(dset_id);
@@ -618,16 +617,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
       exit(2);
   }
 
-  /*find type with available attributes*/
+  //find type with available attributes
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
-
-  //open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  //get OID of the attribute
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
 
-  //get length of attribute
   int attlen = H5Aget_storage_size(attr);
   H5Tset_size(atype, attlen+1);
 
@@ -653,31 +648,31 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   if(strcmp(typ,"int") == 0)
   {
      data = (char *)xmalloc(sizeof(int)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, const_data);
+     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(int)*const_dim);
   }
   else if(strcmp(typ,"long") == 0)
   {
      data = (char *)xmalloc(sizeof(long)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, const_data);
+     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(long)*const_dim);
   }
   else if(strcmp(typ,"long long") == 0)
   {
      data = (char *)xmalloc(sizeof(long long)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, const_data);
+     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(long long)*const_dim);
   }
   else if(strcmp(typ,"float") == 0)
   {
      data = (char *)xmalloc(sizeof(float)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, const_data);
+     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(float)*const_dim);
   }
   else if(strcmp(typ,"double") == 0)
   {
      data = (char *)xmalloc(sizeof(double)*const_dim);
-     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, const_data);
+     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(double)*const_dim);
   }
   else
@@ -690,7 +685,6 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 
   H5Dclose(dset_id);
   H5Fclose(file_id);
-
 }
 
 /*******************************************************************************
