@@ -138,35 +138,6 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
   cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
-void op_fetch_data ( op_dat dat )
-{
-
-  //transpose data
-  if (strstr( dat->type, ":soa")!= NULL) {
-    char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
-    cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
-                                 dat->size * dat->set->size,
-                                 cudaMemcpyDeviceToHost ) );
-    cutilSafeCall ( cudaDeviceSynchronize (  ) );
-    int element_size = dat->size/dat->dim;
-    for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < dat->set->size; j++) {
-        for (int c = 0; c < element_size; c++) {
-        	dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*dat->set->size + element_size*j + c];
-        }
-      }
-    }
-    free(temp_data);
-  } else {
-  cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
-                               dat->size * dat->set->size,
-                               cudaMemcpyDeviceToHost ) );
-  cutilSafeCall ( cudaDeviceSynchronize (  ) );
-  }
-}
-
-
-
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int *inds )
 {
@@ -304,3 +275,33 @@ void mvReductArraysToHost ( int reduct_bytes )
   cutilSafeCall ( cudaDeviceSynchronize (  ) );
 }
 
+//
+// routine to fetch data from GPU to CPU (with transposing SoA to AoS if needed)
+//
+
+void op_cuda_get_data ( op_dat dat )
+{
+  //transpose data
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
+    cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
+                                 dat->size * dat->set->size,
+                                 cudaMemcpyDeviceToHost ) );
+    cutilSafeCall ( cudaDeviceSynchronize (  ) );
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < dat->set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          dat->data[dat->size*j+element_size*i+c] =
+            temp_data[element_size*i*dat->set->size + element_size*j + c];
+        }
+      }
+    }
+    free(temp_data);
+  } else {
+  cutilSafeCall ( cudaMemcpy ( dat->data, dat->data_d,
+                               dat->size * dat->set->size,
+                               cudaMemcpyDeviceToHost ) );
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
+  }
+}

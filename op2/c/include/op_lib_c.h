@@ -90,7 +90,10 @@ op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );
 
 op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
-void op_fetch_data ( op_dat );
+void op_fetch_data_char ( op_dat , char* );
+op_dat op_fetch_data_file_char ( op_dat );
+
+void op_fetch_data_hdf5_char ( op_dat , char* , int, int);
 
 void op_exit (  );
 
@@ -101,6 +104,10 @@ int op_get_size(op_set set);
 void op_printf(const char* format, ...);
 
 void op_timers( double *cpu, double *et );
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name);
+
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name);
 
 #ifdef __cplusplus
 }

@@ -123,10 +123,38 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
-void op_fetch_data ( op_dat dat )
+void op_fetch_data_char(op_dat dat, char* usr_ptr)
 {
-  (void)dat;
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //copy data into usr_ptr
+  memcpy((void *)usr_ptr, (void *)temp->data, temp->set->size*temp->size);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
 }
+
+void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
+{
+  //rearrange data back to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+
+  //do allgather on temp->data and copy it to memory block pointed to by use_ptr
+  fetch_data_hdf5(dat, usr_ptr, low, high);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
+}
+
+op_dat op_fetch_data_file_char(op_dat dat)
+{
+  //rearrange data backe to original order in mpi
+  return op_mpi_get_data(dat);
+}
+
 
 /*
  * No specific action is required for constants in MPI
@@ -190,7 +218,6 @@ op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * nam
   op_map out_map= op_decl_map_core ( from, to, dim, m, name );
   out_map-> user_managed = 0;
   return out_map;
-  //return op_decl_map_core ( from, to, dim, imap, name );
 }
 
 op_arg op_arg_dat( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
@@ -215,4 +242,27 @@ void op_timing_output()
 {
    op_timing_output_core();
    mpi_timing_output();
+}
+
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+  print_dat_to_binfile_mpi(temp, file_name);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
+}
+
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
+{
+  //rearrange data backe to original order in mpi
+  op_dat temp = op_mpi_get_data(dat);
+  print_dat_to_txtfile_mpi(temp, file_name);
+
+  free(temp->data);
+  free(temp->set);
+  free(temp);
 }
