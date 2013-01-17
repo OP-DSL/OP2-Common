@@ -668,7 +668,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 				g_m = m
 				if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ:
 					code('&ARG_l[64*omp_get_thread_num()],')
-				if inds[m]==0:
+				elif inds[m]==0:
 					code('(TYP *)ARG.data,')
 
 			code('Plan->ind_sizes,')

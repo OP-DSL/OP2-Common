@@ -48,6 +48,7 @@ from op2_gen_cuda import *
 ninit = 0; nexit = 0; npart = 0; nhdf5 = 0; nconsts  = 0; nkernels = 0;
 consts = []
 kernels = []
+kernels_in_files = []
 
 OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
@@ -302,6 +303,7 @@ def op_par_loop_parse(text):
 ##########################################################################
 #  loop over all input source files
 ##########################################################################
+kernels_in_files = [[] for _ in range(len(sys.argv)-1)]
 for a in range(1,len(sys.argv)):
   print 'processing file '+ str(a) + ' of ' + str(len(sys.argv)-1) + ' '+ \
   str(sys.argv[a]) 
@@ -500,6 +502,7 @@ for a in range(1,len(sys.argv)):
     repeat = False
     rep1 = False
     rep2 = False
+    which_file = -1
     for nk in range (0,nkernels):
     	rep1 = kernels[nk]['name'] == name and \
     	kernels[nk]['nargs'] == nargs and \
@@ -524,6 +527,7 @@ for a in range(1,len(sys.argv)):
 	   if rep2:
     	    	print 'repeated kernel with compatible arguments: '+ kernels[nk]['name'],
     	        repeat = True
+		which_file = nk
     	   else:
     	        print 'repeated kernel with incompatible arguments: ERROR'
                 break 
@@ -574,6 +578,14 @@ for a in range(1,len(sys.argv)):
             	'indtyps': indtyps,
             	'invinds': invinds }
       kernels.append(temp)
+      (kernels_in_files[a-1]).append(nkernels-1)
+    else:
+      append = 1
+      for in_file in range(0,len(kernels_in_files[a-1])):
+        if kernels_in_files[a-1][in_file] == which_file:
+          append = 0
+      if append == 1:
+        (kernels_in_files[a-1]).append(which_file)
 
   
 ##########################################################################
@@ -619,10 +631,11 @@ for a in range(1,len(sys.argv)):
       ind = ind + 1
         
     if locs[loc]in loc_header:
-      fid.write(' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n')
+#      fid.write(' "op_lib_cpp.h"\nint op2_stride = 1;\n#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]\n\n')
+      fid.write(' "op_lib_cpp.h"\n\n')
       fid.write('//\n// op_par_loop declarations\n//\n')
-      
-      for k in range (0,nkernels):
+      for k_iter in range (0,len(kernels_in_files[a-1])):
+        k = kernels_in_files[a-1][k_iter]
         line = '\nvoid op_par_loop_'+kernels[k]['name']+'(char const *, op_set,\n'
         for n in range(1,kernels[k]['nargs']):
           line = line+'  op_arg,\n'

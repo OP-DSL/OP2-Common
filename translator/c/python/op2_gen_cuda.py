@@ -311,7 +311,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 					ENDFOR()
 				else:
 					FOR('d','0','DIM')
-					code('ARG_l[d]=ARG[d+blockIdx.x*DIM]')
+					code('ARG_l[d]=ARG[d+blockIdx.x*DIM];')
 					ENDFOR()
 			elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
 				code('TYP ARG_l[DIM];')
@@ -755,6 +755,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 
 			for m in range(0,nargs):
 				if maps[m]==OP_GBL and accs[m]==OP_READ:
+					g_m = m
 					code('ARG.data   = OP_consts_h + consts_bytes;')
 					code('ARG.data_d = OP_consts_d + consts_bytes;')
 					FOR('d','0','DIM')
@@ -787,6 +788,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 				code('int maxblocks = 0;')
 				FOR('col','0','Plan->ncolors')
 				code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
+				ENDFOR()
 			else:
 				code('int maxblocks = nblocks;')
 
@@ -872,7 +874,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 			code('cutilCheckMsg("op_cuda_'+name+' execution failed\\n");')
 			if reduct:
 				comm('transfer global reduction data back to CPU')
-				IF('col == Plan->ncolors_owned')
+				IF('col == Plan->ncolors_owned-1')
 				code('mvReductArraysToHost(reduct_bytes);')
 				ENDIF()
 
