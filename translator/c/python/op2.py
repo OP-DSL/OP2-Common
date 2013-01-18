@@ -85,33 +85,10 @@ def op_parse_calls(text):
     #remove comments just for this call
     text = comment_remover(text)
     
-    inits = 0
-    search = "op_init"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      inits = inits + 1
-    
-    exits = 0
-    search = "op_exit"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      exits = exits + 1
-      
-    parts = 0
-    search = "op_partition"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      parts = parts + 1
-            
-    hdf5s = 0
-    search = "hdf5"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      hdf5 = hdf5s + 1
+    inits = len(re.findall('op_init', text))
+    exits = len(re.findall('op_exit', text))
+    parts = len(re.findall('op_partition', text))
+    hdf5s = len(re.findall('hdf5', text))
     
     return (inits, exits, parts, hdf5s)
 
