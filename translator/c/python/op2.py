@@ -35,12 +35,9 @@ import sys
 import re
 import datetime
 
-# import openmp code generation function
-import op2_gen_openmp
-from op2_gen_openmp import *
-
-import op2_gen_cuda
-from op2_gen_cuda import *
+# import OpenMP and CUDA code generation functions
+from op2_gen_openmp import op2_gen_openmp
+from op2_gen_cuda import op2_gen_cuda
 
 
 def comment_remover(text):
@@ -106,7 +103,7 @@ def op_decl_const_parse(text):
 
 
 def arg_parse(text, j):
-    """Parsing for arguments in op_par_loop to find the correct closing brace"""
+    """Parsing arguments in op_par_loop to find the correct closing brace"""
 
     depth = 0
     loc2 = j
@@ -130,10 +127,12 @@ def get_arg_dat(arg_string, j):
 
     # check for syntax errors
     if len(dat_args_string.split(',')) != 6:
-        print 'Error in parsing op_arg_dat(' + dat_args_string + '): must have six arguments'
+        print 'Error parsing op_arg_dat(%s): must have six arguments' \
+              % dat_args_string
         return
 
-    # split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+    # split the dat_args_string into  6 and create a struct with the elements
+    # and type as op_arg_dat
     temp_dat = {'type': 'op_arg_dat',
                 'dat': dat_args_string.split(',')[0].strip(),
                 'idx': dat_args_string.split(',')[1].strip(),
@@ -154,10 +153,12 @@ def get_arg_gbl(arg_string, k):
 
     # check for syntax errors
     if len(gbl_args_string.split(',')) != 4:
-        print 'Error in parsing op_arg_gbl(' + gbl_args_string + '): must have four arguments'
+        print 'Error parsing op_arg_gbl(%s): must have four arguments' \
+              % gbl_args_string
         return
 
-    # split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+    # split the gbl_args_string into  4 and create a struct with the elements
+    # and type as op_arg_gbl
     temp_gbl = {'type': 'op_arg_gbl',
                 'data': gbl_args_string.split(',')[0].strip(),
                 'dim': gbl_args_string.split(',')[1].strip(),
@@ -188,14 +189,14 @@ def op_par_loop_parse(text):
         k = arg_string.find(search3)
 
         while j > -1 or k > -1:
-            if  k <= -1:
+            if k <= -1:
                 temp_dat = get_arg_dat(arg_string, j)
                 # append this struct to a temporary list/array
                 temp_args.append(temp_dat)
                 num_args = num_args + 1
                 j = arg_string.find(search2, j + 11)
 
-            elif  j <= -1:
+            elif j <= -1:
                 temp_gbl = get_arg_gbl(arg_string, k)
                 # append this struct to a temporary list/array
                 temp_args.append(temp_gbl)
@@ -254,14 +255,15 @@ def main():
     OP_MAX = 5
     OP_MIN = 6
 
-    OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC', 'OP_MAX', 'OP_MIN']
+    OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
+                      'OP_MAX', 'OP_MIN']
 
     #  loop over all input source files
 
     kernels_in_files = [[] for _ in range(len(sys.argv) - 1)]
     for a in range(1, len(sys.argv)):
-        print 'processing file ' + str(a) + ' of ' + str(len(sys.argv) - 1) + ' ' + \
-            str(sys.argv[a])
+        print 'processing file ' + str(a) + ' of ' + str(len(sys.argv) - 1) + \
+              ' ' + str(sys.argv[a])
 
         src_file = str(sys.argv[a])
         f = open(src_file, 'r')
@@ -303,7 +305,7 @@ def main():
             repeat = 0
             name = const_args[i]['name']
             for c in range(0, nconsts):
-                if  const_args[i]['name'] == consts[c]['name']:
+                if const_args[i]['name'] == consts[c]['name']:
                     repeat = 1
                     if const_args[i]['type'] != consts[c]['type']:
                         print 'type mismatch in repeated op_decl_const'
@@ -313,7 +315,8 @@ def main():
             if repeat > 0:
                 print 'repeated global constant ' + const_args[i]['name']
             else:
-                print '\nglobal constant (' + const_args[i]['name'].strip() + ') of size ' + str(const_args[i]['dim'])
+                print '\nglobal constant (' + const_args[i]['name'].strip() \
+                      + ') of size ' + str(const_args[i]['dim'])
 
             # store away in master list
             if repeat == 0:
@@ -445,7 +448,8 @@ def main():
                 if rep1:
                     rep2 = True
                     for arg in range(0, nargs):
-                        rep2 =  rep2 and kernels[nk]['dims'][arg] == dims[arg] and \
+                        rep2 = rep2 and \
+                            kernels[nk]['dims'][arg] == dims[arg] and \
                             kernels[nk]['maps'][arg] == maps[arg] and \
                             kernels[nk]['typs'][arg] == typs[arg] and \
                             kernels[nk]['accs'][arg] == accs[arg] and \
@@ -454,13 +458,15 @@ def main():
                             kernels[nk]['inds'][arg] == inds[arg]
 
                     for arg in range(0, ninds):
-                        rep2 =  rep2 and kernels[nk]['inddims'][arg] == inddims[arg] and \
+                        rep2 = rep2 and \
+                            kernels[nk]['inddims'][arg] == inddims[arg] and \
                             kernels[nk]['indaccs'][arg] == indaccs[arg] and \
                             kernels[nk]['indtyps'][arg] == indtyps[arg] and \
                             kernels[nk]['invinds'][arg] == invinds[arg]
 
                 if rep2:
-                    print 'repeated kernel with compatible arguments: ' + kernels[nk]['name'],
+                    print 'repeated kernel with compatible arguments: ' + \
+                          kernels[nk]['name'],
                     repeat = True
                     which_file = nk
                 else:
@@ -525,7 +531,8 @@ def main():
 
         fid = open(src_file.split('.')[0] + '_op.cpp', 'w')
         date = datetime.datetime.now()
-        fid.write('//\n// auto-generated by op2.py on ' + date.strftime("%Y-%m-%d %H:%M") + '\n//\n\n')
+        fid.write('//\n// auto-generated by op2.py on ' +
+                  date.strftime("%Y-%m-%d %H:%M") + '\n//\n\n')
 
         loc_old = 0
 
@@ -566,7 +573,8 @@ def main():
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
-                    line = '\nvoid op_par_loop_' + kernels[k]['name'] + '(char const *, op_set,\n'
+                    line = '\nvoid op_par_loop_' + \
+                        kernels[k]['name'] + '(char const *, op_set,\n'
                     for n in range(1, kernels[k]['nargs']):
                         line = line + '  op_arg,\n'
                     line = line + '  op_arg );\n'
@@ -581,18 +589,21 @@ def main():
                 endofcall = text.find(';', locs[loc])
                 curr_loop = loc_loops.index(locs[loc])
                 name = loop_args[curr_loop]['name1']
-                line = str(' op_par_loop_' + name + '(' + loop_args[curr_loop]['name2'] + ',' +
+                line = str(' op_par_loop_' + name + '(' +
+                           loop_args[curr_loop]['name2'] + ',' +
                            loop_args[curr_loop]['set'] + ',\n' + indent)
 
                 for arguments in range(0, loop_args[curr_loop]['nargs']):
                     elem = loop_args[curr_loop]['args'][arguments]
                     if elem['type'] == 'op_arg_dat':
-                        line = line + elem['type'] + '(' + elem['dat'] + ',' + elem['idx'] \
-                            + ',' + elem['map'] + ',' + elem['dim'] + ',' + elem['typ'] + ',' \
-                            + elem['acc'] + '),\n' + indent
+                        line = line + elem['type'] + '(' + elem['dat'] + \
+                            ',' + elem['idx'] + ',' + elem['map'] + \
+                            ',' + elem['dim'] + ',' + elem['typ'] + \
+                            ',' + elem['acc'] + '),\n' + indent
                     elif elem['type'] == 'op_arg_gbl':
-                        line = line + elem['type'] + '(' + elem['data'] + ',' + elem['dim'] \
-                            + ',' + elem['typ'] + ',' + elem['acc'] + '),\n' + indent
+                        line = line + elem['type'] + '(' + elem['data'] + \
+                            ',' + elem['dim'] + ',' + elem['typ'] + \
+                            ',' + elem['acc'] + '),\n' + indent
 
                 fid.write(line[0:-len(indent) - 2] + ');')
 
@@ -603,9 +614,10 @@ def main():
                 curr_const = loc_consts.index(locs[loc])
                 endofcall = text.find(';', locs[loc])
                 name = const_args[curr_const]['name']
-                fid.write(indent[0:-2] + 'op_decl_const2("' + name.strip() + '",' +
-                          str(const_args[curr_const]['dim']) + ',' + const_args[curr_const]['type'] +
-                          ',' + const_args[curr_const]['name2'].strip() + ');')
+                fid.write(indent[0:-2] + 'op_decl_const2("' + name.strip() +
+                          '",' + str(const_args[curr_const]['dim']) + ',' +
+                          const_args[curr_const]['type'] + ',' +
+                          const_args[curr_const]['name2'].strip() + ');')
                 loc_old = endofcall + 1
                 continue
 
