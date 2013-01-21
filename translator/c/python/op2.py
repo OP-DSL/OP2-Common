@@ -40,6 +40,7 @@ from op2_gen_openmp import op2_gen_openmp
 from op2_gen_cuda import op2_gen_cuda
 
 
+# from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
     """Remove comments from text"""
 
@@ -74,32 +75,23 @@ def op_decl_const_parse(text):
     """Parsing for op_decl_const calls"""
 
     consts = []
-    num_const = 0
-    search = "op_decl_const"
-    i = text.find(search)
-    while i > -1:
-        const_string = text[text.find('(', i) + 1: text.find(')', i + 13)]
-
-        # remove comments
-        const_string = comment_remover(const_string)
+    for m in re.finditer('op_decl_const\((.*)\)', text):
+        args = m.group(1).split(',')
 
         # check for syntax errors
-        if len(const_string.split(',')) != 3:
+        if len(args) != 3:
             print 'Error in op_decl_const : must have three arguments'
             return
 
-        temp = {'loc': i,
-                'dim': const_string.split(',')[0],
-                'type': const_string.split(',')[1],
-                'name': const_string.split(',')[2],
-                'name2': const_string.split(',')[2]}
+        consts.append({
+            'loc': m.start(),
+            'dim': args[0].strip(),
+            'type': args[1].strip(),
+            'name': args[2].strip(),
+            'name2': args[2].strip()
+            })
 
-        consts.append(temp)
-
-        i = text.find(search, i + 13)
-        num_const = num_const + 1
-
-    return (consts)
+    return consts
 
 
 def arg_parse(text, j):
