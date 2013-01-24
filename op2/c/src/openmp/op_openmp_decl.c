@@ -73,11 +73,25 @@ int op_free_dat_temp_char ( op_dat dat )
 }
 
 void
-op_fetch_data ( op_dat dat )
+op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
-  (void)dat;
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);
 }
 
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high )
+{
+  if(low < 0 || high > dat->set->size -1)
+  {
+    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+      dat->name);
+    exit(2);
+  }
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)&dat->data[low*dat->size],
+    (high+1)*dat->size);
+}
 
 /*
  * No specific action is required for constants in OpenMP
@@ -157,4 +171,14 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void op_timing_output()
 {
    op_timing_output_core();
+}
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  op_print_dat_to_binfile_core(dat, file_name);
+}
+
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
+{
+  op_print_dat_to_txtfile_core(dat, file_name);
 }

@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 
   op_printf("\n  Results after %d iterations:\n\n",NITER);
 
-  op_fetch_data(p_u);
+  op_fetch_data(p_u, u);
 
   for (int pass=0; pass<1; pass++) {
     for (int j=NN-1; j>0; j--) {

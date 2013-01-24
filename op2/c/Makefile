@@ -134,6 +134,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/op_mpi_hdf5.o $(OBJ)/op_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
+	-o $(OBJ)/op_mpi_util.o
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -141,7 +143,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_decl.o \
 	$(OBJ)/op_mpi_rt_support.o \
 	$(OBJ)/op_util.o \
-	$(OBJ)/op_mpi_hdf5.o
+	$(OBJ)/op_mpi_hdf5.o \
+	$(OBJ)/op_mpi_util.o
 
 mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
@@ -171,6 +174,8 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_INSTALL_PATH)/include \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
 	-o $(OBJ)/op_mpi_cuda_kernels.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
+	-o $(OBJ)/op_mpi_util.o
 
 	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -179,7 +184,8 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_mpi_cuda_rt_support.o $(OBJ)/op_mpi_cuda_decl.o \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o \
-	$(OBJ)/op_mpi_cuda_kernels.o
+	$(OBJ)/op_mpi_cuda_kernels.o \
+	$(OBJ)/op_mpi_util.o
 
 clean:
 	-rm -if $(OBJ)/*.o

@@ -101,10 +101,25 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
   return op_arg_gbl_core ( data, dim, type, size, acc );
 }
 
-void op_fetch_data ( op_dat a ) {
-  (void)a;
+void
+op_fetch_data_char ( op_dat dat, char * usr_ptr)
+{
+  memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);
 }
 
+void
+op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high)
+{
+  if(low < 0 || high > dat->set->size -1)
+  {
+    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+      dat->name);
+    exit(2);
+  }
+  //need to copy data into memory pointed to by usr_ptr
+  memcpy((void *)usr_ptr, (void *)&dat->data[low*dat->size],
+    (high+1)*dat->size);
+}
 
 int op_get_size(op_set set)
 {
@@ -132,4 +147,14 @@ void op_exit ()
 void op_timing_output()
 {
    op_timing_output_core();
+}
+
+void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+{
+  op_print_dat_to_binfile_core(dat, file_name);
+}
+
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
+{
+  op_print_dat_to_txtfile_core(dat, file_name);
 }
