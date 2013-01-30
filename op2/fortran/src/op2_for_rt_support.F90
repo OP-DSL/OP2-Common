@@ -254,16 +254,6 @@ module OP2_Fortran_RT_Support
     subroutine op_barrier () BIND(C,name='op_barrier')
     end subroutine op_barrier
 
-    subroutine op_monitor_dat_mpi_c (dat, globalIndex) BIND(C,name='op_monitor_dat_mpi')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      type(op_dat_core) :: dat
-      integer(kind=c_int), value :: globalIndex
-
-    end subroutine op_monitor_dat_mpi_c
-
     integer(kind=c_int) function setKernelTime (id, name, kernelTime, transfer, transfer2) BIND(C,name='setKernelTime')
 
       use, intrinsic :: ISO_C_BINDING
@@ -297,19 +287,5 @@ module OP2_Fortran_RT_Support
       call op_partition_c (lib_name, lib_routine, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
 
     end subroutine
-
-    subroutine op_monitor_dat_mpi (dat, globalIndex)
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      implicit none
-
-      type(op_dat_core) :: dat
-      integer(kind=c_int) :: globalIndex
-
-      call op_monitor_dat_mpi_c (dat, globalIndex)
-
-    end subroutine op_monitor_dat_mpi
 
 end module OP2_Fortran_RT_Support

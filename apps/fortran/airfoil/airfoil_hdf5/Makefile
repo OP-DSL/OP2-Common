@@ -30,18 +30,14 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
 
-all: clean cfunctions  airfoil_seq airfoil_hdf5_seq airfoil_hdf5_mpi airfoil_openmp_$(PART_SIZE_ENV) airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV)
+all: clean cfunctions airfoil_hdf5_seq #airfoil_hdf5_mpi airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV)
 
 cfunctions: debug.c
 	$(IC) $(OPT) $(DEBUG) -c debug.c
 
-airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 debug.o
-	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 airfoil.F90
-	$(FC) $(OPT) $(FLINK) debug.o constants.o airfoil.o airfoil_seqfun.o -o airfoil_seq -lop2_for_reference $(MPI_LIB) $(HDF5_LIB) -lz
-
-airfoil_hdf5_seq: debug.o constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
+airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
-	$(FC) $(OPT) $(FLINK) debug.o constants.o airfoil_hdf5.o airfoil_seqfun.o -o airfoil_hdf5_seq -lop2_for_reference_hdf5 $(MPI_LIB) $(HDF5_LIB) -lz
+	$(FC) $(OPT) $(FLINK) constants.o airfoil_hdf5.o airfoil_seqfun.o -o airfoil_hdf5_seq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) -lz
 
 airfoil_hdf5_mpi: debug.o constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90

@@ -47,6 +47,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <sys/queue.h> //contains double linked list implementation
+#include <stdbool.h>
 
 /*
  * essential typedefs
@@ -269,7 +270,7 @@ void op_mpi_reduce_double(op_arg *args, double* data);
 
 void op_mpi_reduce_int(op_arg *args, int* data);
 
-void op_mpi_reduce_bool(op_arg* args, int* data);
+void op_mpi_reduce_bool(op_arg* args, bool* data);
 
 void op_mpi_barrier();
 

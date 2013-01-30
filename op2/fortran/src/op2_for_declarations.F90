@@ -274,38 +274,6 @@ module OP2_Fortran_Declarations
 
     end subroutine
 
-    type(c_ptr) function op_decl_set_hdf5_c (fileName, setName) BIND(C,name='op_decl_set_hdf5')
-
-      use, intrinsic :: ISO_C_BINDING
-
-      character(kind=c_char,len=*), intent(in) :: fileName
-      character(kind=c_char,len=*), intent(in) :: setName
-
-    end function op_decl_set_hdf5_c
-
-    type(c_ptr) function op_decl_map_hdf5_c (from, to, dim, fileName, mapName) BIND(C,name='op_decl_map_hdf5')
-
-      use, intrinsic :: ISO_C_BINDING
-
-      type(c_ptr), value, intent(in)           :: from, to
-      integer(kind=c_int), value :: dim
-      character(kind=c_char,len=1), intent(in) :: fileName
-      character(kind=c_char,len=1), intent(in) :: mapName
-
-    end function op_decl_map_hdf5_c
-
-    type(c_ptr) function op_decl_dat_hdf5_c (set, dim, type, fileName, datName) BIND(C,name='op_decl_dat_hdf5')
-
-      use, intrinsic :: ISO_C_BINDING
-
-      type(c_ptr), value, intent(in)           :: set
-      integer(kind=c_int), value :: dim
-      character(kind=c_char,len=1), intent(in) :: type
-      character(kind=c_char,len=1), intent(in) :: fileName
-      character(kind=c_char,len=1), intent(in) :: datName
-
-    end function op_decl_dat_hdf5_c
-
     subroutine op_fetch_data_f ( opdat ) BIND(C,name='op_fetch_data')
 
       import :: op_dat_core
@@ -444,12 +412,6 @@ module OP2_Fortran_Declarations
 
     end subroutine op_print_dat_to_binfile_c
 
-    subroutine op_write_hdf5 (fileName) BIND(C,name='op_write_hdf5')
-      use, intrinsic :: ISO_C_BINDING
-
-      character(len=1,kind=c_char) :: fileName(*)
-    end subroutine op_write_hdf5
-
     logical(kind=c_bool) function isCNullPointer_c (ptr) BIND(C,name='isCNullPointer')
       use, intrinsic :: ISO_C_BINDING
 
@@ -479,10 +441,6 @@ module OP2_Fortran_Declarations
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
     & op_decl_const_scalar_real_8, op_decl_const_logical
   end interface op_decl_const
-
-  interface op_decl_set_hdf5
-    module procedure op_decl_set_hdf5_noSetSize, op_decl_set_hdf5_setSize
-  end interface op_decl_set_hdf5
 
   interface op_arg_dat
     module procedure op_arg_dat_rose, op_arg_dat_python
@@ -550,39 +508,6 @@ contains
 
   end subroutine op_decl_set
 
-  subroutine op_decl_set_hdf5_noSetSize ( set, fileName, setName )
-
-    type(op_set) :: set
-    character(kind=c_char,len=*) :: fileName
-    character(kind=c_char,len=*) :: setName
-
-    ! assume names are /0 terminated
-    set%setCPtr = op_decl_set_hdf5_c (fileName, setName)
-
-    ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
-    call c_f_pointer ( set%setCPtr, set%setPtr )
-
-  end subroutine op_decl_set_hdf5_noSetSize
-
-  subroutine op_decl_set_hdf5_setSize ( setSize, set, fileName, setName )
-
-    integer(kind=c_int) :: setSize
-    type(op_set) :: set
-    character(kind=c_char,len=*) :: fileName
-    character(kind=c_char,len=*) :: setName
-    print *,"setName ",setName
-    ! assume names are /0 terminated
-    set%setCPtr = op_decl_set_hdf5_c (fileName, setName)
-
-    ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
-    call c_f_pointer ( set%setCPtr, set%setPtr )
-
-    setSize = set%setPtr%size
-
-  end subroutine op_decl_set_hdf5_setSize
-
-
-
   subroutine op_decl_map ( from, to, mapdim, dat, map, opname )
 
     type(op_set), intent(in) :: from, to
@@ -601,23 +526,6 @@ contains
     call c_f_pointer ( map%mapCPtr, map%mapPtr )
 
   end subroutine op_decl_map
-
-  subroutine op_decl_map_hdf5 ( from, to, mapdim, map, fileName, mapName )
-
-    type(op_set), intent(in) :: from, to
-    integer, intent(in) :: mapdim
-    type(op_map) :: map
-    character(kind=c_char,len=*) :: fileName
-    character(kind=c_char,len=*) :: mapName
-
-    ! assume names are /0 terminated - will fix this if needed later
-    map%mapCPtr = op_decl_map_hdf5_c ( from%setCPtr, to%setCPtr, mapdim, fileName, mapName )
-
-    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
-    call c_f_pointer ( map%mapCPtr, map%mapPtr )
-
-  end subroutine op_decl_map_hdf5
-
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   declarations of op_dats    !
@@ -669,26 +577,6 @@ contains
     call op_decl_dat_real_8 ( set, datdim, dat, data, opname )
 
   end subroutine op_decl_dat_real_8_3
-
-  subroutine op_decl_dat_hdf5 ( set, datdim, data, type, fileName, datName )
-    implicit none
-
-    type(op_set), intent(in) :: set
-    integer, intent(in) :: datdim
-    type(op_dat) :: data
-    character(kind=c_char,len=*) :: type
-    character(kind=c_char,len=*) :: fileName
-    character(kind=c_char,len=*) :: datName
-
-    ! assume names are /0 terminated
-    data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type, fileName, datName)
-
-    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
-    call c_f_pointer ( data%dataCPtr, data%dataPtr )
-
-    ! debugging
-
-  end subroutine op_decl_dat_hdf5
 
   subroutine op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
     type(op_set), intent(in) :: set
