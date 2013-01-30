@@ -141,7 +141,7 @@ program AIRFOIL
   call op_decl_const (alpha, 1, alphaName)
   call op_decl_const (qinf, 4, qinfName)
 
-  call op_partition ("PARMETIS", "KWAY", edges, pecell, p_x)
+  call op_partition ("PTSCOTCH", "KWAY", edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
   print *, "ncellr", ncellr
 
