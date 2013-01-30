@@ -1601,6 +1601,37 @@ void op_mpi_reduce_int(op_arg* arg, int* data)
   }
 }
 
+void op_mpi_reduce_bool(op_arg* arg, bool* data)
+{
+  (void)data;
+  int size, rank;
+  MPI_Comm_size (OP_MPI_WORLD, &size);
+  MPI_Comm_rank (OP_MPI_WORLD, &rank);
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    bool * result = (bool *) calloc (arg->dim, sizeof (bool));
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_SUM, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_MIN, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);
+    }
+    free (result);
+  }
+}
+
 /*******************************************************************************
  * Routine to get a copy of the data held in a distributed op_dat
  *******************************************************************************/
