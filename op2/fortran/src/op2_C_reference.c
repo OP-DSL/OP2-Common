@@ -157,24 +157,24 @@ void op_args_check(op_set set, int nargs, op_arg *args,
     char * p_a[N] = {ZERO_LIST(N)};                                     \
     op_arg args[N] = {ARG_ARR_LIST(N)};                                 \
     int halo = 0;                                                       \
-    int n_upper;                                                  \
+    int n_upper;                                                        \
     ALLOC_POINTER_LIST(N)                                               \
-    n_upper = op_mpi_halo_exchanges_seq (set, N, args);                 \
+    n_upper = op_mpi_halo_exchanges (set, N, args);                     \
     if ( n_upper == 0 ) {                                               \
-      op_mpi_wait_all_seq (N,args);                                     \
+      op_mpi_wait_all (N,args);                                     \
       op_mpi_set_dirtybit (N, args);                                    \
       REDUCE_LIST(N)                                                    \
       return;                                                           \
     }                                                                   \
     for ( int n=0; n<n_upper; n++ ) {                                   \
       if ( n==set->core_size ) {                                        \
-        op_mpi_wait_all_seq (N,args);                                   \
+        op_mpi_wait_all (N,args);                                   \
       }                                                                 \
       if ( n==set->size) halo = 1;                                      \
       ARG_SET_LIST(N);                                                  \
       (*kernel)(PTR_LIST(N));                                           \
     }                                                                   \
-    if ( n_upper == set->core_size ) op_mpi_wait_all_seq (N,args);      \
+    if ( n_upper == set->core_size ) op_mpi_wait_all (N,args);      \
     op_mpi_set_dirtybit (N, args);                                      \
     REDUCE_LIST(N)                                                      \
     FREE_LIST(N)                                                        \

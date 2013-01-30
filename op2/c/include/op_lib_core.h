@@ -269,6 +269,8 @@ void op_mpi_reduce_double(op_arg *args, double* data);
 
 void op_mpi_reduce_int(op_arg *args, int* data);
 
+void op_mpi_reduce_bool(op_arg* args, int* data);
+
 void op_mpi_barrier();
 
 /*******************************************************************************
