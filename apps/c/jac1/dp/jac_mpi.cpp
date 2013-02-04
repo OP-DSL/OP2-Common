@@ -324,7 +324,12 @@ int main(int argc, char **argv)
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
-  int result = check_result<double>(u, NN, TOLERANCE);
+  //gather results from all ranks and check
+  double* ug = (double *)malloc(sizeof(double)*op_get_size(nodes));
+  op_fetch_data_hdf5(p_u, ug, 0, op_get_size(nodes)-1);
+  int result = check_result<double>(ug, NN, TOLERANCE);
+  free(ug);
+
   op_exit();
 
   free(u);

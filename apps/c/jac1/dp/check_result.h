@@ -8,7 +8,7 @@ template<class T>
 int check_result(T* u, int nn, T tol)
 {
   int nnode = (nn-1)*(nn-1);
-  T *ur = (T*)malloc(sizeof(double)*nnode);
+  T *ur = (T*)malloc(sizeof(T)*nnode);
 
   // create reference u solution. This is correct for variations in nn
   // but not NITER
