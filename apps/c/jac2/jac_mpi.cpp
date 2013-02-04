@@ -53,6 +53,10 @@
 
 float alpha;
 
+// jac header file
+
+#include "check_result.h"
+
 //
 // OP header file
 //
@@ -66,6 +70,10 @@ float alpha;
 
 #include "res.h"
 #include "update.h"
+
+// Error tolerance in checking correctness
+
+#define TOLERANCE 1e-12
 
 //
 //user declared functions
@@ -333,11 +341,24 @@ int main(int argc, char **argv)
   op_print_dat_to_txtfile(p_u, "out_grid_mpi.dat"); //ASCI
   op_print_dat_to_binfile(p_u, "out_grid_mpi.bin"); //Binary
 
+  printf("solution on rank %d\n", my_rank);
+  for (int i = 0; i<nnode; i++) {
+    printf(" %7.4f",u[i]);fflush(stdout);
+  }
+  printf("\n");
+
   //print each mpi process's timing info for each kernel
   op_timing_output();
 
   //print total time for niter interations
   op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+
+  //gather results from all ranks and check
+  float* ug = (float *)malloc(sizeof(float)*op_get_size(nodes));
+  op_fetch_data_hdf5(p_u, ug, 0, op_get_size(nodes)-1);
+  int result = check_result<float>(ug, NN, TOLERANCE);
+  free(ug);
+
   op_exit();
 
   free(u);
@@ -345,5 +366,7 @@ int main(int argc, char **argv)
   free(A);
   free(r);
   free(du);
+
+  return result;
 }
 
