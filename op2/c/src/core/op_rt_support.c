@@ -438,7 +438,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ind_offs = ( int * ) malloc ( nblocks * ninds * sizeof ( int ) );
   OP_plans[ip].ind_sizes = ( int * ) malloc ( nblocks * ninds * sizeof ( int ) );
   OP_plans[ip].nindirect = ( int * ) calloc ( ninds, sizeof ( int ) );
-  OP_plans[ip].loc_maps = ( short ** ) malloc ( nargs * sizeof ( short * ) );
+  OP_plans[ip].loc_maps = ( int ** ) malloc ( nargs * sizeof ( int * ) );
   OP_plans[ip].nelems = ( int * ) malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].ncolblk = ( int * ) calloc ( exec_length, sizeof ( int ) );  /* max possibly needed */
   OP_plans[ip].blkmap = ( int * ) calloc ( nblocks, sizeof ( int ) );
@@ -471,7 +471,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].accs[m] = args[m].acc;
   }
 
-  OP_plans[ip].loc_map = ( short * ) malloc ( counter * exec_length * sizeof ( short ) );
+  OP_plans[ip].loc_map = ( int * ) malloc ( counter * exec_length * sizeof ( int ) );
   counter = 0;
   for ( int m = 0; m < nargs; m++ ) {
     if ( inds[m] >= 0 ) {
@@ -599,7 +599,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( inds[m2] == m )
         {
           for ( int e = prev_offset; e < next_offset; e++ )
-            OP_plans[ip].loc_maps[m2][e] = (short)(work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]]);
+            OP_plans[ip].loc_maps[m2][e] = (int)(work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]]);
         }
       }
 
@@ -860,9 +860,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       }
       else //if it is indirectly addressed: cost of reading the pointer to it
       {
-        OP_plans[ip].transfer += nelems[b] * sizeof ( short );
-        OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
-        transfer3 += nelems[b] * sizeof ( short );
+        OP_plans[ip].transfer += nelems[b] * sizeof ( int );
+        OP_plans[ip].transfer2 += nelems[b] * sizeof ( int );
+        transfer3 += nelems[b] * sizeof ( int );
       }
     }
     for ( int m = 0; m < ninds; m++ ) //for each indirect mapping

@@ -47,6 +47,7 @@
     #include <OpenCL/cl.h>
 #else
     #include <CL/cl.h>
+    #include <CL/cl_ext.h>
 #endif
 //#include <cuda_runtime_api.h>
 //#include <math_constants.h>
@@ -210,6 +211,26 @@ void openclDeviceInit( int argc, char ** argv )
   clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
+ 
+//#pragma OPENCL EXTENSION cl_ext_device_fission : enable 
+//
+//  //Create sub-device properties: Equally with 4 compute units each:
+//  cl_device_partition_property_ext props[3];
+//  props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN_EXT; // By Affinity
+//  props[1] = CL_AFFINITY_DOMAIN_NUMA_EXT; // NUMA
+//  props[2] = 0; // End of the property list
+//  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
+//  cl_uint num_entries = 16;
+//  cl_uint numDevices = 0;
+//  // Create the sub-devices:
+//  clCreateSubDevicesEXT(OP_opencl_core.device_id, props, num_entries, OP_opencl_core.subdev_id, &numDevices);
+//
+//
+//  printf("numDevices = %d \n",numDevices);
+
+
+
+
   if(OP_opencl_core.n_platforms == 0 && OP_opencl_core.n_devices == 0) {
     printf("No OpenCL platform or device is available! Exiting.\n");
     exit(-1);
@@ -370,7 +391,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 
     int counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
-    op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+    op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( int ) * counter * set_size );
     counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {
       plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;

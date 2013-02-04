@@ -13,7 +13,7 @@ void op_x86_adt_calc(
   int    blockIdx,
   float *ind_arg0,
   int   *ind_map,
-  short *arg_map,
+  int *arg_map,
   float *arg4,
   float *arg5,
   int   *ind_arg_sizes,

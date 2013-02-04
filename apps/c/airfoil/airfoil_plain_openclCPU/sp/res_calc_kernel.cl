@@ -1,5 +1,7 @@
 //#include "res_calc.h"
 
+#include <iacaMarks.h>
+
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 #define ZERO_float 0.0f
 
@@ -38,13 +40,17 @@ inline void res_calc(__local float *x1, __local float *x2, __local  float *q1, _
 
 // OpenCL kernel function
 
+// __kernel __attribute__(( work_group_size_hint(128, 1, 1) )) __attribute__(( vec_type_hint(int4) )) void op_opencl_res_calc(
 __kernel void op_opencl_res_calc(
+
+//IACA_STAR
+
   __global float *ind_arg0,
   __global float *ind_arg1,
   __global float *ind_arg2,
   __global float *ind_arg3,
   __global int   *ind_map,
-  __global short *arg_map,
+  __global int *arg_map,
   __global int   *ind_arg_sizes,
   __global int   *ind_arg_offs,
   int    block_offset,
@@ -58,6 +64,7 @@ __kernel void op_opencl_res_calc(
   __local char*  shared,
   __constant float* gm1,
   __constant float* eps) {
+
 
   float arg6_l[4];
   float arg7_l[4];
@@ -78,15 +85,15 @@ __kernel void op_opencl_res_calc(
   __local int    nelem, offset_b;
 
 
-  if (get_group_id(0)+get_group_id(1)*get_num_groups(0) >= nblocks) return;
-  if (get_local_id(0) == 0) {
+	if (get_group_id(0)+get_group_id(1)*get_num_groups(0) >= nblocks) return;
+	if (get_local_id(0) == 0) {
 
     // get sizes and shift pointers and direct-mapped data
 
-    int blockId = blkmap[get_group_id(0) + get_group_id(1)*get_num_groups(0)  + block_offset];
+  	int blockId = blkmap[get_group_id(0) + get_group_id(1)*get_num_groups(0)  + block_offset];
 
     nelem    = nelems[blockId];
-    offset_b = offset[blockId];
+		 offset_b = offset[blockId];
 
     nelems2  = get_local_size(0)*(1+(nelem-1)/get_local_size(0));
 //    nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
@@ -112,7 +119,7 @@ __kernel void op_opencl_res_calc(
     ind_arg2_s = (__local float *) &shared[nbytes];
     nbytes    += ROUND_UP(ind_arg2_size*sizeof(float)*1);
     ind_arg3_s = (__local float *) &shared[nbytes];
-  }
+	}
 
   barrier(CLK_LOCAL_MEM_FENCE); // make sure all of above completed
 
@@ -134,9 +141,18 @@ __kernel void op_opencl_res_calc(
 
   // process set elements
 
-  for (int n=get_local_id(0); n<nelems2; n+=get_local_size(0)) {
-    int col2 = -1;
+//  int offset2 = get_local_id(0);
+//  int stride = get_local_size(0);
+//  int count = nelems2 / stride;
+ 
 
+//  for (int n=0; n<count ; n++) {
+   
+int n = get_local_id(0); 
+//  for (int n=get_local_id(0); n<nelems2; n+=get_local_size(0)) {
+  int col2 = -1;
+
+//    if (n*stride+offset2<nelem) {
     if (n<nelem) {
 
       // initialise local variables
@@ -147,10 +163,18 @@ __kernel void op_opencl_res_calc(
         arg7_l[d] = ZERO_float;
 
 
-
-
       // user-supplied kernel call
 
+//      res_calc(  ind_arg0_s+arg_map[0*set_size+n*stride+offset2+offset_b]*2,
+//                 ind_arg0_s+arg_map[1*set_size+n*stride+offset2+offset_b]*2,
+//                 ind_arg1_s+arg_map[2*set_size+n*stride+offset2+offset_b]*4,
+//                 ind_arg1_s+arg_map[3*set_size+n*stride+offset2+offset_b]*4,
+//                 ind_arg2_s+arg_map[4*set_size+n*stride+offset2+offset_b]*1,
+//                 ind_arg2_s+arg_map[5*set_size+n*stride+offset2+offset_b]*1,
+//                 arg6_l,
+//                 arg7_l,
+//                 *gm1,
+//                 *eps);
 
       res_calc(  ind_arg0_s+arg_map[0*set_size+n+offset_b]*2,
                  ind_arg0_s+arg_map[1*set_size+n+offset_b]*2,
@@ -160,38 +184,50 @@ __kernel void op_opencl_res_calc(
                  ind_arg2_s+arg_map[5*set_size+n+offset_b]*1,
                  arg6_l,
                  arg7_l,
-                 *gm1,
+                *gm1,
                  *eps);
 
-      col2 = colors[n+offset_b];
+//  col2 = colors[n*stride+offset2+offset_b];
+    	col2 = colors[n+offset_b];
     }
 
     // store local variables
 
-      int arg6_map;
-      int arg7_map;
+    int arg6_map;
+    int arg7_map;
 
-      if (col2>=0) {
-        arg6_map = arg_map[6*set_size+n+offset_b];
-        arg7_map = arg_map[7*set_size+n+offset_b];
-      }
+    if (col2>=0) {
+//      arg6_map = convert_int(arg_map[6*set_size+n+offset_b]);
+//      arg7_map = convert_int(arg_map[7*set_size+n+offset_b]);
+//      arg6_map = (int) arg_map[6*set_size+n+offset_b];
+//      arg7_map = (int) arg_map[7*set_size+n+offset_b];
+      arg6_map = arg_map[6*set_size+n+offset_b];
+      arg7_map = arg_map[7*set_size+n+offset_b];
+//      arg6_map = arg_map[6*set_size+n+offset_b];
+//      arg7_map = 1;
+//      arg7_map = arg_map[7*set_size+n+offset_b];
+    }
 
     for (int col=0; col<ncolor; col++) {
       if (col2==col) {
         for (int d=0; d<4; d++)
-          ind_arg3_s[d+arg6_map*4] += arg6_l[d];
+            ind_arg3_s[d+arg6_map*4] += arg6_l[d];
         for (int d=0; d<4; d++)
-          ind_arg3_s[d+arg7_map*4] += arg7_l[d];
+            ind_arg3_s[d+arg7_map*4] += arg7_l[d];
       }
       barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-  }
+//  }
 
   // apply pointered write/increment
 
   for (int n=get_local_id(0); n<ind_arg3_size*4; n+=get_local_size(0))
     ind_arg3[n%4+ind_arg3_map[n/4]*4] += ind_arg3_s[n];
+
+
+//IACA_END
+
 
 }
 
@@ -243,7 +279,7 @@ __kernel void op_opencl_res_calc(
 //  __global float *ind_arg2,
 //  __global float *ind_arg3,
 //  __global int   *ind_map,
-//  __global short *arg_map,
+//  __global int *arg_map,
 //  __global int   *ind_arg_sizes,
 //  __global int   *ind_arg_offs,
 //  int    block_offset,

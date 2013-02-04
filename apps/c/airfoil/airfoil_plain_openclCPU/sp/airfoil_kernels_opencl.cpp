@@ -122,6 +122,7 @@ void buildOpenCLKernels() {
       char buildOpts[255];
 //      sprintf(buildOpts,"-cl-std=CL1.1 -cl-mad-enable -DOP_WARPSIZE=%d", OP_WARPSIZE);
 //      sprintf(buildOpts,"-g -s \"adt_calc_kernel.cl\" -DOP_WARPSIZE=%d", OP_WARPSIZE);
+//      sprintf(buildOpts,"-cl-opt-disable -cl-mad-enable -DOP_WARPSIZE=%d", 4);
       sprintf(buildOpts,"-cl-mad-enable -DOP_WARPSIZE=%d", 4);
       ret = clBuildProgram(OP_opencl_core.program, 1, &OP_opencl_core.device_id, buildOpts, NULL, NULL);
 //      ret = clBuildProgram(OP_opencl_core.program, 1, &OP_opencl_core.device_id, NULL, NULL, NULL);

@@ -19,8 +19,8 @@ OP2_LIB		= -L$(OP2_INSTALL_PATH)/c/lib
 CUDA_INC	= -I/usr/local/cuda/include
 CUDA_LIB	= -L/usr/local/cuda/lib64
 
-OPENCL_INC	= -I$(CUDA_INSTALL_PATH)/include
-OPENCL_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
+OPENCL_INC	= -I$(OPENCL_INTEL_INSTALL_PATH)/include
+OPENCL_LIB	= -L$(OPENCL_INTEL_INSTALL_PATH)/lib64
 
 
 ifeq ($(OP2_COMPILER),gnu)
@@ -32,8 +32,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  #CCFLAGS	= -g3 -O0 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  #CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -117,7 +117,7 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 #
 
 airfoil_opencl:	airfoil_op.cpp airfoil_kernels_opencl.o Makefile
-		$(CPP) -L/home/endre/intel-ocl/usr/lib64 -lOpenCL  $(VAR) $(CPPFLAGS) $(OPENCL_INC) $(OP2_INC) $(OPENCL_LIB) $(OP2_LIB) \
+		$(CPP) -L/home/endre/intel-ocl/usr/lib64 $(VAR) $(CPPFLAGS) $(OPENCL_INC) $(OP2_INC) $(OPENCL_LIB) -lOpenCL $(OP2_LIB) \
 		airfoil_op.cpp airfoil_kernels_opencl.o -lop2_opencl -o airfoil_opencl
 
 airfoil_kernels_opencl.o:	airfoil_kernels_opencl.cpp      \
@@ -127,7 +127,7 @@ airfoil_kernels_opencl.o:	airfoil_kernels_opencl.cpp      \
 		bres_calc_kernel_opencl.cpp \
 		update_kernel_opencl.cpp \
 		Makefile
-		$(CPP) $(VAR) $(CPPFLAGS) $(INC) $(CUDA_INC) $(OP2_INC) \
+		$(CPP) $(VAR) $(CPPFLAGS) $(INC) $(OPENCL_INC) -I/home/endre/iaca-lin32/include $(OP2_INC) \
 		-c -o airfoil_kernels_opencl.o \
 		airfoil_kernels_opencl.cpp
 
@@ -183,4 +183,4 @@ airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp *.o
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_opencl airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp *.o

@@ -1,5 +1,6 @@
 // host stub function
 
+//#include <iacaMarks.h>
 void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
@@ -118,7 +119,9 @@ void op_par_loop_res_calc(char const *name, op_set set,
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[3]) ); // eps
 
+//IACA_START
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[2], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
+//IACA_END
         //        clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
         //        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(

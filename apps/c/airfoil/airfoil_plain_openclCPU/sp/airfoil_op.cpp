@@ -50,6 +50,8 @@
 #include <string.h>
 #include <math.h>
 
+
+
 // global constants
 
 float gam, gm1, cfl, eps, mach, alpha, qinf[4];
@@ -246,8 +248,7 @@ int main(int argc, char **argv)
   op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
-
-  niter = 100;
+  niter = 1000;
 
   for(int iter=1; iter<=niter; iter++) {
 

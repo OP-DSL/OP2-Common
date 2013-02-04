@@ -20,7 +20,7 @@ LIB = lib
 OBJ = obj
 
 CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
-OPENCL_INC = $(CUDA_INC)
+OPENCL_INC = -I$(OPENCL_INTEL_INSTALL_PATH)/include
 
 #
 # compiler settings
@@ -37,7 +37,7 @@ else
 ifeq ($(OP2_COMPILER),intel)
 	CC       := icc
 	#CCFLAGS  := -g3 -O0 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
-	CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
+	CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
 	CXX      := icpc
 	CXXFLAGS := $(CCFLAGS)
 	MPICXX   := mpiCC

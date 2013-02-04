@@ -43,7 +43,7 @@ __kernel void op_opencl_bres_calc(
   __global float *ind_arg2,
   __global float *ind_arg3,
   __global int   *ind_map,
-  __global short *arg_map,
+  __global int *arg_map,
   __global int   *arg5,
   __global int   *ind_arg_sizes,
   __global int   *ind_arg_offs,

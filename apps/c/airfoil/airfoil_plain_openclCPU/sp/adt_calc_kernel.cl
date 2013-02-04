@@ -37,7 +37,7 @@ void adt_calc(__local float *x1, __local float *x2, __local float *x3, __local f
 __kernel void op_opencl_adt_calc(
   __global float *ind_arg0,
   __global int   *ind_map,
-  __global short *arg_map,
+  __global int *arg_map,
   __global float *arg4,
   __global float *arg5,
   __global int   *ind_arg_sizes,

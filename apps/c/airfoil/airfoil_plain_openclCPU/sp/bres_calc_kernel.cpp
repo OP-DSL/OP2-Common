@@ -16,7 +16,7 @@ void op_x86_bres_calc(
   float *ind_arg2,
   float *ind_arg3,
   int   *ind_map,
-  short *arg_map,
+  int *arg_map,
   int *arg5,
   int   *ind_arg_sizes,
   int   *ind_arg_offs,

@@ -60,8 +60,8 @@ typedef struct {
   int        *ind_offs;   /* block offsets for indirect datasets */
   int        *ind_sizes;  /* block sizes for indirect datasets */
   int        *nindirect;  /* total sizes for indirect datasets */
-  short      *loc_map;    /* concatenated maps to local indices, renumbered as needed */
-  short     **loc_maps;   /* maps to local indices, renumbered as needed */
+  int      *loc_map;    /* concatenated maps to local indices, renumbered as needed */
+  int     **loc_maps;   /* maps to local indices, renumbered as needed */
   int         nblocks;    /* number of blocks */
   int        *nelems;     /* number of elements in each block */
   int         ncolors_core; /* mumber of core colors in MPI */

@@ -264,7 +264,7 @@ __kernel void op_opencl_res_calc(
   __global float *ind_arg2,
   __global float *ind_arg3,
   __global int   *ind_map,
-  __global short *arg_map,
+  __global short  *arg_map,
   __global int   *ind_arg_sizes,
   __global int   *ind_arg_offs,
   int    block_offset,
@@ -353,8 +353,8 @@ __kernel void op_opencl_res_calc(
   barrier(CLK_LOCAL_MEM_FENCE);
 
   // process set elements
-
-  for (int n=get_local_id(0); n<nelems2; n+=get_local_size(0)) {
+int n=get_local_id(0);
+//  for (int n=get_local_id(0); n<nelems2; n+=get_local_size(0)) {
     int col2 = -1;
 
     if (n<nelem) {
@@ -406,7 +406,7 @@ __kernel void op_opencl_res_calc(
       barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-  }
+ // }
 
   // apply pointered write/increment
 
