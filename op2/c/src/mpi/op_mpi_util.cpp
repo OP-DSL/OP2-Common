@@ -113,7 +113,7 @@ void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
   g_array  = (T *) xmalloc(elem_size*g_size*sizeof(T));
 
   //need to all-gather dat->data and copy this to the memory block pointed by usr_ptr
-  _mpi_gather(l_array, g_array, l_size*elem_size, recevcnts, displs, OP_MPI_IO_WORLD);
+  _mpi_allgather(l_array, g_array, l_size*elem_size, recevcnts, displs, OP_MPI_IO_WORLD);
 
   if(low < 0 || high > g_size -1)
   {
