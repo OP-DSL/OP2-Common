@@ -1,6 +1,9 @@
-
 #ifndef _CHECK_RESULT_H
 #define _CHECK_RESULT_H
+
+#ifndef STRIDE
+#define STRIDE 1
+#endif
 
 #include "op_lib_c.h"
 
@@ -8,14 +11,14 @@ template<class T>
 int check_result(T* u, int nn, T tol)
 {
   int nnode = (nn-1)*(nn-1);
-  T *ur = (T*)malloc(sizeof(T)*nnode);
+  T *ur = (T*)malloc(sizeof(T)*STRIDE*nnode);
 
   // create reference u solution. This is correct for variations in nn
   // but not NITER
 
   for (int i=1; i<nn; i++) {
     for (int j=1; j<nn; j++) {
-      int n = (i-1) + (j-1)*(nn-1);
+      int n = STRIDE*((i-1) + (j-1)*(nn-1));
 
       if ( ((i==1) && (j==1))      || ((i==1) && (j==(nn-1))) ||
            ((i==(nn-1)) && (j==1)) || ((i==(nn-1)) && (j==(nn-1))) ) {
@@ -54,7 +57,7 @@ int check_result(T* u, int nn, T tol)
   int failed = 0;
   for (int j=nn-1; j>0; j--) {
     for (int i=1; i<nn; i++) {
-        int n = i-1 + (j-1)*(nn-1);
+        int n = STRIDE*(i-1 + (j-1)*(nn-1));
         if (fabs(u[n] - ur[n]) > tol) {
           failed = 1;
           op_printf("Failure: i=%d, j=%d, expected: %f, actual: %f\n", i, j, ur[n], u[n]);

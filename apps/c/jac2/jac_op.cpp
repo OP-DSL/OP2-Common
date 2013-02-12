@@ -62,6 +62,7 @@ float alpha;
 // jac header file
 //
 
+#define STRIDE 2
 #include "check_result.h"
 
 int op2_stride = 1;

@@ -55,6 +55,7 @@ float alpha;
 
 // jac header file
 
+#define STRIDE 2
 #include "check_result.h"
 
 //
