@@ -1,16 +1,16 @@
-IC = icc
-FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
+#IC = icc
+#FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
 
-#IC = pgcc
-#FC = pgfortran -Mcuda=cuda4.0
+IC = pgcc
+FC = pgfortran -Mcuda=cuda4.2
 #FC = pgf90 -Mcuda
 
-OPENMP = -openmp
-#OPENMP = -mp
+#OPENMP = -openmp
+OPENMP = -mp
 PREPROCESSOR = -fpp
 
 CPPLINK = -lstdc++
-OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
+OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 #-xSSE4.2 -vec-report
 OP2 = $(OP2_INSTALL_PATH)
 
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)

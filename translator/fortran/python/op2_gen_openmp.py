@@ -510,7 +510,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
     code('')
     code('IMPLICIT NONE')
-    code('character(len='+str(len(name)+1)+'), INTENT(IN) :: userSubroutine')
+    code('character(len='+str(len(name))+'), INTENT(IN) :: userSubroutine')
     code('type ( op_set ) , INTENT(IN) :: set')
     code('')
 
