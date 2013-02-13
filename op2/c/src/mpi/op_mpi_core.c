@@ -1524,25 +1524,30 @@ void op_mpi_reduce_float(op_arg* arg, float* data)
   (void)data;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    float result;
+    float result_static;
+    float *result;
+    if (arg->dim > 1) result = (float *) calloc (arg->dim, sizeof (float));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+      memcpy(arg->data, result, sizeof(float)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);;
+      memcpy(arg->data, result, sizeof(float)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+      memcpy(arg->data, result, sizeof(float)*arg->dim);
     }
+    if (arg->dim > 1) free (result);
   }
 }
 
@@ -1551,65 +1556,76 @@ void op_mpi_reduce_double(op_arg* arg, double* data)
   (void)data;
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    double result;
+    double result_static;
+    double *result;
+    if (arg->dim > 1) result = (double *) calloc (arg->dim, sizeof (double));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((double *)arg->data, (double *)&result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_MAX, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(double)*arg->dim);
     }
+    if (arg->dim > 1) free (result);
   }
 }
 
 void op_mpi_reduce_int(op_arg* arg, int* data)
 {
   (void)data;
-  int result;
-
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
+    int result_static;
+    int *result;
+    if (arg->dim > 1) result = (int *) calloc (arg->dim, sizeof (int));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_SUM, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_MAX, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int)*arg->dim);
     }
+    if (arg->dim > 1) free (result);
   }
 }
 
 void op_mpi_reduce_bool(op_arg* arg, bool* data)
 {
   (void)data;
-  int size, rank;
-  MPI_Comm_size (OP_MPI_WORLD, &size);
-  MPI_Comm_rank (OP_MPI_WORLD, &rank);
+
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    bool * result = (bool *) calloc (arg->dim, sizeof (bool));
+    bool result_static;
+    bool *result;
+    if (arg->dim > 1) result = (bool *) calloc (arg->dim, sizeof (bool));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
       MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
@@ -1628,7 +1644,7 @@ void op_mpi_reduce_bool(op_arg* arg, bool* data)
           MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, result, sizeof(bool)*arg->dim);
     }
-    free (result);
+    if (arg->dim > 1) free (result);
   }
 }
 
