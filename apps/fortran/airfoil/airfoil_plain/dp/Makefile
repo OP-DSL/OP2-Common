@@ -1,16 +1,6 @@
-#IC = icc
-#FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
-
-IC = pgcc
-FC = pgfortran -Mcuda=cuda4.2
-#FC = pgf90 -Mcuda
-
-#OPENMP = -openmp
-OPENMP = -mp
 PREPROCESSOR = -fpp
 
 CPPLINK = -lstdc++
-OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 #-xSSE4.2 -vec-report
 OP2 = $(OP2_INSTALL_PATH)
 
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)
@@ -26,6 +16,27 @@ PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
+
+ifeq ($(OP2_COMPILER),gnu)
+
+else
+ifeq ($(OP2_COMPILER),pgi)
+IC = pgcc
+FC = pgfortran -Mcuda=cuda4.2
+OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
+OPENMP = -mp
+else
+ifeq ($(OP2_COMPILER),intel)
+IC = icc
+FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
+OPENMP = -openmp
+OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
+else
+print:
+	echo "unrecognised value for OP2_COMPILER"
+endif
+endif
+endif
 
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
