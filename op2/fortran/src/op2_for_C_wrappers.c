@@ -201,7 +201,7 @@ void dumpOpDat (op_dat_core * data, const char * fileName)
           for ( j = 0; j < data->dim; j++ )
             fprintf (outfile, "%d, %d -> %e\n", i, j, ((double *) data->data)[i*data->dim + j] );
       }
-      else if ( strncmp ( "integer", data->type, 7 ) == 0 )
+      else if ( strncmp ( "integer", data->type, 7 ) == 0 || strncmp ( "int", data->type, 3 ) == 0 )
         for ( i = 0; i < data->dim * data->set->size; i++ )
           fprintf (outfile, "%d\n", ((int *) data->data)[i] );
 

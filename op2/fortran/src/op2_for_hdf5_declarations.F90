@@ -51,8 +51,8 @@ module OP2_Fortran_hdf5_Declarations
 
       use, intrinsic :: ISO_C_BINDING
 
-      character(kind=c_char,len=*), intent(in) :: fileName
-      character(kind=c_char,len=*), intent(in) :: setName
+      character(kind=c_char,len=1), intent(in) :: fileName
+      character(kind=c_char,len=1), intent(in) :: setName
 
     end function op_decl_set_hdf5_c
 

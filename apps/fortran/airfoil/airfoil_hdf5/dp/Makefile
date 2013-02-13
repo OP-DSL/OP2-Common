@@ -1,5 +1,5 @@
 IC = icc
-FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
+FC = ifort
 
 #IC = pgcc
 #FC = pgfortran -Mcuda=cuda4.0
