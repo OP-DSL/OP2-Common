@@ -227,6 +227,7 @@ module OP2_Fortran_Declarations
       type(c_ptr), value, intent(in) :: map
       integer(kind=c_int), value :: dim
       type(c_ptr), value :: type
+!      character(kind=c_char,len=1) :: type(*)
       integer(kind=c_int), value :: acc
 
     end function op_arg_dat_c
@@ -432,9 +433,10 @@ module OP2_Fortran_Declarations
   end interface op_decl_dat
 
   interface op_arg_gbl
-    module procedure op_arg_gbl_real_8_scalar, op_arg_gbl_real_8, op_arg_gbl_real_8_2, &
-                   & op_arg_gbl_integer_4_scalar, op_arg_gbl_integer_4, op_arg_gbl_integer_4_2, &
-       & op_arg_gbl_logical_scalar, op_arg_gbl_logical, op_arg_gbl_python
+    module procedure op_arg_gbl_python_r8_scalar, &
+       & op_arg_gbl_python_i4_scalar, op_arg_gbl_python_logical_scalar, op_arg_gbl_python_r8_1dim, &
+       & op_arg_gbl_python_i4_1dim, op_arg_gbl_python_logical_1dim, op_arg_gbl_python_r8_2dim, &
+       & op_arg_gbl_python_i4_2dim, op_arg_gbl_python_logical_2dim
   end interface op_arg_gbl
 
   interface op_decl_const
@@ -443,7 +445,7 @@ module OP2_Fortran_Declarations
   end interface op_decl_const
 
   interface op_arg_dat
-    module procedure op_arg_dat_rose, op_arg_dat_python
+    module procedure op_arg_dat_python
   end interface op_arg_dat
 
 contains
@@ -711,37 +713,6 @@ contains
 
   end subroutine op_decl_const_logical
 
-  type(op_arg) function op_arg_dat_rose (dat, idx, map, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_dat) :: dat
-    integer(kind=c_int) :: idx
-    type(op_map) :: map
-    integer(kind=c_int) :: access
-
-    ! first check if the op_dat is actually declared (HYDRA feature)
-    ! If is NULL, then return an empty op_arg
-#ifdef OP2_WITH_CUDAFOR
-    if (dat%dataCPtr .eq. C_NULL_PTR) then
-#else
-    if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
-#endif
-      op_arg_dat_rose = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
-    else
-      ! warning: access and idx are in FORTRAN style, while the C style is required here
-      if ( map%mapPtr%dim .eq. 0 ) then
-        ! OP_ID case (does not decrement idx)
-        op_arg_dat_rose = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
-      else
-        op_arg_dat_rose = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
-      endif
-    endif
-
-  end function op_arg_dat_rose
-
   type(op_arg) function op_arg_dat_python (dat, idx, map, dim, type, access)
 
     use, intrinsic :: ISO_C_BINDING
@@ -764,43 +735,21 @@ contains
 #endif
       op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
     else
+      if (dat%dataPtr%dim .ne. dim) then
+        print *, "Wrong dim"
+      endif
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
         op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
       else
         op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
       endif
     endif
 
   end function op_arg_dat_python
-
-  type(op_arg) function op_arg_dat_generic (dat, idx, map, dim, type, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_dat) :: dat
-    integer(kind=c_int) :: idx
-    type(op_map) :: map
-    integer(kind=c_int) :: dim
-    character(kind=c_char,len=*) :: type
-    integer(kind=c_int) :: access
-
-!    dim = dim
-!    type = type
-
-    ! warning: access and idx are in FORTRAN style, while the C style is required here
-    if ( map%mapPtr%dim .eq. 0 ) then
-      ! OP_ID case (does not decrement idx)
-      op_arg_dat_generic = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
-    else
-      op_arg_dat_generic = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
-    endif
-
-  end function op_arg_dat_generic
-
 
     INTEGER function op_get_size (set )
 
@@ -814,46 +763,7 @@ contains
 
   end function op_get_size
 
-
-
-
-
-
-
-  type(op_arg) function op_arg_gbl_real_8_scalar ( dat, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    real(8), target :: dat
-    integer(kind=c_int) :: access
-
-    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
-
-    ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_real_8_scalar = op_arg_gbl_c ( c_loc (dat), 1, type, 8, access-1 )
-
-  end function op_arg_gbl_real_8_scalar
-
-  type(op_arg) function op_arg_gbl_real_8 ( dat, dim, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    real(8), dimension(*), target :: dat
-    integer(kind=c_int) :: dim
-    integer(kind=c_int) :: access
-
-    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
-
-    ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_real_8 = op_arg_gbl_c ( c_loc (dat), dim, type, 8, access-1 )
-
-  end function op_arg_gbl_real_8
-
-  type(op_arg) function op_arg_gbl_python ( dat, dim, type, access )
+  type(op_arg) function op_arg_gbl_python_r8_scalar ( dat, dim, type, access )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -865,45 +775,63 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
-    !op_arg_dat_python = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+    op_arg_gbl_python_r8_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_r8_scalar = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
-  end function op_arg_gbl_python
+  end function op_arg_gbl_python_r8_scalar
 
-
-
-
-  type(op_arg) function op_arg_gbl_real_8_2 ( dat, dim, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    real(8), dimension(:,:) :: dat
-    integer(kind=c_int) :: dim
-    integer(kind=c_int) :: access
-
-    op_arg_gbl_real_8_2 = op_arg_gbl_real_8 ( dat, dim, access )
-
-  end function op_arg_gbl_real_8_2
-
-  type(op_arg) function op_arg_gbl_integer_4_scalar ( dat, access )
+  type(op_arg) function op_arg_gbl_python_i4_scalar ( dat, dim, type, access )
 
     use, intrinsic :: ISO_C_BINDING
 
     implicit none
 
     integer(4), target :: dat
+    integer(kind=c_int) :: dim
     integer(kind=c_int) :: access
-
-    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
+    character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_integer_4_scalar = op_arg_gbl_c ( c_loc (dat), 1, type, 4, access-1 )
+    op_arg_gbl_python_i4_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_i4_scalar = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
-  end function op_arg_gbl_integer_4_scalar
+  end function op_arg_gbl_python_i4_scalar
 
-  type(op_arg) function op_arg_gbl_integer_4 ( dat, dim, access )
+  type(op_arg) function op_arg_gbl_python_logical_scalar ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical, target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_logical_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_logical_scalar = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_logical_scalar
+
+  type(op_arg) function op_arg_gbl_python_r8_1dim ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_r8_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_r8_1dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_r8_1dim
+
+  type(op_arg) function op_arg_gbl_python_i4_1dim ( dat, dim, type, access )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -912,46 +840,15 @@ contains
     integer(4), dimension(*), target :: dat
     integer(kind=c_int) :: dim
     integer(kind=c_int) :: access
-
-    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
-
-    ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_integer_4 = op_arg_gbl_c ( c_loc (dat), dim, type, 4, access-1 )
-
-  end function op_arg_gbl_integer_4
-
-  type(op_arg) function op_arg_gbl_integer_4_2 ( dat, dim, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    integer(4), dimension(:,:) :: dat
-    integer(kind=c_int) :: dim
-    integer(kind=c_int) :: access
-
-    op_arg_gbl_integer_4_2 = op_arg_gbl_integer_4 ( dat, dim, access )
-
-  end function op_arg_gbl_integer_4_2
-
-
-  type(op_arg) function op_arg_gbl_logical_scalar ( dat, access )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    logical, target :: dat
-    integer(kind=c_int) :: access
-
-    character(kind=c_char,len=5) :: type = C_CHAR_'bool'//C_NULL_CHAR
+    character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_logical_scalar = op_arg_gbl_c ( c_loc (dat), 1, type, 1, access-1 )
+    op_arg_gbl_python_i4_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_i4_1dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
-  end function op_arg_gbl_logical_scalar
+  end function op_arg_gbl_python_i4_1dim
 
-  type(op_arg) function op_arg_gbl_logical ( dat, dim, access )
+  type(op_arg) function op_arg_gbl_python_logical_1dim ( dat, dim, type, access )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -960,13 +857,64 @@ contains
     logical, dimension(*), target :: dat
     integer(kind=c_int) :: dim
     integer(kind=c_int) :: access
-
-    character(kind=c_char,len=5) :: type = C_CHAR_'bool'//C_NULL_CHAR
+    character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_logical = op_arg_gbl_c ( c_loc (dat(1)), dim, type, 1, access-1 )
+    op_arg_gbl_python_logical_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_logical_1dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
-  end function op_arg_gbl_logical
+  end function op_arg_gbl_python_logical_1dim
+
+  type(op_arg) function op_arg_gbl_python_r8_2dim ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_r8_2dim
+
+  type(op_arg) function op_arg_gbl_python_i4_2dim ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer(4), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_i4_2dim
+
+  type(op_arg) function op_arg_gbl_python_logical_2dim ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical, dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_logical_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_logical_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_logical_2dim
 
   subroutine op_get_dat ( opdat )
 
