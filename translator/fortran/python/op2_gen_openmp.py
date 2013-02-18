@@ -611,7 +611,6 @@ def op2_gen_openmp(master, date, consts, kernels):
     #mpi halo exchange call
     code('returnMPIHaloExchange = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
     IF('returnMPIHaloExchange .EQ. 0')
-    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
     code('RETURN')
     ENDIF()

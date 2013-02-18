@@ -28,7 +28,7 @@ OPENMP = -mp
 else
 ifeq ($(OP2_COMPILER),intel)
 IC = icc
-FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
+FC = ifort
 OPENMP = -openmp
 OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
 else
