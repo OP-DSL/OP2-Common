@@ -204,7 +204,18 @@ def get_arg_dat(arg_string, j):
   'dim':dat_args_string.split(',')[3].strip(),
   'typ':dat_args_string.split(',')[4].strip(),
   'acc':dat_args_string.split(',')[5].strip()}
-
+  if temp_dat['dim']=='DNPDE':
+    temp_dat['dim']='6'
+  if temp_dat['dim']=='njaca':
+    temp_dat['dim']='6'
+  if temp_dat['dim']=='njacs':
+    temp_dat['dim']='6'
+  if temp_dat['typ']=='"r8"':
+    temp_dat['typ']='"REAL(kind=8)"'
+  if temp_dat['typ']=='"i4"':
+    temp_dat['typ']='"INTEGER(kind=4)"'
+  if temp_dat['typ']=='"logical"':
+    temp_dat['typ']='"LOGICAL"'
   return temp_dat
 #end of get_arg_dat
 
@@ -228,6 +239,14 @@ def get_arg_gbl(arg_string, k):
   'dim':gbl_args_string.split(',')[1].strip(),
   'typ':gbl_args_string.split(',')[2].strip(),
   'acc':gbl_args_string.split(',')[3].strip()}
+  if temp_gbl['dim']=='DNPDE':
+    temp_gbl['dim']='6'
+  if temp_gbl['typ']=='"r8"':
+    temp_gbl['typ']='"REAL(kind=8)"'
+  if temp_gbl['typ']=='"i4"':
+    temp_gbl['typ']='"INTEGER(kind=4)"'
+  if temp_gbl['typ']=='"logical"':
+    temp_gbl['typ']='"LOGICAL"'
 
   return temp_gbl
 #end of get_arg_gbl

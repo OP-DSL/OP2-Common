@@ -433,6 +433,8 @@ def op2_gen_openmp(master, date, consts, kernels):
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'SharedIndirection(1 + mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * 1)'
         elif maps[g_m] == OP_MAP and (accs[g_m] == OP_INC or accs[g_m] == OP_RW):
           line = line +indent + '& opDat'+str(g_m+1)+'Local'
+        if maps[g_m] == OP_GBL:
+          line = line + indent +'& opDat'+str(g_m+1)
         if g_m < nargs-1:
           line = line +', &'
         else:
