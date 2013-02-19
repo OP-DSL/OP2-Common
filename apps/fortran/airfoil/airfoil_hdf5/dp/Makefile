@@ -1,6 +1,5 @@
 PREPROCESSOR = -fpp
 
-CPPLINK = -lstdc++
 OP2 = $(OP2_INSTALL_PATH)
 
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)
@@ -8,6 +7,7 @@ F_OP2_LIB = $(OP2)/fortran/lib
 
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5
 MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
+MPI_INC = -I$(MPI_INSTALL_PATH)/include
 PARMETIS_INC    = -I$(PARMETIS_INSTALL_PATH) -DHAVE_PARMETIS
 PARMETIS_LIB    = -L$(PARMETIS_INSTALL_PATH) -lparmetis \
             -L$(PARMETIS_INSTALL_PATH) -lmetis
@@ -21,16 +21,20 @@ ifeq ($(OP2_COMPILER),gnu)
 
 else
 ifeq ($(OP2_COMPILER),pgi)
-IC = pgcc
+CC = pgcc
 FC = pgfortran -Mcuda=cuda4.2
+MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
 OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
 OPENMP = -mp
+CPPLINK = -pgcpplibs
 else
 ifeq ($(OP2_COMPILER),intel)
 IC = icc
 FC = ifort
+MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
 OPENMP = -openmp
 OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
+CPPLINK = -lstdc++
 else
 print:
 	echo "unrecognised value for OP2_COMPILER"

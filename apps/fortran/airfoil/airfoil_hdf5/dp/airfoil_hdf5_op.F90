@@ -12,7 +12,7 @@ program AIRFOIL
   use UPDATE_MODULE
   use OP2_Fortran_RT_Support
   use OP2_CONSTANTS
-  use AIRFOIL_SEQ
+  !use AIRFOIL_SEQ
   use, intrinsic :: ISO_C_BINDING
 
   implicit none
@@ -112,27 +112,26 @@ program AIRFOIL
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
-  call op_decl_set_hdf5 ( nnode, nodes, FileName, "nodes" )
-  call op_decl_set_hdf5 ( nedge, edges, FileName, "edges" )
-  call op_decl_set_hdf5 ( nbedge, bedges, FileName, "bedges" )
-  call op_decl_set_hdf5 ( ncell, cells, FileName, "cells" )
-
-
+  call op_decl_set_hdf5 ( nnode, nodes, FileName, C_CHAR_'nodes'//C_NULL_CHAR )
+  call op_decl_set_hdf5 ( nedge, edges, FileName, C_CHAR_'edges'//C_NULL_CHAR )
+  call op_decl_set_hdf5 ( nbedge, bedges, FileName, C_CHAR_'bedges'//C_NULL_CHAR)
+  call op_decl_set_hdf5 ( ncell, cells, FileName, C_CHAR_'cells'//C_NULL_CHAR)
 
   print *, "Declaring OP2 maps"
-  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, FileName, "pedge" )
-  call op_decl_map_hdf5 ( edges, cells, 2, pecell, FileName, "pecell" )
-  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, FileName, "pbedge" )
-  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, FileName, "pbecell" )
-  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, FileName, "pcell" )
+  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, FileName, C_CHAR_'pedge'//C_NULL_CHAR )
+  call op_decl_map_hdf5 ( edges, cells, 2, pecell, FileName, C_CHAR_'pecell'//C_NULL_CHAR )
+  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, FileName, C_CHAR_'pbedge'//C_NULL_CHAR )
+  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, FileName, C_CHAR_'pbecell'//C_NULL_CHAR )
+  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, FileName, C_CHAR_'pcell'//C_NULL_CHAR )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat_hdf5 ( bedges, 1, p_bound, "int", FileName, "p_bound" )
-  call op_decl_dat_hdf5 ( nodes, 2, p_x, "double", FileName, "p_x" )
-  call op_decl_dat_hdf5 ( cells, 4, p_q, "double", FileName, "p_q" )
-  call op_decl_dat_hdf5 ( cells, 4, p_qold, "double", FileName, "p_qold" )
-  call op_decl_dat_hdf5 ( cells, 1, p_adt, "double", FileName, "p_adt" )
-  call op_decl_dat_hdf5 ( cells, 4, p_res, "double", FileName, "p_res" )
+  call op_decl_dat_hdf5 ( bedges, 1, p_bound, C_CHAR_'int'//C_NULL_CHAR, FileName, C_CHAR_'p_bound'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( nodes, 2, p_x, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_x'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( cells, 4, p_q, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_q'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( cells, 4, p_qold, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_qold'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( cells, 1, p_adt, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_adt'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( cells, 4, p_res, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_res'//C_NULL_CHAR )
+
 
   print *, "Declaring OP2 constants"
   call op_decl_const (gam, 1, gamName)
