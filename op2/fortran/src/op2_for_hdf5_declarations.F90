@@ -107,7 +107,7 @@ contains
     type(op_set) :: set
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: setName
-    print *,"setName ",setName
+    !print *,"setName ",setName
     ! assume names are /0 terminated
     set%setCPtr = op_decl_set_hdf5_c (fileName, setName)
 

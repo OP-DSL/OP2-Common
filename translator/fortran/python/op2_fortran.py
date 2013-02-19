@@ -683,7 +683,7 @@ for a in range(init_ctr,len(sys.argv)):
          if arguments <> loop_args[curr_loop]['nargs'] - 1:
            line = line + '), &\n'
          else:
-           line = line + ')) \n'
+           line = line + '))\n'
 
        fid.write(line)
 

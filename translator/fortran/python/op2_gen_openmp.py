@@ -50,6 +50,9 @@ def rep(line,m):
 def code(text):
   global file_text, FORTRAN, CPP, g_m
   global depth
+  if len(text) == 0:
+    file_text += '\n'
+    return
   prefix = ' '*depth
   if FORTRAN:
     file_text += prefix+rep(text,g_m)+'\n'
@@ -334,9 +337,9 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       add_int = 0
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP:
-          if 'REAL' in typs[g_m]:
+          if 'real' in typs[g_m].lower():
             add_real = 1
-          elif 'INTEGER' in typs[g_m]:
+          elif 'integer' in typs[g_m].lower():
             add_int = 1
       if add_real:
         code('REAL(kind=8), DIMENSION(0:128000 - 1), target :: sharedFloat8')
@@ -404,9 +407,9 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           ' / '+str(this_size)+' + opDat'+str(invinds[g_m-1]+1)+'RoundUp * '+str(prev_size)+' / '+str(this_size))
 
       for g_m in range(0,ninds):
-        if 'REAL' in typs[invinds[g_m]]:
+        if 'REAL' in typs[invinds[g_m]].upper():
           code('opDat'+str(invinds[g_m]+1)+'SharedIndirection => sharedFloat8(opDat'+str(invinds[g_m]+1)+'nBytes:)')
-        if 'INTEGER' in typs[invinds[g_m]]:
+        if 'INTEGER' in typs[invinds[g_m]].upper():
           code('opDat'+str(invinds[g_m]+1)+'SharedIndirection => sharedInt8(opDat'+str(invinds[g_m]+1)+'nBytes:)')
       code('')
 
@@ -581,7 +584,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 
     code('')
     code('IMPLICIT NONE')
-    code('character(len='+str(len(name))+'), INTENT(IN) :: userSubroutine')
+    code('character(kind=c_char,len=*), INTENT(IN) :: userSubroutine')
     code('type ( op_set ) , INTENT(IN) :: set')
     code('')
 
@@ -786,7 +789,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
         code('allocate( reductionArrayHost'+str(g_m+1)+'(numberOfThreads * (('+dims[g_m]+'-1)/64+1)*64) )')
         DO('i10','1','numberOfThreads+1')
-        DO('i11','1',dims[g_m])
+        DO('i11','1',dims[g_m]+str(1))
         code('reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11) = 0')
         ENDDO()
         ENDDO()
@@ -900,7 +903,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
         DO('i10','1','numberOfThreads+1')
-        DO('i11','1',dims[g_m])
+        DO('i11','1',dims[g_m]+str(1))
         code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11)')
         ENDDO()
         ENDDO()
