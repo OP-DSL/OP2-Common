@@ -55,6 +55,7 @@ OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
 OP_accs_labels = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+hydra = 0
 
 ##########################################################################
 # Remove comments from text
@@ -204,8 +205,9 @@ def get_arg_dat(arg_string, j):
   'dim':dat_args_string.split(',')[3].strip(),
   'typ':dat_args_string.split(',')[4].strip(),
   'acc':dat_args_string.split(',')[5].strip()}
-  if temp_dat['dim']=='DNPDE':
-    temp_dat['dim']='6'
+  if 'DNPDE' in temp_dat['dim']:
+    print "replaced"
+    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
   if temp_dat['dim']=='njaca':
     temp_dat['dim']='6'
   if temp_dat['dim']=='njacs':
@@ -215,7 +217,7 @@ def get_arg_dat(arg_string, j):
   if temp_dat['typ']=='"i4"':
     temp_dat['typ']='"INTEGER(kind=4)"'
   if temp_dat['typ']=='"logical"':
-    temp_dat['typ']='"LOGICAL"'
+    temp_dat['typ']='"logical*1"'
   return temp_dat
 #end of get_arg_dat
 
@@ -239,14 +241,14 @@ def get_arg_gbl(arg_string, k):
   'dim':gbl_args_string.split(',')[1].strip(),
   'typ':gbl_args_string.split(',')[2].strip(),
   'acc':gbl_args_string.split(',')[3].strip()}
-  if temp_gbl['dim']=='DNPDE':
-    temp_gbl['dim']='6'
+  if 'DNPDE' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
   if temp_gbl['typ']=='"r8"':
     temp_gbl['typ']='"REAL(kind=8)"'
   if temp_gbl['typ']=='"i4"':
     temp_gbl['typ']='"INTEGER(kind=4)"'
   if temp_gbl['typ']=='"logical"':
-    temp_gbl['typ']='"LOGICAL"'
+    temp_gbl['typ']='"logical*1"'
 
   return temp_gbl
 #end of get_arg_gbl
@@ -263,7 +265,9 @@ def op_par_loop_parse(text):
     while i > -1:
       #arg_string = text[text.find('(',i)+1:text.find('))',i+11)]
       arg_string = text[text.find('(',i)+1:arg_parse(text,i+11)]
+
       #print arg_string
+      #print len(arg_string)
 
       #parse arguments in par loop
       temp_args = []
@@ -326,8 +330,14 @@ def op_par_loop_parse(text):
 ##########################################################################
 
 #####################loop over all input source files#####################
-for a in range(1,len(sys.argv)):
-  print 'processing file '+ str(a) + ' of ' + str(len(sys.argv)-1) + ' '+ \
+init_ctr = 1
+if len(sys.argv) > 1:
+  if sys.argv[1] == 'hydra':
+    hydra = 1
+    init_ctr=2
+
+for a in range(init_ctr,len(sys.argv)):
+  print 'processing file '+ str(a) + ' of ' + str(len(sys.argv)-init_ctr) + ' '+ \
   str(sys.argv[a])
 
   src_file = str(sys.argv[a])
@@ -586,6 +596,20 @@ for a in range(1,len(sys.argv)):
               'indaccs': indaccs,
               'indtyps': indtyps,
               'invinds': invinds }
+
+      if hydra==1:
+        search = 'use '+src_file.split('.')[0].upper()+'_KERNELS_'+name
+        i = text.rfind(search)
+        if i > -1:
+          temp['mod_file'] = search
+        else:
+          search = 'use '+src_file.split('.')[0].upper()+'_KERNELS_'+name[:-1]
+          i = text.rfind(search)
+          if i > -1:
+            temp['mod_file'] = search
+          else:
+            print'  ERROR: no module file found!  '
+
       kernels.append(temp)
 
 ########################## output source file  ############################
@@ -630,8 +654,9 @@ for a in range(1,len(sys.argv)):
 
     if locs[loc] in loc_header:
       line = ''
-      for nk in range (0,len(kernels)):
-        line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
+      if hydra==0:
+        for nk in range (0,len(kernels)):
+          line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
 
       fid.write(line[2:len(line)]);
       loc_old = locs[loc]+25
@@ -639,7 +664,8 @@ for a in range(1,len(sys.argv)):
 
     if locs[loc] in loc_loops:
        indent = indent + ' '*len('op_par_loop')
-       endofcall = text.find('\n\n', locs[loc])
+       endofcall = arg_parse(text,locs[loc]+11)
+       #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
        line = str(' '+name+'_host("'+loop_args[curr_loop]['name1']+'",'+
@@ -668,6 +694,16 @@ for a in range(1,len(sys.argv)):
 
   fid.write(text[loc_old:])
   fid.close()
+  if hydra == 1:
+    fid = open(src_file.split('.')[0]+'_op.F90', 'r')
+    text = fid.read()
+    fid.close()
+    for nk in range (0,len(kernels)):
+      replace = 'use '+kernels[nk]['name']+'_MODULE'
+      text = text.replace(kernels[nk]['mod_file'], replace)
+    fid = open(src_file.split('.')[0]+'_op.F90', 'w')
+    fid.write(text)
+    fid.close()
 
   f.close()
 #end of loop over input source files
@@ -700,5 +736,5 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
-op2_gen_openmp(str(sys.argv[1]), date, consts, kernels)
+op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
