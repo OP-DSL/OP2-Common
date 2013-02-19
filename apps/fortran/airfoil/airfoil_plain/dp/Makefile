@@ -25,12 +25,14 @@ IC = pgcc
 FC = pgfortran -Mcuda=cuda4.2
 OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
 OPENMP = -mp
+CPPLINK = -pgcpplibs
 else
 ifeq ($(OP2_COMPILER),intel)
 IC = icc
 FC = /opt/intel/Compiler/11.1/064/bin/intel64/ifort
 OPENMP = -openmp
 OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
+CPPLINK = -lstdc++
 else
 print:
 	echo "unrecognised value for OP2_COMPILER"

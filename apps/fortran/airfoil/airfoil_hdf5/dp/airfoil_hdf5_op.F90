@@ -153,7 +153,7 @@ program AIRFOIL
 
   do niter = 1, iterationNumber
 
-     call save_soln_host("save_soln",cells, &
+     call save_soln_host(C_CHAR_'save_soln'//C_NULL_CHAR,cells, &
                       & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_READ), &
                       & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE))
 
@@ -162,7 +162,7 @@ program AIRFOIL
     do k = 1, 2
 
       ! calculate area/timstep
-      call adt_calc_host("adt_calc",cells, &
+      call adt_calc_host(C_CHAR_'adt_calc'//C_NULL_CHAR,cells, &
                        & op_arg_dat(p_x,1,pcell,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_x,2,pcell,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_x,3,pcell,2,"real(8)",OP_READ), &
@@ -171,7 +171,7 @@ program AIRFOIL
                        & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_WRITE))
 
       ! calculate flux residual
-      call res_calc_host("res_calc",edges, &
+      call res_calc_host(C_CHAR_'res_calc'//C_NULL_CHAR,edges, &
                        & op_arg_dat(p_x,1,pedge,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_x,2,pedge,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_q,1,pecell,4,"real(8)",OP_READ), &
@@ -181,7 +181,7 @@ program AIRFOIL
                        & op_arg_dat(p_res,1,pecell,4,"real(8)",OP_INC), &
                        & op_arg_dat(p_res,2,pecell,4,"real(8)",OP_INC))
 
-      call bres_calc_host("bres_calc",bedges, &
+      call bres_calc_host(C_CHAR_'bres_calc'//C_NULL_CHAR,bedges, &
                        & op_arg_dat(p_x,1,pbedge,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_x,2,pbedge,2,"real(8)",OP_READ), &
                        & op_arg_dat(p_q,1,pbecell,4,"real(8)",OP_READ), &
@@ -193,7 +193,7 @@ program AIRFOIL
 
       rms = 0.0
 
-      call update_host("update",cells, &
+      call update_host(C_CHAR_'update'//C_NULL_CHAR,cells, &
                        & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_READ), &
                        & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_WRITE), &
                        & op_arg_dat(p_res,-1,OP_ID,4,"real(8)",OP_RW), &
