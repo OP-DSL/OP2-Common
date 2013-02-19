@@ -3,6 +3,7 @@ program AIRFOIL
   use OP2_Fortran_Reference
   use OP2_CONSTANTS
   use AIRFOIL_SEQ
+  use IO
   use, intrinsic :: ISO_C_BINDING
 
   implicit none

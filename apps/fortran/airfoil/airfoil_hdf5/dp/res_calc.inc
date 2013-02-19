@@ -1,4 +1,4 @@
-SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
+attributes (device) SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2) :: x1
   REAL(kind=8), DIMENSION(2) :: x2

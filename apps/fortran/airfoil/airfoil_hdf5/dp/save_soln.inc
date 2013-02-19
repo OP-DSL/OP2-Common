@@ -1,4 +1,4 @@
-SUBROUTINE save_soln(q,qold)
+attributes (device) SUBROUTINE save_soln(q,qold)
   IMPLICIT NONE
 
   REAL(kind=8), DIMENSION(4) :: q
