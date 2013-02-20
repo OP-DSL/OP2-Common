@@ -158,10 +158,10 @@ for nargs in range (1,maxargs+1):
     f.write('    if (n==set->size) halo = 1;\n')
     
     for n in range (0, nargs):
-        f.write('  if (args['+str(n)+'].idx < -1) op_arg_copy_in(n,args['+str(n)+'], (char **)p_a['+str(n)+']);\n')
-        f.write('  else op_arg_set(n,args['+str(n)+'], &p_a['+str(n)+'],halo);\n')
+        f.write('    if (args['+str(n)+'].idx < -1) op_arg_copy_in(n,args['+str(n)+'], (char **)p_a['+str(n)+']);\n')
+        f.write('    else op_arg_set(n,args['+str(n)+'], &p_a['+str(n)+'],halo);\n')
     
-    f.write('\n  kernel( ')
+    f.write('\n    kernel( ')
     for n in range (0, nargs):
         f.write('(T'+str(n)+' *)p_a['+str(n)+']')  
         if nargs <> 1 and n != nargs-1:
@@ -173,9 +173,9 @@ for nargs in range (1,maxargs+1):
     
     
     f.write('  }\n')
-
+    f.write('  if ( n_upper == set->core_size || n_upper == 0 )\n    op_mpi_wait_all ('+str(nargs)+',args);\n\n')
     f.write('  //set dirty bit on datasets touched\n')
-    f.write('  op_mpi_set_dirtybit(10, args);\n\n')
+    f.write('  op_mpi_set_dirtybit('+str(nargs)+', args);\n\n')
 
     f.write('  //global reduction for MPI execution, if needed \n')
     f.write('  //p_a simply used to determine type for MPI reduction\n')
