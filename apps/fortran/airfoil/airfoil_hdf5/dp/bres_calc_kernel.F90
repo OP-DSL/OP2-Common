@@ -60,7 +60,7 @@ INTEGER(kind=4), POINTER, DIMENSION(:) :: pnindirect_bres_calc
 CONTAINS
 
 ! user function
-include "bres_calc.inc"
+#include "bres_calc.inc"
 
 
 ! x86 kernel function

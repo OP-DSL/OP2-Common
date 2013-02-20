@@ -3,8 +3,9 @@ program AIRFOIL
   use OP2_FORTRAN_HDF5_DECLARATIONS
   use OP2_Fortran_Reference
   use OP2_Fortran_RT_Support
-  use OP2_CONSTANTS
   use AIRFOIL_SEQ
+  use OP2_CONSTANTS
+  use IO
   use, intrinsic :: ISO_C_BINDING
 
   implicit none
@@ -37,7 +38,6 @@ program AIRFOIL
 
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
-  real(8), dimension(:), allocatable, target :: x, q, qold, adt, res
   real(8) :: rms
 
   character(kind=c_char,len=10) :: savesolnName = C_CHAR_'save_soln'//C_NULL_CHAR
@@ -57,12 +57,12 @@ program AIRFOIL
   character(kind=c_char,len=7) :: pbedgeName  = C_CHAR_'pbedge'//C_NULL_CHAR
   character(kind=c_char,len=8) :: pbecellName = C_CHAR_'pbecell'//C_NULL_CHAR
 
-  character(kind=c_char,len=6) :: boundName = C_CHAR_'bound'//C_NULL_CHAR
-  character(kind=c_char,len=2) :: xName     = C_CHAR_'x'//C_NULL_CHAR
-  character(kind=c_char,len=2) :: qName     = C_CHAR_'q'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: qoldName  = C_CHAR_'qold'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: adtName   = C_CHAR_'adt'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: resName   = C_CHAR_'res'//C_NULL_CHAR
+  character(kind=c_char,len=8) :: boundName = C_CHAR_'p_bound'//C_NULL_CHAR
+  character(kind=c_char,len=4) :: xName     = C_CHAR_'p_x'//C_NULL_CHAR
+  character(kind=c_char,len=4) :: qName     = C_CHAR_'p_q'//C_NULL_CHAR
+  character(kind=c_char,len=7) :: qoldName  = C_CHAR_'p_qold'//C_NULL_CHAR
+  character(kind=c_char,len=6) :: adtName   = C_CHAR_'p_adt'//C_NULL_CHAR
+  character(kind=c_char,len=6) :: resName   = C_CHAR_'p_res'//C_NULL_CHAR
 
   character(kind=c_char,len=4) :: gamName   = C_CHAR_'gam'//C_NULL_CHAR
   character(kind=c_char,len=4) :: gm1Name   = C_CHAR_'gm1'//C_NULL_CHAR
@@ -77,52 +77,31 @@ program AIRFOIL
 
   character(kind=c_char,len=12) :: FileName = C_CHAR_'new_grid.h5'//C_NULL_CHAR
 
-  ! local variables for constant initialization
-  real(8) :: p, r, u, e
-
-  print *, "Initialising constants"
-  gam = 1.4
-  gm1 = gam - 1.0
-  cfl = 0.9
-  eps = 0.05
-
-  mach  = 0.4
-  alpha = 3.0 * atan(1.0) / 45.0
-  p     = 1.0
-  r     = 1.0
-  u     = sqrt ( gam * p / r ) * mach
-  e     = p / ( r * gm1 ) + 0.5 * u * u
-
-  qinf(1) = r
-  qinf(2) = r * u
-  qinf(3) = 0.0
-  qinf(4) = r * e
-
   ! OP initialisation
   print *, "Initialising OP2"
   call op_init (0)
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
-  call op_decl_set_hdf5 ( nnode, nodes, FileName, C_CHAR_'nodes'//C_NULL_CHAR )
-  call op_decl_set_hdf5 ( nedge, edges, FileName, C_CHAR_'edges'//C_NULL_CHAR )
-  call op_decl_set_hdf5 ( nbedge, bedges, FileName, C_CHAR_'bedges'//C_NULL_CHAR)
-  call op_decl_set_hdf5 ( ncell, cells, FileName, C_CHAR_'cells'//C_NULL_CHAR)
+  call op_decl_set_hdf5 ( nnode, nodes, FileName, nodesName )
+  call op_decl_set_hdf5 ( nedge, edges, FileName, edgesName )
+  call op_decl_set_hdf5 ( nbedge, bedges, FileName, bedgesName )
+  call op_decl_set_hdf5 ( ncell, cells, FileName, cellsName )
 
   print *, "Declaring OP2 maps"
-  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, FileName, C_CHAR_'pedge'//C_NULL_CHAR )
-  call op_decl_map_hdf5 ( edges, cells, 2, pecell, FileName, C_CHAR_'pecell'//C_NULL_CHAR )
-  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, FileName, C_CHAR_'pbedge'//C_NULL_CHAR )
-  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, FileName, C_CHAR_'pbecell'//C_NULL_CHAR )
-  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, FileName, C_CHAR_'pcell'//C_NULL_CHAR )
+  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, FileName, pedgeName )
+  call op_decl_map_hdf5 ( edges, cells, 2, pecell, FileName, pecellName )
+  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, FileName, pbedgeName )
+  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, FileName, pbecellName )
+  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, FileName, pcellName )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat_hdf5 ( bedges, 1, p_bound, C_CHAR_'int'//C_NULL_CHAR, FileName, C_CHAR_'p_bound'//C_NULL_CHAR )
-  call op_decl_dat_hdf5 ( nodes, 2, p_x, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_x'//C_NULL_CHAR )
-  call op_decl_dat_hdf5 ( cells, 4, p_q, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_q'//C_NULL_CHAR )
-  call op_decl_dat_hdf5 ( cells, 4, p_qold, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_qold'//C_NULL_CHAR )
-  call op_decl_dat_hdf5 ( cells, 1, p_adt, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_adt'//C_NULL_CHAR )
-  call op_decl_dat_hdf5 ( cells, 4, p_res, C_CHAR_'double'//C_NULL_CHAR, FileName, C_CHAR_'p_res'//C_NULL_CHAR )
+  call op_decl_dat_hdf5 ( bedges, 1, p_bound, C_CHAR_'int'//C_NULL_CHAR, FileName, boundName )
+  call op_decl_dat_hdf5 ( nodes, 2, p_x, C_CHAR_'double'//C_NULL_CHAR, FileName, xName )
+  call op_decl_dat_hdf5 ( cells, 4, p_q, C_CHAR_'double'//C_NULL_CHAR, FileName, qName )
+  call op_decl_dat_hdf5 ( cells, 4, p_qold, C_CHAR_'double'//C_NULL_CHAR, FileName, qoldName )
+  call op_decl_dat_hdf5 ( cells, 1, p_adt, C_CHAR_'double'//C_NULL_CHAR, FileName, adtName )
+  call op_decl_dat_hdf5 ( cells, 4, p_res, C_CHAR_'double'//C_NULL_CHAR, FileName, resName )
 
   print *, "Declaring OP2 constants"
   call op_decl_const (gam, 1, gamName)
@@ -132,6 +111,9 @@ program AIRFOIL
   call op_decl_const (mach, 1, machName)
   call op_decl_const (alpha, 1, alphaName)
   call op_decl_const (qinf, 4, qinfName)
+
+  print *, "Initialising constants"
+  call initialise_constants ( )
 
   call op_partition (C_CHAR_'PARMETIS'//C_NULL_CHAR, C_CHAR_'KWAY'//C_NULL_CHAR, edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
@@ -194,7 +176,6 @@ program AIRFOIL
 
     end do ! internal loop
 
-    !ncellr = real ( ncell )
     rms = sqrt ( rms / ncellr )
 
     if (mod(niter,100) .eq. 0)  write (*,*), niter,"  ",rms
@@ -204,5 +185,4 @@ program AIRFOIL
   call op_timers ( endTime )
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
   call op_exit (  )
-
 end program AIRFOIL

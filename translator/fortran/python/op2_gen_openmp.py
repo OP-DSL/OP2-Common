@@ -250,7 +250,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     code('')
     if hydra == 0:
       comm('user function')
-      code('include "'+name+'.inc"')
+      code('#include "'+name+'.inc"')
       code('')
     code('')
 

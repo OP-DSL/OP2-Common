@@ -1,4 +1,4 @@
-attributes (device) SUBROUTINE update(qold,q,res,adt,rms)
+SUBROUTINE update(qold,q,res,adt,rms)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(*) :: qold
   REAL(kind=8), DIMENSION(*) :: q

@@ -278,7 +278,8 @@ def op2_gen_cuda(master, date, consts, kernels):
     code('CONTAINS')
     code('')
     comm('user function')
-    code('include "'+name+'.inc"')
+    code('attributes (device) & ')
+    code('#include "'+name+'.inc"')
     code('')
     code('')
 

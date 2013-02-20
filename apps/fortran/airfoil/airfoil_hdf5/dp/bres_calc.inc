@@ -1,4 +1,4 @@
-attributes (device) SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
+SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2) :: x1
   REAL(kind=8), DIMENSION(2) :: x2

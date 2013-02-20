@@ -21,7 +21,7 @@ INTEGER(kind=4) :: numberCalledsave_soln
 CONTAINS
 
 ! user function
-include "save_soln.inc"
+#include "save_soln.inc"
 
 
 ! x86 kernel function

@@ -200,9 +200,6 @@ subroutine update ( qold, q, res, adt, rms )
     rms(1) = rms(1) + del * del
   end do
 
-
 end subroutine update
-
-end subroutine initialise_flow_field
 
 end module airfoil_seq

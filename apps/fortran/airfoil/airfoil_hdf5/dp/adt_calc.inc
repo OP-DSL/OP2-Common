@@ -1,4 +1,4 @@
-attributes (device) SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
+SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(*) :: x1
   REAL(kind=8), DIMENSION(*) :: x2
