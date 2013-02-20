@@ -48,7 +48,7 @@ FMODS = -I$(F_OP2_MOD)
 all: clean airfoil_hdf5_seq airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_cuda airfoil_hdf5_mpi airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_cuda
 
 airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
-	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
+	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
 	$(FC) $(OPT) $(FLINK) constants.o input.o airfoil_hdf5.o airfoil_seqfun.o -o airfoil_hdf5_seq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) -lz
 
 airfoil_hdf5_openmp_$(PART_SIZE_ENV): airfoil_hdf5_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 input.F90 \
