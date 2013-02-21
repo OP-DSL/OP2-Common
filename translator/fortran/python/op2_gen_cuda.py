@@ -139,6 +139,7 @@ def ENDIF():
 def op2_gen_cuda(master, date, consts, kernels):
 
   global dims, idxs, typs, indtyps, inddims
+  global file_format, cont, comment
   global FORTRAN, CPP, g_m, file_text, depth
 
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
@@ -388,8 +389,9 @@ def op2_gen_cuda(master, date, consts, kernels):
       for g_m in range(0,ninds):
         if accs[invinds[g_m]] == OP_INC:
           for m in range (0,int(idxs[g_m])):
-            code('REAL(kind=8), DIMENSION(0:3) :: opDat'+str(invinds[g_m]+1+m)+'Local')
+            code('REAL(kind=8), DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(invinds[g_m]+1+m)+'Local')
             code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1+m)+'Map')
+
       code('')
       for g_m in range(0,ninds):
         code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'nBytes')
@@ -489,9 +491,9 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('TYPE ( '+name+'_opDatCardinalities ) , DEVICE :: opDatCardinalities')
       for g_m in range(0,nargs):
         if maps[g_m] <> OP_GBL:
-          code(typs[g_m]+', DIMENSION(0:3) :: opDat'+str(g_m+1)+'Local')
+          code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
         else: #global arg
-          code(typs[g_m]+' :: opDat'+str(g_m+1)+'Local')
+          code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
           code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
 
       code('INTEGER(kind=4), VALUE :: setSize')
