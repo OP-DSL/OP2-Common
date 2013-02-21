@@ -104,13 +104,13 @@ program AIRFOIL
   call op_decl_dat_hdf5 ( cells, 4, p_res, C_CHAR_'double'//C_NULL_CHAR, FileName, resName )
 
   print *, "Declaring OP2 constants"
-  call op_decl_const (gam, 1, gamName)
-  call op_decl_const (gm1, 1, gm1Name)
-  call op_decl_const (cfl, 1, cflName)
-  call op_decl_const (eps, 1, epsName)
-  call op_decl_const (mach, 1, machName)
-  call op_decl_const (alpha, 1, alphaName)
-  call op_decl_const (qinf, 4, qinfName)
+  call op_decl_const(gam, 1, gamName)
+  call op_decl_const(gm1, 1, gm1Name)
+  call op_decl_const(cfl, 1, cflName)
+  call op_decl_const(eps, 1, epsName)
+  call op_decl_const(mach, 1, machName)
+  call op_decl_const(alpha, 1, alphaName)
+  call op_decl_const(qinf, 4, qinfName)
 
   print *, "Initialising constants"
   call initialise_constants ( )

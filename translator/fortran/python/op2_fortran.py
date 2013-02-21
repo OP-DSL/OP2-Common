@@ -128,34 +128,26 @@ def op_parse_calls(text):
 ##########################################################################
 
 def op_decl_const_parse(text):
+    """Parsing for op_decl_const calls"""
+
     consts = []
-    num_const = 0
-    search = "call op_decl_const"
-    i = text.find(search)
-    while i > -1:
-      const_string = text[text.find('(',i)+1: text.find(')',i+13)]
-      #print 'Args found at index i : '+const_string
+    for m in re.finditer('call(.+)op_decl_const(.*)\((.*)\)', text):
+        args = m.group(3).split(',')
 
-      #remove comments
-      const_string = comment_remover(const_string)
+        # check for syntax errors
+        if len(args) != 3:
+            print 'Error in op_decl_const : must have three arguments'
+            return
 
-      #check for syntax errors
-      if len(const_string.split(',')) <> 3:
-        print 'Error in op_decl_const : must have three arguments'
-        return
+        consts.append({
+            'loc': m.start(),
+            'dim': args[0].strip(),
+            'type': args[1].strip(),
+            'name': args[2].strip(),
+            'name2': args[2].strip()
+            })
 
-      temp = {'loc': i,
-        'dim':const_string.split(',')[1],
-        'type': const_string.split(',')[2],
-        'name':const_string.split(',')[0],
-        'name2':const_string.split(',')[0]}
-
-      consts.append(temp)
-
-      i=text.find(search, i+13)
-      num_const = num_const + 1
-
-    return (consts)
+    return consts
 #end of op_decl_const_parse
 
 ##########################################################################
