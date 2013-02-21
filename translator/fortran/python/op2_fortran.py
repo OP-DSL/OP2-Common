@@ -130,7 +130,7 @@ def op_parse_calls(text):
 def op_decl_const_parse(text):
     consts = []
     num_const = 0
-    search = "op_decl_const"
+    search = "call op_decl_const"
     i = text.find(search)
     while i > -1:
       const_string = text[text.find('(',i)+1: text.find(')',i+13)]
@@ -664,6 +664,13 @@ for a in range(init_ctr,len(sys.argv)):
 
       fid.write(line[2:len(line)]);
       loc_old = locs[loc]+25
+      continue
+
+    if locs[loc] in loc_consts:# stripping the op_decl_consts -- as there is no implentation required
+      line = ''
+      fid.write(line);
+      endofcall = text.find('\n', locs[loc])
+      loc_old = endofcall+1
       continue
 
     if locs[loc] in loc_loops:
