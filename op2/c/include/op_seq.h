@@ -95,9 +95,10 @@ void op_par_loop(void (*kernel)( T0* ),
     if (args[0].idx < -1) op_arg_copy_in(n,args[0], (char **)p_a[0]);
     else op_arg_set(n,args[0], &p_a[0],halo);
 
-    // call kernel function, passing in pointers to data
-
-    kernel( (T0 *)p_a[0] );
+    kernel( (T0 *)p_a[0]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (1,args);
   }
 
   //set dirty bit on datasets touched
@@ -106,6 +107,7 @@ void op_par_loop(void (*kernel)( T0* ),
   // global reduction for MPI execution, if needed
 
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);
+
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
@@ -114,6 +116,7 @@ void op_par_loop(void (*kernel)( T0* ),
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
+
   if(arg0.idx < -1) {
     free(p_a[0]);
   }
@@ -179,9 +182,10 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
     if (args[1].idx < -1) op_arg_copy_in(n,args[1], (char **)p_a[1]);
     else op_arg_set(n,args[1], &p_a[1],halo);
 
-    // call kernel function, passing in pointers to data
-
-    kernel( (T0 *)p_a[0],  (T1 *)p_a[1] );
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (2,args);
   }
 
   //set dirty bit on datasets touched
@@ -191,6 +195,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);
   op_mpi_reduce(&arg1,(T1 *)p_a[1]);
+
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
@@ -199,6 +204,7 @@ void op_par_loop(void (*kernel)( T0*, T1* ),
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
+
   if(arg0.idx < -1) {
     free(p_a[0]);
   }
@@ -272,9 +278,10 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
     if (args[2].idx < -1) op_arg_copy_in(n,args[2], (char **)p_a[2]);
     else op_arg_set(n,args[2], &p_a[2],halo);
 
-    // call kernel function, passing in pointers to data
-
-    kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2] );
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (3,args);
   }
 
   //set dirty bit on datasets touched
@@ -285,6 +292,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
   op_mpi_reduce(&arg0,(T0 *)p_a[0]);
   op_mpi_reduce(&arg1,(T1 *)p_a[1]);
   op_mpi_reduce(&arg2,(T2 *)p_a[2]);
+
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
@@ -293,6 +301,7 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2* ),
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
+
   if(arg0.idx < -1) {
     free(p_a[0]);
   }
@@ -374,9 +383,10 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3* ),
     if (args[3].idx < -1) op_arg_copy_in(n,args[3], (char **)p_a[3]);
     else op_arg_set(n,args[3], &p_a[3],halo);
 
-    // call kernel function, passing in pointers to data
-
-    kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3] );
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (4,args);
   }
 
   //set dirty bit on datasets touched
@@ -489,10 +499,14 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     if (args[4].idx < -1) op_arg_copy_in(n,args[4], (char **)p_a[4]);
     else op_arg_set(n,args[4], &p_a[4],halo);
 
-    // call kernel function, passing in pointers to data
 
-    kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],
-            (T4 *)p_a[4] );
+
+    // call kernel function, passing in pointers to data
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
+          (T4 *)p_a[4]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (5,args);
   }
 
   //set dirty bit on datasets touched
@@ -619,6 +633,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],
             (T4 *)p_a[4],  (T5 *)p_a[5] );
   }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (6,args);
+}
 
   //set dirty bit on datasets touched
   op_mpi_set_dirtybit(6, args);
@@ -753,6 +770,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6] );
   }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (7,args);
+}
 
   //set dirty bit on datasets touched
   op_mpi_set_dirtybit(7, args);
@@ -896,6 +916,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7] );
   }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (8,args);
+}
 
   //set dirty bit on datasets touched
   op_mpi_set_dirtybit(8, args);
@@ -1053,6 +1076,9 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
             (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7],
             (T8 *)p_a[8] );
   }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (9,args);
+}
 
   //set dirty bit on datasets touched
   op_mpi_set_dirtybit(9, args);
@@ -1215,9 +1241,12 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
 
     // call kernel function, passing in pointers to data
 
-    kernel( (T0 *)p_a[0],  (T1 *)p_a[1],  (T2 *)p_a[2],  (T3 *)p_a[3],
-            (T4 *)p_a[4],  (T5 *)p_a[5],  (T6 *)p_a[6],  (T7 *)p_a[7],
-            (T8 *)p_a[8],  (T9 *)p_a[9] );
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
+          (T4 *)p_a[4], (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7], 
+          (T8 *)p_a[8], (T9 *)p_a[9]);
+  }
+  if ( n_upper == set->core_size || n_upper == 0 )
+    {op_mpi_wait_all (10,args);
   }
 
   //set dirty bit on datasets touched
@@ -1274,4 +1303,3 @@ void op_par_loop(void (*kernel)( T0*, T1*, T2*, T3*,
     free(p_a[9]);
   }
 }
-

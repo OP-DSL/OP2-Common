@@ -226,6 +226,8 @@ void quickSort_2(int arr1[], int arr2[], int left, int right)
 
 void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
 {
+  if(left < 0 || right <= 0)
+    return;
   int i = left, j = right;
   int tmp;
   char* tmp_dat = (char *)xmalloc(sizeof(char)*elem_size);
