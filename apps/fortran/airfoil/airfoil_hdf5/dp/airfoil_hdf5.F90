@@ -40,12 +40,6 @@ program AIRFOIL
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8) :: rms
 
-  character(kind=c_char,len=10) :: savesolnName = C_CHAR_'save_soln'//C_NULL_CHAR
-  character(kind=c_char, len=9) :: adtcalcName  = C_CHAR_'adt_calc' // C_NULL_CHAR
-  character(kind=c_char, len=9) :: rescalcName  = C_CHAR_'res_calc' // C_NULL_CHAR
-  character(kind=c_char,len=10) :: brescalcName = C_CHAR_'bres_calc' // C_NULL_CHAR
-  character(kind=c_char, len=7) :: updateName   = C_CHAR_'update' // C_NULL_CHAR
-
   character(kind=c_char,len=6) :: nodesName  = C_CHAR_'nodes'//C_NULL_CHAR
   character(kind=c_char,len=6) :: edgesName  = C_CHAR_'edges'//C_NULL_CHAR
   character(kind=c_char,len=7) :: bedgesName = C_CHAR_'bedges'//C_NULL_CHAR
