@@ -641,7 +641,7 @@ contains
 
     dat_dummy = dat
     constdim_dummy = constdim
-    opname_dummy = opname
+    opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_integer_4
 
@@ -658,7 +658,7 @@ contains
 
     dat_dummy = dat
     constdim_dummy = constdim
-    opname_dummy = opname
+    opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_real_8
 
@@ -675,7 +675,7 @@ contains
 
     dat_dummy = dat
     constdim_dummy = constdim
-    opname_dummy = opname
+    opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_scalar_integer_4
 
@@ -692,7 +692,7 @@ contains
 
     dat_dummy = dat
     constdim_dummy = constdim
-    opname_dummy = opname
+    opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_scalar_real_8
 
@@ -709,7 +709,7 @@ contains
 
     dat_dummy = dat
     constdim_dummy = constdim
-    opname_dummy = opname
+    opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_logical
 

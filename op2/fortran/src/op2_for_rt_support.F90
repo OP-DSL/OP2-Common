@@ -284,14 +284,14 @@ module OP2_Fortran_RT_Support
 
     implicit none
 
-    character(kind=c_char) :: lib_name(*)
-    character(kind=c_char) :: lib_routine(*)
+    character(kind=c_char,len=*) :: lib_name
+    character(kind=c_char,len=*) :: lib_routine
 
     type(op_set) :: prime_set
     type(op_map) :: prime_map
     type(op_dat) :: coords
 
-    call op_partition_c (lib_name, lib_routine, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
+    call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
 
   end subroutine
 

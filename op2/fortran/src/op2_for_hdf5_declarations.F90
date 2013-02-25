@@ -94,7 +94,7 @@ contains
     character(kind=c_char,len=*) :: setName
 
     ! assume names are /0 terminated
-    set%setCPtr = op_decl_set_hdf5_c (fileName, setName)
+    set%setCPtr = op_decl_set_hdf5_c (fileName//C_NULL_CHAR, setName//C_NULL_CHAR)
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
     call c_f_pointer ( set%setCPtr, set%setPtr )
@@ -109,7 +109,7 @@ contains
     character(kind=c_char,len=*) :: setName
     !print *,"setName ",setName
     ! assume names are /0 terminated
-    set%setCPtr = op_decl_set_hdf5_c (fileName, setName)
+    set%setCPtr = op_decl_set_hdf5_c (fileName//C_NULL_CHAR, setName//C_NULL_CHAR)
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_set variable
     call c_f_pointer ( set%setCPtr, set%setPtr )
@@ -127,7 +127,7 @@ contains
     character(kind=c_char,len=*) :: mapName
 
     ! assume names are /0 terminated - will fix this if needed later
-    map%mapCPtr = op_decl_map_hdf5_c ( from%setCPtr, to%setCPtr, mapdim, fileName, mapName )
+    map%mapCPtr = op_decl_map_hdf5_c ( from%setCPtr, to%setCPtr, mapdim, fileName//C_NULL_CHAR, mapName//C_NULL_CHAR )
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( map%mapCPtr, map%mapPtr )
@@ -145,7 +145,7 @@ contains
     character(kind=c_char,len=*) :: datName
 
     ! assume names are /0 terminated
-    data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type, fileName, datName)
+    data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type//C_NULL_CHAR, fileName//C_NULL_CHAR, datName//C_NULL_CHAR)
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )

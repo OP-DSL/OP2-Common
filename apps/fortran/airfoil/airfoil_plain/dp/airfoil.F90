@@ -39,38 +39,6 @@ program AIRFOIL
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res
   real(8) :: rms
 
-  character(kind=c_char,len=10) :: savesolnName = C_CHAR_'save_soln'//C_NULL_CHAR
-  character(kind=c_char, len=9) :: adtcalcName  = C_CHAR_'adt_calc' // C_NULL_CHAR
-  character(kind=c_char, len=9) :: rescalcName  = C_CHAR_'res_calc' // C_NULL_CHAR
-  character(kind=c_char,len=10) :: brescalcName = C_CHAR_'bres_calc' // C_NULL_CHAR
-  character(kind=c_char, len=7) :: updateName   = C_CHAR_'update' // C_NULL_CHAR
-
-  character(kind=c_char,len=6) :: nodesName  = C_CHAR_'nodes'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: edgesName  = C_CHAR_'edges'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: bedgesName = C_CHAR_'bedges'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: cellsName  = C_CHAR_'cells'//C_NULL_CHAR
-
-  character(kind=c_char,len=6) :: pedgeName   = C_CHAR_'pedge'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: pecellName  = C_CHAR_'pecell'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: pcellName   = C_CHAR_'pcell'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: pbedgeName  = C_CHAR_'pbedge'//C_NULL_CHAR
-  character(kind=c_char,len=8) :: pbecellName = C_CHAR_'pbecell'//C_NULL_CHAR
-
-  character(kind=c_char,len=6) :: boundName = C_CHAR_'bound'//C_NULL_CHAR
-  character(kind=c_char,len=2) :: xName     = C_CHAR_'x'//C_NULL_CHAR
-  character(kind=c_char,len=2) :: qName     = C_CHAR_'q'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: qoldName  = C_CHAR_'qold'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: adtName   = C_CHAR_'adt'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: resName   = C_CHAR_'res'//C_NULL_CHAR
-
-  character(kind=c_char,len=4) :: gamName   = C_CHAR_'gam'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: gm1Name   = C_CHAR_'gm1'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: cflName   = C_CHAR_'cfl'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: epsName   = C_CHAR_'eps'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: machName   = C_CHAR_'mach'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: alphaName   = C_CHAR_'alpha'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: qinfName   = C_CHAR_'qinf'//C_NULL_CHAR
-
   integer(4) :: debugiter, retDebug
   real(8) :: datad
 
@@ -110,34 +78,34 @@ program AIRFOIL
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
-  call op_decl_set ( nnode, nodes, nodesName )
-  call op_decl_set ( nedge, edges, edgesName )
-  call op_decl_set ( nbedge, bedges, bedgesName )
-  call op_decl_set ( ncell, cells, cellsName )
+  call op_decl_set ( nnode, nodes, 'nodes' )
+  call op_decl_set ( nedge, edges, 'edges' )
+  call op_decl_set ( nbedge, bedges, 'bedges' )
+  call op_decl_set ( ncell, cells, 'cells' )
 
   print *, "Declaring OP2 maps"
-  call op_decl_map ( edges, nodes, 2, edge, pedge, pedgeName )
-  call op_decl_map ( edges, cells, 2, ecell, pecell, pecellName )
-  call op_decl_map ( bedges, nodes, 2, bedge, pbedge, pbedgeName )
-  call op_decl_map ( bedges, cells, 1, becell, pbecell, pecellName )
-  call op_decl_map ( cells, nodes, 4, cell, pcell, pcellName )
+  call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
+  call op_decl_map ( edges, cells, 2, ecell, pecell, 'pecell' )
+  call op_decl_map ( bedges, nodes, 2, bedge, pbedge, 'pbedge' )
+  call op_decl_map ( bedges, cells, 1, becell, pbecell, 'pecell' )
+  call op_decl_map ( cells, nodes, 4, cell, pcell, 'pcell' )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat ( bedges, 1, bound, p_bound, boundName )
-  call op_decl_dat ( nodes, 2, x, p_x, xName )
-  call op_decl_dat ( cells, 4, q, p_q, qName )
-  call op_decl_dat ( cells, 4, qold, p_qold, qoldName )
-  call op_decl_dat ( cells, 1, adt, p_adt, adtName )
-  call op_decl_dat ( cells, 4, res, p_res, resName )
+  call op_decl_dat ( bedges, 1, bound, p_bound, 'p_bound')
+  call op_decl_dat ( nodes, 2, x, p_x, 'p_x' )
+  call op_decl_dat ( cells, 4, q, p_q, 'p_q' )
+  call op_decl_dat ( cells, 4, qold, p_qold, 'p_qold' )
+  call op_decl_dat ( cells, 1, adt, p_adt, 'p_adt' )
+  call op_decl_dat ( cells, 4, res, p_res, 'p_res' )
 
   print *, "Declaring OP2 constants"
-  call op_decl_const (gam, 1, gamName)
-  call op_decl_const (gm1, 1, gm1Name)
-  call op_decl_const (cfl, 1, cflName)
-  call op_decl_const (eps, 1, epsName)
-  call op_decl_const (mach, 1, machName)
-  call op_decl_const (alpha, 1, alphaName)
-  call op_decl_const (qinf, 4, qinfName)
+  call op_decl_const(gam, 1, 'gam')
+  call op_decl_const(gm1, 1, 'gm1')
+  call op_decl_const(cfl, 1, 'cfl')
+  call op_decl_const(eps, 1, 'eps')
+  call op_decl_const(mach, 1, 'mach')
+  call op_decl_const(alpha, 1, 'alpha')
+  call op_decl_const(qinf, 4, 'qinf')
 
   ! start timer
   call op_timers ( startTime )

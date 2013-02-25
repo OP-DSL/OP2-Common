@@ -40,36 +40,8 @@ program AIRFOIL
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8) :: rms
 
-  character(kind=c_char,len=6) :: nodesName  = C_CHAR_'nodes'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: edgesName  = C_CHAR_'edges'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: bedgesName = C_CHAR_'bedges'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: cellsName  = C_CHAR_'cells'//C_NULL_CHAR
-
-  character(kind=c_char,len=6) :: pedgeName   = C_CHAR_'pedge'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: pecellName  = C_CHAR_'pecell'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: pcellName   = C_CHAR_'pcell'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: pbedgeName  = C_CHAR_'pbedge'//C_NULL_CHAR
-  character(kind=c_char,len=8) :: pbecellName = C_CHAR_'pbecell'//C_NULL_CHAR
-
-  character(kind=c_char,len=8) :: boundName = C_CHAR_'p_bound'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: xName     = C_CHAR_'p_x'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: qName     = C_CHAR_'p_q'//C_NULL_CHAR
-  character(kind=c_char,len=7) :: qoldName  = C_CHAR_'p_qold'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: adtName   = C_CHAR_'p_adt'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: resName   = C_CHAR_'p_res'//C_NULL_CHAR
-
-  character(kind=c_char,len=4) :: gamName   = C_CHAR_'gam'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: gm1Name   = C_CHAR_'gm1'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: cflName   = C_CHAR_'cfl'//C_NULL_CHAR
-  character(kind=c_char,len=4) :: epsName   = C_CHAR_'eps'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: machName   = C_CHAR_'mach'//C_NULL_CHAR
-  character(kind=c_char,len=6) :: alphaName   = C_CHAR_'alpha'//C_NULL_CHAR
-  character(kind=c_char,len=5) :: qinfName   = C_CHAR_'qinf'//C_NULL_CHAR
-
   integer(4) :: debugiter, retDebug
   real(8) :: datad
-
-  character(kind=c_char,len=12) :: FileName = C_CHAR_'new_grid.h5'//C_NULL_CHAR
 
   ! OP initialisation
   print *, "Initialising OP2"
@@ -77,39 +49,39 @@ program AIRFOIL
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
-  call op_decl_set_hdf5 ( nnode, nodes, FileName, nodesName )
-  call op_decl_set_hdf5 ( nedge, edges, FileName, edgesName )
-  call op_decl_set_hdf5 ( nbedge, bedges, FileName, bedgesName )
-  call op_decl_set_hdf5 ( ncell, cells, FileName, cellsName )
+  call op_decl_set_hdf5 ( nnode, nodes, 'new_grid.h5', 'nodes' )
+  call op_decl_set_hdf5 ( nedge, edges, 'new_grid.h5', 'edges' )
+  call op_decl_set_hdf5 ( nbedge, bedges, 'new_grid.h5', 'bedges' )
+  call op_decl_set_hdf5 ( ncell, cells, 'new_grid.h5', 'cells' )
 
   print *, "Declaring OP2 maps"
-  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, FileName, pedgeName )
-  call op_decl_map_hdf5 ( edges, cells, 2, pecell, FileName, pecellName )
-  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, FileName, pbedgeName )
-  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, FileName, pbecellName )
-  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, FileName, pcellName )
+  call op_decl_map_hdf5 ( edges, nodes, 2, pedge, 'new_grid.h5', 'pedge' )
+  call op_decl_map_hdf5 ( edges, cells, 2, pecell, 'new_grid.h5', 'pecell' )
+  call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, 'new_grid.h5', 'pbedge' )
+  call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, 'new_grid.h5', 'pbecell' )
+  call op_decl_map_hdf5 ( cells, nodes, 4, pcell, 'new_grid.h5', 'pcell' )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat_hdf5 ( bedges, 1, p_bound, C_CHAR_'int'//C_NULL_CHAR, FileName, boundName )
-  call op_decl_dat_hdf5 ( nodes, 2, p_x, C_CHAR_'double'//C_NULL_CHAR, FileName, xName )
-  call op_decl_dat_hdf5 ( cells, 4, p_q, C_CHAR_'double'//C_NULL_CHAR, FileName, qName )
-  call op_decl_dat_hdf5 ( cells, 4, p_qold, C_CHAR_'double'//C_NULL_CHAR, FileName, qoldName )
-  call op_decl_dat_hdf5 ( cells, 1, p_adt, C_CHAR_'double'//C_NULL_CHAR, FileName, adtName )
-  call op_decl_dat_hdf5 ( cells, 4, p_res, C_CHAR_'double'//C_NULL_CHAR, FileName, resName )
+  call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'int', 'new_grid.h5', 'p_bound' )
+  call op_decl_dat_hdf5 ( nodes, 2, p_x, 'double', 'new_grid.h5', 'p_x' )
+  call op_decl_dat_hdf5 ( cells, 4, p_q, 'double', 'new_grid.h5', 'p_q' )
+  call op_decl_dat_hdf5 ( cells, 4, p_qold, 'double', 'new_grid.h5', 'p_qold' )
+  call op_decl_dat_hdf5 ( cells, 1, p_adt, 'double', 'new_grid.h5', 'p_adt' )
+  call op_decl_dat_hdf5 ( cells, 4, p_res, 'double', 'new_grid.h5', 'p_res' )
 
   print *, "Declaring OP2 constants"
-  call op_decl_const(gam, 1, gamName)
-  call op_decl_const(gm1, 1, gm1Name)
-  call op_decl_const(cfl, 1, cflName)
-  call op_decl_const(eps, 1, epsName)
-  call op_decl_const(mach, 1, machName)
-  call op_decl_const(alpha, 1, alphaName)
-  call op_decl_const(qinf, 4, qinfName)
+  call op_decl_const(gam, 1, 'gam')
+  call op_decl_const(gm1, 1, 'gm1')
+  call op_decl_const(cfl, 1, 'cfl')
+  call op_decl_const(eps, 1, 'eps')
+  call op_decl_const(mach, 1, 'mach')
+  call op_decl_const(alpha, 1, 'alpha')
+  call op_decl_const(qinf, 4, 'qinf')
 
   print *, "Initialising constants"
   call initialise_constants ( )
 
-  call op_partition (C_CHAR_'PARMETIS'//C_NULL_CHAR, C_CHAR_'KWAY'//C_NULL_CHAR, edges, pecell, p_x)
+  call op_partition ('PARMETIS','KWAY', edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
   print *, "ncellr", ncellr
 
