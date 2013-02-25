@@ -145,6 +145,13 @@ module OP2_Fortran_RT_Support
 
     end function
 
+    integer(kind=c_int) function op_is_root () BIND(C,name='op_is_root')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+    end function
+
     subroutine op_partition_c (lib_name, lib_routine, prime_set, prime_map, coords) BIND(C,name='op_partition')
 
       use, intrinsic :: ISO_C_BINDING
@@ -270,22 +277,25 @@ module OP2_Fortran_RT_Support
 
   contains
 
-    subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, coords)
+  subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, coords)
 
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
 
-      implicit none
+    implicit none
 
-      character(kind=c_char) :: lib_name(*)
-      character(kind=c_char) :: lib_routine(*)
+    character(kind=c_char) :: lib_name(*)
+    character(kind=c_char) :: lib_routine(*)
 
-      type(op_set) :: prime_set
-      type(op_map) :: prime_map
-      type(op_dat) :: coords
+    type(op_set) :: prime_set
+    type(op_map) :: prime_map
+    type(op_dat) :: coords
 
-      call op_partition_c (lib_name, lib_routine, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
+    call op_partition_c (lib_name, lib_routine, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
 
-    end subroutine
+  end subroutine
+
+
+
 
 end module OP2_Fortran_RT_Support

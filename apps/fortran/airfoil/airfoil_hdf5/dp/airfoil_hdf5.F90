@@ -172,11 +172,18 @@ program AIRFOIL
 
     rms = sqrt ( rms / ncellr )
 
-    if (mod(niter,100) .eq. 0)  write (*,*), niter,"  ",rms
+    if (mod(niter,100) .eq. 0) then
+      if (op_is_root() .eq. 1) then
+        write (*,*), niter,"  ",rms
+      end if
+    end if
 
   end do ! external loop
 
   call op_timers ( endTime )
-  write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
+  if (op_is_root() .eq. 1) then
+    write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
+  end if
+
   call op_exit (  )
 end program AIRFOIL
