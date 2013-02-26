@@ -1,35 +1,33 @@
-#!/usr/bin/python
-#
-# OP2 source code transformation tool
-#
-# This tool parses the user's original source code to produce
-# target-specific code to execute the user's kernel functions.
-#
-# This prototype is written in Python and is directly based on the
-# parsing and code generation of the matlab source code transformation code
-#
-# usage: op2('file1','file2',...)
-#
-# This code generator is for parsing applications written using the OP2 FORTRAN API
-#
-# This takes as input
-#
-# file1.F90, file2.F90, ...
-#
-# and produces as output modified versions .....
-#
-# file1_op.F90, file2_op.F90, ...
-#
-# then calls a number of target-specific code generators
-# to produce individual kernel files of the form
-#
-# xxx_kernel.??  -- for OpenMP x86 execution
-# xxx_kernel.??   -- for CUDA execution
-#
-# plus a master kernel file of the form
-#
-# file1_kernels.??  -- for OpenMP x86 execution
-# file1_kernels.??   -- for CUDA execution
+#!/usr/bin/env python
+
+"""
+ OP2 source code transformation tool
+
+ This tool parses the user's original source code to produce
+ target-specific code to execute the user's kernel functions.
+
+ This prototype is written in Python and is directly based on the
+ parsing and code generation of the matlab source code transformation code
+
+ usage: op2('file1','file2',...)
+
+ This code generator is for parsing applications written using the OP2 FORTRAN API
+
+ This takes as input
+
+ file1.F90, file2.F90, ...
+
+ and produces as output modified versions .....
+
+ file1_op.F90, file2_op.F90, ...
+
+ then calls a number of target-specific code generators
+ to produce individual kernel files of the form
+
+ xxx_kernel.F90  -- for OpenMP x86 execution
+ xxx_kernel.CUF   -- for CUDA execution (based on PGI CUDA FORTRAN)
+
+"""
 
 import sys
 import re
@@ -67,25 +65,25 @@ comment = '! '
 
 hydra = 0
 
+
+# from http://stackoverflow.com/a/241506/396967
 ##########################################################################
 # Remove comments from text
 ##########################################################################
 
 def comment_remover(text):
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith('/'):
-            return ""
-        else:
-            return s
-    pattern = re.compile(
-        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-        re.DOTALL | re.MULTILINE
-    )
-    return re.sub(pattern, replacer, text)
-#end of comment_remover(text)
 
-
+  def replacer(match):
+      s = match.group(0)
+      if s.startswith('/'):
+          return ""
+      else:
+          return s
+  pattern = re.compile(
+      r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+      re.DOTALL | re.MULTILINE
+  )
+  return re.sub(pattern, replacer, text)
 
 
 ##########################################################################
@@ -94,39 +92,15 @@ def comment_remover(text):
 
 def op_parse_calls(text):
 
-    #remove comments just for this call
-    text = comment_remover(text)
+  # remove comments just for this call
+  text = comment_remover(text)
 
-    inits = 0
-    search = "op_init"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      inits = inits + 1
+  inits = len(re.findall('op_init', text))
+  exits = len(re.findall('op_exit', text))
+  parts = len(re.findall('op_partition', text))
+  hdf5s = len(re.findall('hdf5', text))
 
-    exits = 0
-    search = "op_exit"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      exits = exits + 1
-
-    parts = 0
-    search = "op_partition"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      parts = parts + 1
-
-    hdf5s = 0
-    search = "hdf5"
-    found = text.find(search)
-    while found > -1:
-      found=text.find(search, found+1)
-      hdf5 = hdf5s + 1
-
-    return (inits, exits, parts, hdf5s)
-#end of op_parse_calls(text)
+  return (inits, exits, parts, hdf5s)
 
 
 ##########################################################################
@@ -134,7 +108,6 @@ def op_parse_calls(text):
 ##########################################################################
 
 def op_decl_const_parse(text):
-    """Parsing for op_decl_const calls"""
 
     consts = []
     for m in re.finditer('call(.+)op_decl_const(.*)\((.*)\)', text):
@@ -154,7 +127,6 @@ def op_decl_const_parse(text):
             })
 
     return consts
-#end of op_decl_const_parse
 
 ##########################################################################
 # parsing for arguments in op_par_loop to find the correct closing brace
@@ -172,34 +144,24 @@ def arg_parse(text,j):
         if depth == 0:
           return loc2
       loc2 = loc2 + 1
-#end of arg_parse
 
-def find_all(string, occurrence):
-    found = 0
-    while True:
-      found = string.find(occurrence, found)
-      if found != -1:
-        yield found
-      else:
-        break
-      found += 1
-#end of find_all
 
 
 def get_arg_dat(arg_string, j):
   loc = arg_parse(arg_string,j+1)
   dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
-  #print dat_args_string
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
 
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 6:
-    print 'Error in parsing op_arg_dat('+ dat_args_string +'): must have six arguments'
+    print 'Error parsing op_arg_dat(%s): must have six arguments' \
+          % dat_args_string
     return
 
-  #split the dat_args_string into  6 and create a struct with the elements and type as op_arg_dat
+  # split the dat_args_string into  6 and create a struct with the elements
+  # and type as op_arg_dat
   temp_dat = {'type':'op_arg_dat',
   'dat':dat_args_string.split(',')[0].strip(),
   'idx':dat_args_string.split(',')[1].strip(),
@@ -207,6 +169,7 @@ def get_arg_dat(arg_string, j):
   'dim':dat_args_string.split(',')[3].strip(),
   'typ':dat_args_string.split(',')[4].strip(),
   'acc':dat_args_string.split(',')[5].strip()}
+
   if 'DNPDE' in temp_dat['dim']:
     print "replaced"
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
@@ -221,28 +184,29 @@ def get_arg_dat(arg_string, j):
   if temp_dat['typ']=='"logical"':
     temp_dat['typ']='"logical*1"'
   return temp_dat
-#end of get_arg_dat
 
 
 def get_arg_gbl(arg_string, k):
   loc = arg_parse(arg_string,k+1)
   gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
-  #print gbl_args_string
 
   #remove comments
   gbl_args_string = comment_remover(gbl_args_string)
 
   #check for syntax errors
-  if len(gbl_args_string.split(',')) <> 4:
-    print 'Error in parsing op_arg_gbl('+ gbl_args_string +'): must have four arguments'
+  if len(gbl_args_string.split(',')) != 4:
+    print 'Error parsing op_arg_gbl(%s): must have four arguments' \
+          % gbl_args_string
     return
 
-  #split the gbl_args_string into  4 and create a struct with the elements and type as op_arg_gbl
+  # split the gbl_args_string into  4 and create a struct with the elements
+  # and type as op_arg_gbl
   temp_gbl = {'type':'op_arg_gbl',
   'data':gbl_args_string.split(',')[0].strip(),
   'dim':gbl_args_string.split(',')[1].strip(),
   'typ':gbl_args_string.split(',')[2].strip(),
   'acc':gbl_args_string.split(',')[3].strip()}
+
   if 'DNPDE' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
   if temp_gbl['typ']=='"r8"':
@@ -253,7 +217,6 @@ def get_arg_gbl(arg_string, k):
     temp_gbl['typ']='"logical*1"'
 
   return temp_gbl
-#end of get_arg_gbl
 
 ##########################################################################
 # parsing for op_par_loop calls
@@ -265,11 +228,7 @@ def op_par_loop_parse(text):
     search = "op_par_loop"
     i = text.find(search)
     while i > -1:
-      #arg_string = text[text.find('(',i)+1:text.find('))',i+11)]
       arg_string = text[text.find('(',i)+1:arg_parse(text,i+11)]
-
-      #print arg_string
-      #print len(arg_string)
 
       #parse arguments in par loop
       temp_args = []
@@ -312,14 +271,14 @@ def op_par_loop_parse(text):
           k= arg_string.find(search3, k+11)
 
       temp = {'loc':i,
-      'name1':arg_string.split(',')[0].strip(),
-      'set':arg_string.split(',')[1].strip(),
-      'args':temp_args,
-      'nargs':num_args}
+              'name1':arg_string.split(',')[0].strip(),
+              'set':arg_string.split(',')[1].strip(),
+              'args':temp_args,
+              'nargs':num_args}
 
       loop_args.append(temp)
       i=text.find(search, i+10)
-    #print loop_args
+
     print '\n\n'
     return (loop_args)
 
