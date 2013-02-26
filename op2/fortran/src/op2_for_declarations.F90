@@ -736,7 +736,7 @@ contains
       op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
     else
       if (dat%dataPtr%dim .ne. dim) then
-        print *, "Wrong dim"
+        print *, "Wrong dim",dim,dat%dataPtr%dim
       endif
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then

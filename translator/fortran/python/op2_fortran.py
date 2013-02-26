@@ -211,9 +211,9 @@ def get_arg_dat(arg_string, j):
     print "replaced"
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='6'
+    temp_dat['dim']='1'
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='6'
+    temp_dat['dim']='1'
   if temp_dat['typ']=='"r8"':
     temp_dat['typ']='"REAL(kind=8)"'
   if temp_dat['typ']=='"i4"':
@@ -349,7 +349,7 @@ for a in range(init_ctr,len(sys.argv)):
     file_format = 90
     cont = '& '
     comment = '! '
-  elif src_file.split('.')[1].upper() == 'F77':
+  elif src_file.split('.')[1].upper() == 'F77' or src_file.split('.')[1].upper() == 'F':
     file_format = 77
     cont = ' '
     comment = 'C '
@@ -768,5 +768,5 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
-#op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
+op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
