@@ -160,6 +160,7 @@ typedef struct
   op_arg_type argtype;
   int         sent;   /* flag to indicate if this argument has
                          data in flight under non-blocking MPI comms*/
+  int         opt;    /* flag to indicate if this argument is in use */
 } op_arg;
 
 
@@ -203,6 +204,7 @@ typedef TAILQ_HEAD(, op_dat_entry_core)  Double_linked_list;
  */
 
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
+#define ROUND_UP_64(bytes) (((bytes) + 63) & ~63)
 
 #ifdef __cplusplus
 extern "C" {
@@ -233,6 +235,8 @@ void op_err_print ( const char * error_string, int m, const char * name );
 void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
+
+op_arg op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
 op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 

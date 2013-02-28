@@ -296,7 +296,7 @@ op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access ac
 
   return op_arg_gbl_char (data, dim, heapType, size, acc);
 }
-
+/*
 op_arg
 op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc) {
 
@@ -319,7 +319,7 @@ op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_
 
   return arg;
 }
-
+*/
 void op_dump_arg (op_arg * arg)
 {
   printf ("index = %d\n", arg->index);

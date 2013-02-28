@@ -1512,7 +1512,7 @@ static void set_dirtybit(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) &&
+  if((arg->opt==1) && (arg->argtype == OP_ARG_DAT) &&
     (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
     dat->dirtybit = 1;
 }
@@ -1907,7 +1907,7 @@ static void op_reset_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) &&
+  if((arg->opt) && (arg->argtype == OP_ARG_DAT) &&
     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
     (dat->dirtybit == 1))
   {
@@ -2162,7 +2162,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 
   //check if this is a direct loop
   for (int n=0; n<nargs; n++)
-    if(args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
       direct_flag = 0;
 
   if (direct_flag == 1) return size;
@@ -2170,7 +2170,10 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   //not a direct loop ...
   int exec_flag = 0;
   for (int n=0; n<nargs; n++) {
-    if(args[n].idx != -1 && args[n].acc != OP_READ) {
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
+      op_exchange_halo(&args[n]);
+
+    if(args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ)
       size = set->size + set->exec_size;
       exec_flag = 1;
     }

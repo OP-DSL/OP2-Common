@@ -227,7 +227,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
     int m2 = 0;
     while ( inds[m2] != m )
       m2++;
-
+    if (OP_plan.maps[m2] == NULL) continue; //it is a deactivated optional argument
     int halo_size = (OP_plan.maps[m2]->to)->exec_size +
       (OP_plan.maps[m2]->to)->nonexec_size;
     int set_size = OP_plan.maps[m2]->to->size + halo_size;
@@ -312,7 +312,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   int exec_length = set->size;
   for(int i = 0; i< nargs; i++)
   {
-    if(args[i].idx != -1 && args[i].acc != OP_READ )
+    if(args[i].opt && args[i].idx != -1 && args[i].acc != OP_READ )
     {
       exec_length += set->exec_size;
       break;
@@ -372,7 +372,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   int maxbytes = 0;
   for ( int m = 0; m < nargs; m++ )
   {
-    if ( inds[m] >= 0 )
+    if ( args[m].opt && inds[m] >= 0 )
       maxbytes += args[m].dat->size;
   }
 
@@ -517,6 +517,10 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     int m2 = 0;
     while ( inds[m2] != m )
       m2++;
+    if (args[m2].opt == 0) {
+      work[m] = NULL;
+      continue;
+    }
 
     int to_size = (maps[m2]->to)->exec_size + (maps[m2]->to)->nonexec_size + (maps[m2]->to)->size;
     work[m] = ( uint * )malloc( to_size * sizeof (uint));
@@ -553,6 +557,20 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
     for ( int m = 0; m < ninds; m++ )
     {
+      int m2 = 0;
+      while ( inds[m2] != m )
+        m2++;
+      if (args[m2].opt == 0) {
+        work[m] = NULL;
+        if (b==0) {
+          ind_offs[m+b*ninds] = 0;
+          ind_sizes[m+b*ninds] = 0;
+        } else {
+          ind_offs[m+b*ninds] = ind_offs[m+(b-1)*ninds];
+          ind_sizes[m+b*ninds] = 0;
+        }
+        continue;
+      }
 
       /* build the list of elements indirectly referenced in this block */
 
@@ -631,7 +649,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
       for ( int m = 0; m < nargs; m++ )
       {
-        if ( inds[m] >= 0 )
+        if ( inds[m] >= 0 && args[m].opt )
           for ( int e = prev_offset; e < next_offset; e++ )
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
         //work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
@@ -643,7 +661,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         {
           int mask = 0;
           for ( int m = 0; m < nargs; m++ )
-            if ( inds[m] >= 0 && accs[m] == OP_INC )
+            if ( inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) && args[m].opt )
               mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; /* set bits of mask
               */
 
@@ -659,7 +677,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
             ncolors = MAX ( ncolors, ncolor + color + 1 );
 
             for ( int m = 0; m < nargs; m++ )
-              if ( inds[m] >= 0 && accs[m] == OP_INC )
+              if ( inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) && args[m].opt )
                 work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask; /* set color bit */
           }
         }
@@ -695,7 +713,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
     for ( int m = 0; m < nargs; m++ )
     {
-      if ( inds[m] >= 0 )
+      if ( inds[m] >= 0 && args[m].opt)
       {
         int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size + (maps[m]->to)->size;
         for ( int e = 0; e < to_size; e++ )
@@ -729,7 +747,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
         for ( int m = 0; m < nargs; m++ )
         {
-          if ( inds[m] >= 0 && accs[m] == OP_INC )
+          if ( inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) && args[m].opt )
             for ( int e = prev_offset; e < next_offset; e++ )
               mask |= work[inds[m]][maps[m]->map[idxs[m] +
                 e * maps[m]->dim]]; // set bits of mask
@@ -748,7 +766,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
           for ( int m = 0; m < nargs; m++ )
           {
-            if ( inds[m] >= 0 && accs[m] == OP_INC )
+            if ( inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) && args[m].opt )
               for ( int e = prev_offset; e < next_offset; e++ )
                 work[inds[m]][maps[m]->map[idxs[m] +
                   e * maps[m]->dim]] |= mask;
@@ -809,8 +827,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           int m2 = 0;
           while ( inds[m2] != m )
             m2++;
+          if (args[m2].opt==0) continue;
 
-          nbytes += ROUND_UP ( ind_sizes[m + b * ninds] * dats[m2]->size );
+          nbytes += ROUND_UP_64 ( ind_sizes[m + b * ninds] * dats[m2]->size );
         }
         OP_plans[ip].nsharedCol[col] = MAX ( OP_plans[ip].nsharedCol[col], nbytes );
         total_shared += nbytes;
@@ -829,8 +848,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       int m2 = 0;
       while ( inds[m2] != m )
         m2++;
+      if (args[m2].opt==0) continue;
 
-      nbytes += ROUND_UP ( ind_sizes[m + b * ninds] * dats[m2]->size );
+      nbytes += ROUND_UP_64 ( ind_sizes[m + b * ninds] * dats[m2]->size );
     }
     OP_plans[ip].nshared = MAX ( OP_plans[ip].nshared, nbytes );
     total_shared += nbytes;
@@ -846,23 +866,25 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   {
     for ( int m = 0; m < nargs; m++ ) //for each argument
     {
-      if ( inds[m] < 0 ) //if it is directly addressed
-      {
-        float fac = 2.0f;
-        if ( accs[m] == OP_READ ) //if you only read it - only write???
-          fac = 1.0f;
-        if ( dats[m] != NULL )
+      if (args[m].opt) {
+        if ( inds[m] < 0 ) //if it is directly addressed
         {
-          OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
-          OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
-          transfer3 += fac * nelems[b] * dats[m]->size;
+          float fac = 2.0f;
+          if ( accs[m] == OP_READ ) //if you only read it - only write???
+            fac = 1.0f;
+          if ( dats[m] != NULL )
+          {
+            OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
+            OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
+            transfer3 += fac * nelems[b] * dats[m]->size;
+          }
         }
-      }
-      else //if it is indirectly addressed: cost of reading the pointer to it
-      {
-        OP_plans[ip].transfer += nelems[b] * sizeof ( short );
-        OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
-        transfer3 += nelems[b] * sizeof ( short );
+        else //if it is indirectly addressed: cost of reading the pointer to it
+        {
+          OP_plans[ip].transfer += nelems[b] * sizeof ( short );
+          OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
+          transfer3 += nelems[b] * sizeof ( short );
+        }
       }
     }
     for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
@@ -870,6 +892,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       int m2 = 0;
       while ( inds[m2] != m ) //find the first argument that uses this mapping
         m2++;
+      if (args[m2].opt == 0) continue;
+
       float fac = 2.0f;
       if ( accs[m2] == OP_READ ) //only read it (write??)
         fac = 1.0f;

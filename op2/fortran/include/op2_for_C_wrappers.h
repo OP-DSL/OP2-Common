@@ -38,7 +38,7 @@ op_map_core * op_decl_null_map ( );
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type );
 
 op_arg op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access acc );
-op_arg op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc);
+//op_arg op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc);
 void op_dump_arg (op_arg * arg);
 void print_type (op_arg * arg);
 int op_mpi_size ();

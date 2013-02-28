@@ -58,6 +58,8 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 {
   op_dat dat = arg->dat;
 
+  if (arg->opt == 0) return;
+
   if(arg->sent == 1)
   {
     printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
@@ -184,7 +186,7 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
 void op_wait_all(op_arg* arg)
 {
-  if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
+  if(arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
     op_dat dat = arg->dat;
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,

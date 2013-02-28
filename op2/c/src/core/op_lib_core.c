@@ -413,6 +413,7 @@ void
 op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 {
   /* error checking for op_arg_dat */
+  if (arg.opt == 0) return;
 
   if ( arg.argtype == OP_ARG_DAT )
   {
@@ -462,7 +463,45 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
 
   /* index is not used for now */
   arg.index = -1;
+  arg.opt = 1;
+  arg.argtype = OP_ARG_DAT;
 
+  arg.dat = dat;
+  arg.map = map;
+  arg.dim = dim;
+  arg.idx = idx;
+
+  if ( dat != NULL )
+  {
+    arg.size = dat->size;
+    arg.data = dat->data;
+    arg.data_d = dat->data_d;
+  }
+  else
+  {
+    /* set default values */
+    arg.size = -1;
+    arg.data = NULL;
+    arg.data_d = NULL;
+  }
+
+  arg.type = typ;
+  arg.acc = acc;
+
+  /*initialize to 0 states no-mpi messages inflight for this arg*/
+  arg.sent = 0;
+
+  return arg;
+}
+
+op_arg
+op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc )
+{
+  op_arg arg;
+
+  /* index is not used for now */
+  arg.index = -1;
+  arg.opt = opt;
   arg.argtype = OP_ARG_DAT;
 
   arg.dat = dat;
@@ -501,6 +540,7 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.argtype = OP_ARG_GBL;
 
   arg.dat = NULL;
+  arg.opt = 1;
   arg.map = NULL;
   arg.dim = dim;
   arg.idx = -1;

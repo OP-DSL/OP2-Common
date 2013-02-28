@@ -148,5 +148,5 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
 int getSetSizeFromOpArg (op_arg * arg)
 {
-  return arg->dat->set->size;
+  return arg->opt ? arg->dat->set->size : 0;
 }
