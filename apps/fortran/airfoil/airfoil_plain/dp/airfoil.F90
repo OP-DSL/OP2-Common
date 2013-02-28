@@ -172,6 +172,7 @@ program AIRFOIL
   end do ! external loop
 
   call op_timers ( endTime )
+  call op_timing_output ()
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
 
 end program AIRFOIL

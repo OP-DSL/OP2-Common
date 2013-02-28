@@ -692,13 +692,13 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     code('')
 
 
-    #code('numberCalled'+name+' = numberCalled'+name+'+ 1')
+    code('numberCalled'+name+' = numberCalled'+name+'+ 1')
     code('')
-    #code('call date_and_time(values=timeArrayStart)')
-    #code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    #code('& 1000.00 * timeArrayStart(7) + &')
-    #code('& 60000 * timeArrayStart(6) + &')
-    #code('& 3600000 * timeArrayStart(5)')
+    code('call date_and_time(values=timeArrayStart)')
+    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
+    code('& 1000.00 * timeArrayStart(7) + &')
+    code('& 60000 * timeArrayStart(6) + &')
+    code('& 3600000 * timeArrayStart(5)')
     code('')
 
     depth = depth - 2
@@ -795,21 +795,21 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
         ENDDO()
 
     code('')
-    #code('call date_and_time(values=timeArrayEnd)')
-    #code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    #code('& 1000 * timeArrayEnd(7)  + &')
-    #code('& 60000 * timeArrayEnd(6) + &')
-    #code('& 3600000 * timeArrayEnd(5)')
-    #code('')
-    #code('accumulatorHostTime = endTimeHost - startTimeHost')
-    #code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    #code('')
-    #code('call date_and_time(values=timeArrayStart)')
-    #code('startTimeKernel = 1.00000 * timeArrayStart(8) + &')
-    #code('& 1000 * timeArrayStart(7) + &')
-    #code('& 60000 * timeArrayStart(6) + &')
-    #code('& 3600000 * timeArrayStart(5)')
-    #code('')
+    code('call date_and_time(values=timeArrayEnd)')
+    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
+    code('& 1000 * timeArrayEnd(7)  + &')
+    code('& 60000 * timeArrayEnd(6) + &')
+    code('& 3600000 * timeArrayEnd(5)')
+    code('')
+    code('accumulatorHostTime = endTimeHost - startTimeHost')
+    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
+    code('')
+    code('call date_and_time(values=timeArrayStart)')
+    code('startTimeKernel = 1.00000 * timeArrayStart(8) + &')
+    code('& 1000 * timeArrayStart(7) + &')
+    code('& 60000 * timeArrayStart(6) + &')
+    code('& 3600000 * timeArrayStart(5)')
+    code('')
 
     if ninds > 0: #indirect loop host stub call
       code('blockOffset = 0')
@@ -880,20 +880,20 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 
 
     code('')
-    #code('call date_and_time(values=timeArrayEnd)')
-    #code('endTimeKernel = 1.00000 * timeArrayEnd(8) + &')
-    #code('& 1000 * timeArrayEnd(7) + &')
-    #code('& 60000 * timeArrayEnd(6) + &')
-    #code('& 3600000 * timeArrayEnd(5)')
-    #code('')
-    #code('accumulatorKernelTime = endTimeKernel - startTimeKernel')
-    #code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    #code('')
-    #code('call date_and_time(values=timeArrayStart)')
-    #code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    #code('& 1000.00 * timeArrayStart(7) + &')
-    #code('& 60000 * timeArrayStart(6) + &')
-    #code('& 3600000 * timeArrayStart(5)')
+    code('call date_and_time(values=timeArrayEnd)')
+    code('endTimeKernel = 1.00000 * timeArrayEnd(8) + &')
+    code('& 1000 * timeArrayEnd(7) + &')
+    code('& 60000 * timeArrayEnd(6) + &')
+    code('& 3600000 * timeArrayEnd(5)')
+    code('')
+    code('accumulatorKernelTime = endTimeKernel - startTimeKernel')
+    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
+    code('')
+    code('call date_and_time(values=timeArrayStart)')
+    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
+    code('& 1000.00 * timeArrayStart(7) + &')
+    code('& 60000 * timeArrayStart(6) + &')
+    code('& 3600000 * timeArrayStart(5)')
 
     code('')
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
@@ -918,26 +918,27 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
 
 
-    #code('call date_and_time(values=timeArrayEnd)')
-    #code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    #code('1000 * timeArrayEnd(7) + &')
-    #code('60000 * timeArrayEnd(6) + &')
-    #code('3600000 * timeArrayEnd(5)')
-    #code('')
-    #code('accumulatorHostTime = endTimeHost - startTimeHost')
-    #code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    #code('')
-    #code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine, &')
+    code('call date_and_time(values=timeArrayEnd)')
+    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
+    code('1000 * timeArrayEnd(7) + &')
+    code('60000 * timeArrayEnd(6) + &')
+    code('3600000 * timeArrayEnd(5)')
+    code('')
+    code('accumulatorHostTime = endTimeHost - startTimeHost')
+    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
+    code('')
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine, &')
 
-    #if ninds > 0:
-    #  code('& accumulatorKernelTime / 1000.00,actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
-    #else:
-    #  code('& accumulatorKernelTime / 1000.00,0.00000,0.00000)')
+    if ninds > 0:
+      code('& accumulatorKernelTime / 1000.00,actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
+    else:
+      code('& accumulatorKernelTime / 1000.00,0.00000,0.00000)')
 
 
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE '+name.upper()+'_MODULE')
+    code('')
 
 ##########################################################################
 #  output individual kernel file
