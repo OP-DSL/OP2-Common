@@ -43,7 +43,7 @@ endif
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
 
-all: clean airfoil_seq airfoil_openmp_$(PART_SIZE_ENV) #airfoil_cuda
+all: clean airfoil_seq airfoil_openmp_$(PART_SIZE_ENV) airfoil_cuda
 
 airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil.F90

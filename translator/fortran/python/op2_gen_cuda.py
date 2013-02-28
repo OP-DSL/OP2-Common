@@ -752,6 +752,7 @@ def op2_gen_cuda(master, date, consts, kernels):
     code('INTEGER(kind=4) :: istat')
     code('REAL(kind=4) :: accumulatorHostTime')
     code('REAL(kind=4) :: accumulatorKernelTime')
+    code('REAL(kind=8) :: KT_double')
     code('TYPE ( cudaEvent )  :: startTimeHost')
     code('TYPE ( cudaEvent )  :: endTimeHost')
     code('TYPE ( cudaEvent )  :: startTimeKernel')
@@ -988,12 +989,19 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
         code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
         code('')
+        code('calledTimes = calledTimes + 1')
+        code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
+        code('istat = cudaEventSynchronize(endTimeHost)')
+        code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
+        code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
 
-    code('calledTimes = calledTimes + 1')
-    code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
+    code('KT_double = REAL(accumulatorKernelTime / 1000.00)')
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+
+    if ninds > 0:
+      code('& KT_double, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
+    else:
+      code('& KT_double, 0.00000,0.00000)')
 
     depth = depth - 2
     code('END SUBROUTINE')

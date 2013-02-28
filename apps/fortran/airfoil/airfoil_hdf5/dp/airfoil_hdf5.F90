@@ -154,6 +154,7 @@ program AIRFOIL
 
   call op_timers ( endTime )
   if (op_is_root() .eq. 1) then
+    call op_timing_output ()
     write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
   end if
 

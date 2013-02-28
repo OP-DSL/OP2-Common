@@ -45,7 +45,7 @@ endif
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
 
-all: clean airfoil_hdf5_seq airfoil_hdf5_openmp_$(PART_SIZE_ENV) #airfoil_hdf5_cuda airfoil_hdf5_mpi airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_cuda
+all: clean airfoil_hdf5_seq airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_cuda airfoil_hdf5_mpi airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_cuda
 
 airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
