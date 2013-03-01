@@ -927,7 +927,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     code('accumulatorHostTime = endTimeHost - startTimeHost')
     code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
     code('')
-    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine, &')
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
       code('& accumulatorKernelTime / 1000.00,actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
