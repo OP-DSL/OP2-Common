@@ -95,8 +95,23 @@ ifeq ($(OP2_COMPILER),intel)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else
+ifeq ($(OP2_COMPILER),cray)
+  F_INC_MOD       = $(F_OP2_MOD)/cray
+  OPT             = -O2
+  CC              = cc -O2
+  CXX             = CC -O2
+  CFLAGS          = #-std=c99 -Wall
+  FC              = ftn
+  FFLAGS          = -em -J $(F_INC_MOD)
+  MPICC           = $(CC)
+  MPICXX          = $(CXX)
+  MPIF90          = $(FC)
+  NO_MPI_MACRO    = -D NO_MPI
+  ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif

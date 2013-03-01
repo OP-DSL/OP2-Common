@@ -15,7 +15,7 @@ SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
 
   IF (bound(1) .EQ. 1) THEN
     res1(2) = res1(2) + p1 * dy
-    res1(3) = res1(3) + -(p1 * dx)
+    res1(3) = res1(3) -(p1 * dx)
   ELSE
     vol1 = ri * (q1(2) * dy - q1(3) * dx)
     ri = 1.0 / qinf(1)
