@@ -146,7 +146,7 @@ program AIRFOIL
 
     if (mod(niter,100) .eq. 0) then
       if (op_is_root() .eq. 1) then
-        write (*,*), niter,"  ",rms
+        write (*,*) niter,"  ",rms
       end if
     end if
 
@@ -155,7 +155,7 @@ program AIRFOIL
   call op_timers ( endTime )
   if (op_is_root() .eq. 1) then
     call op_timing_output ()
-    write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
+    write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
   end if
 
   call op_exit (  )

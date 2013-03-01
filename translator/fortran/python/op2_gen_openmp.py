@@ -307,7 +307,8 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code(typs[g_m]+', DIMENSION(0:*) :: opDat'+str(g_m+1))
         elif maps[g_m] == OP_GBL:
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-            code(typs[g_m]+' :: opDat'+str(g_m+1))
+            #code(typs[g_m]+' :: opDat'+str(g_m+1))
+            code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
           else:
             code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1))
 
@@ -458,7 +459,8 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code(typs[g_m]+', DIMENSION(0:*) :: opDat'+str(g_m+1))
         else: #global arg
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-            code(typs[g_m]+' :: opDat'+str(g_m+1))
+            #code(typs[g_m]+' :: opDat'+str(g_m+1))
+            code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
           else:
             code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1))
 
@@ -727,7 +729,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       code('numberOfIndirectOpDats = '+str(ninds))
       code('')
       code('planRet_'+name+' = FortranPlanCaller( &')
-      code('& userSubroutine, &')
+      code('& userSubroutine//C_NULL_CHAR, &')
       code('& set%setCPtr, &')
       code('& partitionSize, &')
       code('& numberOfOpDats, &')
