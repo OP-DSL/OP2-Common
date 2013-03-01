@@ -279,7 +279,7 @@ def op2_gen_cuda(master, date, consts, kernels):
     code('CONTAINS')
     code('')
     comm('user function')
-    code('attributes (device) & ')
+    code('attributes (device) &')
     code('#include "'+name+'.inc"')
     code('')
     code('')
@@ -482,7 +482,7 @@ def op2_gen_cuda(master, date, consts, kernels):
       for g_m in range(0,ninds):
         if accs[invinds[g_m]] == OP_INC:
           for m in range (0,int(idxs[g_m])):
-            DO('i2','0','opDatDimensions%opDat'+str(invinds[g_m]+1+m)+'Dimension ')
+            DO('i2','0','opDatDimensions%opDat'+str(invinds[g_m]+1+m)+'Dimension')
             code('opDat'+str(invinds[g_m]+1+m)+'Local(i2) = 0')
             ENDDO()
 
