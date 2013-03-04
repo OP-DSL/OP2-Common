@@ -146,7 +146,7 @@ def arg_parse(text,j):
       loc2 = loc2 + 1
 
 def typechange(text):
-  if '"INTEGER"' in text:
+  if '"INTEGER(kind=4)"' in text:
     return '"i4"'
   elif '"REAL(kind=8)"' in text:
     return '"r8"'
