@@ -41,8 +41,8 @@ else
 ifeq ($(OP2_COMPILER),cray)
   CC = CC
   FC = ftn -em -p $(F_OP2_MOD)
-  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
-  MPI_INC = -I$(MPI_INSTALL_PATH)/include
+  MPI_LIB = #-L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPI_INC = #-I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -O2 -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
   OPENMP = -h omp -lomp
