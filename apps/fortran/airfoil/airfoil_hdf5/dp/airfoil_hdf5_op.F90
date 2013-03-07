@@ -162,10 +162,10 @@ program AIRFOIL
   end do ! external loop
 
   call op_timers ( endTime )
-  if (op_is_root() .eq. 1) then
+  !if (op_is_root() .eq. 1) then
     call op_timing_output ()
     write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
-  end if
+  !end if
 
   call op_exit (  )
 end program AIRFOIL

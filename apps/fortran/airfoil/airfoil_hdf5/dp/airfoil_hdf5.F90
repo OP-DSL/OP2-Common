@@ -120,7 +120,7 @@ program AIRFOIL
                          & op_arg_dat (p_q,    2, pecell, 4,"real(8)", OP_READ), &
                          & op_arg_dat (p_adt,  1, pecell, 1,"real(8)", OP_READ), &
                          & op_arg_dat (p_adt,  2, pecell, 1,"real(8)", OP_READ), &
-                         & op_arg_dat (p_res,  1, pecell, 4,"real(8)", OP_INC),  &
+                         & op_opt_arg_dat(.TRUE.,p_res,1,pecell,4,"real(8)",OP_INC),  &
                          & op_arg_dat (p_res,  2, pecell, 4,"real(8)", OP_INC))
 
       call op_par_loop_6 ( bres_calc, bedges, &
