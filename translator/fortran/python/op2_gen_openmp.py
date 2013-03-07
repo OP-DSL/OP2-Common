@@ -857,7 +857,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
         code('allocate( reductionArrayHost'+str(g_m+1)+'(numberOfThreads * (('+dims[g_m]+'-1)/64+1)*64) )')
         DO('i10','1','numberOfThreads+1')
-        DO('i11','1',dims[g_m]+str(1))
+        DO('i11','1',dims[g_m]+'+1')
         code('reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11) = 0')
         ENDDO()
         ENDDO()
@@ -974,8 +974,8 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
         DO('i10','1','numberOfThreads+1')
-        DO('i11','1',dims[g_m]+str(1))
-        code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11)')
+        DO('i11','1',dims[g_m]+'+1')
+        code('opDat'+str(g_m+1)+'Local(i11) = opDat'+str(g_m+1)+'Local(i11) + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11)')
         ENDDO()
         ENDDO()
         code('')
