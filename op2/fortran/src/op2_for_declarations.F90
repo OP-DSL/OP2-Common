@@ -429,6 +429,12 @@ module OP2_Fortran_Declarations
 
     end subroutine op_timing_output
 
+    subroutine op_print_c (line) BIND(C,name='op_printf')
+      use, intrinsic :: ISO_C_BINDING
+
+      character(len=1,kind=c_char) :: line(*)
+    end subroutine op_print_c
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -1040,5 +1046,17 @@ contains
     call op_mpi_rank_c (rank)
 
   end subroutine op_mpi_rank
+
+  subroutine op_print (line)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    character(kind=c_char,len=*) :: line
+
+    call op_print_c (line//'\n'//C_NULL_CHAR)
+
+  end subroutine
 
 end module OP2_Fortran_Declarations

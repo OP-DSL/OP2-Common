@@ -295,7 +295,4 @@ module OP2_Fortran_RT_Support
 
   end subroutine
 
-
-
-
 end module OP2_Fortran_RT_Support

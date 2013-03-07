@@ -44,24 +44,25 @@ program AIRFOIL
   real(8) :: datad
 
   ! OP initialisation
-  print *, "Initialising OP2"
+
   call op_init (0)
+  call op_print ("Initialising OP2")
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
-  print *, "Declaring OP2 sets"
+  call op_print ("Declaring OP2 sets")
   call op_decl_set_hdf5 ( nnode, nodes, 'new_grid.h5', 'nodes' )
   call op_decl_set_hdf5 ( nedge, edges, 'new_grid.h5', 'edges' )
   call op_decl_set_hdf5 ( nbedge, bedges, 'new_grid.h5', 'bedges' )
   call op_decl_set_hdf5 ( ncell, cells, 'new_grid.h5', 'cells' )
 
-  print *, "Declaring OP2 maps"
+  call op_print ("Declaring OP2 maps")
   call op_decl_map_hdf5 ( edges, nodes, 2, pedge, 'new_grid.h5', 'pedge' )
   call op_decl_map_hdf5 ( edges, cells, 2, pecell, 'new_grid.h5', 'pecell' )
   call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, 'new_grid.h5', 'pbedge' )
   call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, 'new_grid.h5', 'pbecell' )
   call op_decl_map_hdf5 ( cells, nodes, 4, pcell, 'new_grid.h5', 'pcell' )
 
-  print *, "Declaring OP2 data"
+  call op_print ("Declaring OP2 data")
   call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'int', 'new_grid.h5', 'p_bound' )
   call op_decl_dat_hdf5 ( nodes, 2, p_x, 'double', 'new_grid.h5', 'p_x' )
   call op_decl_dat_hdf5 ( cells, 4, p_q, 'double', 'new_grid.h5', 'p_q' )
@@ -69,7 +70,7 @@ program AIRFOIL
   call op_decl_dat_hdf5 ( cells, 1, p_adt, 'double', 'new_grid.h5', 'p_adt' )
   call op_decl_dat_hdf5 ( cells, 4, p_res, 'double', 'new_grid.h5', 'p_res' )
 
-  print *, "Declaring OP2 constants"
+  call op_print ("Declaring OP2 constants")
   call op_decl_const(gam, 1, 'gam')
   call op_decl_const(gm1, 1, 'gm1')
   call op_decl_const(cfl, 1, 'cfl')
@@ -78,7 +79,7 @@ program AIRFOIL
   call op_decl_const(alpha, 1, 'alpha')
   call op_decl_const(qinf, 4, 'qinf')
 
-  print *, "Initialising constants"
+  call op_print ('Initialising constants')
   call initialise_constants ( )
 
   call op_write_hdf5("new_grid_out.h5");
