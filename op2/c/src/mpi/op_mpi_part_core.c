@@ -53,11 +53,13 @@
 //ptscotch header
 #ifdef HAVE_PTSCOTCH
 #include <ptscotch.h>
+
 #endif
 
 //parmetis header
 #ifdef HAVE_PARMETIS
 #include <parmetis.h>
+typedef idx_t idxtype;
 #endif
 
 #include <op_mpi_core.h>
@@ -1451,10 +1453,10 @@ void op_partition_geom(op_dat coords)
   /*--- STEP 1 - Partition primary set using its coordinates (1D,2D or 3D) -----*/
 
   //Setup data structures for ParMetis PartGeom
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t)*(comm_size+1));
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t)*coords->set->size);
+  idxtype *vtxdist = (idxtype *)xmalloc(sizeof(idxtype)*(comm_size+1));
+  idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*coords->set->size);
 
-  idx_t ndims = (idx_t)coords->dim;
+  int ndims = coords->dim;
   float* xyz = 0;
 
   // Create ParMetis compatible coordinates array
@@ -1486,6 +1488,7 @@ void op_partition_geom(op_dat coords)
   }
   vtxdist[comm_size] = part_range[coords->set->index][2*(comm_size-1)+1]+1;
 
+
   //use xyz coordinates to feed into ParMETIS_V3_PartGeom
   ParMETIS_V3_PartGeom(vtxdist, &ndims, xyz, partition, &OP_PART_WORLD);
   free(xyz);free(vtxdist);
@@ -1505,7 +1508,7 @@ void op_partition_geom(op_dat coords)
   }
 
   //initialise primary set as partitioned
-  OP_part_list[coords->set->index]->elem_part= (int *)partition;
+  OP_part_list[coords->set->index]->elem_part= partition;
   OP_part_list[coords->set->index]->is_partitioned = 1;
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
@@ -1756,7 +1759,7 @@ void op_partition_kway(op_map primary_map)
   //
   //Setup data structures for ParMetis PartKway
   //
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t)*(comm_size+1));
+  idxtype *vtxdist = (idxtype *)xmalloc(sizeof(idxtype)*(comm_size+1));
   for(int i=0; i<comm_size; i++)
   {
     vtxdist[i] = part_range[primary_map->to->index][2*i];
@@ -1764,10 +1767,10 @@ void op_partition_kway(op_map primary_map)
   vtxdist[comm_size] = part_range[primary_map->to->index][2*(comm_size-1)+1]+1;
 
 
-  idx_t *xadj = (idx_t *)xmalloc(sizeof(idx_t)*(primary_map->to->size+1));
+  idxtype *xadj = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->to->size+1));
   cap = (primary_map->to->size)*primary_map->dim;
 
-  idx_t *adjncy = (idx_t *)xmalloc(sizeof(idx_t)*cap);
+  idxtype *adjncy = (idxtype *)xmalloc(sizeof(idxtype)*cap);
   int count = 0;int prev_count = 0;
   for(int i = 0; i<primary_map->to->size; i++)
   {
@@ -1793,9 +1796,9 @@ void op_partition_kway(op_map primary_map)
         if(count >= cap)
         {
           cap = cap*2;
-          adjncy = (idx_t *)xrealloc(adjncy,sizeof(idx_t)*cap);
+          adjncy = (idxtype *)xrealloc(adjncy,sizeof(idxtype)*cap);
         }
-        adjncy[count++] = (idx_t)adj[i][j];
+        adjncy[count++] = (idxtype)adj[i][j];
       }
     }
     if(i != 0)
@@ -1823,16 +1826,15 @@ void op_partition_kway(op_map primary_map)
   free(adj_i);free(adj_cap);free(adj);
 
 
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t)*primary_map->to->size);
+  idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*primary_map->to->size);
   for(int i = 0; i < primary_map->to->size; i++){ partition[i] = -99; }
 
-  idx_t edge_cut = 0;
-  idx_t numflag = 0;
-  idx_t wgtflag = 0;
-  idx_t options[3] = {1,3,15};
-  idx_t mpi_comm_size = (idx_t)comm_size;
+  int edge_cut = 0;
+  idxtype numflag = 0;
+  idxtype wgtflag = 0;
+  int options[3] = {1,3,15};
 
-  idx_t ncon = 1;
+  idxtype ncon = 1;
   float *tpwgts = (float *)xmalloc(comm_size*sizeof(float)*ncon);
   for(int i = 0; i<comm_size*ncon; i++)tpwgts[i] = (float)1.0/(float)comm_size;
 
@@ -1851,7 +1853,7 @@ void op_partition_kway(op_map primary_map)
     printf("-----------------------------------------------------------\n");
   }
   ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag,
-      &ncon, &mpi_comm_size,tpwgts, ubvec, options, &edge_cut, partition, &OP_PART_WORLD);
+      &ncon, &comm_size,tpwgts, ubvec, options, &edge_cut, partition, &OP_PART_WORLD);
   if(my_rank==MPI_ROOT)
     printf("-----------------------------------------------------------\n");
   free(vtxdist); free(xadj); free(adjncy);
@@ -1870,7 +1872,7 @@ void op_partition_kway(op_map primary_map)
   }
 
   //initialise primary set as partitioned
-  OP_part_list[primary_map->to->index]->elem_part= (int *)partition;
+  OP_part_list[primary_map->to->index]->elem_part= partition;
   OP_part_list[primary_map->to->index]->is_partitioned = 1;
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
@@ -1954,7 +1956,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
 
   /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures   ------------*/
 
-  idx_t ndims = (idx_t)coords->dim;
+  int ndims = coords->dim;
   float* xyz = 0;
 
   // Create ParMetis compatible coordinates array
@@ -2150,7 +2152,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
   //
   //Setup data structures for ParMetis PartKway
   //
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t)*(comm_size+1));
+  idxtype *vtxdist = (idxtype *)xmalloc(sizeof(idxtype)*(comm_size+1));
   for(int i=0; i<comm_size; i++)
   {
     vtxdist[i] = part_range[primary_map->to->index][2*i];
@@ -2158,10 +2160,10 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
   vtxdist[comm_size] = part_range[primary_map->to->index][2*(comm_size-1)+1]+1;
 
 
-  idx_t *xadj = (idx_t *)xmalloc(sizeof(idx_t)*(primary_map->to->size+1));
+  idxtype *xadj = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->to->size+1));
   cap = (primary_map->to->size)*primary_map->dim;
 
-  idx_t *adjncy = (idx_t *)xmalloc(sizeof(idx_t)*cap);
+  idxtype *adjncy = (idxtype *)xmalloc(sizeof(idxtype)*cap);
   int count = 0;int prev_count = 0;
   for(int i = 0; i<primary_map->to->size; i++)
   {
@@ -2187,9 +2189,9 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
         if(count >= cap)
         {
           cap = cap*2;
-          adjncy = (idx_t *)xrealloc(adjncy,sizeof(idx_t)*cap);
+          adjncy = (idxtype *)xrealloc(adjncy,sizeof(idxtype)*cap);
         }
-        adjncy[count++] = (idx_t)adj[i][j];
+        adjncy[count++] = (idxtype)adj[i][j];
       }
     }
     if(i != 0)
@@ -2208,16 +2210,15 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
   for(int i = 0; i<primary_map->to->size; i++)free(adj[i]);
   free(adj_i);free(adj_cap);free(adj);
 
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t)*primary_map->to->size);
+  idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*primary_map->to->size);
   for(int i = 0; i < primary_map->to->size; i++){ partition[i] = -99; }
 
-  idx_t edge_cut = 0;
-  idx_t numflag = 0;
-  idx_t wgtflag = 0;
-  idx_t options[3] = {1,3,15};
-  idx_t mpi_comm_size = (idx_t)comm_size;
+  int edge_cut = 0;
+  idxtype numflag = 0;
+  idxtype wgtflag = 0;
+  int options[3] = {1,3,15};
 
-  idx_t ncon = 1;
+  idxtype ncon = 1;
   float *tpwgts = (float *)xmalloc(comm_size*sizeof(float)*ncon);
   for(int i = 0; i<comm_size*ncon; i++)tpwgts[i] = (float)1.0/(float)comm_size;
 
@@ -2236,7 +2237,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
     printf("-----------------------------------------------------------\n");
   }
   ParMETIS_V3_PartGeomKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag,
-      &ndims, xyz, &ncon, &mpi_comm_size,tpwgts, ubvec, options, &edge_cut, partition,
+      &ndims, xyz, &ncon, &comm_size,tpwgts, ubvec, options, &edge_cut, partition,
       &OP_PART_WORLD);
 
   if(my_rank==MPI_ROOT)
@@ -2258,7 +2259,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
   }
 
   //initialise primary set as partitioned
-  OP_part_list[coords->set->index]->elem_part= (int *)partition;
+  OP_part_list[coords->set->index]->elem_part= partition;
   OP_part_list[coords->set->index]->is_partitioned = 1;
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
@@ -2362,15 +2363,15 @@ void op_partition_meshkway(op_map primary_map) //not working !!
   //
   //Setup data structures for ParMetis PartKway
   //
-  idx_t *elemdist = (idx_t *)xmalloc(sizeof(idx_t)*(comm_size+1));
+  idxtype *elemdist = (idxtype *)xmalloc(sizeof(idxtype)*(comm_size+1));
   for(int i=0; i<comm_size; i++)
   {
     elemdist[i] = part_range[primary_map->from->index][2*i];
   }
   elemdist[comm_size] = part_range[primary_map->from->index][2*(comm_size-1) + 1] + 1;
 
-  idx_t *eind = (idx_t *)xmalloc(sizeof(idx_t)*(primary_map->from->size)*primary_map->dim);
-  idx_t *eptr = (idx_t *)xmalloc(sizeof(idx_t)*(primary_map->from->size + 1));
+  idxtype *eind = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->from->size)*primary_map->dim);
+  idxtype *eptr = (idxtype *)xmalloc(sizeof(idxtype)*(primary_map->from->size + 1));
 
   //setup the eind
   for(int i=0; i<primary_map->from->size; i++)
@@ -2384,31 +2385,30 @@ void op_partition_meshkway(op_map primary_map) //not working !!
   {
     for(int j = 0; j<primary_map->dim; j++)
     {
-      //eind[eptr[i]+j] = (idx_t) OP_map_list[primary_map->index]->map[eptr[i]+j];
+      //eind[eptr[i]+j] = (idxtype) OP_map_list[primary_map->index]->map[eptr[i]+j];
       eind[primary_map->dim*i+j] =
-        (idx_t) OP_map_list[primary_map->index]->map[primary_map->dim*i+j];
+        (idxtype) OP_map_list[primary_map->index]->map[primary_map->dim*i+j];
     }
   }
   //memcpy(&eind[0], primary_map->map,
   //  (primary_map->from->size)*primary_map->dim*sizeof(int));
 
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t)*primary_map->to->size);
+  idxtype *partition = (idxtype *)xmalloc(sizeof(idxtype)*primary_map->to->size);
   for(int i = 0; i < primary_map->to->size; i++){ partition[i] = -99; }
 
-  idx_t edge_cut = 0;
-  idx_t numflag = 0;
-  idx_t wgtflag = 0;
-  idx_t options[3] = {1,3,15};
-  idx_t mpi_comm_size = comm_size;
+  int edge_cut = 0;
+  idxtype numflag = 0;
+  idxtype wgtflag = 0;
+  int options[3] = {1,3,15};
 
-  idx_t ncon = 1;
+  idxtype ncon = 1;
   float *tpwgts = (float *)xmalloc(comm_size*sizeof(float)*ncon);
   for(int i = 0; i<comm_size*ncon; i++)tpwgts[i] = (float)1.0/(float)comm_size;
 
   float *ubvec = (float *)xmalloc(sizeof(float)*ncon);
   *ubvec = 1.05;
 
-  idx_t ncommonnodes = 1;
+  int ncommonnodes = 1;
 
   if(my_rank==MPI_ROOT)
   { printf("-----------------------------------------------------------\n");
@@ -2416,8 +2416,8 @@ void op_partition_meshkway(op_map primary_map) //not working !!
     printf("-----------------------------------------------------------\n");
   }
   ParMETIS_V3_PartMeshKway(elemdist, eptr, eind, NULL, &wgtflag, &numflag,
-      &ncon, &ncommonnodes, &mpi_comm_size,tpwgts, ubvec, options,
-      &edge_cut, partition, &OP_PART_WORLD);
+      &ncon, &ncommonnodes, &comm_size,tpwgts, ubvec, options, &edge_cut,
+      partition, &OP_PART_WORLD);
   if(my_rank==MPI_ROOT)
     printf("-----------------------------------------------------------\n");
   free(elemdist); free(eptr); free(eind);
@@ -2435,7 +2435,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
   }
 
   //initialise primary set as partitioned
-  OP_part_list[primary_map->to->index]->elem_part= (int *)partition;
+  OP_part_list[primary_map->to->index]->elem_part= partition;
   OP_part_list[primary_map->to->index]->is_partitioned = 1;
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
@@ -2965,4 +2965,3 @@ void partition(const char* lib_name, const char* lib_routine,
   op_halo_create();
 
 }
-
