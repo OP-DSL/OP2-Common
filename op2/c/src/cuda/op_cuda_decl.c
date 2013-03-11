@@ -197,6 +197,11 @@ void op_printf(const char* format, ...)
   va_end(argptr);
 }
 
+void op_print(const char* line)
+{
+  printf("%s\n",line);
+}
+
 void op_timers(double * cpu, double * et)
 {
   op_timers_core(cpu,et);

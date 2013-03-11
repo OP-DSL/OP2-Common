@@ -189,6 +189,16 @@ void op_printf(const char* format, ...)
   }
 }
 
+void op_print(const char* line)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    printf("%s\n",line);
+  }
+}
+
 void op_exit()
 {
   op_mpi_exit();

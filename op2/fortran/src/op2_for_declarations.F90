@@ -449,10 +449,10 @@ module OP2_Fortran_Declarations
 
     end subroutine op_timing_output
 
-    subroutine op_print_c (line) BIND(C,name='op_printf')
-      use, intrinsic :: ISO_C_BINDING
+    subroutine op_print_c (line) BIND(C,name='op_print')
+      use ISO_C_BINDING
 
-      character(len=1,kind=c_char) :: line(*)
+      character(kind=c_char) :: line(*)
     end subroutine op_print_c
 
   end interface
@@ -1116,7 +1116,7 @@ contains
 
     character(kind=c_char,len=*) :: line
 
-    call op_print_c (line//'\n'//C_NULL_CHAR)
+    call op_print_c (line//C_NULL_CHAR)
 
   end subroutine
 
