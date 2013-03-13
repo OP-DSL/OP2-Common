@@ -35,8 +35,17 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),cray)
+  CPP           = CC
+  CCFLAGS       = -O3
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -openmp -openmp-report2
+  MPICPP        = CC
+  MPIFLAGS      = $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 

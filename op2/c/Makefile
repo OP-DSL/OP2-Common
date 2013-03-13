@@ -49,8 +49,17 @@ ifeq ($(OP2_COMPILER),pgi)
   MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
   MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),cray)
+	CC       := cc
+	CCFLAGS  := -O3
+	CXX      := CC
+	CXXFLAGS := $(CCFLAGS)
+	MPICXX   := CC
+	MPIFLAGS := $(CXXFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
