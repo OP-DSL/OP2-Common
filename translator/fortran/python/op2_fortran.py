@@ -184,9 +184,13 @@ def get_arg_dat(arg_string, j):
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'
+    temp_dat['dim']='1*1'
+  if 'mpdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+  if 'maxgrp' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'
+    temp_dat['dim']='1*1'
   if temp_dat['typ']=='"r8"':
     temp_dat['typ']='"REAL(kind=8)"'
   if temp_dat['typ']=='"i4"':
@@ -222,9 +226,13 @@ def get_opt_arg_dat(arg_string, j):
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'
+    temp_dat['dim']='1*1'
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'
+    temp_dat['dim']='1*1'
+  if 'mpdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+  if 'maxgrp' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if temp_dat['typ']=='"r8"':
     temp_dat['typ']='"REAL(kind=8)"'
   if temp_dat['typ']=='"i4"':
@@ -258,6 +266,10 @@ def get_arg_gbl(arg_string, k):
 
   if 'DNPDE' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+  if 'mpdes' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
+  if 'maxgrp' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
   if temp_gbl['typ']=='"r8"':
     temp_gbl['typ']='"REAL(kind=8)"'
   if temp_gbl['typ']=='"i4"':
@@ -624,18 +636,18 @@ for a in range(init_ctr,len(sys.argv)):
               'invinds': invinds }
 
       if hydra==1:
-        search = 'use '+src_file.split('.')[0].upper()+'_KERNELS_'+name
+        temp['master_file'] = src_file.split('.')[0]
+        search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name+'\n'
         i = text.rfind(search)
         if i > -1:
-          temp['mod_file'] = search
+          temp['mod_file'] = search.strip()
         else:
-          search = 'use '+src_file.split('.')[0].upper()+'_KERNELS_'+name[:-1]
+          search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name[:-1]
           i = text.rfind(search)
           if i > -1:
-            temp['mod_file'] = search
+            temp['mod_file'] = search.strip()
           else:
             print'  ERROR: no module file found!  '
-
       kernels.append(temp)
 
 ########################## output source file  ############################
@@ -700,11 +712,13 @@ for a in range(init_ctr,len(sys.argv)):
 
     if locs[loc] in loc_loops:
        indent = indent + ' '*len('op_par_loop')
+       if file_format == 77:
+         indent='     '
        endofcall = arg_parse(text,locs[loc]+11)
        #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
-       line = str(' '+name+'_host("'+loop_args[curr_loop]['name1']+'",'+
+       line = str(' '+name+'_host(\n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
               loop_args[curr_loop]['set']+', '+cont_end+'\n')
 
        for arguments in range(0,loop_args[curr_loop]['nargs']):
@@ -743,8 +757,9 @@ for a in range(init_ctr,len(sys.argv)):
     text = fid.read()
     fid.close()
     for nk in range (0,len(kernels)):
-      replace = 'use '+kernels[nk]['name']+'_MODULE'
-      text = text.replace(kernels[nk]['mod_file'], replace)
+#      replace = 'use '+kernels[nk]['name']+'_MODULE'+'\n'
+      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+      text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:
       fid = open(src_file.split('.')[0]+'_op.F90', 'w')

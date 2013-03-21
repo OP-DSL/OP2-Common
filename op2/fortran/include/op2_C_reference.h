@@ -19,7 +19,7 @@ void op_arg_set(int n, op_arg arg, char **p_arg, int halo);
 void op_arg_copy_in(int n, op_arg arg, char **p_arg);
 
 void op_args_check(op_set set, int nargs, op_arg *args,
-  int *ninds, const char *name);
+  int *ninds);
 
 #define CHARP_LIST(N) COMMA_LIST(N,CHARP)
 #define CHARP(x) char*

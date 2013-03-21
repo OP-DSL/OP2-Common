@@ -115,9 +115,9 @@ void op_arg_copy_in(int n, op_arg arg, char **p_arg) {
 }
 
 void op_args_check(op_set set, int nargs, op_arg *args,
-                                      int *ninds, const char *name) {
+                                      int *ninds) {
   for (int n=0; n<nargs; n++)
-    op_arg_check(set,n,args[n],ninds,name);
+    op_arg_check(set,n,args[n],ninds,"");
 }
 
 
@@ -156,6 +156,8 @@ void op_args_check(op_set set, int nargs, op_arg *args,
   void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set_core * set, ARG_LIST_POINTERS(N)) { \
     char * p_a[N] = {ZERO_LIST(N)};                                     \
     op_arg args[N] = {ARG_ARR_LIST(N)};                                 \
+    int ninds = 0;                                                      \
+    if (OP_diags>0) op_args_check(set,N,args,&ninds);                   \
     int halo = 0;                                                       \
     int n_upper;                                                        \
     ALLOC_POINTER_LIST(N)                                               \

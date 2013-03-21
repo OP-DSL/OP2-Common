@@ -228,15 +228,15 @@ module OP2_Fortran_RT_Support
     end subroutine
 
     ! commented while waiting for C-side support
-    ! subroutine op_mpi_reduce_bool (arg, data) BIND(C,name='op_mpi_reduce_bool')
+    subroutine op_mpi_reduce_bool (arg, data) BIND(C,name='op_mpi_reduce_bool')
 
-    !   use, intrinsic :: ISO_C_BINDING
-    !   use OP2_Fortran_Declarations
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
 
-    !   type(op_arg) :: arg
-    !   type(c_ptr) :: data
+      type(op_arg) :: arg
+      type(c_ptr) :: data
 
-    ! end subroutine
+    end subroutine
 
     ! debugging routines
     subroutine op_dump_arg (arg) BIND(C,name='op_dump_arg')

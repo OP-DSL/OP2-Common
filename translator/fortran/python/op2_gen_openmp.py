@@ -209,8 +209,10 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 ##########################################################################
 #  Generate Header
 ##########################################################################
-
-    code('MODULE '+name.upper()+'_MODULE')
+    if hydra:
+      code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
+    else:
+      code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
     code('USE OP2_FORTRAN_RT_SUPPORT')
     code('USE ISO_C_BINDING')
@@ -336,8 +338,8 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code(typs[g_m]+', DIMENSION(0:*) :: opDat'+str(g_m+1))
         elif maps[g_m] == OP_GBL:
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-            #code(typs[g_m]+' :: opDat'+str(g_m+1))
-            code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
+            code(typs[g_m]+' :: opDat'+str(g_m+1))
+            #code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
           else:
             code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1))
 
@@ -396,7 +398,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_INC):
-          code('REAL(kind=8), DIMENSION(0:'+str(int(dims[g_m])-1)+') :: opDat'+str(g_m+1)+'Local')
+          code('REAL(kind=8), DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
           code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'Map')
 
 
@@ -457,35 +459,30 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
         if 'INTEGER' in typs[invinds[g_m]].upper():
           code('opDat'+str(invinds[g_m]+1)+'SharedIndirection => sharedInt8(opDat'+str(invinds[g_m]+1)+'nBytes:)')
       code('')
-
       for g_m in range(0,ninds):
-        if accs[invinds[g_m]] != OP_WRITE:
-          if indopts[g_m]>=0:
-            IF('BTEST(optflags,'+str(optidxs[indopts[g_m]])+')')
-          DO('i1','0','opDat'+str(invinds[g_m]+1)+'SharedIndirectionSize')
-          DO('i2','0', inddims[g_m])
-          if accs[invinds[g_m]] == OP_READ:
-            code('opDat'+str(invinds[g_m]+1)+'SharedIndirection(i2 + i1 * ('+inddims[g_m]+\
-            ') + 1) = opDat'+str(invinds[g_m]+1)+'(i2 + opDat'+str(invinds[g_m]+1)+\
-            'IndirectionMap(i1 + 1) * ('+inddims[g_m]+'))')
-          elif accs[invinds[g_m]] == OP_INC:
-            code('opDat'+str(invinds[g_m]+1)+'SharedIndirection(i2 + i1 * ('+inddims[g_m]+\
-            ') + 1) = 0')
-          elif accs[invinds[g_m]] == OP_RW:
-            code('opDat'+str(invinds[g_m]+1)+'SharedIndirection(i2 + i1 * ('+inddims[g_m]+\
-            ') + 1) = opDat'+str(invinds[g_m]+1)+'(i2 + opDat'+str(invinds[g_m]+1)+'IndirectionMap(i1 + 1) * ('+inddims[g_m]+'))')
-          ENDDO()
-          ENDDO()
-          if indopts[g_m]>=0:
-            ENDIF()
-          code('')
+        if indopts[g_m]>=0:
+          IF('BTEST(optflags,'+str(optidxs[indopts[g_m]])+')')
+        DO('i1','0','opDat'+str(invinds[g_m]+1)+'SharedIndirectionSize')
+        DO('i2','0', inddims[g_m])
+        if accs[invinds[g_m]] == OP_READ or accs[invinds[g_m]] == OP_RW or accs[invinds[g_m]] == OP_WRITE:
+          code('opDat'+str(invinds[g_m]+1)+'SharedIndirection(i2 + i1 * ('+inddims[g_m]+\
+          ') + 1) = opDat'+str(invinds[g_m]+1)+'(i2 + opDat'+str(invinds[g_m]+1)+\
+          'IndirectionMap(i1 + 1) * ('+inddims[g_m]+'))')
+        elif accs[invinds[g_m]] == OP_INC:
+          code('opDat'+str(invinds[g_m]+1)+'SharedIndirection(i2 + i1 * ('+inddims[g_m]+\
+          ') + 1) = 0')
+        ENDDO()
+        ENDDO()
+        if indopts[g_m]>=0:
+          ENDIF()
+        code('')
 
       DO('i1','0','numberOfActiveThreadsCeiling')
       code('  colour2 = -1')
       IF('i1 < numberOfActiveThreads')
 
       for g_m in range(0,nargs):
-        if accs[g_m] == OP_INC:
+        if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
           DO('i2','0',dims[g_m])
           code('opDat'+str(g_m+1)+'Local(i2) = 0')
           ENDDO()
@@ -493,7 +490,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       for g_m in range(0,nargs):
         if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and maps[g_m] == OP_MAP and optflags[g_m]==1:
           IF('BTEST(optflags,'+str(optidxs[g_m])+')')
-          if int(dims[g_m]) > 1:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'SharedIndirection(1+mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * ('+dims[g_m]+'):)')
           else:
             code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'SharedIndirection(1+mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * 1:)')
@@ -508,8 +505,8 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code(typs[g_m]+', DIMENSION(0:*) :: opDat'+str(g_m+1))
         else: #global arg
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-            #code(typs[g_m]+' :: opDat'+str(g_m+1))
-            code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
+            code(typs[g_m]+' :: opDat'+str(g_m+1))
+            #code(typs[g_m]+', DIMENSION(1) :: opDat'+str(g_m+1))
           else:
             code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1))
 
@@ -529,22 +526,25 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          if int(dims[g_m]) > 1:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             line = line + indent + '& opDat'+str(g_m+1)+'((i1 + threadBlockOffset) * ('+dims[g_m]+'):(i1 + threadBlockOffset) * ('+dims[g_m]+') + '+dims[g_m]+' - 1)'
           else:
             line = line + indent + '& opDat'+str(g_m+1)+'((i1 + threadBlockOffset) * 1)'
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and optflags[g_m]==0:
-          if int(dims[g_m]) > 1:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'SharedIndirection(1 + mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * ('+dims[g_m]+'):1 + mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * ('+dims[g_m]+') + '+dims[g_m]+' - 1)'
           else:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'SharedIndirection(1 + mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset) * 1)'
         elif maps[g_m] == OP_MAP and (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and optflags[g_m]==1:
-          if int(dims[g_m]) > 1:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
           else:
             line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
         elif maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-          line = line +indent + '& opDat'+str(g_m+1)+'Local'
+          if dims[g_m].isdigit() and int(dims[g_m])==1:
+            line = line +indent + '& opDat'+str(g_m+1)+'Local(0)'
+          else:
+            line = line +indent + '& opDat'+str(g_m+1)+'Local'
         if maps[g_m] == OP_GBL:
           line = line + indent +'& opDat'+str(g_m+1)
         if g_m < nargs-1:
@@ -612,7 +612,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_GBL:
           line = line + indent +'& opDat'+str(g_m+1)
         else:
-          if int(dims[g_m]) == 1:
+          if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             line = line + indent +'& opDat'+str(g_m+1)+'(i1 * ('+dims[g_m]+'))'
           else:
             line = line + indent +'& opDat'+str(g_m+1)+'(i1 * ('+dims[g_m]+'):i1 * ('+dims[g_m]+') + '+dims[g_m]+' - 1)'
@@ -903,7 +903,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
           code('& opDat'+str(g_m+1)+'Local, &')
         elif maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
           code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
-        elif maps[g_m] == OP_GBL and accs[g_m] == OP_READ:
+        elif maps[g_m] == OP_GBL and (accs[g_m] == OP_READ or accs[g_m] == OP_WRITE):
           code('& opDat'+str(g_m+1)+'Local, &')
 
       for g_m in range(0,ninds):
@@ -972,22 +972,28 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 
     #reductions
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
+      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
         DO('i10','1','numberOfThreads+1')
-        DO('i11','1',dims[g_m]+'+1')
-        code('opDat'+str(g_m+1)+'Local(i11) = opDat'+str(g_m+1)+'Local(i11) + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11)')
-        ENDDO()
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          DO('i11','1',dims[g_m]+'+1')
+          code('opDat'+str(g_m+1)+'Local(i11) = opDat'+str(g_m+1)+'Local(i11) + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i11)')
+          ENDDO()
+        else:
+          code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i10 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1)')
         ENDDO()
         code('')
         code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
         code('')
-        if typs[g_m] == 'real(8)':
+      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
+        if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
           code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        elif typs[g_m] == 'real(4)':
+        elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
           code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        elif typs[g_m] == 'integer(4)':
+        elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)':
           code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-
+        elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
+          code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+        code('')
 
     code('call date_and_time(values=timeArrayEnd)')
     code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
@@ -1008,13 +1014,15 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
 
     depth = depth - 2
     code('END SUBROUTINE')
-    code('END MODULE '+name.upper()+'_MODULE')
+    code('END MODULE')
     code('')
 
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    fid = open(name+'_kernel.F90','w')
+    if hydra:
+      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+    fid = open(name+'_kernel.F95','w')
     date = datetime.datetime.now()
     fid.write('!\n! auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n!\n\n')
     fid.write(file_text.strip())

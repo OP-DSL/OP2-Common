@@ -406,7 +406,7 @@ op_err_print ( const char * error_string, int m, const char * name )
 {
   printf ( "error: arg %d in kernel \"%s\"\n", m, name );
   printf ( "%s \n", error_string );
-  exit ( 1 );
+//  exit ( 1 );
 }
 
 void
