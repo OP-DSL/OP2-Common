@@ -527,7 +527,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 *******************************************************************************/
 void op_dump_to_hdf5(char const * file_name)
 {
-  printf("Writing to %s\n",file_name);
+  op_printf("Writing to %s\n",file_name);
 
   //declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
