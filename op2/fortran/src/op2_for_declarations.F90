@@ -133,6 +133,12 @@ module OP2_Fortran_Declarations
 #else
     type(c_ptr)         :: data_d
 #endif
+    type(c_ptr)         :: map_data
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::         map_data_d    ! data on device
+#else
+    type(c_ptr)         :: map_data_d
+#endif
     type(c_ptr)         :: type
     integer(kind=c_int) :: acc
     integer(kind=c_int) :: argtype

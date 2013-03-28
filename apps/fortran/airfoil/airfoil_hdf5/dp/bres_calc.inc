@@ -5,7 +5,7 @@ SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
   REAL(kind=8), DIMENSION(4) :: q1
   REAL(kind=8) :: adt1
   REAL(kind=8), DIMENSION(4) :: res1
-  INTEGER(kind=4), DIMENSION(1) :: bound
+  INTEGER(kind=4) :: bound
   REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
 
   dx = x1(1) - x2(1)
@@ -13,7 +13,7 @@ SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
   ri = 1.0 / q1(1)
   p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
 
-  IF (bound(1) .EQ. 1) THEN
+  IF (bound .EQ. 1) THEN
     res1(2) = res1(2) + p1 * dy
     res1(3) = res1(3) -(p1 * dx)
   ELSE

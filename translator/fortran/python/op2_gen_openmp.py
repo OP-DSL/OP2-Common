@@ -11,6 +11,7 @@
 
 import re
 import datetime
+import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -218,8 +219,7 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
     code('USE ISO_C_BINDING')
     if hydra == 0:
       code('USE OP2_CONSTANTS')
-    else:
-      code(kernels[nk]['mod_file'])
+
     code('')
     code('#ifdef _OPENMP'); depth = depth + 2
     code('USE OMP_LIB'); depth = depth - 2
@@ -280,6 +280,19 @@ def op2_gen_openmp(master, date, consts, kernels, hydra):
       comm('user function')
       code('#include "'+name+'.inc"')
       code('')
+    else:
+      modfile = kernels[nk]['mod_file'][4:]
+      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      if not os.path.isfile(filename):
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
+      fid = open(filename, 'r')
+      text = fid.read()
+      fid.close()
+      text = text.replace('module','!module')
+      text = text.replace('contains','!contains')
+      text = text.replace('end !module','!end module')
+      file_text += text
+      #code(kernels[nk]['mod_file'])
     code('')
 
 ##########################################################################

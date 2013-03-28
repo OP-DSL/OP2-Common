@@ -38,6 +38,10 @@ import op2_gen_openmp
 from op2_gen_openmp import *
 
 #import openmp code generation function
+import op2_gen_mpiseq
+from op2_gen_mpiseq import *
+
+#import openmp code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
 
@@ -718,7 +722,7 @@ for a in range(init_ctr,len(sys.argv)):
        #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
-       line = str(' '+name+'_host(\n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
+       line = str(' '+name+'_host( &\n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
               loop_args[curr_loop]['set']+', '+cont_end+'\n')
 
        for arguments in range(0,loop_args[curr_loop]['nargs']):
@@ -799,5 +803,6 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
-op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
+#op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)

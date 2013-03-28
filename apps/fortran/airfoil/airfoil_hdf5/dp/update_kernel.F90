@@ -41,7 +41,7 @@ SUBROUTINE op_x86_update( &
   real(8), DIMENSION(0:*) :: opDat2
   real(8), DIMENSION(0:*) :: opDat3
   real(8), DIMENSION(0:*) :: opDat4
-  real(8), DIMENSION(1) :: opDat5
+  real(8) :: opDat5
   INTEGER(kind=4) :: sliceStart
   INTEGER(kind=4) :: sliceEnd
   INTEGER(kind=4) :: i1

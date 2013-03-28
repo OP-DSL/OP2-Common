@@ -83,9 +83,9 @@ ifeq ($(OP2_COMPILER),pgi)
 else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
-  OPT		  = -O2 -xSSE4.2 -vec-report
-  CC              = icc -O2 -xSSE4.2 -vec-report
-  CXX		  = icpc -O2 -xSSE4.2 -vec-report
+  OPT		  = -O0 -g -xSSE4.2 -vec-report
+  CC              = icc -O0 -g -xSSE4.2 -vec-report
+  CXX		  = icpc -O0 -g -xSSE4.2 -vec-report
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)

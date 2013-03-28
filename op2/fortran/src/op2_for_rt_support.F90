@@ -145,6 +145,15 @@ module OP2_Fortran_RT_Support
 
     end function
 
+    integer(kind=c_int) function getMapDimFromOpArg (arg) BIND(C,name='getMapDimFromOpArg')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_arg) :: arg
+
+    end function
+
     integer(kind=c_int) function op_is_root () BIND(C,name='op_is_root')
 
       use, intrinsic :: ISO_C_BINDING

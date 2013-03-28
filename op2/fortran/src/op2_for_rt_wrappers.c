@@ -150,3 +150,8 @@ int getSetSizeFromOpArg (op_arg * arg)
 {
   return arg->opt ? arg->dat->set->size : 0;
 }
+
+int getMapDimFromOpArg (op_arg * arg)
+{
+  return (arg->opt && arg->map!=NULL) ? arg->map->dim : 0;
+}

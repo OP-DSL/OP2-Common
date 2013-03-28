@@ -56,6 +56,7 @@ void op_get_dat_mpi (op_dat dat);
 void op_put_dat_mpi (op_dat dat);
 
 int getSetSizeFromOpArg (op_arg * arg);
+int getMapDimFromOpArg (op_arg * arg);
 
 int get_set_size (op_set_core * set);
 int get_associated_set_size (op_dat_core * dat);

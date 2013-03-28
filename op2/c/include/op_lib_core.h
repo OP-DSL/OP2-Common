@@ -155,6 +155,8 @@ typedef struct
               size;   /* size (for sequential execution) */
   char       *data,   /* data on host */
              *data_d; /* data on device (for CUDA execution) */
+  int        *map_data,   /* data on host */
+             *map_data_d; /* data on device (for CUDA execution) */
   char const *type;   /* datatype */
   op_access   acc;
   op_arg_type argtype;
