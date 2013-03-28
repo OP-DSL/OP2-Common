@@ -722,8 +722,12 @@ for a in range(init_ctr,len(sys.argv)):
        #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
-       line = str(' '+name+'_host( &\n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
-              loop_args[curr_loop]['set']+', '+cont_end+'\n')
+       if file_format == 90:
+         line = str(' '+name+'_host(& \n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
+                loop_args[curr_loop]['set']+', '+cont_end+'\n')
+       elif file_format == 77:
+         line = str(' '+name+'_host( \n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
+                 loop_args[curr_loop]['set']+', '+cont_end+'\n')
 
        for arguments in range(0,loop_args[curr_loop]['nargs']):
          elem = loop_args[curr_loop]['args'][arguments]

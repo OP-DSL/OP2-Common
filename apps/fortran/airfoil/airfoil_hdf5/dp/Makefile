@@ -35,7 +35,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPENMP = -openmp
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 -g -xSSE4.2 -vec-report
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
   CPPLINK = -lstdc++
 else
 ifeq ($(OP2_COMPILER),cray)
