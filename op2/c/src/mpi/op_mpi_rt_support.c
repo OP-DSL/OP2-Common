@@ -50,6 +50,10 @@
 #include <op_rt_support.h>
 #include <op_lib_mpi.h>
 
+void op_upload_dat(op_dat dat) {}
+
+void op_download_dat(op_dat dat) {}
+
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
@@ -180,6 +184,8 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
   }
 }
 
+void op_exchange_halo_cuda(op_arg* arg) {}
+
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
@@ -201,6 +207,8 @@ void op_wait_all(op_arg* arg)
   }
 
 }
+
+void op_wait_all_cuda(op_arg* arg) {}
 
 void op_partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )

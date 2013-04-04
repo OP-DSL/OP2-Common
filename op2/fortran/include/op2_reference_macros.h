@@ -46,6 +46,7 @@
 #define CLIST_40(x) CLIST_39(x), APPLY(x,40)
 #define CLIST_41(x) CLIST_40(x), APPLY(x,41)
 #define CLIST_42(x) CLIST_41(x), APPLY(x,42)
+#define CLIST_43(x) CLIST_42(x), APPLY(x,43)
 
 #define SLIST_1(d,x) APPLY(x,1)
 #define SLIST_2(d,x) SLIST_1(d,x) d APPLY(x,2)
@@ -89,6 +90,7 @@
 #define SLIST_40(d,x) SLIST_39(d,x) d APPLY(x,40)
 #define SLIST_41(d,x) SLIST_40(d,x) d APPLY(x,41)
 #define SLIST_42(d,x) SLIST_41(d,x) d APPLY(x,42)
+#define SLIST_43(d,x) SLIST_42(d,x) d APPLY(x,43)
 
 #define APPLY(x,y) x(y)
 

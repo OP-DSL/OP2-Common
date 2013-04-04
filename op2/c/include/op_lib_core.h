@@ -120,6 +120,7 @@ typedef struct
               to;     /* set pointed to */
   int         dim,    /* dimension of pointer */
              *map;    /* array defining pointer */
+  int        *map_d;  /* array on device */
   char const *name;   /* name of pointer */
   int         user_managed; /* indicates whether the user is managing memory */
 } op_map_core;
@@ -139,6 +140,7 @@ typedef struct
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
   char*       buffer_d_r; /* buffer for MPI halo receives on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
+  int         dirty_hd; /* flag to indicate dirty status on host and device */
   int         user_managed; /* indicates whether the user is managing memory */
   void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
 } op_dat_core;
@@ -264,9 +266,15 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name);
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
+
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
+
 void op_mpi_wait_all(int nargs, op_arg* args);
+
+void op_mpi_wait_all_cuda(int nargs, op_arg* args);
 
 void op_mpi_reset_halos(int nargs, op_arg* args);
 

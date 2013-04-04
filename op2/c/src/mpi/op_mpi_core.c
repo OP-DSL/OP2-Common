@@ -1508,13 +1508,15 @@ void op_halo_destroy()
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
-static void set_dirtybit(op_arg* arg)
+static void set_dirtybit(op_arg* arg, int hd)
 {
   op_dat dat = arg->dat;
 
   if((arg->opt==1) && (arg->argtype == OP_ARG_DAT) &&
-    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
+    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW)) {
     dat->dirtybit = 1;
+    dat->dirty_hd = hd;
+  }
 }
 
 
@@ -2228,6 +2230,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
 
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
+      op_download_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+
   //check if this is a direct loop
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
@@ -2254,12 +2262,50 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   return size;
 }
 
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
+  int size = set->size;
+  int direct_flag = 1;
+
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 1) {
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+
+  //check if this is a direct loop
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1) return size;
+
+  //not a direct loop ...
+  for (int n=0; n<nargs; n++) {
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
+      op_exchange_halo_cuda(&args[n]);
+
+    if(args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ)
+      size = set->size + set->exec_size;
+  }
+  return size;
+}
+
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
     {
-      set_dirtybit(&args[n]);
+      set_dirtybit(&args[n],1);
+    }
+  }
+}
+
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
+
+  for (int n=0; n<nargs; n++) {
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+      set_dirtybit(&args[n],2);
     }
   }
 }
@@ -2267,6 +2313,12 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 void op_mpi_wait_all(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
     op_wait_all(&args[n]);
+  }
+}
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  for (int n=0; n<nargs; n++) {
+    op_wait_all_cuda(&args[n]);
   }
 }
 

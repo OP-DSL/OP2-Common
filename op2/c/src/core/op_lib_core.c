@@ -271,6 +271,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->size = dim * size;
   dat->user_managed = 1;
   dat->mpi_buffer = NULL;
+  dat->dirty_hd = 0;
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry* item;

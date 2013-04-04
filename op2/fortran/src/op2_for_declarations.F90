@@ -80,6 +80,11 @@ module OP2_Fortran_Declarations
     type(c_ptr) ::            to           ! set map to
     integer(kind=c_int) ::    dim          ! dimension of map
     type(c_ptr) ::            map          ! array defining map
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::         map_d        ! array defining map on device
+#else
+    type(c_ptr) ::            map_d        ! array defining map on device
+#endif
     type(c_ptr) ::            name         ! map name
     integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory
 
@@ -108,6 +113,7 @@ module OP2_Fortran_Declarations
     type(c_ptr) ::            name         ! data name
     type(c_ptr) ::            buffer_d     ! buffer for MPI halo sends on the device
     integer(kind=c_int) ::    dirtybit     ! flag to indicate MPI halo exchange is needed
+    integer(kind=c_int) ::    dirty_hd     ! flag to indicate dirty status on host and device
     integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory
 
   end type op_dat_core
