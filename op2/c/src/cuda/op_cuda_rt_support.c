@@ -305,3 +305,134 @@ void op_cuda_get_data ( op_dat dat )
   cutilSafeCall ( cudaDeviceSynchronize (  ) );
   }
 }
+#ifndef OPMPI
+void op_upload_dat(op_dat dat) {
+  int set_size = dat->set->size;
+  cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));
+}
+
+void op_download_dat(op_dat dat) {
+  int set_size = dat->set->size;
+  cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
+}
+
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args)
+{
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
+      op_download_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+  return set->size;
+}
+
+void op_mpi_set_dirtybit(int nargs, op_arg *args)
+{
+  for (int n=0; n<nargs; n++) {
+    if((args[n].opt==1) && (args[n].argtype == OP_ARG_DAT) &&
+       (args[n].acc == OP_INC || args[n].acc == OP_WRITE || args[n].acc == OP_RW)) {
+      args[n].dat->dirty_hd = 1;
+    }
+  }
+}
+
+void op_mpi_wait_all(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
+
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args)
+{
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 1) {
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+  return set->size;
+}
+
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args)
+{
+  for (int n=0; n<nargs; n++) {
+    if((args[n].opt==1) && (args[n].argtype == OP_ARG_DAT) &&
+       (args[n].acc == OP_INC || args[n].acc == OP_WRITE || args[n].acc == OP_RW)) {
+      args[n].dat->dirty_hd = 2;
+    }
+  }
+}
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
+
+
+void op_mpi_reset_halos(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_barrier()
+{
+}
+
+int op_mpi_perf_time(const char* name, double time)
+{
+  (void)name;
+  (void)time;
+  return 0;
+}
+
+#ifdef COMM_PERF
+void op_mpi_perf_comms(int k_i, int nargs, op_arg *args)
+{
+  (void)k_i;
+  (void)nargs;
+  (void)args;
+}
+#endif
+
+void op_mpi_reduce_float(op_arg* args, float* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_mpi_reduce_double(op_arg* args, double* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_mpi_reduce_int(op_arg* args, int* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_mpi_reduce_bool(op_arg* args, bool* data)
+{
+  (void)args;
+  (void)data;
+}
+
+void op_partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords ) {
+  (void)lib_name;
+  (void)lib_routine;
+  (void)prime_set;
+  (void)prime_map;
+  (void)coords;
+}
+
+void op_partition_reverse() {
+}
+
+int op_is_root()
+{
+  return 1;
+}
+#endif

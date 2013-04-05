@@ -73,7 +73,7 @@ ifeq ($(OP2_COMPILER),pgi)
   PGCC            = pgcc
   PGCFLAGS        = -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD) -Mcuda=cuda4.2 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
+  PGFFLAGS        = -module $(F_INC_MOD) -Mcuda=cuda5.0 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
   CFLAGS          = $(PGCFLAGS)
   MPICC	  	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
@@ -209,7 +209,6 @@ f_cuda: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(C_OP2_INC)/op_cuda_rt_support.h $(C_OP2_SRC)/cuda/op_cuda_rt_support.c \
 	$(C_OP2_SRC)/cuda/op_cuda_decl.c \
 	$(F_OP2_SRC)/op2_for_rt_wrappers.c \
-	$(C_OP2_SRC)/core/op_dummy_singlenode.c \
 	$(F_OP2_SRC)/op2_for_rt_support.F90 \
 	$(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c \
@@ -230,9 +229,10 @@ f_cuda: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_cuda_decl.o \
 	$(F_OP2_OBJ)/op_cuda_rt_support.o \
-	$(F_OP2_OBJ)/op_dummy_singlenode.o \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_declarations.o \
+	$(F_OP2_OBJ)/op2_C_reference.o \
+	$(F_OP2_OBJ)/op2_for_reference.o \
 	$(F_OP2_OBJ)/op2_for_rt_support.o \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_rt_wrappers.o \
@@ -328,7 +328,7 @@ f_mpi_cuda: directories core \
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_core.c -o $(F_OP2_OBJ)/op_mpi_core.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_decl.c -o $(F_OP2_OBJ)/op_mpi_cuda_decl.o
-	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
+	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -DOPMPI -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) $(PARMETIS_INC) $(PARMETIS_LIB) -c $(C_OP2_SRC)/mpi/op_mpi_part_core.c -o $(F_OP2_OBJ)/op_mpi_part_core.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_rt_support.c -o $(F_OP2_OBJ)/op_mpi_cuda_rt_support.o
 	$(NVCC) $(NVCCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_kernels.cu -o $(F_OP2_OBJ)/op_mpi_cuda_kernels.o

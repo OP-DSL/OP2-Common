@@ -492,9 +492,9 @@ module OP2_Fortran_Declarations
     module procedure op_arg_dat_python
   end interface op_arg_dat
 
-  !interface op_opt_arg_dat
-  !  module procedure op_opt_arg_dat_python
-  !end interface op_opt_arg_dat
+  interface op_opt_arg_dat
+    module procedure op_opt_arg_dat_python
+  end interface op_opt_arg_dat
 
 contains
 
@@ -801,7 +801,7 @@ contains
 
   end function op_arg_dat_python
 
-  type(op_arg) function op_opt_arg_dat (opt, dat, idx, map, dim, type, access)
+  type(op_arg) function op_opt_arg_dat_python (opt, dat, idx, map, dim, type, access)
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -826,15 +826,15 @@ contains
     if (opt) then
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
       else
-        op_opt_arg_dat = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
       endif
   else
-      op_opt_arg_dat = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
+      op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
   endif
 
-  end function op_opt_arg_dat
+  end function op_opt_arg_dat_python
 
     INTEGER function op_get_size (set )
 

@@ -116,10 +116,10 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 	$(CXX) $(CXXFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+#	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
-	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
+	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o # $(OBJ)/op_dummy_singlenode.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
@@ -167,7 +167,7 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
