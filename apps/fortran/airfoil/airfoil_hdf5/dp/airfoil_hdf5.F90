@@ -3,7 +3,7 @@ program AIRFOIL
   use OP2_FORTRAN_HDF5_DECLARATIONS
   use OP2_Fortran_Reference
   use OP2_Fortran_RT_Support
-  use AIRFOIL_SEQ
+!  use AIRFOIL_SEQ
   use OP2_CONSTANTS
   use IO
   use, intrinsic :: ISO_C_BINDING

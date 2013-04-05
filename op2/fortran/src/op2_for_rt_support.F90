@@ -215,7 +215,7 @@ module OP2_Fortran_RT_Support
       integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
       type(op_arg), dimension(*) :: args       ! array with op_args
 
-    end function op_mpi_halo_exchanges
+    end function op_mpi_halo_exchanges_cuda
 
     subroutine op_mpi_wait_all_cuda (argsNumber, args) BIND(C,name='op_mpi_wait_all_cuda')
 

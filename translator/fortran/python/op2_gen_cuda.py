@@ -493,8 +493,13 @@ def op2_gen_cuda(master, date, consts, kernels):
         if maps[g_m] <> OP_GBL:
           code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
         else: #global arg
-          code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
-          code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
+          if dims[g_m].isdigit() and int(dims[g_m]) == 1:
+            code(typs[g_m]+' :: opDat'+str(g_m+1)+'Local')
+            code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
+          else:
+            code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
+            code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
+
 
       code('INTEGER(kind=4), VALUE :: setSize')
       code('INTEGER(kind=4), VALUE :: warpSize')
