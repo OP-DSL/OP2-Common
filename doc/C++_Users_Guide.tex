@@ -74,7 +74,7 @@ parallelised using CUDA for NVIDIA GPUs
 multi-threaded using OpenMP for multicore x86 systems
 \end{itemize}
 
-In the future, there will also be support for AVX vectorisation
+\noindent In the future, there will also be support for AVX vectorisation
 for x86 CPUs, and OpenCL for both CPUs and GPUS.
 
 In addition to this, there is support for distributed-memory MPI
@@ -96,7 +96,7 @@ debugging the program, often using a small testcase
 running the program on increasingly large applications
 \end{itemize}
 
-With OP2 we want to simplify the first two tasks, while
+\noindent With OP2 we want to simplify the first two tasks, while
 providing as much performance as possible for the third.
 
 To achieve the high performance for large applications, a
@@ -352,7 +352,7 @@ block.}
 \newpage
 
 \begin{routine} {op\_dat op\_decl\_dat\_tmp(op\_set set, int dim, char *type, char *name)}
-{This routine (which is not yet implemented) defines a temporary dataset, initialises it to zero, and returns a dataset ID.}
+{This routine defines a temporary dataset, initialises it to zero, and returns a dataset ID.}
 
 \item[set]           set
 \item[dim]           dimension of dataset (number of items per set element)
@@ -366,7 +366,7 @@ block.}
 
 
 \begin{routine} {void op\_free\_dat\_tmp(op\_dat dat)}
-{This routine (which is not yet implemented) terminates a temporary dataset.}
+{This routine terminates a temporary dataset.}
 \item[dat]           OP dataset ID
 \end{routine}
 
@@ -648,18 +648,17 @@ libraries which are linked in.
 \subsection{Other I/O and Miscellaneous Routines}
 
 \begin{routine} {void op\_printf(const char * format, ...)}
-{This routine simply prints a message; this routine is created is in place of the standard {\tt printf}
-function which would print the same message from each MPI process.}
+{This routine simply prints a variable number of arguments; it is created is in place of the standard {\tt printf}
+function which would print the same on each MPI process.}
 \item \vspace{-0.3in}
 \end{routine}
 
 \begin{routine} {void op\_fetch\_data\_hdf5(op\_dat dat, T* data, int low, int high)}
-{This routine transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
-to by data pointer of type T. the low and high integers gives the range of elements to be fetched}
+{Transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
+to by data pointer of type T. the {\tt low} and {\tt high} integers gives the range of elements to be fetched}
 \item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
-
 \item [data] pointer to a block of memory of type T -- allocated by the user
-\item [low] index of the 1st element to be fetched
+\item [low] index of the first element to be fetched
 \item [high] index of the last element to be fetched
 \end{routine}
 
@@ -691,11 +690,11 @@ on MPI\_ROOT else 0}
 \end{routine}
 
 \begin{routine} {int op\_get\_size(op\_set set)}
- {Get the Global size of an op\_set}
+ {Get the global size of an op\_set}
 \item [set] OP set ID
 \end{routine}
 
-\begin{routine} {void op\_dump\_hdf5(char const * file\_name)}
+\begin{routine} {void op\_dump\_to\_hdf5(char const * file\_name)}
 {Dump the contents of all the op\_sets, op\_dats and op\_maps to an hdf5 file \textbf{as held internally by OP2},
 useful for debugging}
 \item [file\_name] the file name to be written to
