@@ -90,7 +90,7 @@ is the design of how the sets, mappings and data on sets that defines an
 unstructured mesh application is read in by OP2. The current implementation
 achieve this input (and output) via two approaches:
 \begin{enumerate}
-\item The application developer to handles the file I/O where a minor
+\item Allow the application developer handles the file I/O where a minor
 extension to the OP2 API will makes it possible to define \texttt{op\_set}s,
 \texttt{op\_dat}s and \texttt{op\_map}s that are distributed across the MPI
 universe.
@@ -138,10 +138,11 @@ which corresponds to its share of the {\tt from} set
 share of {\tt set}
 \end{itemize}
 \noindent An example implementation of the above approach is given in the
-Airfoil application where an initial distribution of data on sets and mapping
-tables are achieved. MPI rank 0 will serially read in to its RAM the data on
-sets and mapping tables from \texttt{new\_grid.dat} and then will distribute the
-part of data and mappings (using MPI\_Scatter operations) to other processors.
+Airfoil application (\texttt{OP2-Common/apps/c/airfoil\_plain}) where an initial
+distribution of data on sets and mapping tables are achieved. MPI rank 0 will
+serially read in to its RAM the data on sets and mapping tables from
+\texttt{new\_grid.dat} and then will distribute the part of data and mappings
+(using MPI\_Scatter operations) to other processors.
 
 \noindent In the second case, OP2 defines an HDF5 file format (described
 later in Section~\ref{sec/hdf5}) using which an applications programmer can
@@ -159,6 +160,9 @@ imap} replaced by {\tt file} from which the mapping table is read using keyword
 \item {\bf op\_decl\_dat\_hdf5}: similar to {\bf op\_decl\_dat} but with {\tt
 dat} replaced by {\tt file} from which the data is read using keyword {\tt name}
 \end{itemize}
+
+\noindent An example implementation of the HDF5 approach is also given in the
+Airfoil application (\texttt{OP2-Common/apps/c/airfoil\_hdf5}).
 
 \noindent If the user is responsible for allocating data arrays to pass to \texttt{op\_decl\_map} and
 \texttt{op\_decl\_dat} then the MPI back-end will make a copy of this data internally as halo creation needs to realloc
@@ -294,11 +298,9 @@ Cells	& 6, 7, 8	& 4, 5	& 3	& -		& - \\\hline
 \end{tabular}\label{tab/impexp}\vspace{-0pt}
 \end{table}\normalsize
 
-\noindent The \texttt{op\_halo\_create()} routine (defined in
-\texttt{op\_mpi\_core.c}) goes through all the mapping tables and creates lists
-that hold the indices of the set elements that fall in to the above
-classification. An export or an import list for an \texttt{op\_set} has the
-following structure (defined in \texttt{op\_mpi\_core.h} and
+\noindent The \texttt{op\_halo\_create()} routine (defined in \texttt{op\_mpi\_core.c}) goes through all the mapping
+tables and creates lists that hold the indices of the set elements that fall in to each of the above categories. An
+export or an import list for an \texttt{op\_set} has the following structure (defined in \texttt{op\_mpi\_core.h} and
 \texttt{op\_mpi\_core.c}):\vspace{-0pt}
 \begin{verbatim}
 typedef struct {
@@ -439,20 +441,15 @@ order in which data on a set will be organized after halo creation.
 % halo exchange in loops - including overlapping computation and communications
 \subsection{\texttt{op\_par\_loop} and Halo Exchanges}\label{subsec/exchange}
 % 1. the operation of the par_loop
-A call to \texttt{op\_par\_loop} in a OP2 application executed under MPI will
-result in the loop being executed over the local elements of the set on each MPI
-process. Additionally if the loop is an indirect loop, then computation
-should be done over the \textit{ieh} as well. Depending on the loop (indirect or
-direct) and the access type of each \texttt{op\_arg}, halo exchanges (with a
-call to \texttt{exchange\_halo()}) may be needed before computation is performed
-over any elements that are not \texttt{core} and in the \texttt{ieh}. After loop
-computation is performed, depending on the access and argtype of the
-\texttt{op\_arg} the halos must be marked as ``dirty'' so that the next
-iteration of the loop can make the decision to update the halos as required
-(defined in \texttt{op\_mpi\_core.c} and \texttt{op\_mpi\_rt\_support.c}). The
-current implementation utilise a separate field in the \texttt{op\_dat} struct
-to holds this information. The value \texttt{op\_dat->dirtybit} is set to 1 to
-indicate that the halo of \texttt{op\_dat} has been modified. The rules
+A call to \texttt{op\_par\_loop} in a OP2 application executed under MPI will result in the loop being executed over the
+local elements of the set on each MPI process. Additionally if the loop is an indirect loop, then computation
+should be done over the \textit{ieh} as well. Depending on the loop (indirect or direct) and the access type of each
+\texttt{op\_arg}, halo exchanges may be needed before computation is performed over any elements that are not
+\texttt{core} and in the \texttt{ieh}. After loop computation is performed, depending on the access and argtype of the
+\texttt{op\_arg} the halos must be marked as ``dirty'' so that the next iteration of the loop can make the decision to
+update the halos as required (defined in \texttt{op\_mpi\_core.c} and \texttt{op\_mpi\_rt\_support.c}). The current
+implementation utilise a separate field in the \texttt{op\_dat} struct to holds this information. The value
+\texttt{op\_dat->dirtybit} is set to 1 to indicate that the halo of \texttt{op\_dat} has been modified. The rules
 governing the loop operation are as follows:
 \begin{enumerate}
 \item If the \texttt{op\_par\_loop} consists of at least one \texttt{op\_arg}
@@ -478,38 +475,33 @@ else
 OP\_WRITE} or \texttt{OP\_RW}.
 \end{enumerate}
 
-\noindent A halo exchange is triggered by a call to \texttt{exchange\_halo
-(op\_set set, op\_arg arg)} which is defined in \texttt{op\_mpi\_rt\_support.c}.
-Within this call, the above conditions that determines a halo exchange are
-checked and if satisfied will pack the relevant halo data to the pre defined
-send buffers, make a call to MPI non-blocking operations (\texttt{MPI\_Isend}
-and \texttt{MPI\_Irecev}) and will return 1 to indicate that a non-blocking
-communication is \textit{in-flight}. As detailed in
-Section~\ref{subsec/halolists}, the \textit{eeh} and the \textit{enh} of an MPI
-process provides the indices of the elements that needs to be exported as well
-as the MPI ranks that will be exported to. Using these lists an MPI process will
-pack the data to be set into the send buffers and then will send them using
-\texttt{MPI\_Isend} operations. The following is for sending the \textit{eeh}:\newpage
+\noindent A halo exchange is triggered by a call to \texttt{op\_exchange\_halo(op\_arg* arg)} which is defined in
+\texttt{op\_mpi\_rt\_support.c}. Within this call, the above conditions that determines a halo exchange are
+checked and if satisfied will pack the relevant halo data to the pre defined send buffers, make a call to MPI
+non-blocking operations (\texttt{MPI\_Isend} and \texttt{MPI\_Irecev}) and will return 1 to indicate that a non-blocking
+communication is \textit{in-flight}. As detailed in Section~\ref{subsec/halolists}, the \textit{eeh} and the
+\textit{enh} of an MPI process provides the indices of the elements that needs to be exported as well as the MPI ranks
+that will be exported to. Using these lists an MPI process will pack the data to be set into the send buffers and then
+will send them using \texttt{MPI\_Isend} operations. The following is for sending the \textit{eeh}:\newpage
 \begin{verbatim}
 halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
 
 for(int i=0; i<exp_exec_list->ranks_size; i++) {
-   for(int j = 0; j < exp_exec_list->sizes[i]; j++)
-   {
-     int set_elem_index = exp_exec_list->
-                          list[exp_exec_list->disps[i]+j];
-     memcpy(&OP_mpi_buffer_list[dat->index]->
-     buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
-     (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
-   }
-   MPI_Isend(&OP_mpi_buffer_list[dat->index]->
-          buf_exec[exp_exec_list->disps[i]*dat->size],
-          dat->size*exp_exec_list->sizes[i],
-          MPI_CHAR, exp_exec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          s_req[OP_mpi_buffer_list[dat->index]->s_num_req++]);
+  for(int j = 0; j < exp_exec_list->sizes[i]; j++)
+  {
+    set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
+    memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
+    buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
+    (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
   }
+  MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
+         buf_exec[exp_exec_list->disps[i]*dat->size],
+         dat->size*exp_exec_list->sizes[i],
+         MPI_CHAR, exp_exec_list->ranks[i],
+         dat->index, OP_MPI_WORLD,
+         &((op_mpi_buffer)(dat->mpi_buffer))->
+         s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+    }
 \end{verbatim}
 \noindent The \texttt{MPI\_Isend} operations are immediately followed by
 \texttt{MPI\_Irecev} operations, which sets up the non-blocking communications
@@ -520,59 +512,48 @@ halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
 
 int init = dat->set->size*dat->size;
 for(int i=0; i < imp_exec_list->ranks_size; i++) {
-   MPI_Irecv(&(OP_dat_list[dat->index]->
-          data[init+imp_exec_list->disps[i]*dat->size]),
-          dat->size*imp_exec_list->sizes[i],
-          MPI_CHAR, imp_exec_list->ranks[i],
-          dat->index, OP_MPI_WORLD,
-          &OP_mpi_buffer_list[dat->index]->
-          r_req[OP_mpi_buffer_list[dat->index]->r_num_req++]);
+  MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
+         dat->size*imp_exec_list->sizes[i],
+         MPI_CHAR, imp_exec_list->ranks[i],
+         dat->index, OP_MPI_WORLD,
+         &((op_mpi_buffer)(dat->mpi_buffer))->
+         r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
 }
 \end{verbatim}
 
-\noindent A call to \texttt{wait\_all(op\_arg arg)} routine needs to be
-performed in order to complete the MPI communications. The
-\texttt{op\_par\_loop} is structured so that all the \texttt{exchange\_halo()}
-calls are done at the beginning of the loop, followed by computation over the
-\textit{core} elements of the set and then by calls to \texttt{wait\_all()}.
-This will allow for maximum overlapping of computation with communication as
-none of the \textit{core} elements reference any halo data. After the calls to
-\texttt{the wait\_all()} the remaining set elements could be computed. A
-reference implementation of the above can be found in \texttt{op\_mpi\_seq.h}.
+\noindent A call to \texttt{op\_wait\_all(op\_arg arg)} routine needs to be performed in order to complete the MPI
+communications. The \texttt{op\_par\_loop} is structured so that all the \texttt{op\_exchange\_halo()} calls are done at
+the beginning of the loop, followed by computation over the \textit{core} elements of the set and then by calls to
+\texttt{op\_wait\_all()}. This will allow for maximum overlapping of computation with communication as none of the
+\textit{core} elements reference any halo data. After the calls to the \texttt{op\_wait\_all()} the remaining set
+elements could be computed. A reference implementation of the above can be found in \texttt{op\_seq.h}.
 
 % global operations
 \subsection{Global Operations}\label{subsec/globalops}
 
-If an \texttt{op\_arg} is of type \texttt{OP\_ARG\_GBL} then a global operation
-needs to be performed for that argument. The operation to be performed is one of
-\texttt{OP\_INC} (global reduction), \texttt{OP\_MAX} (global maximum),
-\texttt{OP\_MIN} (global minimum). For an \texttt{op\_arg} of type
-\texttt{OP\_ARG\_GBL}, the contributions from executing the IEH must not be
-included Thus the reference implementation passes in a dummy value in place of
-any \texttt{op\_arg} with type \texttt{OP\_ARG\_GBL}. After the loop over the
-elements are performed on each MPI process, the global operation should be done
-across all the MPI processes by a call to \texttt{global\_reduce()} which is
-also defined in \texttt{op\_mpi\_core.c}. This routine checks for the type of
-the data exchanged and the type of the operation to be performed and calls
+If an \texttt{op\_arg} is of type \texttt{OP\_ARG\_GBL} then a global operation needs to be performed for that argument.
+The operation to be performed is one of \texttt{OP\_INC} (global reduction), \texttt{OP\_MAX} (global maximum),
+\texttt{OP\_MIN} (global minimum). For an \texttt{op\_arg} of type \texttt{OP\_ARG\_GBL}, the contributions from
+executing the \textit{ieh} must not be included. Thus the reference implementation passes in a dummy value in place of
+any \texttt{op\_arg} with type \texttt{OP\_ARG\_GBL}. After the loop over the elements are performed on each MPI
+process, the global operation should be done across all the MPI processes by a call to \texttt{op\_mpi\_reduce()}. This
+routine checks for the type of the data exchanged and the type of the operation to be performed and calls
 \texttt{MPI\_Allreduce} with the relevant operation and data type.
 
 % implementing op_fetch and op_put
-\subsection{\texttt{op\_fetch\_data} (TBC)}\label{subsec/putfetch}
-The proposed operation of \texttt{op\_fetch\_data (op\_dat dat)} within an OP2
-application executing over MPI will be to present the current values of the
-\texttt{op\_dat}'s data array in the order of the elements that was originally
-handed to OP2. It should be noted that the data array presented to the user
-level application is a \underline{copy} of the current state of the internal
-\texttt{op\_dat}. This routine is currently not implemented. A valid
-implementation will first make a copy of the current data values in the
-\texttt{op\_dat} requested and will reorder them according to the
-original global index of the set elements on which this data is defined on.
+\subsection{\texttt{op\_fetch\_data (op\_dat dat, T* data)}}\label{subsec/putfetch}
+The operation of \texttt{op\_fetch\_data ()} within an OP2 application executing over MPI will be to present the current
+values of the \texttt{op\_dat}'s data array in the order of the elements that was originally handed to OP2. It should be
+noted that the data array presented to the user level application is a \underline{copy} of the current state of the
+internal \texttt{op\_dat}. The implementation first makes a copy of the current data values in the \texttt{op\_dat}
+requested and will reorder them according to the original global index of the set elements on which this data is defined
+on. A similar operation is carried out by \texttt{op\_fetch\_data\_hdf5(op\_dat dat, T* data, int low, int high)} and
+\texttt{op\_fetch\_data\_hdf5\_file(op\_dat dat, char const *file\_name)}. See user documentation for more details.
 
-\noindent Conversely an \texttt{op\_put\_data()} routine may also be implemented
-(as required) so that the user level application can modify the internal values
-of an \texttt{op\_dat}. In this case the user submitted data values will replace
-the internal \texttt{op\_dat}'s data values. A valid implementation will need to
-translate the original set element index to the current set element index.
+\noindent Conversely an \texttt{op\_put\_data()} routine may also be implemented later (as required) so that the user
+level application can modify the internal values of an \texttt{op\_dat}. In this case the user submitted data values
+will replace the internal \texttt{op\_dat}'s data values. A valid implementation will need to translate the original set
+element index to the current set element index.
 
 
 % performance measurements - including flags to trigger them
@@ -644,7 +625,7 @@ holding performance measures. Also any \texttt{dat}s and \texttt{map}s held inte
 \section{HDF5 File I/O}\label{sec/hdf5}
 The current hdf5 file format follows the ASCI file format generated by
 the naca0012.m mesh generator. The generated hdf5 file structure and contents
-has can be viewed through the h5dump utility.  The hdf5 I/O routines that
+has can be viewed through the \texttt{h5dump} utility.  The hdf5 I/O routines that
 allows to read and write \texttt{op\_set}s, \texttt{op\_map}s, \texttt{op\_dat}s
 and constants are detailed in the user documentation.
 
@@ -669,18 +650,15 @@ required. There are a number of grid/mesh partitioners that can be used for this
 clear which one will provide the best performance. The current distributed memory implementation gives the option of
 using either (1) a geometric partitioning with ParMetis~\cite{ParMETIS}, (2) k-way graph partitioning with
 ParMetis~\cite{ParMETIS} or (3) k-way graph partitioning with PT-Scotch~\cite{PTScotch}. OP2 also provides a number of
-supporting functions and data migration routines to facilitate the above goals. However, a number of extensions need to
-be implemented to obtain high quality partitions as well as to make the partitioning truly seamless with no user
-intervention at the application program level.\\
-\indent The OP2 proposal is to partition the mesh immediately after all the calls to \texttt{op\_decl\_*}. Thus we
-assume that an initial parallel distribution of the sets and mapping tables has been performed during input, either by
-user defined I/O routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_mpi} application
-the data and mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by
-calls to wrapper functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or
-\texttt{op\_partition\_ptscotch()} defined in \texttt{op\_mpi\_part\_core.c}. A wrapper function is required to
-organize the data and/or mesh elements into a format that is acceptable to the ParMetis and PT-Scotch partitioning
-routines. We anticipate that supporting further different partitioners may require other wrapper functions to be
-developed into the MPI back-end.
+supporting functions and data migration routines to facilitate the above goals.\\
+\indent OP2 partitions the mesh immediately after all the calls to \texttt{op\_decl\_*}. For this OP2 assumes that an
+initial parallel distribution of the sets and mapping tables has been performed during input, either by user defined I/O
+routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_plain} application the data and
+mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by calls to wrapper
+functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or \texttt{op\_partition\_ptscotch()} defined
+in \texttt{op\_mpi\_part\_core.c}. A wrapper function is required to organize the data and/or mesh elements into a
+format that is acceptable to the ParMetis and PT-Scotch partitioning routines. We anticipate that supporting other
+different partitioners may require new wrapper functions to be developed into the MPI back-end.
 
 % A future proposal is to provide decision logic that selects the appropriate partitioner
 % routine (by calling the appropriate wrapper function) depending on the available \texttt{op\_set}s, \texttt{op\_map}s
@@ -689,7 +667,7 @@ developed into the MPI back-end.
 \indent For example in the airfoil application, the xy coordinates of the nodes are supplied in \texttt{p\_x}. Thus
 \texttt{op\_partition\_geom()} can be utilized with \texttt{p\_x}. After a call to \texttt{op\_partition\_geom()}, on
 each MPI process, the ParMetis routine returns an array that gives the new MPI rank of each set element (in this case
-for each node). At this point of the application we consider nodes as the \underline{partitioned} (primary) set. The
+for each node). At this point of the application we consider nodes as the \underline{partitioned} (or primary) set. The
 primary set and the available mapping tables will now allow to partition all other sets. These secondary sets will
 \textit{inherit} the primary set's partitioning. Partitioning secondary sets is achieved by a call to
 \texttt{partition\_all()} from within a wrapper function. Next, a call to \texttt{migrate\_all()} migrates the data and
@@ -708,8 +686,8 @@ the user guide. The parallel partitioning only occurs when distributed memory pa
 Otherwise, dummy (null operations) routines are substituted in place of the actual partitioner calls.
 
 \section{Local Renumbering}\label{sec/localrenumbering}
-OP2 will also perform a second level of renumbering (and partitioning) on each individual node to improve data locality
-and reuse. This will be facilitated by the use of the serial partitioners (METIS~\cite{metis} and
+OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to improve
+data locality and reuse. This will be facilitated by the use of the serial partitioners (METIS~\cite{metis} and
 Scotch~\cite{PTScotch}. Currently this functionality is under development.
 
 
@@ -757,9 +735,13 @@ for each color (i) {
 mini-partitions is ordered such that the mini-partitions with the non-\textit{core} elements will be computed after all
 the \textit{core} elements are computed. This allows for an MPI wait\_all to be placed before non-\texttt{core} colors
 are reached. Each \texttt{op\_plan} consists of a mini-partitioning and coloring strategy optimized for their respective
-loop and number of elements. The halos are transfered via MPI by first copying it to the host over the PCIe bus. As such
-the current implementation does not utilize NVIDIA's new GPUDirect~\cite{gpudirect} technology for transferring data
-directly between GPUs. This will be implemented in future work for the OP2 MPI+CUDA back-end.
+loop and number of elements.
+
+In the above pseudo-code the halos are transfered via MPI by first copying it to the host over the PCIe bus. As such
+its an implementation that does not utilize NVIDIA's new GPUDirect~\cite{gpudirect} technology for transferring data
+directly between GPUs. However, OP2's latest release has an implementation that utilize GPUDirect (see user guide on
+how to enable this mode). With GPUDirect the host copy statements in the above code is not required where simply
+calling the MPI send and receives will result in the required communications between two GPUs.
 
 The multi-threaded CPU cluster implementation is based on MPI and OpenMP and follows a similar design to the
 GPU cluster design except that there is no data transfer to and from a discretely attached accelerator; all the data
