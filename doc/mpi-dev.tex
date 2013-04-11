@@ -644,28 +644,31 @@ and constants are detailed in the user documentation.
 \section{Partitioning}\label{sec/partitioning}
 Given the unstructured mesh in an OP2 application, distributing the data on sets and mapping tables across the MPI
 universe is achieved by a mesh partitioner in order to avoid building large halos. OP2's aim is to achieve good
-partitions without the intervention of the application programmer. Once the OP2 declaration routines are executed the
-MPI back-end call a partitioning routine to partition the sets and maps and migrate the data to new MPI processes as
-required. There are a number of grid/mesh partitioners that can be used for this task, however at the moment it is not
-clear which one will provide the best performance. The current distributed memory implementation gives the option of
-using either (1) a geometric partitioning with ParMetis~\cite{ParMETIS}, (2) k-way graph partitioning with
-ParMetis~\cite{ParMETIS} or (3) k-way graph partitioning with PT-Scotch~\cite{PTScotch}. OP2 also provides a number of
-supporting functions and data migration routines to facilitate the above goals.\\
-\indent OP2 partitions the mesh immediately after all the calls to \texttt{op\_decl\_*}. For this OP2 assumes that an
-initial parallel distribution of the sets and mapping tables has been performed during input, either by user defined I/O
-routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_plain} application the data and
-mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by calls to wrapper
-functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or \texttt{op\_partition\_ptscotch()} defined
-in \texttt{op\_mpi\_part\_core.c}. A wrapper function is required to organize the data and/or mesh elements into a
-format that is acceptable to the ParMetis and PT-Scotch partitioning routines. We anticipate that supporting other
-different partitioners may require new wrapper functions to be developed into the MPI back-end.
+partitions without the intervention of the application programmer. Once the OP2 declaration routines are executed,
+invoking \texttt{op\_partition()} from the application, with the appropriate arguments (see user guide) will partition
+the sets and maps and migrate the data to new MPI processes as required. There are a number of grid/mesh partitioners
+that can be used for this task, however at the moment it is not clear which one will provide the best performance. The
+current distributed memory implementation gives the option of using either (1) a geometric partitioning with
+ParMetis~\cite{ParMETIS}, (2) k-way graph partitioning with ParMetis~\cite{ParMETIS} or (3) k-way graph partitioning
+with PT-Scotch~\cite{PTScotch}. OP2 also provides a number of supporting functions and data migration routines to
+facilitate the above goals.\\
+\indent OP2 should partition the mesh immediately after all the calls to \texttt{op\_decl\_*}. For this OP2 assumes
+that an initial parallel distribution of the sets and mapping tables has been performed during input, either by user
+defined I/O routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_plain} application the
+data and mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by calls
+to wrapper functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or
+\texttt{op\_partition\_ptscotch()} defined in \texttt{op\_mpi\_part\_core.c}. A wrapper function is required to organize
+the data and/or mesh elements into a format that is acceptable to the ParMetis and PT-Scotch partitioning routines. We
+anticipate that supporting other different partitioners may require new wrapper functions to be developed into the MPI
+back-end.
 
 % A future proposal is to provide decision logic that selects the appropriate partitioner
 % routine (by calling the appropriate wrapper function) depending on the available \texttt{op\_set}s, \texttt{op\_map}s
 % and \texttt{op\_dat}s without the intervention of the application programmer.\\
 
 \indent For example in the airfoil application, the xy coordinates of the nodes are supplied in \texttt{p\_x}. Thus
-\texttt{op\_partition\_geom()} can be utilized with \texttt{p\_x}. After a call to \texttt{op\_partition\_geom()}, on
+\texttt{op\_partition()} can be utilized with \texttt{p\_x}. This will utilize ParMETIS's geometric partitioning by
+calling the wrapper function \texttt{op\_partition\_geom()}. After a call to \texttt{op\_partition\_geom()}, on
 each MPI process, the ParMetis routine returns an array that gives the new MPI rank of each set element (in this case
 for each node). At this point of the application we consider nodes as the \underline{partitioned} (or primary) set. The
 primary set and the available mapping tables will now allow to partition all other sets. These secondary sets will
