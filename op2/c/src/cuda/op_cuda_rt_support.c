@@ -144,6 +144,8 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
   op_plan *plan = op_plan_core ( name, set, part_size,
                                  nargs, args, ninds, inds );
 
+  printf("Uploading plan\n");
+  cutilSafeCall ( cudaDeviceSynchronize (  ) );
   int set_size = set->size;
   for(int i = 0; i< nargs; i++) {
     if(args[i].idx != -1 && args[i].acc != OP_READ ) {
@@ -163,6 +165,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
       offsets[m+1] = offsets[m] + count;
     }
     op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[ninds] * set_size * sizeof ( int ));
+    printf("Uploaded ind_map\n");
     for ( int m = 0; m < ninds; m++ ) {
       plan->ind_maps[m] = &plan->ind_map[set_size*offsets[m]];
     }
@@ -171,6 +174,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
     int counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) counter++;
     op_mvHostToDevice ( ( void ** ) &( plan->loc_map ), sizeof ( short ) * counter * set_size );
+    printf("Uploaded loc_map\n");
     counter = 0;
     for ( int m = 0; m < nargs; m++ ) if ( plan->loc_maps[m] != NULL ) {
       plan->loc_maps[m] = &plan->loc_map[set_size * counter]; counter++;
@@ -190,6 +194,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                           sizeof ( int ) * plan->nblocks );
     op_mvHostToDevice ( ( void ** ) &( plan->blkmap ),
                           sizeof ( int ) * plan->nblocks );
+    printf("Uploaded rest\n");
   }
 
   return plan;

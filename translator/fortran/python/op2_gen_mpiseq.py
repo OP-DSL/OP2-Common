@@ -339,7 +339,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
       if maps[g_m] == OP_MAP and optflags[g_m]==1:
         IF('opArg'+str(g_m+1)+'%opt == 1')
         if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+idxs[g_m]+') * ('+dims[g_m]+'):)')
+          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):)')
         ELSE()
         code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
         ENDIF()
@@ -354,9 +354,9 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
           line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1)'
       if maps[g_m] == OP_MAP and optflags[g_m]==0:
         if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+idxs[g_m]+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+idxs[g_m]+') * ('+dims[g_m]+') + '+dims[g_m]+')'
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
         else:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+idxs[g_m]+'))'
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+'))'
       elif maps[g_m] == OP_MAP and optflags[g_m]==1:
         if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
           line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'

@@ -417,7 +417,7 @@ void op_partition(const char* lib_name, const char* lib_routine,
       }
     }
     op_cpHostToDevice ( ( void ** ) &( map->map_d ),
-                        ( void ** ) &( temp_map ), map->dim * set_size );
+                        ( void ** ) &( temp_map ), map->dim * set_size * sizeof(int) );
     free(temp_map);
   }
 

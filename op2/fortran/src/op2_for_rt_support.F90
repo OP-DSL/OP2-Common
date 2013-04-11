@@ -154,6 +154,16 @@ module OP2_Fortran_RT_Support
 
     end function
 
+    integer(kind=c_int) function reductionSize (args, argsNumber) BIND(C,name='reductionSize')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end function reductionSize
+
     integer(kind=c_int) function op_is_root () BIND(C,name='op_is_root')
 
       use, intrinsic :: ISO_C_BINDING

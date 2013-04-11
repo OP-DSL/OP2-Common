@@ -155,3 +155,13 @@ int getMapDimFromOpArg (op_arg * arg)
 {
   return (arg->opt && arg->map!=NULL) ? arg->map->dim : 0;
 }
+
+int reductionSize (op_arg *args, int nargs)
+{
+  int max_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
+      max_size = max_size > args[i].size ? max_size : args[i].size;
+  }
+  return max_size;
+}
