@@ -11,6 +11,7 @@
 
 import re
 import datetime
+import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -126,6 +127,16 @@ def IF(line):
     code('if ('+ line + ') {')
   depth += 2
 
+def ELSE():
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  depth -= 2
+  if FORTRAN:
+    code('ELSE')
+  elif CPP:
+    code('else {')
+  depth += 2
+
 def ENDIF():
   global file_text, FORTRAN, CPP, g_m
   global depth
@@ -201,9 +212,17 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     ind_inc = j > 0
 
     j = 0
+    reduct_mdim = 0
+    reduct_1dim = 0
     for i in range(0,nargs):
       if maps[i] == OP_GBL and (accs[i] == OP_INC or accs[i] == OP_MAX or accs[i] == OP_MIN):
         j = i
+        if (not dims[i].isdigit()) or int(dims[i])>1:
+          reduct_mdim = 1
+          if (accs[i] == OP_MAX or accs[i] == OP_MIN):
+            print 'ERROR: Multidimensional MIN/MAX reduction not yet implemented'
+        else:
+          reduct_1dim = 1
     reduct = j > 0
 
 
@@ -226,46 +245,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('USE ISO_C_BINDING')
     if hydra == 0:
       code('USE OP2_CONSTANTS')
-    code('USE CUDAFOR')
-    code('USE CUDACONFIGURATIONPARAMS')
-    code('')
-
-##########################################################################
-#  Variable declarations
-##########################################################################
-    code('')
-    comm('variable declarations')
-
-
-    for g_m in range(0,ninds):
-      code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(invinds[g_m]+1)+'Device'+name)
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap'+str(invinds[g_m]+1)+'Device'+name)
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(g_m+1)+'Device'+name)
-    code('')
-
-    code('')
-    code('REAL(kind=4) :: loopTimeHost'+name)
-    code('REAL(kind=4) :: loopTimeKernel'+name)
-    code('INTEGER(kind=4) :: numberCalled'+name)
-    code('')
-
-    if ninds > 0:
-      code('TYPE ( c_ptr )  :: planRet_'+name)
-
-##########################################################################
-#  Inline user kernel function
-##########################################################################
-
-    if hydra == 0:
-      code('')
-      code('CONTAINS')
-      code('')
-      comm('user function')
-      code('attributes (device) &')
-      code('#include "'+name+'.inc"')
-      code('')
     else:
       modfile = kernels[nk]['mod_file'][4:]
       filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
@@ -277,19 +256,65 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       i = text.find('const2.inc')
       if i > -1:
         code('USE HYDRA_CONSTANTS')
-        code('')
-        code('CONTAINS')
-        code('')
+
+    code('USE CUDAFOR')
+    code('USE CUDACONFIGURATIONPARAMS')
+    code('')
+
+##########################################################################
+#  Variable declarations
+##########################################################################
+    code('')
+    comm('variable declarations')
+    code('')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL:
+        if (accs[g_m]== OP_INC or accs[g_m]== OP_MIN or accs[g_m]== OP_MAX):
+          code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice'+str(g_m+1)+name)
+        if ((accs[g_m]==OP_READ and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1)) or accs[g_m]==OP_WRITE):
+          code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opGblDat'+str(g_m+1)+'Device'+name)
+
+    code('REAL(kind=4) :: loopTimeHost'+name)
+    code('REAL(kind=4) :: loopTimeKernel'+name)
+    code('INTEGER(kind=4) :: numberCalled'+name)
+    code('')
+
+    if ninds > 0:
+      code('TYPE ( c_ptr )  :: planRet_'+name)
+
+##########################################################################
+#  Inline user kernel function
+##########################################################################
+    code('')
+    code('CONTAINS')
+    code('')
+    if hydra == 0:
+      code('attributes (device) &')
+      code('#include "'+name+'.inc"')
+      code('')
+    else:
+      i = text.find('const2.inc')
+      if i > -1:
         fi2 = open("hydra_constants_list.txt","r")
         for line in fi2:
-          fstr = '\n (.*)\\b'+line[:-1]+'\\b'
-          rstr = '\n \\1'+line[:-1]+'_OP2CONSTANT'
+#          fstr = '\n (.*)\\b'+line[:-1]+'\\b'
+#          rstr = '\n \\1'+line[:-1]+'_OP2CONSTANT'
+          fstr = '\\b'+line[:-1]+'\\b'
+          rstr = line[:-1]+'_OP2CONSTANT'
           text = re.sub(fstr,rstr,text)
+      text = text.replace('#include "const2.inc"','!#include "const2.inc"')
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
-      text = text.replace('recursive subroutine','attributes(global) subroutine')
+      text = text.replace('recursive subroutine','attributes(device) subroutine')
       #do include USE kernels
+      i = text.find('call LOW')
+      if i > -1:
+        comm('support functions')
+        code('#include "flux_low_gpufun.inc"')
+        code('')
+      comm('user function')
       file_text += text
 
     code('')
@@ -298,70 +323,114 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  Reduction kernel function - if an OP_GBL exists
 ##########################################################################
     if reduct > 0:
-      comm('Reduction cuda kernel'); depth = depth +2;
-      code('attributes (device) SUBROUTINE ReductionFloat8(reductionResult,inputValue,reductionOperation)')
-      code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
-      code('REAL(kind=8), DIMENSION(1:1) :: inputValue')
-      code('INTEGER(kind=4), VALUE :: reductionOperation')
-      code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8')
-      code('INTEGER(kind=4) :: i1')
-      code('INTEGER(kind=4) :: threadID')
-      code('threadID = threadIdx%x - 1')
-      code('i1 = ishft(blockDim%x,-1)')
-      code('CALL syncthreads()')
-      code('sharedDouble8(threadID) = inputValue(1)')
+      if reduct_1dim:
+        comm('Reduction cuda kernel'); depth = depth +2;
+        code('attributes (device) SUBROUTINE ReductionFloat8(reductionResult,inputValue,reductionOperation)')
+        code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
+        code('REAL(kind=8) :: inputValue')
+        code('INTEGER(kind=4), VALUE :: reductionOperation')
+        code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8')
+        code('INTEGER(kind=4) :: i1')
+        code('INTEGER(kind=4) :: threadID')
+        code('threadID = threadIdx%x - 1')
+        code('i1 = ishft(blockDim%x,-1)')
+        code('CALL syncthreads()')
+        code('sharedDouble8(threadID) = inputValue')
 
-      DOWHILE('i1 > 0')
-      code('CALL syncthreads()')
-      IF('threadID < i1')
-      code('SELECT CASE(reductionOperation)')
-      code('CASE (0)')
-      code('sharedDouble8(threadID) = sharedDouble8(threadID) + sharedDouble8(threadID + i1)')
-      code('CASE (1)')
-      IF('sharedDouble8(threadID + i1) < sharedDouble8(threadID)')
-      code('sharedDouble8(threadID) = sharedDouble8(threadID + i1)')
-      ENDIF()
-      code('CASE (2)')
-      IF('sharedDouble8(threadID + i1) > sharedDouble8(threadID)')
-      code('sharedDouble8(threadID) = sharedDouble8(threadID + i1)')
-      ENDIF()
-      code('END SELECT')
-      ENDIF()
-      code('i1 = ishft(i1,-1)')
-      ENDDO()
+        DOWHILE('i1 > 0')
+        code('CALL syncthreads()')
+        IF('threadID < i1')
+        code('SELECT CASE(reductionOperation)')
+        code('CASE (0)')
+        code('sharedDouble8(threadID) = sharedDouble8(threadID) + sharedDouble8(threadID + i1)')
+        code('CASE (1)')
+        IF('sharedDouble8(threadID + i1) < sharedDouble8(threadID)')
+        code('sharedDouble8(threadID) = sharedDouble8(threadID + i1)')
+        ENDIF()
+        code('CASE (2)')
+        IF('sharedDouble8(threadID + i1) > sharedDouble8(threadID)')
+        code('sharedDouble8(threadID) = sharedDouble8(threadID + i1)')
+        ENDIF()
+        code('END SELECT')
+        ENDIF()
+        code('i1 = ishft(i1,-1)')
+        ENDDO()
 
-      code('CALL syncthreads()')
+        code('CALL syncthreads()')
 
-      IF('threadID .EQ. 0')
-      code('SELECT CASE(reductionOperation)')
-      code('CASE (0)')
-      code('reductionResult(1) = reductionResult(1) + sharedDouble8(0)')
-      code('CASE (1)')
-      IF('sharedDouble8(0) < reductionResult(1)')
-      code('reductionResult(1) = sharedDouble8(0)')
-      ENDIF()
-      code('CASE (2)')
-      IF('sharedDouble8(0) > reductionResult(1)')
-      code('reductionResult(1) = sharedDouble8(0)')
-      ENDIF()
-      code('END SELECT')
-      ENDIF()
+        IF('threadID .EQ. 0')
+        code('SELECT CASE(reductionOperation)')
+        code('CASE (0)')
+        code('reductionResult(1) = reductionResult(1) + sharedDouble8(0)')
+        code('CASE (1)')
+        IF('sharedDouble8(0) < reductionResult(1)')
+        code('reductionResult(1) = sharedDouble8(0)')
+        ENDIF()
+        code('CASE (2)')
+        IF('sharedDouble8(0) > reductionResult(1)')
+        code('reductionResult(1) = sharedDouble8(0)')
+        ENDIF()
+        code('END SELECT')
+        ENDIF()
 
-      code('CALL syncthreads()')
-      code('END SUBROUTINE')
-      code('')
+        code('CALL syncthreads()')
+        code('END SUBROUTINE')
+        code('')
+      if reduct_mdim:
+        comm('Multidimensional reduction cuda kernel'); depth = depth +2;
+        code('attributes (device) SUBROUTINE ReductionFloat8Mdim(reductionResult,inputValue,reductionOperation,dim)')
+        code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
+        code('REAL(kind=8), DIMENSION(:) :: inputValue')
+        code('INTEGER(kind=4), VALUE :: reductionOperation')
+        code('INTEGER(kind=4), VALUE :: dim')
+        code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8')
+        code('INTEGER(kind=4) :: i1')
+        code('INTEGER(kind=4) :: d')
+        code('INTEGER(kind=4) :: threadID')
+        code('threadID = threadIdx%x - 1')
+        code('i1 = ishft(blockDim%x,-1)')
+        code('CALL syncthreads()')
+        code('sharedDouble8(threadID*dim:threadID*dim+dim-1) = inputValue(1:dim)')
+
+        DOWHILE('i1 > 0')
+        code('CALL syncthreads()')
+        IF('threadID < i1')
+        DO('i2','0','dim')
+        code('sharedDouble8(threadID*dim + i2) = sharedDouble8(threadID*dim + i2) + sharedDouble8((threadID + i1)*dim + i2)')
+        ENDDO()
+        ENDIF()
+        code('i1 = ishft(i1,-1)')
+        ENDDO()
+
+        code('CALL syncthreads()')
+
+        IF('threadID .EQ. 0')
+        code('reductionResult(1:dim) = reductionResult(1:dim) + sharedDouble8(0:dim-1)')
+        ENDIF()
+
+        code('CALL syncthreads()')
+        code('END SUBROUTINE')
+        code('')
 
 ##########################################################################
 #  Generate CUDA kernel function
 ##########################################################################
     comm('CUDA kernel function')
     code('attributes (global) SUBROUTINE op_cuda_'+name+'( &'); depth = depth + 2
+    if nopts >0:
+      code('&  optflags,        &')
+    for g_m in range(0,ninds):
+      code('& opDat'+str(invinds[g_m]+1)+'Device'+name+', &')
+      code('& opMap'+str(invinds[g_m]+1)+'Device'+name+', &')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('& opDat'+str(g_m+1)+'Device'+name+', &')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL:
         if accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
           code('& reductionArrayDevice'+str(g_m+1)+',   &')
-        else:
-          code('& opGblDat'+str(g_m+1)+',   &')
+        elif accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+          code('& opGblDat'+str(g_m+1)+'Device'+name+',   &')
 
     if ninds > 0: #indirect loop
       code('& pblkMap, &')
@@ -382,6 +451,21 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  Declare local variables
 ##########################################################################
     comm('local variables')
+    if nopts>0:
+      code('INTEGER(kind=4), VALUE :: optflags')
+    for g_m in range(0,ninds):
+      if indaccs[g_m]==OP_READ:
+        code(typs[invinds[g_m]]+', DEVICE, INTENT(IN) :: opDat'+str(invinds[g_m]+1)+'Device'+name+'(*)')
+      else:
+        code(typs[invinds[g_m]]+', DEVICE :: opDat'+str(invinds[g_m]+1)+'Device'+name+'(*)')
+      code('INTEGER(kind=4), DEVICE :: opMap'+str(invinds[g_m]+1)+'Device'+name+'(*)')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        if accs[g_m] == OP_READ:
+          code(typs[g_m]+', DEVICE, INTENT(IN) :: opDat'+str(g_m+1)+'Device'+name+'(*)')
+        else:
+          code(typs[g_m]+', DEVICE :: opDat'+str(g_m+1)+'Device'+name+'(*)')
+    code('')
     if ninds > 0: #indirect loop
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset')
@@ -398,18 +482,14 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
             code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
             #and additionally we need registers to store contributions, depending on dim:
             if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-              code(typs[g_m]+' :: opGblDat'+str(g_m+1))
+              code(typs[g_m]+' :: opGblDat'+str(g_m+1)+'Device'+name)
             else:
-              code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opGblDat'+str(g_m+1))
+              code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opGblDat'+str(g_m+1)+'Device'+name)
           else:
             #if it's not  a global reduction, and multidimensional then we pass in a device array
             if dims[g_m].isdigit() and int(dims[g_m]) == 1:
               if accs[g_m] == OP_READ: #if OP_READ and dim 1, we can pass in by value
-                code(typs[g_m]+', VALUE :: opGblDat'+str(g_m+1))
-              else: #OP_WRITE, we need a global memory value
-                code(typs[g_m]+', DEVICE :: opGblDat'+str(g_m+1))
-            else:
-              code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1), DEVICE :: opGblDat'+str(g_m+1))
+                code(typs[g_m]+', VALUE :: opGblDat'+str(g_m+1)+'Device'+name)
         elif maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             code(typs[g_m]+' :: opDat'+str(g_m+1)+'Local')
@@ -437,23 +517,31 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
             code(typs[g_m]+', DIMENSION(:), DEVICE :: reductionArrayDevice'+str(g_m+1))
             #and additionally we need registers to store contributions, depending on dim:
             if dims[g_m].isdigit() and int(dims[g_m]) == 1:
-              code(typs[g_m]+' :: opGblDat'+str(g_m+1))
+              code(typs[g_m]+' :: opGblDat'+str(g_m+1)+'Device'+name)
             else:
-              code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opGblDat'+str(g_m+1))
+              code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opGblDat'+str(g_m+1)+'Device'+name)
           else:
             #if it's not  a global reduction, and multidimensional then we pass in a device array
             if dims[g_m].isdigit() and int(dims[g_m]) == 1:
               if accs[g_m] == OP_READ: #if OP_READ and dim 1, we can pass in by value
-                code(typs[g_m]+', VALUE :: opGblDat'+str(g_m+1))
-              else: #OP_WRITE, we need a global memory value
-                code(typs[g_m]+', DEVICE :: opGblDat'+str(g_m+1))
-            else:
-              code(typs[g_m]+', DIMENSION(:), DEVICE :: opGblDat'+str(g_m+1))
-
+                code(typs[g_m]+', VALUE :: opGblDat'+str(g_m+1)+'Device'+name)
 
       code('INTEGER(kind=4), VALUE :: setSize')
       code('INTEGER(kind=4) :: i1')
 
+    if nopts > 0:
+      code('')
+      comm('optional variables')
+  # for indirect OP_READ, we would pass in a pointer to shared, offset by map, but if opt, then map may not exist, thus we need a separate pointer
+      for g_m in range(0,nargs):
+        if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and maps[g_m] == OP_MAP and optflags[g_m]==1:
+          if dims[g_m].isdigit() and int(dims[g_m])==1:
+            code(typs[g_m]+' :: opDat'+str(g_m+1)+'Opt')
+          else:
+            code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Opt')
+
+    code('')
+    code('')
     if ninds > 0:
       IF('threadIdx%x - 1 .EQ. 0')
       code('blockID = pblkMap(blockIdx%x - 1 + blockOffset)')
@@ -472,7 +560,8 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
 
       DOWHILE('i1 < numberOfActiveThreadsCeiling')
-      code('colour2 = -1')
+      if ind_inc:
+        code('colour2 = -1')
       IF('i1 < numberOfActiveThreads')
       for g_m in range(0,nargs):
         if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
@@ -480,12 +569,32 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           code('opDat'+str(g_m+1)+'Local(i2) = 0')
           ENDDO()
 
+      for g_m in range(0,nargs):
+        if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and maps[g_m] == OP_MAP and optflags[g_m]==1:
+          IF('BTEST(optflags,'+str(optidxs[g_m])+')')
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            DO('i2','0', dims[g_m])
+            code('opDat'+str(g_m+1)+'Opt(i2) = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
+            code('  & (1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'))')
+            ENDDO()
+          else:
+            code('opDat'+str(g_m+1)+'Opt = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+            '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+'))')
+          ENDIF()
+
+      code('')
+      comm('kernel call')
+
+    else:
+      DO_STEP('i1','threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x','setSize','blockDim%x * gridDim%x')
+      code('')
+      comm('kernel call')
+      code('')
+
 ##########################################################################
 #  CUDA kernel call
 ##########################################################################
     if ninds > 0: #indirect kernel call
-      code('')
-      comm('kernel call')
       line = '  CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
@@ -506,17 +615,17 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
             '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+'))'
         elif maps[g_m] == OP_MAP and (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and optflags[g_m]==1:
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
-          else:
-            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
+#          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+#            line = line +indent + '& opDat'+str(g_m+1)+'Opt'
+#          else:
+          line = line +indent + '& opDat'+str(g_m+1)+'Opt'
         elif maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             line = line +indent + '& opDat'+str(g_m+1)+'Local(0)'
           else:
             line = line +indent + '& opDat'+str(g_m+1)+'Local'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'& opGblDat'+str(g_m+1)
+          line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         if g_m < nargs-1:
           line = line +', &'
         else:
@@ -524,39 +633,40 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       depth = depth - 2
       code(line + indent + '& )')
       depth = depth + 2
-      code('colour2 = pthrcol(i1 + threadBlockOffset)')
+      if ind_inc:
+        code('colour2 = pthrcol(i1 + threadBlockOffset)')
       ENDIF()
-
-      DO('colour1','0','numOfColours')
-      IF('colour2 .EQ. colour1')
-      for g_m in range(0,nargs):
-        if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
-          DO('i2','0', dims[g_m])
-          code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-          '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) = ' + \
-               'opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-          '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
-          ENDDO()
-          code('')
-      ENDIF()
-      code('CALL syncthreads()')
-      ENDDO()
+      if ind_inc:
+        DO('colour1','0','numOfColours')
+        IF('colour2 .EQ. colour1')
+        for g_m in range(0,nargs):
+          if optflags[g_m]==1 and maps[g_m]==OP_MAP and accs[g_m] == OP_INC:
+            IF('BTEST(optflags,'+str(optidxs[g_m])+')')
+          if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+            DO('i2','0', dims[g_m])
+            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+            '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) = &')
+            code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+            '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
+            ENDDO()
+            code('')
+          if optflags[g_m]==1 and maps[g_m]==OP_MAP and (accs[g_m] == OP_INC):
+            ENDIF()
+        ENDIF()
+        code('CALL syncthreads()')
+        ENDDO()
       code('i1 = i1 + blockDim%x')
       ENDDO()
       code('')
 
     else: #direct kernel call
-      DO_STEP('i1','threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x','setSize','blockDim%x * gridDim%x')
-      code('')
-      comm('kernel call')
-      code('')
       line = '  CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
-          line = line + indent +'& opGblDat'+str(g_m+1)
+          line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         else:
-          if int(dims[g_m]) == 1:
+          if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             line = line + indent +'& opDat'+str(g_m+1)+'Device'+name+'(i1 + 1)'
           else:
             line = line + indent +'& opDat'+str(g_m+1)+'Device'+name+'(i1 * ('+dims[g_m]+') + 1: i1 * ('+dims[g_m]+') + '+dims[g_m]+')'
@@ -575,7 +685,10 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-        code('CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+',0)')
+        if dims[g_m].isdigit() and int(dims[g_m])==1:
+          code('CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+',0)')
+        else:
+          code('CALL ReductionFloat8Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1:),opGblDat'+str(g_m+1)+'Device'+name+',0,'+dims[g_m]+')')
     code('')
 
     depth = depth - 2
@@ -607,6 +720,15 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('INTEGER(kind=4) :: returnSetKernelTiming')
     code('')
     code('')
+
+    for g_m in range(0,ninds):
+      code(typs[invinds[g_m]]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(invinds[g_m]+1)+'Device'+name)
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap'+str(invinds[g_m]+1)+'Device'+name)
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(g_m+1)+'Device'+name)
+    code('')
+
     for g_m in range(0,ninds):
       code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'Cardinality')
       code('INTEGER(kind=4) :: opMap'+str(invinds[g_m]+1)+'Cardinality')
@@ -676,11 +798,25 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('TYPE ( cudaEvent )  :: endTimeKernel')
 
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
-        code(typs[g_m]+', DIMENSION(:), ALLOCATABLE :: reductionArrayHost'+str(g_m+1))
-        code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice'+str(g_m+1))
-        code(typs[g_m]+', POINTER :: opDat'+str(g_m+1)+'Host')
-        code('INTEGER(kind=4) :: reductionCardinality'+str(g_m+1))
+      if maps[g_m] == OP_GBL:
+        if accs[g_m] == OP_WRITE or (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          code(typs[g_m]+', DIMENSION(:), POINTER :: opDat'+str(g_m+1)+'Host')
+        else:
+          code(typs[g_m]+', POINTER :: opDat'+str(g_m+1)+'Host')
+        if (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
+          code(typs[g_m]+', DIMENSION(:), ALLOCATABLE :: reductionArrayHost'+str(g_m+1))
+          code('INTEGER(kind=4) :: reductionCardinality'+str(g_m+1))
+
+    if nopts>0:
+      code('INTEGER(kind=4) :: optflags')
+      code('optflags = 0')
+      for i in range(0,nargs):
+        if optflags[i] == 1:
+          IF('opArg'+str(i+1)+'%opt == 1')
+          code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
+          ENDIF()
+    if nopts > 30:
+      print 'ERROR: too many optional arguments to store flags in an integer'
 
     code('')
     code('numberOfOpDats = '+str(nargs))
@@ -745,7 +881,10 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       if maps[g_m] == OP_ID:
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data_d,opDat'+str(g_m+1)+'Device'+name+',(/opDat'+str(g_m+1)+'Cardinality/))')
       elif maps[g_m] == OP_GBL:
-        code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Host)')
+        if accs[g_m] == OP_WRITE or (not dims[g_m].isdigit()) or int(dims[g_m])>1:
+          code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Host,(/opDat'+str(g_m+1)+'Cardinality/))')
+        else:
+          code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Host)')
     code('')
 
     if ninds > 0:
@@ -763,19 +902,30 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('CALL c_f_pointer(actualPlan_'+name+'%thrcol,pthrcol,(/pthrcolSize/))')
       code('')
 
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and ((accs[g_m]==OP_READ and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1)) or accs[g_m]==OP_WRITE):
+        IF('.not. allocated(opGblDat'+str(g_m+1)+'Device'+name+')')
+        code('allocate(opGblDat'+str(g_m+1)+'Device'+name+'(opArg'+str(g_m+1)+'%dim))')
+        ENDIF()
+        code('opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim) = opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim)')
 
     #setup for reduction
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
         code('reductionCardinality'+str(g_m+1)+' = blocksPerGrid * 1')
-        code('allocate( reductionArrayHost'+str(g_m+1)+'(reductionCardinality'+str(g_m+1)+') )')
-        code('allocate( reductionArrayDevice'+str(g_m+1)+'(reductionCardinality'+str(g_m+1)+') )')
+        code('allocate( reductionArrayHost'+str(g_m+1)+'(reductionCardinality'+str(g_m+1)+'* ('+dims[g_m]+')) )')
+        IF ('.not. allocated(reductionArrayDevice'+str(g_m+1)+name+')')
+        code('allocate( reductionArrayDevice'+str(g_m+1)+name+'(reductionCardinality'+str(g_m+1)+'* ('+dims[g_m]+')) )')
+        ENDIF()
         code('')
         DO('i10','0','reductionCardinality'+str(g_m+1)+'')
-        code('reductionArrayHost'+str(g_m+1)+'(i10+1) = 0.00000')
+        if dims[g_m].isdigit() and int(dims[g_m]) == 1:
+          code('reductionArrayHost'+str(g_m+1)+'(i10+1) = opDat'+str(g_m+1)+'Host')
+        else:
+          code('reductionArrayHost'+str(g_m+1)+'(i10 * ('+dims[g_m]+') + 1 : i10 * ('+dims[g_m]+') + ('+dims[g_m]+')) = opDat'+str(g_m+1)+'Host(1:'+dims[g_m]+')')
         ENDDO()
         code('')
-        code('reductionArrayDevice'+str(g_m+1)+' = reductionArrayHost'+str(g_m+1)+'')
+        code('reductionArrayDevice'+str(g_m+1)+name+' = reductionArrayHost'+str(g_m+1)+'')
 
     code('istat = cudaEventRecord(endTimeHost,0)')
     code('istat = cudaEventSynchronize(endTimeHost)')
@@ -799,69 +949,92 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('blocksPerGrid = ncolblk(i2 + 1)')
       code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
       code('')
-      code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> &')
-      code('& (pblkMap, &')
+      code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
+      if nopts>0:
+        code('& optflags, &')
+      for g_m in range(0,ninds):
+        code('& opDat'+str(invinds[g_m]+1)+'Device'+name+', &')
+        code('& opMap'+str(invinds[g_m]+1)+'Device'+name+', &')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          code('& opDat'+str(g_m+1)+'Device'+name+', &')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+          code('reductionArrayDevice'+str(g_m+1)+name+', &')
+        if maps[g_m] == OP_GBL and accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+          code('& opDat'+str(g_m+1)+'Host, &')
+      code('& pblkMap, &')
       code('& poffset,pnelems,pnthrcol,pthrcol,set%setPtr%size, blockOffset)')
       code('')
-      code('threadSynchRet = cudaThreadSynchronize()')
       code('blockOffset = blockOffset + blocksPerGrid')
       ENDDO()
       code('')
-      code('istat = cudaEventRecord(endTimeKernel,0)')
-      code('istat = cudaEventSynchronize(endTimeKernel)')
-      code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-      code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-      code('')
-      code('istat = cudaEventRecord(startTimeHost,0)')
-      code('istat = cudaEventRecord(endTimeHost,0)')
+    else: #direct loop host stub call
+      code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &')
+      if nopts>0:
+        code('& optflags, &')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          code('& opDat'+str(g_m+1)+'Device'+name+', &')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+          code('reductionArrayDevice'+str(g_m+1)+name+', &')
+        if maps[g_m] == OP_GBL and accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+          code('& opDat'+str(g_m+1)+'Host, &')
+      code('set%setPtr%size)')
+
+    code('')
+    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
+    code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+    ENDIF()
+    code('')
+
+    code('')
+    code('istat = cudaEventRecord(endTimeKernel,0)')
+    code('istat = cudaEventSynchronize(endTimeKernel)')
+    code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
+    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
+    code('')
+
+    code('')
+    code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
+    code('')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        code('opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim) = opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim)')
+
+    if reduct:
+      code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
+      #reductions
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
+          code('reductionArrayHost'+str(g_m+1)+' = reductionArrayDevice'+str(g_m+1)+name+'')
+          code('')
+          DO('i10','0','reductionCardinality'+str(g_m+1)+'')
+          if dims[g_m].isdigit() and int(dims[g_m]) == 1:
+            code('opDat'+str(g_m+1)+'Host = opDat'+str(g_m+1)+'Host + reductionArrayHost'+str(g_m+1)+'(i10+1)')
+          else:
+            code('opDat'+str(g_m+1)+'Host(1:'+dims[g_m]+') = opDat'+str(g_m+1)+'Host(1:'+dims[g_m]+') + reductionArrayHost'+str(g_m+1)+'(i10 * ('+dims[g_m]+') + 1 : i10 * ('+dims[g_m]+') + ('+dims[g_m]+'))')
+          ENDDO()
+          code('')
+          code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
+#          code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
+            code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
+            code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)':
+            code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
+            code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          code('')
+
+      code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
       code('istat = cudaEventSynchronize(endTimeHost)')
       code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
       code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-      code('')
-    else: #direct loop host stub call
-      code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &')
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-          code('reductionArrayDevice'+str(g_m+1)+', &')
-      code('set%setPtr%size)')
-      code('')
-      code('threadSynchRet = cudaThreadSynchronize()')
-      code('istat = cudaEventRecord(endTimeKernel,0)')
-      code('istat = cudaEventSynchronize(endTimeKernel)')
-      code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-      code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-      code('')
-
-      code('')
-      IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
-      ENDIF()
-      code('')
-
-      code('')
-      code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
-      code('')
-
-    #reduction
-    #reductions
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
-        code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
-        code('reductionArrayHost'+str(g_m+1)+' = reductionArrayDevice'+str(g_m+1)+'')
-        code('')
-        DO('i10','0','reductionCardinality'+str(g_m+1)+'')
-        code('opDat'+str(g_m+1)+'Host = reductionArrayHost'+str(g_m+1)+'(i10+1) + opDat'+str(g_m+1)+'Host')
-        ENDDO()
-        code('')
-        code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
-        code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
-        code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        code('')
-        code('calledTimes = calledTimes + 1')
-        code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
-        code('istat = cudaEventSynchronize(endTimeHost)')
-        code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-        code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
 
     code('KT_double = REAL(accumulatorKernelTime / 1000.00)')
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
@@ -871,13 +1044,18 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     else:
       code('& KT_double, 0.00000,0.00000)')
 
+    code('calledTimes = calledTimes + 1')
     depth = depth - 2
     code('END SUBROUTINE')
-    code('END MODULE '+name.upper()+'_MODULE')
+    code('END MODULE')
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    fid = open(name+'_kernel.CUF','w')
+    if hydra:
+      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+      fid = open(name+'_kernel.CUF','w')
+    else:
+      fid = open(name+'_kernel.CUF','w')
     date = datetime.datetime.now()
     fid.write('!\n! auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n!\n\n')
     fid.write(file_text)
