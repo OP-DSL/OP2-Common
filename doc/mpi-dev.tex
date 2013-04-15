@@ -673,20 +673,30 @@ each MPI process, the ParMetis routine returns an array that gives the new MPI r
 for each node). At this point of the application we consider nodes as the \underline{partitioned} (or primary) set. The
 primary set and the available mapping tables will now allow to partition all other sets. These secondary sets will
 \textit{inherit} the primary set's partitioning. Partitioning secondary sets is achieved by a call to
-\texttt{partition\_all()} from within a wrapper function. Next, a call to \texttt{migrate\_all()} migrates the data and
-mappings to the new MPI process and will sort the elements on the new MPI ranks.  Finally \texttt{renumber\_maps()}
-will renumber mapping table entries with new indices. \\
-\indent At the end of an OP2 application, the partitioning needs to be reversed in order to revert back to the original
-set element order in which the user application supplied the data on sets and mapping tables to OP2. This is achieved in
-\texttt{op\_partition\_reverse()} where the original partition information (which was saved during the partition
-creation and halo creation routines) are used to reverse the mapping table renumbering and migrate the data on sets to
-their original MPI rank and sort them in the original element index order. For debugging purposes, we have also
-implemented a wrapper function: \texttt{op\_partition\_ random()} that performs a random partitioning of a given set.
+\texttt{partition\_all()} from within a wrapper function.
 
-Currently partitioning and halo creation is achieved by a call to \texttt{op\_partition()} with the appropriate
-arguments (to select the specific library and \texttt{op\_set}, \texttt{op\_map} and \texttt{op\_dat}) as detailed in
-the user guide. The parallel partitioning only occurs when distributed memory parallelism (i.e. MPI back-end) is used.
-Otherwise, dummy (null operations) routines are substituted in place of the actual partitioner calls.
+The logic of secondary sets \textit{inheriting} the partitioning from the primary set is as follows. We first compute a
+cost associated with using each mapping table to partition some secondary set using a partitioned set starting from
+the primary set. Partitioning a set using a mapping \textit{from} a partitioned set costs more than partitioning a set
+using a mapping \textit{to} a partitioned set. Each secondary set is partitioned using the map identified as the one
+that gives the smallest cost. We assign some integer value to indicate the cost.\\
+
+For example if we have a cells to nodes mapping and the primary set is nodes (and has been partitioned) using the
+map then we can determine where each cell should reside. Thus if a majority of the nodes that is pointed to by a cell
+resides in some partition X (i.e. MPI rank X) then the cell is also best placed on partition X (if not already on X). A
+similar reasoning is used when partitioning the nodes, given the primary set is cells. In this case a temporary reveres
+map is created (i.e. a nodes to cells mapping) to determine the partition of nodes. \\
+After all the set elements have been assigned a partition a call to,\texttt{migrate\_all()} will migrates the data and
+mappings to the new MPI process and will sort the elements on the new MPI ranks. Finally \texttt{renumber\_maps()} will
+renumber mapping table entries with new indices.
+
+\indent At the end of an OP2 application, the data structures used for partitioning is freed as part of garbage
+collection. For debugging purposes, we have also implemented a wrapper function: \texttt{op\_partition\_ random()} that
+performs a random partitioning of a given set. Currently partitioning and halo creation is achieved by a call to
+\texttt{op\_partition()} with the appropriate arguments (to select the specific library and \texttt{op\_set},
+\texttt{op\_map} and \texttt{op\_dat}) as detailed in the user guide. The parallel partitioning only occurs when
+distributed memory parallelism (i.e. MPI back-end) is used. Otherwise, dummy (null operations) routines are substituted
+in place of the actual partitioner calls.
 
 \section{Local Renumbering}\label{sec/localrenumbering}
 OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to improve
