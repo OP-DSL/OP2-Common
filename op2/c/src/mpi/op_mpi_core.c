@@ -126,7 +126,7 @@ void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm)
       part_range[set->index][2*i+1] = disp;
       disp++;
 #ifdef DEBUG
-      if(my_rank == MPI_ROOT)
+      if(my_rank == MPI_ROOT && OP_diags > 5)
         printf("range of %10s in rank %d: %d-%d\n",set->name,i,
             part_range[set->index][2*i], part_range[set->index][2*i+1]);
 #endif
@@ -165,7 +165,7 @@ int get_global_index(int local_index, int partition, int* part_range,
   (void)comm_size;
   int g_index = part_range[2*partition]+local_index;
 #ifdef DEBUG
-  if(g_index > part_range[2*(comm_size-1)+1])
+  if(g_index > part_range[2*(comm_size-1)+1] && OP_diags>2 )
     printf("Global index larger than set size\n");
 #endif
   return g_index;
@@ -337,8 +337,11 @@ static void create_nonexec_export_list(op_set set, int* temp_list, halo_list h_l
       ranks_size, comm_size, my_rank);
 }
 
+
 /*******************************************************************************
- * Check if a given op_map is an on-to map from the from-set to the to_set
+ * Check if a given op_map is an on-to map from the from-set to the to-set
+ * note: on large meshes this routine takes up a lot of memory due to memory
+ * allocated for MPI_Allgathers, thus use only when debugging code
  *******************************************************************************/
 
 int is_onto_map(op_map map)
@@ -2178,7 +2181,7 @@ void op_mpi_exit()
   //free memory allocated to halos and mpi_buffers
   op_halo_destroy();
   //return all op_dats, op_maps back to original element order
-  op_partition_reverse();
+  op_partition_destroy();
   //print each mpi process's timing info for each kernel
 
 }
