@@ -2,13 +2,21 @@
 
 \usepackage[colorlinks,urlcolor=blue]{hyperref}
 
+\usepackage{graphicx}
+\usepackage{verbatim}
+\setlength{\oddsidemargin}{-0.01in}
+\setlength{\topmargin}{-0.4in}
+\setlength{\textheight}{9.0in}
+\setlength{\textwidth}{6.5 in}
 
- \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
- \oddsidemargin 0.1in
- \textheight 9.25in  \textwidth 6.00in
- \parskip 5pt plus 1pt minus 1pt
- \def \baselinestretch {1.25}   % one-and-a-half spaced
- \setlength {\unitlength} {0.75in}
+
+
+%  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
+%  \oddsidemargin 0.1in
+%  \textheight 9.25in  \textwidth 6.00in
+%  \parskip 5pt plus 1pt minus 1pt
+%  \def \baselinestretch {1.25}   % one-and-a-half spaced
+%  \setlength {\unitlength} {0.75in}
 %
 %
 \newenvironment{routine}[2]
@@ -758,6 +766,15 @@ correct MPI process.
 
 \newpage
 
+\section{Executing with GPUDirect}
+
+GPU direct support for MPI+CUDA, to enable (on the OP2 side) add \textbf{-gpudirect} when running the executable. You
+may also have to use certain environmental flags when using different MPI distributions. For an example of the
+required flags and environmental settings on the EMERALD GPU cluster
+see: \\
+\url{www.einfrastructuresouth.ac.uk/cfi/emerald/gpu-programming/}
+
+\newpage
 
 \section{OP2 Preprocessor}
 
@@ -924,14 +941,6 @@ environment variable {\tt OP\_USER\_DATATYPES}
 so that this header file is included into the OP2 header file {\tt op\_datatypes.h}.
 
 
-%\newpage
 
-\newpage
 
-\section{Executing with GPUDirect}
-
-GPU direct support for MPI+CUDA, to enable (on the OP2 side) add \textbf{-gpudirect} when running the executable. You
-may also have to use certain environmental flags when using different MPI distributions. For an example of the
-required flags and environmental settings on the EMERALD GPU cluster
-see: \url{www.einfrastructuresouth.ac.uk/ cfi/emerald/gpu-programming/mpi-distributions-and-gpu-direct}
 \end{document}
