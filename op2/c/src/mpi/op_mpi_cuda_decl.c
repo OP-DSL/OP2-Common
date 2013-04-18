@@ -369,6 +369,20 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   free(temp);
 }
 
+void op_upload_all ()
+{
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
+                   OP_import_nonexec_list[dat->set->index]->size;
+    if (dat->data_d) {
+      cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * set_size, cudaMemcpyHostToDevice ));
+      dat->dirty_hd = 0;
+    }
+  }
+}
+
 void op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
   //need to get data from GPU

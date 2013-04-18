@@ -154,7 +154,7 @@ subroutine initialise_constants ( )
 
   ! local variables
   real(8) :: p, r, u, e
-
+  real(8) :: bigone_host(2000)
   gam = 1.4
   gam_OP2 = gam
   gm1 = 1.4 - 1.0
@@ -163,7 +163,8 @@ subroutine initialise_constants ( )
   cfl_OP2 = cfl
   eps = 0.05
   eps_OP2 = eps
-
+  bigone_host(3) = 3.0
+  bigone = bigone_host
 
   mach  = 0.4
   mach_OP2 = mach

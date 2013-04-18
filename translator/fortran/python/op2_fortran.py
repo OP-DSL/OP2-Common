@@ -38,8 +38,8 @@ import datetime
 #from op2_gen_openmp import *
 
 #import openmp code generation function
-#import op2_gen_mpiseq
-#from op2_gen_mpiseq import *
+import op2_gen_mpiseq
+from op2_gen_mpiseq import *
 
 #import openmp code generation function
 import op2_gen_cuda
@@ -722,11 +722,13 @@ for a in range(init_ctr,len(sys.argv)):
        #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
+       if name == 'QRG_SET':
+         name = 'QRG_SETF'
        if file_format == 90:
-         line = str(' '+name+'_host(& \n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
+         line = str(' '+name+'_host(& \n'+indent+'& "'+name+'",'+
                 loop_args[curr_loop]['set']+', '+cont_end+'\n')
        elif file_format == 77:
-         line = str(' '+name+'_host( \n'+indent+'& "'+loop_args[curr_loop]['name1']+'",'+
+         line = str(' '+name+'_host( \n'+indent+'& "'+name+'",'+
                  loop_args[curr_loop]['set']+', '+cont_end+'\n')
 
        for arguments in range(0,loop_args[curr_loop]['nargs']):
@@ -764,9 +766,11 @@ for a in range(init_ctr,len(sys.argv)):
 
     text = fid.read()
     fid.close()
+    replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA       use HYDRA_CUDA_MODULE\n#endif\n'
+    text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     for nk in range (0,len(kernels)):
-#      replace = 'use '+kernels[nk]['name']+'_MODULE'+'\n'
       replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+#      replace = '\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:
@@ -810,3 +814,5 @@ if npart==0 and nhdf5>0:
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+if hydra:
+  op2_gen_cuda_hydra()

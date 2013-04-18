@@ -164,6 +164,12 @@ module OP2_Fortran_RT_Support
 
     end function reductionSize
 
+    subroutine op_upload_all () BIND(C,name='op_upload_all')
+
+      use, intrinsic :: ISO_C_BINDING
+
+    end subroutine
+
     integer(kind=c_int) function op_is_root () BIND(C,name='op_is_root')
 
       use, intrinsic :: ISO_C_BINDING

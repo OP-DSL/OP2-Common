@@ -63,14 +63,14 @@ int** export_exec_list_d;
 int** export_nonexec_list_d;
 
 void op_upload_dat(op_dat dat) {
-  printf("Uploading %s\n", dat->name);
+  //printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
   OP_import_nonexec_list[dat->set->index]->size;
   cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));
 }
 
 void op_download_dat(op_dat dat) {
-  printf("Downloading %s\n", dat->name);
+  //printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
   OP_import_nonexec_list[dat->set->index]->size;
   cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));

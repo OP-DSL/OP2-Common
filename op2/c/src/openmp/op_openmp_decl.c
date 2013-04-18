@@ -72,6 +72,10 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
+void op_upload_all ()
+{
+}
+
 void
 op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {

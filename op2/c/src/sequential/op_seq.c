@@ -106,6 +106,10 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
   return op_arg_gbl_core ( data, dim, type, size, acc );
 }
 
+void op_upload_all ()
+{
+}
+
 void
 op_fetch_data_char ( op_dat dat, char * usr_ptr)
 {

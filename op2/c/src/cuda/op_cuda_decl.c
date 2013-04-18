@@ -252,6 +252,18 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   op_print_dat_to_txtfile_core(dat, file_name);
 }
 
+void op_upload_all ()
+{
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    if (dat->data_d) {
+      cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * dat->set->size, cudaMemcpyHostToDevice ));
+      dat->dirty_hd = 0;
+    }
+  }
+}
+
 void op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
   op_cuda_get_data(dat);
