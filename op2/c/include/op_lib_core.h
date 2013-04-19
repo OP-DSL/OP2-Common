@@ -272,7 +272,7 @@ void op_partition(const char* lib_name, const char* lib_routine,
 * Other partitioning related routine prototypes
 *******************************************************************************/
 
-void op_partition_reverse();
+void op_partition_destroy();
 
 int op_mpi_perf_time(const char* name, double time);
 #ifdef COMM_PERF

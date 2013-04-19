@@ -899,184 +899,7 @@ static void renumber_maps(int my_rank, int comm_size)
 }
 
 /*******************************************************************************
- * Routine to reverse the renumbering of mapping tables
- *******************************************************************************/
-
-static void reverse_renumber_maps(int my_rank, int comm_size)
-{
-  int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
-  get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
-
-  //renumber mapping tables replacing the to_set elements of each mapping table
-  // with the original index of those set elements from
-  //g_index (will need all to alls)
-  for(int m=0; m<OP_map_index; m++) { //for each map
-    op_map map=OP_map_list[m];
-
-    int cap = 1000; int count = 0;
-    int* req_list = (int *)xmalloc(cap*sizeof(int));
-
-    for(int i = 0; i< map->from->size; i++)
-    {
-      int part, local_index;
-      for(int j=0; j<map->dim; j++) { //for each element pointed
-        //at by this entry
-        part = get_partition(map->map[i*map->dim+j],
-            part_range[map->to->index],&local_index,comm_size);
-
-        if(count>=cap)
-        {
-          cap = cap*2;
-          req_list = (int *)xrealloc(req_list, cap*sizeof(int));
-        }
-
-        if(part != my_rank)
-        {
-          //add current global index of this to_set
-          //element to the request list
-          req_list[count++] = map->map[i*map->dim+j];
-        }
-      }
-    }
-
-    //sort and remove duplicates
-    if(count > 0)
-    {
-      quickSort(req_list, 0, count-1);
-      count = removeDups(req_list, count);
-      req_list = (int *)xrealloc(req_list, count*sizeof(int));
-    }
-
-    //do an allgather to findout how many elements that each process will
-    //be requesting original global index information about
-    int recv_count[comm_size];
-    MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_PART_WORLD);
-
-    //discover global size of these required elements
-    int g_count = 0;
-    for(int i = 0; i< comm_size; i++)g_count += recv_count[i];
-
-    //prepare for an allgatherv
-    int disp = 0;
-    int* displs = (int *)xmalloc(comm_size*sizeof(int));
-    for(int i = 0; i<comm_size; i++)
-    {
-      displs[i] =   disp;
-      disp = disp + recv_count[i];
-    }
-
-    //allocate memory to hold the global indexes of elements requiring partition details
-    int *g_index = (int *)xmalloc(sizeof(int)*g_count);
-
-    MPI_Allgatherv(req_list,count,MPI_INT, g_index,recv_count,displs,
-        MPI_INT, OP_PART_WORLD);
-    free(req_list);
-
-    if(g_count > 0)
-    {
-      quickSort(g_index, 0, g_count-1);
-      g_count = removeDups(g_index, g_count);
-      g_index = (int *)xrealloc(g_index, g_count*sizeof(int));
-    }
-
-    //go through the recieved global g_index array and see if any local element's
-    //original global index details are requested by some foreign process
-    int *curr_index = (int *)xmalloc(sizeof(int)*g_count);
-    int *orig_index = (int *)xmalloc(sizeof(int)*g_count);
-
-    int exp_count = 0;
-    for(int i = 0; i<g_count; i++)
-    {
-      int local_index, part;
-
-      part = get_partition(g_index[i], part_range[map->to->index],
-          &local_index,comm_size);
-
-      if(part == my_rank)
-      {
-        orig_index[exp_count] =
-          OP_part_list[map->to->index]->g_index[local_index];
-        curr_index[exp_count++] = g_index[i];
-      }
-
-    }
-    free(g_index);
-
-    //realloc cur_index, org_index
-    curr_index = (int *)xrealloc(curr_index,sizeof(int)*exp_count);
-    orig_index = (int *)xrealloc(orig_index,sizeof(int)*exp_count);
-
-    //now export to every MPI rank, these original global index info with an all-to-all
-    MPI_Allgather(&exp_count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_PART_WORLD);
-    disp = 0; free(displs);
-    displs = (int *)xmalloc(comm_size*sizeof(int));
-
-    for(int i = 0; i<comm_size; i++)
-    {
-      displs[i] =   disp;
-      disp = disp + recv_count[i];
-    }
-
-    //allocate memory to hold the incomming original global index details and allgatherv
-    g_count = 0;
-    for(int i = 0; i< comm_size; i++)g_count += recv_count[i];
-    int *all_orig_index = (int *)xmalloc(sizeof(int)*g_count);
-    int *all_curr_index = (int *)xmalloc(sizeof(int)*g_count);
-
-    //printf("on rank %d map %s need set %s: After g_count = %d\n",
-    //    my_rank, map.name,map.to.name,g_count);
-
-    MPI_Allgatherv(curr_index,exp_count,MPI_INT, all_curr_index,recv_count,displs,
-        MPI_INT, OP_PART_WORLD);
-
-    MPI_Allgatherv(orig_index,exp_count,MPI_INT, all_orig_index,recv_count,
-        displs, MPI_INT, OP_PART_WORLD);
-
-    free(curr_index);
-    free(orig_index);
-
-    //sort all_orig_index according to all_curr_index array
-    if(g_count > 0)quickSort_2(all_curr_index, all_orig_index, 0, g_count-1);
-
-    //now we hopefully have all the informattion required to reverse the
-    //renumbering of this map. so now, again go through each entry of this
-    //mapping table and reverse-renumber
-    for(int i = 0; i< map->from->size; i++)
-    {
-      int part, local_index;
-      for(int j=0; j<map->dim; j++) { //for each element pointed at by this entry
-        part = get_partition(map->map[i*map->dim+j],
-            part_range[map->to->index],&local_index,comm_size);
-
-        if(part != my_rank)
-        {
-          //find from all_curr_index and all_orig_index
-          local_index = binary_search(all_curr_index,
-              map->map[i*map->dim+j], 0, g_count-1);
-          if(local_index < 0)
-            printf("Problem in reverse-renumbering\n");
-          else
-            OP_map_list[map->index]->map[i*map->dim+j] =
-              all_orig_index[local_index];
-        }
-        else
-        {
-          OP_map_list[map->index]->map[i*map->dim+j] =
-            OP_part_list[map->to->index]->g_index[local_index];
-        }
-      }
-    }
-
-
-    free(all_curr_index);free(all_orig_index);
-    free(displs);
-
-  }
-  for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
-}
-
-/*******************************************************************************
- * Routine to perform data migration to new partitions (or reverse parition)
+ * Routine to perform data migration to new partitions
  *******************************************************************************/
 
 static void migrate_all(int my_rank, int comm_size)
@@ -1558,43 +1381,8 @@ void op_partition_random(op_set primary_set)
  * Routine to revert back to the original partitioning
  *******************************************************************************/
 
-void op_partition_reverse()
+void op_partition_destroy()
 {
-  //declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-  op_timers(&cpu_t1, &wall_t1); //timer start for partition reversing
-
-  //create new communicator for reverse-partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-  //need original g_index with current index - already in OP_part_list
-  //need original part_range - saved during partition creation
-
-  //use g_index and original part range to fill in
-  //OP_part_list[set->index]->elem_part with original partitioning information
-  for(int s=0; s<OP_set_index; s++) { //for each set
-    op_set set=OP_set_list[s];
-
-    for(int i = 0; i < set->size; i++)
-    {
-      int local_index;
-      OP_part_list[set->index]->elem_part[i] =
-        get_partition(OP_part_list[set->index]->g_index[i],
-            orig_part_range[set->index], &local_index, comm_size);
-    }
-  }
-
-  //reverse renumbering of mapping tables
-  reverse_renumber_maps(my_rank, comm_size);
-
-  //reverse back migration
-  migrate_all(my_rank, comm_size);
-
   //destroy OP_part_list[]
   for(int s=0; s<OP_set_index; s++) { //for each set
     op_set set=OP_set_list[s];
@@ -1605,13 +1393,6 @@ void op_partition_reverse()
   free(OP_part_list);
   for(int i = 0; i<OP_set_index; i++)free(orig_part_range[i]);
   free(orig_part_range);
-
-  op_timers(&cpu_t2, &wall_t2);  //timer stop for partition reversing
-  //printf time for partition reversing
-  time = wall_t2-wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  //if(my_rank==MPI_ROOT)printf("Max total partition reverse time = %lf\n",max_time);
 }
 
 #ifdef HAVE_PARMETIS
@@ -1766,6 +1547,7 @@ void op_partition_kway(op_map primary_map)
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
+#ifdef DEBUG
   //check if the  primary_map is an on to map from the from-set to the to-set
   if(is_onto_map(primary_map) != 1)
   {
@@ -1773,7 +1555,7 @@ void op_partition_kway(op_map primary_map)
         primary_map->name, primary_map->from->name, primary_map->to->name);
     MPI_Abort(OP_PART_WORLD, 2);
   }
-
+#endif
 
   /*--STEP 0 - initialise partitioning data stauctures with the current (block)
     partitioning information */
@@ -2521,6 +2303,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
+#ifdef DEBUG
   //check if the  primary_map is an on to map from the from-set to the to-set
   if(is_onto_map(primary_map) != 1)
   {
@@ -2528,6 +2311,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
         primary_map->name, primary_map->from->name, primary_map->to->name);
     MPI_Abort(OP_PART_WORLD, 2);
   }
+#endif
 
   ///
   ///WE NEED TO DO SOME CHECKS ON THE PRIMARY MAP TO SEE IF IT IS
@@ -2691,6 +2475,7 @@ void op_partition_ptscotch(op_map primary_map)
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
+#ifdef DEBUG
   //check if the  primary_map is an on to map from the from-set to the to-set
   if(is_onto_map(primary_map) != 1)
   {
@@ -2698,6 +2483,7 @@ void op_partition_ptscotch(op_map primary_map)
         primary_map->name, primary_map->from->name, primary_map->to->name);
     MPI_Abort(OP_PART_WORLD, 2);
   }
+#endif
 
   /*--STEP 0 - initialise partitioning data stauctures with the current (block)
     partitioning information */
