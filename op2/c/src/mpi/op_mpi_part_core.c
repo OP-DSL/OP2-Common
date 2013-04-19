@@ -59,7 +59,9 @@
 //parmetis header
 #ifdef HAVE_PARMETIS
 #include <parmetis.h>
+#ifdef PARMETIS_VER_4
 typedef idx_t idxtype;
+#endif
 #endif
 
 #include <op_mpi_core.h>
