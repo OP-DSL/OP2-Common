@@ -38,7 +38,19 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size,
 {
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   if (id<copy_size) {
-    for (int i =0;i<elem_size;i++) {
+    int off = 0;
+    if (elem_size%16 == 0) {
+      off += 16*(elem_size/16);
+      for (int i = 0; i < elem_size/16; i++) {
+        ((double2*)(export_buffer+id*elem_size))[i] = ((double2*)(dat+list[id]*elem_size))[i];
+      }
+    } else if (elem_size%8 == 0) {
+      off += 8*(elem_size/8);
+      for (int i = 0; i < elem_size/8; i++) {
+        ((double*)(export_buffer+id*elem_size))[i] = ((double*)(dat+list[id]*elem_size))[i];
+      }
+    }
+    for (int i = off;i<elem_size;i++) {
       export_buffer[id*elem_size+i]=dat[list[id]*elem_size+i];
     }
   }

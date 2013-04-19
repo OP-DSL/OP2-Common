@@ -766,11 +766,14 @@ for a in range(init_ctr,len(sys.argv)):
 
     text = fid.read()
     fid.close()
-    replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA       use HYDRA_CUDA_MODULE\n#endif\n'
-    text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
+    if hydra:
+      replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     for nk in range (0,len(kernels)):
-      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
-#      replace = '\n'
+      if hydra:
+        replace = '\n'
+      else:
+        replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:

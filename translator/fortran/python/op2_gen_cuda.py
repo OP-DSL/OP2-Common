@@ -466,8 +466,10 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       file_text += text
 
     else:
+      depth -= 2
       code('attributes (device) &')
       code('#include "'+name+'.inc"')
+      depth += 2
       code('')
 
     code('')
@@ -781,12 +783,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-        if 'REAL' in typs[g_m]:
+        if 'real' in typs[g_m].lower():
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             code('CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+',0)')
           else:
             code('CALL ReductionFloat8Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1:),opGblDat'+str(g_m+1)+'Device'+name+',0,'+dims[g_m]+')')
-        elif 'INTEGER' in typs[g_m]:
+        elif 'integer' in typs[g_m].lower():
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             code('CALL ReductionInt4(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+',0)')
           else:
@@ -1066,7 +1068,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_GBL and accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
           code('& opDat'+str(g_m+1)+'Host, &')
       code('& pblkMap, &')
-      code('& poffset,pnelems,pnthrcol,pthrcol,set%setPtr%size, blockOffset)')
+      code('& poffset,pnelems,pnthrcol,pthrcol,set%setPtr%size+set%setPtr%exec_size, blockOffset)')
       code('')
       code('blockOffset = blockOffset + blocksPerGrid')
       ENDDO()

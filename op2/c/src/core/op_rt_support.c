@@ -45,6 +45,7 @@
 
 int OP_plan_index = 0, OP_plan_max = 0;
 op_plan * OP_plans;
+double OP_plan_time = 0;
 
 extern op_kernel * OP_kernels;
 extern int OP_kern_max;
@@ -983,7 +984,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     }
   }
   /* return pointer to plan */
-
+  OP_plan_time += wall_t2-wall_t1;
   return &( OP_plans[ip] );
 }
 

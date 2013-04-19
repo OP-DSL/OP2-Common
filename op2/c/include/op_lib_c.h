@@ -63,6 +63,7 @@ extern op_set * OP_set_list;
 extern op_map * OP_map_list;
 extern Double_linked_list OP_dat_list;
 extern op_kernel * OP_kernels;
+extern double OP_plan_time;
 
 /*
  * declaration of C routines wrapping lower layer implementations (e.g. CUDA, reference, etc..)
