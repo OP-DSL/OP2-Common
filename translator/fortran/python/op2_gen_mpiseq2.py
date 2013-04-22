@@ -132,7 +132,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_mpiseq(master, date, consts, kernels, hydra):
+def op2_gen_mpiseq2(master, date, consts, kernels, hydra):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -169,11 +169,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
-    invmapinds = kernels[nk]['invmapinds']
-    mapinds = kernels[nk]['mapinds']
-    nmaps = 0
-    if ninds > 0:
-      nmaps = max(mapinds)+1
 
     optidxs = [0]*nargs
     indopts = [-1]*nargs
@@ -238,7 +233,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
       code('#include "'+name+'.inc"')
       code('')
     else:
-      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
       filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
       if not os.path.isfile(filename):
@@ -282,7 +276,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('INTEGER(kind=4) :: n_upper')
     code('type ( op_set_core ) , POINTER :: opSetCore')
     code('')
-    print invinds, name
+
     for g_m in range(0,ninds):
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat'+str(invinds[g_m]+1)+'Map')
       code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'MapDim')
@@ -304,15 +298,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 
     code('')
     code('INTEGER(kind=4) :: i1')
-
-    if nmaps > 0:
-      k = []
-      line = 'INTEGER(kind=4) :: '
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and optflags[g_m] == 0 and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          line += 'map'+str(mapinds[g_m]+1)+'idx, '
-      code(line[:-2])
 
     code('')
     code('numberOfOpDats = '+str(nargs))
@@ -348,14 +333,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 
     code('')
     DO('i1','0','n_upper')
-
-    if nmaps > 0:
-      k = []
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and optflags[g_m] == 0 and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')')
-
     if ninds > 0:
       IF('i1 .EQ. opSetCore%core_size')
       code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
@@ -380,9 +357,9 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
           line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1)'
       if maps[g_m] == OP_MAP and optflags[g_m]==0:
         if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+') : map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+') + '+dims[g_m]+')'
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
         else:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + map'+str(mapinds[g_m]+1)+'idx)'
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+'))'
       elif maps[g_m] == OP_MAP and optflags[g_m]==1:
         if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
           line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'

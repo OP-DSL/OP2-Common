@@ -40,6 +40,8 @@ import datetime
 #import openmp code generation function
 import op2_gen_mpiseq
 from op2_gen_mpiseq import *
+import op2_gen_mpiseq2
+from op2_gen_mpiseq2 import *
 
 #import openmp code generation function
 import op2_gen_cuda
@@ -455,6 +457,7 @@ for a in range(init_ctr,len(sys.argv)):
     idxs = [0]*nargs
     dims = ['']*nargs
     maps = [0]*nargs
+    mapnames = ['']*nargs
     typs = ['']*nargs
     accs = [0]*nargs
     soaflags = [0]*nargs
@@ -473,6 +476,7 @@ for a in range(init_ctr,len(sys.argv)):
              print 'invalid index for argument'+str(m)
         else:
           maps[m] = OP_MAP
+          mapnames[m] = str(args['map']).strip()
 
         dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
@@ -529,6 +533,8 @@ for a in range(init_ctr,len(sys.argv)):
     ninds = 0
     inds = [0]*nargs
     invinds = [0]*nargs
+    invmapinds = [0]*nargs
+    mapinds = [0]*nargs
     indtyps = ['']*nargs
     inddims = ['']*nargs
     indaccs = [0]*nargs
@@ -555,7 +561,17 @@ for a in range(init_ctr,len(sys.argv)):
             k = k+[j[i]]
         j = k
 
-
+    if ninds > 0:
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (optflags[j]==0 and optflags[i]==0) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 #
 # check for repeats
 #
@@ -637,7 +653,9 @@ for a in range(init_ctr,len(sys.argv)):
               'inddims': inddims,
               'indaccs': indaccs,
               'indtyps': indtyps,
-              'invinds': invinds }
+              'invinds': invinds,
+              'mapinds': mapinds,
+              'invmapinds' : invmapinds }
 
       if hydra==1:
         temp['master_file'] = src_file.split('.')[0]
@@ -770,10 +788,10 @@ for a in range(init_ctr,len(sys.argv)):
       replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     for nk in range (0,len(kernels)):
-      if hydra:
-        replace = '\n'
-      else:
-        replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+#      if hydra:
+#        replace = '\n'
+#      else:
+      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:
@@ -815,7 +833,7 @@ if npart==0 and nhdf5>0:
 ##########################################################################
 
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-#op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-if hydra:
-  op2_gen_cuda_hydra()
+op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+#if hydra:
+#  op2_gen_cuda_hydra()
