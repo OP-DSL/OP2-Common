@@ -257,9 +257,25 @@ void op_upload_all ()
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
+    int set_size = dat->set->size;
     if (dat->data_d) {
-      cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * dat->set->size, cudaMemcpyHostToDevice ));
-      dat->dirty_hd = 0;
+      if (strstr( dat->type, ":soa")!= NULL) {
+        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+        int element_size = dat->size/dat->dim;
+        for (int i = 0; i < dat->dim; i++) {
+          for (int j = 0; j < set_size; j++) {
+            for (int c = 0; c < element_size; c++) {
+              temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+            }
+          }
+        }
+        cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+        free(temp_data);
+      } else {
+        cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+      }
     }
   }
 }

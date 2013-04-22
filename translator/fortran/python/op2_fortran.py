@@ -197,10 +197,10 @@ def get_arg_dat(arg_string, j):
     temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if temp_dat['dim']=='njacs':
     temp_dat['dim']='1*1'
-  if temp_dat['typ']=='"r8"':
-    temp_dat['typ']='"REAL(kind=8)"'
-  if temp_dat['typ']=='"i4"':
-    temp_dat['typ']='"INTEGER(kind=4)"'
+  if '"r8' in temp_dat['typ']:
+    temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
+  if '"i4' in temp_dat['typ']:
+    temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
     temp_dat['typ']='"logical*1"'
   return temp_dat
@@ -239,10 +239,10 @@ def get_opt_arg_dat(arg_string, j):
     temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
-  if temp_dat['typ']=='"r8"':
-    temp_dat['typ']='"REAL(kind=8)"'
-  if temp_dat['typ']=='"i4"':
-    temp_dat['typ']='"INTEGER(kind=4)"'
+  if '"r8' in temp_dat['typ']:
+    temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
+  if '"i4' in temp_dat['typ']:
+    temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
     temp_dat['typ']='"logical*1"'
 
@@ -499,6 +499,9 @@ for a in range(init_ctr,len(sys.argv)):
 
         if arg_type.strip() == 'op_opt_arg_dat':
           optflags[m] = 1
+          if soaflags[m] == 1:
+            print "ERROR: cannot have SoA and optional argument at the same time"
+            sys.exit(-1)
         else:
           optflags[m] = 0
 
@@ -833,7 +836,7 @@ if npart==0 and nhdf5>0:
 ##########################################################################
 
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-#if hydra:
-#  op2_gen_cuda_hydra()
+#op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+if hydra:
+  op2_gen_cuda_hydra()
