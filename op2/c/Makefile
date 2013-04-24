@@ -150,6 +150,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_hdf5.o $(OBJ)/op_util.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(SRC)/mpi/op_mpi_renumber.cpp \
+	-o $(OBJ)/op_mpi_renumber.o
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -158,7 +160,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_rt_support.o \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o \
-	$(OBJ)/op_mpi_util.o
+	$(OBJ)/op_mpi_util.o \
+	$(OBJ)/op_mpi_renumber.o
 
 mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
@@ -188,6 +191,8 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_cuda_kernels.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(SRC)/mpi/op_mpi_renumber.cpp \
+	-o $(OBJ)/op_mpi_renumber.o
 
 	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -197,7 +202,8 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o \
 	$(OBJ)/op_mpi_cuda_kernels.o \
-	$(OBJ)/op_mpi_util.o
+	$(OBJ)/op_mpi_util.o \
+	$(OBJ)/op_mpi_renumber.o
 
 clean:
 	-rm -if $(OBJ)/*.o

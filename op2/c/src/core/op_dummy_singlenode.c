@@ -134,6 +134,10 @@ void op_partition(const char* lib_name, const char* lib_routine,
   (void)coords;
 }
 
+void op_renumber(op_map base) {
+  (void)base;
+}
+
 void op_partition_reverse() {
 }
 
