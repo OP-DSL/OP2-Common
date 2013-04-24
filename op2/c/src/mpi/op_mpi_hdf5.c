@@ -322,7 +322,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,type) != 0) {
+  char typ_soa[50];
+  sprintf(typ_soa, "%s:soa", typ);
+  if(strcmp(typ,type) != 0 && strcmp(typ_soa,type) != 0) {
     printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
@@ -1064,7 +1066,9 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
         H5Aread(attr,atype,typ);
         H5Aclose(attr);
         H5Sclose(dataspace);
-        if(strcmp(typ,dat->type) != 0) {
+        char typ_soa[50];
+        sprintf(typ_soa, "%s:soa", typ);
+        if(strcmp(typ,dat->type) != 0 && strcmp(typ_soa,dat->type) != 0) {
           printf("dat.type %s in file %s and type %s do not match\n",typ,file_name,dat->type);
           exit(2);
         }

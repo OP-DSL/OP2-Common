@@ -146,11 +146,6 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 }
 
 
-int getSetSizeFromOpArg (op_arg * arg)
-{
-  return arg->opt ? (arg->dat->set->size + OP_import_exec_list[arg->dat->set->index]->size +
-                     OP_import_nonexec_list[arg->dat->set->index]->size) : 0;
-}
 
 int getMapDimFromOpArg (op_arg * arg)
 {

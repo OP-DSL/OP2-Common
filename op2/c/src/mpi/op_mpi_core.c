@@ -2226,6 +2226,12 @@ void op_mpi_exit()
 
 }
 
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? (arg->dat->set->size + OP_import_exec_list[arg->dat->set->index]->size +
+                     OP_import_nonexec_list[arg->dat->set->index]->size) : 0;
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;

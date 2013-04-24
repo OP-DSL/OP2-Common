@@ -282,7 +282,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('INTEGER(kind=4) :: n_upper')
     code('type ( op_set_core ) , POINTER :: opSetCore')
     code('')
-    print invinds, name
     for g_m in range(0,ninds):
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat'+str(invinds[g_m]+1)+'Map')
       code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'MapDim')

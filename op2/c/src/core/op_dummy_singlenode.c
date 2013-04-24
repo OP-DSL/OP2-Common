@@ -137,6 +137,11 @@ void op_partition(const char* lib_name, const char* lib_routine,
 void op_partition_reverse() {
 }
 
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? arg->dat->set->size : 0;
+}
+
 int op_is_root()
 {
   return 1;

@@ -589,6 +589,8 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     else: #direct loop
       code('INTEGER(kind=4), VALUE :: setSize')
       code('INTEGER(kind=4) :: i1')
+      if is_soa > -1:
+        code('INTEGER(kind=4) :: i2')
 
     if nopts > 0:
       code('')
@@ -677,7 +679,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       for g_m in range(0,nargs):
         if soaflags[g_m] == 1 and optflags[g_m]==0:
           DO('i2','0', dims[g_m])
-          code('opDat'+str(g_m+1)+'SoALocal(i2) = opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + i1))')
+          code('opDat'+str(g_m+1)+'SoALocal(i2) = opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + i1)')
           ENDDO()
       code('')
       comm('kernel call')
@@ -1110,7 +1112,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       if nopts>0:
         code('& optflags, &')
       if is_soa > -1:
-        code('& getSetSizeFromOpArg(opArg+'+str(is_soa+1)+'), &')
+        code('& getSetSizeFromOpArg(opArg'+str(is_soa+1)+'), &')
       for g_m in range(0,ninds):
         code('& opDat'+str(invinds[g_m]+1)+'Device'+name+', &')
         code('& opMap'+str(invinds[g_m]+1)+'Device'+name+', &')

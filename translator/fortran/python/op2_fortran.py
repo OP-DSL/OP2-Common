@@ -836,7 +836,7 @@ if npart==0 and nhdf5>0:
 ##########################################################################
 
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-#op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-if hydra:
-  op2_gen_cuda_hydra()
+op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+#if hydra:
+#  op2_gen_cuda_hydra()
