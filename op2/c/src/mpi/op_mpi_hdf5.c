@@ -592,11 +592,10 @@ void op_dump_to_hdf5(char const * file_name)
     H5Pclose(plist_id);
     H5Dclose(dset_id);
   }
-
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
-
+    if (map->dim == 0 || map->from->size == 0 || map->to->size ==0 || map->map == NULL) continue;
     //find total size of map
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
@@ -693,12 +692,11 @@ void op_dump_to_hdf5(char const * file_name)
     //Close to the dataset.
     H5Dclose(dset_id);
   }
-
   /*loop over all the op_dats and write them to file*/
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-
+    if (dat->size == 0 || dat->data == NULL) continue;
     //find total size of dat
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
@@ -805,7 +803,6 @@ void op_dump_to_hdf5(char const * file_name)
     H5Sclose(dataspace);
     H5Dclose(dset_id);
   }
-
   H5Fclose(file_id);
 
   op_timers(&cpu_t2, &wall_t2);  //timer stop for hdf5 file write

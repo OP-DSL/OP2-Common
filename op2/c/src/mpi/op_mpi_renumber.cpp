@@ -56,20 +56,22 @@ int compare (const void * a, const void * b)
 
 //propage renumbering based on a map that points to an already reordered set
 void propagate_reordering(op_set from, op_set to, std::vector<std::vector<int> >& set_permutations, std::vector<std::vector<int> >& set_ipermutations) {
-  if (set_permutations[to->index].size()) return;
+  if(to->size == 0) return;
   //find a map that is (to)->(from), reorder (to)
-  for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
-    op_map map = OP_map_list[mapidx];
-    if (map->to == from && map->from == to) {
-      std::vector<map2> renum(to->size);
-      for (int i = 0; i < to->size; i++) {
-        renum[i].a = set_permutations[from->index][map->map[map->dim*i]];
-        renum[i].b = i;
+  if (set_permutations[to->index].size()==0) {
+    for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
+      op_map map = OP_map_list[mapidx];
+      if (map->to == from && map->from == to) {
+        std::vector<map2> renum(to->size);
+        for (int i = 0; i < to->size; i++) {
+          renum[i].a = set_permutations[from->index][map->map[map->dim*i]];
+          renum[i].b = i;
+        }
+        qsort(&renum[0], renum.size(), sizeof(map2), compare);
+        set_permutations[to->index].resize(to->size);
+        for (int i = 0; i < to->size; i++) set_permutations[to->index][renum[i].b] = i;
+        break;
       }
-      qsort(&renum[0], renum.size(), sizeof(map2), compare);
-      set_permutations[to->index].resize(to->size);
-      for (int i = 0; i < to->size; i++) set_permutations[to->index][renum[i].b] = i;
-      break;
     }
   }
   if (set_permutations[to->index].size()==0) {
@@ -79,7 +81,7 @@ void propagate_reordering(op_set from, op_set to, std::vector<std::vector<int> >
   //find any maps that is (*)->to, propagate reordering
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
-    if (map->to == to) {
+    if (map->to == to && set_permutations[map->from->index].size()==0) {
       propagate_reordering(to, map->from, set_permutations, set_ipermutations);
     }
   }
@@ -90,6 +92,8 @@ void reorder_set(op_set set, std::vector<std::vector<int> >& set_permutations, s
     printf("No reordering for set %s, skipping...\n", set->name);
     return;
   }
+  if (set->size == 0) return;
+
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == set) {
@@ -104,7 +108,7 @@ void reorder_set(op_set set, std::vector<std::vector<int> >& set_permutations, s
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    if (dat->set == set) {
+    if (dat->set == set && dat->data != NULL) {
       char *tempdata = (char *)malloc(set->size*dat->size);
       for (int i = 0; i < set->size; i++) std::copy(dat->data + dat->size*i, dat->data + dat->size*(i+1), tempdata + dat->size*set_permutations[set->index][i]);
       free(dat->data);
@@ -131,6 +135,7 @@ void op_renumber(op_map base) {
   std::vector<int> row_offsets(base->to->size+1);
   std::vector<int> col_indices;
   if (base->to == base->from) {
+    col_indices.resize(base->dim*base->from->size);
     //if map is self-referencing, just create row_offsets with dim stride, and copy over col_indices
     std::copy(base->map, base->map+base->dim*base->from->size, col_indices.begin());
     row_offsets[0] = 0;
@@ -154,19 +159,21 @@ void op_renumber(op_map base) {
     int nodectr = 0;
     for (int i = 1; i < base->from->size * base->dim; i++) {
       if (loopback[i].a != loopback[i-1].a) {nodectr++; row_offsets[nodectr+1] = row_offsets[nodectr];}
+
       for (int d1 = 0; d1 < base->dim; d1++) {
         int id = base->map[base->dim*loopback[i].b+d1];
-        int add = 1;
+        int add = (id != nodectr);
         for (int d2 = row_offsets[nodectr]; (d2 < row_offsets[nodectr+1]) && add; d2++) {
-          if (col_indices[d2] == id || nodectr == id) add = 0;
+          if (col_indices[d2] == id) add = 0;
         }
         if (add) col_indices[row_offsets[nodectr+1]++] = id;
       }
     }
     if (row_offsets[base->to->size] == 0) {
-      printf("Map %s is not an onto map from %s to %s, aborting renumbering...\n", base->name, base->from, base->to);
+      printf("Map %s is not an onto map from %s to %s, aborting renumbering...\n", base->name, base->from->name, base->to->name);
       return;
     }
+    //printf("Resizeing %d - > %d\n", (int)col_indices.size(), row_offsets[base->to->size]);
     col_indices.resize(row_offsets[base->to->size]);
     printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n", base->to->name, base->to->name, (int)col_indices.size(), base->from->name, base->from->size);
   }
@@ -227,17 +234,7 @@ void op_renumber(op_map base) {
   std::copy(permutation, permutation+base->to->size, set_permutations[base->to->index].begin());
   set_ipermutations[base->to->index].resize(base->to->size);
   std::copy(ipermutation, ipermutation+base->to->size, set_ipermutations[base->to->index].begin());
-  if (base->from == base->to) {
-    //find some set that maps to the reordered set
-    for (int i = 0; i < OP_map_index; i++) {
-      if (OP_map_list[i]->to == base->to && OP_map_list[i]->from != base->to) {
-        propagate_reordering(base->to, OP_map_list[i]->from, set_permutations, set_ipermutations);
-        break;
-      }
-    }
-  } else {
-    propagate_reordering(base->to, base->from, set_permutations, set_ipermutations);
-  }
+  propagate_reordering(base->to, base->to, set_permutations, set_ipermutations);
   for (int i = 0; i < OP_set_index; i++) {
     reorder_set(OP_set_list[i], set_permutations, set_ipermutations);
   }

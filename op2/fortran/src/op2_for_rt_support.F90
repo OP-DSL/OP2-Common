@@ -191,6 +191,15 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_renumber_c (base) BIND(C,name='op_renumber')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_map_core) :: base
+
+    end subroutine
+
     integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args) BIND(C,name='op_mpi_halo_exchanges')
 
       use, intrinsic :: ISO_C_BINDING
@@ -348,6 +357,19 @@ module OP2_Fortran_RT_Support
     type(op_dat) :: coords
 
     call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
+
+  end subroutine
+
+  subroutine op_renumber (base_map)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_map) :: base_map
+
+    call op_renumber_c (base_map%mapPtr)
 
   end subroutine
 

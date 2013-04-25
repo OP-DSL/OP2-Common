@@ -25,8 +25,8 @@ PARMETIS_LIB = -L$(PARMETIS_LIB_PATH) -lparmetis -lmetis
 
 PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
 PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
-PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH)
-PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH)
+PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH) -DHAVE_PTSCOTCH
+PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
 
 HDF5_INCLUDE_PATH ?= $(HDF5_INSTALL_PATH)/include
 HDF5_INCLUDE =  -I$(HDF5_INCLUDE_PATH)
@@ -84,8 +84,8 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   OPT		  = -O2 -xAVX -vec-report
-  CC              = icc -O2 -xAVX -vec-report
-  CXX		  = icpc -O2 -xAVX -vec-report
+  CC              = icc $(OPT)
+  CXX		  = icpc $(OPT)
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)

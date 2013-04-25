@@ -389,7 +389,6 @@ void op_dump_to_hdf5(char const * file_name)
     H5Dclose(dset_id);
   }
 
-
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
@@ -426,7 +425,6 @@ void op_dump_to_hdf5(char const * file_name)
       printf("Unknown type for map elements\n");
       exit(2);
     }
-
 
     H5Sclose(dataspace);
     H5Dclose(dset_id);
@@ -486,7 +484,7 @@ void op_dump_to_hdf5(char const * file_name)
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-
+    if (dat->size == 0 || dat->data == NULL) continue;
     //find total size of dat
     int g_size = dat->set->size;
 
@@ -574,7 +572,6 @@ void op_dump_to_hdf5(char const * file_name)
     H5Sclose(dataspace);
     H5Dclose(dset_id);
   }
-
   H5Fclose(file_id);
   op_timers(&cpu_t2, &wall_t2);  //timer stop for hdf5 file write
 
