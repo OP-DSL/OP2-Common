@@ -154,6 +154,13 @@ module OP2_Fortran_RT_Support
 
     end function
 
+    integer(kind=c_int) function getHybridGPU () BIND(C,name='getHybridGPU')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+    end function
+
     integer(kind=c_int) function reductionSize (args, argsNumber) BIND(C,name='reductionSize')
 
       use, intrinsic :: ISO_C_BINDING

@@ -150,6 +150,205 @@ attributes (host) SUBROUTINE bres_calc_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg5
   TYPE ( op_arg ) , INTENT(IN) :: opArg6
   TYPE ( op_arg ) , INTENT(IN) :: opArg7
+  if (getHybridGPU()) then
+    CALL bres_calc_host_gpu(userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+  else
+    CALL bres_calc_host_cpu(userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+  end if
+
+END SUBROUTINE
+
+attributes (host) SUBROUTINE bres_calc_cpu(qinf,x1,x2,q1,adt1,res1,bound)
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(4) :: qinf
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q1
+  REAL(kind=8), INTENT(IN) :: adt1
+  REAL(kind=8), DIMENSION(4) :: res1
+  INTEGER(kind=4), INTENT(IN) :: bound
+  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
+
+  dx = x1(1) - x2(1)
+  dy = x1(2) - x2(2)
+  ri = 1.0 / q1(1)
+  p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+
+  IF (bound .EQ. 1) THEN
+    res1(2) = res1(2) + p1 * dy
+    res1(3) = res1(3) -(p1 * dx)
+  ELSE
+    vol1 = ri * (q1(2) * dy - q1(3) * dx)
+!    ri = 1.0 / qinf(1)
+    ri = 1.0 / qinf(1)
+!    p2 = gm1 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+!    vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
+    p2 = gm1 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+    vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
+    mu = adt1 * eps
+!    f = 0.5 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
+    f = 0.5 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
+    res1(1) = res1(1) + f
+!    f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2) - qinf(2))
+    f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2) - qinf(2))
+    res1(2) = res1(2) + f
+!    f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3) - qinf(3))
+    f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3) - qinf(3))
+    res1(3) = res1(3) + f
+!    f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4) - qinf(4))
+    f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4) - qinf(4))
+    res1(4) = res1(4) + f
+  END IF
+END SUBROUTINE
+
+attributes (host) SUBROUTINE bres_calc_host_cpu( userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+
+  IMPLICIT NONE
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  type ( op_set ) , INTENT(IN) :: set
+
+  type ( op_arg ) , INTENT(IN) :: opArg1
+  type ( op_arg ) , INTENT(IN) :: opArg2
+  type ( op_arg ) , INTENT(IN) :: opArg3
+  type ( op_arg ) , INTENT(IN) :: opArg4
+  type ( op_arg ) , INTENT(IN) :: opArg5
+  type ( op_arg ) , INTENT(IN) :: opArg6
+  type ( op_arg ) , INTENT(IN) :: opArg7
+
+  type ( op_arg ) , DIMENSION(7) :: opArgArray
+  INTEGER(kind=4) :: numberOfOpDats
+  INTEGER(kind=4) :: n_upper
+  type ( op_set_core ) , POINTER :: opSetCore
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat2Map
+  INTEGER(kind=4) :: opDat2MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat2Local
+  INTEGER(kind=4) :: opDat2Cardinality
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat4Map
+  INTEGER(kind=4) :: opDat4MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat4Local
+  INTEGER(kind=4) :: opDat4Cardinality
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat5Map
+  INTEGER(kind=4) :: opDat5MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat5Local
+  INTEGER(kind=4) :: opDat5Cardinality
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat6Map
+  INTEGER(kind=4) :: opDat6MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat6Local
+  INTEGER(kind=4) :: opDat6Cardinality
+
+  real(8), POINTER, DIMENSION(:) :: opDat1Local
+  integer(4), POINTER, DIMENSION(:) :: opDat7Local
+  INTEGER(kind=4) :: opDat7Cardinality
+
+
+  INTEGER(kind=4) :: i1
+
+  numberOfOpDats = 7
+
+  opArgArray(1) = opArg1
+  opArgArray(2) = opArg2
+  opArgArray(3) = opArg3
+  opArgArray(4) = opArg4
+  opArgArray(5) = opArg5
+  opArgArray(6) = opArg6
+  opArgArray(7) = opArg7
+
+  n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
+
+  opSetCore => set%setPtr
+
+  opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
+  opDat2MapDim = getMapDimFromOpArg(opArg2)
+  opDat4Cardinality = opArg4%dim * getSetSizeFromOpArg(opArg4)
+  opDat4MapDim = getMapDimFromOpArg(opArg4)
+  opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)
+  opDat5MapDim = getMapDimFromOpArg(opArg5)
+  opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
+  opDat6MapDim = getMapDimFromOpArg(opArg6)
+  opDat7Cardinality = opArg7%dim * getSetSizeFromOpArg(opArg7)
+  CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
+  CALL c_f_pointer(opArg2%map_data,opDat2Map,(/opSetCore%size*opDat2MapDim/))
+  CALL c_f_pointer(opArg4%data,opDat4Local,(/opDat4Cardinality/))
+  CALL c_f_pointer(opArg4%map_data,opDat4Map,(/opSetCore%size*opDat4MapDim/))
+  CALL c_f_pointer(opArg5%data,opDat5Local,(/opDat5Cardinality/))
+  CALL c_f_pointer(opArg5%map_data,opDat5Map,(/opSetCore%size*opDat5MapDim/))
+  CALL c_f_pointer(opArg6%data,opDat6Local,(/opDat6Cardinality/))
+  CALL c_f_pointer(opArg6%map_data,opDat6Map,(/opSetCore%size*opDat6MapDim/))
+  CALL c_f_pointer(opArg1%data,opDat1Local, (/opArg1%dim/))
+  CALL c_f_pointer(opArg7%data,opDat7Local,(/opDat7Cardinality/))
+
+
+  DO i1 = 0, n_upper-1, 1
+    IF (i1 .EQ. opSetCore%core_size) THEN
+      CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+    END IF
+
+! kernel call
+  CALL bres_calc_cpu( &
+    & opDat1Local(1:4), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 0) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 0) * (2) + 2), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 1) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 1) * (2) + 2), &
+    & opDat4Local(1 + opDat4Map(1 + i1 * opDat4MapDim + 0) * (4) : opDat4Map(1 + i1 * opDat4MapDim + 0) * (4) + 4), &
+    & opDat5Local(1 + opDat5Map(1 + i1 * opDat5MapDim + 0)), &
+    & opDat6Local(1 + opDat6Map(1 + i1 * opDat6MapDim + 0) * (4) : opDat6Map(1 + i1 * opDat6MapDim + 0) * (4) + 4), &
+    & opDat7Local(1 + i1) &
+    & )
+  END DO
+
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+  END IF
+
+
+  CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
+
+END SUBROUTINE
+
+attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+
+  IMPLICIT NONE
+  character(len=9), INTENT(IN) :: userSubroutine
+  TYPE ( op_set ) , INTENT(IN) :: set
+
+  TYPE ( op_arg ) , INTENT(IN) :: opArg1
+  TYPE ( op_arg ) , INTENT(IN) :: opArg2
+  TYPE ( op_arg ) , INTENT(IN) :: opArg3
+  TYPE ( op_arg ) , INTENT(IN) :: opArg4
+  TYPE ( op_arg ) , INTENT(IN) :: opArg5
+  TYPE ( op_arg ) , INTENT(IN) :: opArg6
+  TYPE ( op_arg ) , INTENT(IN) :: opArg7
 
   TYPE ( op_arg ) , DIMENSION(7) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats

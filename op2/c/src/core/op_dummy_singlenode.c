@@ -150,3 +150,7 @@ int op_is_root()
 {
   return 1;
 }
+
+int getHybridGPU() {
+  return OP_hybrid_gpu;
+}

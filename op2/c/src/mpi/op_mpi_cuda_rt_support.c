@@ -55,12 +55,55 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+// Small re-declaration to avoid using struct in the C version.
+// This is due to the different way in which C and C++ see structs
+
+typedef struct cudaDeviceProp cudaDeviceProp_t;
+
 //
 //export lists on the device
 //
 
 int** export_exec_list_d;
 int** export_nonexec_list_d;
+
+void cutilDeviceInit( int argc, char ** argv )
+{
+  (void)argc;
+  (void)argv;
+  int deviceCount;
+  cutilSafeCall( cudaGetDeviceCount ( &deviceCount ) );
+  if ( deviceCount == 0 ) {
+    printf ( "cutil error: no devices supporting CUDA\n" );
+    exit ( -1 );
+  }
+  printf("Trying to select a device\n");
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//  cudaError_t err = cudaSetDevice(rank);
+  // Test we have access to a device
+//  if (err != cudaSuccess) {
+  if (rank >= deviceCount) {
+    OP_hybrid_gpu = 0;
+  } else {
+    OP_hybrid_gpu = 1;
+  }
+
+  if (OP_hybrid_gpu) {
+    cudaFree(0);
+
+    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+
+    int deviceId = -1;
+    cudaGetDevice(&deviceId);
+    cudaDeviceProp_t deviceProp;
+    cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
+    printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
+  } else {
+    printf ( "\n Using CPU\n" );
+  }
+}
+
 
 void op_upload_dat(op_dat dat) {
   //printf("Uploading %s\n", dat->name);
@@ -393,6 +436,7 @@ void op_partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )
 {
   partition(lib_name, lib_routine, prime_set, prime_map, coords );
+  if (!OP_hybrid_gpu) return;
 
   for(int s = 0; s<OP_set_index; s++)
   {

@@ -12,7 +12,8 @@ SUBROUTINE bres_calc(qinf,x1,x2,q1,adt1,res1,bound)
   dx = x1(1) - x2(1)
   dy = x1(2) - x2(2)
   ri = 1.0 / q1(1)
-  p1 = gm1_OP2 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+  p1 = 0.4 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+!  p1 = gm1_OP2 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
 
   IF (bound .EQ. 1) THEN
     res1(2) = res1(2) + p1 * dy
@@ -23,9 +24,11 @@ SUBROUTINE bres_calc(qinf,x1,x2,q1,adt1,res1,bound)
     ri = 1.0 / qinf(1)
 !    p2 = gm1_OP2 * (qinf_OP2(4) - 0.5 * ri * (qinf_OP2(2) * qinf_OP2(2) + qinf_OP2(3) * qinf_OP2(3)))
 !    vol2 = ri * (qinf_OP2(2) * dy - qinf_OP2(3) * dx)
-    p2 = gm1_OP2 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+!    p2 = gm1_OP2 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+    p2 = 0.4 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
     vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
-    mu = adt1 * eps_OP2
+!    mu = adt1 * eps_OP2
+    mu = adt1 * 0.05
 !    f = 0.5 * (vol1 * q1(1) + vol2 * qinf_OP2(1)) + mu * (q1(1) - qinf_OP2(1))
     f = 0.5 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
     res1(1) = res1(1) + f

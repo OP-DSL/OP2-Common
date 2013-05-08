@@ -91,38 +91,13 @@ void __cutilCheckMsg ( const char * errorMessage, const char * file,
   }
 }
 
-void cutilDeviceInit( int argc, char ** argv )
-{
-  (void)argc;
-  (void)argv;
-
-  int deviceCount;
-  cutilSafeCall( cudaGetDeviceCount ( &deviceCount ) );
-  if ( deviceCount == 0 ) {
-    printf ( "cutil error: no devices supporting CUDA\n" );
-    exit ( -1 );
-  }
-
-  // Test we have access to a device
-  float *test;
-  cutilSafeCall( cudaMalloc((void **)&test, sizeof(float)) );
-  cudaFree(test);
-
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-
-  int deviceId = -1;
-  cudaGetDevice(&deviceId);
-  cudaDeviceProp_t deviceProp;
-  cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
-  printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
-}
-
 //
 // routines to move arrays to/from GPU device
 //
 
 void op_mvHostToDevice ( void ** map, int size )
 {
+  if (!OP_hybrid_gpu) return;
   void *tmp;
   cutilSafeCall ( cudaMalloc ( &tmp, size ) );
   cutilSafeCall ( cudaMemcpy ( tmp, *map, size,
@@ -134,6 +109,7 @@ void op_mvHostToDevice ( void ** map, int size )
 
 void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
 {
+  if (!OP_hybrid_gpu) return;
   cutilSafeCall ( cudaMalloc ( data_d, size ) );
   cutilSafeCall ( cudaMemcpy ( *data_d, *data_h, size,
                                cudaMemcpyHostToDevice ) );
@@ -145,6 +121,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 {
   op_plan *plan = op_plan_core ( name, set, part_size,
                                  nargs, args, ninds, inds );
+  if (!OP_hybrid_gpu) return plan;
 
   int set_size = set->size;
   for(int i = 0; i< nargs; i++) {
@@ -199,6 +176,7 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 
 void op_cuda_exit ( )
 {
+  if (!OP_hybrid_gpu) return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries)
   {
@@ -283,6 +261,7 @@ void mvReductArraysToHost ( int reduct_bytes )
 
 void op_cuda_get_data ( op_dat dat )
 {
+  if (!OP_hybrid_gpu) return;
   //transpose data
   if (strstr( dat->type, ":soa")!= NULL) {
     char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
@@ -308,6 +287,42 @@ void op_cuda_get_data ( op_dat dat )
   }
 }
 #ifndef OPMPI
+
+void cutilDeviceInit( int argc, char ** argv )
+{
+  (void)argc;
+  (void)argv;
+  int deviceCount;
+  cutilSafeCall( cudaGetDeviceCount ( &deviceCount ) );
+  if ( deviceCount == 0 ) {
+    printf ( "cutil error: no devices supporting CUDA\n" );
+    exit ( -1 );
+  }
+
+  // Test we have access to a device
+  float *test;
+  cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+  if (err != cudaSuccess) {
+    OP_hybrid_gpu = 0;
+  } else {
+    OP_hybrid_gpu = 1;
+  }
+  if (OP_hybrid_gpu) {
+    cudaFree(test);
+
+    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+
+    int deviceId = -1;
+    cudaGetDevice(&deviceId);
+    cudaDeviceProp_t deviceProp;
+    cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
+    printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
+  } else {
+    printf ( "\n Using CPU\n" );
+  }
+}
+
+
 void op_upload_dat(op_dat dat) {
   int set_size = dat->set->size;
   cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));

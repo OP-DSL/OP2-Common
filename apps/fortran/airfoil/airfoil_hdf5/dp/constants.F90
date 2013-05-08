@@ -10,7 +10,6 @@ MODULE OP2_CONSTANTS
   real(8), constant :: alpha_OP2
   real(8), constant :: air_const_OP2
   real(8), constant :: qinf_OP2(4)
-  real(8), device :: bigone(2000)
 real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
 #else
 real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)

@@ -2232,15 +2232,21 @@ int getSetSizeFromOpArg (op_arg * arg)
                      OP_import_nonexec_list[arg->dat->set->index]->size) : 0;
 }
 
+int getHybridGPU() {
+  return OP_hybrid_gpu;
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
 
-  for (int n=0; n<nargs; n++)
-    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
-      op_download_dat(args[n].dat);
-      args[n].dat->dirty_hd = 0;
-    }
+  if (OP_hybrid_gpu) {
+    for (int n=0; n<nargs; n++)
+      if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
+        op_download_dat(args[n].dat);
+        args[n].dat->dirty_hd = 0;
+      }
+  }
 
   //check if this is a direct loop
   for (int n=0; n<nargs; n++)

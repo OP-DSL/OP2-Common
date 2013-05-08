@@ -48,6 +48,8 @@ int OP_diags = 0,
     OP_cache_line_size = 128,
     OP_gpu_direct = 0;
 
+int OP_hybrid_gpu = 0;
+
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0,

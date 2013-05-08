@@ -3,6 +3,8 @@ module IO
   USE CUDAFOR
 #endif
   USE OP2_CONSTANTS
+  USE OP2_FORTRAN_RT_SUPPORT
+
   IMPLICIT  NONE
   contains
 ! read set sizes from input
@@ -119,16 +121,11 @@ subroutine initialise_flow_field ( ncell, q, res )
   integer(4) :: n, m
 
   gam = 1.4
-  gam_OP2 = gam
   gm1 = 1.4 - 1.0
-  gm1_OP2 = gm1
   cfl = 0.9
-  cfl_OP2 = cfl
   eps = 0.05
-  eps_OP2 = eps
 
   mach  = 0.4
-  mach_OP2 = mach
   alpha = 3.0 * atan(1.0) / 45.0
   p     = 1.0
   r     = 1.0
@@ -139,7 +136,7 @@ subroutine initialise_flow_field ( ncell, q, res )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
-  qinf_OP2 = qinf
+
   ! -4 in the subscript is done to adapt C++ code to fortran one
   do n = 1, ncell
     do m = 1, 4
@@ -154,20 +151,13 @@ subroutine initialise_constants ( )
 
   ! local variables
   real(8) :: p, r, u, e
-  real(8) :: bigone_host(2000)
+
   gam = 1.4
-  gam_OP2 = gam
   gm1 = 1.4 - 1.0
-  gm1_OP2 = gm1
   cfl = 0.9
-  cfl_OP2 = cfl
   eps = 0.05
-  eps_OP2 = eps
-  bigone_host(3) = 3.0
-  bigone = bigone_host
 
   mach  = 0.4
-  mach_OP2 = mach
 
   alpha = 3.0 * atan(1.0) / 45.0
   p     = 1.0
@@ -179,7 +169,16 @@ subroutine initialise_constants ( )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
+#ifdef OP2_WITH_CUDAFOR
+  if (getHybridGPU()) then
+  gam_OP2 = gam
+  gm1_OP2 = gm1
+  eps_OP2 = eps
+  cfl_OP2 = cfl
+  mach_OP2 = mach
   qinf_OP2 = qinf
+  end if
+#endif
 end subroutine initialise_constants
 
 end module

@@ -791,10 +791,10 @@ for a in range(init_ctr,len(sys.argv)):
       replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     for nk in range (0,len(kernels)):
-#      if hydra:
-#        replace = '\n'
-#      else:
-      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+      if hydra:
+        replace = '\n'
+      else:
+        replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:
@@ -836,7 +836,7 @@ if npart==0 and nhdf5>0:
 ##########################################################################
 
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:
 #  op2_gen_cuda_hydra()

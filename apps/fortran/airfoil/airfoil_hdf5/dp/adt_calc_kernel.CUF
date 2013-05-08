@@ -138,6 +138,189 @@ attributes (host) SUBROUTINE adt_calc_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg5
   TYPE ( op_arg ) , INTENT(IN) :: opArg6
   TYPE ( op_arg ) , INTENT(IN) :: opArg7
+  if (getHybridGPU()) then
+    CALL adt_calc_host_gpu(userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+  else
+    CALL adt_calc_host_cpu(userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+  end if
+END SUBROUTINE
+
+attributes(host) SUBROUTINE adt_calc_cpu(dummy,x1,x2,x3,x4,q,adt)
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: dummy
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x3
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x4
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
+  REAL(kind=8) :: adt
+  REAL(kind=8) :: dx,dy,ri,u,v,c
+
+  ri = 1.0 / q(1)
+!  if (gam > 5.0) then
+  if (0.4 > 5.0) then
+    ri = ri + dummy(1)
+  endif
+  u = ri * q(2)
+  v = ri * q(3)
+!  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  c = sqrt(1.4 * 0.4 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  dx = x2(1) - x1(1)
+  dy = x2(2) - x1(2)
+  adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x3(1) - x2(1)
+  dy = x3(2) - x2(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x4(1) - x3(1)
+  dy = x4(2) - x3(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x1(1) - x4(1)
+  dy = x1(2) - x4(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+!  adt = adt / cfl
+  adt = adt / 0.9
+END SUBROUTINE
+
+attributes(host) SUBROUTINE adt_calc_host_cpu( userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+
+  IMPLICIT NONE
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  type ( op_set ) , INTENT(IN) :: set
+
+  type ( op_arg ) , INTENT(IN) :: opArg1
+  type ( op_arg ) , INTENT(IN) :: opArg2
+  type ( op_arg ) , INTENT(IN) :: opArg3
+  type ( op_arg ) , INTENT(IN) :: opArg4
+  type ( op_arg ) , INTENT(IN) :: opArg5
+  type ( op_arg ) , INTENT(IN) :: opArg6
+  type ( op_arg ) , INTENT(IN) :: opArg7
+
+  type ( op_arg ) , DIMENSION(7) :: opArgArray
+  INTEGER(kind=4) :: numberOfOpDats
+  INTEGER(kind=4) :: n_upper
+  type ( op_set_core ) , POINTER :: opSetCore
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat1Map
+  INTEGER(kind=4) :: opDat1MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat1Local
+  INTEGER(kind=4) :: opDat1Cardinality
+
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat2Map
+  INTEGER(kind=4) :: opDat2MapDim
+  real(8), POINTER, DIMENSION(:) :: opDat2Local
+  INTEGER(kind=4) :: opDat2Cardinality
+
+  real(8), POINTER, DIMENSION(:) :: opDat6Local
+  INTEGER(kind=4) :: opDat6Cardinality
+
+  real(8), POINTER, DIMENSION(:) :: opDat7Local
+  INTEGER(kind=4) :: opDat7Cardinality
+
+  real(8), POINTER, DIMENSION(:) :: opDat1OptPtr
+
+  INTEGER(kind=4) :: i1
+
+  numberOfOpDats = 7
+
+  opArgArray(1) = opArg1
+  opArgArray(2) = opArg2
+  opArgArray(3) = opArg3
+  opArgArray(4) = opArg4
+  opArgArray(5) = opArg5
+  opArgArray(6) = opArg6
+  opArgArray(7) = opArg7
+
+  n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
+
+  opSetCore => set%setPtr
+
+  opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+  opDat1MapDim = getMapDimFromOpArg(opArg1)
+  opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
+  opDat2MapDim = getMapDimFromOpArg(opArg2)
+  opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
+  opDat7Cardinality = opArg7%dim * getSetSizeFromOpArg(opArg7)
+  CALL c_f_pointer(opArg1%data,opDat1Local,(/opDat1Cardinality/))
+  CALL c_f_pointer(opArg1%map_data,opDat1Map,(/opSetCore%size*opDat1MapDim/))
+  CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
+  CALL c_f_pointer(opArg2%map_data,opDat2Map,(/opSetCore%size*opDat2MapDim/))
+  CALL c_f_pointer(opArg6%data,opDat6Local,(/opDat6Cardinality/))
+  CALL c_f_pointer(opArg7%data,opDat7Local,(/opDat7Cardinality/))
+
+
+  DO i1 = 0, n_upper-1, 1
+    IF (i1 .EQ. opSetCore%core_size) THEN
+      CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+    END IF
+
+    IF (opArg1%opt == 1) THEN
+      opDat1OptPtr => opDat1Local(1 + opDat1Map(1 + i1 * opDat1MapDim + 0) * (2):)
+    ELSE
+      opDat1OptPtr => opDat1Local(1:)
+    END IF
+! kernel call
+  CALL adt_calc_cpu( &
+    & opDat1OptPtr(1:2), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 0) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 0) * (2) + 2), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 1) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 1) * (2) + 2), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 2) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 2) * (2) + 2), &
+    & opDat2Local(1 + opDat2Map(1 + i1 * opDat2MapDim + 3) * (2) : opDat2Map(1 + i1 * opDat2MapDim + 3) * (2) + 2), &
+    & opDat6Local(1 + i1 * (4) : i1 * (4) + 4), &
+    & opDat7Local(1 + i1) &
+    & )
+  END DO
+
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+  END IF
+
+
+  CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
+
+
+END SUBROUTINE
+
+attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
+  & opArg1, &
+  & opArg2, &
+  & opArg3, &
+  & opArg4, &
+  & opArg5, &
+  & opArg6, &
+  & opArg7 )
+
+  IMPLICIT NONE
+  character(len=8), INTENT(IN) :: userSubroutine
+  TYPE ( op_set ) , INTENT(IN) :: set
+
+  TYPE ( op_arg ) , INTENT(IN) :: opArg1
+  TYPE ( op_arg ) , INTENT(IN) :: opArg2
+  TYPE ( op_arg ) , INTENT(IN) :: opArg3
+  TYPE ( op_arg ) , INTENT(IN) :: opArg4
+  TYPE ( op_arg ) , INTENT(IN) :: opArg5
+  TYPE ( op_arg ) , INTENT(IN) :: opArg6
+  TYPE ( op_arg ) , INTENT(IN) :: opArg7
 
   TYPE ( op_arg ) , DIMENSION(7) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
@@ -254,7 +437,6 @@ attributes (host) SUBROUTINE adt_calc_host( userSubroutine, set, &
   opMap2Cardinality = set%setPtr%size * getMapDimFromOpArg(opArg2)
   opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
   opDat7Cardinality = opArg7%dim * getSetSizeFromOpArg(opArg7)
-
 
   CALL c_f_pointer(opArg1%data_d,opDat1Deviceadt_calc,(/opDat1Cardinality/))
   CALL c_f_pointer(opArg1%map_data_d,opMap1Deviceadt_calc,(/opMap1Cardinality/))
