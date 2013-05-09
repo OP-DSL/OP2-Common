@@ -249,7 +249,7 @@ def op2_gen_mpiseq2(master, date, consts, kernels, hydra):
     code('')
 
 ##########################################################################
-#  Generate OpenMP hust stub
+#  Generate SEQ host stub
 ##########################################################################
     if name == 'QRG_SET':
       code('SUBROUTINE '+name+'F_host( userSubroutine, set, &'); depth = depth + 2

@@ -228,6 +228,8 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
             print 'ERROR: Multidimensional MIN/MAX reduction not yet implemented'
         else:
           reduct_1dim = 1
+      if maps[i] == OP_GBL and accs[i] == OP_WRITE:
+        j = i
     reduct = j > 0
 
     is_soa = -1
@@ -442,6 +444,17 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  Inline user kernel function
 ##########################################################################
     if hydra:
+      code('')
+      comm(name + ' user functions (CPU and GPU)')
+      code('')
+      text = text.replace('module','!module')
+      text = text.replace('contains','!contains')
+      text = text.replace('end !module','!end module')
+      text = text.replace('recursive subroutine','attributes(host) subroutine')
+      text = text.replace('subroutine '+name, 'subroutine '+name+'_cpu')
+      file_text += text
+      code('')
+      code('')
       i = text.find('const2.inc')
       if i > -1:
         fi2 = open("hydra_constants_list.txt","r")
@@ -450,22 +463,27 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           rstr = line[:-1]+'_OP2CONSTANT'
           text = re.sub(fstr,rstr,text)
       text = text.replace('#include "const2.inc"','!#include "const2.inc"')
-      text = text.replace('module','!module')
-      text = text.replace('contains','!contains')
-      text = text.replace('end !module','!end module')
-      text = text.replace('recursive subroutine','attributes(device) subroutine')
+      text = text.replace('attributes(host) subroutine','attributes(device) subroutine')
+      text = text.replace('subroutine '+name+'_cpu', 'subroutine '+name+'_gpu')
       text = text.replace('use BCS_KERNELS', '!use BCS_KERNELS')
       text = text.replace('use REALGAS_KERNELS', '!use REALGAS_KERNELS')
       text = text.replace('use UPDATE_KERNELS', '!use UPDATE_KERNELS')
       if ('BCFLUXK' in name) or ('INVISCBNDS' in name):
         code('#include "../../bcs_kernels_gpufun.inc"')
+        kern_names = ['QRG_SET','OUTFLOW_FS','FREESTREAM','INFLOW','MP_INFLOW_CHAR','MP_OUTFLOW_CHAR','OUTFLOW','INFLOW_WHIRL','UNIQUE_INC','FILM_INJ','WFLUX','FFLUX']
+        for i in range(0,12):
+          text = text.replace('call '+kern_names[i]+'(', 'call '+kern_names[i]+'_gpu(')
+          text = text.replace('call '+kern_names[i].lower()+'(', 'call '+kern_names[i].lower()+'_gpu(')
+          text = text.replace('CALL '+kern_names[i]+'(', 'CALL '+kern_names[i]+'_gpu(')
       if 'call LOW' in text:
+        kern_names = ['LOW','LOWH','LOWK']
+        for i in range(0,3):
+          text = text.replace('call '+kern_names[i]+'(', 'call '+kern_names[i]+'_gpu(')
+          text = text.replace('CALL '+kern_names[i]+'(', 'CALL '+kern_names[i]+'_gpu(')
         code('#include "../../flux_low_gpufun.inc"')
       if ('INVJACS' in name):
+        text = text.replace('call MATINV5(', 'call MATINV5_gpu(')
         code('#include "../../update_kernels_gpufun.inc"')
-      code('')
-      comm(name + 'user function')
-      code('')
       file_text += text
 
     else:
@@ -687,7 +705,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  CUDA kernel call
 ##########################################################################
     if ninds > 0: #indirect kernel call
-      line = '  CALL '+name+'( &'
+      line = '  CALL '+name+'_gpu( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
@@ -801,7 +819,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('')
 
     else: #direct kernel call
-      line = '  CALL '+name+'( &'
+      line = '  CALL '+name+'_gpu( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
@@ -856,6 +874,43 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  Generate CPU hust stub
 ##########################################################################
     code('attributes (host) SUBROUTINE '+name+'_host( userSubroutine, set, &'); depth = depth + 2
+    for g_m in range(0,nargs):
+      if g_m == nargs-1:
+        code('& opArg'+str(g_m+1)+' )')
+      else:
+        code('& opArg'+str(g_m+1)+', &')
+
+    code('')
+    code('IMPLICIT NONE')
+    code('character(len='+str(len(name))+'), INTENT(IN) :: userSubroutine')
+    code('TYPE ( op_set ) , INTENT(IN) :: set')
+    code('')
+
+    for g_m in range(0,nargs):
+      code('TYPE ( op_arg ) , INTENT(IN) :: opArg'+str(g_m+1))
+    code('')
+    IF('getHybridGPU()')
+    code('CALL '+name+'_host_gpu( userSubroutine, set, &');
+    for g_m in range(0,nargs):
+      if g_m == nargs-1:
+        code('& opArg'+str(g_m+1)+' )')
+      else:
+        code('& opArg'+str(g_m+1)+', &')
+    ELSE()
+    code('CALL '+name+'_host_cpu( userSubroutine, set, &');
+    for g_m in range(0,nargs):
+      if g_m == nargs-1:
+        code('& opArg'+str(g_m+1)+' )')
+      else:
+        code('& opArg'+str(g_m+1)+', &')
+    ENDIF()
+    depth = depth - 2
+    code('END SUBROUTINE')
+    code('')
+    code('')
+    comm('Stub for GPU execution')
+    code('')
+    code('attributes (host) SUBROUTINE '+name+'_host_gpu( userSubroutine, set, &'); depth = depth + 2
     for g_m in range(0,nargs):
       if g_m == nargs-1:
         code('& opArg'+str(g_m+1)+' )')
@@ -1208,6 +1263,167 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('calledTimes = calledTimes + 1')
     depth = depth - 2
     code('END SUBROUTINE')
+    code('')
+    code('')
+    comm('Stub for CPU execution')
+    code('')
+##########################################################################
+#  Generate SEQ host stub
+##########################################################################
+    code('attributes(host) SUBROUTINE '+name+'_host_cpu( userSubroutine, set, &'); depth = depth + 2
+    for g_m in range(0,nargs):
+      if g_m == nargs-1:
+        code('& opArg'+str(g_m+1)+' )')
+      else:
+        code('& opArg'+str(g_m+1)+', &')
+
+    code('')
+    code('IMPLICIT NONE')
+    code('character(kind=c_char,len=*), INTENT(IN) :: userSubroutine')
+    code('type ( op_set ) , INTENT(IN) :: set')
+    code('')
+
+    for g_m in range(0,nargs):
+      code('type ( op_arg ) , INTENT(IN) :: opArg'+str(g_m+1))
+    code('')
+
+    code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
+    code('INTEGER(kind=4) :: numberOfOpDats')
+    code('INTEGER(kind=4) :: n_upper')
+    code('type ( op_set_core ) , POINTER :: opSetCore')
+    code('')
+
+    for g_m in range(0,ninds):
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat'+str(invinds[g_m]+1)+'Map')
+      code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'MapDim')
+      code(typs[invinds[g_m]]+', POINTER, DIMENSION(:) :: opDat'+str(invinds[g_m]+1)+'Local')
+      code('INTEGER(kind=4) :: opDat'+str(invinds[g_m]+1)+'Cardinality')
+      code('')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'Local')
+        code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'Cardinality')
+        code('')
+      if maps[g_m] == OP_GBL:
+        code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'Local')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and optflags[g_m]==1:
+        code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'OptPtr')
+
+
+    code('')
+    code('INTEGER(kind=4) :: i1')
+
+    code('')
+    code('numberOfOpDats = '+str(nargs))
+    code('')
+
+    for g_m in range(0,nargs):
+      code('opArgArray('+str(g_m+1)+') = opArg'+str(g_m+1))
+    code('')
+
+
+    #mpi halo exchange call
+    code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+
+    code('')
+    code('opSetCore => set%setPtr')
+    code('')
+    for g_m in range(0,ninds):
+      code('opDat'+str(invinds[g_m]+1)+'Cardinality = opArg'+str(invinds[g_m]+1)+'%dim * getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+')')
+      code('opDat'+str(invinds[g_m]+1)+'MapDim = getMapDimFromOpArg(opArg'+str(invinds[g_m]+1)+')')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('opDat'+str(g_m+1)+'Cardinality = opArg'+str(g_m+1)+'%dim * getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
+
+    for g_m in range(0,ninds):
+      code('CALL c_f_pointer(opArg'+str(invinds[g_m]+1)+'%data,opDat'+str(invinds[g_m]+1)+'Local,(/opDat'+str(invinds[g_m]+1)+'Cardinality/))')
+      code('CALL c_f_pointer(opArg'+str(invinds[g_m]+1)+'%map_data,opDat'+str(invinds[g_m]+1)+'Map,(/opSetCore%size*opDat'+str(invinds[g_m]+1)+'MapDim/))')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local,(/opDat'+str(g_m+1)+'Cardinality/))')
+      elif maps[g_m] == OP_GBL:
+        code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim/))')
+    code('')
+
+    code('')
+    DO('i1','0','n_upper')
+    if ninds > 0:
+      IF('i1 .EQ. opSetCore%core_size')
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+      ENDIF()
+    code('')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and optflags[g_m]==1:
+        IF('opArg'+str(g_m+1)+'%opt == 1')
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):)')
+        ELSE()
+        code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
+        ENDIF()
+    comm('kernel call')
+    line = 'CALL '+name+'_cpu( &'
+    indent = '\n'+' '*depth
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1 * ('+dims[g_m]+') : i1 * ('+dims[g_m]+') + '+dims[g_m]+')'
+        else:
+          line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1)'
+      if maps[g_m] == OP_MAP and optflags[g_m]==0:
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
+        else:
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+'))'
+      elif maps[g_m] == OP_MAP and optflags[g_m]==1:
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
+        else:
+          line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
+      if maps[g_m] == OP_GBL:
+        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+          line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
+        else:
+          line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+      if g_m < nargs-1:
+        line = line +', &'
+      else:
+         line = line +' &'
+    depth = depth - 2
+    code(line + indent + '& )')
+    depth = depth + 2
+    ENDDO()
+    code('')
+
+    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
+    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+    ENDIF()
+    code('')
+
+
+
+    code('')
+    code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
+    code('')
+
+    #reductions
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
+        if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
+          code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+        elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
+          code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+        elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)':
+          code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+        elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
+          code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+        code('')
+
+
+    depth = depth - 2
+    code('END SUBROUTINE')
+
     code('END MODULE')
 ##########################################################################
 #  output individual kernel file
