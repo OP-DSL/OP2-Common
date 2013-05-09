@@ -743,8 +743,6 @@ for a in range(init_ctr,len(sys.argv)):
        #endofcall = text.find('\n\n', locs[loc])
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
-       if name == 'QRG_SET':
-         name = 'QRG_SETF'
        if file_format == 90:
          line = str(' '+name+'_host(& \n'+indent+'& "'+name+'",'+
                 loop_args[curr_loop]['set']+', '+cont_end+'\n')
