@@ -63,6 +63,26 @@
 
 MPI_Comm OP_MPI_HDF5_WORLD;
 
+int compute_local_size_weight (int global_size, int mpi_comm_size, int mpi_rank )
+{
+  int *hybrid_flags = (int *)malloc(mpi_comm_size*sizeof(int));
+  MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
+      1,MPI_INT,OP_MPI_HDF5_WORLD);
+  double total = 0;
+  for (int i = 0; i < mpi_comm_size; i++)
+    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+  double cumulative = 0;
+  for (int i = 0; i < mpi_rank; i++)
+    cumulative +=  hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+
+  int local_start = ((double)global_size)*(cumulative/total);
+  int local_end = ((double)global_size)*((cumulative+(OP_hybrid_gpu ? OP_hybrid_balance : 1.0))/total);
+  if (mpi_rank + 1 == mpi_comm_size) local_end = global_size; //make sure we don't have rounding problems
+  int local_size = local_end-local_start;
+
+  return local_size;
+}
+
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
@@ -112,7 +132,8 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   H5Fclose(file_id);
 
   //calculate local size of set for this mpi process
-  int l_size = compute_local_size (g_size, comm_size, my_rank);
+  int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
+  printf("Set %s global size %d local size %d\n", name, g_size, l_size);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
   return op_decl_set(l_size,  name);
@@ -163,7 +184,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Dclose(dset_id);
 
   //calculate local size of set for this mpi process
-  int l_size = compute_local_size (g_size, comm_size, my_rank);
+  int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
 
   //check if size is accurate
   if(from->size != l_size) {

@@ -34,16 +34,18 @@ import re
 import datetime
 
 #import openmp code generation function
-#import op2_gen_openmp
-#from op2_gen_openmp import *
+import op2_gen_openmp
+from op2_gen_openmp import *
+import op2_gen_openmp2
+from op2_gen_openmp2 import *
 
-#import openmp code generation function
+#import mpiseq code generation function
 import op2_gen_mpiseq
 from op2_gen_mpiseq import *
 import op2_gen_mpiseq2
 from op2_gen_mpiseq2 import *
 
-#import openmp code generation function
+#import cuda code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
 
@@ -833,8 +835,9 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
+op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:
 #  op2_gen_cuda_hydra()
