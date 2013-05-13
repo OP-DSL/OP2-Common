@@ -165,10 +165,13 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                           sizeof ( int ) * set_size );
     op_mvHostToDevice ( ( void ** ) &( plan->offset ),
                           sizeof ( int ) * plan->nblocks );
+    plan->offset_d = plan->offset;
     op_mvHostToDevice ( ( void ** ) &( plan->nelems ),
                           sizeof ( int ) * plan->nblocks );
+    plan->nelems_d = plan->nelems;
     op_mvHostToDevice ( ( void ** ) &( plan->blkmap ),
                           sizeof ( int ) * plan->nblocks );
+    plan->blkmap_d = plan->blkmap;
   }
 
   return plan;

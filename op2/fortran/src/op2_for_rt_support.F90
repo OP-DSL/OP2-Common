@@ -56,14 +56,15 @@ module OP2_Fortran_RT_Support
     type(c_ptr) ::         accs
 
     ! execution plan
+    type(c_ptr) ::         offset  ! offset for primary set
 #ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::      nthrcol ! number of thread colors for each block
     type(c_devptr) ::      thrcol  ! thread colors
-    type(c_devptr) ::      offset  ! offset for primary set
+    type(c_devptr) ::      offset_d  ! offset for primary set
 #else
     type(c_ptr) ::         nthrcol ! number of thread colors for each block
     type(c_ptr) ::         thrcol  ! thread colors
-    type(c_ptr) ::         offset  ! offset for primary set
+    type(c_ptr) ::         offset_d  ! offset for primary set
 #endif
 
 #ifdef OP2_WITH_CUDAFOR
@@ -90,20 +91,21 @@ module OP2_Fortran_RT_Support
 
     type(c_ptr) ::         maps ! maps to local indices, renumbered as needed
     integer(kind=c_int) :: nblocks ! number of blocks (for Fortran)
-#ifdef OP2_WITH_CUDAFOR
-    type(c_devptr) ::      nelems ! number of elements in each block
-#else
     type(c_ptr) ::         nelems ! number of elements in each block
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      nelems_d ! number of elements in each block
+#else
+    type(c_ptr) ::         nelems_d ! number of elements in each block
 #endif
     integer(kind=c_int) :: ncolors_core ! mumber of core colors in MPI
     integer(kind=c_int) :: ncolors_owned ! number of colors in MPI for blocks that only have owned elements
     integer(kind=c_int) :: ncolors ! number of block colors
     type(c_ptr) ::         ncolblk  ! number of blocks for each color
-
-#ifdef OP2_WITH_CUDAFOR
-    type(c_devptr) ::      blkmap ! block mapping
-#else
     type(c_ptr) ::         blkmap ! block mapping
+#ifdef OP2_WITH_CUDAFOR
+    type(c_devptr) ::      blkmap_d ! block mapping
+#else
+    type(c_ptr) ::         blkmap_d ! block mapping
 #endif
 
     type(c_ptr) ::         nsharedCol ! bytes of shared memory required per block colour

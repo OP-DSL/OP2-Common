@@ -55,6 +55,7 @@ typedef struct {
   int        *nthrcol;    /* number of thread colors for each block */
   int        *thrcol;     /* thread colors */
   int        *offset;     /* offset for primary set */
+  int        *offset_d;   /* offset for primary set on the GPU (Fortran)*/
   int        *ind_map;    /* concatenated pointers for indirect datasets */
   int       **ind_maps;   /* pointers for indirect datasets */
   int        *ind_offs;   /* block offsets for indirect datasets */
@@ -64,11 +65,13 @@ typedef struct {
   short     **loc_maps;   /* maps to local indices, renumbered as needed */
   int         nblocks;    /* number of blocks */
   int        *nelems;     /* number of elements in each block */
+  int        *nelems_d;   /* number of elements in each block on the GPU (Fortran) */
   int         ncolors_core; /* mumber of core colors in MPI */
   int         ncolors_owned; /* mumber of colors in MPI for blocks that only have owned elements*/
   int         ncolors;    /* number of block colors */
   int        *ncolblk;    /* number of blocks for each color */
   int        *blkmap;     /* block mapping */
+  int        *blkmap_d;   /* block mapping on the GPU (Fortran) */
   int        *nsharedCol; /* bytes of shared memory required per block colour */
   int         nshared;    /* bytes of shared memory required */
   float       transfer;   /* bytes of data transfer per kernel call */
