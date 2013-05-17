@@ -253,6 +253,7 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
       text = text.replace('subroutine '+name, 'subroutine '+name+'_cpu')
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '_cpu\n'
       file_text += text
       #code(kernels[nk]['mod_file'])
     code('')

@@ -257,10 +257,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 ##########################################################################
 #  Generate OpenMP hust stub
 ##########################################################################
-    if name == 'QRG_SET':
-      code('SUBROUTINE '+name+'F_host( userSubroutine, set, &'); depth = depth + 2
-    else:
-      code('SUBROUTINE '+name+'_host( userSubroutine, set, &'); depth = depth + 2
+    code('SUBROUTINE '+name+'_host( userSubroutine, set, &'); depth = depth + 2
     for g_m in range(0,nargs):
       if g_m == nargs-1:
         code('& opArg'+str(g_m+1)+' )')
