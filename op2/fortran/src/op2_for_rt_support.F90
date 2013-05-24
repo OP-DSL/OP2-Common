@@ -56,14 +56,15 @@ module OP2_Fortran_RT_Support
     type(c_ptr) ::         accs
 
     ! execution plan
-    type(c_ptr) ::         offset  ! offset for primary set
 #ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::      nthrcol ! number of thread colors for each block
     type(c_devptr) ::      thrcol  ! thread colors
+    type(c_ptr) ::         offset  ! offset for primary set
     type(c_devptr) ::      offset_d  ! offset for primary set
 #else
     type(c_ptr) ::         nthrcol ! number of thread colors for each block
     type(c_ptr) ::         thrcol  ! thread colors
+    type(c_ptr) ::         offset  ! offset for primary set
     type(c_ptr) ::         offset_d  ! offset for primary set
 #endif
 

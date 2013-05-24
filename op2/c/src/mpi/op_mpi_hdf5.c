@@ -311,6 +311,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*find element size of this dat with available attributes*/
   size_t dat_size = 0;
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) return NULL;
   attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
   H5Aread(attr,H5T_NATIVE_INT,&dat_size);
   H5Aclose(attr);

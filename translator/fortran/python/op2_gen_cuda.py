@@ -1272,9 +1272,9 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     comm('Stub for CPU execution')
     code('')
 ##########################################################################
-#  Generate SEQ host stub
+#  Generate OpenMP host stub
 ##########################################################################
-    code('attributes(host) SUBROUTINE '+name+'_host_cpu( userSubroutine, set, &'); depth = depth + 2
+    code('SUBROUTINE '+name+'_host_cpu( userSubroutine, set, &'); depth = depth + 2
     for g_m in range(0,nargs):
       if g_m == nargs-1:
         code('& opArg'+str(g_m+1)+' )')
@@ -1389,6 +1389,8 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code_pre('#else')
     code_pre('  numberOfThreads = 1')
     code_pre('#endif')
+    depth = depth + 2
+
 
     if ninds > 0:
       for g_m in range(0,nargs):
@@ -1407,7 +1409,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('& indirectionDescriptorArray)')
       code('')
       code('CALL c_f_pointer(planRet_'+name+',actualPlan_'+name+')')
-      code('CALL c_f_pointer(actualPlan_'+name+'%ncolblk,ncolblk_'+name+',(/set%setPtr%size/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%ncolblk,ncolblk_'+name+',(/actualPlan_'+name+'%ncolors_core/))')
       code('CALL c_f_pointer(actualPlan_'+name+'%blkmap,blkmap_'+name+',(/actualPlan_'+name+'%nblocks/))')
       code('CALL c_f_pointer(actualPlan_'+name+'%offset,offset_'+name+',(/actualPlan_'+name+'%nblocks/))')
       code('CALL c_f_pointer(actualPlan_'+name+'%nelems,nelems_'+name+',(/actualPlan_'+name+'%nblocks/))')

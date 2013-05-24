@@ -254,10 +254,12 @@ void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords );
 
 /******************************************************************************
-* Random partitioning wrapper prototype
+* Custom partitioning wrapper prototypes
 *******************************************************************************/
 
 void op_partition_random(op_set primary_set);
+
+void op_partition_external(op_set primary_set);
 
 #ifdef HAVE_PARMETIS
 /*******************************************************************************

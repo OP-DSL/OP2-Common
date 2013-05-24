@@ -1294,6 +1294,96 @@ static void migrate_all(int my_rank, int comm_size)
   }
 }
 
+/*****************************************************************************************************************************************
+ * This routine partitions based on information contained in an op_dat called partvecXXXX (number of total partitions, padded with 0s)
+ *****************************************************************************************************************************************/
+
+void op_partition_external(op_set primary_set)
+{
+  //declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+
+  op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
+
+  //create new communicator for partitioning
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+
+  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
+    partitioning information */
+
+  // Compute global partition range information for each set
+  int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
+
+  //save the original part_range for future partition reversing
+  orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  for(int s = 0; s< OP_set_index; s++)
+  {
+    op_set set=OP_set_list[s];
+    orig_part_range[set->index] = (int *)xmalloc(2*comm_size*sizeof(int));
+    for(int j = 0; j<comm_size; j++){
+      orig_part_range[set->index][2*j] = part_range[set->index][2*j];
+      orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
+    }
+  }
+
+  //allocate memory for list
+  OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
+
+  for(int s=0; s<OP_set_index; s++) { //for each set
+    op_set set=OP_set_list[s];
+    //printf("set %s size = %d\n", set.name, set.size);
+    int *g_index = (int *)xmalloc(sizeof(int)*set->size);
+    for(int i = 0; i< set->size; i++)
+      g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);
+    decl_partition(set, g_index, NULL);
+  }
+
+  /*-----STEP 1 - Partition Primary set using a random number generator --------*/
+  op_dat partvec = NULL;
+  char buffer[50];
+  sprintf(buffer,"partvec%04d",comm_size);
+  partvec = op_decl_dat_hdf5(primary_set, 1, "int", "mesh3_hdf5", buffer);
+
+  if (partvec == NULL) {
+    printf("Partitioning information not found, reverting to block partitioning\n");
+    return;
+  }
+
+  int *partition = (int *)xmalloc(sizeof(int)*primary_set->size);
+  memcpy(partition, partvec->data, sizeof(int)*primary_set->size);
+
+  //initialise primary set as partitioned
+  OP_part_list[primary_set->index]->elem_part= partition;
+  OP_part_list[primary_set->index]->is_partitioned = 1;
+
+  //free part range
+  for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+
+  //partition all other sets
+  partition_all(primary_set, my_rank, comm_size);
+
+  //migrate data, sort elements
+  migrate_all(my_rank, comm_size);
+
+  //renumber mapping tables
+  renumber_maps(my_rank, comm_size);
+
+  op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
+  //printf time for partitioning
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
+  MPI_Comm_free(&OP_PART_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total random partitioning time = %lf\n",max_time);
+}
+
 /*******************************************************************************
  * This routine partitions a given set randomly
  *******************************************************************************/
@@ -2947,6 +3037,17 @@ void partition(const char* lib_name, const char* lib_routine,
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
     if(prime_set != NULL)
       op_partition_random(prime_set); //use a random partitioning - used for debugging
+    else
+    {
+      op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
+      op_printf("Reverting to trivial block partitioning\n");
+    }
+  }
+  else if (strcmp(lib_name,"EXTERNAL")==0)
+  {
+    op_printf("Selected Partitioning Routine : %s\n",lib_name);
+    if(prime_set != NULL)
+      op_partition_external(prime_set); //use a random partitioning - used for debugging
     else
     {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");

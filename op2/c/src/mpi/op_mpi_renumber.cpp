@@ -42,6 +42,10 @@
 #include <scotch.h>
 #endif
 
+#ifdef HAVE_PARMETIS
+#include <metis.h>
+#endif
+
 typedef struct {
 int a;
 int b;
@@ -128,7 +132,40 @@ void op_renumber(op_map base) {
     printf("Renumbering only works with 1 rank\n");
     exit(-1);
   }
+  int generated_partvec = 0;
 
+  if (FILE * file = fopen("partvec0001_0001", "r"))
+  {
+    fclose(file);
+    int possible[] = {1,2,4,6,8,12,16,22,24,32,64,128,192,256,512,1024,2048,4096};
+    for (int i = 0; i < 18; i++) {
+      char buffer[64];
+      sprintf(buffer,"partvec0001_%04d",possible[i]);
+      if (!(file = fopen(buffer,"r"))) continue;
+      printf("Processing partitioning for %d partitions\n", possible[i]);
+      int *partvec = (int *)malloc(base->to->size * sizeof(int));
+      int *order = (int *)malloc(base->to->size * sizeof(int));
+      int total_ctr = 0;
+      for (int f = 0; f < possible[i]; f++) {
+        if (f>0) {fclose(file); sprintf(buffer,"partvec%04d_%04d",f+1,possible[i]); file = fopen(buffer,"r");}
+        int counter = 0;
+        int id, part;
+        while (fscanf(file, "%d %d", &id, &part) != EOF) {
+          partvec[id] = part-1;
+          order[id] = counter;
+          counter++;
+          total_ctr++;
+        }
+      }
+      fclose(file);
+      sprintf(buffer,"partvec%04d",possible[i]);
+      op_decl_dat(base->to, 1, "int", partvec, buffer);
+      sprintf(buffer,"ordering%04d",possible[i]);
+      op_decl_dat(base->to, 1, "int", order, buffer);
+      if (total_ctr != base->to->size) printf("Size mismatch %d %d\n", total_ctr, base->to->size);
+      generated_partvec = 1;
+    }
+  }
 //-----------------------------------------------------------------------------------------
 // Build adjacency list
 //-----------------------------------------------------------------------------------------
@@ -176,6 +213,31 @@ void op_renumber(op_map base) {
     //printf("Resizeing %d - > %d\n", (int)col_indices.size(), row_offsets[base->to->size]);
     col_indices.resize(row_offsets[base->to->size]);
     printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n", base->to->name, base->to->name, (int)col_indices.size(), base->from->name, base->from->size);
+  }
+
+  if (generated_partvec == 0) {
+#ifdef HAVE_PARMETIS
+    int possible[] = {2,4,6,8,12,16,22,24,32,64,128,192,256,512,1024,2048,4096};
+    for (int i = 0; i < 17; i++) {
+      int *partvec = (int *)malloc(base->to->size * sizeof(int));
+      int nconstr = 1;
+      int edgecut;
+      int nparts = possible[i];
+      idx_t options[METIS_NOPTIONS];
+      METIS_SetDefaultOptions(options);
+      options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
+      options[METIS_OPTION_NCUTS] = 3;
+      options[METIS_OPTION_NSEPS] = 3;
+      options[METIS_OPTION_NUMBERING] = 0;
+      options[METIS_OPTION_MINCONN] = 1;
+
+      METIS_PartGraphKway(&base->to->size, &nconstr, &row_offsets[0], &col_indices[0], NULL, NULL, NULL, &nparts, NULL, NULL, options, &edgecut, partvec);
+      printf("Metis partitioning precomputed for %d partitions. Edgecut: %d\n",nparts, edgecut);
+      char buffer[50];
+      sprintf(buffer,"partvec%04d",possible[i]);
+      op_decl_dat(base->to, 1, "int", partvec, buffer);
+    }
+#endif
   }
 
   //
