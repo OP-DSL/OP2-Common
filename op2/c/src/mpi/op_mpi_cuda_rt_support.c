@@ -66,6 +66,15 @@ void op_exchange_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
+  if(arg->sent == 1)
+  {
+    printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
+    fflush(stdout);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+
+  arg->sent = 0; //reset flag
+
   //need to exchange both direct and indirect data sets if they are dirty
   if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
@@ -128,9 +137,9 @@ void op_exchange_halo(op_arg* arg)
     char *ptr = NULL;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
       ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) : &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
-      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL)) ptr = dat->buffer_d_r + imp_exec_list->disps[i]*dat->size;
-      MPI_Irecv(ptr,
-          dat->size*imp_exec_list->sizes[i],
+      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
+        ptr = dat->buffer_d_r + imp_exec_list->disps[i]*dat->size;
+      MPI_Irecv(ptr, dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))->
@@ -163,9 +172,9 @@ void op_exchange_halo(op_arg* arg)
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
       ptr = OP_gpu_direct ? &(dat->data_d[nonexec_init+imp_nonexec_list->disps[i]*dat->size]) : &(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]);
-      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL)) ptr = dat->buffer_d_r + (imp_exec_list->size+imp_exec_list->disps[i])*dat->size;
-      MPI_Irecv(ptr,
-          dat->size*imp_nonexec_list->sizes[i],
+      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
+        ptr = dat->buffer_d_r + (imp_exec_list->size+imp_exec_list->disps[i])*dat->size;
+      MPI_Irecv(ptr, dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))->
@@ -212,8 +221,9 @@ void op_wait_all(op_arg* arg)
       scatter_data_from_buffer(*arg);
 
     cutilSafeCall(cudaDeviceSynchronize ());
+    arg->sent = 2; //set flag to indicate completed comm
   }
-  arg->sent = 0;
+
 }
 
 void op_partition(const char* lib_name, const char* lib_routine,

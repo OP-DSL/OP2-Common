@@ -451,7 +451,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     else op_arg_set(n,args[4], &p_a[4],halo);
 
     // call kernel function, passing in pointers to data
-    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3],
           (T4 *)p_a[4]);
   }
   if ( n_upper == set->core_size || n_upper == 0 )
@@ -1141,8 +1141,8 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     else op_arg_set(n,args[9], &p_a[9],halo);
 
     // call kernel function, passing in pointers to data
-    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
-          (T4 *)p_a[4], (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7], 
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3],
+          (T4 *)p_a[4], (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7],
           (T8 *)p_a[8], (T9 *)p_a[9]);
   }
   if ( n_upper == set->core_size || n_upper == 0 )

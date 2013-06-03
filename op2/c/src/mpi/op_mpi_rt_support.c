@@ -84,6 +84,8 @@ void op_exchange_halo(op_arg* arg)
     MPI_Abort(OP_MPI_WORLD, 2);
   }
 
+  arg->sent = 0; //reset flag
+
   //need to exchange both direct and indirect data sets if they are dirty
   if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
      (dat->dirtybit == 1))
@@ -155,7 +157,6 @@ void op_exchange_halo(op_arg* arg)
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
       for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
       {
@@ -209,9 +210,9 @@ void op_wait_all(op_arg* arg)
       MPI_STATUSES_IGNORE );
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
+    arg->sent = 2; //set flag to indicate completed comm
   }
 
-  arg->sent = 0;
 }
 
 void op_partition(const char* lib_name, const char* lib_routine,

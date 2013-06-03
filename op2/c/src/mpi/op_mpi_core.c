@@ -2242,9 +2242,12 @@ void op_mpi_barrier() {
 
 #ifdef COMM_PERF
 void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
+
   for (int n=0; n<nargs; n++) {
-    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 1)
+    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
+    {
       op_mpi_perf_comm(k_i, (&args[n])->dat);
+    }
   }
 }
 #endif
