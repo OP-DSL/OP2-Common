@@ -2198,13 +2198,18 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   if (direct_flag == 1) return size;
 
   //not a direct loop ...
+  int exec_flag = 0;
   for (int n=0; n<nargs; n++) {
-    if(args[n].argtype == OP_ARG_DAT)
-      op_exchange_halo(&args[n]);
-
-    if(args[n].idx != -1 && args[n].acc != OP_READ)
+    if(args[n].idx != -1 && args[n].acc != OP_READ) {
       size = set->size + set->exec_size;
+      exec_flag = 1;
+    }
   }
+
+  for (int n=0; n<nargs; n++)
+    if(args[n].argtype == OP_ARG_DAT)
+      op_exchange_halo(&args[n], exec_flag);
+
   return size;
 }
 

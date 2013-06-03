@@ -286,7 +286,7 @@ void op_partition_ptscotch(op_map primary_map);
 * External functions defined in op_mpi_(cuda)_rt_support.c
 *******************************************************************************/
 
-void op_exchange_halo(op_arg* arg);
+void op_exchange_halo(op_arg* arg, int exec_flag);
 void op_wait_all(op_arg* arg);
 
 
