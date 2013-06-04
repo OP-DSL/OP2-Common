@@ -100,7 +100,7 @@ void op_par_loop(void (*kernel)(T0*),
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 1, args);
+  op_mpi_perf_comms(k_i, 1, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -178,7 +178,7 @@ void op_par_loop(void (*kernel)(T0*, T1*),
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 2, args);
+  op_mpi_perf_comms(k_i, 2, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -265,7 +265,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*),
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = (void *)op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 3, args);
+  op_mpi_perf_comms(k_i, 3, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -361,7 +361,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*),
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 4, args);
+  op_mpi_perf_comms(k_i, 4, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -472,7 +472,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 5, args);
+  op_mpi_perf_comms(k_i, 5, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -591,7 +591,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 6, args);
+  op_mpi_perf_comms(k_i, 6, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -719,7 +719,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 7, args);
+  op_mpi_perf_comms(k_i, 7, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -856,7 +856,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 8, args);
+  op_mpi_perf_comms(k_i, 8, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -1007,7 +1007,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 9, args);
+  op_mpi_perf_comms(k_i, 9, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif
@@ -1168,7 +1168,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms2(k_i, 10, args);
+  op_mpi_perf_comms(k_i, 10, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
 #endif

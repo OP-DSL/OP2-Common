@@ -73,7 +73,7 @@ void *op_mpi_perf_time(const char* name, double time)
 }
 
 #ifdef COMM_PERF
-void op_mpi_perf_comms2(void *k_i, int nargs, op_arg *args)
+void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args)
 {
   (void)k_i;
   (void)nargs;

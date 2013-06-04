@@ -1896,8 +1896,7 @@ void mpi_timing_output()
   count = HASH_COUNT(op_mpi_kernel_tab);
   MPI_Allreduce(&count,&tot_count , 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
 
-  if(tot_count > 0)
-  {
+  if(tot_count > 0) {
     double tot_time;
     double avg_time;
 
@@ -1912,8 +1911,7 @@ void mpi_timing_output()
                 k->name,k->count,  k->time,     k->time/k->count);
 
 #ifdef COMM_PERF
-        if(k->num_indices>0)
-        {
+        if(k->num_indices>0) {
           printf("halo exchanges:  ");
           for(int i = 0; i<k->num_indices; i++)
             printf("%10s ",k->comm_info[i]->name);
@@ -1938,8 +1936,7 @@ void mpi_timing_output()
     }
     printf("___________________________________________________\n");
 
-    if(my_rank == MPI_ROOT)
-    {
+    if(my_rank == MPI_ROOT) {
       printf("___________________________________________________\n");
       printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
@@ -1949,8 +1946,7 @@ void mpi_timing_output()
       MPI_Reduce(&(k->time),&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
       MPI_Reduce(&(k->time),&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
 
-      if(my_rank == MPI_ROOT && count > 0)
-      {
+      if(my_rank == MPI_ROOT && count > 0) {
         printf("%-10s  %6d       %10.4f      %10.4f    \n",
                 k->name,count,   tot_time,   (avg_time)/comm_size);
       }
@@ -1960,90 +1956,6 @@ void mpi_timing_output()
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 
 }
-/*
-void mpi_timing_output()
-{
-  int my_rank, comm_size;
-  MPI_Comm OP_MPI_IO_WORLD;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
-  MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
-
-  int count;
-
-  count = 0;
-  int tot_count = 0;
-  for (int n=0; n<HASHSIZE; n++) {
-    MPI_Allreduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
-    tot_count += count;
-  }
-
-  if(tot_count > 0)
-  {
-    double tot_time;
-    double avg_time;
-
-    printf("___________________________________________________\n");
-    printf("Performance information on rank %d\n", my_rank);
-    printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
-    for (int n=0; n<HASHSIZE; n++) {
-    if (op_mpi_kernel_tab[n].count>0) {
-        printf("%-10s  %6d       %10.4f      %10.4f    \n",
-          op_mpi_kernel_tab[n].name,op_mpi_kernel_tab[n].count,
-          op_mpi_kernel_tab[n].time,op_mpi_kernel_tab[n].time/op_mpi_kernel_tab[n].count);
-
-#ifdef COMM_PERF
-        if(op_mpi_kernel_tab[n].num_indices>0)
-        {
-          printf("halo exchanges:  ");
-          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-            printf("%10s ",op_mpi_kernel_tab[n].comm_info[i]->name);
-          printf("\n");
-          printf("       count  :  ");
-          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-            printf("%10d ",op_mpi_kernel_tab[n].comm_info[i]->count);printf("\n");
-          printf("total(Kbytes) :  ");
-          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-            printf("%10d ",op_mpi_kernel_tab[n].comm_info[i]->bytes/1024);printf("\n");
-          printf("average(bytes):  ");
-          for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-            printf("%10d ",op_mpi_kernel_tab[n].comm_info[i]->bytes/
-                op_mpi_kernel_tab[n].comm_info[i]->count );printf("\n");
-        }
-        else
-        {
-          printf("halo exchanges:  %10s\n","NONE");
-        }
-        printf("---------------------------------------------------\n");
-#endif
-
-      }
-    }
-    printf("___________________________________________________\n");
-
-    if(my_rank == MPI_ROOT)
-    {
-      printf("___________________________________________________\n");
-      printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
-    }
-    for (int n=0; n<HASHSIZE; n++) {
-      MPI_Reduce(&op_mpi_kernel_tab[n].count,&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
-      MPI_Reduce(&op_mpi_kernel_tab[n].time,&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
-      MPI_Reduce(&op_mpi_kernel_tab[n].time,&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
-
-      if(my_rank == MPI_ROOT && count > 0)
-      {
-        printf("%-10s  %6d       %10.4f      %10.4f    \n",
-            op_mpi_kernel_tab[n].name,
-            count,
-            tot_time,
-            (avg_time)/comm_size);
-      }
-      tot_time = avg_time = 0.0;
-    }
-  }
-  MPI_Comm_free(&OP_MPI_IO_WORLD);
-}*/
 
 /*******************************************************************************
  * Routine to measure timing for an op_par_loop / kernel
@@ -2054,13 +1966,12 @@ void *op_mpi_perf_time(const char* name, double time)
 
   HASH_FIND_STR(op_mpi_kernel_tab, name, kernel_entry);
   if (kernel_entry==NULL) {
-    printf("new kernel loop\n");
-        kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
-        kernel_entry->num_indices = 0;
-        kernel_entry->time = 0.0;
-        kernel_entry->count = 0;
-        strncpy ((char *)kernel_entry->name,name,NAMESIZE);
-        HASH_ADD_STR( op_mpi_kernel_tab, name, kernel_entry );
+    kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
+    kernel_entry->num_indices = 0;
+    kernel_entry->time = 0.0;
+    kernel_entry->count = 0;
+    strncpy ((char *)kernel_entry->name,name,NAMESIZE);
+    HASH_ADD_STR( op_mpi_kernel_tab, name, kernel_entry );
   }
 
   kernel_entry->count += 1;
@@ -2100,7 +2011,7 @@ int search_op_mpi_kernel2(op_dat dat, op_mpi_kernel *kernal, int num_indices)
 /*******************************************************************************
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
-void op_mpi_perf_comm2(void *k_i, op_dat dat)
+void op_mpi_perf_comm(void *k_i, op_dat dat)
 {
   halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
   halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
@@ -2247,22 +2158,12 @@ void op_mpi_perf_comm(int kernel_index, op_dat dat)
 #endif
 
 #ifdef COMM_PERF
-/*void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
+void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
 
   for (int n=0; n<nargs; n++) {
     if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
     {
       op_mpi_perf_comm(k_i, (&args[n])->dat);
-    }
-  }
-}*/
-
-void op_mpi_perf_comms2(void *k_i, int nargs, op_arg *args) {
-
-  for (int n=0; n<nargs; n++) {
-    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
-    {
-      op_mpi_perf_comm2(k_i, (&args[n])->dat);
     }
   }
 }
