@@ -44,6 +44,8 @@ import op2_gen_mpiseq
 from op2_gen_mpiseq import *
 import op2_gen_mpiseq2
 from op2_gen_mpiseq2 import *
+import op2_gen_mpiseq3
+from op2_gen_mpiseq3 import *
 
 #import cuda code generation function
 import op2_gen_cuda
@@ -575,7 +577,7 @@ for a in range(init_ctr,len(sys.argv)):
       for i in range(0,nargs):
         mapinds[i] = i
         for j in range(0,i):
-          if (maps[i] == OP_MAP) and (optflags[j]==0 and optflags[i]==0) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
             mapinds[i] = mapinds[j]
 #
 # check for repeats
@@ -659,6 +661,7 @@ for a in range(init_ctr,len(sys.argv)):
               'indaccs': indaccs,
               'indtyps': indtyps,
               'invinds': invinds,
+              'mapnames' : mapnames,
               'mapinds': mapinds,
               'invmapinds' : invmapinds }
 
@@ -837,7 +840,8 @@ if npart==0 and nhdf5>0:
 
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-#op2_gen_mpiseq2(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:
 #  op2_gen_cuda_hydra()

@@ -831,7 +831,13 @@ contains
         op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
       endif
   else
-      op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
+      if ( map%mapPtr%dim .eq. 0 ) then
+        ! OP_ID case (does not decrement idx)
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
+      else
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, C_NULL_PTR, access-1 )
+      endif
+!      op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
   endif
 
   end function op_opt_arg_dat_python

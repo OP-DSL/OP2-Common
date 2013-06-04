@@ -149,7 +149,7 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
 int getMapDimFromOpArg (op_arg * arg)
 {
-  return (arg->opt && arg->map!=NULL) ? arg->map->dim : 0;
+  return (arg->map!=NULL) ? arg->map->dim : 0;
 }
 
 int reductionSize (op_arg *args, int nargs)

@@ -70,6 +70,7 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
     fflush(stdout);
     MPI_Abort(OP_MPI_WORLD, 2);
   }
+  if (exec_flag == 0 && arg->idx == -1) return;
 
   //For a directly accessed op_dat do not do halo exchanges if not executing over
   //redundant compute block
@@ -184,7 +185,7 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
   }
 }
 
-void op_exchange_halo_cuda(op_arg* arg) {}
+void op_exchange_halo_cuda(op_arg* arg, int exec_flag) {}
 
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)

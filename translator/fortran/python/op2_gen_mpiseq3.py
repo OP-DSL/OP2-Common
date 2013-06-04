@@ -132,7 +132,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_mpiseq(master, date, consts, kernels, hydra):
+def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -169,6 +169,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
+    mapnames = kernels[nk]['mapnames']
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
     nmaps = 0
@@ -255,7 +256,82 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('')
 
 ##########################################################################
-#  Generate SEQ hust stub
+#  Generate wrapper to iterate over set
+##########################################################################
+
+    code('SUBROUTINE op_wrap_'+name+'( &')
+    depth = depth + 2
+    for g_m in range(0,ninds):
+      code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('& opDat'+str(g_m+1)+'Local, &')
+      elif maps[g_m] == OP_GBL:
+        code('& opDat'+str(g_m+1)+'Local, &')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+    code('& n_upper)')
+
+    for g_m in range(0,ninds):
+      code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
+      elif maps[g_m] == OP_GBL:
+        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
+          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
+
+    code('INTEGER(kind=4) n_upper,i1')
+    if nmaps > 0:
+      k = []
+      line = 'INTEGER(kind=4) '
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          line += 'map'+str(mapinds[g_m]+1)+'idx, '
+      code(line[:-2])
+    code('')
+    DO('i1','0','n_upper')
+    k = []
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
+    comm('kernel call')
+    line = 'CALL '+name+'( &'
+    indent = '\n'+' '*depth
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        line = line + indent + '& opDat'+str(g_m+1)+'Local(1,i1+1)'
+      if maps[g_m] == OP_MAP:
+        line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
+      if maps[g_m] == OP_GBL:
+        line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+      if g_m < nargs-1:
+        line = line +', &'
+      else:
+         line = line +' &'
+    depth = depth - 2
+    code(line + indent + '& )')
+    depth = depth + 2
+
+    ENDDO()
+    depth = depth - 2
+    code('END SUBROUTINE')
+
+##########################################################################
+#  Generate SEQ host stub
 ##########################################################################
     code('SUBROUTINE '+name+'_host( userSubroutine, set, &'); depth = depth + 2
     for g_m in range(0,nargs):
@@ -301,15 +377,6 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('')
     code('INTEGER(kind=4) :: i1')
 
-    if nmaps > 0:
-      k = []
-      line = 'INTEGER(kind=4) :: '
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and optflags[g_m] == 0 and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          line += 'map'+str(mapinds[g_m]+1)+'idx, '
-      code(line[:-2])
-
     code('')
     code('numberOfOpDats = '+str(nargs))
     code('')
@@ -344,66 +411,28 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 
     code('')
     code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    DO('i1','0','n_upper')
-
+    code('CALL op_wrap_'+name+'( &')
+    for g_m in range(0,ninds):
+      code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('& opDat'+str(g_m+1)+'Local, &')
+      elif maps[g_m] == OP_GBL:
+        code('& opDat'+str(g_m+1)+'Local, &')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and optflags[g_m] == 0 and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')')
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+    code('& n_upper)')
 
-#    if ninds > 0:
-#      IF('i1 .EQ. opSetCore%core_size')
-#      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-#      ENDIF()
-    code('')
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_MAP and optflags[g_m]==1:
-        IF('opArg'+str(g_m+1)+'%opt == 1')
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):)')
-        ELSE()
-        code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
-        ENDIF()
-    comm('kernel call')
-    line = 'CALL '+name+'( &'
-    indent = '\n'+' '*depth
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1 * ('+dims[g_m]+') : i1 * ('+dims[g_m]+') + '+dims[g_m]+')'
-        else:
-          line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + i1)'
-      if maps[g_m] == OP_MAP and optflags[g_m]==0:
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+') : map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+') + '+dims[g_m]+')'
-        else:
-          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + map'+str(mapinds[g_m]+1)+'idx)'
-      elif maps[g_m] == OP_MAP and optflags[g_m]==1:
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
-        else:
-          line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
-      if maps[g_m] == OP_GBL:
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
-        else:
-          line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
-      if g_m < nargs-1:
-        line = line +', &'
-      else:
-         line = line +' &'
-    depth = depth - 2
-    code(line + indent + '& )')
-    depth = depth + 2
-    ENDDO()
-    code('')
 
-    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    ENDIF()
-    code('')
+#    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
+#    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+#    ENDIF()
+#    code('')
 
 
 

@@ -119,7 +119,7 @@ void op_download_dat(op_dat dat) {
   cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
 }
 
-void op_exchange_halo_cuda(op_arg* arg)
+void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
 {
   op_dat dat = arg->dat;
 
@@ -135,7 +135,6 @@ void op_exchange_halo_cuda(op_arg* arg)
   if (exec_flag == 0 && arg->idx == -1) return;
 
   arg->sent = 0; //reset flag
-
   //need to exchange both direct and indirect data sets if they are dirty
   if((arg->opt) && (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
@@ -250,7 +249,7 @@ void op_exchange_halo_cuda(op_arg* arg)
   }
 }
 
-void op_exchange_halo(op_arg* arg)
+void op_exchange_halo(op_arg* arg, int exec_flag)
 {
   //int my_rank, comm_size;
   //MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -258,6 +257,7 @@ void op_exchange_halo(op_arg* arg)
 
   op_dat dat = arg->dat;
 
+  if (exec_flag == 0 && arg->idx == -1) return;
   if (arg->opt == 0) return;
 
   if(arg->sent == 1)
