@@ -72,9 +72,7 @@ halo_list *OP_export_nonexec_list;//ENH list
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
-
-op_mpi_kernel op_mpi_kernel_tab[HASHSIZE];
-
+op_mpi_kernel *op_mpi_kernel_tab = NULL;
 
 //
 //global variables to hold partition information on an MPI rank
@@ -1447,10 +1445,6 @@ void op_halo_create()
     printf("Average (worst case) Halo size = %d Bytes\n",
         avg_halo_size/comm_size);
   }
-
-  //initialise hash table that keeps track of the communication performance of
-  //each of the kernels executed
-  for (int i=0;i<HASHSIZE;i++) op_mpi_kernel_tab[i].count = 0;
 }
 
 /*******************************************************************************
@@ -1603,82 +1597,6 @@ void op_mpi_reduce_int(op_arg* arg, int* data)
       MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
           MPI_MIN, OP_MPI_WORLD);
       memcpy(arg->data, &result, sizeof(int)*arg->dim);
-    }
-  }
-}
-
-
-
-/*******************************************************************************
- * MPI Global reduce of an op_arg
- *******************************************************************************/
-
-void global_reduce(op_arg *arg)
-{
-  if(strcmp("double",arg->type)==0)
-  {
-    double result;
-    if(arg->acc == OP_INC)//global reduction
-    {
-      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double));
-    }
-    else if(arg->acc == OP_MAX)//global maximum
-    {
-      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double));
-    }
-    else if(arg->acc == OP_MIN)//global minimum
-    {
-      MPI_Allreduce((double *)arg->data, &result, 1, MPI_DOUBLE,
-          MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double));
-    }
-  }
-  else if(strcmp("float",arg->type)==0)
-  {
-    float result;
-    if(arg->acc == OP_INC)//global reduction
-    {
-      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float));
-    }
-    else if(arg->acc == OP_MAX)//global maximum
-    {
-      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float));;
-    }
-    else if(arg->acc == OP_MIN)//global minimum
-    {
-      MPI_Allreduce((float *)arg->data, &result, 1, MPI_FLOAT,
-          MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float));
-    }
-  }
-  else if(strcmp("int",arg->type)==0)
-  {
-    int result;
-    if(arg->acc == OP_INC)//global reduction
-    {
-      MPI_Allreduce((int *)arg->data, &result,1, MPI_INT,
-          MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int));
-    }
-    else if(arg->acc == OP_MAX)//global maximum
-    {
-      MPI_Allreduce((int *)arg->data, &result, 1, MPI_INT,
-          MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int));;
-    }
-    else if(arg->acc == OP_MIN)//global minimum
-    {
-      MPI_Allreduce((int *)arg->data, &result, 1, MPI_INT,
-          MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int));
     }
   }
 }
@@ -1966,7 +1884,83 @@ static void op_reset_halo(op_arg* arg)
 /*******************************************************************************
  * Routine to output performance measures
  *******************************************************************************/
+void mpi_timing_output()
+{
+  int my_rank, comm_size;
+  MPI_Comm OP_MPI_IO_WORLD;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
+  MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
+  unsigned int count, tot_count;
+  count = HASH_COUNT(op_mpi_kernel_tab);
+  MPI_Allreduce(&count,&tot_count , 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
+
+  if(tot_count > 0)
+  {
+    double tot_time;
+    double avg_time;
+
+    printf("___________________________________________________\n");
+    printf("Performance information on rank %d\n", my_rank);
+    printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
+
+    op_mpi_kernel *k;
+    for(k = op_mpi_kernel_tab; k != NULL; k=(op_mpi_kernel *)k->hh.next) {
+      if (k->count > 0) {
+        printf("%-10s  %6d       %10.4f      %10.4f    \n",
+                k->name,k->count,  k->time,     k->time/k->count);
+
+#ifdef COMM_PERF
+        if(k->num_indices>0)
+        {
+          printf("halo exchanges:  ");
+          for(int i = 0; i<k->num_indices; i++)
+            printf("%10s ",k->comm_info[i]->name);
+          printf("\n");
+          printf("       count  :  ");
+          for(int i = 0; i<k->num_indices; i++)
+            printf("%10d ",k->comm_info[i]->count);printf("\n");
+          printf("total(Kbytes) :  ");
+          for(int i = 0; i< k->num_indices; i++)
+            printf("%10d ",k->comm_info[i]->bytes/1024);printf("\n");
+          printf("average(bytes):  ");
+          for(int i = 0; i< k->num_indices; i++)
+            printf("%10d ",k->comm_info[i]->bytes/k->comm_info[i]->count );printf("\n");
+        }
+        else
+        {
+          printf("halo exchanges:  %10s\n","NONE");
+        }
+        printf("---------------------------------------------------\n");
+#endif
+      }
+    }
+    printf("___________________________________________________\n");
+
+    if(my_rank == MPI_ROOT)
+    {
+      printf("___________________________________________________\n");
+      printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
+    }
+
+    for(k = op_mpi_kernel_tab; k != NULL; k=(op_mpi_kernel *)k->hh.next) {
+      MPI_Reduce(&(k->count),&count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&(k->time),&avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&(k->time),&tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
+
+      if(my_rank == MPI_ROOT && count > 0)
+      {
+        printf("%-10s  %6d       %10.4f      %10.4f    \n",
+                k->name,count,   tot_time,   (avg_time)/comm_size);
+      }
+      tot_time = avg_time = 0.0;
+    }
+  }
+  MPI_Comm_free(&OP_MPI_IO_WORLD);
+
+}
+/*
 void mpi_timing_output()
 {
   int my_rank, comm_size;
@@ -2049,28 +2043,31 @@ void mpi_timing_output()
     }
   }
   MPI_Comm_free(&OP_MPI_IO_WORLD);
-}
+}*/
 
 /*******************************************************************************
  * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
-
-int op_mpi_perf_time(const char* name, double time)
+void *op_mpi_perf_time(const char* name, double time)
 {
-  int kernel_index = op2_hash(name);
-  if(op_mpi_kernel_tab[kernel_index].count == 0)
-  {
-    op_mpi_kernel_tab[kernel_index].name = name;
-    op_mpi_kernel_tab[kernel_index].num_indices = 0;
-    op_mpi_kernel_tab[kernel_index].time     = 0.0;
+  op_mpi_kernel *kernel_entry;
+
+  HASH_FIND_STR(op_mpi_kernel_tab, name, kernel_entry);
+  if (kernel_entry==NULL) {
+    printf("new kernel loop\n");
+        kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
+        kernel_entry->num_indices = 0;
+        kernel_entry->time = 0.0;
+        kernel_entry->count = 0;
+        strncpy ((char *)kernel_entry->name,name,NAMESIZE);
+        HASH_ADD_STR( op_mpi_kernel_tab, name, kernel_entry );
   }
 
-  op_mpi_kernel_tab[kernel_index].count    += 1;
-  op_mpi_kernel_tab[kernel_index].time     += time;
+  kernel_entry->count += 1;
+  kernel_entry->time += time;
 
-  return kernel_index;
+  return (void *)kernel_entry;
 }
-
 #ifdef COMM_PERF
 
 /*******************************************************************************
@@ -2087,9 +2084,94 @@ int search_op_mpi_kernel(op_dat dat, op_mpi_kernel kernal, int num_indices)
    return -1;
 }
 
+int search_op_mpi_kernel2(op_dat dat, op_mpi_kernel *kernal, int num_indices)
+{
+   for(int i = 0; i<num_indices; i++)
+     if(strcmp((kernal->comm_info[i])->name, dat->name) == 0 &&
+       (kernal->comm_info[i])->size == dat->size &&
+       (kernal->comm_info[i])->index == dat->index )
+       return i;
+
+   return -1;
+}
+
+
+
 /*******************************************************************************
  * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
  *******************************************************************************/
+void op_mpi_perf_comm2(void *k_i, op_dat dat)
+{
+  halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
+  halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
+  int tot_halo_size = (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
+
+  op_mpi_kernel *kernel_entry = (op_mpi_kernel *)k_i;
+  int num_indices = kernel_entry->num_indices;
+
+  if(num_indices == 0)
+  {
+    //set capcity of comm_info array
+    kernel_entry->cap = 20;
+    op_dat_mpi_comm_info dat_comm = (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
+    kernel_entry->comm_info = (op_dat_mpi_comm_info*)
+    xmalloc(sizeof(op_dat_mpi_comm_info *)*(kernel_entry->cap));
+
+    //initialize
+    dat_comm->name = dat->name;
+    dat_comm->size = dat->size;
+    dat_comm->index = dat->index;
+    dat_comm->count = 0;
+    dat_comm->bytes = 0;
+
+    //add first values
+    dat_comm->count += 1;
+    dat_comm->bytes += tot_halo_size;
+
+    kernel_entry->comm_info[num_indices] = dat_comm;
+    kernel_entry->num_indices++;
+  }
+  else
+  {
+    int index = search_op_mpi_kernel2(dat, kernel_entry, num_indices);
+
+    if(index < 0)
+    {
+      //increase capacity of comm_info array
+      if(num_indices >= kernel_entry->cap)
+      {
+        kernel_entry->cap = kernel_entry->cap*2;
+        kernel_entry->comm_info = (op_dat_mpi_comm_info*)
+        xrealloc(kernel_entry->comm_info,
+          sizeof(op_dat_mpi_comm_info *)*(kernel_entry->cap));
+      }
+
+      op_dat_mpi_comm_info dat_comm =
+      (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
+
+      //initialize
+      dat_comm->name = dat->name;
+      dat_comm->size = dat->size;
+      dat_comm->index = dat->index;
+      dat_comm->count = 0;
+      dat_comm->bytes = 0;
+
+      //add first values
+      dat_comm->count += 1;
+      dat_comm->bytes += tot_halo_size;
+
+      kernel_entry->comm_info[num_indices] = dat_comm;
+      kernel_entry->num_indices++;
+    }
+    else
+    {
+      kernel_entry->comm_info[index]->count += 1;
+      kernel_entry->comm_info[index]->bytes += tot_halo_size;
+    }
+  }
+
+}
+
 
 void op_mpi_perf_comm(int kernel_index, op_dat dat)
 {
@@ -2164,6 +2246,29 @@ void op_mpi_perf_comm(int kernel_index, op_dat dat)
 }
 #endif
 
+#ifdef COMM_PERF
+/*void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
+
+  for (int n=0; n<nargs; n++) {
+    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
+    {
+      op_mpi_perf_comm(k_i, (&args[n])->dat);
+    }
+  }
+}*/
+
+void op_mpi_perf_comms2(void *k_i, int nargs, op_arg *args) {
+
+  for (int n=0; n<nargs; n++) {
+    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
+    {
+      op_mpi_perf_comm2(k_i, (&args[n])->dat);
+    }
+  }
+}
+#endif
+
+
 /*******************************************************************************
  * Routine to exit an op2 mpi application -
  *******************************************************************************/
@@ -2172,10 +2277,10 @@ void op_mpi_exit()
 {
   //cleanup performance data - need to do this in some op_mpi_exit() routine
 #ifdef COMM_PERF
-  for (int n=0; n<HASHSIZE; n++) {
+  /*for (int n=0; n<HASHSIZE; n++) {
     for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
       free(op_mpi_kernel_tab[n].comm_info[i]);
-  }
+  }*/
 #endif
 
   //free memory allocated to halos and mpi_buffers
@@ -2235,27 +2340,11 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
   }
 }
 
-void op_mpi_global_reduction(int nargs, op_arg *args) {
-  for (int n=0; n<nargs; n++) {
-    if (args[n].argtype == OP_ARG_GBL && args[n].acc!=OP_READ) global_reduce(&args[n]);
-  }
-}
-
 void op_mpi_barrier() {
 
 }
 
-#ifdef COMM_PERF
-void op_mpi_perf_comms(int k_i, int nargs, op_arg *args) {
 
-  for (int n=0; n<nargs; n++) {
-    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2)
-    {
-      op_mpi_perf_comm(k_i, (&args[n])->dat);
-    }
-  }
-}
-#endif
 
 /*******************************************************************************
  * Get the global size of a set

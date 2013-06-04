@@ -44,6 +44,9 @@
 
 #include <mpi.h>
 
+//use uthash from - http://troydhanson.github.com/uthash/
+#include <uthash.h>
+
 /** Define the root MPI process **/
 #ifdef MPI_ROOT
 #undef MPI_ROOT
@@ -113,10 +116,13 @@ typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 /*******************************************************************************
 * Data Type to hold MPI performance measures
 *******************************************************************************/
-
+#define NAMESIZE 20
 typedef struct {
+
+  UT_hash_handle hh;   //with this variable uthash makes this structure hashable
+
   // name of kernel
-  char const  *name;
+  const char  name[NAMESIZE];
   //total time spent in this kernel (compute + comm - overlap)
   double      time;
   //number of times this kernel is called
@@ -128,6 +134,7 @@ typedef struct {
   // capacity of comm_info array
   int cap;
 } op_mpi_kernel;
+
 
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
@@ -242,9 +249,6 @@ void op_mv_halo_device(op_set set, op_dat dat);
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_list_device();
-
-void global_reduce(op_arg* arg);
-
 
 void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords );
