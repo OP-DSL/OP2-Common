@@ -97,10 +97,10 @@ typedef part_core *part;
 /*******************************************************************************
 * Data structure to hold mpi communications of an op_dat
 *******************************************************************************/
-
+#define NAMESIZE 20
 typedef struct{
   //name of this op_dat
-  char const  *name;
+  char  name[NAMESIZE];
   //size of this op_dat
   int         size;
   //index of this op_dat
@@ -116,13 +116,13 @@ typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 /*******************************************************************************
 * Data Type to hold MPI performance measures
 *******************************************************************************/
-#define NAMESIZE 20
+
 typedef struct {
 
   UT_hash_handle hh;   //with this variable uthash makes this structure hashable
 
   // name of kernel
-  const char  name[NAMESIZE];
+  char  name[NAMESIZE];
   //total time spent in this kernel (compute + comm - overlap)
   double      time;
   //number of times this kernel is called

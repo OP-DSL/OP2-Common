@@ -1984,24 +1984,15 @@ void *op_mpi_perf_time(const char* name, double time)
 /*******************************************************************************
  * Routine to linear search comm_info array in an op_mpi_kernel for an op_dat
  *******************************************************************************/
-int search_op_mpi_kernel(op_dat dat, op_mpi_kernel kernal, int num_indices)
+int search_op_mpi_kernel(op_dat dat, op_mpi_kernel *kernal, int num_indices)
 {
-   for(int i = 0; i<num_indices; i++)
-     if(strcmp(kernal.comm_info[i]->name, dat->name) == 0 &&
-       kernal.comm_info[i]->size == dat->size &&
-       kernal.comm_info[i]->index == dat->index )
-       return i;
-
-   return -1;
-}
-
-int search_op_mpi_kernel2(op_dat dat, op_mpi_kernel *kernal, int num_indices)
-{
-   for(int i = 0; i<num_indices; i++)
+  for(int i = 0; i<num_indices; i++){
      if(strcmp((kernal->comm_info[i])->name, dat->name) == 0 &&
-       (kernal->comm_info[i])->size == dat->size &&
-       (kernal->comm_info[i])->index == dat->index )
+     (kernal->comm_info[i])->size == dat->size)
+     {
        return i;
+     }
+  }
 
    return -1;
 }
@@ -2027,9 +2018,7 @@ void op_mpi_perf_comm(void *k_i, op_dat dat)
     op_dat_mpi_comm_info dat_comm = (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
     kernel_entry->comm_info = (op_dat_mpi_comm_info*)
     xmalloc(sizeof(op_dat_mpi_comm_info *)*(kernel_entry->cap));
-
-    //initialize
-    dat_comm->name = dat->name;
+    strncpy((char *)dat_comm->name,dat->name,20);
     dat_comm->size = dat->size;
     dat_comm->index = dat->index;
     dat_comm->count = 0;
@@ -2044,8 +2033,7 @@ void op_mpi_perf_comm(void *k_i, op_dat dat)
   }
   else
   {
-    int index = search_op_mpi_kernel2(dat, kernel_entry, num_indices);
-
+    int index = search_op_mpi_kernel(dat, kernel_entry, num_indices);
     if(index < 0)
     {
       //increase capacity of comm_info array
@@ -2060,8 +2048,7 @@ void op_mpi_perf_comm(void *k_i, op_dat dat)
       op_dat_mpi_comm_info dat_comm =
       (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
 
-      //initialize
-      dat_comm->name = dat->name;
+      strncpy((char *)dat_comm->name,dat->name,20);
       dat_comm->size = dat->size;
       dat_comm->index = dat->index;
       dat_comm->count = 0;
@@ -2081,79 +2068,6 @@ void op_mpi_perf_comm(void *k_i, op_dat dat)
     }
   }
 
-}
-
-
-void op_mpi_perf_comm(int kernel_index, op_dat dat)
-{
-  halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
-  halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
-
-  int tot_halo_size = (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
-
-  int num_indices = op_mpi_kernel_tab[kernel_index].num_indices;
-
-  if(num_indices == 0)
-  {
-    //set capcity of comm_info array
-    op_mpi_kernel_tab[kernel_index].cap = 20;
-
-    op_dat_mpi_comm_info dat_comm = (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
-    op_mpi_kernel_tab[kernel_index].comm_info = (op_dat_mpi_comm_info*)
-    xmalloc(sizeof(op_dat_mpi_comm_info *)*op_mpi_kernel_tab[kernel_index].cap);
-
-    //initialize
-    dat_comm->name = dat->name;
-    dat_comm->size = dat->size;
-    dat_comm->index = dat->index;
-    dat_comm->count = 0;
-    dat_comm->bytes = 0;
-
-    //add first values
-    dat_comm->count += 1;
-    dat_comm->bytes += tot_halo_size;
-
-    op_mpi_kernel_tab[kernel_index].comm_info[num_indices] = dat_comm;
-    op_mpi_kernel_tab[kernel_index].num_indices++;
-  }
-  else
-  {
-    int index = search_op_mpi_kernel(dat, op_mpi_kernel_tab[kernel_index], num_indices);
-
-    if(index < 0)
-    {
-      //increase capacity of comm_info array
-      if(num_indices >= op_mpi_kernel_tab[kernel_index].cap)
-      {
-        op_mpi_kernel_tab[kernel_index].cap = op_mpi_kernel_tab[kernel_index].cap*2;
-        op_mpi_kernel_tab[kernel_index].comm_info = (op_dat_mpi_comm_info*)
-        xrealloc(op_mpi_kernel_tab[kernel_index].comm_info,
-          sizeof(op_dat_mpi_comm_info *)*op_mpi_kernel_tab[kernel_index].cap);
-      }
-
-      op_dat_mpi_comm_info dat_comm =
-      (op_dat_mpi_comm_info) xmalloc(sizeof(op_dat_mpi_comm_info_core));
-
-      //initialize
-      dat_comm->name = dat->name;
-      dat_comm->size = dat->size;
-      dat_comm->index = dat->index;
-      dat_comm->count = 0;
-      dat_comm->bytes = 0;
-
-      //add first values
-      dat_comm->count += 1;
-      dat_comm->bytes += tot_halo_size;
-
-      op_mpi_kernel_tab[kernel_index].comm_info[num_indices] = dat_comm;
-      op_mpi_kernel_tab[kernel_index].num_indices++;
-    }
-    else
-    {
-      op_mpi_kernel_tab[kernel_index].comm_info[index]->count += 1;
-      op_mpi_kernel_tab[kernel_index].comm_info[index]->bytes += tot_halo_size;
-    }
-  }
 }
 #endif
 
@@ -2177,12 +2091,15 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
 void op_mpi_exit()
 {
   //cleanup performance data - need to do this in some op_mpi_exit() routine
+  op_mpi_kernel *kernel_entry, *tmp;
+  HASH_ITER(hh, op_mpi_kernel_tab, kernel_entry, tmp) {
+    HASH_DEL(op_mpi_kernel_tab, kernel_entry);
 #ifdef COMM_PERF
-  /*for (int n=0; n<HASHSIZE; n++) {
-    for(int i = 0; i<op_mpi_kernel_tab[n].num_indices; i++)
-      free(op_mpi_kernel_tab[n].comm_info[i]);
-  }*/
+    for(int i = 0; i<kernel_entry->num_indices; i++)
+      free(kernel_entry->comm_info[i]);
 #endif
+    free(kernel_entry);
+  }
 
   //free memory allocated to halos and mpi_buffers
   op_halo_destroy();
