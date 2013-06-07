@@ -140,7 +140,8 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
     int init = dat->set->size*dat->size;
     char *ptr = NULL;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-      ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) : &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
+      ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) :
+      &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
       if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
         ptr = dat->buffer_d_r + imp_exec_list->disps[i]*dat->size;
       MPI_Irecv(ptr, dat->size*imp_exec_list->sizes[i],
@@ -175,7 +176,8 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      ptr = OP_gpu_direct ? &(dat->data_d[nonexec_init+imp_nonexec_list->disps[i]*dat->size]) : &(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]);
+      ptr = OP_gpu_direct ? &(dat->data_d[nonexec_init+imp_nonexec_list->disps[i]*dat->size]) :
+      &(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]);
       if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
         ptr = dat->buffer_d_r + (imp_exec_list->size+imp_exec_list->disps[i])*dat->size;
       MPI_Irecv(ptr, dat->size*imp_nonexec_list->sizes[i],

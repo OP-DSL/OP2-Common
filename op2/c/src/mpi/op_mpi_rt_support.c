@@ -50,31 +50,12 @@
 #include <op_rt_support.h>
 #include <op_lib_mpi.h>
 
-
-// //
-// //MPI Halo related global variables
-// //
-//
-// extern halo_list *OP_export_exec_list;//EEH list
-// halo_list *OP_import_exec_list;//IEH list
-//
-// halo_list *OP_import_nonexec_list;//INH list
-// halo_list *OP_export_nonexec_list;//ENH list
-//
-// //
-// //global array to hold dirty_bits for op_dats
-// //
-
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
 void op_exchange_halo(op_arg* arg, int exec_flag)
 {
-  //int my_rank, comm_size;
-  //MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  //MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
   op_dat dat = arg->dat;
 
   if(arg->sent == 1)
