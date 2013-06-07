@@ -42,7 +42,7 @@
 #include <scotch.h>
 #endif
 
-#ifdef HAVE_PARMETIS
+#ifdef PARMETIS_VER_4
 #include <metis.h>
 #endif
 
@@ -216,7 +216,7 @@ void op_renumber(op_map base) {
   }
 
   if (generated_partvec == 0) {
-#ifdef HAVE_PARMETIS
+#ifdef PARMETIS_VER_4
     int possible[] = {2,4,6,8,12,16,22,24,32,64,128,192,256,512,1024,2048,4096};
     for (int i = 0; i < 17; i++) {
       int *partvec = (int *)malloc(base->to->size * sizeof(int));
