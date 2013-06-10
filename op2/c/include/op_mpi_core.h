@@ -44,6 +44,9 @@
 
 #include <mpi.h>
 
+//use uthash from - http://troydhanson.github.com/uthash/
+#include <uthash.h>
+
 /** Define the root MPI process **/
 #ifdef MPI_ROOT
 #undef MPI_ROOT
@@ -94,10 +97,10 @@ typedef part_core *part;
 /*******************************************************************************
 * Data structure to hold mpi communications of an op_dat
 *******************************************************************************/
-
+#define NAMESIZE 20
 typedef struct{
   //name of this op_dat
-  char const  *name;
+  char  name[NAMESIZE];
   //size of this op_dat
   int         size;
   //index of this op_dat
@@ -115,8 +118,11 @@ typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 *******************************************************************************/
 
 typedef struct {
+
+  UT_hash_handle hh;   //with this variable uthash makes this structure hashable
+
   // name of kernel
-  char const  *name;
+  char  name[NAMESIZE];
   //total time spent in this kernel (compute + comm - overlap)
   double      time;
   //number of times this kernel is called
@@ -128,6 +134,7 @@ typedef struct {
   // capacity of comm_info array
   int cap;
 } op_mpi_kernel;
+
 
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
@@ -243,9 +250,6 @@ void op_mv_halo_device(op_set set, op_dat dat);
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_list_device();
 
-void global_reduce(op_arg* arg);
-
-
 void partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords );
 
@@ -286,7 +290,7 @@ void op_partition_ptscotch(op_map primary_map);
 * External functions defined in op_mpi_(cuda)_rt_support.c
 *******************************************************************************/
 
-void op_exchange_halo(op_arg* arg);
+void op_exchange_halo(op_arg* arg, int exec_flag);
 void op_wait_all(op_arg* arg);
 
 

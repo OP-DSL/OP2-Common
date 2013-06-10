@@ -99,7 +99,7 @@ void op_par_loop(void (*kernel)(T0*),
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 1, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -177,7 +177,7 @@ void op_par_loop(void (*kernel)(T0*, T1*),
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 2, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -264,7 +264,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*),
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = (void *)op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 3, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -360,7 +360,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*),
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 4, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -451,7 +451,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     else op_arg_set(n,args[4], &p_a[4],halo);
 
     // call kernel function, passing in pointers to data
-    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3],
           (T4 *)p_a[4]);
   }
   if ( n_upper == set->core_size || n_upper == 0 )
@@ -471,7 +471,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 5, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -590,7 +590,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 6, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -718,7 +718,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 7, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -855,7 +855,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 8, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -1006,7 +1006,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 9, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
@@ -1141,8 +1141,8 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     else op_arg_set(n,args[9], &p_a[9],halo);
 
     // call kernel function, passing in pointers to data
-    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3], 
-          (T4 *)p_a[4], (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7], 
+    kernel( (T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3],
+          (T4 *)p_a[4], (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7],
           (T8 *)p_a[8], (T9 *)p_a[9]);
   }
   if ( n_upper == set->core_size || n_upper == 0 )
@@ -1167,7 +1167,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
-  int k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
+  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 10, args);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);

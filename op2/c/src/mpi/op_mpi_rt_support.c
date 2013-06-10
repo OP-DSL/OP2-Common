@@ -50,31 +50,12 @@
 #include <op_rt_support.h>
 #include <op_lib_mpi.h>
 
-
-// //
-// //MPI Halo related global variables
-// //
-//
-// extern halo_list *OP_export_exec_list;//EEH list
-// halo_list *OP_import_exec_list;//IEH list
-//
-// halo_list *OP_import_nonexec_list;//INH list
-// halo_list *OP_export_nonexec_list;//ENH list
-//
-// //
-// //global array to hold dirty_bits for op_dats
-// //
-
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
-void op_exchange_halo(op_arg* arg)
+void op_exchange_halo(op_arg* arg, int exec_flag)
 {
-  //int my_rank, comm_size;
-  //MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  //MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
   op_dat dat = arg->dat;
 
   if(arg->sent == 1)
@@ -83,6 +64,12 @@ void op_exchange_halo(op_arg* arg)
     fflush(stdout);
     MPI_Abort(OP_MPI_WORLD, 2);
   }
+
+  //For a directly accessed op_dat do not do halo exchanges if not executing over
+  //redundant compute block
+  if (exec_flag == 0 && arg->idx == -1) return;
+
+  arg->sent = 0; //reset flag
 
   //need to exchange both direct and indirect data sets if they are dirty
   if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
@@ -155,7 +142,6 @@ void op_exchange_halo(op_arg* arg)
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
       for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
       {
@@ -209,9 +195,9 @@ void op_wait_all(op_arg* arg)
       MPI_STATUSES_IGNORE );
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
+    arg->sent = 2; //set flag to indicate completed comm
   }
 
-  arg->sent = 0;
 }
 
 void op_partition(const char* lib_name, const char* lib_routine,
