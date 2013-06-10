@@ -41,12 +41,14 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /** Define hash table size for holding MPI op_par_loop performance measures **/
-#define HASHSIZE 50
+#define HASHSIZE 75
 
 /*******************************************************************************
 * MPI utility function prototypes

@@ -249,8 +249,6 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
 void op_mpi_wait_all(int nargs, op_arg* args);
 
-void op_mpi_global_reduction(int nargs, op_arg* args);
-
 void op_mpi_reset_halos(int nargs, op_arg* args);
 
 void op_mpi_reduce_float(op_arg *args, float* data);
@@ -274,9 +272,9 @@ void op_partition(const char* lib_name, const char* lib_routine,
 
 void op_partition_destroy();
 
-int op_mpi_perf_time(const char* name, double time);
+void *op_mpi_perf_time(const char* name, double time);
 #ifdef COMM_PERF
-void op_mpi_perf_comms(int k_i, int nargs, op_arg *args);
+void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args);
 #endif
 
 
