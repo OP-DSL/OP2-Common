@@ -2159,7 +2159,7 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() {
-
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 

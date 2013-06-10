@@ -525,7 +525,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 /*******************************************************************************
 * Routine to write all to a named hdf5 file
 *******************************************************************************/
-void op_write_hdf5(char const * file_name)
+void op_dump_to_hdf5(char const * file_name)
 {
   printf("Writing to %s\n",file_name);
 
@@ -755,7 +755,7 @@ void op_write_hdf5(char const * file_name)
     }
     else
     {
-      printf("Unknown type - in op_write_hdf5() writing op_dats\n");
+      printf("Unknown type - in op_dump_to_hdf5() writing op_dats\n");
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
 

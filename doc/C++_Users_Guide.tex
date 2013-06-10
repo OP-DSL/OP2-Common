@@ -2,13 +2,21 @@
 
 \usepackage[colorlinks,urlcolor=blue]{hyperref}
 
+\usepackage{graphicx}
+\usepackage{verbatim}
+\setlength{\oddsidemargin}{-0.01in}
+\setlength{\topmargin}{-0.4in}
+\setlength{\textheight}{9.0in}
+\setlength{\textwidth}{6.5 in}
 
- \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
- \oddsidemargin 0.1in
- \textheight 9.25in  \textwidth 6.00in
- \parskip 5pt plus 1pt minus 1pt
- \def \baselinestretch {1.25}   % one-and-a-half spaced
- \setlength {\unitlength} {0.75in}
+
+
+%  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
+%  \oddsidemargin 0.1in
+%  \textheight 9.25in  \textwidth 6.00in
+%  \parskip 5pt plus 1pt minus 1pt
+%  \def \baselinestretch {1.25}   % one-and-a-half spaced
+%  \setlength {\unitlength} {0.75in}
 %
 %
 \newenvironment{routine}[2]
@@ -74,7 +82,7 @@ parallelised using CUDA for NVIDIA GPUs
 multi-threaded using OpenMP for multicore x86 systems
 \end{itemize}
 
-In the future, there will also be support for AVX vectorisation
+\noindent In the future, there will also be support for AVX vectorisation
 for x86 CPUs, and OpenCL for both CPUs and GPUS.
 
 In addition to this, there is support for distributed-memory MPI
@@ -96,7 +104,7 @@ debugging the program, often using a small testcase
 running the program on increasingly large applications
 \end{itemize}
 
-With OP2 we want to simplify the first two tasks, while
+\noindent With OP2 we want to simplify the first two tasks, while
 providing as much performance as possible for the third.
 
 To achieve the high performance for large applications, a
@@ -339,16 +347,20 @@ appropriate variable with global scope.}
 \item[name]          a name used for output diagnostics
 \end{routine}
 
-\begin{routine} {void op\_fetch\_data(op\_dat dat)}
-{This routine transfers control over data from OP2 back to the user.}
-\item[dat]           OP dataset ID -- data is put back into the original input array
+\begin{routine} {void op\_fetch\_data ( op\_dat dat, T* data)}
+{This routine transfers a copy of the data currently held in an op\_dat from the OP2 back-end to a user allocated memory
+block.}
+\item[dat]           OP dataset ID -- The op\_dat who's data is to be fetched from OP2 space to user space
+\item[data]          pointer to a block of memory of type T -- allocated by the user
 \end{routine}
+
+
 
 
 \newpage
 
 \begin{routine} {op\_dat op\_decl\_dat\_tmp(op\_set set, int dim, char *type, char *name)}
-{This routine (which is not yet implemented) defines a temporary dataset, initialises it to zero, and returns a dataset ID.}
+{This routine defines a temporary dataset, initialises it to zero, and returns a dataset ID.}
 
 \item[set]           set
 \item[dim]           dimension of dataset (number of items per set element)
@@ -362,7 +374,7 @@ appropriate variable with global scope.}
 
 
 \begin{routine} {void op\_free\_dat\_tmp(op\_dat dat)}
-{This routine (which is not yet implemented) terminates a temporary dataset.}
+{This routine terminates a temporary dataset.}
 \item[dat]           OP dataset ID
 \end{routine}
 
@@ -632,13 +644,6 @@ for \texttt{prime\_set} - needed for ``KWAY'' and ``GEOMKWAY''
 
 \end{routine}
 
-
-\begin{routine} {void op\_printf(char *string)}
-{This routine simply prints a message; this is in place of the standard {\tt printf}
-function which would print the same message from each MPI process.}
-\item
-\end{routine}
-
 Using the above routines, OP2 will take care of everything, reading in all of
 the sets, mapping and data, partitoning the sets appropriately, renumbering sets
 as needed, constructing import/export halo lists, etc., and then performing the
@@ -646,6 +651,73 @@ parallel computation with halo exchange when needed.
 
 Both MPI and single process executables can be generated, depending on the
 libraries which are linked in.
+
+\newpage
+\subsection{Other I/O and Miscellaneous Routines}
+
+\begin{routine} {void op\_printf(const char * format, ...)}
+{This routine simply prints a variable number of arguments; it is created is in place of the standard {\tt printf}
+function which would print the same on each MPI process.}
+\item \vspace{-0.3in}
+\end{routine}
+
+\begin{routine} {void op\_fetch\_data\_hdf5(op\_dat dat, T* data, int low, int high)}
+{Transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
+to by data pointer of type T. the {\tt low} and {\tt high} integers gives the range of elements to be fetched}
+\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [data] pointer to a block of memory of type T -- allocated by the user
+\item [low] index of the first element to be fetched
+\item [high] index of the last element to be fetched
+\end{routine}
+
+\begin{routine}{void op\_print\_dat\_to\_binfile(op\_dat dat, const char *file\_name)}
+{Write the data in the op\_dat to a binary file}
+\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [file\_name] the file name to be written to
+\end{routine}
+
+
+\begin{routine}{void op\_print\_dat\_to\_txtfile(op\_dat dat, const char *file\_name)}
+{Write the data in the op\_dat to a ASCI text file}
+\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [file\_name] the file name to be written to
+\end{routine}
+
+\begin{routine}{void op\_fetch\_data\_hdf5\_file(op\_dat dat, char const *file\_name)}
+{Write the data in the op\_dat to an HDF5 file}
+\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [file\_name] the file name to be written to
+\end{routine}
+
+
+\begin{routine} {int op\_is\_root()}
+{A supporting routine that allows to to check for the root process. Intended to be used mainly when the application
+utilizes HDF5 file I/O and when the user would like to perform some conditional code on the root process. Returns 1 if
+on MPI\_ROOT else 0}
+\item \vspace{-0.3in}
+\end{routine}
+
+\begin{routine} {int op\_get\_size(op\_set set)}
+ {Get the global size of an op\_set}
+\item [set] OP set ID
+\end{routine}
+
+\begin{routine} {void op\_dump\_to\_hdf5(char const * file\_name)}
+{Dump the contents of all the op\_sets, op\_dats and op\_maps to an hdf5 file \textbf{as held internally by OP2},
+useful for debugging}
+\item [file\_name] the file name to be written to
+\end{routine}
+
+\begin{routine} {void op\_timers( double *cpu, double *et )}
+ {gettimeofday() based timer to start/end timing blocks of code }
+\item [cpu] variable to hold the CPU time at the time of invocation
+\item [et] variable to hold the elapsed time at the time of invocation
+\end{routine}
+
+\begin{routine} {void op\_timing\_output()}
+ {Print OP2 performance performance details to STD out}
+\item \vspace{-0.3in}
+\end{routine}
 
 
 \subsection{MPI message-passing without HDF5 files}
@@ -694,12 +766,22 @@ correct MPI process.
 
 \newpage
 
+\section{Executing with GPUDirect}
 
-\section{Preprocessor}
+GPU direct support for MPI+CUDA, to enable (on the OP2 side) add \textbf{-gpudirect} when running the executable. You
+may also have to use certain environmental flags when using different MPI distributions. For an example of the
+required flags and environmental settings on the EMERALD GPU cluster
+see: \\
+\url{www.einfrastructuresouth.ac.uk/cfi/emerald/gpu-programming/}
 
-There are two preprocessors for OP2, one developed at Imperial College using ROSE,
-and the other developed at Oxford using MATLAB.
+\newpage
 
+\section{OP2 Preprocessor}
+
+There are three preprocessors for OP2, one developed at Imperial College using ROSE (currently not maintained),
+a second one developed at Oxford using MATLAB and finally a Python parser/generator also developed at Oxford.
+
+\subsection{MATLAB preprocessor}
 The MATLAB preprocessor is run by the command
 
 {\tt op2('main')}
@@ -717,7 +799,7 @@ the CUDA implementations of the user's kernel functions;
 \item
 for the OpenMP executable, a new C++ file {\tt main\_kernels.cpp} which
 includes one or more files of the form {\tt xxx\_kernel.cpp} containing
-the CUDA implementations of the user's kernel functions.
+the OpenMP implementations of the user's kernel functions.
 \end{itemize}
 
 If the user's application is split over several files it is run by a command such as
@@ -733,6 +815,28 @@ and the individual kernel files.
 %The preprocessor cannot currently handle cases in which the same user kernel is
 %used in more than one parallel loop, or when global constant data is set/updated
 %in more than one place within the code.  This will be addressed in the future.
+
+\subsection{Python preprocessor}
+
+The Python preprocessor is run on the command-line with the command
+
+{\tt ./op2.py main.cpp sub1.cpp sub2.cpp sub3.cpp}
+
+\noindent Assuming that the user's application is split over several files. This will lead to the generation of output
+files {\tt sub1\_op.cpp, sub2\_op.cpp, sub3\_op.cpp} in addition to {\tt main\_op.cpp, main\_kernels.cu,
+main\_kernels.cpp} and the individual kernel files.
+
+\begin{itemize}
+\item
+The modified main program {\tt main\_op.cpp} is used for both the CUDA and OpenMP executables;
+\item
+For the CUDA executable, {\tt main\_kernels.cu} is a new CUDA file which includes one or more files of the form {\tt
+xxx\_kernel.cu} containing the CUDA implementations of the user's kernel functions;
+\item
+For the OpenMP executable, {\tt main\_kernels.cpp} is a new C++ file which includes one or more files of the form {\tt
+xxx\_kernel.cpp} containing the OpenMP implementations of the user's kernel functions.
+\end{itemize}
+
 
 
 \section{Error-checking}
@@ -836,8 +940,6 @@ In addition, the user must specify the name of the new header file using the
 environment variable {\tt OP\_USER\_DATATYPES}
 so that this header file is included into the OP2 header file {\tt op\_datatypes.h}.
 
-
-%\newpage
 
 
 
