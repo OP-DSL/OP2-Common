@@ -53,11 +53,15 @@
 //ptscotch header
 #ifdef HAVE_PTSCOTCH
 #include <ptscotch.h>
+
 #endif
 
 //parmetis header
 #ifdef HAVE_PARMETIS
 #include <parmetis.h>
+#ifdef PARMETIS_VER_4
+typedef idx_t idxtype;
+#endif
 #endif
 
 #include <op_mpi_core.h>
@@ -2963,4 +2967,3 @@ void partition(const char* lib_name, const char* lib_routine,
   op_halo_create();
 
 }
-
