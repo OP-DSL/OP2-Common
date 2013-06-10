@@ -327,7 +327,7 @@ int main(int argc, char **argv)
   op_decl_const(1,"double",&alpha);
   op_decl_const(4,"double",qinf  );
 
-  op_write_hdf5(file_out);
+  op_dump_to_hdf5(file_out);
   op_write_const_hdf5("gam",  1,"double",(char *)&gam,  "new_grid_out.h5");
   op_write_const_hdf5("gm1",  1,"double",(char *)&gm1,  "new_grid_out.h5");
   op_write_const_hdf5("cfl",  1,"double",(char *)&cfl,  "new_grid_out.h5");
