@@ -26,28 +26,28 @@ CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
 #
 
 ifeq ($(OP2_COMPILER),gnu)
-	CC       := gcc
-	CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
-	CXX      := g++
-	CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
-	MPICXX   := /usr/bin/mpiCC
-	MPIFLAGS := $(CXXFLAGS)
+  CC       := gcc
+  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+  CXX      := g++
+  CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
+  MPICXX   := /usr/bin/mpiCC
+  MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-	CC       := icc
-	CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
-	CXX      := icpc
-	CXXFLAGS := $(CCFLAGS)
-	MPICXX   := mpiCC
-	MPIFLAGS := $(CXXFLAGS)
+  CC       := icc
+  CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
+  CXX      := icpc
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := mpiCC
+  MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-	CC	 := pgcc
-	CCFLAGS	 := -O3
-	CXX	 := pgCC
-	CXXFLAGS := $(CCFLAGS)
-	MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
-	MPIFLAGS := $(CXXFLAGS)
+  CC	     := pgcc
+  CCFLAGS	 := -O3
+  CXX	     := pgCC
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
+  MPIFLAGS := $(CXXFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
@@ -59,8 +59,14 @@ NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH) -DHAVE_PARMETIS
-PARMETIS_LIB = -L$(PARMETIS_LIB_PATH) -lparmetis -lmetis
+PARMETIS_VER=4
+ifeq ($(PARMETIS_VER),4)
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
+  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
+else
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
+  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/ -lparmetis -lmetis
+endif
 
 PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
 PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
@@ -118,7 +124,6 @@ openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
 	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
-
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
@@ -149,7 +154,6 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
 	$(OBJ)/op_lib_core.o
-
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
@@ -163,7 +167,6 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_decl.c \
 	-o $(OBJ)/op_mpi_cuda_decl.o
-
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
