@@ -356,6 +356,7 @@ def main():
 
                     if soa_loc > 0:
                         soaflags[m] = 1
+                        print soaflags
                         typs[m] = args['typ'][1:soa_loc]
                     else:
                         typs[m] = args['typ'][1:-1]
@@ -455,15 +456,14 @@ def main():
                             kernels[nk]['indaccs'][arg] == indaccs[arg] and \
                             kernels[nk]['indtyps'][arg] == indtyps[arg] and \
                             kernels[nk]['invinds'][arg] == invinds[arg]
-
-                if rep2:
-                    print 'repeated kernel with compatible arguments: ' + \
-                          kernels[nk]['name'],
-                    repeat = True
-                    which_file = nk
-                else:
-                    print 'repeated kernel with incompatible arguments: ERROR'
-                    break
+                    if rep2:
+                        print 'repeated kernel with compatible arguments: ' + \
+                              kernels[nk]['name'],
+                        repeat = True
+                        which_file = nk
+                    else:
+                        print 'repeated kernel with incompatible arguments: ERROR'
+                        break
 
             # output various diagnostics
 
@@ -529,7 +529,11 @@ def main():
         loc_old = 0
 
         # read original file and locate header location
+        header_len = 11
         loc_header = [text.find("op_seq.h")]
+        if loc_header[0] == -1:
+          header_len = 13
+          loc_header = [text.find("op_lib_cpp.h")]
 
         # get locations of all op_decl_consts
         n_consts = len(const_args)
@@ -546,11 +550,10 @@ def main():
         locs = sorted(loc_header + loc_consts + loc_loops)
 
         # process header, loops and constants
-
         for loc in range(0, len(locs)):
-
-            fid.write(text[loc_old:locs[loc] - 1])
-            loc_old = locs[loc] - 1
+            if locs[loc] != -1:
+                fid.write(text[loc_old:locs[loc] - 1])
+                loc_old = locs[loc] - 1
 
             indent = ''
             ind = 0
@@ -560,7 +563,7 @@ def main():
                 indent = indent + ' '
                 ind = ind + 1
 
-            if locs[loc]in loc_header:
+            if (locs[loc] in loc_header) and (locs[loc] != -1):
                 fid.write(' "op_lib_cpp.h"\n\n')
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
@@ -573,7 +576,7 @@ def main():
                     fid.write(line)
 
                 fid.write('\n')
-                loc_old = locs[loc] + 11
+                loc_old = locs[loc] + header_len
                 continue
 
             if locs[loc] in loc_loops:
@@ -612,7 +615,7 @@ def main():
                           const_args[curr_const]['name2'].strip() + ');')
                 loc_old = endofcall + 1
                 continue
-
+        print loc_old, len(text)
         fid.write(text[loc_old:])
         fid.close()
 
