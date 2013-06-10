@@ -115,7 +115,9 @@ later invocations of CMake:
   or you want to override these, set custom paths as follows:
 
   * CUDA: set CUDA_TOOLKIT_ROOT_DIR if CUDA was not found and CUDA_BIN_PATH to
-    override
+    override the location of the CUDA toolkit to use. If nvcc raises an error
+    about an incompatible version of the host compiler, set the CMake variable
+    CUDA_HOST_COMPILER to choose a compiler different from CMAKE_C_COMPILER.
 
   * HDF5: set HDF5_ROOT if HDF5 was not FOUND
 
