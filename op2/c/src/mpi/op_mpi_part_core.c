@@ -705,6 +705,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
 
   if(my_rank==MPI_ROOT)
   {
+    int die = 0;
     printf("Sets partitioned = %d\n",sets_partitioned);
     if(sets_partitioned != OP_set_index)
     {
@@ -715,10 +716,13 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
         {
           printf("Unable to find mapping between primary set and %s \n",
               P->set->name);
+          if (P->set->size != 0) die = 1;
         }
       }
-      printf("Partitioning aborted !\n");
-      MPI_Abort(OP_PART_WORLD, 1);
+      if (die) {
+        printf("Partitioning aborted !\n");
+        MPI_Abort(OP_PART_WORLD, 1);
+      }
     }
   }
 

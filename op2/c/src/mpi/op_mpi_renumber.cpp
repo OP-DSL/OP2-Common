@@ -113,8 +113,8 @@ void reorder_set(op_set set, std::vector<std::vector<int> >& set_permutations, s
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     if (dat->set == set && dat->data != NULL) {
-      char *tempdata = (char *)malloc(set->size*dat->size);
-      for (int i = 0; i < set->size; i++) std::copy(dat->data + dat->size*i, dat->data + dat->size*(i+1), tempdata + dat->size*set_permutations[set->index][i]);
+      char *tempdata = (char *)malloc((size_t)set->size*(size_t)dat->size);
+      for (unsigned long int i = 0; i < (unsigned long int)set->size; i++) std::copy(dat->data + (unsigned long int)dat->size*i, dat->data + (unsigned long int)dat->size*(i+1), tempdata + (unsigned long int)dat->size*(unsigned long int)set_permutations[set->index][i]);
       free(dat->data);
       dat->data = tempdata;
     }
