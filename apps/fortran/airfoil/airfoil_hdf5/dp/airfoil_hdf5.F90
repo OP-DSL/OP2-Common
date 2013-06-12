@@ -86,7 +86,7 @@ program AIRFOIL
   call initialise_constants ( )
   !call op_write_hdf5("new_grid_out.h5");
 
-  call op_partition ('PARMETIS','KWAY', edges, pecell, p_x)
+  call op_partition ('XXPTSCOTCH','KWAY', edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
 
   ! start timer
