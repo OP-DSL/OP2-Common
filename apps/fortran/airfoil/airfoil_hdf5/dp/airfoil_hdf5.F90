@@ -3,8 +3,8 @@ program AIRFOIL
   use OP2_FORTRAN_HDF5_DECLARATIONS
   use OP2_Fortran_Reference
   use OP2_Fortran_RT_Support
-!  use AIRFOIL_SEQ
   use OP2_CONSTANTS
+  use AIRFOIL_SEQ
   use IO
   use, intrinsic :: ISO_C_BINDING
 
@@ -34,7 +34,7 @@ program AIRFOIL
   type(op_map) :: pedge, pecell, pcell, pbedge, pbecell
 
   ! integer reference (valid inside the OP2 library) for op_data
-  type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res, p_dummy
+  type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
 
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
@@ -43,9 +43,12 @@ program AIRFOIL
   integer(4) :: debugiter, retDebug
   real(8) :: datad
 
-  ! OP initialisation
+  ! local variables for constant initialization
+  real(8) :: p, r, u, e
 
-  call op_init (1)
+
+  ! OP initialisation
+  call op_init (0)
   call op_print ("Initialising OP2")
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
@@ -81,12 +84,10 @@ program AIRFOIL
 
   call op_print ('Initialising constants')
   call initialise_constants ( )
-
-  call op_write_hdf5("new_grid_out.h5");
+  !call op_write_hdf5("new_grid_out.h5");
 
   call op_partition ('PARMETIS','KWAY', edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
-  print *, "ncellr", ncellr
 
   ! start timer
   call op_timers ( startTime )
@@ -105,7 +106,6 @@ program AIRFOIL
 
       ! calculate area/timstep
       call op_par_loop_6 ( adt_calc, cells, &
-                         & op_opt_arg_dat (.FALSE., p_dummy,1, pcell, 2,"real(8)", OP_READ), &
                          & op_arg_dat (p_x,    1, pcell, 2,"real(8)", OP_READ), &
                          & op_arg_dat (p_x,    2, pcell, 2,"real(8)", OP_READ), &
                          & op_arg_dat (p_x,    3, pcell, 2,"real(8)", OP_READ), &
@@ -115,13 +115,13 @@ program AIRFOIL
 
       ! calculate flux residual
       call op_par_loop_8 ( res_calc, edges, &
-                         & op_opt_arg_dat (.TRUE.,p_x,    1, pedge, 2,"real(8)",  OP_READ), &
+                         & op_arg_dat (p_x,    1, pedge, 2,"real(8)",  OP_READ), &
                          & op_arg_dat (p_x,    2, pedge, 2,"real(8)",  OP_READ), &
                          & op_arg_dat (p_q,    1, pecell, 4,"real(8)", OP_READ), &
                          & op_arg_dat (p_q,    2, pecell, 4,"real(8)", OP_READ), &
                          & op_arg_dat (p_adt,  1, pecell, 1,"real(8)", OP_READ), &
                          & op_arg_dat (p_adt,  2, pecell, 1,"real(8)", OP_READ), &
-                         & op_opt_arg_dat (.TRUE., p_res,  1, pecell, 4,"real(8)", OP_INC),  &
+                         & op_arg_dat (p_res,  1, pecell, 4,"real(8)", OP_INC),  &
                          & op_arg_dat (p_res,  2, pecell, 4,"real(8)", OP_INC))
 
       call op_par_loop_6 ( bres_calc, bedges, &
@@ -157,10 +157,8 @@ program AIRFOIL
   end do ! external loop
 
   call op_timers ( endTime )
-  !if (op_is_root() .eq. 1) then
-    call op_timing_output ()
-    write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
-  !end if
+  call op_timing_output ()
+  write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
 
   call op_exit (  )
 end program AIRFOIL

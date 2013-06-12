@@ -1,6 +1,5 @@
-SUBROUTINE adt_calc(dummy,x1,x2,x3,x4,q,adt)
+SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   IMPLICIT NONE
-  REAL(kind=8), DIMENSION(2), INTENT(IN) :: dummy
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x3
@@ -10,14 +9,9 @@ SUBROUTINE adt_calc(dummy,x1,x2,x3,x4,q,adt)
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
   ri = 1.0 / q(1)
-!  if (gam_OP2 > 5.0) then
-  if (0.4 > 5.0) then
-    ri = ri + dummy(1)
-  endif
   u = ri * q(2)
   v = ri * q(3)
-!  c = sqrt(gam_OP2 * gm1_OP2 * (ri * q(4) - 0.5 * (u * u + v * v)))
-  c = sqrt(1.4 * 0.4 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
   dx = x2(1) - x1(1)
   dy = x2(2) - x1(2)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
@@ -30,6 +24,5 @@ SUBROUTINE adt_calc(dummy,x1,x2,x3,x4,q,adt)
   dx = x1(1) - x4(1)
   dy = x1(2) - x4(2)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-!  adt = adt / cfl_OP2
-  adt = adt / 0.9
+  adt = adt / cfl
 END SUBROUTINE

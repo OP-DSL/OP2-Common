@@ -5,7 +5,6 @@ SUBROUTINE update(qold,q,res,adt,rms)
   REAL(kind=8), DIMENSION(4) :: res
   REAL(kind=8), INTENT(IN) :: adt
   REAL(kind=8), DIMENSION(2) :: rms
-!  REAL(kind=8) :: rms
   REAL(kind=8) :: del,adti
   INTEGER(kind=4) :: i
   adti = 1.0 / adt

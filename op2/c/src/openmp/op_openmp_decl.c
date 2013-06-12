@@ -186,6 +186,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void op_timing_output()
 {
    op_timing_output_core();
+   printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)

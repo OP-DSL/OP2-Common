@@ -63,7 +63,6 @@ op_set * OP_set_list;
 op_map * OP_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel * OP_kernels;
-extern double OP_plan_time;
 
 /*
  * Utility functions
@@ -636,7 +635,6 @@ void op_timing_output_core()
                    OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
       }
     }
-    printf("Total plan time: %8.4f\n", OP_plan_time);
   }
 }
 
