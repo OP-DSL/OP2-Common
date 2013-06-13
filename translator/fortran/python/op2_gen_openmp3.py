@@ -258,8 +258,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra):
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
-      text = text.replace('subroutine '+name, 'subroutine '+name+'_cpu')
-      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '_cpu\n'
+      text = text.replace('subroutine '+name, 'subroutine '+name)
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name +'\n'
       file_text += text
       #code(kernels[nk]['mod_file'])
     code('')
@@ -318,7 +318,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra):
         k = k + [mapinds[g_m]]
         code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
     comm('kernel call')
-    line = 'CALL '+name+'_cpu( &'
+    line = 'CALL '+name+'( &'
     indent = '\n'+' '*depth
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
