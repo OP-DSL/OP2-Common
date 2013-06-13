@@ -1348,17 +1348,6 @@ void op_partition_external(op_set primary_set, op_dat partvec)
     decl_partition(set, g_index, NULL);
   }
 
-  /*-----STEP 1 - Partition Primary set using a random number generator --------*/
-  //op_dat partvec = NULL;
-  //char buffer[50];
-  //sprintf(buffer,"partvec%04d",comm_size);
-  //partvec = op_decl_dat_hdf5(primary_set, 1, "int", "mesh3_hdf5", buffer);
-
-  if (partvec == NULL) {
-    printf("Partitioning information not found, reverting to block partitioning\n");
-    return;
-  }
-
   int *partition = (int *)xmalloc(sizeof(int)*primary_set->size);
   memcpy(partition, partvec->data, sizeof(int)*primary_set->size);
 
