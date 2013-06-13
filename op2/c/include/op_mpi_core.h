@@ -259,7 +259,7 @@ void partition(const char* lib_name, const char* lib_routine,
 
 void op_partition_random(op_set primary_set);
 
-void op_partition_external(op_set primary_set);
+void op_partition_external(op_set primary_set, op_dat partvec);
 
 #ifdef HAVE_PARMETIS
 /*******************************************************************************

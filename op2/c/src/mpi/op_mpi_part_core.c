@@ -1302,7 +1302,7 @@ static void migrate_all(int my_rank, int comm_size)
  * This routine partitions based on information contained in an op_dat called partvecXXXX (number of total partitions, padded with 0s)
  *****************************************************************************************************************************************/
 
-void op_partition_external(op_set primary_set)
+void op_partition_external(op_set primary_set, op_dat partvec)
 {
   //declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -1349,10 +1349,10 @@ void op_partition_external(op_set primary_set)
   }
 
   /*-----STEP 1 - Partition Primary set using a random number generator --------*/
-  op_dat partvec = NULL;
-  char buffer[50];
-  sprintf(buffer,"partvec%04d",comm_size);
-  partvec = op_decl_dat_hdf5(primary_set, 1, "int", "mesh3_hdf5", buffer);
+  //op_dat partvec = NULL;
+  //char buffer[50];
+  //sprintf(buffer,"partvec%04d",comm_size);
+  //partvec = op_decl_dat_hdf5(primary_set, 1, "int", "mesh3_hdf5", buffer);
 
   if (partvec == NULL) {
     printf("Partitioning information not found, reverting to block partitioning\n");
@@ -1930,9 +1930,16 @@ void op_partition_kway(op_map primary_map)
   idxtype wgtflag = 0;
   int options[3] = {1,3,15};
 
+  int *hybrid_flags = (int *)malloc(comm_size*sizeof(int));
+  MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
+      1,MPI_INT,OP_PART_WORLD);
+  double total = 0;
+  for (int i = 0; i < comm_size; i++)
+    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+
   idxtype ncon = 1;
   float *tpwgts = (float *)xmalloc(comm_size*sizeof(float)*ncon);
-  for(int i = 0; i<comm_size*ncon; i++)tpwgts[i] = (float)1.0/(float)comm_size;
+  for(int i = 0; i<comm_size*ncon; i++) tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance/total : 1.0/total;
 
   float *ubvec = (float *)xmalloc(sizeof(float)*ncon);
   *ubvec = 1.05;
@@ -2941,7 +2948,7 @@ void op_partition_ptscotch(op_map primary_map)
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
 void partition(const char* lib_name, const char* lib_routine,
-  op_set prime_set, op_map prime_map, op_dat coords )
+  op_set prime_set, op_map prime_map, op_dat data )
 {
 #if !defined(HAVE_PTSCOTCH) && !defined(HAVE_PARMETIS)
   /* Suppress warning */
@@ -2953,23 +2960,19 @@ void partition(const char* lib_name, const char* lib_routine,
   if(lib_name == NULL) lib_name = "NULL";
   if(lib_routine == NULL) lib_routine = "NULL";
 
-  if(strcmp(lib_name,"PTSCOTCH")==0)
-  {
+  if(strcmp(lib_name,"PTSCOTCH")==0) {
     #ifdef HAVE_PTSCOTCH
     op_printf("Selected Partitioning Library : %s\n",lib_name);
-    if(strcmp(lib_routine,"KWAY")==0)
-    {
+    if(strcmp(lib_routine,"KWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
         op_partition_ptscotch(prime_map); //use ptscotch kaway partitioning
-      else
-      {
+      else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else
-    {
+    else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
     }
@@ -2978,93 +2981,90 @@ void partition(const char* lib_name, const char* lib_routine,
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input mapping : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input data : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
   }
   else
-  if (strcmp(lib_name,"PARMETIS")==0)
-  {
+  if (strcmp(lib_name,"PARMETIS")==0) {
     #ifdef HAVE_PARMETIS
     op_printf("Selected Partitioning Library : %s\n",lib_name);
-    if(strcmp(lib_routine,"KWAY")==0)
-    {
+    if(strcmp(lib_routine,"KWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
         op_partition_kway(prime_map); //use parmetis kaway partitioning
-      else
-      {
+      else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else if(strcmp(lib_routine,"GEOMKWAY")==0)
-    {
+    else if(strcmp(lib_routine,"GEOMKWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
-        op_partition_geomkway(coords, prime_map); //use parmetis kawaygeom partitioning
-      else
-      {
-        op_printf("Partitioning prime_map or coords: NULL - UNSUPPORTED Partitioner Specification\n");
+        op_partition_geomkway(data, prime_map); //use parmetis kawaygeom partitioning
+      else {
+        op_printf("Partitioning prime_map or coordinates : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else if(strcmp(lib_routine,"GEOM")==0)
-    {
+    else if(strcmp(lib_routine,"GEOM")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
-      if(coords != NULL)
-        op_partition_geom(coords); //use parmetis geometric partitioning
-      else
-      {
-        op_printf("Partitioning coords: NULL - UNSUPPORTED Partitioner Specification\n");
+      if(data != NULL)
+        op_partition_geom(data); //use parmetis geometric partitioning
+      else {
+        op_printf("Partitioning coordinates: NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else
-    {
+    else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n",lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
     }
     #else
     /*  Suppress warning */
-    (void)coords;
+    (void)data;
     op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
   }
-  else if (strcmp(lib_name,"RANDOM")==0)
-  {
+  else if (strcmp(lib_name,"RANDOM")==0) {
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
-    if(prime_set != NULL)
+    if(prime_set != NULL )
       op_partition_random(prime_set); //use a random partitioning - used for debugging
-    else
-    {
+    else {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
     }
   }
-  else if (strcmp(lib_name,"EXTERNAL")==0)
-  {
+  else if (strcmp(lib_name,"EXTERNAL")==0) {
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
-    if(prime_set != NULL)
-      op_partition_external(prime_set); //use a random partitioning - used for debugging
-    else
-    {
+    if(prime_set != NULL) {
+      if(data->data != NULL) {
+        if (data->dim == 1)
+          op_partition_external(prime_set, data); //use an external partitioning read in from hdf5 file
+        else {
+          op_printf("External Partition vector should be an integer array with dimension 1\n");
+          op_printf("Reverting to trivial block partitioning\n");
+        }
+      }
+      else
+        op_printf("External Partition vector : NULL - UNSUPPORTED Partitioner Specification\n");
+    }
+    else {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
     }
   }
-  else
-  {
+  else {
     op_printf("Partitioning Library : %s UNSUPPORTED\n",lib_name);
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
   }
 

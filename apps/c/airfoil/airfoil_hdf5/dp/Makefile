@@ -35,16 +35,25 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+  CPP       := pgCC
+  CCFLAGS  := -O3
+  CPPFLAGS := $(CCFLAGS)
+  OMPFLAGS := -mp
+  MPICPP   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS := $(CPPFLAGS)
+else
 ifeq ($(OP2_COMPILER),cray)
   CPP           = CC
-  CCFLAGS       = -O3
+  CCFLAGS       = -O3 -h fp3 -h ipa5
   CPPFLAGS      = $(CCFLAGS)
-  OMPFLAGS      = -openmp -openmp-report2
+  OMPFLAGS      = -h omp
   MPICPP        = CC
   MPIFLAGS      = $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -61,7 +70,7 @@ VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOC
 #
 # partitioning software for MPI versions
 #
-PARMETIS_VER=4
+PARMETIS_VER=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis

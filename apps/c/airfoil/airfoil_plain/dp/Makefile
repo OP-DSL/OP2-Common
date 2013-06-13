@@ -36,15 +36,24 @@ ifeq ($(OP2_COMPILER),intel)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CPP		= pgCC
-  CCFLAGS  	= -O3 -fPIC
-  CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -mp
-  MPICPP 	= /home/gihan/openmpi-pgi/bin/mpiCC
-  MPIFLAGS 	= $(CPPFLAGS)
+  CPP       := pgCC
+  CCFLAGS  := -O3
+  CPPFLAGS := $(CCFLAGS)
+  OMPFLAGS := -mp
+  MPICPP   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS := $(CPPFLAGS)
+else
+ifeq ($(OP2_COMPILER),cray)
+  CPP           = CC
+  CCFLAGS       = -O3 -h fp3 -h ipa5
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -h omp
+  MPICPP        = CC
+  MPIFLAGS      = $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -61,7 +70,7 @@ NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 #
 # partitioning software for MPI versions
 #
-PARMETIS_VER=4
+PARMETIS_VER=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis

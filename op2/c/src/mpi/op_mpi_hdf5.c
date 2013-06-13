@@ -133,7 +133,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 
   //calculate local size of set for this mpi process
   int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
-  printf("Set %s global size %d local size %d\n", name, g_size, l_size);
+  //printf("Set %s global size %d local size %d\n", name, g_size, l_size);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
   return op_decl_set(l_size,  name);
