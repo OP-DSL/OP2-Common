@@ -86,7 +86,7 @@ program AIRFOIL
   call initialise_constants ( )
   !call op_write_hdf5("new_grid_out.h5");
 
-  call op_partition ('XXPTSCOTCH','KWAY', edges, pecell, p_x)
+  call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
   ncellr = real(op_get_size(cells))
 
   ! start timer
@@ -158,7 +158,8 @@ program AIRFOIL
 
   call op_timers ( endTime )
   call op_timing_output ()
-  write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
-
+  if (op_is_root() .eq. 1) then
+    write (*,*) 'Max total runtime =', endTime - startTime,'seconds'
+  end if
   call op_exit (  )
 end program AIRFOIL

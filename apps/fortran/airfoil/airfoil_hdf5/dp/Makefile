@@ -116,7 +116,7 @@ ifeq ($(OP2_COMPILER),pgi)
         res_calc_kernel.CUF adt_calc_kernel.CUF \
 	airfoil_hdf5_op.F90 -o airfoil_hdf5_mpi_cuda -lop2_for_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) $(MPI_LIB) -lz
 else
-	@echo "airfoil_hdf5_cuda cannot be built with $(OP2_COMPILER) compilers .. requires PGI CUDA FORTRAN compiler"
+	@echo "airfoil_hdf5_mpi_cuda cannot be built with $(OP2_COMPILER) compilers .. requires PGI CUDA FORTRAN compiler"
 endif
 
 clean:
