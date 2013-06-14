@@ -50,7 +50,7 @@ MPI_LIB = $(MPI_INSTALL_PATH)/lib
 #
 # compiler settings
 #
-NVCCFLAGS = -O3 -arch=sm_35 -m64 -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
+NVCCFLAGS = -O3 -arch=sm_20 -m64 -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
 # Default to PGI compiler
 #OP2_COMPILER ?= pgi
 
@@ -75,14 +75,14 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   CC	   	  = nvcc
-  CXX		  = pgCC #g++
+  CXX		  = pgCC
   FC		  = pgfortran
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc
   PGCC            = pgcc
   PGCFLAGS        = -O2 -g -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD) -O2 -g -Mcuda=cuda5.0,cc35 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
+  PGFFLAGS        = -module $(F_INC_MOD) -fast -g -O2 -Mcuda=cuda5.0,cc20 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
   CFLAGS          = $(PGCFLAGS)
   MPICC	  	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)

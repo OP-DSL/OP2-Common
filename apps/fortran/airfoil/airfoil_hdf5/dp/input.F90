@@ -169,16 +169,16 @@ subroutine initialise_constants ( )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
-!#ifdef OP2_WITH_CUDAFOR
-!  if (getHybridGPU()) then
-!  gam_OP2 = gam
-!  gm1_OP2 = gm1
-!  eps_OP2 = eps
-!  cfl_OP2 = cfl
-!  mach_OP2 = mach
-!  qinf_OP2 = qinf
-!  end if
-!#endif
+#ifdef OP2_WITH_CUDAFOR
+  if (getHybridGPU()) then
+  gam_OP2 = gam
+  gm1_OP2 = gm1
+  eps_OP2 = eps
+  cfl_OP2 = cfl
+  mach_OP2 = mach
+  qinf_OP2 = qinf
+  end if
+#endif
 end subroutine initialise_constants
 
 end module

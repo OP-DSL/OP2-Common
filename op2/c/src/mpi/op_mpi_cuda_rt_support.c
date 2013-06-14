@@ -80,20 +80,30 @@ void cutilDeviceInit( int argc, char ** argv )
   printf("Trying to select a device\n");
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//  cudaError_t err = cudaSetDevice(rank);
+  if (getenv("OMPI_COMM_WORLD_LOCAL_RANK")!=NULL) {
+    printf("rank %d from OMPI_COMM_WORLD_LOCAL_RANK\n",rank);
+    rank = atoi(getenv("OMPI_COMM_WORLD_LOCAL_RANK"));
+  } else if (getenv("MV2_COMM_WORLD_LOCAL_RANK")!=NULL) {
+    rank = atoi(getenv("MV2_COMM_WORLD_LOCAL_RANK"));
+    printf("rank %d from MV2_COMM_WORLD_LOCAL_RANK\n",rank);
+  } else if (getenv("MPI_LOCALRANKID")!=NULL) {
+    rank = atoi(getenv("MPI_LOCALRANKID"));
+    printf("rank %d from MPI_LOCALRANKID\n",rank);
+  } else {
+    rank = rank%deviceCount;
+    printf("rank %d from rank(mod)deviceCount\n",rank);
+  }
+
   // Test we have access to a device
-//  if (err != cudaSuccess) {
   if (rank >= deviceCount) {
     OP_hybrid_gpu = 0;
   } else {
+    cudaError_t err = cudaSetDevice(rank);
     OP_hybrid_gpu = 1;
   }
-
+  printf("rank %d, deviceCount = %d, hybridGPU = %d\n", rank, deviceCount, OP_hybrid_gpu );
   if (OP_hybrid_gpu) {
-    cudaFree(0);
-
     cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-
     int deviceId = -1;
     cudaGetDevice(&deviceId);
     cudaDeviceProp_t deviceProp;

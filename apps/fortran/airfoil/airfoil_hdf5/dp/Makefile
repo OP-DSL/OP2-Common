@@ -29,7 +29,7 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo,keepgpu,keepptx -Mx,189,0x40 -Minline=adt_calc#-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
-  FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo
+  FC = pgfortran -fast -Mcuda=cuda5.0,cc20,fastmath,ptxinfo
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -38,8 +38,8 @@ ifeq ($(OP2_COMPILER),pgi)
   CPPLINK = -pgcpplibs
 else
 ifeq ($(OP2_COMPILER),intel)
-  CC = icc
-  FC = ifort
+  CC = icc -O0 -g
+  FC = ifort -O0 -g
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
