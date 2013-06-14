@@ -79,6 +79,12 @@ module OP2_Fortran_hdf5_Declarations
 
     end function op_decl_dat_hdf5_c
 
+    subroutine op_write_hdf5_c (fileName) BIND(C,name='op_write_hdf5')
+      use, intrinsic :: ISO_C_BINDING
+
+      character(len=1,kind=c_char) :: fileName(*)
+    end subroutine op_write_hdf5_c
+
   end interface
 
   interface op_decl_set_hdf5
@@ -153,5 +159,17 @@ contains
     ! debugging
 
   end subroutine op_decl_dat_hdf5
+
+  subroutine op_write_hdf5 (file_name)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    character(kind=c_char,len=*) :: file_name
+
+    call op_write_hdf5_c (file_name//C_NULL_CHAR)
+
+  end subroutine
 
 end module OP2_Fortran_hdf5_Declarations

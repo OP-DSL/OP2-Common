@@ -1,10 +1,10 @@
 SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   IMPLICIT NONE
-  REAL(kind=8), DIMENSION(*) :: x1
-  REAL(kind=8), DIMENSION(*) :: x2
-  REAL(kind=8), DIMENSION(*) :: x3
-  REAL(kind=8), DIMENSION(*) :: x4
-  REAL(kind=8), DIMENSION(*) :: q
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x3
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x4
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx,dy,ri,u,v,c
 

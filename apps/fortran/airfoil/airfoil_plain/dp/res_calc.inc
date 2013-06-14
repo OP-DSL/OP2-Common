@@ -1,11 +1,11 @@
 SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2) :: x1
-  REAL(kind=8), DIMENSION(2) :: x2
-  REAL(kind=8), DIMENSION(4) :: q1
-  REAL(kind=8), DIMENSION(4) :: q2
-  REAL(kind=8) :: adt1
-  REAL(kind=8) :: adt2
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q1
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q2
+  REAL(kind=8), INTENT(IN) :: adt1
+  REAL(kind=8), INTENT(IN) :: adt2
   REAL(kind=8), DIMENSION(4) :: res1
   REAL(kind=8), DIMENSION(4) :: res2
   REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f

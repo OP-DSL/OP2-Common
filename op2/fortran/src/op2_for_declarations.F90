@@ -445,12 +445,6 @@ module OP2_Fortran_Declarations
 
     end subroutine op_print_dat_to_binfile_c
 
-   subroutine op_write_hdf5_c (fileName) BIND(C,name='op_write_hdf5')
-      use, intrinsic :: ISO_C_BINDING
-
-      character(len=1,kind=c_char) :: fileName(*)
-    end subroutine op_write_hdf5_c
-
     logical(kind=c_bool) function isCNullPointer_c (ptr) BIND(C,name='isCNullPointer')
       use, intrinsic :: ISO_C_BINDING
 
@@ -1096,18 +1090,6 @@ contains
     get_associated_set_size = get_associated_set_size_f ( dat%dataPtr )
 
   end function
-
-  subroutine op_write_hdf5 (file_name)
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    character(kind=c_char,len=*) :: file_name
-
-    call op_write_hdf5_c (file_name//C_NULL_CHAR)
-
-  end subroutine
 
   subroutine op_print_dat_to_binfile (dat, fileName)
 

@@ -21,11 +21,20 @@ ifeq ($(OP2_COMPILER),gnu)
 
 else
 ifeq ($(OP2_COMPILER),pgi)
-IC = pgcc
-FC = pgfortran -Mcuda=cuda4.2
-OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
-OPENMP = -mp
-CPPLINK = -pgcpplibs
+#IC = pgcc
+#FC = pgfortran -Mcuda=cuda4.2
+#OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
+#OPENMP = -mp
+#CPPLINK = -pgcpplibs
+  CC = pgcc
+  #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo,keepgpu,keepptx -Mx,189,0x40 -Minline=adt_calc#-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
+  FC = pgfortran -fast -Mcuda=cuda5.0,cc20,fastmath,ptxinfo
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPI_INC = -I$(MPI_INSTALL_PATH)/include
+  MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -g
+  OPENMP = -mp
+  CPPLINK = -pgcpplibs
 else
 ifeq ($(OP2_COMPILER),intel)
 IC = icc
@@ -53,8 +62,8 @@ airfoil_openmp_$(PART_SIZE_ENV): airfoil_op.F90 save_soln_kernel.F90 adt_calc_ke
 	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 constants.F90 input.F90 input.F90
 	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 \
 	save_soln_kernel.F90 update_kernel.F90 bres_calc_kernel.F90 \
-	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90 input.F90
-	$(FC) $(OPT) $(OPENMP) $(FLINK) constants.o input.o input.o \
+	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
+	$(FC) $(OPT) $(OPENMP) $(FLINK) constants.o input.o \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
 	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp_$(PART_SIZE_ENV) -lop2_for_openmp
 
