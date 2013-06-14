@@ -226,6 +226,19 @@ void op_timers(double * cpu, double * et)
   op_timers_core(cpu,et);
 }
 
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? arg->dat->set->size : 0;
+}
+
+void op_renumber(op_map base) {
+  (void)base;
+}
+
+int getHybridGPU() {
+  return OP_hybrid_gpu;
+}
+
 void op_exit()
 {
   op_cuda_exit();            // frees dat_d memory
