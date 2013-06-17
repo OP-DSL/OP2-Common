@@ -37,7 +37,7 @@ program AIRFOIL
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res
-  real(8) :: rms
+  real(8), dimension(1:2) :: rms
 
   integer(4) :: debugiter, retDebug
   real(8) :: datad
@@ -64,13 +64,6 @@ program AIRFOIL
 
   print *, "Getting data"
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
-
-  print *, "Initialising constants"
-  call initialise_flow_field ( ncell, q, res )
-
-  do iter = 1, 4*ncell
-    res(iter) = 0.0
-  end do
 
   ! OP initialisation
   print *, "Initialising OP2"
@@ -106,6 +99,9 @@ program AIRFOIL
   call op_decl_const(mach, 1, 'mach')
   call op_decl_const(alpha, 1, 'alpha')
   call op_decl_const(qinf, 4, 'qinf')
+
+  print *, "Initialising constants"
+  call initialise_flow_field ( ncell, q, res )
 
   ! start timer
   call op_timers ( startTime )
@@ -152,22 +148,26 @@ program AIRFOIL
 
       ! update flow field
 
-      rms = 0.0
+      rms(1:2) = 0.0
 
       call op_par_loop_5 ( update, cells, &
                          & op_arg_dat (p_qold, -1, OP_ID, 4,"real(8)",  OP_READ),  &
                          & op_arg_dat (p_q,    -1, OP_ID, 4,"real(8)",  OP_WRITE), &
                          & op_arg_dat (p_res,  -1, OP_ID, 4,"real(8)",  OP_RW),    &
                          & op_arg_dat (p_adt,  -1, OP_ID, 1,"real(8)",  OP_READ),  &
-                         & op_arg_gbl (rms, 1, "real(8)", OP_INC))
+                         & op_arg_gbl (rms, 2, "real(8)", OP_INC))
 
 
     end do ! internal loop
 
     ncellr = real ( ncell )
-    rms = sqrt ( rms / ncellr )
+    rms(2) = sqrt ( rms(2) / ncellr )
 
-    if (mod(niter,100) .eq. 0)  write (*,*), niter,"  ",rms
+    if (mod(niter,100) .eq. 0) then
+      if (op_is_root() .eq. 1) then
+        write (*,*) niter,"  ",rms(2)
+      end if
+    end if
 
   end do ! external loop
 
