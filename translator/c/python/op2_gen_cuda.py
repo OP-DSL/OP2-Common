@@ -723,6 +723,11 @@ def op2_gen_cuda(master, date, consts, kernels):
     code('')
 
     IF('set->size > 0')
+    code('')
+    code('op_timing_realloc('+str(nk)+');')
+    code('OP_kernels[' +str(nk)+ '].name      = name;')
+    code('OP_kernels[' +str(nk)+ '].count    += 1;')
+    code('')
     if any_soa:
       code('int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;')
       #code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
@@ -869,8 +874,6 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('Plan->ncolblk[col],')
       code('set_size);')
       code('')
-      code('cutilSafeCall(cudaThreadSynchronize());')
-      code('cutilCheckMsg("op_cuda_'+name+' execution failed\\n");')
       if reduct:
         comm('transfer global reduction data back to CPU')
         IF('col == Plan->ncolors_owned-1')
@@ -913,11 +916,8 @@ def op2_gen_cuda(master, date, consts, kernels):
 
       code(indent+'offset_s,')
       code(indent+'set->size );')
-      code('cutilSafeCall(cudaThreadSynchronize());')
-      code('cutilCheckMsg("op_cuda_'+name+' execution failed\\n");')
 
     if ninds>0:
-      code('op_timing_realloc('+str(nk)+');')
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
@@ -956,9 +956,6 @@ def op2_gen_cuda(master, date, consts, kernels):
 
     comm('update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('op_timing_realloc('+str(nk)+');')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
