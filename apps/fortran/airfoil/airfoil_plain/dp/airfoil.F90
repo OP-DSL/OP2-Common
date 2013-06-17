@@ -69,6 +69,9 @@ program AIRFOIL
   print *, "Initialising OP2"
   call op_init (0)
 
+  print *, "Initialising constants"
+  call initialise_flow_field ( ncell, q, res )
+
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
   call op_decl_set ( nnode, nodes, 'nodes' )
@@ -99,9 +102,6 @@ program AIRFOIL
   call op_decl_const(mach, 1, 'mach')
   call op_decl_const(alpha, 1, 'alpha')
   call op_decl_const(qinf, 4, 'qinf')
-
-  print *, "Initialising constants"
-  call initialise_flow_field ( ncell, q, res )
 
   ! start timer
   call op_timers ( startTime )

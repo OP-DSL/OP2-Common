@@ -54,7 +54,6 @@ program AIRFOIL
   ! local variables for constant initialization
   real(8) :: p, r, u, e
 
-
   ! OP initialisation
   call op_init (0)
   call op_print ("Initialising OP2")

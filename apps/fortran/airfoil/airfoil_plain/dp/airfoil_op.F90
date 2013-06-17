@@ -43,7 +43,7 @@ program AIRFOIL
   type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
 
   ! arrays used in data
-  integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
+  integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell, n, m
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res
   real(8), dimension(1:2) :: rms
 
@@ -77,6 +77,9 @@ program AIRFOIL
   print *, "Initialising OP2"
   call op_init (0)
 
+  print *, "Initialising constants"
+  call initialise_flow_field ( ncell, q, res )
+
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
   call op_decl_set ( nnode, nodes, 'nodes' )
@@ -100,9 +103,6 @@ program AIRFOIL
   call op_decl_dat ( cells, 4, res, p_res, 'p_res' )
 
   print *, "Declaring OP2 constants"
-
-  print *, "Initialising constants"
-  call initialise_flow_field ( ncell, q, res )
 
   ! start timer
   call op_timers ( startTime )
