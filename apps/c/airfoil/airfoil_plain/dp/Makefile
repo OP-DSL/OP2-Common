@@ -70,7 +70,7 @@ NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 #
 # partitioning software for MPI versions
 #
-PARMETIS_VER=3
+PARMETIS_VER=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
