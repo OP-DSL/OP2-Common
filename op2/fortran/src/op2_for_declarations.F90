@@ -239,8 +239,8 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: idx
       type(c_ptr), value, intent(in) :: map
       integer(kind=c_int), value :: dim
-      type(c_ptr), value :: type
-!      character(kind=c_char,len=1) :: type(*)
+!      type(c_ptr), value :: type
+      character(kind=c_char,len=1) :: type(*)
       integer(kind=c_int), value :: acc
 
     end function op_arg_dat_c
@@ -258,8 +258,8 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: idx
       type(c_ptr), value, intent(in) :: map
       integer(kind=c_int), value :: dim
-      type(c_ptr), value :: type
-!      character(kind=c_char,len=1) :: type(*)
+!      type(c_ptr), value :: type
+      character(kind=c_char,len=1) :: type(*)
       integer(kind=c_int), value :: acc
 
     end function op_opt_arg_dat_c
@@ -575,15 +575,15 @@ contains
   !   declarations of op_dats    !
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_real_8 ( set, datdim, type, dat, data, opname )
 
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     real(8), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opName
-
-    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
+    character(kind=c_char,len=*) :: type
+!    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
@@ -598,38 +598,41 @@ contains
 
   end subroutine op_decl_dat_real_8
 
-  subroutine op_decl_dat_real_8_2 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_real_8_2 ( set, datdim, type, dat, data, opname )
 
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     real(8), dimension(:,:), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opName
+    character(kind=c_char,len=*) :: type
 
-    call op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+    call op_decl_dat_real_8 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_real_8_2
 
-  subroutine op_decl_dat_real_8_3 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_real_8_3 ( set, datdim, type, dat, data, opname )
 
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     real(8), dimension(:,:,:), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opName
+    character(kind=c_char,len=*) :: type
 
-    call op_decl_dat_real_8 ( set, datdim, dat, data, opname )
+    call op_decl_dat_real_8 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_real_8_3
 
-  subroutine op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_integer_4 ( set, datdim, type, dat, data, opname )
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     integer(4), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
 
-    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
+!    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
@@ -642,25 +645,27 @@ contains
 
   end subroutine op_decl_dat_integer_4
 
-  subroutine op_decl_dat_integer_4_2 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_integer_4_2 ( set, datdim, type, dat, data, opname )
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     integer(4), dimension(:,:), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
 
-    call op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+    call op_decl_dat_integer_4 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_integer_4_2
 
-  subroutine op_decl_dat_integer_4_3 ( set, datdim, dat, data, opname )
+  subroutine op_decl_dat_integer_4_3 ( set, datdim, type, dat, data, opname )
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     integer(4), dimension(:,:,:), intent(in), target :: dat
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
 
-    call op_decl_dat_integer_4 ( set, datdim, dat, data, opname )
+    call op_decl_dat_integer_4 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_integer_4_3
 
@@ -777,7 +782,7 @@ contains
 #endif
 !      op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
       print *, "Error, NULL pointer for op_dat"
-      op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+      op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
     else
       if (dat%dataPtr%dim .ne. dim) then
         print *, "Wrong dim",dim,dat%dataPtr%dim
@@ -785,10 +790,10 @@ contains
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
 !        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
       else
-        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
 !        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
       endif
     endif
@@ -820,16 +825,16 @@ contains
     if (opt) then
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
       else
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
       endif
   else
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type, access-1 )
       else
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, C_NULL_PTR, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, type, access-1 )
       endif
 !      op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
   endif

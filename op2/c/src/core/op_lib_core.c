@@ -416,7 +416,6 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 {
   /* error checking for op_arg_dat */
   if (arg.opt == 0) return;
-
   if ( arg.argtype == OP_ARG_DAT )
   {
     if ( set == NULL )
@@ -436,7 +435,13 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
       op_err_print ( "dataset dim does not match declared dim", m, name );
 
     if ( strcmp ( arg.dat->type, arg.type ) ){
-      op_err_print ( "dataset type does not match declared type", m, name );
+      if ((strcmp(arg.dat->type, "double")==0 && (int)arg.type[0]==114 && (int)arg.type[1]==56 && (int)arg.type[2]!=58) ||
+          (strcmp(arg.dat->type, "double:soa")==0 && (int)arg.type[0]==114 && (int)arg.type[1]==56 && (int)arg.type[2]==58) ||
+          (strcmp(arg.dat->type, "int")==0 && (int)arg.type[0]==105 && (int)arg.type[1]==52)) {}
+      else {
+        printf("%s %s %s (%s)\n", set->name, arg.dat->type, arg.type, arg.dat->name);
+        op_err_print ( "dataset type does not match declared type", m, name );
+      }
     }
 
     if ( arg.idx >= 0 )

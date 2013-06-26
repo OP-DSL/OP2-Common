@@ -146,6 +146,20 @@ def ENDIF():
   elif CPP:
     code('}')
 
+def arg_parse(text,j):
+
+    depth = 0
+    loc2 = j;
+    while 1:
+      if text[loc2] == '(':
+        depth = depth + 1
+
+      elif text[loc2] == ')':
+        depth = depth - 1
+        if depth == 0:
+          return loc2
+      loc2 = loc2 + 1
+
 def op2_gen_cuda(master, date, consts, kernels, hydra):
 
   global dims, idxs, typs, indtyps, inddims
@@ -187,6 +201,13 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
+    set_name = kernels[nk]['set']
+    mapnames = kernels[nk]['mapnames']
+    invmapinds = kernels[nk]['invmapinds']
+    mapinds = kernels[nk]['mapinds']
+    nmaps = 0
+    if ninds > 0:
+      nmaps = max(mapinds)+1
 
     optidxs = [0]*nargs
     indopts = [-1]*nargs
@@ -202,6 +223,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           nopts = nopts+1
         else:
           optidxs[i] = optidxs[invinds[inds[i]-1]]
+
 
 
 #
@@ -293,7 +315,9 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
     if ninds > 0:
       code('TYPE ( c_ptr )  :: planRet_'+name)
-
+    code('')
+    if is_soa > -1:
+      code('#include "op2_macros.h"')
     code('')
     code('CONTAINS')
     code('')
@@ -455,7 +479,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
       text = text.replace('recursive subroutine','attributes(host) subroutine')
-      text = text.replace('subroutine '+name, 'subroutine '+name+'_cpu')
+      text = text.replace('subroutine '+name, 'subroutine '+name)
       file_text += text
       code('')
       code('')
@@ -468,7 +492,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           text = re.sub(fstr,rstr,text)
       text = text.replace('#include "const2.inc"','!#include "const2.inc"')
       text = text.replace('attributes(host) subroutine','attributes(device) subroutine')
-      text = text.replace('subroutine '+name+'_cpu', 'subroutine '+name+'_gpu')
+      text = text.replace('subroutine '+name, 'subroutine '+name+'_gpu')
       text = text.replace('use BCS_KERNELS', '!use BCS_KERNELS')
       text = text.replace('use REALGAS_KERNELS', '!use REALGAS_KERNELS')
       text = text.replace('use UPDATE_KERNELS', '!use UPDATE_KERNELS')
@@ -488,6 +512,68 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       if ('INVJACS' in name):
         text = text.replace('call MATINV5(', 'call MATINV5_gpu(')
         code('#include "../../update_kernels_gpufun.inc"')
+
+      j = text.find(name+'_gpu')
+      endj = arg_parse(text,j)
+      while text[j] <> '(':
+          j = j + 1
+      arg_list = text[j+1:endj]
+      arg_list = arg_list.replace('&','')
+      varlist = ['']*nargs
+      leading_dim = [-1]*nargs
+      for g_m in range(0,nargs):
+        varlist[g_m] = arg_list.split(',')[g_m].strip()
+      for g_m in range(0,nargs):
+        if soaflags[g_m] and not (maps[g_m]==OP_MAP and accs[g_m]==OP_INC):
+          #Start looking for the variable in the code, after the function signature
+          loc1 = endj
+          p = re.compile('\\b'+varlist[g_m]+'\\b')
+          nmatches = len(p.findall(text[loc1:]))
+          for id in range(0,nmatches):
+            #Search for the next occurence
+            i = p.search(text[loc1:])
+            #Skip commented out ones
+            j = text[:loc1+i.start()].rfind('\n')
+            if j > -1 and text[j:loc1+i.start()].find('!')>-1:
+              loc1 = loc1+i.end()
+              continue
+
+            #Find closing bracket
+            endarg = arg_parse(text,loc1+i.start())
+            #Find opening bracket
+            beginarg = loc1+i.start()
+            while text[beginarg] <> '(':
+              beginarg = beginarg+1
+            beginarg = beginarg+1
+
+            #If this is the first time we see the argument (i.e. its declaration)
+            if leading_dim[g_m] == -1:
+              if (len(text[beginarg:endarg].split(',')) > 1):
+                #if it's 2D, remember leading dimension, and make it 1D
+                leading_dim[g_m] = text[beginarg:endarg].split(',')[0]
+                text = text[:beginarg] + '*'+' '*(endarg-beginarg-1) + text[endarg:]
+              else:
+                leading_dim[g_m] = 1
+              #Continue search after this instance of the variable
+              loc1 = endarg+1
+            else:
+              #If we have seen this variable already, then it's in the actual code, replace it with macro
+              macro = 'OP2_SOA('+text[loc1+i.start():loc1+i.end()]+','
+              if leading_dim[g_m] == 1:
+                macro = macro + text[beginarg:endarg]
+              else:
+                macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*'+leading_dim[g_m]
+              if maps[g_m] == OP_MAP:
+                macro = macro + ', nodes_stride_OP2CONSTANT)'
+              else:
+                macro = macro + ', ' + set_name.split('%')[-1].strip()+'_stride_OP2CONSTANT)'
+              text = text[:loc1+i.start()] + macro + text[endarg+1:]
+              #Continue search after this instance of the variable
+              loc1 = loc1+i.start() + len(macro)
+
+
+
+
       file_text += text
 
     else:
@@ -510,7 +596,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('&  soa_stride,      &')
     for g_m in range(0,ninds):
       code('& opDat'+str(invinds[g_m]+1)+'Device'+name+', &')
-      code('& opMap'+str(invinds[g_m]+1)+'Device'+name+', &')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         code('& opDat'+str(g_m+1)+'Device'+name+', &')
@@ -547,7 +638,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         code(typs[invinds[g_m]]+', DEVICE, INTENT(IN) :: opDat'+str(invinds[g_m]+1)+'Device'+name+'(*)')
       else:
         code(typs[invinds[g_m]]+', DEVICE :: opDat'+str(invinds[g_m]+1)+'Device'+name+'(*)')
-      code('INTEGER(kind=4), DEVICE :: opMap'+str(invinds[g_m]+1)+'Device'+name+'(*)')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('INTEGER(kind=4), DEVICE :: opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         if accs[g_m] == OP_READ:
@@ -571,11 +667,18 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
             if accs[g_m] == OP_READ: #if OP_READ and dim 1, we can pass in by value
               code(typs[g_m]+', VALUE :: opGblDat'+str(g_m+1)+'Device'+name)
 
+    if nmaps > 0:
+      k = []
+      line = 'INTEGER(kind=4) '
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          line += 'map'+str(mapinds[g_m]+1)+'idx, '
+      code(line[:-2])
+    code('')
+
     if is_soa > -1:
       code('INTEGER(kind=4), VALUE :: soa_stride')
-      for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
-          code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'SoALocal')
 
     if ninds > 0: #indirect loop
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap')
@@ -609,13 +712,11 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     else: #direct loop
       code('INTEGER(kind=4), VALUE :: setSize')
       code('INTEGER(kind=4) :: i1')
-      if is_soa > -1:
-        code('INTEGER(kind=4) :: i2')
 
     if nopts > 0:
       code('')
       comm('optional variables')
-  # for indirect OP_READ, we would pass in a pointer to shared, offset by map, but if opt, then map may not exist, thus we need a separate pointer
+      #for indirect OP_READ, we would pass in a pointer to shared, offset by map, but if opt, then map may not exist, thus we need a separate pointer
       for g_m in range(0,nargs):
         if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and maps[g_m] == OP_MAP and optflags[g_m]==1:
           if dims[g_m].isdigit() and int(dims[g_m])==1:
@@ -653,11 +754,21 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       if ind_rw:
         DO('colour1','0','numOfColours')
         IF('i1 < numberOfActiveThreads')
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')')
         code('colour2 = pthrcol(i1 + threadBlockOffset)')
         IF('colour2 .EQ. colour1')
       #-----End Indirect RW handling-----
       else:
         IF('i1 < numberOfActiveThreads')
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')')
 
       for g_m in range(0,nargs):
         if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
@@ -673,34 +784,23 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             DO('i2','0', dims[g_m])
-            code('opDat'+str(g_m+1)+'Opt(i2) = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
-            code('  & (1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'))')
+            if soaflags[g_m] == 1:
+              code('opDat'+str(g_m+1)+'Opt(i2) = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
+              code('  & (1 + i2 * soa_stride + map'+str(mapinds[g_m]+1)+'idx)')
+            else:
+              code('opDat'+str(g_m+1)+'Opt(i2) = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
+              code('  & (1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+'))')
             ENDDO()
           else:
             code('opDat'+str(g_m+1)+'Opt = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-            '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+'))')
+                 '(1 + map'+str(mapinds[g_m]+1)+'idx)')
           ENDIF()
-
-      for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
-          DO('i2','0', dims[g_m])
-          if maps[g_m] == OP_MAP:
-            code('opDat'+str(g_m+1)+'SoALocal(i2) = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
-            code('  & (1 + i2 * soa_stride + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+'))')
-          else:
-            code('opDat'+str(g_m+1)+'SoALocal(i2) = opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + (i1 + threadBlockOffset))')
-          ENDDO()
 
       code('')
       comm('kernel call')
 
     else:
       DO_STEP('i1','threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x','setSize','blockDim%x * gridDim%x')
-      for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and optflags[g_m]==0:
-          DO('i2','0', dims[g_m])
-          code('opDat'+str(g_m+1)+'SoALocal(i2) = opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + i1)')
-          ENDDO()
       code('')
       comm('kernel call')
       code('')
@@ -713,7 +813,11 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
-          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
+#          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
+          if maps[g_m] == OP_MAP:
+            line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ '(1 + map'+str(mapinds[g_m]+1)+'idx)'
+          else:
+            line = line +indent + '& opDat'+str(g_m+1)+'Device'+name+ '(1 + (i1 + threadBlockOffset))'
         elif maps[g_m] == OP_ID:
           if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             line = line + indent + '& opDat'+str(g_m+1)+'Device'+name+ \
@@ -725,15 +829,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         elif maps[g_m] == OP_MAP and (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and optflags[g_m]==0:
           if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-            '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):'+ \
-            '     opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
+            '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+'):'+ \
+            '     map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+') + '+dims[g_m]+')'
           else:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-            '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+'))'
+            '(1 + map'+str(mapinds[g_m]+1)+'idx)'
         elif maps[g_m] == OP_MAP and (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE) and optflags[g_m]==1:
-#          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-#            line = line +indent + '& opDat'+str(g_m+1)+'Opt'
-#          else:
           line = line +indent + '& opDat'+str(g_m+1)+'Opt'
         elif maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
           if dims[g_m].isdigit() and int(dims[g_m])==1:
@@ -760,20 +861,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
             DO('i2','0', dims[g_m])
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
-            code('  & (1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) = opDat'+str(g_m+1)+'Opt(i2)')
+            code('  & (1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = opDat'+str(g_m+1)+'Opt(i2)')
             ENDDO()
           else:
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-            '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')) = opDat'+str(g_m+1)+'Opt')
+            '(1 + map'+str(mapinds[g_m]+1)+'idx) = opDat'+str(g_m+1)+'Opt')
           ENDIF()
-        if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and accs[g_m] <> OP_READ:
-          DO('i2','0', dims[g_m])
-          if maps[g_m] == OP_MAP:
-            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ ' &')
-            code('  & (1 + i2 * soa_stride + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')) = opDat'+str(g_m+1)+'SoALocal(i2)')
-          else:
-            code('opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + (i1 + threadBlockOffset)) = opDat'+str(g_m+1)+'SoALocal(i2)')
-          ENDDO()
 
       if ind_inc and not ind_rw:
         code('colour2 = pthrcol(i1 + threadBlockOffset)')
@@ -790,23 +883,23 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
             if dims[g_m].isdigit() and int(dims[g_m])==1:
               code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) = &')
+              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = &')
               code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
+              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
             else:
               if soaflags[g_m] == 1:
                 DO('i2','0', dims[g_m])
                 code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2*soa_stride + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')) = &')
+                '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) = &')
                 code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2*soa_stride + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+')) + opDat'+str(g_m+1)+'Local(i2)')
+                '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local(i2)')
                 ENDDO()
               else:
                 DO('i2','0', dims[g_m])
                 code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) = &')
+                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx* ('+dims[g_m]+')) = &')
                 code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+'(1 + i1 + threadBlockOffset + setSize * '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
+                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
                 ENDDO()
             if optflags[g_m]<>1:
               code('')
@@ -827,7 +920,8 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC) and optflags[g_m]==0:
-          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
+#          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
+           line = line +indent + '& opDat'+str(g_m+1)+'Device'+name+ '(1 + i1)'
         elif maps[g_m] == OP_GBL:
           if accs[g_m] == OP_WRITE and dims[g_m].isdigit() and int(dims[g_m]) == 1:
             line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name+'(1)'
@@ -846,12 +940,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       depth = depth - 2
       code(line + indent +  '& )')
       depth = depth + 2
-      for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and accs[g_m] <> OP_READ:
-          DO('i2','0', dims[g_m])
-          code('opDat'+str(g_m+1)+'Device'+name+ '(1 + i2 * soa_stride + i1) = opDat'+str(g_m+1)+'SoALocal(i2)')
-          ENDDO()
-      code('')
       ENDDO()
 
     #call cuda reduction for each OP_GBL
@@ -1172,7 +1260,12 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         code('& getSetSizeFromOpArg(opArg'+str(is_soa+1)+'), &')
       for g_m in range(0,ninds):
         code('& opDat'+str(invinds[g_m]+1)+'Device'+name+', &')
-        code('& opMap'+str(invinds[g_m]+1)+'Device'+name+', &')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('& opMap'+str(invinds[inds[g_m]-1]+1)+'Device'+name+', &')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           code('& opDat'+str(g_m+1)+'Device'+name+', &')
@@ -1493,7 +1586,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
           ENDIF()
       comm('kernel call')
-      line = 'CALL '+name+'_cpu( &'
+      line = 'CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
@@ -1539,7 +1632,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('threadID = omp_get_thread_num()')
       comm('kernel call')
       DO('n','sliceStart', 'sliceEnd')
-      line = 'CALL '+name+'_cpu( &'
+      line = 'CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:

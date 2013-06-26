@@ -113,15 +113,43 @@ void cutilDeviceInit( int argc, char ** argv )
 void op_upload_dat(op_dat dat) {
   //printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-  OP_import_nonexec_list[dat->set->index]->size;
-  cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));
+    OP_import_nonexec_list[dat->set->index]->size;
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set_size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+        }
+      }
+    }
+    cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, set_size*dat->size, cudaMemcpyHostToDevice));
+    free(temp_data);
+  } else {
+    cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));
+  }
 }
 
 void op_download_dat(op_dat dat) {
   //printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-  OP_import_nonexec_list[dat->set->index]->size;
-  cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
+    OP_import_nonexec_list[dat->set->index]->size;
+  if (strstr( dat->type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set_size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*set_size + element_size*j + c];
+        }
+      }
+    }
+    free(temp_data);
+  } else {
+    cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
+  }
 }
 
 void op_exchange_halo_cuda(op_arg* arg, int exec_flag)

@@ -193,7 +193,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
       }
     }
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( temp_data ), dat->size * set_size );
+                        ( void ** ) &( dat->data ), dat->size * set_size );
     free(temp_data);
 
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
@@ -204,7 +204,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
                         ( void ** ) &( dat->data ), dat->size * set_size );
   }
-
+  dat->dirty_hd = 0;
   cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
       dat->size * (OP_export_exec_list[set->index]->size +
       OP_export_nonexec_list[set->index]->size) ));

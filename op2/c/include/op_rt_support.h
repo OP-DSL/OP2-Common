@@ -49,6 +49,7 @@ typedef struct {
   op_map      *maps;
   op_dat      *dats;
   int         *idxs;
+  int         *optflags;
   op_access   *accs;
 
   /* execution plan */

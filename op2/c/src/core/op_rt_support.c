@@ -267,7 +267,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
   for ( int m = 0; m < OP_plan.nargs; m++ )
   {
-    if ( OP_plan.maps[m] != NULL )
+    if ( OP_plan.maps[m] != NULL && OP_plan.optflags[m] )
     {
       op_map map = OP_plan.maps[m];
       int m2 = inds[m];
@@ -288,7 +288,7 @@ void op_plan_check( op_plan OP_plan, int ninds, int * inds)
 
   if ( err != 0 )
   {
-    printf ( " *** OP_plan_check: maps error \n" );
+    printf ( " *** OP_plan_check: %d maps error(s) \n", err );
   }
   else if ( OP_diags > 6 )
   {
@@ -429,6 +429,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   OP_plans[ip].dats = ( op_dat * ) malloc ( nargs * sizeof ( op_dat ) );
   OP_plans[ip].idxs = ( int * ) malloc ( nargs * sizeof ( int ) );
+  OP_plans[ip].optflags = ( int * ) malloc ( nargs * sizeof ( int ) );
   OP_plans[ip].maps = ( op_map * ) malloc ( nargs * sizeof ( op_map ) );
   OP_plans[ip].accs = ( op_access * ) malloc ( nargs * sizeof ( op_access ) );
 
@@ -468,6 +469,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
     OP_plans[ip].dats[m] = args[m].dat;
     OP_plans[ip].idxs[m] = args[m].idx;
+    OP_plans[ip].optflags[m] = args[m].opt;
     OP_plans[ip].maps[m] = args[m].map;
     OP_plans[ip].accs[m] = args[m].acc;
   }

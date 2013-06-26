@@ -53,6 +53,7 @@ module OP2_Fortran_RT_Support
     type(c_ptr) ::         in_maps
     type(c_ptr) ::         dats
     type(c_ptr) ::         idxs
+    type(c_ptr) ::         optflags
     type(c_ptr) ::         accs
 
     ! execution plan

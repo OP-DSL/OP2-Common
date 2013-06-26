@@ -2240,6 +2240,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
 
+  if (OP_diags>0) {
+    int dummy;
+    for (int n=0; n<nargs; n++)
+      op_arg_check(set,n,args[n],&dummy,"");
+  }
+
   if (OP_hybrid_gpu) {
     for (int n=0; n<nargs; n++)
       if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
@@ -2272,6 +2278,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
+
+  if (OP_diags>0) {
+    int dummy;
+    for (int n=0; n<nargs; n++)
+      op_arg_check(set,n,args[n],&dummy,"");
+  }
 
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 1) {

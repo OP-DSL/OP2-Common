@@ -160,10 +160,16 @@ def arg_parse(text,j):
 def typechange(text):
   if '"INTEGER(kind=4)"' in text:
     return '"i4"'
+  elif '"INTEGER(kind=4):soa"' in text:
+    return '"i4:soa"'
   elif '"REAL(kind=8)"' in text:
     return '"r8"'
+  elif '"REAL(kind=8):soa"' in text:
+    return '"r8:soa"'
   elif '"REAL(kind=4)"' in text:
     return '"r4"'
+  elif '"REAL(kind=4):soa"' in text:
+    return '"r4:soa"'
   elif '"logical"' in text:
     return '"logical"'
   return text
@@ -449,6 +455,7 @@ for a in range(init_ctr,len(sys.argv)):
 
   for i in range (0, len(loop_args)):
     name = loop_args[i]['name1']
+    set_name = loop_args[i]['set']
     nargs = loop_args[i]['nargs']
     print '\nprocessing kernel '+name+' with '+str(nargs)+' arguments',
 
@@ -647,6 +654,7 @@ for a in range(init_ctr,len(sys.argv)):
     if not repeat:
       nkernels = nkernels+1;
       temp = {'name': name,
+              'set' : set_name,
               'nargs': nargs,
               'dims': dims,
               'maps': maps,
@@ -840,11 +848,11 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 #op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:
 #  op2_gen_cuda_hydra()
