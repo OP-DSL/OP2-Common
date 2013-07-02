@@ -91,6 +91,10 @@ extern int OP_hybrid_gpu;
 #define OP_ARG_GBL 0
 #define OP_ARG_DAT 1
 
+#define OP_STAGE_NONE 0
+#define OP_STAGE_INC 1
+#define OP_STAGE_ALL 2
+
 typedef int op_access;
 typedef int op_arg_type;
 

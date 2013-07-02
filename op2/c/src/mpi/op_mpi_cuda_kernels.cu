@@ -62,9 +62,15 @@ __global__ void export_halo_gather_soa(int* list, char * dat, int copy_size,
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   int size_of = elem_size/dim;
   if (id<copy_size) {
-    for (int i =0;i<dim;i++) {
-      for (int j =0;j<size_of;j++) {
-        export_buffer[id*elem_size+i*size_of+j] = dat[list[id]*size_of+i*set_size*size_of+j];
+    if (size_of == 8) {
+      for (int i =0;i<dim;i++) {
+        ((double*)(export_buffer+id*elem_size))[i] = ((double*)(dat+list[id]*size_of))[i*set_size];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          export_buffer[id*elem_size+i*size_of+j] = dat[list[id]*size_of+i*set_size*size_of+j];
+        }
       }
     }
   }

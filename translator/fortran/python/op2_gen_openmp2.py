@@ -393,7 +393,7 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
       code('& numberOfOpDats, &')
       code('& opArgArray, &')
       code('& numberOfIndirectOpDats, &')
-      code('& indirectionDescriptorArray)')
+      code('& indirectionDescriptorArray,2)')
       code('')
       code('CALL c_f_pointer(planRet_'+name+',actualPlan_'+name+')')
       code('CALL c_f_pointer(actualPlan_'+name+'%ncolblk,ncolblk_'+name+',(/actualPlan_'+name+'%ncolors_core/))')

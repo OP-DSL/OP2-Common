@@ -27,7 +27,7 @@ void increment_all_mappings ();
 
 op_plan * FortranPlanCaller (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[]);
+  int indsNumber, int inds[], int staging);
 
 #ifdef __cplusplus
 }

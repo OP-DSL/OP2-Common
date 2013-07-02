@@ -52,6 +52,10 @@ from op2_gen_mpiseq3 import *
 #import cuda code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
+import op2_gen_cudaINC
+from op2_gen_cudaINC import *
+import op2_gen_cuda_old
+from op2_gen_cuda_old import *
 
 
 #
@@ -854,5 +858,7 @@ if npart==0 and nhdf5>0:
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 #op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
 op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:
 #  op2_gen_cuda_hydra()

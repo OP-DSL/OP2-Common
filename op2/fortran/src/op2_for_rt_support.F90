@@ -49,12 +49,13 @@ module OP2_Fortran_RT_Support
     ! input arguments
     type(c_ptr) ::         name
     type(c_ptr) ::         set
-    integer(kind=c_int) :: nargs, ninds, part_size
+    integer(kind=c_int) :: nargs, ninds, ninds_staged, part_size
     type(c_ptr) ::         in_maps
     type(c_ptr) ::         dats
     type(c_ptr) ::         idxs
     type(c_ptr) ::         optflags
     type(c_ptr) ::         accs
+    type(c_ptr) ::         inds_staged
 
     ! execution plan
 #ifdef OP2_WITH_CUDAFOR
@@ -122,7 +123,7 @@ module OP2_Fortran_RT_Support
   interface
 
     ! C wrapper to plan function for Fortran
-    type(c_ptr) function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds) &
+    type(c_ptr) function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) &
       & BIND(C,name='FortranPlanCaller')
 
       use, intrinsic :: ISO_C_BINDING
@@ -137,6 +138,8 @@ module OP2_Fortran_RT_Support
 
       ! indexes for indirectly accessed arguments (same indrectly accessed argument = same index)
       integer(kind=c_int), dimension(*) :: inds
+
+      integer(kind=c_int), value :: staging ! What to stage: 0 - nothing, 1 - OP_INCs, 2 - all indirectly accessed data
 
     end function FortranPlanCaller
 

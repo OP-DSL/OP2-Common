@@ -119,8 +119,14 @@ void op_cpHostToDevice ( void ** data_d, void ** data_h, int size )
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int *inds )
 {
+  return op_plan_get_stage (name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL);
+}
+
+op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int *inds, int staging )
+{
   op_plan *plan = op_plan_core ( name, set, part_size,
-                                 nargs, args, ninds, inds );
+                                 nargs, args, ninds, inds, staging );
   if (!OP_hybrid_gpu) return plan;
 
   int set_size = set->size;
@@ -132,17 +138,17 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
   }
 
   if ( plan->count == 1 ) {
-    int *offsets = (int *)malloc((ninds+1)*sizeof(int));
+    int *offsets = (int *)malloc((plan->ninds_staged+1)*sizeof(int));
     offsets[0] = 0;
-    for ( int m = 0; m < ninds; m++ ) {
+    for ( int m = 0; m < plan->ninds_staged; m++ ) {
       int count = 0;
       for ( int m2 = 0; m2 < nargs; m2++ )
-        if ( inds[m2] == m )
+        if ( plan->inds_staged[m2] == m )
           count++;
       offsets[m+1] = offsets[m] + count;
     }
-    op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[ninds] * set_size * sizeof ( int ));
-    for ( int m = 0; m < ninds; m++ ) {
+    op_mvHostToDevice ( ( void ** ) &( plan->ind_map ), offsets[plan->ninds_staged] * set_size * sizeof ( int ));
+    for ( int m = 0; m < plan->ninds_staged; m++ ) {
       plan->ind_maps[m] = &plan->ind_map[set_size*offsets[m]];
     }
     free(offsets);
@@ -156,9 +162,9 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
     }
 
     op_mvHostToDevice ( ( void ** ) &( plan->ind_sizes ),
-                          sizeof ( int ) * plan->nblocks * plan->ninds );
+                          sizeof ( int ) * plan->nblocks * plan->ninds_staged );
     op_mvHostToDevice ( ( void ** ) &( plan->ind_offs ),
-                          sizeof ( int ) * plan->nblocks * plan->ninds );
+                          sizeof ( int ) * plan->nblocks * plan->ninds_staged );
     op_mvHostToDevice ( ( void ** ) &( plan->nthrcol ),
                           sizeof ( int ) * plan->nblocks );
     op_mvHostToDevice ( ( void ** ) &( plan->thrcol ),

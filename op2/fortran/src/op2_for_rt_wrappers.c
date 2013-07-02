@@ -122,7 +122,7 @@ op_plan * checkExistingPlan (char name[], op_set set,
 
 op_plan * FortranPlanCaller (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[]) {
+  int indsNumber, int inds[], int staging) {
 
   op_plan * generatedPlan = NULL;
 
@@ -139,8 +139,8 @@ op_plan * FortranPlanCaller (char name[], op_set set,
   strncpy (heapName, name, nameLen);
 
   /* call the C OP2 function */
-  generatedPlan = op_plan_get (heapName, set, partitionSize,
-    argsNumber, args, indsNumber, inds);
+  generatedPlan = op_plan_get_stage (heapName, set, partitionSize,
+    argsNumber, args, indsNumber, inds, staging);
 
   return generatedPlan;
 }

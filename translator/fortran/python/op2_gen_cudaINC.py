@@ -160,7 +160,7 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
-def op2_gen_cuda(master, date, consts, kernels, hydra):
+def op2_gen_cudaINC(master, date, consts, kernels, hydra):
 
   global dims, idxs, typs, indtyps, inddims
   global file_format, cont, comment
@@ -265,6 +265,27 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     g_m = 0;
     file_text = ''
     depth = 0
+
+    ninds_staged = 0
+    inds_staged = [-1]*nargs
+    for i in range(0,nargs):
+      if maps[i]==OP_MAP and accs[i]==OP_INC:
+        if inds_staged[invinds[inds[i]-1]] == -1:
+          inds_staged[i] = ninds_staged
+          ninds_staged = ninds_staged + 1
+        else:
+          inds_staged[i] = inds_staged[invinds[inds[i]-1]]
+    invinds_staged = [-1]*ninds_staged
+    inddims_staged = [-1]*ninds_staged
+    indopts_staged = [-1]*ninds_staged
+    for i in range(0,nargs):
+      if inds_staged[i] >= 0 and invinds_staged[inds_staged[i]] == -1:
+        invinds_staged[inds_staged[i]] = i
+        inddims_staged[inds_staged[i]] = dims[i]
+        if optflags[i] == 1:
+          indopts_staged[inds_staged[i]] = i
+    for i in range(0,nargs):
+      inds_staged[i] = inds_staged[i] + 1
 
 ##########################################################################
 #  Generate Header
@@ -615,6 +636,14 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           code('& opGblDat'+str(g_m+1)+'Device'+name+',   &')
 
     if ninds > 0: #indirect loop
+      for g_m in range(0,ninds_staged):
+        code('& ind_maps'+str(invinds_staged[g_m]+1)+', &')
+      for g_m in range(0,nargs):
+        if inds_staged[g_m] > 0:
+          code('& mappingArray'+str(g_m+1)+', &')
+
+      code('& ind_sizes, &')
+      code('& ind_offs, &')
       code('& pblkMap, &')
       code('& poffset, &')
       code('& pnelems, &')
@@ -683,6 +712,15 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('INTEGER(kind=4), VALUE :: soa_stride')
 
     if ninds > 0: #indirect loop
+      for g_m in range(0,ninds_staged):
+        code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_maps'+str(invinds_staged[g_m]+1))
+      code('')
+      for g_m in range(0,nargs):
+        if inds_staged[g_m] > 0:
+          code('INTEGER(kind=2), DIMENSION(0:*), DEVICE :: mappingArray'+str(g_m+1))
+      code('')
+      code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_sizes')
+      code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_offs')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnelems')
@@ -693,12 +731,31 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+          if inds_staged[g_m] > 0:
+            code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'SharedMap')
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             code(typs[g_m]+' :: opDat'+str(g_m+1)+'Local')
           else:
             code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
 
       code('')
+      add_real = 0
+      add_int = 0
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP:
+          if 'real' in typs[g_m].lower():
+            add_real = 1
+          elif 'integer' in typs[g_m].lower():
+            add_int = 1
+      if add_real:
+        code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedFloat8')
+      if add_int:
+        code('INTEGER(kind=4), DIMENSION(0:*), SHARED :: sharedInt8')
+      code('')
+
+      for g_m in range(0,ninds_staged):
+          code('INTEGER(kind=4), SHARED :: ind_maps'+str(invinds_staged[g_m]+1)+'offset')
+          code('INTEGER(kind=4), SHARED :: ind_maps'+str(invinds_staged[g_m]+1)+'size')
 
       code('INTEGER(kind=4), SHARED :: numOfColours')
       code('INTEGER(kind=4), SHARED :: numberOfActiveThreadsCeiling')
@@ -710,6 +767,13 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('INTEGER(kind=4) :: n1')
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: i2')
+
+      for g_m in range(0,ninds_staged):
+        code('INTEGER(kind=4) :: opDat'+str(invinds_staged[g_m]+1)+'nBytes')
+      for g_m in range(0,ninds_staged):
+        code('INTEGER(kind=4), SHARED :: opDat'+str(invinds_staged[g_m]+1)+'RoundUp')
+      if ninds_staged > 0:
+        code('INTEGER(kind=4) moduloResult')
 
     else: #direct loop
       code('INTEGER(kind=4), VALUE :: setSize')
@@ -739,12 +803,74 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('numberOfActiveThreadsCeiling = blockDim%x * (1 + (numberOfActiveThreads - 1) / blockDim%x)')
       code('numOfColours = pnthrcol(blockID)')
       code('threadBlockOffset = poffset(blockID)')
-      code('')
+      for g_m in range(0,ninds_staged):
+        code('ind_maps'+str(invinds_staged[g_m]+1)+'offset = ind_offs ('+str(g_m)+' + blockID * '+str(ninds_staged)+')')
+        code('ind_maps'+str(invinds_staged[g_m]+1)+'size   = ind_sizes('+str(g_m)+' + blockID * '+str(ninds_staged)+')')
+      for g_m in range(0,ninds_staged):
+        code('opDat'+str(invinds_staged[g_m]+1)+'RoundUp = ind_maps'+str(invinds_staged[g_m]+1)+'size * ('+inddims_staged[g_m]+')')
+        code('opDat'+str(invinds_staged[g_m]+1)+'RoundUp = opDat'+str(invinds_staged[g_m]+1)+'RoundUp + MOD(opDat'+str(invinds_staged[g_m]+1)+'RoundUp,2)')
       ENDIF()
 
       code('')
       code('CALL syncthreads()')
       code('')
+      for g_m in range(0,ninds_staged):
+        if g_m>0 and indopts_staged[g_m-1] > 0:
+          IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m-1]])+')')
+        if g_m == 0:
+          code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = 0')
+        else:
+          prev_size = 0
+          if 'real' in typs[invinds_staged[g_m-1]].lower():
+            prev_size = 8
+          elif 'integer' in typs[invinds_staged[g_m-1]].lower():
+            prev_size = 4
+          this_size = 0
+          if 'real' in typs[invinds_staged[g_m]].lower():
+            this_size = 8
+          elif 'integer' in typs[invinds_staged[g_m]].lower():
+            this_size = 4
+          if this_size == 0 or prev_size == 0:
+            print "ERROR: Unrecognized type"
+          code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = opDat'+str(invinds_staged[g_m-1]+1)+'nBytes * '+str(prev_size)+\
+          ' / '+str(this_size)+' + opDat'+str(invinds_staged[g_m-1]+1)+'RoundUp * '+str(prev_size)+' / '+str(this_size))
+        if g_m>0 and indopts_staged[g_m-1] > 0:
+          ELSE()
+          if g_m==0:
+            code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = 0')
+          else:
+            code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = opDat'+str(invinds_staged[g_m-1]+1)+'nBytes * '+str(prev_size)+\
+            ' / '+str(this_size))
+          ENDIF()
+
+      code('')
+      for g_m in range(0,ninds_staged):
+        code('')
+        code('i1 = threadIdx%x - 1')
+        if indopts_staged[g_m] > 0:
+          IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m]])+')')
+        DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size')
+        DO('i2','0', inddims_staged[g_m])
+        if accs[invinds_staged[g_m]] == OP_READ or accs[invinds_staged[g_m]] == OP_RW or accs[invinds_staged[g_m]] == OP_WRITE:
+          if soaflags[invinds_staged[g_m]] == 1:
+            code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+            ')) = opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * soa_stride + ind_maps'+str(invinds_staged[g_m]+1)+\
+            '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1))')
+          else:
+            code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+            ')) = opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 + ind_maps'+str(invinds_staged[g_m]+1)+\
+            '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1) * ('+inddims_staged[g_m]+'))')
+        elif accs[invinds_staged[g_m]] == OP_INC:
+          code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+          ')) = 0')
+        ENDDO()
+        code('i1 = i1 + blockDim%x')
+        ENDDO()
+        if indopts_staged[g_m] > 0:
+          ENDIF()
+        code('')
+      code('')
+      code('CALL syncthreads()')
       code('i1 = threadIdx%x - 1')
       code('')
 
@@ -877,32 +1003,47 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
       if ind_inc or ind_rw:
         if ind_inc and not ind_rw:
+          code('')
+          if ninds_staged > 0:
+            IF('colour2 .GE. 0')
+          for g_m in range(0,nargs):
+            if inds_staged[g_m] > 0 and accs[g_m] == OP_INC:
+              code('opDat'+str(g_m+1)+'SharedMap = mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset)')
+          if ninds_staged > 0:
+            ENDIF()
+          code('')
           DO('colour1','0','numOfColours')
           IF('colour2 .EQ. colour1')
         for g_m in range(0,nargs):
           if optflags[g_m]==1 and maps[g_m]==OP_MAP and accs[g_m] == OP_INC:
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
-            if dims[g_m].isdigit() and int(dims[g_m])==1:
-              code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = &')
-              code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
-            else:
-              if soaflags[g_m] == 1:
-                DO('i2','0', dims[g_m])
+            if inds_staged[g_m] == 0:
+              if dims[g_m].isdigit() and int(dims[g_m])==1:
                 code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) = &')
+                '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = &')
                 code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local(i2)')
-                ENDDO()
+                '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
               else:
-                DO('i2','0', dims[g_m])
-                code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx* ('+dims[g_m]+')) = &')
-                code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
-                ENDDO()
+                if soaflags[g_m] == 1:
+                  DO('i2','0', dims[g_m])
+                  code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                  '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) = &')
+                  code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                  '(1 + i2*soa_stride + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local(i2)')
+                  ENDDO()
+                else:
+                  DO('i2','0', dims[g_m])
+                  code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                  '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx* ('+dims[g_m]+')) = &')
+                  code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                  '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
+                  ENDDO()
+            else:
+              DO('i2','0', dims[g_m])
+              code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + (i2 + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = &')
+              code('& sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + (i2 + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) + opDat'+str(g_m+1)+'Local(i2)')
+              ENDDO()
             if optflags[g_m]<>1:
               code('')
           if optflags[g_m]==1 and maps[g_m]==OP_MAP and (accs[g_m] == OP_INC):
@@ -916,7 +1057,33 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('i1 = i1 + blockDim%x')
       ENDDO()
       code('')
-
+      for g_m in range(0,ninds_staged):
+        if accs[invinds_staged[g_m]] == OP_INC:
+          if indopts_staged[g_m] > 0:
+            IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m-1]])+')')
+          code('i1 = threadIdx%x - 1')
+          if soaflags[invinds_staged[g_m]] == 1:
+            DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size')
+            DO('i2','0', inddims_staged[g_m])
+            code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * soa_stride + ind_maps'+str(invinds_staged[g_m]+1)+\
+            '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = &')
+            code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * soa_stride + ind_maps'+str(invinds_staged[g_m]+1)+\
+            '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
+            code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+            '))')
+            ENDDO()
+          else:
+            DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size * ('+inddims_staged[g_m]+')')
+            code('moduloResult = mod(i1,'+inddims_staged[g_m]+')')
+            code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(moduloResult + ind_maps'+str(invinds_staged[g_m]+1)+' &')
+            code('& (ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1 / ('+inddims_staged[g_m]+')) * ('+inddims_staged[g_m]+') + 1) = &')
+            code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(moduloResult + ind_maps'+str(invinds_staged[g_m]+1)+' &')
+            code('& (ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1 / ('+inddims_staged[g_m]+')) * ('+inddims_staged[g_m]+') + 1) + &')
+            code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i1)')
+          code('i1 = i1 + blockDim%x')
+          ENDDO()
+          if indopts_staged[g_m] > 0:
+            ENDIF()
     else: #direct kernel call
       line = '  CALL '+name+'_gpu( &'
       indent = '\n'+' '*depth
@@ -1054,7 +1221,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('INTEGER(kind=4) :: threadSynchRet')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: opDatArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: mappingIndicesArray')
-      code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: mappingArray')
+      code('TYPE ( c_devptr ), POINTER, DIMENSION(:) :: mappingArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: accessDescriptorArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: indirectionDescriptorArray')
       code('')
@@ -1064,17 +1231,23 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
       code('INTEGER(kind=4) :: numberOfIndirectOpDats')
       code('INTEGER(kind=4) :: blockOffset')
-      code('INTEGER(kind=4) :: pblkMapSize')
-      code('INTEGER(kind=4) :: poffsetSize')
-      code('INTEGER(kind=4) :: pnelemsSize')
-      code('INTEGER(kind=4) :: pnthrcolSize')
-      code('INTEGER(kind=4) :: pthrcolSize')
+      for g_m in range(0,ninds_staged):
+        code('INTEGER(kind=4), DEVICE, ALLOCATABLE, DIMENSION(:) :: ind_maps'+str(invinds_staged[g_m]+1))
+      code('')
+      for g_m in range(0,nargs):
+        if inds_staged[g_m] > 0:
+          code('INTEGER(kind=2), DEVICE, ALLOCATABLE, DIMENSION(:) :: mappingArray'+str(g_m+1))
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: ncolblk')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: ind_offs')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: ind_sizes')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pblkMap')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: poffset')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnelems')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnthrcol')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pthrcol')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: pnindirect')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: nsharedCol')
+      code('TYPE ( c_devptr ), POINTER, DIMENSION(:) :: ind_maps')
       code('INTEGER(kind=4) :: partitionSize')
       code('INTEGER(kind=4) :: blockSize')
       code('INTEGER(kind=4) :: i1')
@@ -1159,7 +1332,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('& numberOfOpDats, &')
       code('& opArgArray, &')
       code('& numberOfIndirectOpDats, &')
-      code('& indirectionDescriptorArray,2)')
+      code('& indirectionDescriptorArray, 1)')
       code('')
     else:
       code('')
@@ -1195,17 +1368,24 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
     if ninds > 0:
       code('CALL c_f_pointer(planRet_'+name+',actualPlan_'+name+')')
-      code('CALL c_f_pointer(actualPlan_'+name+'%ncolblk,ncolblk,(/set%setPtr%size/))')
-      code('pblkMapSize = actualPlan_'+name+'%nblocks')
-      code('CALL c_f_pointer(actualPlan_'+name+'%blkmap_d,pblkMap,(/pblkMapSize/))')
-      code('poffsetSize = actualPlan_'+name+'%nblocks')
-      code('CALL c_f_pointer(actualPlan_'+name+'%offset_d,poffset,(/poffsetSize/))')
-      code('pnelemsSize = actualPlan_'+name+'%nblocks')
-      code('CALL c_f_pointer(actualPlan_'+name+'%nelems_d,pnelems,(/pnelemsSize/))')
-      code('pnthrcolSize = actualPlan_'+name+'%nblocks')
-      code('CALL c_f_pointer(actualPlan_'+name+'%nthrcol,pnthrcol,(/pnthrcolSize/))')
-      code('pthrcolSize = set%setPtr%size')
-      code('CALL c_f_pointer(actualPlan_'+name+'%thrcol,pthrcol,(/pthrcolSize/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%ncolblk,ncolblk,(/actualPlan_'+name+'%ncolors_core/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%nsharedCol,nsharedCol,(/actualPlan_'+name+'%ncolors_core/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%nindirect,pnindirect,(/actualPlan_'+name+'%ninds_staged/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%blkmap_d,pblkMap,(/actualPlan_'+name+'%nblocks/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%offset_d,poffset,(/actualPlan_'+name+'%nblocks/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%nelems_d,pnelems,(/actualPlan_'+name+'%nblocks/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%nthrcol,pnthrcol,(/actualPlan_'+name+'%nblocks/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%thrcol,pthrcol,(/set%setPtr%size/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%ind_maps,ind_maps,(/actualPlan_'+name+'%ninds_staged/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%maps,mappingArray,(/numberOfOpDats/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%ind_sizes,ind_sizes,(/actualPlan_'+name+'%nblocks * actualPlan_'+name+'%ninds_staged/))')
+      code('CALL c_f_pointer(actualPlan_'+name+'%ind_offs,ind_offs,(/actualPlan_'+name+'%nblocks * actualPlan_'+name+'%ninds_staged/))')
+      code('')
+      for g_m in range(0,ninds_staged):
+        code('CALL c_f_pointer(ind_maps('+str(g_m+1)+'),ind_maps'+str(invinds_staged[g_m]+1)+',(/pnindirect('+str(g_m+1)+')/))')
+      for g_m in range(0,nargs):
+        if inds_staged[g_m] > 0:
+          code('CALL c_f_pointer(mappingArray('+str(g_m+1)+'),mappingArray'+str(g_m+1)+',(/set%setPtr%size/))')
       code('')
 
     for g_m in range(0,nargs):
@@ -1253,7 +1433,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       ENDIF()
       code('')
       code('blocksPerGrid = ncolblk(i2 + 1)')
-      code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
+      code('dynamicSharedMemorySize = MAX(reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock, nsharedCol(1+i2))')
       code('')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
       if nopts>0:
@@ -1276,6 +1456,15 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
           code('reductionArrayDevice'+str(g_m+1)+name+', &')
         if maps[g_m] == OP_GBL and accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
           code('& opDat'+str(g_m+1)+'Host, &')
+
+      for g_m in range(0,ninds_staged):
+        code('& ind_maps'+str(invinds_staged[g_m]+1)+', &')
+      for g_m in range(0,nargs):
+        if inds_staged[g_m] > 0:
+          code('& mappingArray'+str(g_m+1)+', &')
+
+      code('& ind_sizes, &')
+      code('& ind_offs, &')
       code('& pblkMap, &')
       code('& poffset,pnelems,pnthrcol,pthrcol,set%setPtr%size+set%setPtr%exec_size, blockOffset)')
       code('')
@@ -1366,84 +1555,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('')
     comm('Stub for CPU execution')
     code('')
-##########################################################################
-#  Generate OpenMP host stub
-##########################################################################
-##########################################################################
-#  Generate wrapper to iterate over set
-##########################################################################
-
-    code('SUBROUTINE op_wrap_'+name+'( &')
-    depth = depth + 2
-    for g_m in range(0,ninds):
-      code('& opDat'+str(invinds[g_m]+1)+'Local, &')
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code('& opDat'+str(g_m+1)+'Local, &')
-      elif maps[g_m] == OP_GBL:
-        code('& opDat'+str(g_m+1)+'Local, &')
-    if nmaps > 0:
-      k = []
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-          k = k + [mapnames[g_m]]
-          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
-          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-    code('& bottom,top)')
-
-    for g_m in range(0,ninds):
-      code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
-      elif maps[g_m] == OP_GBL:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
-    if nmaps > 0:
-      k = []
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-          k = k + [mapnames[g_m]]
-          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
-          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
-
-    code('INTEGER(kind=4) bottom,top,i1')
-    if nmaps > 0:
-      k = []
-      line = 'INTEGER(kind=4) '
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          line += 'map'+str(mapinds[g_m]+1)+'idx, '
-      code(line[:-2])
-    code('')
-    DO('i1','bottom','top')
-    k = []
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-        k = k + [mapinds[g_m]]
-        code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
-    comm('kernel call')
-    line = 'CALL '+name+'( &'
-    indent = '\n'+' '*depth
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        line = line + indent + '& opDat'+str(g_m+1)+'Local(1,i1+1)'
-      if maps[g_m] == OP_MAP:
-        line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
-      if maps[g_m] == OP_GBL:
-        line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
-      if g_m < nargs-1:
-        line = line +', &'
-      else:
-         line = line +' &'
-    depth = depth - 2
-    code(line + indent + '& )')
-    depth = depth + 2
-
-    ENDDO()
-    depth = depth - 2
-    code('END SUBROUTINE')
-
 ##########################################################################
 #  Generate OpenMP host stub
 ##########################################################################
@@ -1656,26 +1767,50 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('blockID = blkmap_'+name+'(i2+blockOffset+1)')
       code('nelem = nelems_'+name+'(blockID+1)')
       code('offset_b = offset_'+name+'(blockID+1)')
-
-      code('CALL op_wrap_'+name+'( &')
-      for g_m in range(0,ninds):
-        code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+      DO('n','0','nelem')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and optflags[g_m]==1:
+          IF('opArg'+str(g_m+1)+'%opt == 1')
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):)')
+          ELSE()
+          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
+          ENDIF()
+      comm('kernel call')
+      line = 'CALL '+name+'( &'
+      indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          code('& opDat'+str(g_m+1)+'Local, &')
-        elif maps[g_m] == OP_GBL:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + (n+offset_b) * ('+dims[g_m]+') : (n+offset_b) * ('+dims[g_m]+') + '+dims[g_m]+')'
+          else:
+            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + (n+offset_b))'
+        if maps[g_m] == OP_MAP and optflags[g_m]==0:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
+          else:
+            line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+'))'
+        elif maps[g_m] == OP_MAP and optflags[g_m]==1:
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
+          else:
+            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
+        if maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
             code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
           else:
-            code('& opDat'+str(g_m+1)+'Local, &')
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-            k = k + [mapnames[g_m]]
-            code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
-            code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-      code('& offset_b, offset_b+nelem)')
+            if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+              line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
+            else:
+              line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+        if g_m < nargs-1:
+          line = line +', &'
+        else:
+           line = line +' &'
+      depth = depth - 2
+      code(line + indent + '& )')
+      depth = depth + 2
+      ENDDO()
       ENDDO()
       code('!$OMP END PARALLEL DO')
       code('blockOffset = blockOffset + nblocks')
@@ -1687,16 +1822,31 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('sliceEnd = opSetCore%size * (i1 + 1) / numberOfThreads')
       code('threadID = omp_get_thread_num()')
       comm('kernel call')
-      code('CALL op_wrap_'+name+'( &')
+      DO('n','sliceStart', 'sliceEnd')
+      line = 'CALL '+name+'( &'
+      indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          code('& opDat'+str(g_m+1)+'Local, &')
-        elif maps[g_m] == OP_GBL:
-          if accs[g_m] == OP_INC:
-            code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + n * ('+dims[g_m]+') : n * ('+dims[g_m]+') + '+dims[g_m]+')'
           else:
-            code('& opDat'+str(g_m+1)+'Local, &')
-      code('& sliceStart, sliceEnd)')
+            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + n)'
+        if maps[g_m] == OP_GBL:
+          if accs[g_m] == OP_INC:
+            line = line + indent + '& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1)'
+          else:
+            if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+              line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
+            else:
+              line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+        if g_m < nargs-1:
+          line = line +', &'
+        else:
+           line = line +' &'
+      depth = depth - 2
+      code(line + indent + '& )')
+      depth = depth + 2
+      ENDDO()
       ENDDO()
       code('!$OMP END PARALLEL DO')
 

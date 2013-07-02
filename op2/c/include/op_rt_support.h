@@ -45,12 +45,13 @@ typedef struct {
   /* input arguments */
   char const  *name;
   op_set       set;
-  int          nargs, ninds, part_size;
+  int          nargs, ninds, ninds_staged, part_size;
   op_map      *maps;
   op_dat      *dats;
   int         *idxs;
   int         *optflags;
   op_access   *accs;
+  int         *inds_staged;
 
   /* execution plan */
   int        *nthrcol;    /* number of thread colors for each block */
@@ -89,7 +90,10 @@ extern "C" {
 op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
                              int *, op_map *, int *, char const **, op_access *, int, int * );
 
-op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int * );
+op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int *, int );
+
+op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int * inds, int staging );
 
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int * inds );
