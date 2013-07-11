@@ -545,7 +545,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   int * nindirect = OP_plans[ip].nindirect;
 
   /* allocate working arrays */
-  //printf("ninds = %d\n",ninds);
   uint **work;
   work = (uint **)malloc(ninds * sizeof(uint *));
 
@@ -687,7 +686,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( inds[m] >= 0 && args[m].opt )
           for ( int e = prev_offset; e < next_offset; e++ )
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
-        //work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] = 0; /* zero out color array */
       }
 
       for ( int e = prev_offset; e < next_offset; e++ )
@@ -727,7 +725,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
     /* reorder elements by color? */
   }
-  printf("\n");
 
   /* color the blocks, after initialising colors to 0 */
 
@@ -901,11 +898,10 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     for ( int m = 0; m < nargs; m++ ) //for each argument
     {
       if (args[m].opt) {
-        if ( inds[m] < 0 ) //if it is directly addressed
+        if ( inds_staged[m] < 0 ) //if it is directly addressed or not staged
         {
-          float fac = 2.0f;
-          if ( accs[m] == OP_READ ) //if you only read it - only write???
-            fac = 1.0f;
+          float fac = (accs[m] == OP_READ) ? 1.0f : 2.0f; //if you only read it
+          if (args[m].map != NULL) fac *= args[m].map->dim; //if it is not staged that we double count cache hits
           if ( dats[m] != NULL )
           {
             OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
@@ -929,9 +925,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         m2++;
       if (args[m2].opt == 0) continue;
 
-      float fac = 2.0f;
-      if ( accs[m2] == OP_READ ) //only read it (write??)
-        fac = 1.0f;
+      float fac = (accs[m] == OP_READ) ? 1.0f : 2.0f; //if you only read it
       OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds_staged] * dats[m2]->size; //simply read all data one by one
 
       /* work out how many cache lines are used by indirect addressing */
