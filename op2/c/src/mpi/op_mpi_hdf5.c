@@ -558,7 +558,6 @@ void op_dump_to_hdf5(char const * file_name)
   double time;
   double max_time;
   op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
-
   //create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
@@ -617,13 +616,14 @@ void op_dump_to_hdf5(char const * file_name)
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
-    if (map->dim == 0 || map->from->size == 0 || map->to->size ==0 || map->map == NULL) continue;
+    //if (map->dim == 0 || map->from->size == 0 || map->to->size ==0 || map->map == NULL) continue;
+    if (map->dim == 0) continue;
     //find total size of map
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
     MPI_Allgather(&map->from->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
-
+    if (g_size == 0) continue;
     //Create the dataspace for the dataset.
     dimsf[0] = g_size; dimsf[1] = map->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
@@ -718,13 +718,13 @@ void op_dump_to_hdf5(char const * file_name)
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    if (dat->size == 0 || dat->data == NULL) continue;
+    if (dat->size == 0) continue;
     //find total size of dat
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
     MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
-
+    if (g_size == 0) continue;
     //Create the dataspace for the dataset.
     dimsf[0] = g_size; dimsf[1] = dat->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
@@ -1016,6 +1016,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
 
   if (file_exist(file_name) == 0) {
+    MPI_Barrier(MPI_COMM_WORLD);
     op_printf("File %s does not exist .... creating file\n", file_name);
     MPI_Barrier(OP_MPI_HDF5_WORLD);
     if (op_is_root()) {

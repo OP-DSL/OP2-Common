@@ -150,7 +150,9 @@ int get_partition(int global_index, int* part_range, int* local_index,
       return i;
     }
   }
-  return 0;
+  printf("Error: orphan global index\n");
+  MPI_Abort(MPI_COMM_WORLD, 2);
+  return -1;
 }
 
 /*******************************************************************************

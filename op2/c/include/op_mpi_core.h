@@ -261,6 +261,8 @@ void op_partition_random(op_set primary_set);
 
 void op_partition_external(op_set primary_set, op_dat partvec);
 
+void op_partition_inertial(op_dat x);
+
 #ifdef HAVE_PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
