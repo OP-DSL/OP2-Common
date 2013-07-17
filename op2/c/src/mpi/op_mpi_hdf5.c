@@ -996,7 +996,13 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
 
   if (file_exist(file_name) == 0) {
     op_printf("File %s does not exist .... creating file\n", file_name);
-    file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, plist_id);
+    MPI_Barrier(OP_MPI_HDF5_WORLD);
+    if (op_is_root()) {
+      FILE *fp; fp = fopen(file_name, "w");
+      fclose(fp);
+    }
+    MPI_Barrier(OP_MPI_HDF5_WORLD);
+    file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   }
   else {
     op_printf("File %s exists .... checking for dataset %s in file\n", file_name, dat->name);
