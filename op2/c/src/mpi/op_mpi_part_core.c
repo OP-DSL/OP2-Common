@@ -351,7 +351,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size, int** part
           int elem = binary_search(&pi_list->list[pi_list->disps[r]],
               local_index,0,pi_list->sizes[r]-1);
           if(elem >= 0)
-            found_parts[j] = imp_part[elem];
+            found_parts[j] = imp_part[pi_list->disps[r]+elem];
           else
           {
             printf("Element %d not found in partition import list\n",
