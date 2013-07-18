@@ -3454,9 +3454,9 @@ void partition(const char* lib_name, const char* lib_routine,
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
       if(data->data != NULL) {
         if (data->dim == 3)
-          op_partition_inertial(data); //use an external partitioning read in from hdf5 file
+          op_partition_inertial(data); //use Oplus style Inertial partitioning
         else {
-          op_printf("External Partition vector should be an integer array with dimension 1\n");
+          op_printf("Onlt supports 3D Inertial Bisection Partitioning - Need 3D coordinates - dim should be 3\n");
           op_printf("Reverting to trivial block partitioning\n");
         }
     }
@@ -3477,10 +3477,13 @@ void partition(const char* lib_name, const char* lib_routine,
   //trigger halo creation routines
   op_halo_create();
 
-/*  int ctr = 0;
+#ifdef DEBUG //sanity check to identify if the partitioning results in ophan elements
+  int ctr = 0;
   for (int i = 0; i < prime_map->from->size; i++) {
-    if (prime_map->map[2*i]>=prime_map->to->size && prime_map->map[2*i+1]>=prime_map->to->size) ctr++;
+    if (prime_map->map[2*i]>=prime_map->to->size &&
+      prime_map->map[2*i+1]>=prime_map->to->size) ctr++;
   }
-  printf("Orphan edges: %d\n", ctr);*/
+  printf("Orphan edges: %d\n", ctr);
+#endif
 
 }
