@@ -48,6 +48,7 @@ int OP_diags = 0,
     OP_cache_line_size = 128,
     OP_gpu_direct = 0;
 
+double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
@@ -110,6 +111,13 @@ void
   op_init_core ( int argc, char ** argv, int diags )
 {
   OP_diags = diags;
+
+  if ( getenv ( "OP_HYBRID_BALANCE" ) )
+  {
+    char* val = getenv ( "OP_HYBRID_BALANCE" );
+    OP_hybrid_balance = atof ( val );
+    printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+  }
 
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;

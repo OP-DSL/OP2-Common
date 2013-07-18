@@ -45,6 +45,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 }
 void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name) {(void)name; (void)dim; (void)type; (void)const_data; (void)file_name;}
-void op_write_hdf5(char const * file_name) { (void) file_name;}
+void op_dump_to_hdf5(char const * file_name) { (void) file_name;}
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name) { (void)name; (void)dim; (void)type; (void)const_data; (void)file_name; }

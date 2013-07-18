@@ -68,9 +68,9 @@ op_init ( int argc, char ** argv, int diags )
 // for this file when implementing C OP2.
 //
 
-#ifdef SET_CUDA_CACHE_CONFIG
+//#ifdef SET_CUDA_CACHE_CONFIG
   cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
-#endif
+//#endif
 
   printf ( "\n 16/48 L1/shared \n" );
 }

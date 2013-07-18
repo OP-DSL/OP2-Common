@@ -263,7 +263,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   }
 
-
   op_mpi_set_dirtybit_cuda(nargs, args);
 
   // update kernel record
