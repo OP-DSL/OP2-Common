@@ -9,7 +9,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER=3
+PARMETIS_VER=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -24,7 +24,14 @@ PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 
 
 ifeq ($(OP2_COMPILER),gnu)
-
+  CC = gcc
+  FC = gfortran
+  MPI_LIB = #-L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPI_INC = #-I$(MPI_INSTALL_PATH)/include
+  MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
+  OPT = -O2 -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
+  OPENMP = -fopenmp
+  CPPLINK = -lstdc++
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc

@@ -133,7 +133,6 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 
   //calculate local size of set for this mpi process
   int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
-  //printf("Set %s global size %d local size %d\n", name, g_size, l_size);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
   return op_decl_set(l_size,  name);
@@ -616,7 +615,7 @@ void op_dump_to_hdf5(char const * file_name)
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
-    //if (map->dim == 0 || map->from->size == 0 || map->to->size ==0 || map->map == NULL) continue;
+
     if (map->dim == 0) continue;
     //find total size of map
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);

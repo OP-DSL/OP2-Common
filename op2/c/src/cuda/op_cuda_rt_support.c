@@ -189,8 +189,8 @@ void op_cuda_exit ( )
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries)
   {
-		cutilSafeCall (cudaFree((item->dat)->data_d));
-	}
+    cutilSafeCall (cudaFree((item->dat)->data_d));
+  }
 
   for ( int ip = 0; ip < OP_plan_index; ip++ )
   {

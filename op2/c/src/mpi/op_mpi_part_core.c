@@ -1341,7 +1341,6 @@ void op_partition_external(op_set primary_set, op_dat partvec)
 
   for(int s=0; s<OP_set_index; s++) { //for each set
     op_set set=OP_set_list[s];
-    //printf("set %s size = %d\n", set.name, set.size);
     int *g_index = (int *)xmalloc(sizeof(int)*set->size);
     for(int i = 0; i< set->size; i++)
       g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);
@@ -1370,7 +1369,8 @@ void op_partition_external(op_set primary_set, op_dat partvec)
   renumber_maps(my_rank, comm_size);
 
   op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
-  //printf time for partitioning
+
+  //print time for partitioning
   time = wall_t2-wall_t1;
   MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
@@ -2980,7 +2980,6 @@ void op_partition_inertial(op_dat x_dat)
 
   for(int s=0; s<OP_set_index; s++) { //for each set
     op_set set=OP_set_list[s];
-    //printf("set %s size = %d\n", set.name, set.size);
     int *g_index = (int *)xmalloc(sizeof(int)*set->size);
     for(int i = 0; i< set->size; i++)
       g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);
@@ -3034,7 +3033,7 @@ void op_partition_inertial(op_dat x_dat)
       x_global /= (double)current_group_size;
       y_global /= (double)current_group_size;
       z_global /= (double)current_group_size;
-//      printf("Centre of gravity: %5.14f %5.14f %5.14f\n", x_global, y_global, z_global);
+      // printf("Centre of gravity: %5.14f %5.14f %5.14f\n", x_global, y_global, z_global);
       for (int i = 0; i < 9; i++) mtx[i]= 0.0;
       for (int i = 0; i < 9; i++) mtx_global[i]= 0.0;
       for (int i = 0; i < current_part_size; i++) {
@@ -3083,7 +3082,7 @@ void op_partition_inertial(op_dat x_dat)
         for (int i = 0; i < 3; i++)
           q[i] = p[i];
       }
-//      printf("Converged %d %5.14f (%5.14f %5.14f %5.14f)\n",iter,mue,q[0],q[1],q[2]);
+      // printf("Converged %d %5.14f (%5.14f %5.14f %5.14f)\n",iter,mue,q[0],q[1],q[2]);
       for (int i = 0; i < current_part_size; i++)
         dist[i] = x[3*i]*p[0] + x[3*i+1]*p[1] + x[3*i+2]*p[2];
     //op_inert end

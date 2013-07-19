@@ -260,7 +260,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
     op_timing_realloc(2);
     OP_kernels[2].transfer  += Plan->transfer;
     OP_kernels[2].transfer2 += Plan->transfer2;
-
   }
 
   op_mpi_set_dirtybit_cuda(nargs, args);

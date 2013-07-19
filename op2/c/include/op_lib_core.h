@@ -94,11 +94,8 @@ extern int OP_hybrid_gpu;
 #define OP_STAGE_INC 1
 #define OP_STAGE_ALL 2
 
-typedef int op_access;
-typedef int op_arg_type;
-
-//typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
-//typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
+typedef int op_access; //holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
+typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 
 /*
  * structures

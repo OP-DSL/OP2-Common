@@ -210,7 +210,6 @@ void op_renumber(op_map base) {
       printf("Map %s is not an onto map from %s to %s, aborting renumbering...\n", base->name, base->from->name, base->to->name);
       return;
     }
-    //printf("Resizeing %d - > %d\n", (int)col_indices.size(), row_offsets[base->to->size]);
     col_indices.resize(row_offsets[base->to->size]);
     printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n", base->to->name, base->to->name, (int)col_indices.size(), base->from->name, base->from->size);
   }

@@ -239,7 +239,6 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: idx
       type(c_ptr), value, intent(in) :: map
       integer(kind=c_int), value :: dim
-!      type(c_ptr), value :: type
       character(kind=c_char,len=1) :: type(*)
       integer(kind=c_int), value :: acc
 
@@ -258,29 +257,10 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: idx
       type(c_ptr), value, intent(in) :: map
       integer(kind=c_int), value :: dim
-!      type(c_ptr), value :: type
       character(kind=c_char,len=1) :: type(*)
       integer(kind=c_int), value :: acc
 
     end function op_opt_arg_dat_c
-
-!    function op_arg_dat_null_c ( dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat_null')
-!
-!      use, intrinsic :: ISO_C_BINDING
-!
-!      import :: op_arg
-!
-!      type(op_arg) :: op_arg_dat_null_c
-!
-!      type(c_ptr), value, intent(in) :: dat
-!      integer(kind=c_int), value :: idx
-!      type(c_ptr), value, intent(in) :: map
-!      integer(kind=c_int), value :: dim
-!      type(c_ptr), value :: type
-!      integer(kind=c_int), value :: acc
-!
-!    end function op_arg_dat_null_c
-
 
     function op_arg_gbl_c ( dat, dim, type, size, acc ) BIND(C,name='op_arg_gbl_copy')
 
@@ -375,15 +355,6 @@ module OP2_Fortran_Declarations
       type(op_dat_core) :: opdat
 
     end subroutine op_put_dat_mpi_c
-
-    ! this function shall be removed after debugging HYDRA (the above ones should be used instead)
-!    subroutine op_fetch_data ( opdat ) BIND(C,name='op_fetch_data')
-
-!      import :: op_dat_core
-
-!      type(op_dat_core) :: opdat
-
-!    end subroutine op_fetch_data
 
    subroutine dumpOpDatFromDevice_c ( data, label, sequenceNumber ) BIND(C,name='dumpOpDatFromDevice')
       use, intrinsic :: ISO_C_BINDING
@@ -583,7 +554,6 @@ contains
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opName
     character(kind=c_char,len=*) :: type
-!    character(kind=c_char,len=7) :: type = C_CHAR_'double'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
@@ -631,8 +601,6 @@ contains
     type(op_dat) :: data
     character(kind=c_char,len=*), optional :: opname
     character(kind=c_char,len=*) :: type
-
-!    character(kind=c_char,len=4) :: type = C_CHAR_'int'//C_NULL_CHAR
 
     if ( present ( opname ) ) then
       data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )

@@ -24,24 +24,24 @@ ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
   CPPFLAGS	= -arch x86_64 -g -fPIC -DUNIX -Wall #-Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= /usr/bin/mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF -DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CPP       := pgCC
-  CCFLAGS  := -O3
-  CPPFLAGS := $(CCFLAGS)
-  OMPFLAGS := -mp
-  MPICPP   := $(MPI_INSTALL_PATH)/bin/mpiCC
-  MPIFLAGS := $(CPPFLAGS)
+  CPP       	= pgCC
+  CCFLAGS  	= -O3
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -mp
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS 	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),cray)
   CPP           = CC
