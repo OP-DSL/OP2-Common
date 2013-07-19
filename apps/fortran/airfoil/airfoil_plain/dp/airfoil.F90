@@ -87,12 +87,12 @@ program AIRFOIL
   call op_decl_map ( cells, nodes, 4, cell, pcell, 'pcell' )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat ( bedges, 1, bound, p_bound, 'p_bound')
-  call op_decl_dat ( nodes, 2, x, p_x, 'p_x' )
-  call op_decl_dat ( cells, 4, q, p_q, 'p_q' )
-  call op_decl_dat ( cells, 4, qold, p_qold, 'p_qold' )
-  call op_decl_dat ( cells, 1, adt, p_adt, 'p_adt' )
-  call op_decl_dat ( cells, 4, res, p_res, 'p_res' )
+  call op_decl_dat ( bedges, 1, 'int' ,bound, p_bound, 'p_bound')
+  call op_decl_dat ( nodes, 2, 'double',x, p_x, 'p_x' )
+  call op_decl_dat ( cells, 4, 'double', q, p_q, 'p_q' )
+  call op_decl_dat ( cells, 4, 'double', qold, p_qold, 'p_qold' )
+  call op_decl_dat ( cells, 1, 'double', adt, p_adt, 'p_adt' )
+  call op_decl_dat ( cells, 4, 'double', res, p_res, 'p_res' )
 
   print *, "Declaring OP2 constants"
   call op_decl_const(gam, 1, 'gam')
