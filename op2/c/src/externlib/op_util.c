@@ -97,18 +97,6 @@ void* xrealloc (void *ptr, size_t size)
 }
 
 /*******************************************************************************
-* Simple hash function for a char string
-*******************************************************************************/
-
-unsigned op2_hash(const char *s)
-{
-  unsigned hashval;
-  for (hashval = 0; *s != '\0'; s++)
-    hashval = *s + 31 * hashval;
-  return hashval % HASHSIZE;
-}
-
-/*******************************************************************************
 * Return the index of the min value in an array
 *******************************************************************************/
 
