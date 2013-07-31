@@ -1561,7 +1561,6 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
           if (arg_list[i].acc == OP_INC) {
             for (int j = 0; j < arg_list[i].dim; j++) {
               output[j] += ((double*)(result+char_counter+nbytes*rank))[j];
-              printf("%d: %g\n", comm_rank, output[j]);
             }
           } else if (arg_list[i].acc == OP_MIN) {
             for (int j = 0; j < arg_list[i].dim; j++) {
