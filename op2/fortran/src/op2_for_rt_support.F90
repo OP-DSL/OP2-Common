@@ -278,6 +278,16 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_mpi_reduce_combined (args, argsNumber) BIND(C,name='op_mpi_reduce_combined')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+
+   end subroutine
+
     subroutine op_mpi_reduce_int (arg, data) BIND(C,name='op_mpi_reduce_int')
 
       use, intrinsic :: ISO_C_BINDING
