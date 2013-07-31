@@ -94,7 +94,7 @@ void cutilDeviceInit( int argc, char ** argv )
   if (rank >= deviceCount) {
     OP_hybrid_gpu = 0;
   } else {
-    cudaError_t err = cudaSetDevice(rank);
+    cutilSafeCall( cudaSetDevice(rank) );
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {

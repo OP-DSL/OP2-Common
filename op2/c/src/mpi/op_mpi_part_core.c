@@ -3002,7 +3002,6 @@ void op_partition_inertial(op_dat x_dat)
 
   MPI_Request s_request,s_request2;
   MPI_Status s_status,s_status2;
-  MPI_Request r_request;
   MPI_Status r_status;
 
   double *dist;
