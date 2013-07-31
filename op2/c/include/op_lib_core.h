@@ -93,6 +93,7 @@ extern int OP_hybrid_gpu;
 #define OP_STAGE_NONE 0
 #define OP_STAGE_INC 1
 #define OP_STAGE_ALL 2
+#define OP_STAGE_PERMUTE 3
 
 typedef int op_access; //holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
 typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
@@ -278,6 +279,8 @@ void op_mpi_wait_all(int nargs, op_arg* args);
 void op_mpi_wait_all_cuda(int nargs, op_arg* args);
 
 void op_mpi_reset_halos(int nargs, op_arg* args);
+
+void op_mpi_reduce_combined(op_arg* args, int nargs);
 
 void op_mpi_reduce_float(op_arg *args, float* data);
 

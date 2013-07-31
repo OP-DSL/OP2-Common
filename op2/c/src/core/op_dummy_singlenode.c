@@ -101,6 +101,11 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args)
 }
 #endif
 
+void op_mpi_reduce_combined(op_arg* args, int nargs) {
+  (void)args;
+  (void)nargs;
+}
+
 void op_mpi_reduce_float(op_arg* args, float* data)
 {
   (void)args;

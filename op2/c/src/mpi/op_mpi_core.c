@@ -1522,6 +1522,141 @@ static void set_dirtybit(op_arg* arg, int hd)
 }
 
 
+void op_mpi_reduce_combined(op_arg* args, int nargs) {
+  int nreductions = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) nreductions++;
+  }
+  op_arg *arg_list = (op_arg*)malloc(nreductions*sizeof(op_arg));
+  nreductions = 0;
+  int nbytes = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) {
+      arg_list[nreductions++] = args[i];
+      nbytes += args[i].size;
+    }
+  }
+
+  char *data = (char *)malloc(nbytes*sizeof(char));
+  int char_counter = 0;
+  for (int i = 0; i < nreductions; i++) {
+    for (int j = 0; j < arg_list[i].size; j++)
+      data[char_counter++] = arg_list[i].data[j];
+  }
+
+  int comm_size, comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
+  char *result = (char *)malloc(comm_size*nbytes*sizeof(char));
+  MPI_Allgather(data,   nbytes, MPI_CHAR,
+                result, nbytes, MPI_CHAR,
+                OP_MPI_WORLD);
+
+  char_counter = 0;
+  for (int i = 0; i < nreductions; i++) {
+    if (strcmp(arg_list[i].type,"double")==0 || strcmp(arg_list[i].type,"r8")==0) {
+      double *output = (double *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((double*)(result+char_counter+nbytes*rank))[j];
+              printf("%d: %g\n", comm_rank, output[j]);
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((double*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((double*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"float")==0 || strcmp(arg_list[i].type,"r4")==0) {
+      float *output = (float *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((float*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((float*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"int")==0 || strcmp(arg_list[i].type,"i4")==0) {
+      int *output = (int *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((int*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((int*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"bool")==0 || strcmp(arg_list[i].type,"logical")==0) {
+      bool *output = (bool *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((bool*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((bool*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    char_counter += arg_list[i].size;
+  }
+  free(arg_list);
+  free(data);
+  free(result);
+}
 
 void op_mpi_reduce_float(op_arg* arg, float* data)
 {

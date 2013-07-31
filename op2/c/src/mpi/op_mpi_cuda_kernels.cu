@@ -82,9 +82,15 @@ __global__ void import_halo_scatter_soa(int offset, char * dat, int copy_size,
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   int size_of = elem_size/dim;
   if (id<copy_size) {
-    for (int i =0;i<dim;i++) {
-      for (int j =0;j<size_of;j++) {
-        dat[(offset+id)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+    if (size_of == 8) {
+      for (int i =  0;i<dim;i++) {
+        ((double*)(dat+(offset+id)*size_of))[i*set_size] = ((double*)(import_buffer+id*elem_size))[i];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          dat[(offset+id)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+        }
       }
     }
   }
