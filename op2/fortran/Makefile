@@ -68,7 +68,7 @@ ifeq ($(OP2_COMPILER),gnu)
   MPICC 	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPIF90  	  = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   NO_MPI_MACRO    = -DNO_MPI
-  ALLTARGETS      = f_reference f_openmp
+  ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
