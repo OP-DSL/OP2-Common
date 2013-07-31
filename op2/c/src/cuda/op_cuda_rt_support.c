@@ -169,6 +169,8 @@ op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
                           sizeof ( int ) * plan->nblocks );
     op_mvHostToDevice ( ( void ** ) &( plan->thrcol ),
                           sizeof ( int ) * set_size );
+    op_mvHostToDevice ( ( void ** ) &( plan->col_reord ),
+                          sizeof ( int ) * set_size );
     op_mvHostToDevice ( ( void ** ) &( plan->offset ),
                           sizeof ( int ) * plan->nblocks );
     plan->offset_d = plan->offset;
@@ -200,6 +202,7 @@ void op_cuda_exit ( )
     OP_plans[ip].ind_offs = NULL;
     OP_plans[ip].nthrcol = NULL;
     OP_plans[ip].thrcol = NULL;
+    OP_plans[ip].col_reord = NULL;
     OP_plans[ip].offset = NULL;
     OP_plans[ip].nelems = NULL;
     OP_plans[ip].blkmap = NULL;

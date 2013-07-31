@@ -206,6 +206,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
     nmaps = 0
+
     if ninds > 0:
       nmaps = max(mapinds)+1
 
@@ -513,6 +514,9 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         text = text.replace('call MATINV5(', 'call MATINV5_gpu(')
         code('#include "../../update_kernels_gpufun.inc"')
 
+      #
+      # Apply SoA to variable accesses
+      #
       j = text.find(name+'_gpu')
       endj = arg_parse(text,j)
       while text[j] <> '(':

@@ -52,6 +52,8 @@ from op2_gen_mpiseq3 import *
 #import cuda code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
+import op2_gen_cuda_permute
+from op2_gen_cuda_permute import *
 import op2_gen_cudaINC
 from op2_gen_cudaINC import *
 import op2_gen_cuda_old
@@ -808,10 +810,10 @@ for a in range(init_ctr,len(sys.argv)):
       replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     for nk in range (0,len(kernels)):
-      if hydra:
-        replace = '\n'
-      else:
-        replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+#      if hydra:
+#        replace = '\n'
+#      else:
+      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     if file_format == 90:
@@ -852,12 +854,13 @@ if npart==0 and nhdf5>0:
 #                      ** END MAIN APPLICATION **
 ##########################################################################
 
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-#op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:

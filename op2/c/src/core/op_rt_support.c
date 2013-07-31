@@ -103,6 +103,23 @@ comp ( const void * a2, const void * b2 )
 }
 
 /*
+ * comparison function for key-value quicksort in op_plan
+ */
+
+typedef struct {
+  int key;
+  int value;
+} op_keyvalue;
+
+int comp2 (const void * a, const void * b)
+{
+  if ( ((op_keyvalue*)a)->key <  ((op_keyvalue*)b)->key ) return -1;
+  if ( ((op_keyvalue*)a)->key == ((op_keyvalue*)b)->key ) return 0;
+  if ( ((op_keyvalue*)a)->key >  ((op_keyvalue*)b)->key ) return 1;
+  return 0;
+}
+
+/*
  * plan check routine
  */
 
@@ -376,7 +393,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   {
     if ( args[m].opt && inds[m] >= 0 ) {
       if ((staging == OP_STAGE_INC && args[m].acc == OP_INC) ||
-          staging == OP_STAGE_ALL)
+          (staging == OP_STAGE_ALL || staging == OP_STAGE_PERMUTE))
           maxbytes += args[m].dat->size;
     }
   }
@@ -406,7 +423,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   for (int i = 0; i < ninds; i++) inds_to_inds_staged[i] = -1;
   for (int i = 0; i < nargs; i++) {
     if (inds[i]>=0 && ((staging == OP_STAGE_INC && args[i].acc == OP_INC) ||
-        staging == OP_STAGE_ALL)) {
+        (staging == OP_STAGE_ALL || staging == OP_STAGE_PERMUTE))) {
       if (inds_to_inds_staged[inds[i]] == -1) {
         inds_to_inds_staged[inds[i]] = ninds_staged;
         inds_staged[i] = ninds_staged;
@@ -421,7 +438,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   for (int i = 0; i < ninds_staged; i++) invinds_staged[i] = -1;
   for (int i = 0; i < nargs; i++)
     if (inds[i]>=0 && ((staging == OP_STAGE_INC && args[i].acc == OP_INC) ||
-        staging == OP_STAGE_ALL) && invinds_staged[inds_staged[i]] == -1)
+        (staging == OP_STAGE_ALL || staging == OP_STAGE_PERMUTE)) && invinds_staged[inds_staged[i]] == -1)
       invinds_staged[inds_staged[i]] = i;
 
   int prev_offset = 0;
@@ -467,6 +484,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   OP_plans[ip].nthrcol = ( int * ) malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].thrcol = ( int * ) malloc ( exec_length * sizeof ( int ) );
+  OP_plans[ip].col_reord = ( int * ) malloc ( exec_length * sizeof ( int ) );
   OP_plans[ip].offset = ( int * ) malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].ind_maps = ( int ** ) malloc ( ninds_staged * sizeof ( int * ) );
   OP_plans[ip].ind_offs = ( int * ) malloc ( nblocks * ninds_staged * sizeof ( int ) );
@@ -722,8 +740,23 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     total_colors += ncolors;
 
     //if(ncolors>1) printf(" number of colors in this block = %d \n",ncolors);
+  }
 
-    /* reorder elements by color? */
+  /* create element permutation by color */
+  if (staging == OP_STAGE_PERMUTE) {
+    printf("Creating permuation for %s\n", name);
+    op_keyvalue *kv = (op_keyvalue *)malloc(bsize * sizeof(op_keyvalue));
+    for (int b = 0; b < nblocks; b++) {
+      for (int e = 0; e < nelems[b]; e++) {
+        kv[e].key = OP_plans[ip].thrcol[offset[b]+e];
+        kv[e].value = e;
+      }
+      qsort ( kv, nelems[b], sizeof ( op_keyvalue ), comp2 );
+      for (int e = 0; e < nelems[b]; e++) {
+        OP_plans[ip].thrcol[offset[b]+e] = kv[e].key;
+        OP_plans[ip].col_reord[offset[b]+e] = kv[e].value;
+      }
+    }
   }
 
   /* color the blocks, after initialising colors to 0 */

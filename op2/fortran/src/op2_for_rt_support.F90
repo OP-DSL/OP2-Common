@@ -61,11 +61,13 @@ module OP2_Fortran_RT_Support
 #ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::      nthrcol ! number of thread colors for each block
     type(c_devptr) ::      thrcol  ! thread colors
+    type(c_devptr) ::      col_reord ! element permutation by color for the block
     type(c_ptr) ::         offset  ! offset for primary set
     type(c_devptr) ::      offset_d  ! offset for primary set
 #else
     type(c_ptr) ::         nthrcol ! number of thread colors for each block
     type(c_ptr) ::         thrcol  ! thread colors
+    type(c_ptr) ::         col_reord ! element permutation by color for the block
     type(c_ptr) ::         offset  ! offset for primary set
     type(c_ptr) ::         offset_d  ! offset for primary set
 #endif
@@ -275,6 +277,16 @@ module OP2_Fortran_RT_Support
       type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
+
+!    subroutine op_mpi_reduce_combined (args, argsNumber) BIND(C,name='op_mpi_reduce_combined')
+!
+!      use, intrinsic :: ISO_C_BINDING
+!      use OP2_Fortran_Declarations
+!
+!      type(op_arg), dimension(*) :: args       ! array with op_args
+!      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+!
+!   end subroutine
 
     subroutine op_mpi_reduce_int (arg, data) BIND(C,name='op_mpi_reduce_int')
 

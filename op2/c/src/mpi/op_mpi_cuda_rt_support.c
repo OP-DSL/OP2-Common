@@ -111,7 +111,7 @@ void cutilDeviceInit( int argc, char ** argv )
 
 
 void op_upload_dat(op_dat dat) {
-  //printf("Uploading %s\n", dat->name);
+  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {
@@ -132,7 +132,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
-  //printf("Downloading %s\n", dat->name);
+  printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {
@@ -427,21 +427,21 @@ void op_wait_all_cuda(op_arg* arg)
       {
         int init = dat->set->size*dat->size;
         int size = (dat->set->exec_size+dat->set->nonexec_size)*dat->size;
-        cutilSafeCall( cudaMemcpy( dat->buffer_d_r, dat->data + init,
-          size, cudaMemcpyHostToDevice ) );
+        cutilSafeCall( cudaMemcpyAsync( dat->buffer_d_r, dat->data + init,
+          size, cudaMemcpyHostToDevice, 0 ) );
         scatter_data_from_buffer(*arg);
       }
       else{
         int init = dat->set->size*dat->size;
-        cutilSafeCall( cudaMemcpy( dat->data_d + init, dat->data + init,
+        cutilSafeCall( cudaMemcpyAsync( dat->data_d + init, dat->data + init,
           (OP_import_exec_list[dat->set->index]->size+
           OP_import_nonexec_list[dat->set->index]->size)*arg->dat->size,
-          cudaMemcpyHostToDevice ) );
+          cudaMemcpyHostToDevice, 0 ) );
       }
     } else if (strstr( arg->dat->type, ":soa")!= NULL)
       scatter_data_from_buffer(*arg);
 
-    cutilSafeCall(cudaDeviceSynchronize ());
+    //cutilSafeCall(cudaDeviceSynchronize ());
     arg->sent = 2; //set flag to indicate completed comm
   }
 
