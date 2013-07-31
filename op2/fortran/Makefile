@@ -261,7 +261,7 @@ f_mpi_seq: directories core \
 	$(C_OP2_SRC)/mpi/op_mpi_core.c $(C_OP2_SRC)/mpi/op_mpi_decl.c \
 	$(C_OP2_SRC)/mpi/op_mpi_part_core.c $(C_OP2_SRC)/mpi/op_mpi_rt_support.c \
 	$(C_OP2_SRC)/mpi/op_mpi_util.cpp \
-	$(C_OP2_SRC)/mpi/op_mpi_renumber.cpp \
+	$(C_OP2_SRC)/externlib/op_renumber.cpp \
 	$(C_OP2_SRC)/mpi/op_mpi_hdf5.c
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
@@ -283,7 +283,7 @@ f_mpi_seq: directories core \
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_rt_support.c -o $(F_OP2_OBJ)/op_mpi_rt_support.o
 	$(CC) $(CFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
 	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/mpi/op_mpi_renumber.cpp -o $(F_OP2_OBJ)/op_mpi_renumber.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
@@ -296,7 +296,7 @@ f_mpi_seq: directories core \
 	$(F_OP2_OBJ)/op2_for_rt_wrappers.o \
 	$(F_OP2_OBJ)/op_mpi_core.o \
 	$(F_OP2_OBJ)/op_mpi_util.o \
-	$(F_OP2_OBJ)/op_mpi_renumber.o \
+	$(F_OP2_OBJ)/op_renumber.o \
 	$(F_OP2_OBJ)/op_mpi_decl.o \
 	$(F_OP2_OBJ)/op_mpi_part_core.o \
 	$(F_OP2_OBJ)/op_mpi_rt_support.o \
@@ -321,7 +321,7 @@ f_mpi_cuda: directories core \
 	$(C_OP2_SRC)/mpi/op_mpi_part_core.c $(C_OP2_SRC)/mpi/op_mpi_cuda_rt_support.c \
 	$(C_OP2_SRC)/mpi/op_mpi_cuda_kernels.cu \
 	$(C_OP2_SRC)/mpi/op_mpi_util.cpp \
-	$(C_OP2_SRC)/mpi/op_mpi_renumber.cpp \
+	$(C_OP2_SRC)/externlib/op_renumber.cpp \
 	$(C_OP2_SRC)/mpi/op_mpi_hdf5.c
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
@@ -344,7 +344,7 @@ f_mpi_cuda: directories core \
 	$(NVCC) $(NVCCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_kernels.cu -o $(F_OP2_OBJ)/op_mpi_cuda_kernels.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
 	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) $(PARMETIS_INC) $(PARMETIS_LIB) -c $(C_OP2_SRC)/mpi/op_mpi_renumber.cpp -o $(F_OP2_OBJ)/op_mpi_renumber.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) $(PARMETIS_INC) $(PARMETIS_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
@@ -364,7 +364,7 @@ f_mpi_cuda: directories core \
 	$(F_OP2_OBJ)/op2_for_reference.o \
 	$(F_OP2_OBJ)/op_mpi_cuda_kernels.o \
 	$(F_OP2_OBJ)/op_mpi_util.o \
-	$(F_OP2_OBJ)/op_mpi_renumber.o \
+	$(F_OP2_OBJ)/op_renumber.o \
 	$(F_OP2_OBJ)/op_mpi_hdf5.o
 
 clean:

@@ -30,12 +30,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <mpi.h>
-
 #include <op_lib_core.h>
 #include <op_lib_cpp.h>
 #include <op_util.h>
-#include <op_mpi_core.h>
 #include <vector>
 
 #ifdef HAVE_PTSCOTCH
@@ -47,8 +44,8 @@
 #endif
 
 typedef struct {
-int a;
-int b;
+  int a;
+  int b;
 } map2;
 
 int compare (const void * a, const void * b)
@@ -59,8 +56,12 @@ int compare (const void * a, const void * b)
 
 
 //propage renumbering based on a map that points to an already reordered set
-void propagate_reordering(op_set from, op_set to, std::vector<std::vector<int> >& set_permutations, std::vector<std::vector<int> >& set_ipermutations) {
+void propagate_reordering(op_set from, op_set to,
+  std::vector< std::vector <int> >& set_permutations,
+  std::vector< std::vector <int> >& set_ipermutations) {
+
   if(to->size == 0) return;
+
   //find a map that is (to)->(from), reorder (to)
   if (set_permutations[to->index].size()==0) {
     for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
@@ -73,7 +74,8 @@ void propagate_reordering(op_set from, op_set to, std::vector<std::vector<int> >
         }
         qsort(&renum[0], renum.size(), sizeof(map2), compare);
         set_permutations[to->index].resize(to->size);
-        for (int i = 0; i < to->size; i++) set_permutations[to->index][renum[i].b] = i;
+        for (int i = 0; i < to->size; i++)
+          set_permutations[to->index][renum[i].b] = i;
         break;
       }
     }
@@ -91,22 +93,31 @@ void propagate_reordering(op_set from, op_set to, std::vector<std::vector<int> >
   }
 }
 
-void reorder_set(op_set set, std::vector<std::vector<int> >& set_permutations, std::vector<std::vector<int> >& set_ipermutations) {
+void reorder_set(op_set set,
+  std::vector<std::vector<int> >& set_permutations,
+  std::vector<std::vector<int> >& set_ipermutations) {
+
   if (set_permutations[set->index].size()==0) {
     printf("No reordering for set %s, skipping...\n", set->name);
     return;
   }
+
   if (set->size == 0) return;
 
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == set) {
       int *tempmap = (int *)malloc(set->size*sizeof(int)*map->dim);
-      for (int i = 0; i < set->size; i++) std::copy(map->map + map->dim*i, map->map + map->dim*(i+1), tempmap + map->dim*set_permutations[set->index][i]);
+
+      for (int i = 0; i < set->size; i++)
+        std::copy(map->map + map->dim*i, map->map + map->dim*(i+1),
+                  tempmap + map->dim*set_permutations[set->index][i]);
       free(map->map);
       map->map = tempmap;
+
     } else if (map->to == set) {
-      for (int i = 0; i < map->from->size*map->dim; i++) map->map[i] = set_permutations[set->index][map->map[i]];
+      for (int i = 0; i < map->from->size*map->dim; i++)
+        map->map[i] = set_permutations[set->index][map->map[i]];
     }
   }
   op_dat_entry *item;
@@ -114,7 +125,11 @@ void reorder_set(op_set set, std::vector<std::vector<int> >& set_permutations, s
     op_dat dat = item->dat;
     if (dat->set == set && dat->data != NULL) {
       char *tempdata = (char *)malloc((size_t)set->size*(size_t)dat->size);
-      for (unsigned long int i = 0; i < (unsigned long int)set->size; i++) std::copy(dat->data + (unsigned long int)dat->size*i, dat->data + (unsigned long int)dat->size*(i+1), tempdata + (unsigned long int)dat->size*(unsigned long int)set_permutations[set->index][i]);
+      for (unsigned long int i = 0; i < (unsigned long int)set->size; i++)
+        std::copy(dat->data + (unsigned long int)dat->size*i,
+                  dat->data + (unsigned long int)dat->size*(i+1),
+                  tempdata + (unsigned long int)dat->size*
+                  (unsigned long int)set_permutations[set->index][i]);
       free(dat->data);
       dat->data = tempdata;
     }
@@ -126,9 +141,7 @@ void op_renumber(op_map base) {
   printf("OP2 was not compiled with Scotch, no reordering.\n");
 #else
   printf("Renumbering using base map %s\n", base->name);
-  int nranks;
-  MPI_Comm_size(MPI_COMM_WORLD, &nranks);
-  if (nranks>1) {
+  if (op_is_root() == 0) {
     printf("Renumbering only works with 1 rank\n");
     exit(-1);
   }
@@ -147,7 +160,11 @@ void op_renumber(op_map base) {
       int *order = (int *)malloc(base->to->size * sizeof(int));
       int total_ctr = 0;
       for (int f = 0; f < possible[i]; f++) {
-        if (f>0) {fclose(file); sprintf(buffer,"partvec%04d_%04d",f+1,possible[i]); file = fopen(buffer,"r");}
+        if (f>0) {
+          fclose(file);
+          sprintf(buffer,"partvec%04d_%04d",f+1,possible[i]);
+          file = fopen(buffer,"r");
+        }
         int counter = 0;
         int id, part;
         while (fscanf(file, "%d %d", &id, &part) != EOF) {
@@ -162,7 +179,8 @@ void op_renumber(op_map base) {
       op_decl_dat(base->to, 1, "int", partvec, buffer);
       sprintf(buffer,"ordering%04d",possible[i]);
       op_decl_dat(base->to, 1, "int", order, buffer);
-      if (total_ctr != base->to->size) printf("Size mismatch %d %d\n", total_ctr, base->to->size);
+      if (total_ctr != base->to->size)
+        printf("Size mismatch %d %d\n", total_ctr, base->to->size);
       generated_partvec = 1;
     }
   }
@@ -192,10 +210,15 @@ void op_renumber(op_map base) {
     row_offsets[0] = 0;
     row_offsets[1] = 0;
     row_offsets[base->to->size] = 0;
-    for (int i = 0; i < base->dim; i++) if (base->map[base->dim*loopback[0].b+i] != 0) col_indices[row_offsets[1]++] = base->map[base->dim*loopback[0].b+i];
+    for (int i = 0; i < base->dim; i++) {
+      if (base->map[base->dim*loopback[0].b+i] != 0)
+        col_indices[row_offsets[1]++] = base->map[base->dim*loopback[0].b+i];
+    }
     int nodectr = 0;
     for (int i = 1; i < base->from->size * base->dim; i++) {
-      if (loopback[i].a != loopback[i-1].a) {nodectr++; row_offsets[nodectr+1] = row_offsets[nodectr];}
+      if (loopback[i].a != loopback[i-1].a) {
+        nodectr++; row_offsets[nodectr+1] = row_offsets[nodectr];
+      }
 
       for (int d1 = 0; d1 < base->dim; d1++) {
         int id = base->map[base->dim*loopback[i].b+d1];
@@ -207,11 +230,13 @@ void op_renumber(op_map base) {
       }
     }
     if (row_offsets[base->to->size] == 0) {
-      printf("Map %s is not an onto map from %s to %s, aborting renumbering...\n", base->name, base->from->name, base->to->name);
+      printf("Map %s is not an onto map from %s to %s, aborting renumbering...\n",
+        base->name, base->from->name, base->to->name);
       return;
     }
     col_indices.resize(row_offsets[base->to->size]);
-    printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n", base->to->name, base->to->name, (int)col_indices.size(), base->from->name, base->from->size);
+    printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
+      base->to->name, base->to->name, (int)col_indices.size(), base->from->name, base->from->size);
   }
 
   if (generated_partvec == 0) {
@@ -230,7 +255,8 @@ void op_renumber(op_map base) {
       options[METIS_OPTION_NUMBERING] = 0;
       options[METIS_OPTION_MINCONN] = 1;
 
-      METIS_PartGraphKway(&base->to->size, &nconstr, &row_offsets[0], &col_indices[0], NULL, NULL, NULL, &nparts, NULL, NULL, options, &edgecut, partvec);
+      METIS_PartGraphKway(&base->to->size, &nconstr, &row_offsets[0],
+      &col_indices[0], NULL, NULL, NULL, &nparts, NULL, NULL, options, &edgecut, partvec);
       printf("Metis partitioning precomputed for %d partitions. Edgecut: %d\n",nparts, edgecut);
       char buffer[50];
       sprintf(buffer,"partvec%04d",possible[i]);
@@ -264,7 +290,8 @@ void op_renumber(op_map base) {
   SCOTCH_Num *treetab = NULL;//(SCOTCH_Num*) malloc(ncell*sizeof(SCOTCH_Num));
 
   int mesg = 0;
-  mesg = SCOTCH_graphBuild(graphptr, baseval, vertnbr, verttab, vendtab, velotab, vlbltab, edgenbr, edgetab, edlotab);
+  mesg = SCOTCH_graphBuild(graphptr, baseval, vertnbr, verttab, vendtab,
+  velotab, vlbltab, edgenbr, edgetab, edlotab);
   if(mesg != 0){
     op_printf("Error during SCOTCH_graphBuild() \n");
     exit(-1);
