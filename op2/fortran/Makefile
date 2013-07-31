@@ -80,7 +80,7 @@ ifeq ($(OP2_COMPILER),pgi)
   PGCC            = pgcc
   PGCFLAGS        = -O2 -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 -Mcuda=cuda5.0,cc20 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
+  PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 -Mcuda=cuda5.0,cc35 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
   CFLAGS          = $(PGCFLAGS)
   MPICC	  	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
@@ -90,7 +90,7 @@ ifeq ($(OP2_COMPILER),pgi)
 else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
-  OPT		  = -O3 -xSSE4.2 -vec-report
+  OPT		  = -O0 -g -xAVX -vec-report
   CC              = icc $(OPT)
   CXX		  = icpc $(OPT)
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981

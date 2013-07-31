@@ -850,7 +850,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_i4_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_i4_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
     !op_arg_gbl_python_i4_scalar = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_i4_scalar
@@ -867,7 +867,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_logical_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_logical_scalar = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
     !op_arg_gbl_python_logical_scalar = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_logical_scalar
@@ -901,7 +901,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_i4_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_i4_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
     !op_arg_gbl_python_i4_1dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_i4_1dim
@@ -918,7 +918,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_logical_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_logical_1dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
     !op_arg_gbl_python_logical_1dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_logical_1dim
@@ -952,7 +952,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
     !op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_i4_2dim
@@ -969,7 +969,7 @@ contains
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_logical_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_logical_2dim = op_arg_gbl_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
     !op_arg_gbl_python_logical_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_logical_2dim
