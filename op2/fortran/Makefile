@@ -62,13 +62,15 @@ NVCCFLAGS = -O3 -arch=sm_20 -m64 -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
 ifeq ($(OP2_COMPILER),gnu)
   F_INC_MOD       = $(F_OP2_MOD)/gnu
   CC              = gcc
+  CXX             = g++
   CFLAGS          = -std=c99 -Wall -fPIC -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran
   FFLAGS          = -J$(F_INC_MOD) -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  MPICC 	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
-  MPIF90  	  = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
+  MPICC           = mpicc
+  MPICXX          = mpicxx
+  MPIF90          = mpif90
   NO_MPI_MACRO    = -DNO_MPI
-  ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
+  ALLTARGETS      = core hdf5 f_seq f_openmp f_mpi_seq
 else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
