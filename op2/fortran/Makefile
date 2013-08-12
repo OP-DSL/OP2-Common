@@ -63,9 +63,9 @@ ifeq ($(OP2_COMPILER),gnu)
   F_INC_MOD       = $(F_OP2_MOD)/gnu
   CC              = gcc
   CXX             = g++
-  CFLAGS          = -std=c99 -Wall -fPIC -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran
-  FFLAGS          = -J$(F_INC_MOD) -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   MPICC           = mpicc
   MPICXX          = mpicxx
   MPIF90          = mpif90
@@ -74,9 +74,9 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
-  CC	   	  = nvcc
-  CXX		  = pgCC
-  FC		  = pgfortran
+  CC              = nvcc
+  CXX             = pgCC
+  FC              = pgfortran
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc
   PGCC            = pgcc
@@ -84,23 +84,23 @@ ifeq ($(OP2_COMPILER),pgi)
   PGFC            = pgfortran
   PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 -Mcuda=cuda5.0,cc35 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
   CFLAGS          = $(PGCFLAGS)
-  MPICC	  	  = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
+  MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
-  MPIF90	  = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
+  MPIF90          = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   NO_MPI_MACRO    = -DNO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq f_cuda f_mpi_cuda f_mpi_cuda
 else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
-  OPT		  = -O3 -xSSE4.2 -vec-report
+  OPT             = -O3 -xSSE4.2 -vec-report
   CC              = icc $(OPT)
-  CXX		  = icpc $(OPT)
+  CXX             = icpc $(OPT)
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  MPICC	  	  = mpicc $(OPT)
-  MPICXX	  = mpiCC $(OPT)
-  MPIF90	  = mpif90 $(OPT)
+  MPICC           = mpicc $(OPT)
+  MPICXX          = mpiCC $(OPT)
+  MPIF90          = mpif90 $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else
