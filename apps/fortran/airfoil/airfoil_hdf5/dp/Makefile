@@ -5,11 +5,11 @@ OP2 = $(OP2_INSTALL_PATH)
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)
 F_OP2_LIB = $(OP2)/fortran/lib
 
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER=3
+PARMETIS_VER?=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -41,7 +41,7 @@ ifeq ($(OP2_COMPILER),pgi)
   FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc20,fastmath,ptxinfo
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
-  MPI_INC = -I$(MPI_INSTALL_PATH)/include
+  MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -g
   OPENMP = -mp
