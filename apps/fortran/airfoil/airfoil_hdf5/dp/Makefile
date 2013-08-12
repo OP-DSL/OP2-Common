@@ -9,7 +9,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER=4
+PARMETIS_VER=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -62,7 +62,7 @@ ifeq ($(OP2_COMPILER),cray)
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -O2 -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
   OPENMP = -h omp -lomp
-  CPPLINK = -hnopgas_runtime
+  CPPLINK = -hnopgas_runtime -lpgas-dmapp
 else
 print:
 	echo "unrecognised value for OP2_COMPILER"
