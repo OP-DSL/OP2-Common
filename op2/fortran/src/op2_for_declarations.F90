@@ -922,12 +922,16 @@ contains
 
   end function op_arg_gbl_python_logical_1dim
 
+#ifdef __GFORTRAN__
   function real_ptr ( arg )
     real(8), dimension(:,:), target :: arg
     real(8), target :: real_ptr
 
     real_ptr = arg(1, 1)
   end function
+#else
+  #define real_ptr(arg) arg
+#endif
 
   type(op_arg) function op_arg_gbl_python_r8_2dim ( dat, dim, type, access )
 
@@ -946,12 +950,16 @@ contains
 
   end function op_arg_gbl_python_r8_2dim
 
+#ifdef __GFORTRAN__
   function int_ptr ( arg )
     integer(4), dimension(:,:), target :: arg
     integer(4), target :: int_ptr
 
     int_ptr = arg(1, 1)
   end function
+#else
+  #define int_ptr(arg) arg
+#endif
 
   type(op_arg) function op_arg_gbl_python_i4_2dim ( dat, dim, type, access )
 
