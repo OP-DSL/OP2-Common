@@ -930,7 +930,7 @@ contains
     real_ptr = arg(1, 1)
   end function
 #else
-  #define real_ptr(arg) arg
+#define real_ptr(arg) arg
 #endif
 
   type(op_arg) function op_arg_gbl_python_r8_2dim ( dat, dim, type, access )
@@ -958,7 +958,7 @@ contains
     int_ptr = arg(1, 1)
   end function
 #else
-  #define int_ptr(arg) arg
+#define int_ptr(arg) arg
 #endif
 
   type(op_arg) function op_arg_gbl_python_i4_2dim ( dat, dim, type, access )
