@@ -15,7 +15,10 @@ import datetime
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
-  prefix = ' '*depth
+  if len(line) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
@@ -50,7 +53,10 @@ def rep(line,m):
 def code(text):
   global file_text, FORTRAN, CPP, g_m
   global depth
-  prefix = ' '*depth
+  if len(text) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if FORTRAN:
     file_text += prefix+rep(text,g_m)+'\n'
   elif CPP:
@@ -752,6 +758,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('INTEGER(kind=4) :: i2')
       code('INTEGER(kind=4) :: i10')
       code('INTEGER(kind=4) :: i20')
+      code('REAL(kind=4) :: dataTransfer')
       code('')
 
     code('INTEGER(kind=4) :: istat')
@@ -777,7 +784,9 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     for g_m in range(0,nargs):
       code('opArgArray('+str(g_m+1)+') = opArg'+str(g_m+1))
     code('')
-
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('')
     code('returnMPIHaloExchange = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
     IF('returnMPIHaloExchange .EQ. 0')
     code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
@@ -1000,13 +1009,26 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
         code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
         code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
 
-    code('KT_double = REAL(accumulatorKernelTime / 1000.00)')
+    if ninds == 0:
+      code('dataTransfer = 0.0')
+      for g_m in range(0,nargs):
+        if accs[g_m] == OP_READ:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
+        else:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+') * 2.d0')
+
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& KT_double, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
+      code('& accumulatorKernelTime / 1000.00, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& KT_double, 0.00000,0.00000)')
+      code('& accumulatorKernelTime / 1000.00, dataTransfer, 0.00000, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')

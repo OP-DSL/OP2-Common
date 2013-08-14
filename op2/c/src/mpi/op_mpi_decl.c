@@ -268,6 +268,7 @@ void op_timers(double * cpu, double * et)
 
 void op_timing_output()
 {
+  printf("Total plan time: %8.4f\n", OP_plan_time);
    op_timing_output_core();
    mpi_timing_output();
 }

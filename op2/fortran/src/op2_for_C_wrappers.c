@@ -416,7 +416,7 @@ void printFirstDatPosition (op_dat dat)
     ((double *)dat->data)[5]);
 }
 
-int setKernelTime (int id, char name[], double kernelTime, float transfer, float transfer2) {
+int setKernelTime (int id, char name[], double kernelTime, float transfer, float transfer2, int count) {
   int nameLen = -1;
   char * heapName;
 
@@ -430,7 +430,7 @@ int setKernelTime (int id, char name[], double kernelTime, float transfer, float
     OP_kernels[id].name = heapName;
   }
 
-  OP_kernels[id].count += 1;
+  OP_kernels[id].count += count;
   OP_kernels[id].time += (float)kernelTime;
   OP_kernels[id].transfer += transfer;
   OP_kernels[id].transfer2 += transfer2;

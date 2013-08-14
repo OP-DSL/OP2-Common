@@ -930,42 +930,40 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   {
     for ( int m = 0; m < nargs; m++ ) //for each argument
     {
-      if (args[m].opt) {
-        if ( inds_staged[m] < 0 ) //if it is directly addressed or not staged
+      if ( inds[m] < 0 ) //if it is directly addressed
+      {
+        float fac = 2.0f;
+        if ( accs[m] == OP_READ ) //if you only read it - only write???
+          fac = 1.0f;
+        if ( dats[m] != NULL )
         {
-          float fac = (accs[m] == OP_READ) ? 1.0f : 2.0f; //if you only read it
-          if (args[m].map != NULL) fac *= args[m].map->dim; //if it is not staged that we double count cache hits
-          if ( dats[m] != NULL )
-          {
-            OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
-            OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
-            transfer3 += fac * nelems[b] * dats[m]->size;
-          }
-        }
-        else //if it is indirectly addressed: cost of reading the pointer to it
-        {
-          OP_plans[ip].transfer += nelems[b] * sizeof ( short );
-          OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
-          transfer3 += nelems[b] * sizeof ( short );
+          OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
+          OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
+          transfer3 += fac * nelems[b] * dats[m]->size;
         }
       }
+      else //if it is indirectly addressed: cost of reading the pointer to it
+      {
+        OP_plans[ip].transfer += nelems[b] * sizeof ( short );
+        OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
+        transfer3 += nelems[b] * sizeof ( short );
+      }
     }
-    //TODO: compute for both staged and non-staged
-    for ( int m = 0; m < ninds_staged; m++ ) //for each indirect mapping
+    for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
     {
       int m2 = 0;
-      while ( inds_staged[m2] != m ) //find the first argument that uses this mapping
+      while ( inds[m2] != m ) //find the first argument that uses this mapping
         m2++;
-      if (args[m2].opt == 0) continue;
-
-      float fac = (accs[m] == OP_READ) ? 1.0f : 2.0f; //if you only read it
-      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds_staged] * dats[m2]->size; //simply read all data one by one
+      float fac = 2.0f;
+      if ( accs[m2] == OP_READ ) //only read it (write??)
+        fac = 1.0f;
+      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size; //simply read all data one by one
 
       /* work out how many cache lines are used by indirect addressing */
 
       int i_map, l_new, l_old;
-      int e0 = ind_offs[m + b * ninds_staged]; //where it starts
-      int e1 = e0 + ind_sizes[m + b * ninds_staged]; //where it ends
+      int e0 = ind_offs[m + b * ninds]; //where it starts
+      int e1 = e0 + ind_sizes[m + b * ninds]; //where it ends
 
       l_old = -1;
 

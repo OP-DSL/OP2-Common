@@ -16,7 +16,10 @@ import os
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
-  prefix = ' '*depth
+  if len(line) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
@@ -54,7 +57,10 @@ def code(text):
   if len(text) == 0:
     file_text += '\n'
     return
-  prefix = ' '*depth
+  if len(text) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if FORTRAN:
     file_text += prefix+rep(text,g_m)+'\n'
   elif CPP:
@@ -241,9 +247,15 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     else:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      print modfile
+      modfile = modfile.replace('INIT_INIT','INIT')
+      name2 = name.replace('INIT_INIT','INIT')
+      print modfile
+      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
       if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      if not os.path.isfile(filename):
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2[:-1] + '.F95'
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()

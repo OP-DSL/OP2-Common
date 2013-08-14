@@ -16,7 +16,10 @@ import os
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
-  prefix = ' '*depth
+  if len(line) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
@@ -54,7 +57,10 @@ def code(text):
   if len(text) == 0:
     file_text += '\n'
     return
-  prefix = ' '*depth
+  if len(text) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if FORTRAN:
     file_text += prefix+rep(text,g_m)+'\n'
   elif CPP:
@@ -333,6 +339,7 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
     else:
       code('INTEGER(kind=4) :: sliceStart')
       code('INTEGER(kind=4) :: sliceEnd')
+      code('REAL(kind=4) :: dataTransfer')
 
     code('')
     for g_m in range(0,nargs):
@@ -350,7 +357,9 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
       code('opArgArray('+str(g_m+1)+') = opArg'+str(g_m+1))
     code('')
 
-
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('')
     #mpi halo exchange call
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
 
@@ -614,12 +623,26 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
     code('accumulatorHostTime = endTimeHost - startTimeHost')
     code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
     code('')
+    if ninds == 0:
+      code('dataTransfer = 0.0')
+      for g_m in range(0,nargs):
+        if accs[g_m] == OP_READ:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
+        else:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+') * 2.d0')
+
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& accumulatorKernelTime / 1000.00,actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
+      code('& accumulatorKernelTime / 1000.00, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& accumulatorKernelTime / 1000.00,0.00000,0.00000)')
+      code('& accumulatorKernelTime / 1000.00, dataTransfer, 0.00000, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')

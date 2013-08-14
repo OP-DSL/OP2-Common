@@ -16,7 +16,10 @@ import os
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
-  prefix = ' '*depth
+  if len(line) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
@@ -54,7 +57,10 @@ def code(text):
   if len(text) == 0:
     file_text += '\n'
     return
-  prefix = ' '*depth
+  if len(text) == 0:
+    prefix = ''
+  else:
+    prefix = ' '*depth
   if FORTRAN:
     file_text += prefix+rep(text,g_m)+'\n'
   elif CPP:

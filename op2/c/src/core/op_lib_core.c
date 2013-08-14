@@ -635,7 +635,7 @@ void op_timing_output_core()
       if ( OP_kernels[n].count > 0 )
       {
         if ( OP_kernels[n].transfer2 < 1e-8f )
-          printf ( " %6d;           ; %8.4f; %8.4f;            %s \n",
+          printf ( " %6d;           ; %8.4f; %8.4f;  ;         %s \n",
                    OP_kernels[n].count,
                    OP_kernels[n].time,
                    OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );

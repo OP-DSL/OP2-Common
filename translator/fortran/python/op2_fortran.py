@@ -54,6 +54,8 @@ import op2_gen_cuda
 from op2_gen_cuda import *
 import op2_gen_cuda_permute
 from op2_gen_cuda_permute import *
+import op2_gen_cuda_multi
+from op2_gen_cuda_multi import *
 import op2_gen_cudaINC
 from op2_gen_cudaINC import *
 import op2_gen_cuda_old
@@ -765,10 +767,10 @@ for a in range(init_ctr,len(sys.argv)):
        curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
        if file_format == 90:
-         line = str(' '+name+'_host(& \n'+indent+'& "'+name+'",'+
+         line = str(' '+name+'_host(&\n'+indent+'& "'+name+'",'+
                 loop_args[curr_loop]['set']+', '+cont_end+'\n')
        elif file_format == 77:
-         line = str(' '+name+'_host( \n'+indent+'& "'+name+'",'+
+         line = str(' '+name+'_host(\n'+indent+'& "'+name+'",'+
                  loop_args[curr_loop]['set']+', '+cont_end+'\n')
 
        for arguments in range(0,loop_args[curr_loop]['nargs']):
@@ -858,9 +860,10 @@ if npart==0 and nhdf5>0:
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra)
+op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_cuda_multi(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:

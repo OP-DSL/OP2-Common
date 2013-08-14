@@ -274,6 +274,8 @@ void mvReductArraysToHost ( int reduct_bytes )
 void op_cuda_get_data ( op_dat dat )
 {
   if (!OP_hybrid_gpu) return;
+  if (dat->dirty_hd == 2) dat->dirty_hd = 0;
+  else return;
   //transpose data
   if (strstr( dat->type, ":soa")!= NULL) {
     char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
