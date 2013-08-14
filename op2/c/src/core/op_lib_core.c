@@ -50,6 +50,7 @@ int OP_diags = 0,
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
+int OP_mpi_experimental = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
@@ -119,6 +120,13 @@ void
     printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
+  if ( getenv ( "OP_MPI_EXPERIMENTAL" ) )
+  {
+    char* val = getenv ( "OP_MPI_EXPERIMENTAL" );
+    OP_mpi_experimental = atoi ( val );
+    printf ( "\n OP2 Experimental MPI optimizations enabled  = %d \n", OP_mpi_experimental );
+  }
+
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;
 #endif
@@ -152,7 +160,17 @@ void
       OP_gpu_direct = 1;
       printf ( "\n Enabling GPU Direct \n" );
     }
+    if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 )
+    {
+      OP_hybrid_balance = atof ( argv[n] + 18 );;
+      printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+    }
 
+    if ( strncmp ( argv[n], "OP_MPI_EXPERIMENTAL=",  20 ) == 0 )
+    {
+      OP_mpi_experimental = atoi ( argv[n] + 20 );
+      printf ( "\n OP2 Experimental MPI optimizations enabled  = %d \n", OP_mpi_experimental );
+    }
   }
 
   /*Initialize the double linked list to hold op_dats*/

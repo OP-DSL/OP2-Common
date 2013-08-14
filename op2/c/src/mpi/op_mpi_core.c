@@ -2372,6 +2372,14 @@ int getHybridGPU() {
   return OP_hybrid_gpu;
 }
 
+int op_should_do_exchange(int nargs, op_arg *args) {
+  int should_do = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].map != OP_ID && args[i].map->dim > 1) should_do = 1;
+  }
+  return !(OP_mpi_experimental && !should_do);
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
@@ -2405,6 +2413,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
       exec_flag = 1;
     }
   }
+  if (!op_should_do_exchange(nargs, args)) return size;
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT)
       op_exchange_halo(&args[n], exec_flag);
@@ -2442,6 +2451,7 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
       exec_flag= 1;
     }
   }
+  if (!op_should_do_exchange(nargs, args)) return size;
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT)
       op_exchange_halo_cuda(&args[n],exec_flag);
@@ -2469,12 +2479,14 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
+  if (!op_should_do_exchange(nargs, args)) return;
   for (int n=0; n<nargs; n++) {
     op_wait_all(&args[n]);
   }
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  if (!op_should_do_exchange(nargs, args)) return;
   for (int n=0; n<nargs; n++) {
     op_wait_all_cuda(&args[n]);
   }

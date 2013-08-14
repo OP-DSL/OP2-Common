@@ -656,7 +656,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           cost[map->index] = 2;
         else if(to_set->is_partitioned == 1 &&
             compare_all_sets(map->to,all_partitioned_sets,sets_partitioned)>=0)
-          cost[map->index] = 0;
+          cost[map->index] = (map->dim == 1 ? 0 : 1);
       }
     }
 
