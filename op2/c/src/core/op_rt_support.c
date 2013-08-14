@@ -930,23 +930,25 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   {
     for ( int m = 0; m < nargs; m++ ) //for each argument
     {
-      if ( inds[m] < 0 ) //if it is directly addressed
-      {
-        float fac = 2.0f;
-        if ( accs[m] == OP_READ ) //if you only read it - only write???
-          fac = 1.0f;
-        if ( dats[m] != NULL )
+      if (args[m].opt) {
+        if ( inds[m] < 0 ) //if it is directly addressed
         {
-          OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
-          OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
-          transfer3 += fac * nelems[b] * dats[m]->size;
+          float fac = 2.0f;
+          if ( accs[m] == OP_READ ) //if you only read it - only write???
+            fac = 1.0f;
+          if ( dats[m] != NULL )
+          {
+            OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
+            OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
+            transfer3 += fac * nelems[b] * dats[m]->size;
+          }
         }
-      }
-      else //if it is indirectly addressed: cost of reading the pointer to it
-      {
-        OP_plans[ip].transfer += nelems[b] * sizeof ( short );
-        OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
-        transfer3 += nelems[b] * sizeof ( short );
+        else //if it is indirectly addressed: cost of reading the pointer to it
+        {
+          OP_plans[ip].transfer += nelems[b] * sizeof ( short );
+          OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
+          transfer3 += nelems[b] * sizeof ( short );
+        }
       }
     }
     for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
@@ -954,6 +956,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
       int m2 = 0;
       while ( inds[m2] != m ) //find the first argument that uses this mapping
         m2++;
+      if ( args[m2].opt == 0 ) continue;
       float fac = 2.0f;
       if ( accs[m2] == OP_READ ) //only read it (write??)
         fac = 1.0f;
