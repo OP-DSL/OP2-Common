@@ -144,7 +144,7 @@ void op_renumber(op_map base) {
 }
 
 void op_compute_moment(double t, double *first, double *second) {
-  *fisrt = t;
+  *first = t;
   *second = t*t;
 }
 

@@ -492,6 +492,11 @@ void op_partition(const char* lib_name, const char* lib_routine,
 void op_partition_reverse() {
 }
 
+void op_compute_moment(double t, double *first, double *second) {
+  *first = t;
+  *second = t*t;
+}
+
 int op_is_root()
 {
   return 1;

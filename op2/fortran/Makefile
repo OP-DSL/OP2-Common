@@ -21,7 +21,7 @@ F_OP2_MOD = $(F_OP2)/mod
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
 
-PARMETIS_VER?=4
+PARMETIS_VER?=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -66,7 +66,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran
   FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  MPICC           = mpicc
+  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc
   MPICXX          = mpicxx
   MPIF90          = mpif90
   NO_MPI_MACRO    = -DNO_MPI
@@ -98,9 +98,9 @@ ifeq ($(OP2_COMPILER),intel)
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  MPICC           = mpicc $(OPT)
-  MPICXX          = mpiCC $(OPT)
-  MPIF90          = mpif90 $(OPT)
+  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
+  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpiCC $(OPT)
+  MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else

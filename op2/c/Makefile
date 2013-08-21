@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
   CXX      := g++
   CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   := /usr/bin/mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
@@ -38,7 +38,7 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
   CXX      := icpc
   CXXFLAGS := $(CCFLAGS)
-  MPICXX   := mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -68,7 +68,7 @@ NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g 
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER?=3
+PARMETIS_VER?=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
