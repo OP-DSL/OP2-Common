@@ -268,8 +268,10 @@ void op_timers(double * cpu, double * et)
 
 void op_timing_output()
 {
-  printf("Total plan time: %8.4f\n", OP_plan_time);
+   double max_plan_time = 0.0;
+   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
    op_timing_output_core();
+   if (op_is_root()) printf("Total plan time: %8.4f\n", OP_plan_time);
    mpi_timing_output();
 }
 

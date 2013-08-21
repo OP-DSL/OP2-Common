@@ -294,6 +294,13 @@ module OP2_Fortran_Declarations
 
     end subroutine op_fetch_data_f
 
+    subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
+      use, intrinsic :: ISO_C_BINDING
+
+      real(kind=c_double) :: cpu, et
+
+    end subroutine op_timers_core_f
+
     subroutine op_timers_f ( cpu, et ) BIND(C,name='op_timers')
       use, intrinsic :: ISO_C_BINDING
 
@@ -1036,6 +1043,16 @@ contains
     call op_timers_f ( cpu, et )
 
   end subroutine op_timers
+
+  subroutine op_timers_core ( et )
+
+    real(kind=c_double) :: et
+
+    real(kind=c_double) :: cpu = 0
+
+    call op_timers_core_f ( cpu, et )
+
+  end subroutine op_timers_core
 
   function dumpOpDat ( dat, fileName )
 

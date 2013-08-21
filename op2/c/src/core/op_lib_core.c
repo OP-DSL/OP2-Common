@@ -55,7 +55,8 @@ int OP_mpi_experimental = 0;
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0,
-    OP_kern_max = 0;
+    OP_kern_max = 0,
+    OP_kern_curr = 0;
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -646,24 +647,34 @@ void op_timing_output_core()
 {
   if ( OP_kern_max > 0 )
   {
-    printf ( "\n  count   plan time   time     GB/s     GB/s   kernel name " );
-    printf ( "\n ----------------------------------------------- \n" );
+    if (op_is_root()) printf ( "\n  count   plan time     MPI time(std)        time(std)           GB/s      GB/s   kernel name " );
+    if (op_is_root()) printf ( "\n -------------------------------------------------------------------------------------------\n" );
     for ( int n = 0; n < OP_kern_max; n++ )
     {
       if ( OP_kernels[n].count > 0 )
       {
-        if ( OP_kernels[n].transfer2 < 1e-8f )
-          printf ( " %6d;           ; %8.4f; %8.4f;         ;   %s \n",
+        double moments_mpi_time[2];
+        double moments_time[2];
+        op_compute_moment(OP_kernels[n].time, &moments_time[0], &moments_time[1]);
+        op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0], &moments_mpi_time[1]);
+        if ( OP_kernels[n].transfer2 < 1e-8f ) {
+          float transfer = MAX(0.0f,OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time - OP_kernels[n].mpi_time));
+
+          if (op_is_root()) printf ( " %6d;           ; %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;         ;   %s \n",
                    OP_kernels[n].count,
-                   OP_kernels[n].time,
-                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
-        else
-          printf ( " %6d;  %8.4f;  %8.4f; %8.4f; %8.4f;   %s \n",
+                   moments_mpi_time[0], sqrt(moments_mpi_time[1] - moments_mpi_time[0]*moments_mpi_time[0]),
+                   moments_time[0], sqrt(moments_time[1] - moments_time[0]*moments_time[0]),
+                   transfer, OP_kernels[n].name);
+        } else {
+          float transfer = MAX(0.0f, OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time - OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+          float transfer2 = MAX(0.0f, OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time - OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+          if (op_is_root()) printf ( " %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;   %s \n",
                    OP_kernels[n].count,
                    OP_kernels[n].plan_time,
-                   OP_kernels[n].time,
-                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ),
-                   OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
+                   moments_mpi_time[0], sqrt(moments_mpi_time[1] - moments_mpi_time[0]*moments_mpi_time[0]),
+                   moments_time[0], sqrt(moments_time[1] - moments_time[0]*moments_time[0]),
+                   transfer, transfer2, OP_kernels[n].name);
+        }
       }
     }
   }
@@ -728,6 +739,7 @@ void
 op_timing_realloc ( int kernel )
 {
   int OP_kern_max_new;
+  OP_kern_curr = kernel;
 
   if ( kernel >= OP_kern_max )
   {
@@ -746,6 +758,7 @@ op_timing_realloc ( int kernel )
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
+      OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].name = "unused";
     }
     OP_kern_max = OP_kern_max_new;

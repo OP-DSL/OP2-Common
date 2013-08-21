@@ -282,6 +282,11 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
+    code('INTEGER(kind=4) :: returnSetKernelTiming')
     code('INTEGER(kind=4) :: n_upper')
     code('type ( op_set_core ) , POINTER :: opSetCore')
     code('')
@@ -324,7 +329,11 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
       code('opArgArray('+str(g_m+1)+') = opArg'+str(g_m+1))
     code('')
 
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    code('& 0.d0, 0.00000,0.00000, 0)')
 
+    code('call op_timers_core(startTime)')
+    code('')
     #mpi halo exchange call
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
 
@@ -430,7 +439,10 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
           code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
         code('')
 
-
+    code('call op_timers_core(endTime)')
+    code('')
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    code('& endTime-startTime,0.00000,0.00000, 1)')
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE')

@@ -87,6 +87,9 @@ part *OP_part_list;
 
 int** orig_part_range = NULL;
 
+// Timing
+double t1,t2,c1,c2;
+
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
@@ -1523,6 +1526,7 @@ static void set_dirtybit(op_arg* arg, int hd)
 
 
 void op_mpi_reduce_combined(op_arg* args, int nargs) {
+  op_timers_core(&c1, &t1);
   int nreductions = 0;
   for (int i = 0; i < nargs; i++) {
     if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) nreductions++;
@@ -1652,6 +1656,8 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
     }
     char_counter += arg_list[i].size;
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   free(arg_list);
   free(data);
   free(result);
@@ -1660,6 +1666,7 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
 void op_mpi_reduce_float(op_arg* arg, float* data)
 {
   (void)data;
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     float result_static;
@@ -1704,11 +1711,14 @@ void op_mpi_reduce_float(op_arg* arg, float* data)
     }
     if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reduce_double(op_arg* arg, double* data)
 {
   (void)data;
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     double result_static;
@@ -1753,11 +1763,14 @@ void op_mpi_reduce_double(op_arg* arg, double* data)
     }
     if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reduce_int(op_arg* arg, int* data)
 {
   (void)data;
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     int result_static;
@@ -1802,12 +1815,14 @@ void op_mpi_reduce_int(op_arg* arg, int* data)
     }
     if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reduce_bool(op_arg* arg, bool* data)
 {
   (void)data;
-
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
     bool result_static;
@@ -1852,6 +1867,8 @@ void op_mpi_reduce_bool(op_arg* arg, bool* data)
     }
     if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 /*******************************************************************************
@@ -2134,6 +2151,19 @@ static void op_reset_halo(op_arg* arg)
   }
 }
 
+void op_compute_moment(double t, double *first, double *second) {
+  double times[2];
+  double times_reduced[2];
+  int comm_size;
+  times[0] = t;
+  times[1] = t*t;
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+  MPI_Reduce(times, times_reduced, 2, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  *first = times_reduced[0]/(double)comm_size;
+  *second = times_reduced[1]/(double)comm_size;
+}
+
 /*******************************************************************************
  * Routine to output performance measures
  *******************************************************************************/
@@ -2414,9 +2444,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
     }
   }
   if (!op_should_do_exchange(nargs, args)) return size;
+  op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT)
       op_exchange_halo(&args[n], exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;
 }
 
@@ -2452,9 +2485,12 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
     }
   }
   if (!op_should_do_exchange(nargs, args)) return size;
+  op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++)
     if(args[n].opt && args[n].argtype == OP_ARG_DAT)
       op_exchange_halo_cuda(&args[n],exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;
 }
 
@@ -2480,16 +2516,22 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
   if (!op_should_do_exchange(nargs, args)) return;
+  op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     op_wait_all(&args[n]);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   if (!op_should_do_exchange(nargs, args)) return;
+  op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     op_wait_all_cuda(&args[n]);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {

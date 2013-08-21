@@ -179,6 +179,7 @@ typedef struct
   float       plan_time;/* time spent in op_plan_get */
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
+  float       mpi_time; /* time spent in MPI calls */
 } op_kernel;
 
 
@@ -262,6 +263,8 @@ void op_dump_dat ( op_dat data );
 void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 
 void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name);
+
+void op_compute_moment(double t, double *first, double *second);
 
 /*******************************************************************************
 * Core MPI lib function prototypes

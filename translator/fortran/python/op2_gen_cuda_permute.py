@@ -317,9 +317,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
         if ((accs[g_m]==OP_READ and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1)) or accs[g_m]==OP_WRITE):
           code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opGblDat'+str(g_m+1)+'Device'+name)
 
-    code('REAL(kind=4) :: loopTimeHost'+name)
-    code('REAL(kind=4) :: loopTimeKernel'+name)
-    code('INTEGER(kind=4) :: numberCalled'+name)
+
     code('')
 
     if ninds > 0:
@@ -1076,6 +1074,10 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('TYPE ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
     code('INTEGER(kind=4) :: n_upper')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
     code('INTEGER(kind=4) :: returnSetKernelTiming')
     code('')
     code('')
@@ -1151,15 +1153,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
       code('')
 
     code('INTEGER(kind=4) :: istat')
-    code('REAL(kind=4) :: accumulatorHostTime')
-    code('REAL(kind=4) :: accumulatorHExchTime')
-    code('REAL(kind=4) :: accumulatorKernelTime')
-    code('REAL(kind=8) :: KT_double')
-    code('TYPE ( cudaEvent )  :: startTimeHost')
-    code('TYPE ( cudaEvent )  :: endTimeHost')
-    code('TYPE ( cudaEvent )  :: startTimeKernel')
-    code('TYPE ( cudaEvent )  :: endTimeKernel')
-
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL:
         if accs[g_m] == OP_WRITE or (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
@@ -1191,24 +1184,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.d0, 0.00000,0.00000, 0)')
-    code('')
-    code('istat = cudaEventCreate(startTimeHost)')
-    code('istat = cudaEventCreate(endTimeHost)')
-    code('istat = cudaEventRecord(startTimeHost,0)')
+
+    code('call op_timers_core(startTime)')
     code('')
     code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
     code('')
-
-    code('istat = cudaEventRecord(endTimeHost,0)')
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHExchTime,startTimeHost,endTimeHost)')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHExchTime')
-    code('')
-    code('istat = cudaEventCreate(startTimeKernel)')
-    code('istat = cudaEventCreate(endTimeKernel)')
-    code('numberCalled'+name+' = numberCalled'+name+' + 1')
-    code('')
-
 
     if ninds > 0:
       for g_m in range(0,nargs):
@@ -1305,12 +1285,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
         code('')
         code('reductionArrayDevice'+str(g_m+1)+name+' = reductionArrayHost'+str(g_m+1)+'')
 
-    code('istat = cudaEventRecord(endTimeHost,0)')
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-    code('')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('istat = cudaEventRecord(startTimeKernel,0)')
     code('')
 
     #indirect loop host stub call
@@ -1388,13 +1362,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('')
 
     code('')
-    code('istat = cudaEventRecord(endTimeKernel,0)')
-    code('istat = cudaEventSynchronize(endTimeKernel)')
-    code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    code('')
-
-    code('')
     code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
     code('')
 
@@ -1403,7 +1370,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
         code('opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim) = opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim)')
 
     if reduct:
-      code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
       #reductions
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
@@ -1429,12 +1395,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           code('')
 
-      code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
-      code('istat = cudaEventSynchronize(endTimeHost)')
-      code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-      code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-
-    code('KT_double = REAL((accumulatorKernelTime) / 1000.00)')
+    code('istat = cudaDeviceSynchronize()')
+    code('call op_timers_core(endTime)')
+    code('')
     if ninds == 0:
       code('dataTransfer = 0.0')
       for g_m in range(0,nargs):
@@ -1452,9 +1415,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& KT_double, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& KT_double, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
 
     code('calledTimes = calledTimes + 1')
     depth = depth - 2
@@ -1589,12 +1552,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('INTEGER(kind=4) :: numberOfThreads')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
-    code('REAL(kind=8) :: startTimeHost')
-    code('REAL(kind=8) :: endTimeHost')
-    code('REAL(kind=8) :: startTimeKernel')
-    code('REAL(kind=8) :: endTimeKernel')
-    code('REAL(kind=8) :: accumulatorHostTime')
-    code('REAL(kind=8) :: accumulatorKernelTime')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
     code('INTEGER(kind=4) :: returnSetKernelTiming')
 
     if ninds > 0: #if indirect loop
@@ -1636,17 +1595,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.d0, 0.00000,0.00000, 0)')
+
+    code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
-
-    code('numberCalled'+name+' = numberCalled'+name+'+ 1')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000.00 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
     code('')
 
     if ninds > 0:
@@ -1717,22 +1670,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
         ENDDO()
         ENDDO()
 
-    code('')
-    code('')
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    code('& 1000 * timeArrayEnd(7)  + &')
-    code('& 60000 * timeArrayEnd(6) + &')
-    code('& 3600000 * timeArrayEnd(5)')
-    code('')
-    code('accumulatorHostTime = endTimeHost - startTimeHost')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeKernel = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
     code('')
 
     if ninds > 0: #indirect loop host stub call
@@ -1805,25 +1742,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
     code('')
-
-
-    code('')
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeKernel = 1.00000 * timeArrayEnd(8) + &')
-    code('& 1000 * timeArrayEnd(7) + &')
-    code('& 60000 * timeArrayEnd(6) + &')
-    code('& 3600000 * timeArrayEnd(5)')
-    code('')
-    code('accumulatorKernelTime = endTimeKernel - startTimeKernel')
-    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000.00 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
-
-    code('')
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
     code('')
 
@@ -1852,14 +1770,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
           code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
         code('')
 
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    code('1000 * timeArrayEnd(7) + &')
-    code('60000 * timeArrayEnd(6) + &')
-    code('3600000 * timeArrayEnd(5)')
-    code('')
-    code('accumulatorHostTime = endTimeHost - startTimeHost')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
+    code('call op_timers_core(endTime)')
     code('')
     if ninds == 0:
       code('dataTransfer = 0.0')
@@ -1878,14 +1789,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra):
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& accumulatorKernelTime / 1000.00, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& accumulatorKernelTime / 1000.00, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE')
-    code('')
 ##########################################################################
 #  output individual kernel file
 ##########################################################################

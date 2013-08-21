@@ -858,9 +858,9 @@ if npart==0 and nhdf5>0:
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-#op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra)
+#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)
 #if hydra:

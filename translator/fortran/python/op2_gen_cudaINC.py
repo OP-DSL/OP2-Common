@@ -335,9 +335,7 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
         if ((accs[g_m]==OP_READ and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1)) or accs[g_m]==OP_WRITE):
           code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opGblDat'+str(g_m+1)+'Device'+name)
 
-    code('REAL(kind=4) :: loopTimeHost'+name)
-    code('REAL(kind=4) :: loopTimeKernel'+name)
-    code('INTEGER(kind=4) :: numberCalled'+name)
+
     code('')
 
     if ninds > 0:
@@ -1196,6 +1194,10 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('TYPE ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
     code('INTEGER(kind=4) :: n_upper')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
     code('INTEGER(kind=4) :: returnSetKernelTiming')
     code('')
     code('')
@@ -1275,13 +1277,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
       code('')
 
     code('INTEGER(kind=4) :: istat')
-    code('REAL(kind=4) :: accumulatorHostTime')
-    code('REAL(kind=4) :: accumulatorKernelTime')
-    code('REAL(kind=8) :: KT_double')
-    code('TYPE ( cudaEvent )  :: startTimeHost')
-    code('TYPE ( cudaEvent )  :: endTimeHost')
-    code('TYPE ( cudaEvent )  :: startTimeKernel')
-    code('TYPE ( cudaEvent )  :: endTimeKernel')
 
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL:
@@ -1313,20 +1308,11 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('')
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.d0, 0.00000,0.00000, 0)')
-    code('')
 
+    code('call op_timers_core(startTime)')
+    code('')
     code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
     code('')
-
-    code('istat = cudaEventCreate(startTimeHost)')
-    code('istat = cudaEventCreate(endTimeHost)')
-    code('istat = cudaEventCreate(startTimeKernel)')
-    code('istat = cudaEventCreate(endTimeKernel)')
-    code('')
-    code('numberCalled'+name+' = numberCalled'+name+' + 1')
-    code('istat = cudaEventRecord(startTimeHost,0)')
-    code('')
-
     if ninds > 0:
       for g_m in range(0,nargs):
         code('indirectionDescriptorArray('+str(g_m+1)+') = '+str(inds[g_m]-1))
@@ -1423,12 +1409,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
         code('')
         code('reductionArrayDevice'+str(g_m+1)+name+' = reductionArrayHost'+str(g_m+1)+'')
 
-    code('istat = cudaEventRecord(endTimeHost,0)')
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-    code('')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('istat = cudaEventRecord(startTimeKernel,0)')
     code('')
 
     #indirect loop host stub call
@@ -1502,15 +1482,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
     ENDIF()
     code('')
-
-    code('')
-    code('istat = cudaEventRecord(endTimeKernel,0)')
-    code('istat = cudaEventSynchronize(endTimeKernel)')
-    code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    code('')
-
-    code('')
     code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
     code('')
 
@@ -1519,7 +1490,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
         code('opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim) = opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim)')
 
     if reduct:
-      code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
       #reductions
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
@@ -1545,12 +1515,9 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           code('')
 
-      code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
-      code('istat = cudaEventSynchronize(endTimeHost)')
-      code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-      code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-
-    code('KT_double = REAL(accumulatorKernelTime / 1000.00)')
+    code('istat = cudaDeviceSynchronize()')
+    code('call op_timers_core(endTime)')
+    code('')
     if ninds == 0:
       code('dataTransfer = 0.0')
       for g_m in range(0,nargs):
@@ -1568,9 +1535,9 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& KT_double, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& KT_double, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
 
     code('calledTimes = calledTimes + 1')
     depth = depth - 2
@@ -1579,6 +1546,84 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('')
     comm('Stub for CPU execution')
     code('')
+##########################################################################
+#  Generate OpenMP host stub
+##########################################################################
+##########################################################################
+#  Generate wrapper to iterate over set
+##########################################################################
+
+    code('SUBROUTINE op_wrap_'+name+'( &')
+    depth = depth + 2
+    for g_m in range(0,ninds):
+      code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('& opDat'+str(g_m+1)+'Local, &')
+      elif maps[g_m] == OP_GBL:
+        code('& opDat'+str(g_m+1)+'Local, &')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
+          code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+    code('& bottom,top)')
+
+    for g_m in range(0,ninds):
+      code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
+      elif maps[g_m] == OP_GBL:
+        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
+          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
+
+    code('INTEGER(kind=4) bottom,top,i1')
+    if nmaps > 0:
+      k = []
+      line = 'INTEGER(kind=4) '
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          line += 'map'+str(mapinds[g_m]+1)+'idx, '
+      code(line[:-2])
+    code('')
+    DO('i1','bottom','top')
+    k = []
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
+    comm('kernel call')
+    line = 'CALL '+name+'( &'
+    indent = '\n'+' '*depth
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        line = line + indent + '& opDat'+str(g_m+1)+'Local(1,i1+1)'
+      if maps[g_m] == OP_MAP:
+        line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
+      if maps[g_m] == OP_GBL:
+        line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+      if g_m < nargs-1:
+        line = line +', &'
+      else:
+         line = line +' &'
+    depth = depth - 2
+    code(line + indent + '& )')
+    depth = depth + 2
+
+    ENDDO()
+    depth = depth - 2
+    code('END SUBROUTINE')
+
 ##########################################################################
 #  Generate OpenMP host stub
 ##########################################################################
@@ -1627,12 +1672,8 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     code('INTEGER(kind=4) :: numberOfThreads')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
-    code('REAL(kind=8) :: startTimeHost')
-    code('REAL(kind=8) :: endTimeHost')
-    code('REAL(kind=8) :: startTimeKernel')
-    code('REAL(kind=8) :: endTimeKernel')
-    code('REAL(kind=8) :: accumulatorHostTime')
-    code('REAL(kind=8) :: accumulatorKernelTime')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
     code('INTEGER(kind=4) :: returnSetKernelTiming')
 
     if ninds > 0: #if indirect loop
@@ -1654,6 +1695,7 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     else:
       code('INTEGER(kind=4) :: sliceStart')
       code('INTEGER(kind=4) :: sliceEnd')
+      code('REAL(kind=4) :: dataTransfer')
 
     code('')
     for g_m in range(0,nargs):
@@ -1671,17 +1713,13 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
       code('opArgArray('+str(g_m+1)+') = opArg'+str(g_m+1))
     code('')
 
+    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    code('& 0.d0, 0.00000,0.00000, 0)')
 
+    code('call op_timers_core(startTime)')
+    code('')
     #mpi halo exchange call
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
-
-    code('numberCalled'+name+' = numberCalled'+name+'+ 1')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000.00 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
     code('')
 
     if ninds > 0:
@@ -1753,22 +1791,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
         ENDDO()
 
     code('')
-    code('')
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    code('& 1000 * timeArrayEnd(7)  + &')
-    code('& 60000 * timeArrayEnd(6) + &')
-    code('& 3600000 * timeArrayEnd(5)')
-    code('')
-    code('accumulatorHostTime = endTimeHost - startTimeHost')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeKernel = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
-    code('')
 
     if ninds > 0: #indirect loop host stub call
       code('blockOffset = 0')
@@ -1791,50 +1813,26 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
       code('blockID = blkmap_'+name+'(i2+blockOffset+1)')
       code('nelem = nelems_'+name+'(blockID+1)')
       code('offset_b = offset_'+name+'(blockID+1)')
-      DO('n','0','nelem')
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and optflags[g_m]==1:
-          IF('opArg'+str(g_m+1)+'%opt == 1')
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+'):)')
-          ELSE()
-          code('opDat'+str(g_m+1)+'OptPtr => opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1:)')
-          ENDIF()
-      comm('kernel call')
-      line = 'CALL '+name+'( &'
-      indent = '\n'+' '*depth
+
+      code('CALL op_wrap_'+name+'( &')
+      for g_m in range(0,ninds):
+        code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + (n+offset_b) * ('+dims[g_m]+') : (n+offset_b) * ('+dims[g_m]+') + '+dims[g_m]+')'
-          else:
-            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + (n+offset_b))'
-        if maps[g_m] == OP_MAP and optflags[g_m]==0:
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') : opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') * ('+dims[g_m]+') + '+dims[g_m]+')'
-          else:
-            line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1 + opDat'+str(invinds[inds[g_m]-1]+1)+'Map(1 + (n+offset_b) * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+'))'
-        elif maps[g_m] == OP_MAP and optflags[g_m]==1:
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1:'+dims[g_m]+')'
-          else:
-            line = line +indent + '& opDat'+str(g_m+1)+'OptPtr(1)'
-        if maps[g_m] == OP_GBL:
+          code('& opDat'+str(g_m+1)+'Local, &')
+        elif maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
             code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
           else:
-            if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-              line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
-            else:
-              line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
-        if g_m < nargs-1:
-          line = line +', &'
-        else:
-           line = line +' &'
-      depth = depth - 2
-      code(line + indent + '& )')
-      depth = depth + 2
-      ENDDO()
+            code('& opDat'+str(g_m+1)+'Local, &')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
+            code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+      code('& offset_b, offset_b+nelem)')
       ENDDO()
       code('!$OMP END PARALLEL DO')
       code('blockOffset = blockOffset + nblocks')
@@ -1846,31 +1844,16 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
       code('sliceEnd = opSetCore%size * (i1 + 1) / numberOfThreads')
       code('threadID = omp_get_thread_num()')
       comm('kernel call')
-      DO('n','sliceStart', 'sliceEnd')
-      line = 'CALL '+name+'( &'
-      indent = '\n'+' '*depth
+      code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + n * ('+dims[g_m]+') : n * ('+dims[g_m]+') + '+dims[g_m]+')'
-          else:
-            line = line + indent + '& opDat'+str(g_m+1)+'Local(1 + n)'
-        if maps[g_m] == OP_GBL:
+          code('& opDat'+str(g_m+1)+'Local, &')
+        elif maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
-            line = line + indent + '& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1)'
+            code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
           else:
-            if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-              line = line + indent +'& opDat'+str(g_m+1)+'Local(1:'+dims[g_m]+')'
-            else:
-              line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
-        if g_m < nargs-1:
-          line = line +', &'
-        else:
-           line = line +' &'
-      depth = depth - 2
-      code(line + indent + '& )')
-      depth = depth + 2
-      ENDDO()
+            code('& opDat'+str(g_m+1)+'Local, &')
+      code('& sliceStart, sliceEnd)')
       ENDDO()
       code('!$OMP END PARALLEL DO')
 
@@ -1878,25 +1861,6 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
     code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
-    code('')
-
-
-    code('')
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeKernel = 1.00000 * timeArrayEnd(8) + &')
-    code('& 1000 * timeArrayEnd(7) + &')
-    code('& 60000 * timeArrayEnd(6) + &')
-    code('& 3600000 * timeArrayEnd(5)')
-    code('')
-    code('accumulatorKernelTime = endTimeKernel - startTimeKernel')
-    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    code('')
-    code('call date_and_time(values=timeArrayStart)')
-    code('startTimeHost = 1.00000 * timeArrayStart(8) + &')
-    code('& 1000.00 * timeArrayStart(7) + &')
-    code('& 60000 * timeArrayStart(6) + &')
-    code('& 3600000 * timeArrayStart(5)')
-
     code('')
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
     code('')
@@ -1926,25 +1890,31 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
           code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
         code('')
 
-    code('call date_and_time(values=timeArrayEnd)')
-    code('endTimeHost = 1.00000 * timeArrayEnd(8) + &')
-    code('1000 * timeArrayEnd(7) + &')
-    code('60000 * timeArrayEnd(6) + &')
-    code('3600000 * timeArrayEnd(5)')
+    code('call op_timers_core(endTime)')
     code('')
-    code('accumulatorHostTime = endTimeHost - startTimeHost')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('')
+    if ninds == 0:
+      code('dataTransfer = 0.0')
+      for g_m in range(0,nargs):
+        if accs[g_m] == OP_READ:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
+        else:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+') * 2.d0')
+
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& accumulatorKernelTime / 1000.00,actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2)')
+      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& accumulatorKernelTime / 1000.00,0.00000,0.00000)')
+      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')
-
     code('END MODULE')
 ##########################################################################
 #  output individual kernel file

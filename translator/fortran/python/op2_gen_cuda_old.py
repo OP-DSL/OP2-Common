@@ -259,9 +259,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     depth = depth - 2
     code('END TYPE '+name+'_opDatCardinalities')
     code('')
-    code('REAL(kind=4) :: loopTimeHost'+name)
-    code('REAL(kind=4) :: loopTimeKernel'+name)
-    code('INTEGER(kind=4) :: numberCalled'+name)
+
     code('')
     for g_m in range(0,ninds):
       code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(invinds[g_m]+1)+'Device'+name)
@@ -684,6 +682,10 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('TYPE ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
     code('INTEGER(kind=4) :: returnMPIHaloExchange')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
+    code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
+    code('REAL(kind=8) :: startTime')
+    code('REAL(kind=8) :: endTime')
     code('INTEGER(kind=4) :: returnSetKernelTiming')
     code('')
     code('TYPE ( '+name+'_opDatDimensions ) , DEVICE :: opDatDimensions')
@@ -762,13 +764,6 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('')
 
     code('INTEGER(kind=4) :: istat')
-    code('REAL(kind=4) :: accumulatorHostTime')
-    code('REAL(kind=4) :: accumulatorKernelTime')
-    code('REAL(kind=8) :: KT_double')
-    code('TYPE ( cudaEvent )  :: startTimeHost')
-    code('TYPE ( cudaEvent )  :: endTimeHost')
-    code('TYPE ( cudaEvent )  :: startTimeKernel')
-    code('TYPE ( cudaEvent )  :: endTimeKernel')
 
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL:
@@ -786,6 +781,8 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('')
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.d0, 0.00000,0.00000, 0)')
+
+    code('call op_timers_core(startTime)')
     code('')
     code('returnMPIHaloExchange = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
     IF('returnMPIHaloExchange .EQ. 0')
@@ -793,15 +790,6 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
     code('RETURN')
     ENDIF()
-    code('')
-
-    code('istat = cudaEventCreate(startTimeHost)')
-    code('istat = cudaEventCreate(endTimeHost)')
-    code('istat = cudaEventCreate(startTimeKernel)')
-    code('istat = cudaEventCreate(endTimeKernel)')
-    code('')
-    code('numberCalled'+name+' = numberCalled'+name+' + 1')
-    code('istat = cudaEventRecord(startTimeHost,0)')
     code('')
 
     if ninds > 0:
@@ -935,13 +923,6 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
         code('')
         code('reductionArrayDevice'+str(g_m+1)+' = reductionArrayHost'+str(g_m+1)+'')
 
-    code('istat = cudaEventRecord(endTimeHost,0)')
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-    code('')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('istat = cudaEventRecord(startTimeKernel,0)')
-    code('')
 
     #indirect loop host stub call
     if ninds > 0:
@@ -961,17 +942,6 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('blockOffset = blockOffset + blocksPerGrid')
       ENDDO()
       code('')
-      code('istat = cudaEventRecord(endTimeKernel,0)')
-      code('istat = cudaEventSynchronize(endTimeKernel)')
-      code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-      code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-      code('')
-      code('istat = cudaEventRecord(startTimeHost,0)')
-      code('istat = cudaEventRecord(endTimeHost,0)')
-      code('istat = cudaEventSynchronize(endTimeHost)')
-      code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-      code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-      code('')
     else: #direct loop host stub call
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> &')
       code('& (opDatDimensions,opDatCardinalities, &')
@@ -981,18 +951,12 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('set%setPtr%size, &')
       code('& warpSize,sharedMemoryOffset)')
       code('')
-      code('threadSynchRet = cudaThreadSynchronize()')
-      code('istat = cudaEventRecord(endTimeKernel,0)')
-      code('istat = cudaEventSynchronize(endTimeKernel)')
-      code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-      code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-      code('')
+      code('threadSynchRet = cudaDeviceSynchronize()')
 
     #reduction
     #reductions
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
-        code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
         code('reductionArrayHost'+str(g_m+1)+' = reductionArrayDevice'+str(g_m+1)+'')
         code('')
         DO('i10','0','reductionCardinality'+str(g_m+1)+'')
@@ -1003,12 +967,10 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
         code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
         code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
         code('')
-        code('calledTimes = calledTimes + 1')
-        code('istat = cudaEventRecord(endTimeHost,0)') #end timer for reduction
-        code('istat = cudaEventSynchronize(endTimeHost)')
-        code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-        code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
 
+    code('istat = cudaDeviceSynchronize()')
+    code('call op_timers_core(endTime)')
+    code('')
     if ninds == 0:
       code('dataTransfer = 0.0')
       for g_m in range(0,nargs):
@@ -1026,9 +988,9 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& accumulatorKernelTime / 1000.00, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& accumulatorKernelTime / 1000.00, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')
