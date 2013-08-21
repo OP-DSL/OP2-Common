@@ -66,7 +66,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran
   FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICC           = mpicc
   MPICXX          = mpicxx
   MPIF90          = mpif90
   NO_MPI_MACRO    = -DNO_MPI
