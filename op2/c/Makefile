@@ -30,7 +30,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
   CXX      := g++
   CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   := /usr/bin/mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
@@ -38,15 +38,23 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS  := -O3 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
   CXX      := icpc
   CXXFLAGS := $(CCFLAGS)
-  MPICXX   := mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CC	     := pgcc
-  CCFLAGS	 := -O3
-  CXX	     := pgCC
+  CC	   := pgcc
+  CCFLAGS  := -O3
+  CXX	   := pgCC
   CXXFLAGS := $(CCFLAGS)
-  MPICXX	 := /home/gihan/openmpi-pgi/bin/mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS := $(CXXFLAGS)
+else
+ifeq ($(OP2_COMPILER),cray)
+  CC       := cc
+  CCFLAGS  := -O3
+  CXX      := CC
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := CC
   MPIFLAGS := $(CXXFLAGS)
 else
 print:
@@ -54,12 +62,13 @@ print:
 endif
 endif
 endif
+endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER=4
+PARMETIS_VER?=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -107,10 +116,9 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 	$(CXX) $(CXXFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
-	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o  $(OBJ)/op_dummy_singlenode.o
+	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
@@ -141,6 +149,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_hdf5.o $(OBJ)/op_util.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(SRC)/externlib/op_renumber.cpp \
+	-o $(OBJ)/op_renumber.o
 
 	ar -r $(LIB)/libop2_mpi.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -149,7 +159,8 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_rt_support.o \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o \
-	$(OBJ)/op_mpi_util.o
+	$(OBJ)/op_mpi_util.o \
+	$(OBJ)/op_renumber.o
 
 mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
@@ -158,7 +169,7 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
@@ -179,6 +190,8 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_cuda_kernels.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(SRC)/externlib/op_renumber.cpp \
+	-o $(OBJ)/op_renumber.o
 
 	ar -r $(LIB)/libop2_mpi_cuda.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_part_core.o \
@@ -188,12 +201,14 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_util.o \
 	$(OBJ)/op_mpi_hdf5.o \
 	$(OBJ)/op_mpi_cuda_kernels.o \
-	$(OBJ)/op_mpi_util.o
+	$(OBJ)/op_mpi_util.o \
+	$(OBJ)/op_renumber.o
 
 clean:
 	-rm -if $(OBJ)/*.o
 	-rm -if $(OBJ)/*~
 	-rm -if $(LIB)/*.a
+	-rm -if $(LIB)/*.so
 	-rm -if $(SRC)/*~
 	-rm -if $(SRC)/sequential/*~
 	-rm -if $(SRC)/cuda/*~

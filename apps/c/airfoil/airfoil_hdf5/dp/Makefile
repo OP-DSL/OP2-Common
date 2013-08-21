@@ -22,9 +22,9 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -g -fPIC -DUNIX -Wall #-Wextra
+  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall #-O0 -g -Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= /usr/bin/mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
@@ -32,11 +32,29 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
+else
+ifeq ($(OP2_COMPILER),pgi)
+  CPP       	= pgCC
+  CCFLAGS  	= -O3
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -mp
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS 	= $(CPPFLAGS)
+else
+ifeq ($(OP2_COMPILER),cray)
+  CPP           = CC
+  CCFLAGS       = -O3 -h fp3 -h ipa5
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -h omp
+  MPICPP        = CC
+  MPIFLAGS      = $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
+endif
 endif
 endif
 
@@ -46,7 +64,6 @@ endif
 # set flags for NVCC compilation and linking
 #
 NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
-
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
 #

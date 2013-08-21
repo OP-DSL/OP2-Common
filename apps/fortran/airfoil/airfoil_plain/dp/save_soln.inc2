@@ -1,0 +1,11 @@
+SUBROUTINE save_soln_gpu(q,qold)
+  IMPLICIT NONE
+
+  REAL(kind=8), INTENT(IN) :: q(4)
+  REAL(kind=8) :: qold(4)
+  INTEGER(kind=4) :: i
+
+  DO i = 1, 4
+    qold(i) = q(i)
+  END DO
+END SUBROUTINE

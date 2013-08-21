@@ -48,10 +48,15 @@ int OP_diags = 0,
     OP_cache_line_size = 128,
     OP_gpu_direct = 0;
 
+double OP_hybrid_balance = 1.0;
+int OP_hybrid_gpu = 0;
+int OP_mpi_experimental = 0;
+
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0,
-    OP_kern_max = 0;
+    OP_kern_max = 0,
+    OP_kern_curr = 0;
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -61,7 +66,6 @@ op_set * OP_set_list;
 op_map * OP_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel * OP_kernels;
-
 
 /*
  * Utility functions
@@ -110,6 +114,20 @@ void
 {
   OP_diags = diags;
 
+  if ( getenv ( "OP_HYBRID_BALANCE" ) )
+  {
+    char* val = getenv ( "OP_HYBRID_BALANCE" );
+    OP_hybrid_balance = atof ( val );
+    printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+  }
+
+  if ( getenv ( "OP_MPI_EXPERIMENTAL" ) )
+  {
+    char* val = getenv ( "OP_MPI_EXPERIMENTAL" );
+    OP_mpi_experimental = atoi ( val );
+    printf ( "\n OP2 Experimental MPI optimizations enabled  = %d \n", OP_mpi_experimental );
+  }
+
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;
 #endif
@@ -143,7 +161,17 @@ void
       OP_gpu_direct = 1;
       printf ( "\n Enabling GPU Direct \n" );
     }
+    if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 )
+    {
+      OP_hybrid_balance = atof ( argv[n] + 18 );;
+      printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+    }
 
+    if ( strncmp ( argv[n], "OP_MPI_EXPERIMENTAL=",  20 ) == 0 )
+    {
+      OP_mpi_experimental = atoi ( argv[n] + 20 );
+      printf ( "\n OP2 Experimental MPI optimizations enabled  = %d \n", OP_mpi_experimental );
+    }
   }
 
   /*Initialize the double linked list to hold op_dats*/
@@ -271,6 +299,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   dat->size = dim * size;
   dat->user_managed = 1;
   dat->mpi_buffer = NULL;
+  dat->dirty_hd = 0;
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry* item;
@@ -406,14 +435,14 @@ op_err_print ( const char * error_string, int m, const char * name )
 {
   printf ( "error: arg %d in kernel \"%s\"\n", m, name );
   printf ( "%s \n", error_string );
-  exit ( 1 );
+//  exit ( 1 );
 }
 
 void
 op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
 {
   /* error checking for op_arg_dat */
-
+  if (arg.opt == 0) return;
   if ( arg.argtype == OP_ARG_DAT )
   {
     if ( set == NULL )
@@ -433,7 +462,13 @@ op_arg_check ( op_set set, int m, op_arg arg, int * ninds, const char * name )
       op_err_print ( "dataset dim does not match declared dim", m, name );
 
     if ( strcmp ( arg.dat->type, arg.type ) ){
-      op_err_print ( "dataset type does not match declared type", m, name );
+      if ((strcmp(arg.dat->type, "double")==0 && (int)arg.type[0]==114 && (int)arg.type[1]==56 && (int)arg.type[2]!=58) ||
+          (strcmp(arg.dat->type, "double:soa")==0 && (int)arg.type[0]==114 && (int)arg.type[1]==56 && (int)arg.type[2]==58) ||
+          (strcmp(arg.dat->type, "int")==0 && (int)arg.type[0]==105 && (int)arg.type[1]==52)) {}
+      else {
+        printf("%s %s %s (%s)\n", set->name, arg.dat->type, arg.type, arg.dat->name);
+        op_err_print ( "dataset type does not match declared type", m, name );
+      }
     }
 
     if ( arg.idx >= 0 )
@@ -462,7 +497,7 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
 
   /* index is not used for now */
   arg.index = -1;
-
+  arg.opt = 1;
   arg.argtype = OP_ARG_DAT;
 
   arg.dat = dat;
@@ -475,6 +510,8 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
+    arg.map_data_d = (map == NULL ? NULL : map->map_d);
+    arg.map_data = (map == NULL ? NULL : map->map);
   }
   else
   {
@@ -482,6 +519,50 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.size = -1;
     arg.data = NULL;
     arg.data_d = NULL;
+    arg.map_data_d = NULL;
+    arg.map_data = NULL;
+  }
+
+  arg.type = typ;
+  arg.acc = acc;
+
+  /*initialize to 0 states no-mpi messages inflight for this arg*/
+  arg.sent = 0;
+
+  return arg;
+}
+
+op_arg
+op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc )
+{
+  op_arg arg;
+
+  /* index is not used for now */
+  arg.index = -1;
+  arg.opt = opt;
+  arg.argtype = OP_ARG_DAT;
+
+  arg.dat = dat;
+  arg.map = map;
+  arg.dim = dim;
+  arg.idx = idx;
+
+  if ( dat != NULL )
+  {
+    arg.size = dat->size;
+    arg.data = dat->data;
+    arg.data_d = dat->data_d;
+    arg.map_data_d = (map == NULL ? NULL : map->map_d);
+    arg.map_data = map == NULL ? NULL : map->map;
+  }
+  else
+  {
+    /* set default values */
+    arg.size = -1;
+    arg.data = NULL;
+    arg.data_d = NULL;
+    arg.map_data_d = (map == NULL ? NULL : map->map_d);
+    arg.map_data = (map == NULL ? NULL : map->map);
   }
 
   arg.type = typ;
@@ -501,6 +582,7 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.argtype = OP_ARG_GBL;
 
   arg.dat = NULL;
+  arg.opt = 1;
   arg.map = NULL;
   arg.dim = dim;
   arg.idx = -1;
@@ -508,6 +590,8 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.data = data;
   arg.type = typ;
   arg.acc = acc;
+  arg.map_data_d = NULL;
+  arg.map_data = NULL;
 
   /* setting default values for remaining fields */
   arg.index = -1;
@@ -563,24 +647,34 @@ void op_timing_output_core()
 {
   if ( OP_kern_max > 0 )
   {
-    printf ( "\n  count   plan time   time     GB/s     GB/s   kernel name " );
-    printf ( "\n ----------------------------------------------- \n" );
+    if (op_is_root()) printf ( "\n  count   plan time     MPI time(std)        time(std)           GB/s      GB/s   kernel name " );
+    if (op_is_root()) printf ( "\n -------------------------------------------------------------------------------------------\n" );
     for ( int n = 0; n < OP_kern_max; n++ )
     {
       if ( OP_kernels[n].count > 0 )
       {
-        if ( OP_kernels[n].transfer2 < 1e-8f )
-          printf ( " %6d            %8.4f %8.4f            %s \n",
+        double moments_mpi_time[2];
+        double moments_time[2];
+        op_compute_moment(OP_kernels[n].time, &moments_time[0], &moments_time[1]);
+        op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0], &moments_mpi_time[1]);
+        if ( OP_kernels[n].transfer2 < 1e-8f ) {
+          float transfer = MAX(0.0f,OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time - OP_kernels[n].mpi_time));
+
+          if (op_is_root()) printf ( " %6d;           ; %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;         ;   %s \n",
                    OP_kernels[n].count,
-                   OP_kernels[n].time,
-                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
-        else
-          printf ( " %6d  %8.4f  %8.4f %8.4f %8.4f   %s \n",
+                   moments_mpi_time[0], sqrt(moments_mpi_time[1] - moments_mpi_time[0]*moments_mpi_time[0]),
+                   moments_time[0], sqrt(moments_time[1] - moments_time[0]*moments_time[0]),
+                   transfer, OP_kernels[n].name);
+        } else {
+          float transfer = MAX(0.0f, OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time - OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+          float transfer2 = MAX(0.0f, OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time - OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+          if (op_is_root()) printf ( " %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;   %s \n",
                    OP_kernels[n].count,
                    OP_kernels[n].plan_time,
-                   OP_kernels[n].time,
-                   OP_kernels[n].transfer / ( 1e9f * OP_kernels[n].time ),
-                   OP_kernels[n].transfer2 / ( 1e9f * OP_kernels[n].time ), OP_kernels[n].name );
+                   moments_mpi_time[0], sqrt(moments_mpi_time[1] - moments_mpi_time[0]*moments_mpi_time[0]),
+                   moments_time[0], sqrt(moments_time[1] - moments_time[0]*moments_time[0]),
+                   transfer, transfer2, OP_kernels[n].name);
+        }
       }
     }
   }
@@ -645,6 +739,7 @@ void
 op_timing_realloc ( int kernel )
 {
   int OP_kern_max_new;
+  OP_kern_curr = kernel;
 
   if ( kernel >= OP_kern_max )
   {
@@ -663,6 +758,7 @@ op_timing_realloc ( int kernel )
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
+      OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].name = "unused";
     }
     OP_kern_max = OP_kern_max_new;

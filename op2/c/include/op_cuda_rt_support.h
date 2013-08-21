@@ -102,6 +102,9 @@ void op_cuda_get_data ( op_dat dat );
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int * inds );
 
+op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int * inds, int staging );
+
 void op_cuda_exit (  );
 
 /*

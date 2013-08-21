@@ -38,7 +38,19 @@ __global__ void export_halo_gather(int* list, char * dat, int copy_size,
 {
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   if (id<copy_size) {
-    for (int i =0;i<elem_size;i++) {
+    int off = 0;
+    if (elem_size%16 == 0) {
+      off += 16*(elem_size/16);
+      for (int i = 0; i < elem_size/16; i++) {
+        ((double2*)(export_buffer+id*elem_size))[i] = ((double2*)(dat+list[id]*elem_size))[i];
+      }
+    } else if (elem_size%8 == 0) {
+      off += 8*(elem_size/8);
+      for (int i = 0; i < elem_size/8; i++) {
+        ((double*)(export_buffer+id*elem_size))[i] = ((double*)(dat+list[id]*elem_size))[i];
+      }
+    }
+    for (int i = off;i<elem_size;i++) {
       export_buffer[id*elem_size+i]=dat[list[id]*elem_size+i];
     }
   }
@@ -50,9 +62,15 @@ __global__ void export_halo_gather_soa(int* list, char * dat, int copy_size,
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   int size_of = elem_size/dim;
   if (id<copy_size) {
-    for (int i =0;i<dim;i++) {
-      for (int j =0;j<size_of;j++) {
-        export_buffer[id*elem_size+i*size_of+j] = dat[list[id]*size_of+i*set_size*size_of+j];
+    if (size_of == 8) {
+      for (int i =0;i<dim;i++) {
+        ((double*)(export_buffer+id*elem_size))[i] = ((double*)(dat+list[id]*size_of))[i*set_size];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          export_buffer[id*elem_size+i*size_of+j] = dat[list[id]*size_of+i*set_size*size_of+j];
+        }
       }
     }
   }
@@ -64,9 +82,15 @@ __global__ void import_halo_scatter_soa(int offset, char * dat, int copy_size,
   int id = blockIdx.x*blockDim.x+threadIdx.x;
   int size_of = elem_size/dim;
   if (id<copy_size) {
-    for (int i =0;i<dim;i++) {
-      for (int j =0;j<size_of;j++) {
-        dat[(offset+id)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+    if (size_of == 8) {
+      for (int i =  0;i<dim;i++) {
+        ((double*)(dat+(offset+id)*size_of))[i*set_size] = ((double*)(import_buffer+id*elem_size))[i];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          dat[(offset+id)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+        }
       }
     }
   }

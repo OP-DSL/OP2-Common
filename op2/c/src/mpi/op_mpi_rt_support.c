@@ -50,6 +50,10 @@
 #include <op_rt_support.h>
 #include <op_lib_mpi.h>
 
+void op_upload_dat(op_dat dat) {}
+
+void op_download_dat(op_dat dat) {}
+
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
@@ -58,12 +62,15 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 {
   op_dat dat = arg->dat;
 
+  if (arg->opt == 0) return;
+
   if(arg->sent == 1)
   {
     printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
     fflush(stdout);
     MPI_Abort(OP_MPI_WORLD, 2);
   }
+  if (exec_flag == 0 && arg->idx == -1) return;
 
   //For a directly accessed op_dat do not do halo exchanges if not executing over
   //redundant compute block
@@ -178,13 +185,15 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
   }
 }
 
+void op_exchange_halo_cuda(op_arg* arg, int exec_flag) {}
+
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
 
 void op_wait_all(op_arg* arg)
 {
-  if(arg->argtype == OP_ARG_DAT && arg->sent == 1)
+  if(arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1)
   {
     op_dat dat = arg->dat;
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,
@@ -199,6 +208,8 @@ void op_wait_all(op_arg* arg)
   }
 
 }
+
+void op_wait_all_cuda(op_arg* arg) {}
 
 void op_partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords )

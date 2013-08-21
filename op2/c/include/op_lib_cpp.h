@@ -112,7 +112,7 @@ extern op_set    * OP_set_list;
 extern op_map    * OP_map_list;
 extern Double_linked_list OP_dat_list;
 extern op_kernel * OP_kernels;
-
+extern double OP_plan_time;
 
 op_dat op_decl_dat_char (op_set, int, char const *, int, char *, char const * );
 op_dat op_decl_dat_temp_char (op_set, int, char const *, int, char const * );

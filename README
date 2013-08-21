@@ -2,7 +2,7 @@ OP2 is an API with associated libraries and preprocessors to generate
 parallel executables for applications on unstructured grids.
 
 This repository contains the implementation of the run-time library
-and the MATLAB preprocessor, and is structured as follows:
+and the preprocessor, and is structured as follows:
 
 |
 `- op2: Implementation of the user and run-time OP2 C and Fortran APIs
@@ -13,7 +13,7 @@ and the MATLAB preprocessor, and is structured as follows:
 |  the target code an OP2 preprocessor should produce to correctly
 |  use the OP2 run-time library.
 |
-`- translator: MATLAB OP2 preprocessor for C
+`- translator: MATLAB and Pyton OP2 preprocessor for C and Fortran
 |
 `- doc: Documentation
 

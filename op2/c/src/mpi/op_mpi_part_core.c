@@ -656,7 +656,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           cost[map->index] = 2;
         else if(to_set->is_partitioned == 1 &&
             compare_all_sets(map->to,all_partitioned_sets,sets_partitioned)>=0)
-          cost[map->index] = 0;
+          cost[map->index] = (map->dim == 1 ? 0 : 1);
       }
     }
 
@@ -705,6 +705,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
 
   if(my_rank==MPI_ROOT)
   {
+    int die = 0;
     printf("Sets partitioned = %d\n",sets_partitioned);
     if(sets_partitioned != OP_set_index)
     {
@@ -715,10 +716,13 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
         {
           printf("Unable to find mapping between primary set and %s \n",
               P->set->name);
+          if (P->set->size != 0) die = 1;
         }
       }
-      printf("Partitioning aborted !\n");
-      MPI_Abort(OP_PART_WORLD, 1);
+      if (die) {
+        printf("Partitioning aborted !\n");
+        MPI_Abort(OP_PART_WORLD, 1);
+      }
     }
   }
 
@@ -1294,6 +1298,85 @@ static void migrate_all(int my_rank, int comm_size)
   }
 }
 
+/*****************************************************************************************************************************************
+ * This routine partitions based on information contained in an op_dat called partvecXXXX (number of total partitions, padded with 0s)
+ *****************************************************************************************************************************************/
+
+void op_partition_external(op_set primary_set, op_dat partvec)
+{
+  //declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+
+  op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
+
+  //create new communicator for partitioning
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+
+  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
+    partitioning information */
+
+  // Compute global partition range information for each set
+  int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
+
+  //save the original part_range for future partition reversing
+  orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  for(int s = 0; s< OP_set_index; s++)
+  {
+    op_set set=OP_set_list[s];
+    orig_part_range[set->index] = (int *)xmalloc(2*comm_size*sizeof(int));
+    for(int j = 0; j<comm_size; j++){
+      orig_part_range[set->index][2*j] = part_range[set->index][2*j];
+      orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
+    }
+  }
+
+  //allocate memory for list
+  OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
+
+  for(int s=0; s<OP_set_index; s++) { //for each set
+    op_set set=OP_set_list[s];
+    int *g_index = (int *)xmalloc(sizeof(int)*set->size);
+    for(int i = 0; i< set->size; i++)
+      g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);
+    decl_partition(set, g_index, NULL);
+  }
+
+  int *partition = (int *)xmalloc(sizeof(int)*primary_set->size);
+  memcpy(partition, partvec->data, sizeof(int)*primary_set->size);
+
+  //initialise primary set as partitioned
+  OP_part_list[primary_set->index]->elem_part= partition;
+  OP_part_list[primary_set->index]->is_partitioned = 1;
+
+  //free part range
+  for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+
+  //partition all other sets
+  partition_all(primary_set, my_rank, comm_size);
+
+  //migrate data, sort elements
+  migrate_all(my_rank, comm_size);
+
+  //renumber mapping tables
+  renumber_maps(my_rank, comm_size);
+
+  op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
+
+  //print time for partitioning
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
+  MPI_Comm_free(&OP_PART_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total random partitioning time = %lf\n",max_time);
+}
+
 /*******************************************************************************
  * This routine partitions a given set randomly
  *******************************************************************************/
@@ -1836,9 +1919,16 @@ void op_partition_kway(op_map primary_map)
   idxtype wgtflag = 0;
   int options[3] = {1,3,15};
 
+  int *hybrid_flags = (int *)malloc(comm_size*sizeof(int));
+  MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
+      1,MPI_INT,OP_PART_WORLD);
+  double total = 0;
+  for (int i = 0; i < comm_size; i++)
+    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+
   idxtype ncon = 1;
   float *tpwgts = (float *)xmalloc(comm_size*sizeof(float)*ncon);
-  for(int i = 0; i<comm_size*ncon; i++)tpwgts[i] = (float)1.0/(float)comm_size;
+  for(int i = 0; i<comm_size*ncon; i++) tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance/total : 1.0/total;
 
   float *ubvec = (float *)xmalloc(sizeof(float)*ncon);
   *ubvec = 1.05;
@@ -2842,12 +2932,412 @@ void op_partition_ptscotch(op_map primary_map)
 
 #endif
 
+/*******************************************************************************
+ * Use OPlus style recursive bisection in the inertial directions
+ *******************************************************************************/
+
+void op_partition_inertial(op_dat x_dat)
+{
+  //declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+  double *x = (double *)malloc(x_dat->set->size*x_dat->dim*sizeof(double));
+  memcpy(x, x_dat->data, x_dat->set->size*x_dat->dim*sizeof(double));
+
+  op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
+
+  //create new communicator for partitioning
+  int my_rank, comm_size;
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+
+  MPI_Comm mpi_comm = OP_PART_WORLD;
+  MPI_Group current_group;
+  MPI_Comm_group(mpi_comm, &current_group);
+  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
+    partitioning information */
+
+  // Compute global partition range information for each set
+  int** part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  get_part_range(part_range,my_rank,comm_size, OP_PART_WORLD);
+
+  //save the original part_range for future partition reversing
+  orig_part_range = (int **)xmalloc(OP_set_index*sizeof(int*));
+  for(int s = 0; s< OP_set_index; s++)
+  {
+    op_set set=OP_set_list[s];
+    orig_part_range[set->index] = (int *)xmalloc(2*comm_size*sizeof(int));
+    for(int j = 0; j<comm_size; j++){
+      orig_part_range[set->index][2*j] = part_range[set->index][2*j];
+      orig_part_range[set->index][2*j+1] = part_range[set->index][2*j+1];
+    }
+  }
+
+  //allocate memory for list
+  OP_part_list = (part *)xmalloc(OP_set_index*sizeof(part));
+
+  for(int s=0; s<OP_set_index; s++) { //for each set
+    op_set set=OP_set_list[s];
+    int *g_index = (int *)xmalloc(sizeof(int)*set->size);
+    for(int i = 0; i< set->size; i++)
+      g_index[i] = get_global_index(i,my_rank, part_range[set->index],comm_size);
+    decl_partition(set, g_index, NULL);
+  }
+
+  /* - STEP 1 figure out partitioning - */
+  int global_size = part_range[x_dat->set->index][2*(comm_size-1)+1]+1; //losg
+  int block_lower = part_range[x_dat->set->index][2*my_rank]; //losg1
+  int block_upper = part_range[x_dat->set->index][2*my_rank+1]; //losg2
+  int block_size = block_upper-block_lower+1; //losgd
+
+  int *global_indices = (int *)malloc(block_size*sizeof(int));
+  for (int i = 0; i < block_size; i++) global_indices[i] = block_lower + i;
+  int nlevel = 0;
+  while ((1<<nlevel) < comm_size) nlevel++;
+
+  int current_part_size = block_size; //losl
+  int current_group_size = global_size; //lopl
+
+  MPI_Request s_request,s_request2;
+  MPI_Status s_status,s_status2;
+  MPI_Status r_status;
+
+  double *dist;
+  double mtx[9];
+  double mtx_global[9];
+  double q[3], p[3], mue;
+  for (int level = 0; level < nlevel; level++) {
+    //op_inert begin
+    if (comm_size != 1) {
+      dist = (double *)malloc(current_part_size*sizeof(double));
+      double x_local = 0.0;
+      double y_local = 0.0;
+      double z_local = 0.0;
+      for (int i = 0; i < current_part_size; i++) {
+        x_local += x[3*i];
+        y_local += x[3*i+1];
+        z_local += x[3*i+2];
+      }
+      double x_global = 0.0;
+      double y_global = 0.0;
+      double z_global = 0.0;
+      MPI_Allreduce(&x_local, &x_global, 1, MPI_DOUBLE,
+        MPI_SUM, mpi_comm);
+      MPI_Allreduce(&y_local, &y_global, 1, MPI_DOUBLE,
+        MPI_SUM, mpi_comm);
+      MPI_Allreduce(&z_local, &z_global, 1, MPI_DOUBLE,
+        MPI_SUM, mpi_comm);
+      x_global /= (double)current_group_size;
+      y_global /= (double)current_group_size;
+      z_global /= (double)current_group_size;
+      // printf("Centre of gravity: %5.14f %5.14f %5.14f\n", x_global, y_global, z_global);
+      for (int i = 0; i < 9; i++) mtx[i]= 0.0;
+      for (int i = 0; i < 9; i++) mtx_global[i]= 0.0;
+      for (int i = 0; i < current_part_size; i++) {
+        mtx[0] += (x[3*i]-x_global)*(x[3*i]-x_global);
+        mtx[4] += (x[3*i+1]-y_global)*(x[3*i+1]-y_global);
+        mtx[8] += (x[3*i+2]-z_global)*(x[3*i+2]-z_global);
+        mtx[1] += (x[3*i]-x_global)*(x[3*i+1]-y_global);
+        mtx[2] += (x[3*i]-x_global)*(x[3*i+2]-z_global);
+        mtx[5] += (x[3*i+1]-y_global)*(x[3*i+2]-z_global);
+      }
+      mtx[3] = mtx[1];
+      mtx[6] = mtx[2];
+      mtx[7] = mtx[5];
+      MPI_Allreduce(mtx, mtx_global, 9, MPI_DOUBLE,
+        MPI_SUM, mpi_comm);
+
+      q[0] = 0.0; q[1] = 0.0; q[2] = 0.0;
+      if (mtx_global[0] > mtx_global[4] && mtx_global[0] > mtx_global[8]) q[0] = 1.0;
+      if (mtx_global[4] > mtx_global[0] && mtx_global[4] > mtx_global[8]) q[1] = 1.0;
+      if (mtx_global[8] > mtx_global[0] && mtx_global[8] > mtx_global[4]) q[2] = 1.0;
+
+      int iter = 0;
+      double err = 1.0;
+      while (iter++<20000 && err > 1e-9) {
+        // p = A*x
+        for (int i = 0; i < 3; i++) {
+          p[i] = 0.0;
+          for (int j = 0; j < 3; j++) {
+            p[i] += mtx_global[i*3+j] * q[j];
+          }
+        }
+        //mue = qT*p
+        mue = 0.0;
+        for (int i = 0; i < 3; i++)
+          mue += q[i]*p[i];
+        double sum = 0.0;
+        for (int i = 0; i < 3; i++)
+          sum += p[i]*p[i];
+        sum = 1.0/sqrt(sum);
+        for (int i = 0; i < 3; i++)
+          p[i] *= sum;
+        err = 0.0;
+        for (int i = 0; i < 3; i++)
+          err += (q[i]-p[i])*(q[i]-p[i]);
+        err = sqrt(err);
+        for (int i = 0; i < 3; i++)
+          q[i] = p[i];
+      }
+      // printf("Converged %d %5.14f (%5.14f %5.14f %5.14f)\n",iter,mue,q[0],q[1],q[2]);
+      for (int i = 0; i < current_part_size; i++)
+        dist[i] = x[3*i]*p[0] + x[3*i+1]*p[1] + x[3*i+2]*p[2];
+    //op_inert end
+
+    //op_sort begin
+      double distmin = dist[0];
+      double distmax = dist[0];
+      double distavg = dist[0];
+      for (int i = 1; i < current_part_size; i++) {
+        distmin = distmin < dist[i] ? distmin : dist[i];
+        distmax = distmax > dist[i] ? distmax : dist[i];
+        distavg += dist[i];
+      }
+      double distmin_g = distmin;
+      double distmax_g = distmax;
+      double distavg_g = 0.0;
+      MPI_Allreduce(&distmin, &distmin_g, 1, MPI_DOUBLE,
+        MPI_MIN, mpi_comm);
+      MPI_Allreduce(&distmax, &distmax_g, 1, MPI_DOUBLE,
+        MPI_MAX, mpi_comm);
+      MPI_Allreduce(&distavg, &distavg_g, 1, MPI_DOUBLE,
+        MPI_SUM, mpi_comm);
+      distavg_g /= (double)current_group_size;
+
+      double dbnd = distmax_g - distmin_g;
+      double dlower = distmin_g;
+      double dupper = distmax_g;
+      double dsplit = distavg_g;
+      int nsplit = (current_group_size * (comm_size/2))/comm_size;
+      int nlower_g = 0;
+      while(1) {
+        int nlower = 0;
+        nlower_g = 0;
+        for (int i = 0; i < current_part_size; i++)
+          nlower += (dist[i] <= dsplit ? 1 : 0);
+        MPI_Allreduce(&nlower, &nlower_g, 1, MPI_INT,
+          MPI_SUM, mpi_comm);
+        if (nlower_g == nsplit) break;
+        else if (nlower_g < nsplit) {dlower = dsplit; dsplit = (dsplit+dupper)/2.0;}
+        else if (nlower_g > nsplit) {dupper = dsplit; dsplit = (dsplit+dlower)/2.0;}
+
+        if (dupper-dlower < 1e-8*dbnd) break;
+      }
+      int current_group_lower = nlower_g;
+      int current_group_upper = current_group_size - nlower_g;
+
+      double *x_keep = (double *)malloc(3*current_part_size*sizeof(double));
+      int *idx_gbl_keep = (int *)malloc(current_part_size*sizeof(int));
+      double *x_send = (double *)malloc(3*current_part_size*sizeof(double));
+      int *idx_gbl_send = (int *)malloc(current_part_size*sizeof(int));
+      int keep_ctr = 0;
+      int send_ctr = 0;
+      if (my_rank <= comm_size/2-1) {
+        for (int i = 0; i < current_part_size; i++)  {
+          if (dist[i] <= dsplit)  {
+            idx_gbl_keep[keep_ctr] = global_indices[i];
+            for (int j = 0; j < 3; j++) x_keep[3*keep_ctr+j] = x[3*i+j];
+            keep_ctr++;
+          } else {
+            idx_gbl_send[send_ctr] = global_indices[i];
+            for (int j = 0; j < 3; j++) x_send[3*send_ctr+j] = x[3*i+j];
+            send_ctr++;
+          }
+        }
+      } else {
+        for (int i = 0; i < current_part_size; i++)  {
+          if (dist[i] > dsplit)  {
+            idx_gbl_keep[keep_ctr] = global_indices[i];
+            for (int j = 0; j < 3; j++) x_keep[3*keep_ctr+j] = x[3*i+j];
+            keep_ctr++;
+          } else {
+            idx_gbl_send[send_ctr] = global_indices[i];
+            for (int j = 0; j < 3; j++) x_send[3*send_ctr+j] = x[3*i+j];
+            send_ctr++;
+          }
+        }
+      }
+
+      int target_part = comm_size - my_rank - 1;
+      if (my_rank == target_part) target_part--;
+
+    //Send send buffer size
+      MPI_Isend(&send_ctr, 1, MPI_INT, target_part, 0, mpi_comm, &s_request);
+
+    //Receive send buffer sizes
+      int size_0=0;
+      int size_1=0;
+      if (2*my_rank != (comm_size-1))
+        MPI_Recv(&size_0,1,MPI_INT,target_part,0,mpi_comm, &r_status);
+      if (2*(my_rank+1) == comm_size-1)
+        MPI_Recv(&size_1,1,MPI_INT,target_part-1,0,mpi_comm, &r_status);
+
+    //Allocate for next iteration
+      free(x); free(global_indices);
+      x = (double *)realloc(x_keep, (keep_ctr+size_0+size_1)*3*sizeof(double)); //Implicitly assign x = x_keep
+      global_indices = (int *)realloc(idx_gbl_keep, (keep_ctr+size_0+size_1)*sizeof(int)); //Implicitly assign global_indices = idx_gbl_keep
+      current_part_size = keep_ctr+size_0+size_1;
+
+      MPI_Wait(&s_request, &s_status);
+
+      MPI_Isend(x_send, 3*send_ctr, MPI_DOUBLE, target_part, 1, mpi_comm, &s_request);
+      MPI_Isend(idx_gbl_send, send_ctr, MPI_INT, target_part, 2, mpi_comm, &s_request2);
+
+    //Pack kept - receive 0 - receive 1
+      if (2*my_rank != (comm_size-1)) {
+        MPI_Recv(&x[keep_ctr*3],size_0*3,MPI_DOUBLE,target_part,1,mpi_comm, &r_status);
+        MPI_Recv(&global_indices[keep_ctr],size_0,MPI_INT,target_part,2,mpi_comm, &r_status);
+      }
+      if (2*(my_rank+1) == comm_size-1) {
+        MPI_Recv(&x[(keep_ctr+size_0)*3],size_1*3,MPI_DOUBLE,target_part-1,1,mpi_comm, &r_status);
+        MPI_Recv(&global_indices[keep_ctr+size_0],size_1,MPI_INT,target_part-1,2,mpi_comm, &r_status);
+      }
+
+    //Divide group in two
+      int *processes_lower = (int *)malloc(comm_size/2*sizeof(int));
+      int *processes_upper = (int *)malloc((comm_size-comm_size/2)*sizeof(int));
+      for (int i = 0; i < comm_size/2; i++)
+        processes_lower[i] = i;
+      for (int i = 0; i < comm_size - comm_size/2; i++)
+        processes_upper[i] = comm_size/2+i;
+
+      MPI_Group lower_group, upper_group;
+      MPI_Group_incl(current_group, comm_size/2, processes_lower, &lower_group);
+      MPI_Group_incl(current_group, comm_size - comm_size/2, processes_upper, &upper_group);
+      MPI_Comm lower_comm, upper_comm;
+      MPI_Comm_create(mpi_comm, lower_group, &lower_comm);
+      MPI_Comm_create(mpi_comm, upper_group, &upper_comm);
+
+    //Join one of the groups
+      if (my_rank <= comm_size/2-1) {
+        current_group_size = current_group_lower;
+        current_group = lower_group;
+        mpi_comm = lower_comm;
+      } else {
+        current_group_size = current_group_upper;
+        current_group = upper_group;
+        mpi_comm = upper_comm;
+      }
+      MPI_Comm_rank(mpi_comm, &my_rank);
+      MPI_Comm_size(mpi_comm, &comm_size);
+    //free stuff
+      free(dist);
+      free(processes_lower); free(processes_upper);
+      MPI_Wait(&s_request, &s_status);
+      MPI_Wait(&s_request2, &s_status2);
+      free(idx_gbl_send); free(x_send);
+    }
+  }
+  free(x);
+  quickSort(global_indices, 0, current_part_size-1);
+  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+  //start binning (global indices -> processes)
+  int *sizes = (int*)calloc(comm_size,sizeof(int));
+  int target = 0;
+  for (int i = 0; i < current_part_size; i++) {
+    while (!(orig_part_range[x_dat->set->index][2*target]   <= global_indices[i] &&
+             orig_part_range[x_dat->set->index][2*target+1] >= global_indices[i])) target++;
+    sizes[target]++;
+  }
+  int *sizes_recv = (int*)calloc(comm_size,sizeof(int));
+  MPI_Alltoall(sizes, 1, MPI_INT, sizes_recv, 1, MPI_INT, OP_PART_WORLD);
+
+  //Sanity check
+  int total_size = 0;
+  for (int i = 0; i < comm_size; i++) total_size += sizes_recv[i];
+  if (total_size != block_size) {
+    printf("Error at rank %d: original(%d) vs. collected(%d) size mismatch! Aborting...\n", my_rank, block_size, total_size);
+    MPI_Abort(OP_PART_WORLD,2);
+  }
+
+  //How many partitions we are sending to/receiving from
+  int send_count = 0;
+  int recv_count = 0;
+  for (int i = 0; i < comm_size; i++) {
+    if (sizes[i]) send_count++;
+    if (sizes_recv[i]) recv_count++;
+  }
+
+  //Send
+  MPI_Request *send_requests = (MPI_Request *)malloc(send_count * sizeof(MPI_Request));
+  MPI_Request *recv_requests = (MPI_Request *)malloc(recv_count * sizeof(MPI_Request));
+  MPI_Status *send_statuses = (MPI_Status *)malloc(send_count * sizeof(MPI_Status));
+  MPI_Status *recv_statuses = (MPI_Status *)malloc(recv_count * sizeof(MPI_Status));
+  int *global_indices_recv = (int *)malloc(total_size*sizeof(int));
+  send_count = 0;
+  recv_count = 0;
+  int send_offset = 0;
+  int recv_offset = 0;
+  for (int i = 0; i < comm_size; i++) {
+    if (sizes[i]) {
+      MPI_Isend(&global_indices[send_offset], sizes[i], MPI_INT, i, 0, OP_PART_WORLD, &send_requests[send_count]);
+      send_offset += sizes[i];
+      send_count++;
+    }
+    if (sizes_recv[i]) {
+      MPI_Irecv(&global_indices_recv[recv_offset], sizes_recv[i], MPI_INT, i, 0, OP_PART_WORLD, &recv_requests[recv_count]);
+      recv_offset += sizes_recv[i];
+      recv_count++;
+    }
+  }
+  MPI_Waitall(recv_count, recv_requests, recv_statuses);
+  int *partition = (int *)xmalloc(sizeof(int)*x_dat->set->size);
+  recv_count = 0;
+  recv_offset = 0;
+  for (int i = 0; i < comm_size; i++) {
+    if (sizes_recv[i]) {
+      for (int j = recv_offset; j < recv_offset+sizes_recv[i]; j++)
+        partition[global_indices_recv[j]-block_lower] = i;
+      recv_offset += sizes_recv[i];
+      recv_count++;
+    }
+  }
+  MPI_Waitall(send_count, send_requests, send_statuses);
+  //Debugging: print partvecs to file
+  /*FILE *file;
+  char fname[64];
+  sprintf(fname,"partvec_op2_%04d",my_rank);
+  file = fopen(fname,"w");
+  for (int i = 0; i < x_dat->set->size; i++)
+    fprintf(file,"%06d\n",partition[i]+1);
+  fclose(file);*/
+
+  //initialise primary set as partitioned
+  OP_part_list[x_dat->set->index]->elem_part= partition;
+  OP_part_list[x_dat->set->index]->is_partitioned = 1;
+
+  //free part range
+  for(int i = 0; i<OP_set_index; i++)free(part_range[i]);free(part_range);
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+
+  //partition all other sets
+  partition_all(x_dat->set, my_rank, comm_size);
+
+  //migrate data, sort elements
+  migrate_all(my_rank, comm_size);
+
+  //renumber mapping tables
+  renumber_maps(my_rank, comm_size);
+
+  op_timers(&cpu_t2, &wall_t2);  //timer stop for partitioning
+  //printf time for partitioning
+  time = wall_t2-wall_t1;
+  MPI_Reduce(&time,&max_time,1,MPI_DOUBLE, MPI_MAX,MPI_ROOT, OP_PART_WORLD);
+  MPI_Comm_free(&OP_PART_WORLD);
+  if(my_rank==MPI_ROOT)printf("Max total inertial partitioning time = %lf\n",max_time);
+}
+
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
 void partition(const char* lib_name, const char* lib_routine,
-  op_set prime_set, op_map prime_map, op_dat coords )
+  op_set prime_set, op_map prime_map, op_dat data )
 {
 #if !defined(HAVE_PTSCOTCH) && !defined(HAVE_PARMETIS)
   /* Suppress warning */
@@ -2859,23 +3349,19 @@ void partition(const char* lib_name, const char* lib_routine,
   if(lib_name == NULL) lib_name = "NULL";
   if(lib_routine == NULL) lib_routine = "NULL";
 
-  if(strcmp(lib_name,"PTSCOTCH")==0)
-  {
+  if(strcmp(lib_name,"PTSCOTCH")==0) {
     #ifdef HAVE_PTSCOTCH
     op_printf("Selected Partitioning Library : %s\n",lib_name);
-    if(strcmp(lib_routine,"KWAY")==0)
-    {
+    if(strcmp(lib_routine,"KWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
         op_partition_ptscotch(prime_map); //use ptscotch kaway partitioning
-      else
-      {
+      else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else
-    {
+    else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
     }
@@ -2884,86 +3370,118 @@ void partition(const char* lib_name, const char* lib_routine,
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input mapping : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input data : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
   }
   else
-  if (strcmp(lib_name,"PARMETIS")==0)
-  {
+  if (strcmp(lib_name,"PARMETIS")==0) {
     #ifdef HAVE_PARMETIS
     op_printf("Selected Partitioning Library : %s\n",lib_name);
-    if(strcmp(lib_routine,"KWAY")==0)
-    {
+    if(strcmp(lib_routine,"KWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
         op_partition_kway(prime_map); //use parmetis kaway partitioning
-      else
-      {
+      else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else if(strcmp(lib_routine,"GEOMKWAY")==0)
-    {
+    else if(strcmp(lib_routine,"GEOMKWAY")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
       if(prime_map != NULL)
-        op_partition_geomkway(coords, prime_map); //use parmetis kawaygeom partitioning
-      else
-      {
-        op_printf("Partitioning prime_map or coords: NULL - UNSUPPORTED Partitioner Specification\n");
+        op_partition_geomkway(data, prime_map); //use parmetis kawaygeom partitioning
+      else {
+        op_printf("Partitioning prime_map or coordinates : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else if(strcmp(lib_routine,"GEOM")==0)
-    {
+    else if(strcmp(lib_routine,"GEOM")==0) {
       op_printf("Selected Partitioning Routine : %s\n",lib_routine);
-      if(coords != NULL)
-        op_partition_geom(coords); //use parmetis geometric partitioning
-      else
-      {
-        op_printf("Partitioning coords: NULL - UNSUPPORTED Partitioner Specification\n");
+      if(data != NULL)
+        op_partition_geom(data); //use parmetis geometric partitioning
+      else {
+        op_printf("Partitioning coordinates: NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
       }
     }
-    else
-    {
+    else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n",lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
     }
     #else
     /*  Suppress warning */
-    (void)coords;
+    (void)data;
     op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
     #endif
   }
-  else if (strcmp(lib_name,"RANDOM")==0)
-  {
+  else if (strcmp(lib_name,"RANDOM")==0) {
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
-    if(prime_set != NULL)
+    if(prime_set != NULL )
       op_partition_random(prime_set); //use a random partitioning - used for debugging
-    else
-    {
+    else {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
     }
   }
-  else
-  {
+  else if (strcmp(lib_name,"EXTERNAL")==0) {
+    op_printf("Selected Partitioning Routine : %s\n",lib_name);
+    if(prime_set != NULL) {
+      if(data->data != NULL) {
+        if (data->dim == 1)
+          op_partition_external(prime_set, data); //use an external partitioning read in from hdf5 file
+        else {
+          op_printf("External Partition vector should be an integer array with dimension 1\n");
+          op_printf("Reverting to trivial block partitioning\n");
+        }
+      }
+      else
+        op_printf("External Partition vector : NULL - UNSUPPORTED Partitioner Specification\n");
+    }
+    else {
+      op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
+      op_printf("Reverting to trivial block partitioning\n");
+    }
+  }
+  else if (strcmp(lib_name,"INERTIAL")==0) {
+    op_printf("Selected Partitioning Routine : %s\n",lib_name);
+      if(data->data != NULL) {
+        if (data->dim == 3)
+          op_partition_inertial(data); //use Oplus style Inertial partitioning
+        else {
+          op_printf("Onlt supports 3D Inertial Bisection Partitioning - Need 3D coordinates - dim should be 3\n");
+          op_printf("Reverting to trivial block partitioning\n");
+        }
+    }
+    else {
+      op_printf("Partitioning based on dataset : NULL - UNSUPPORTED Partitioner Specification\n");
+      op_printf("Reverting to trivial block partitioning\n");
+    }
+  }
+  else {
     op_printf("Partitioning Library : %s UNSUPPORTED\n",lib_name);
     op_printf("Ignoring input routine : %s\n",lib_routine);
     if(prime_set != NULL)op_printf("Ignoring input set : %s\n",prime_set->name);
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
-    if(coords != NULL)op_printf("Ignoring input coords : %s\n",coords->name);
+    if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
   }
 
   //trigger halo creation routines
   op_halo_create();
+
+#ifdef DEBUG //sanity check to identify if the partitioning results in ophan elements
+  int ctr = 0;
+  for (int i = 0; i < prime_map->from->size; i++) {
+    if (prime_map->map[2*i]>=prime_map->to->size &&
+      prime_map->map[2*i+1]>=prime_map->to->size) ctr++;
+  }
+  printf("Orphan edges: %d\n", ctr);
+#endif
 
 }
