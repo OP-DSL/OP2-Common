@@ -95,10 +95,19 @@ op_arg op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
+op_arg op_opt_arg_dat ( int opt, op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
+{
+  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+}
+
 op_arg
 op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
 {
   return op_arg_gbl_core ( data, dim, type, size, acc );
+}
+
+void op_upload_all ()
+{
 }
 
 void
@@ -132,6 +141,11 @@ void op_printf(const char* format, ...)
   va_start(argptr, format);
   vprintf(format, argptr);
   va_end(argptr);
+}
+
+void op_print(const char* line)
+{
+  printf("%s\n",line);
 }
 
 void op_timers(double * cpu, double * et)

@@ -47,9 +47,6 @@
 extern "C" {
 #endif
 
-/** Define hash table size for holding MPI op_par_loop performance measures **/
-#define HASHSIZE 75
-
 /*******************************************************************************
 * MPI utility function prototypes
 *******************************************************************************/
@@ -58,7 +55,7 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
 
 void* xmalloc(size_t size);
 
-void* xrealloc (void *ptr, size_t size);
+void* xrealloc(void *ptr, size_t size);
 
 int compare_sets(op_set set1, op_set set2);
 
@@ -80,7 +77,7 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim);
 
 int removeDups(int a[], int array_size);
 
-int file_exist (char const *filename);
+int file_exist(char const *filename);
 
 #ifdef __cplusplus
 }

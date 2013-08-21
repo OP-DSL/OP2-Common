@@ -55,6 +55,26 @@ void op_mpi_wait_all(int nargs, op_arg *args)
   (void)args;
 }
 
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+  return set->size;
+}
+
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args)
+{
+  (void)nargs;
+  (void)args;
+}
+
+
 void op_mpi_reset_halos(int nargs, op_arg *args)
 {
   (void)nargs;
@@ -81,6 +101,11 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args)
 }
 #endif
 
+void op_mpi_reduce_combined(op_arg* args, int nargs) {
+  (void)args;
+  (void)nargs;
+}
+
 void op_mpi_reduce_float(op_arg* args, float* data)
 {
   (void)args;
@@ -99,6 +124,12 @@ void op_mpi_reduce_int(op_arg* args, int* data)
   (void)data;
 }
 
+void op_mpi_reduce_bool(op_arg* args, bool* data)
+{
+  (void)args;
+  (void)data;
+}
+
 void op_partition(const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords ) {
   (void)lib_name;
@@ -108,10 +139,28 @@ void op_partition(const char* lib_name, const char* lib_routine,
   (void)coords;
 }
 
+void op_renumber(op_map base) {
+  (void)base;
+}
+
+void op_compute_moment(double t, double *first, double *second) {
+  *first = t;
+  *second = t*t;
+}
+
 void op_partition_reverse() {
+}
+
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? arg->dat->set->size : 0;
 }
 
 int op_is_root()
 {
   return 1;
+}
+
+int getHybridGPU() {
+  return OP_hybrid_gpu;
 }

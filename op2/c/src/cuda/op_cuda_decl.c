@@ -152,7 +152,18 @@ op_decl_set ( int size, char const * name )
 op_map
 op_decl_map ( op_set from, op_set to, int dim, int * imap, char const * name )
 {
-  return op_decl_map_core ( from, to, dim, imap, name );
+  op_map map = op_decl_map_core ( from, to, dim, imap, name );
+  int set_size = map->from->size;
+  int *temp_map = (int *)malloc(map->dim*set_size*sizeof(int));
+  for (int i = 0; i < map->dim; i++) {
+    for (int j = 0; j < set_size; j++) {
+      temp_map[i*set_size + j] = map->map[map->dim*j+i];
+    }
+  }
+  op_cpHostToDevice ( ( void ** ) &( map->map_d ),
+                      ( void ** ) &( temp_map ), map->dim * set_size * sizeof(int) );
+  free(temp_map);
+  return map;
 }
 
 op_arg
@@ -161,6 +172,14 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
 {
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
+
+op_arg
+op_opt_arg_dat ( int opt, op_dat dat, int idx, op_map map, int dim, char const * type,
+             op_access acc )
+{
+  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+}
+
 
 op_arg
 op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
@@ -197,9 +216,27 @@ void op_printf(const char* format, ...)
   va_end(argptr);
 }
 
+void op_print(const char* line)
+{
+  printf("%s\n",line);
+}
+
 void op_timers(double * cpu, double * et)
 {
   op_timers_core(cpu,et);
+}
+
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? arg->dat->set->size : 0;
+}
+
+void op_renumber(op_map base) {
+  (void)base;
+}
+
+int getHybridGPU() {
+  return OP_hybrid_gpu;
 }
 
 void op_exit()
@@ -212,6 +249,7 @@ void op_exit()
 void op_timing_output()
 {
   op_timing_output_core();
+  printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)
@@ -226,6 +264,34 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   //need to get data from GPU
   op_cuda_get_data(dat);
   op_print_dat_to_txtfile_core(dat, file_name);
+}
+
+void op_upload_all ()
+{
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    int set_size = dat->set->size;
+    if (dat->data_d) {
+      if (strstr( dat->type, ":soa")!= NULL) {
+        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+        int element_size = dat->size/dat->dim;
+        for (int i = 0; i < dat->dim; i++) {
+          for (int j = 0; j < set_size; j++) {
+            for (int c = 0; c < element_size; c++) {
+              temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+            }
+          }
+        }
+        cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+        free(temp_data);
+      } else {
+        cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+      }
+    }
+  }
 }
 
 void op_fetch_data_char ( op_dat dat, char * usr_ptr )

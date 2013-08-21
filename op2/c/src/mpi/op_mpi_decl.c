@@ -62,12 +62,13 @@ void op_init ( int argc, char ** argv, int diags )
 
 op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
-  char* d = (char*) malloc(set->size*dim*size);
+  if (set== NULL || data == NULL) return NULL;
+  char* d = (char*) malloc((size_t)set->size*(size_t)dim*(size_t)size);
   if (d == NULL) {
     printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
     exit ( -1 );
   }
-  memcpy(d, data, set->size*dim*size*sizeof(char));
+  memcpy(d, data, sizeof(char)*set->size*dim*size);
   op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
   out_dat-> user_managed = 0;
   return out_dat;
@@ -123,6 +124,10 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
+void op_upload_all ()
+{
+}
+
 void op_fetch_data_char(op_dat dat, char* usr_ptr)
 {
   //rearrange data backe to original order in mpi
@@ -169,11 +174,19 @@ void op_decl_const_char ( int dim, char const * type, int typeSize, char * data,
   (void)name;
 }
 
+
 op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
+  return op_plan_get_stage ( name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL );
+}
+
+op_plan *
+op_plan_get_stage ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds, int staging )
+{
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds, staging );
 }
 
 void op_printf(const char* format, ...)
@@ -186,6 +199,16 @@ void op_printf(const char* format, ...)
     va_start(argptr, format);
     vprintf(format, argptr);
     va_end(argptr);
+  }
+}
+
+void op_print(const char* line)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    printf("%s\n",line);
   }
 }
 
@@ -225,6 +248,11 @@ op_arg op_arg_dat( op_dat dat, int idx, op_map map, int dim, char const * type, 
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
+op_arg op_opt_arg_dat( int opt, op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
+{
+  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+}
+
 op_arg
 op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
 {
@@ -240,7 +268,10 @@ void op_timers(double * cpu, double * et)
 
 void op_timing_output()
 {
+   double max_plan_time = 0.0;
+   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
    op_timing_output_core();
+   if (op_is_root()) printf("Total plan time: %8.4f\n", OP_plan_time);
    mpi_timing_output();
 }
 

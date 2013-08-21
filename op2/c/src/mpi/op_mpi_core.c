@@ -87,6 +87,9 @@ part *OP_part_list;
 
 int** orig_part_range = NULL;
 
+// Timing
+double t1,t2,c1,c2;
+
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
@@ -150,7 +153,9 @@ int get_partition(int global_index, int* part_range, int* local_index,
       return i;
     }
   }
-  return 0;
+  printf("Error: orphan global index\n");
+  MPI_Abort(MPI_COMM_WORLD, 2);
+  return -1;
 }
 
 /*******************************************************************************
@@ -1508,97 +1513,362 @@ void op_halo_destroy()
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
-static void set_dirtybit(op_arg* arg)
+static void set_dirtybit(op_arg* arg, int hd)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) &&
-    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW))
+  if((arg->opt==1) && (arg->argtype == OP_ARG_DAT) &&
+    (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW)) {
     dat->dirtybit = 1;
+    dat->dirty_hd = hd;
+  }
 }
 
 
+void op_mpi_reduce_combined(op_arg* args, int nargs) {
+  op_timers_core(&c1, &t1);
+  int nreductions = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) nreductions++;
+  }
+  op_arg *arg_list = (op_arg*)malloc(nreductions*sizeof(op_arg));
+  nreductions = 0;
+  int nbytes = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) {
+      arg_list[nreductions++] = args[i];
+      nbytes += args[i].size;
+    }
+  }
+
+  char *data = (char *)malloc(nbytes*sizeof(char));
+  int char_counter = 0;
+  for (int i = 0; i < nreductions; i++) {
+    for (int j = 0; j < arg_list[i].size; j++)
+      data[char_counter++] = arg_list[i].data[j];
+  }
+
+  int comm_size, comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
+  char *result = (char *)malloc(comm_size*nbytes*sizeof(char));
+  MPI_Allgather(data,   nbytes, MPI_CHAR,
+                result, nbytes, MPI_CHAR,
+                OP_MPI_WORLD);
+
+  char_counter = 0;
+  for (int i = 0; i < nreductions; i++) {
+    if (strcmp(arg_list[i].type,"double")==0 || strcmp(arg_list[i].type,"r8")==0) {
+      double *output = (double *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((double*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((double*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((double*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"float")==0 || strcmp(arg_list[i].type,"r4")==0) {
+      float *output = (float *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((float*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((float*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((float*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"int")==0 || strcmp(arg_list[i].type,"i4")==0) {
+      int *output = (int *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((int*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((int*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((int*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    if (strcmp(arg_list[i].type,"bool")==0 || strcmp(arg_list[i].type,"logical")==0) {
+      bool *output = (bool *)arg_list[i].data;
+      for (int rank = 0; rank < comm_size; rank++) {
+        if (rank != comm_rank){
+          if (arg_list[i].acc == OP_INC) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] += ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MIN) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] < ((bool*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_MAX) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] > ((bool*)(result+char_counter+nbytes*rank))[j] ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          } else if (arg_list[i].acc == OP_WRITE) {
+            for (int j = 0; j < arg_list[i].dim; j++) {
+              output[j] = output[j] != 0.0 ? output[j] : ((bool*)(result+char_counter+nbytes*rank))[j];
+            }
+          }
+        }
+      }
+    }
+    char_counter += arg_list[i].size;
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
+  free(arg_list);
+  free(data);
+  free(result);
+}
 
 void op_mpi_reduce_float(op_arg* arg, float* data)
 {
   (void)data;
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    float result;
+    float result_static;
+    float *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE) result = (float *) calloc (arg->dim, sizeof (float));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+      memcpy(arg->data, result, sizeof(float)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);;
+      memcpy(arg->data, result, sizeof(float)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((float *)arg->data, &result, arg->dim, MPI_FLOAT,
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT,
           MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(float)*arg->dim);
+      memcpy(arg->data, result, sizeof(float)*arg->dim);
     }
+    else if(arg->acc == OP_WRITE)//any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (float *) calloc (arg->dim*size, sizeof (float));
+      MPI_Allgather((float *)arg->data, arg->dim, MPI_FLOAT,
+                    result, arg->dim, MPI_FLOAT,
+                    OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i*arg->dim+j] != 0.0f)
+            result[j] = result[i*arg->dim+j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(float)*arg->dim);
+      if (arg->dim == 1) free(result);
+    }
+    if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reduce_double(op_arg* arg, double* data)
 {
   (void)data;
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
-    double result;
+    double result_static;
+    double *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE) result = (double *) calloc (arg->dim, sizeof (double));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((double *)arg->data, (double *)&result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+      memcpy(arg->data, result, sizeof(double)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double)*arg->dim);;
+      memcpy(arg->data, result, sizeof(double)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((double *)arg->data, &result, arg->dim, MPI_DOUBLE,
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE,
           MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(double)*arg->dim);
+      memcpy(arg->data, result, sizeof(double)*arg->dim);
     }
+    else if(arg->acc == OP_WRITE)//any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (double *) calloc (arg->dim*size, sizeof (double));
+      MPI_Allgather((double *)arg->data, arg->dim, MPI_DOUBLE,
+                    result, arg->dim, MPI_DOUBLE,
+                    OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i*arg->dim+j] != 0.0)
+            result[j] = result[i*arg->dim+j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(double)*arg->dim);
+      if (arg->dim == 1) free(result);
+    }
+    if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reduce_int(op_arg* arg, int* data)
 {
   (void)data;
-  int result;
-
+  op_timers_core(&c1, &t1);
   if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
   {
+    int result_static;
+    int *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE) result = (int *) calloc (arg->dim, sizeof (int));
+    else result = &result_static;
+
     if(arg->acc == OP_INC)//global reduction
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_SUM, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+      memcpy(arg->data, result, sizeof(int)*arg->dim);
     }
     else if(arg->acc == OP_MAX)//global maximum
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_MAX, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int)*arg->dim);;
+      memcpy(arg->data, result, sizeof(int)*arg->dim);;
     }
     else if(arg->acc == OP_MIN)//global minimum
     {
-      MPI_Allreduce((int *)arg->data, &result, arg->dim, MPI_INT,
+      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT,
           MPI_MIN, OP_MPI_WORLD);
-      memcpy(arg->data, &result, sizeof(int)*arg->dim);
+      memcpy(arg->data, result, sizeof(int)*arg->dim);
     }
+    else if(arg->acc == OP_WRITE)//any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (int *) calloc (arg->dim*size, sizeof (int));
+      MPI_Allgather((int *)arg->data, arg->dim, MPI_INT,
+                    result, arg->dim, MPI_INT,
+                    OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i*arg->dim+j] != 0)
+            result[j] = result[i*arg->dim+j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(int)*arg->dim);
+      if (arg->dim == 1) free(result);
+    }
+    if (arg->dim > 1) free (result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
+}
+
+void op_mpi_reduce_bool(op_arg* arg, bool* data)
+{
+  (void)data;
+  op_timers_core(&c1, &t1);
+  if(arg->argtype == OP_ARG_GBL && arg->acc != OP_READ)
+  {
+    bool result_static;
+    bool *result;
+    if (arg->dim > 1) result = (bool *) calloc (arg->dim, sizeof (bool));
+    else result = &result_static;
+
+    if(arg->acc == OP_INC)//global reduction
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_SUM, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);
+    }
+    else if(arg->acc == OP_MAX)//global maximum
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_MAX, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);;
+    }
+    else if(arg->acc == OP_MIN)//global minimum
+    {
+      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR,
+          MPI_MIN, OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);
+    }
+    else if(arg->acc == OP_WRITE)//any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (bool *) calloc (arg->dim*size, sizeof (bool));
+      MPI_Allgather((int *)arg->data, arg->dim, MPI_CHAR,
+                    result, arg->dim, MPI_CHAR,
+                    OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i*arg->dim+j] != false)
+            result[j] = result[i*arg->dim+j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(bool)*arg->dim);
+      if (arg->dim == 1) free(result);
+    }
+    if (arg->dim > 1) free (result);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 /*******************************************************************************
@@ -1860,7 +2130,7 @@ static void op_reset_halo(op_arg* arg)
 {
   op_dat dat = arg->dat;
 
-  if((arg->argtype == OP_ARG_DAT) &&
+  if((arg->opt) && (arg->argtype == OP_ARG_DAT) &&
     (arg->acc == OP_READ || arg->acc == OP_RW ) &&
     (dat->dirtybit == 1))
   {
@@ -1879,6 +2149,19 @@ static void op_reset_halo(op_arg* arg)
       dat->size*imp_exec_list->size + dat->size*imp_nonexec_list->size);
     free(NaN);
   }
+}
+
+void op_compute_moment(double t, double *first, double *second) {
+  double times[2];
+  double times_reduced[2];
+  int comm_size;
+  times[0] = t;
+  times[1] = t*t;
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+  MPI_Reduce(times, times_reduced, 2, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  *first = times_reduced[0]/(double)comm_size;
+  *second = times_reduced[1]/(double)comm_size;
 }
 
 /*******************************************************************************
@@ -2109,13 +2392,45 @@ void op_mpi_exit()
 
 }
 
+int getSetSizeFromOpArg (op_arg * arg)
+{
+  return arg->opt ? (arg->dat->set->size + OP_import_exec_list[arg->dat->set->index]->size +
+                     OP_import_nonexec_list[arg->dat->set->index]->size) : 0;
+}
+
+int getHybridGPU() {
+  return OP_hybrid_gpu;
+}
+
+int op_should_do_exchange(int nargs, op_arg *args) {
+  int should_do = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].map != OP_ID && args[i].map->dim > 1) should_do = 1;
+  }
+  return !(OP_mpi_experimental && !should_do);
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
 
+  if (OP_diags>0) {
+    int dummy;
+    for (int n=0; n<nargs; n++)
+      op_arg_check(set,n,args[n],&dummy,"");
+  }
+
+  if (OP_hybrid_gpu) {
+    for (int n=0; n<nargs; n++)
+      if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 2) {
+        op_download_dat(args[n].dat);
+        args[n].dat->dirty_hd = 0;
+      }
+  }
+
   //check if this is a direct loop
   for (int n=0; n<nargs; n++)
-    if(args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
       direct_flag = 0;
 
   if (direct_flag == 1) return size;
@@ -2123,16 +2438,59 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   //not a direct loop ...
   int exec_flag = 0;
   for (int n=0; n<nargs; n++) {
-    if(args[n].idx != -1 && args[n].acc != OP_READ) {
+    if(args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
       size = set->size + set->exec_size;
       exec_flag = 1;
     }
   }
+  if (!op_should_do_exchange(nargs, args)) return size;
+  op_timers_core(&c1, &t1);
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
+      op_exchange_halo(&args[n], exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
+  return size;
+}
+
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
+  int size = set->size;
+  int direct_flag = 1;
+
+  if (OP_diags>0) {
+    int dummy;
+    for (int n=0; n<nargs; n++)
+      op_arg_check(set,n,args[n],&dummy,"");
+  }
 
   for (int n=0; n<nargs; n++)
-    if(args[n].argtype == OP_ARG_DAT)
-      op_exchange_halo(&args[n], exec_flag);
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty_hd == 1) {
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
 
+  //check if this is a direct loop
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1) return size;
+
+  //not a direct loop ...
+  int exec_flag = 0;
+  for (int n=0; n<nargs; n++) {
+    if(args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      size = set->size + set->exec_size;
+      exec_flag= 1;
+    }
+  }
+  if (!op_should_do_exchange(nargs, args)) return size;
+  op_timers_core(&c1, &t1);
+  for (int n=0; n<nargs; n++)
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
+      op_exchange_halo_cuda(&args[n],exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;
 }
 
@@ -2141,15 +2499,39 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
     if(args[n].argtype == OP_ARG_DAT)
     {
-      set_dirtybit(&args[n]);
+      set_dirtybit(&args[n],1);
+    }
+  }
+}
+
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
+
+  for (int n=0; n<nargs; n++) {
+    if(args[n].argtype == OP_ARG_DAT)
+    {
+      set_dirtybit(&args[n],2);
     }
   }
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
+  if (!op_should_do_exchange(nargs, args)) return;
+  op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     op_wait_all(&args[n]);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
+}
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  if (!op_should_do_exchange(nargs, args)) return;
+  op_timers_core(&c1, &t1);
+  for (int n=0; n<nargs; n++) {
+    op_wait_all_cuda(&args[n]);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {

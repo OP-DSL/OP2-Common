@@ -83,7 +83,7 @@ void op_par_loop_update(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  update\n");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   // initialise timers
 
@@ -162,7 +162,7 @@ void op_par_loop_update(char const *name, op_set set,
   }
 
 
-  op_mpi_set_dirtybit(nargs, args);
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
   // update kernel record
 

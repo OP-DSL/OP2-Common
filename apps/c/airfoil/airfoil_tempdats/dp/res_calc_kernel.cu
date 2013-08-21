@@ -199,7 +199,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     int part_size = OP_part_size;
   #endif
 
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   // initialise timers
 
@@ -220,7 +220,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
     for (int col=0; col < Plan->ncolors; col++) {
 
-      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs,args);
+      if (col==Plan->ncolors_core) op_mpi_wait_all_cuda(nargs,args);
 
     #ifdef OP_BLOCK_SIZE_2
       int nthread = OP_BLOCK_SIZE_2;
@@ -264,7 +264,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
 
-  op_mpi_set_dirtybit(nargs, args);
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
   // update kernel record
 

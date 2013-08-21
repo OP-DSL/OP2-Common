@@ -19,7 +19,7 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
     if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;
   }
   else {
-    if (arg.map==NULL)         // identity mapping
+    if (arg.map==NULL || arg.opt==0)         // identity mapping
       *p_arg += arg.size*n;
     else                       // standard pointers
       *p_arg += arg.size*arg.map->map[arg.idx+n*arg.map->dim];

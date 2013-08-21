@@ -72,6 +72,10 @@ int op_free_dat_temp_char ( op_dat dat )
   return op_free_dat_temp_core (dat);
 }
 
+void op_upload_all ()
+{
+}
+
 void
 op_fetch_data_char ( op_dat dat, char * usr_ptr )
 {
@@ -111,7 +115,14 @@ op_plan *
 op_plan_get ( char const * name, op_set set, int part_size,
               int nargs, op_arg * args, int ninds, int *inds )
 {
-  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds );
+  return op_plan_get_stage ( name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL );
+}
+
+op_plan *
+op_plan_get_stage ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds, int staging )
+{
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds, staging );
 }
 
 
@@ -126,6 +137,11 @@ void op_printf(const char* format, ...)
   va_start(argptr, format);
   vprintf(format, argptr);
   va_end(argptr);
+}
+
+void op_print(const char* line)
+{
+  printf("%s\n",line);
 }
 
 void
@@ -157,6 +173,12 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_acc
   return op_arg_dat_core ( dat, idx, map, dim, type, acc );
 }
 
+op_arg
+op_opt_arg_dat ( int opt, op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )
+{
+  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+}
+
 void op_timers(double * cpu, double * et)
 {
   op_timers_core(cpu,et);
@@ -171,6 +193,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void op_timing_output()
 {
    op_timing_output_core();
+   printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)

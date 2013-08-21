@@ -63,6 +63,26 @@
 
 MPI_Comm OP_MPI_HDF5_WORLD;
 
+int compute_local_size_weight (int global_size, int mpi_comm_size, int mpi_rank )
+{
+  int *hybrid_flags = (int *)malloc(mpi_comm_size*sizeof(int));
+  MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
+      1,MPI_INT,OP_MPI_HDF5_WORLD);
+  double total = 0;
+  for (int i = 0; i < mpi_comm_size; i++)
+    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+  double cumulative = 0;
+  for (int i = 0; i < mpi_rank; i++)
+    cumulative +=  hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+
+  int local_start = ((double)global_size)*(cumulative/total);
+  int local_end = ((double)global_size)*((cumulative+(OP_hybrid_gpu ? OP_hybrid_balance : 1.0))/total);
+  if (mpi_rank + 1 == mpi_comm_size) local_end = global_size; //make sure we don't have rounding problems
+  int local_size = local_end-local_start;
+
+  return local_size;
+}
+
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
@@ -112,7 +132,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
   H5Fclose(file_id);
 
   //calculate local size of set for this mpi process
-  int l_size = compute_local_size (g_size, comm_size, my_rank);
+  int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 
   return op_decl_set(l_size,  name);
@@ -163,7 +183,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Dclose(dset_id);
 
   //calculate local size of set for this mpi process
-  int l_size = compute_local_size (g_size, comm_size, my_rank);
+  int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
 
   //check if size is accurate
   if(from->size != l_size) {
@@ -290,6 +310,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*find element size of this dat with available attributes*/
   size_t dat_size = 0;
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) return NULL;
   attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
   H5Aread(attr,H5T_NATIVE_INT,&dat_size);
   H5Aclose(attr);
@@ -322,7 +343,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,type) != 0) {
+  char typ_soa[50];
+  sprintf(typ_soa, "%s:soa", typ);
+  if(strcmp(typ,type) != 0 && strcmp(typ_soa,type) != 0) {
     printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
@@ -527,14 +550,13 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 *******************************************************************************/
 void op_dump_to_hdf5(char const * file_name)
 {
-  printf("Writing to %s\n",file_name);
+  op_printf("Writing to %s\n",file_name);
 
   //declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
   double max_time;
   op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
-
   //create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
@@ -590,17 +612,17 @@ void op_dump_to_hdf5(char const * file_name)
     H5Pclose(plist_id);
     H5Dclose(dset_id);
   }
-
   /*loop over all the op_maps and write them to file*/
   for(int m=0; m<OP_map_index; m++) {
     op_map map=OP_map_list[m];
 
+    if (map->dim == 0) continue;
     //find total size of map
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
     MPI_Allgather(&map->from->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
-
+    if (g_size == 0) continue;
     //Create the dataspace for the dataset.
     dimsf[0] = g_size; dimsf[1] = map->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
@@ -691,18 +713,17 @@ void op_dump_to_hdf5(char const * file_name)
     //Close to the dataset.
     H5Dclose(dset_id);
   }
-
   /*loop over all the op_dats and write them to file*/
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-
+    if (dat->size == 0) continue;
     //find total size of dat
     int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
     int g_size = 0;
     MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
     for(int i = 0; i<comm_size; i++)g_size = g_size + sizes[i];
-
+    if (g_size == 0) continue;
     //Create the dataspace for the dataset.
     dimsf[0] = g_size; dimsf[1] = dat->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
@@ -803,7 +824,6 @@ void op_dump_to_hdf5(char const * file_name)
     H5Sclose(dataspace);
     H5Dclose(dset_id);
   }
-
   H5Fclose(file_id);
 
   op_timers(&cpu_t2, &wall_t2);  //timer stop for hdf5 file write
@@ -995,6 +1015,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
 
   if (file_exist(file_name) == 0) {
+    MPI_Barrier(MPI_COMM_WORLD);
     op_printf("File %s does not exist .... creating file\n", file_name);
     MPI_Barrier(OP_MPI_HDF5_WORLD);
     if (op_is_root()) {
@@ -1064,7 +1085,9 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
         H5Aread(attr,atype,typ);
         H5Aclose(attr);
         H5Sclose(dataspace);
-        if(strcmp(typ,dat->type) != 0) {
+        char typ_soa[50];
+        sprintf(typ_soa, "%s:soa", typ);
+        if(strcmp(typ,dat->type) != 0 && strcmp(typ_soa,dat->type) != 0) {
           printf("dat.type %s in file %s and type %s do not match\n",typ,file_name,dat->type);
           exit(2);
         }

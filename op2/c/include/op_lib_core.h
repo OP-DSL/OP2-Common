@@ -47,6 +47,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <sys/queue.h> //contains double linked list implementation
+#include <stdbool.h>
 
 /*
  * essential typedefs
@@ -71,17 +72,32 @@ typedef unsigned long long ull;
 */
 
 extern int OP_diags;
-
 extern int OP_cache_line_size;
-
+extern double OP_hybrid_balance;
+extern int OP_hybrid_gpu;
+extern int OP_mpi_experimental;
 
 /*
  * enum list for op_par_loop
  */
 
-typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
+#define OP_READ 0
+#define OP_WRITE 1
+#define OP_RW 2
+#define OP_INC 3
+#define OP_MIN 4
+#define OP_MAX 5
 
-typedef enum { OP_ARG_GBL, OP_ARG_DAT } op_arg_type;
+#define OP_ARG_GBL 0
+#define OP_ARG_DAT 1
+
+#define OP_STAGE_NONE 0
+#define OP_STAGE_INC 1
+#define OP_STAGE_ALL 2
+#define OP_STAGE_PERMUTE 3
+
+typedef int op_access; //holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
+typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 
 /*
  * structures
@@ -107,6 +123,7 @@ typedef struct
               to;     /* set pointed to */
   int         dim,    /* dimension of pointer */
              *map;    /* array defining pointer */
+  int        *map_d;  /* array on device */
   char const *name;   /* name of pointer */
   int         user_managed; /* indicates whether the user is managing memory */
 } op_map_core;
@@ -126,6 +143,7 @@ typedef struct
   char*       buffer_d; /* buffer for MPI halo sends on the devidce */
   char*       buffer_d_r; /* buffer for MPI halo receives on the devidce */
   int         dirtybit; /* flag to indicate MPI halo exchange is needed*/
+  int         dirty_hd; /* flag to indicate dirty status on host and device */
   int         user_managed; /* indicates whether the user is managing memory */
   void*       mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
 } op_dat_core;
@@ -142,11 +160,14 @@ typedef struct
               size;   /* size (for sequential execution) */
   char       *data,   /* data on host */
              *data_d; /* data on device (for CUDA execution) */
+  int        *map_data,   /* data on host */
+             *map_data_d; /* data on device (for CUDA execution) */
   char const *type;   /* datatype */
   op_access   acc;
   op_arg_type argtype;
   int         sent;   /* flag to indicate if this argument has
                          data in flight under non-blocking MPI comms*/
+  int         opt;    /* flag to indicate if this argument is in use */
 } op_arg;
 
 
@@ -158,6 +179,7 @@ typedef struct
   float       plan_time;/* time spent in op_plan_get */
   float       transfer; /* bytes of data transfer (used) */
   float       transfer2;/* bytes of data transfer (total) */
+  float       mpi_time; /* time spent in MPI calls */
 } op_kernel;
 
 
@@ -190,6 +212,7 @@ typedef TAILQ_HEAD(, op_dat_entry_core)  Double_linked_list;
  */
 
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
+#define ROUND_UP_64(bytes) (((bytes) + 63) & ~63)
 
 #ifdef __cplusplus
 extern "C" {
@@ -221,6 +244,8 @@ void op_arg_check ( op_set, int, op_arg, int *, char const * );
 
 op_arg op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
 
+op_arg op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc );
+
 op_arg op_arg_gbl_core ( char *, int, const char *, int, op_access );
 
 void op_diagnostic_output ( void );
@@ -239,23 +264,35 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 
 void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name);
 
+void op_compute_moment(double t, double *first, double *second);
+
 /*******************************************************************************
 * Core MPI lib function prototypes
 *******************************************************************************/
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
+
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
+
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
 
 void op_mpi_wait_all(int nargs, op_arg* args);
 
+void op_mpi_wait_all_cuda(int nargs, op_arg* args);
+
 void op_mpi_reset_halos(int nargs, op_arg* args);
+
+void op_mpi_reduce_combined(op_arg* args, int nargs);
 
 void op_mpi_reduce_float(op_arg *args, float* data);
 
 void op_mpi_reduce_double(op_arg *args, double* data);
 
 void op_mpi_reduce_int(op_arg *args, int* data);
+
+void op_mpi_reduce_bool(op_arg* args, bool* data);
 
 void op_mpi_barrier();
 
@@ -276,6 +313,8 @@ void *op_mpi_perf_time(const char* name, double time);
 #ifdef COMM_PERF
 void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args);
 #endif
+
+void op_renumber(op_map base);
 
 
 /*******************************************************************************

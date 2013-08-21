@@ -57,12 +57,13 @@ extern int OP_set_index, OP_set_max,
            OP_map_index, OP_map_max,
            OP_dat_index,
            OP_plan_index, OP_plan_max,
-           OP_kern_max;
+           OP_kern_max, OP_kern_curr;
 
 extern op_set * OP_set_list;
 extern op_map * OP_map_list;
 extern Double_linked_list OP_dat_list;
 extern op_kernel * OP_kernels;
+extern double OP_plan_time;
 
 /*
  * declaration of C routines wrapping lower layer implementations (e.g. CUDA, reference, etc..)
@@ -88,10 +89,14 @@ void op_decl_const_char ( int, char const *, int, char *, char const * );
 
 op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );
 
+op_arg op_opt_arg_dat ( int, op_dat, int, op_map, int, char const *, op_access );
+
 op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
 void op_fetch_data_char ( op_dat , char* );
 op_dat op_fetch_data_file_char ( op_dat );
+
+void op_upload_all ( );
 
 void op_fetch_data_hdf5_char ( op_dat , char* , int, int);
 
@@ -102,6 +107,8 @@ void op_timing_output();
 int op_get_size(op_set set);
 
 void op_printf(const char* format, ...);
+
+void op_print(const char* line);
 
 void op_timers( double *cpu, double *et );
 

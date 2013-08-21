@@ -193,7 +193,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
       }
     }
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( temp_data ), dat->size * set_size );
+                        ( void ** ) &( dat->data ), dat->size * set_size );
     free(temp_data);
 
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
@@ -204,7 +204,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
                         ( void ** ) &( dat->data ), dat->size * set_size );
   }
-
+  dat->dirty_hd = 0;
   cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
       dat->size * (OP_export_exec_list[set->index]->size +
       OP_export_nonexec_list[set->index]->size) ));
@@ -254,6 +254,13 @@ op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
 }
 
 op_arg
+op_opt_arg_dat ( int opt, op_dat dat, int idx, op_map map, int dim, char const * type,
+             op_access acc )
+{
+  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+}
+
+op_arg
 op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
 {
   return op_arg_gbl_core ( data, dim, type, size, acc );
@@ -271,6 +278,17 @@ void op_printf(const char* format, ...)
     va_end(argptr);
   }
 }
+
+void op_print(const char* line)
+{
+  int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  if(my_rank==MPI_ROOT)
+  {
+    printf("%s\n",line);
+  }
+}
+
 
 void op_timers(double * cpu, double * et)
 {
@@ -304,8 +322,8 @@ op_exit (  )
     if (strstr( item->dat->type, ":soa")!= NULL) {
       cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
     }
-		cutilSafeCall (cudaFree((item->dat)->buffer_d));
-	}
+    cutilSafeCall (cudaFree((item->dat)->buffer_d));
+  }
 
   op_mpi_exit();
   op_cuda_exit();            // frees dat_d memory
@@ -321,6 +339,7 @@ op_exit (  )
 void op_timing_output()
 {
   op_timing_output_core();
+  printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)
@@ -349,6 +368,35 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   free(temp->data);
   free(temp->set);
   free(temp);
+}
+
+void op_upload_all ()
+{
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
+                   OP_import_nonexec_list[dat->set->index]->size;
+    if (dat->data_d) {
+      if (strstr( dat->type, ":soa")!= NULL) {
+        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+        int element_size = dat->size/dat->dim;
+        for (int i = 0; i < dat->dim; i++) {
+          for (int j = 0; j < set_size; j++) {
+            for (int c = 0; c < element_size; c++) {
+              temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+            }
+          }
+        }
+        cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+        free(temp_data);
+      } else {
+        cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        dat->dirty_hd = 0;
+      }
+    }
+  }
 }
 
 void op_fetch_data_char ( op_dat dat, char * usr_ptr )

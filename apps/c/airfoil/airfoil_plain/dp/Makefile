@@ -22,29 +22,38 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -g -fPIC -DUNIX -Wall #-Wextra
+  CPPFLAGS	= -arch x86_64 -g -fPIC -DUNIX -Wall #-Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= /usr/bin/mpiCC
-  MPIFLAGS	= $(CCFLAGS)
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF -DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CPP		= pgCC
-  CCFLAGS  	= -O3 -fPIC
+  CPP       	= pgCC
+  CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
-  MPICPP 	= /home/gihan/openmpi-pgi/bin/mpiCC
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS 	= $(CPPFLAGS)
+else
+ifeq ($(OP2_COMPILER),cray)
+  CPP           = CC
+  CCFLAGS       = -O3 -h fp3 -h ipa5
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -h omp
+  MPICPP        = CC
+  MPIFLAGS      = $(CPPFLAGS)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -53,7 +62,7 @@ endif
 # set flags for NVCC compilation and linking
 #
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
+NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
