@@ -66,6 +66,14 @@ halo_list *OP_import_nonexec_list;//INH list
 halo_list *OP_export_nonexec_list;//ENH list
 
 //
+// Partial halo exchange lists
+//
+
+int *OP_map_partial_exchange;//flag for each map
+halo_list *OP_import_nonexec_permap;
+halo_list *OP_export_nonexec_permap;
+
+//
 //global array to hold dirty_bits for op_dats
 //
 
@@ -1453,6 +1461,334 @@ void op_halo_create()
 }
 
 /*******************************************************************************
+ * Create map-specific halo exchange tables
+ *******************************************************************************/
+
+void op_halo_permap_create() {
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  /* --------Step 1: Decide which maps will do partial halo exchange ----------*/
+
+  int *total_halo_sizes = (int *)calloc(OP_set_index, sizeof(int));
+  int *map_halo_sizes = (int *)calloc(OP_map_index,sizeof(int));
+
+  //Total halo size for each set
+  for (int i = 0; i < OP_set_index; i++)
+    total_halo_sizes[i] = OP_set_list[i]->nonexec_size+OP_set_list[i]->exec_size;
+
+  //See how many map elements point outside of partition (incl. duplicates)
+  for (int i = 0; i < OP_map_index; i++) {
+    op_map map = OP_map_list[i];
+    for (int e=map->from->core_size;
+         e<map->from->size+map->from->exec_size;
+         e++) {
+      for (int j = 0; j < map->dim; j++)
+        if (map->map[e*map->dim+j] >= map->to->size) map_halo_sizes[i]++;
+    }
+  }
+
+  int *reduced_total_halo_sizes = (int *)calloc(OP_set_index, sizeof(int));
+  int *reduced_map_halo_sizes = (int *)calloc(OP_map_index,sizeof(int));
+  MPI_Allreduce(total_halo_sizes, reduced_total_halo_sizes,
+                OP_set_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes,
+                OP_map_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  OP_map_partial_exchange = (int *)malloc(OP_map_index*sizeof(int));
+  for (int i = 0; i < OP_map_index; i++) {
+    OP_map_partial_exchange[i] = (double)reduced_map_halo_sizes[i] <
+                      (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.2;
+//    printf("Mapping %s partially exchanged: %d (%d < 0.2*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i], reduced_map_halo_sizes[i], reduced_total_halo_sizes[OP_map_list[i]->to->index]);
+  }
+  free(reduced_total_halo_sizes);
+  free(reduced_map_halo_sizes);
+  free(total_halo_sizes);
+  free(map_halo_sizes);
+
+  /* --------Step 2: go through maps, determine import subset -----------------*/
+  OP_import_nonexec_permap = (halo_list *)malloc(OP_map_index *
+                                                      sizeof(halo_list));
+  OP_export_nonexec_permap = (halo_list *)malloc(OP_map_index *
+                                                      sizeof(halo_list));
+
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_partial_exchange[i]) {
+      OP_import_nonexec_permap[i] = (halo_list)malloc(sizeof(halo_list_core));
+      OP_export_nonexec_permap[i] = (halo_list)malloc(sizeof(halo_list_core));
+    }
+  }
+
+  int *set_import_buffer_size = (int *)calloc(OP_set_index, sizeof(int));
+  for (int i = 0; i < OP_map_index; i++) {
+    if (!OP_map_partial_exchange[i]) continue;
+    op_map map = OP_map_list[i];
+    OP_import_nonexec_permap[i]->set = map->to;
+    OP_import_nonexec_permap[i]->size = 0;
+
+    //
+    // Merge exec and non-exec neighbors for the target set (import halo)
+    //
+    OP_import_nonexec_permap[i]->ranks_size = 0;
+    int total = (OP_import_exec_list[map->to->index]->ranks_size + OP_import_nonexec_list[map->to->index]->ranks_size);
+    OP_import_nonexec_permap[i]->ranks = (int*)calloc(total, sizeof(int));
+    for (int j = 0; j < total; j++) {
+      int merge = j < OP_import_exec_list[map->to->index]->ranks_size ?
+        OP_import_exec_list[map->to->index]->ranks[j] : OP_import_nonexec_list[map->to->index]->ranks[j-OP_import_exec_list[map->to->index]->ranks_size];
+      int found = 0;
+      for (int k = 0; k < OP_import_nonexec_permap[i]->ranks_size; k++) {
+        if (merge == OP_import_nonexec_permap[i]->ranks[k]) {found = 1; break;}
+      }
+      if (!found) OP_import_nonexec_permap[i]->ranks[OP_import_nonexec_permap[i]->ranks_size++] = merge;
+    }
+    quickSort(OP_import_nonexec_permap[i]->ranks, 0 , OP_import_nonexec_permap[i]->ranks_size-1);
+
+    //
+    // Count how many we will actually need from each of them for this particular map
+    //
+    OP_import_nonexec_permap[i]->disps = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_import_nonexec_permap[i]->sizes = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_import_nonexec_permap[i]->sizes2 = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
+
+    //Create flag array: -1 for halo elements that are not eccessed by this map, gbl partition ID for elements that are
+    int *scratch = (int *)malloc((map->to->exec_size + map->to->nonexec_size) *sizeof(int));
+    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
+      scratch[j] = -1;
+    }
+    for (int e=map->from->core_size;
+         e<map->from->size+map->from->exec_size;
+         e++) {
+      for (int j = 0; j < map->dim; j++) {
+        //I know based on index whether it's exec or nonzexec halo region, one less search!
+        if (map->map[e*map->dim+j] >= map->to->size) {
+          int target_partition = 0;
+          if (map->map[e*map->dim+j] < map->to->size+map->to->exec_size) {
+            int index = map->map[e*map->dim+j] - map->to->size;
+            while(target_partition <  OP_import_exec_list[map->to->index]->ranks_size-1 && index > OP_import_exec_list[map->to->index]->disps[target_partition+1]) target_partition++;
+            if (!(index >= OP_import_exec_list[map->to->index]->disps[target_partition] && index < OP_import_exec_list[map->to->index]->disps[target_partition] + OP_import_exec_list[map->to->index]->sizes[target_partition])) printf("ERROR: index out of bounds of halo region!\n");
+            target_partition = OP_import_exec_list[map->to->index]->ranks[target_partition];
+          }
+          else {
+            int index = map->map[e*map->dim+j] - map->to->size - map->to->exec_size;
+            while(target_partition <  OP_import_nonexec_list[map->to->index]->ranks_size-1 && index > OP_import_nonexec_list[map->to->index]->disps[target_partition+1]) target_partition++;
+            if (!(index >= OP_import_nonexec_list[map->to->index]->disps[target_partition] && index < OP_import_nonexec_list[map->to->index]->disps[target_partition] + OP_import_nonexec_list[map->to->index]->sizes[target_partition])) printf("ERROR: index out of bounds of halo region!\n");
+            target_partition = OP_import_nonexec_list[map->to->index]->ranks[target_partition];
+          }
+          scratch[map->map[e*map->dim+j] - map->to->size] = target_partition;
+        }
+      }
+    }
+    //Find which index the partition ID is at in the permap halo list, and add to import size for that source
+    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
+      if (scratch[j]>=0) {
+        int target = linear_search(OP_import_nonexec_permap[i]->ranks, scratch[j], 0, OP_import_nonexec_permap[i]->ranks_size-1);
+        scratch[j] = target;
+        OP_import_nonexec_permap[i]->sizes[target]++;
+      }
+    }
+
+    //Cumulative sum to determine total size
+    OP_import_nonexec_permap[i]->disps[0] = 0;
+    for (int j = 1; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
+      OP_import_nonexec_permap[i]->disps[j] = OP_import_nonexec_permap[i]->disps[j-1] + OP_import_nonexec_permap[i]->sizes[j-1];
+      OP_import_nonexec_permap[i]->sizes[j-1] = 0;
+    }
+    OP_import_nonexec_permap[i]->size = OP_import_nonexec_permap[i]->disps[OP_import_nonexec_permap[i]->ranks_size-1] +
+                                        OP_import_nonexec_permap[i]->sizes[OP_import_nonexec_permap[i]->ranks_size-1];
+    OP_import_nonexec_permap[i]->sizes[OP_import_nonexec_permap[i]->ranks_size-1] = 0;
+
+    set_import_buffer_size[map->to->index] = MAX(set_import_buffer_size[map->to->index], OP_import_nonexec_permap[i]->size);
+
+    //
+    // Populate halo lists with offsets into current halo segment (exec/nonexec and source partition)
+    //
+    OP_import_nonexec_permap[i]->list = (int *)malloc(OP_import_nonexec_permap[i]->size * sizeof(int));
+    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
+      if (scratch[j]>=0) {
+        int local_offset = -1;
+        int target_partition = OP_import_nonexec_permap[i]->ranks[scratch[j]];
+        if (j < map->to->exec_size) {
+          int target_partition_idx = linear_search(OP_import_exec_list[map->to->index]->ranks, target_partition, 0, OP_import_exec_list[map->to->index]->ranks_size-1);
+          local_offset = j - OP_import_exec_list[map->to->index]->disps[target_partition_idx];
+          OP_import_nonexec_permap[i]->sizes2[scratch[j]]++;
+        } else {
+          int target_partition_idx = linear_search(OP_import_nonexec_list[map->to->index]->ranks, target_partition, 0, OP_import_nonexec_list[map->to->index]->ranks_size-1);
+          local_offset = j - OP_import_nonexec_list[map->to->index]->disps[target_partition_idx] - OP_import_exec_list[map->to->index]->size;
+        }
+        OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[scratch[j]] + OP_import_nonexec_permap[i]->sizes[scratch[j]]] = local_offset;
+        OP_import_nonexec_permap[i]->sizes[scratch[j]]++;
+      }
+    }
+    free(scratch);
+
+    //
+    // Let the other ranks know how many elements we will need from their exec/nonexec halo regions
+    //
+    int *send_buffer = (int *)malloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
+    int *recv_buffer = (int *)malloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
+    MPI_Status *send_status = (MPI_Status *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
+    MPI_Status *recv_status = (MPI_Status *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
+    MPI_Request *send_request = (MPI_Request *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Request));
+
+    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
+      send_buffer[2*j] = OP_import_nonexec_permap[i]->sizes2[j];
+      send_buffer[2*j+1] = OP_import_nonexec_permap[i]->sizes[j] - OP_import_nonexec_permap[i]->sizes2[j];
+      MPI_Isend(&send_buffer[2*j], 2, MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 0, MPI_COMM_WORLD, &send_request[j]);
+    }
+
+    OP_export_nonexec_permap[i]->set = map->to;
+    OP_export_nonexec_permap[i]->size = 0;
+    //
+    // Merge exec and non-exec neighbors for the target set (export halo)
+    //
+    OP_export_nonexec_permap[i]->ranks_size = 0;
+    total = (OP_export_exec_list[map->to->index]->ranks_size + OP_export_nonexec_list[map->to->index]->ranks_size);
+    OP_export_nonexec_permap[i]->ranks = (int*)calloc(total, sizeof(int));
+    for (int j = 0; j < total; j++) {
+      int merge = j < OP_export_exec_list[map->to->index]->ranks_size ?
+        OP_export_exec_list[map->to->index]->ranks[j] : OP_export_nonexec_list[map->to->index]->ranks[j-OP_export_exec_list[map->to->index]->ranks_size];
+      int found = 0;
+      for (int k = 0; k < OP_export_nonexec_permap[i]->ranks_size; k++) {
+        if (merge == OP_export_nonexec_permap[i]->ranks[k]) {found = 1; break;}
+      }
+      if (!found) OP_export_nonexec_permap[i]->ranks[OP_export_nonexec_permap[i]->ranks_size++] = merge;
+    }
+    quickSort(OP_export_nonexec_permap[i]->ranks, 0 , OP_export_nonexec_permap[i]->ranks_size-1);
+
+    //
+    // Receive sizes, allocate export lists
+    //
+    OP_export_nonexec_permap[i]->disps = (int*)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_export_nonexec_permap[i]->sizes = (int*)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_export_nonexec_permap[i]->sizes2 = (int*)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_export_nonexec_permap[i]->disps[0] = 0;
+    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
+      MPI_Recv(&recv_buffer[2*j], 2, MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 0, MPI_COMM_WORLD, &recv_status[j]);
+      OP_export_nonexec_permap[i]->sizes2[j] = recv_buffer[2*j];
+      OP_export_nonexec_permap[i]->sizes[j] = recv_buffer[2*j] + recv_buffer[2*j+1];
+      if (j>0) OP_export_nonexec_permap[i]->disps[j] = OP_export_nonexec_permap[i]->disps[j-1] + OP_export_nonexec_permap[i]->sizes[j-1];
+    }
+    MPI_Waitall(OP_import_nonexec_permap[i]->ranks_size, send_request, send_status);
+    free(send_buffer);
+    free(recv_buffer);
+
+    OP_export_nonexec_permap[i]->size = OP_export_nonexec_permap[i]->disps[OP_export_nonexec_permap[i]->ranks_size-1] +
+                                        OP_export_nonexec_permap[i]->sizes[OP_export_nonexec_permap[i]->ranks_size-1];
+    OP_export_nonexec_permap[i]->list = (int*)malloc(OP_export_nonexec_permap[i]->size * sizeof(int));
+
+    //
+    // Collapse import and export lists (remove 0 size destinations)
+    //
+    int new_size = 0;
+    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
+      if (OP_import_nonexec_permap[i]->sizes[j] > 0) {
+        OP_import_nonexec_permap[i]->sizes[new_size]  = OP_import_nonexec_permap[i]->sizes[j];
+        OP_import_nonexec_permap[i]->sizes2[new_size] = OP_import_nonexec_permap[i]->sizes2[j];
+        OP_import_nonexec_permap[i]->disps[new_size]  = OP_import_nonexec_permap[i]->disps[j];
+        OP_import_nonexec_permap[i]->ranks[new_size]  = OP_import_nonexec_permap[i]->ranks[j];
+        new_size++;
+      }
+    }
+    OP_import_nonexec_permap[i]->ranks_size = new_size;
+
+    new_size = 0;
+    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
+      if (OP_export_nonexec_permap[i]->sizes[j] > 0) {
+        OP_export_nonexec_permap[i]->sizes[new_size]  = OP_export_nonexec_permap[i]->sizes[j];
+        OP_export_nonexec_permap[i]->sizes2[new_size] = OP_export_nonexec_permap[i]->sizes2[j];
+        OP_export_nonexec_permap[i]->disps[new_size]  = OP_export_nonexec_permap[i]->disps[j];
+        OP_export_nonexec_permap[i]->ranks[new_size]  = OP_export_nonexec_permap[i]->ranks[j];
+        new_size++;
+      }
+    }
+    OP_export_nonexec_permap[i]->ranks_size = new_size;
+
+    //
+    // Send and Receive export lists, substitute local indices
+    //
+    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
+      MPI_Isend(&OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]], OP_import_nonexec_permap[i]->sizes[j],
+                MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 1, MPI_COMM_WORLD, &send_request[j]);
+    }
+    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
+      MPI_Recv(&OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]], OP_export_nonexec_permap[i]->sizes[j],
+                MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 1, MPI_COMM_WORLD, &recv_status[j]);
+      for (int k = 0; k < OP_export_nonexec_permap[i]->sizes2[j]; k++) {
+        int element = OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k];
+        int source_partition_idx = linear_search(OP_export_exec_list[map->to->index]->ranks,
+                                                 OP_export_nonexec_permap[i]->ranks[j], 0,
+                                                 OP_export_exec_list[map->to->index]->ranks_size-1);
+        OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k] = OP_export_exec_list[map->to->index]->list[
+                                                        OP_export_exec_list[map->to->index]->disps[source_partition_idx] + element];
+      }
+      for (int k = OP_export_nonexec_permap[i]->sizes2[j]; k < OP_export_nonexec_permap[i]->sizes[j]; k++) {
+        int element = OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k];
+        int source_partition_idx = linear_search(OP_export_nonexec_list[map->to->index]->ranks,
+                                                 OP_export_nonexec_permap[i]->ranks[j], 0,
+                                                 OP_export_nonexec_list[map->to->index]->ranks_size-1);
+        OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k] = OP_export_nonexec_list[map->to->index]->list[
+                                                        OP_export_nonexec_list[map->to->index]->disps[source_partition_idx] + element];
+      }
+    }
+    MPI_Waitall(OP_import_nonexec_permap[i]->ranks_size, send_request, send_status);
+    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
+      for (int k = 0; k < OP_import_nonexec_permap[i]->sizes2[j]; k++) {
+        int element = OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k];
+        int source_partition_idx = linear_search(OP_import_exec_list[map->to->index]->ranks,
+                                                 OP_import_nonexec_permap[i]->ranks[j], 0,
+                                                 OP_import_exec_list[map->to->index]->ranks_size-1);
+        OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k] = map->to->size + OP_import_exec_list[map->to->index]->disps[source_partition_idx] + element;
+      }
+      for (int k = OP_import_nonexec_permap[i]->sizes2[j]; k < OP_import_nonexec_permap[i]->sizes[j]; k++) {
+        int element = OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k];
+        int source_partition_idx = linear_search(OP_import_nonexec_list[map->to->index]->ranks,
+                                                 OP_import_nonexec_permap[i]->ranks[j], 0,
+                                                 OP_import_nonexec_list[map->to->index]->ranks_size-1);
+        OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k] = map->to->size + map->to->exec_size +
+                                                        OP_import_nonexec_list[map->to->index]->disps[source_partition_idx] + element;
+      }
+    }
+
+    free(recv_status);
+    free(send_status);
+    free(send_request);
+  }
+
+  //
+  // resize mpi_buffers to accommodate import data before scattering to actual positions
+  //
+  for (int i = 0; i < OP_set_index; i++) {
+    if (set_import_buffer_size[i] == 0) continue;
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      op_dat dat = item->dat;
+      halo_list nonexec_e_list = OP_export_nonexec_list[i];
+      ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec = (char *)xrealloc(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec,
+                                                                         (nonexec_e_list->size + set_import_buffer_size[i])*dat->size);
+    }
+  }
+
+  //
+  // Sanity checks
+  //
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_partial_exchange[i] == 0) continue;
+    op_map map = OP_map_list[i];
+    for (int e=map->from->core_size;
+         e<map->from->size+map->from->exec_size;
+         e++) {
+      for (int j = 0; j < map->dim; j++)
+        if (map->map[e*map->dim+j] >= map->to->size) {
+          int idx = linear_search(OP_import_nonexec_permap[i]->list, map->map[e*map->dim+j], 0, OP_import_nonexec_permap[i]->size-1);
+          if (idx == -1) {
+            printf("ERROR: map element not found in partial halo exchange list!\n");
+          }
+        }
+    }
+  }
+}
+
+/*******************************************************************************
  * Routine to Clean-up all MPI halos(called at the end of an OP2 MPI application)
  *******************************************************************************/
 
@@ -2402,14 +2738,6 @@ int getHybridGPU() {
   return OP_hybrid_gpu;
 }
 
-int op_should_do_exchange(int nargs, op_arg *args) {
-  int should_do = 0;
-  for (int i = 0; i < nargs; i++) {
-    if (args[i].map != OP_ID && args[i].map->dim > 1) should_do = 1;
-  }
-  return !(OP_mpi_experimental && !should_do);
-}
-
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
@@ -2443,11 +2771,24 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
       exec_flag = 1;
     }
   }
-  if (!op_should_do_exchange(nargs, args)) return size;
   op_timers_core(&c1, &t1);
-  for (int n=0; n<nargs; n++)
-    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
-      op_exchange_halo(&args[n], exec_flag);
+  for (int n=0; n<nargs; n++) {
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
+      if (args[n].map == OP_ID || !OP_mpi_experimental) {
+        op_exchange_halo(&args[n], exec_flag);
+      } else {
+        int found = 0;
+        for (int m = 0; m < n; m++) {
+          if (args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
+          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) {printf("Multiple maps referencing the same dat is not supported, please switch off OP_mpi_experimental\n"); MPI_Abort(MPI_COMM_WORLD,2);};
+        }
+        if (!found) {
+          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial(&args[n], exec_flag);
+          else op_exchange_halo(&args[n], exec_flag);
+        }
+      }
+    }
+  }
   op_timers_core(&c2, &t2);
   if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;
@@ -2484,11 +2825,25 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
       exec_flag= 1;
     }
   }
-  if (!op_should_do_exchange(nargs, args)) return size;
   op_timers_core(&c1, &t1);
-  for (int n=0; n<nargs; n++)
-    if(args[n].opt && args[n].argtype == OP_ARG_DAT)
-      op_exchange_halo_cuda(&args[n],exec_flag);
+  for (int n=0; n<nargs; n++) {
+    if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
+      if (args[n].map == OP_ID || !OP_mpi_experimental) {
+        op_exchange_halo_cuda(&args[n], exec_flag);
+      } else {
+        int found = 0;
+        for (int m = 0; m < n; m++) {
+          if (args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
+          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) {printf("Multiple maps referencing the same dat is not supported, please switch off OP_mpi_experimental\n"); MPI_Abort(MPI_COMM_WORLD,2);};
+        }
+        if (!found) {
+          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial_cuda(&args[n], exec_flag);
+          else op_exchange_halo_cuda(&args[n], exec_flag);
+        }
+      }
+    }
+  }
+
   op_timers_core(&c2, &t2);
   if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;
@@ -2515,7 +2870,6 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
-  if (!op_should_do_exchange(nargs, args)) return;
   op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     op_wait_all(&args[n]);
@@ -2525,7 +2879,6 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
-  if (!op_should_do_exchange(nargs, args)) return;
   op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     op_wait_all_cuda(&args[n]);

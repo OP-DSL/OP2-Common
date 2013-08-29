@@ -53,6 +53,12 @@ extern int OP_part_index;
 extern part *OP_part_list;
 extern int** orig_part_range;
 
+/** variables for partial halo exchanges **/
+extern int *OP_map_partial_exchange;
+extern halo_list *OP_import_nonexec_permap;
+extern halo_list *OP_export_nonexec_permap;
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

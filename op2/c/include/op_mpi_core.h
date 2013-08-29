@@ -70,6 +70,7 @@ typedef struct {
   int    *disps;
   //number of elements exported to or imported from each ranks
   int    *sizes;
+  int    *sizes2;
   //the list of all elements
   int    *list;
 } halo_list_core;
@@ -228,6 +229,8 @@ int is_onto_map(op_map map);
 
 void op_halo_create();
 
+void op_halo_permap_create();
+
 void op_halo_destroy();
 
 op_dat op_mpi_get_data(op_dat dat);
@@ -295,8 +298,10 @@ void op_partition_ptscotch(op_map primary_map);
 *******************************************************************************/
 
 void op_exchange_halo(op_arg* arg, int exec_flag);
+void op_exchange_halo_partial(op_arg* arg, int exec_flag);
 void op_wait_all(op_arg* arg);
 void op_exchange_halo_cuda(op_arg* arg, int exec_flag);
+void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag);
 void op_wait_all_cuda(op_arg* arg);
 void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
