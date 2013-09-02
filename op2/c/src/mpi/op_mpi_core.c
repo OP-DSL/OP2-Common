@@ -2785,7 +2785,6 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
     }
   }
   op_timers_core(&c1, &t1);
-  MPI_Barrier(MPI_COMM_WORLD);
   for (int n=0; n<nargs; n++) {
     if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID || !OP_mpi_experimental) {
