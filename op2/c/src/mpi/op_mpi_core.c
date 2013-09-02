@@ -1499,7 +1499,7 @@ void op_halo_permap_create() {
   for (int i = 0; i < OP_map_index; i++) {
     OP_map_partial_exchange[i] = (double)reduced_map_halo_sizes[i] <
                       (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.2;
-//    printf("Mapping %s partially exchanged: %d (%d < 0.2*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i], reduced_map_halo_sizes[i], reduced_total_halo_sizes[OP_map_list[i]->to->index]);
+    if (rank == 0) printf("Mapping %s partially exchanged: %d (%d < 0.2*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i], reduced_map_halo_sizes[i], reduced_total_halo_sizes[OP_map_list[i]->to->index]);
   }
   free(reduced_total_halo_sizes);
   free(reduced_map_halo_sizes);
@@ -1564,14 +1564,14 @@ void op_halo_permap_create() {
           int target_partition = 0;
           if (map->map[e*map->dim+j] < map->to->size+map->to->exec_size) {
             int index = map->map[e*map->dim+j] - map->to->size;
-            while(target_partition <  OP_import_exec_list[map->to->index]->ranks_size-1 && index > OP_import_exec_list[map->to->index]->disps[target_partition+1]) target_partition++;
-            if (!(index >= OP_import_exec_list[map->to->index]->disps[target_partition] && index < OP_import_exec_list[map->to->index]->disps[target_partition] + OP_import_exec_list[map->to->index]->sizes[target_partition])) printf("ERROR: index out of bounds of halo region!\n");
+            while(target_partition <  OP_import_exec_list[map->to->index]->ranks_size-1 && index >= OP_import_exec_list[map->to->index]->disps[target_partition+1]) target_partition++;
+            if (!(index >= OP_import_exec_list[map->to->index]->disps[target_partition] && index < OP_import_exec_list[map->to->index]->disps[target_partition] + OP_import_exec_list[map->to->index]->sizes[target_partition])) printf("ERROR:  exec index out of bounds of halo region! part idx %d/%d, index: %d %d-%d\n", target_partition, OP_import_exec_list[map->to->index]->ranks_size, index, OP_import_exec_list[map->to->index]->disps[target_partition], OP_import_exec_list[map->to->index]->sizes[target_partition]);
             target_partition = OP_import_exec_list[map->to->index]->ranks[target_partition];
           }
           else {
             int index = map->map[e*map->dim+j] - map->to->size - map->to->exec_size;
-            while(target_partition <  OP_import_nonexec_list[map->to->index]->ranks_size-1 && index > OP_import_nonexec_list[map->to->index]->disps[target_partition+1]) target_partition++;
-            if (!(index >= OP_import_nonexec_list[map->to->index]->disps[target_partition] && index < OP_import_nonexec_list[map->to->index]->disps[target_partition] + OP_import_nonexec_list[map->to->index]->sizes[target_partition])) printf("ERROR: index out of bounds of halo region!\n");
+            while(target_partition <  OP_import_nonexec_list[map->to->index]->ranks_size-1 && index >= OP_import_nonexec_list[map->to->index]->disps[target_partition+1]) target_partition++;
+            if (!(index >= OP_import_nonexec_list[map->to->index]->disps[target_partition] && index < OP_import_nonexec_list[map->to->index]->disps[target_partition] + OP_import_nonexec_list[map->to->index]->sizes[target_partition])) printf("ERROR: nonexec index out of bounds of halo region! part idx %d/%d, index: %d %d-%d\n", target_partition, OP_import_nonexec_list[map->to->index]->ranks_size, index, OP_import_nonexec_list[map->to->index]->disps[target_partition], OP_import_nonexec_list[map->to->index]->sizes[target_partition]);
             target_partition = OP_import_nonexec_list[map->to->index]->ranks[target_partition];
           }
           scratch[map->map[e*map->dim+j] - map->to->size] = target_partition;
@@ -1582,6 +1582,13 @@ void op_halo_permap_create() {
     for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
       if (scratch[j]>=0) {
         int target = linear_search(OP_import_nonexec_permap[i]->ranks, scratch[j], 0, OP_import_nonexec_permap[i]->ranks_size-1);
+        if (j < map->to->exec_size) {
+          int target_ori = linear_search(OP_import_exec_list[map->to->index]->ranks, scratch[j], 0, OP_import_exec_list[map->to->index]->ranks_size-1);
+          if (target_ori==-1 || !(j>=OP_import_exec_list[map->to->index]->disps[target_ori] && j < OP_import_exec_list[map->to->index]->disps[target_ori] + OP_import_exec_list[map->to->index]->sizes[target_ori])) printf("ERROR: scratch exec position out of range\n");
+        } else {
+          int target_ori = linear_search(OP_import_nonexec_list[map->to->index]->ranks, scratch[j], 0, OP_import_nonexec_list[map->to->index]->ranks_size-1);
+          if (target_ori==-1 || !(j-map->to->exec_size>=OP_import_nonexec_list[map->to->index]->disps[target_ori] && j < OP_import_nonexec_list[map->to->index]->disps[target_ori] + OP_import_nonexec_list[map->to->index]->sizes[target_ori])) printf("ERROR: scratch exec position out of range\n");
+        }
         scratch[j] = target;
         OP_import_nonexec_permap[i]->sizes[target]++;
       }
@@ -1609,10 +1616,12 @@ void op_halo_permap_create() {
         int target_partition = OP_import_nonexec_permap[i]->ranks[scratch[j]];
         if (j < map->to->exec_size) {
           int target_partition_idx = linear_search(OP_import_exec_list[map->to->index]->ranks, target_partition, 0, OP_import_exec_list[map->to->index]->ranks_size-1);
+          if (target_partition_idx == -1 || !(j>=OP_import_exec_list[map->to->index]->disps[target_partition_idx] && j < OP_import_exec_list[map->to->index]->disps[target_partition_idx] + OP_import_exec_list[map->to->index]->sizes[target_partition_idx])) printf("ERROR: population exec position out of range\n");
           local_offset = j - OP_import_exec_list[map->to->index]->disps[target_partition_idx];
           OP_import_nonexec_permap[i]->sizes2[scratch[j]]++;
         } else {
           int target_partition_idx = linear_search(OP_import_nonexec_list[map->to->index]->ranks, target_partition, 0, OP_import_nonexec_list[map->to->index]->ranks_size-1);
+          if (target_partition_idx == -1 || !(j-map->to->exec_size>=OP_import_nonexec_list[map->to->index]->disps[target_partition_idx] && j < OP_import_nonexec_list[map->to->index]->disps[target_partition_idx] + OP_import_nonexec_list[map->to->index]->sizes[target_partition_idx])) printf("ERROR: scratch exec position out of range\n");
           local_offset = j - OP_import_nonexec_list[map->to->index]->disps[target_partition_idx] - OP_import_exec_list[map->to->index]->size;
         }
         OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[scratch[j]] + OP_import_nonexec_permap[i]->sizes[scratch[j]]] = local_offset;
@@ -1718,6 +1727,7 @@ void op_halo_permap_create() {
         int source_partition_idx = linear_search(OP_export_exec_list[map->to->index]->ranks,
                                                  OP_export_nonexec_permap[i]->ranks[j], 0,
                                                  OP_export_exec_list[map->to->index]->ranks_size-1);
+        if (source_partition_idx == -1) printf("ERROR: exec source partition for export not found\n");
         OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k] = OP_export_exec_list[map->to->index]->list[
                                                         OP_export_exec_list[map->to->index]->disps[source_partition_idx] + element];
       }
@@ -1726,6 +1736,7 @@ void op_halo_permap_create() {
         int source_partition_idx = linear_search(OP_export_nonexec_list[map->to->index]->ranks,
                                                  OP_export_nonexec_permap[i]->ranks[j], 0,
                                                  OP_export_nonexec_list[map->to->index]->ranks_size-1);
+        if (source_partition_idx == -1) printf("ERROR: nonexec source partition for export not found\n");
         OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k] = OP_export_nonexec_list[map->to->index]->list[
                                                         OP_export_nonexec_list[map->to->index]->disps[source_partition_idx] + element];
       }
@@ -1737,6 +1748,7 @@ void op_halo_permap_create() {
         int source_partition_idx = linear_search(OP_import_exec_list[map->to->index]->ranks,
                                                  OP_import_nonexec_permap[i]->ranks[j], 0,
                                                  OP_import_exec_list[map->to->index]->ranks_size-1);
+        if (source_partition_idx == -1) printf("ERROR: exec source partition for import not found\n");
         OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k] = map->to->size + OP_import_exec_list[map->to->index]->disps[source_partition_idx] + element;
       }
       for (int k = OP_import_nonexec_permap[i]->sizes2[j]; k < OP_import_nonexec_permap[i]->sizes[j]; k++) {
@@ -1744,6 +1756,7 @@ void op_halo_permap_create() {
         int source_partition_idx = linear_search(OP_import_nonexec_list[map->to->index]->ranks,
                                                  OP_import_nonexec_permap[i]->ranks[j], 0,
                                                  OP_import_nonexec_list[map->to->index]->ranks_size-1);
+        if (source_partition_idx == -1) printf("ERROR: nonexec source partition for import not found\n");
         OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]+k] = map->to->size + map->to->exec_size +
                                                         OP_import_nonexec_list[map->to->index]->disps[source_partition_idx] + element;
       }
@@ -2772,6 +2785,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
     }
   }
   op_timers_core(&c1, &t1);
+  MPI_Barrier(MPI_COMM_WORLD);
   for (int n=0; n<nargs; n++) {
     if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID || !OP_mpi_experimental) {

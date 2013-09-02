@@ -250,7 +250,7 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
      // printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
      //       my_rank, imp_exec_list->ranks[i], dat->name, imp_exec_list->sizes[i]);
       MPI_Irecv(&((op_mpi_buffer)(dat->mpi_buffer))->
-          buf_nonexec[init+imp_nonexec_list->disps[i]*dat->size],
+          buf_nonexec[(init+imp_nonexec_list->disps[i])*dat->size],
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
