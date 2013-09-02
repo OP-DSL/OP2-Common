@@ -96,6 +96,48 @@ __global__ void import_halo_scatter_soa(int offset, char * dat, int copy_size,
   }
 }
 
+__global__ void import_halo_scatter_partial_soa(int* list, char * dat, int copy_size,
+  int elem_size, char * import_buffer, int set_size, int dim)
+{
+  int id = blockIdx.x*blockDim.x+threadIdx.x;
+  int size_of = elem_size/dim;
+  if (id<copy_size) {
+    int element = list[id];
+    if (size_of == 8) {
+      for (int i =  0;i<dim;i++) {
+        ((double*)(dat+(element)*size_of))[i*set_size] = ((double*)(import_buffer+id*elem_size))[i];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          dat[(element)*size_of+i*set_size*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+        }
+      }
+    }
+  }
+}
+
+__global__ void import_halo_scatter_partial(int* list, char * dat, int copy_size,
+  int elem_size, char * import_buffer, int dim)
+{
+  int id = blockIdx.x*blockDim.x+threadIdx.x;
+  int size_of = elem_size/dim;
+  if (id<copy_size) {
+    int element = list[id];
+    if (size_of == 8) {
+      for (int i =  0;i<dim;i++) {
+        ((double*)(dat+element*elem_size))[i] = ((double*)(import_buffer+id*elem_size))[i];
+      }
+    } else {
+      for (int i =0;i<dim;i++) {
+        for (int j =0;j<size_of;j++) {
+          dat[element*elem_size+i*size_of+j] = import_buffer[id*elem_size+i*size_of+j];
+        }
+      }
+    }
+  }
+}
+
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list)
 {
   int threads = 192;
@@ -124,6 +166,25 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_no
   }
 }
 
+void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list)
+{
+  int threads = 192;
+  int blocks = 1+((exp_nonexec_list->size-1)/192);
+
+  if (strstr( arg.dat->type, ":soa")!= NULL) {
+
+    int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
+
+    export_halo_gather_soa<<<blocks,threads>>>(export_nonexec_list_partial_d[arg.map->index],
+      arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d, set_size, arg.dat->dim );
+  }
+  else
+  {
+    export_halo_gather<<<blocks,threads>>>(export_nonexec_list_partial_d[arg.map->index],
+      arg.data_d, exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d);
+  }
+}
+
 
 void scatter_data_from_buffer(op_arg arg)
 {
@@ -146,5 +207,27 @@ void scatter_data_from_buffer(op_arg arg)
     import_halo_scatter_soa<<<blocks2,threads>>>(offset, arg.data_d, copy_size,
       arg.dat->size, arg.dat->buffer_d_r+arg.dat->set->exec_size*arg.dat->size,
       set_size, arg.dat->dim );
+  }
+}
+
+void scatter_data_from_buffer_partial(op_arg arg)
+{
+  int threads = 192;
+  int blocks = 1+((OP_import_nonexec_permap[arg.map->index]->size-1)/192);
+
+  if (strstr( arg.dat->type, ":soa")!= NULL) {
+
+    int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
+    int init = OP_export_nonexec_permap[arg.map->index]->size;
+    int copy_size = OP_import_nonexec_permap[arg.map->index]->size;
+
+    import_halo_scatter_partial_soa<<<blocks,threads>>>(import_nonexec_list_partial_d[arg.map->index], arg.data_d, copy_size,
+      arg.dat->size, arg.dat->buffer_d+init*arg.dat->size, set_size, arg.dat->dim );
+  } else {
+    int init = OP_export_nonexec_permap[arg.map->index]->size;
+    int copy_size = OP_import_nonexec_permap[arg.map->index]->size;
+
+    import_halo_scatter_partial<<<blocks,threads>>>(import_nonexec_list_partial_d[arg.map->index], arg.data_d, copy_size,
+      arg.dat->size, arg.dat->buffer_d+init*arg.dat->size, arg.dat->dim );
   }
 }
