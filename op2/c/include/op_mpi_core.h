@@ -170,6 +170,7 @@ extern int** export_exec_list_d;
 extern int** export_nonexec_list_d;
 extern int** export_nonexec_list_partial_d;
 extern int** import_nonexec_list_partial_d;
+extern int *set_import_buffer_size;
 
 #ifdef __cplusplus
 extern "C" {

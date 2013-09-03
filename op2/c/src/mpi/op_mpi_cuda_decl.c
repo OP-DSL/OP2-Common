@@ -207,7 +207,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
   dat->dirty_hd = 0;
   cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
       dat->size * (OP_export_exec_list[set->index]->size +
-      OP_export_nonexec_list[set->index]->size) ));
+      OP_export_nonexec_list[set->index]->size + set_import_buffer_size[set->index]) ));
 }
 
 void op_mv_halo_list_device()

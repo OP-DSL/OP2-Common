@@ -72,7 +72,7 @@ halo_list *OP_export_nonexec_list;//ENH list
 int *OP_map_partial_exchange;//flag for each map
 halo_list *OP_import_nonexec_permap;
 halo_list *OP_export_nonexec_permap;
-
+int *set_import_buffer_size;
 //
 //global array to hold dirty_bits for op_dats
 //
@@ -1498,8 +1498,8 @@ void op_halo_permap_create() {
   OP_map_partial_exchange = (int *)malloc(OP_map_index*sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
     OP_map_partial_exchange[i] = (double)reduced_map_halo_sizes[i] <
-                      (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.2;
-    if (rank == 0) printf("Mapping %s partially exchanged: %d (%d < 0.2*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i], reduced_map_halo_sizes[i], reduced_total_halo_sizes[OP_map_list[i]->to->index]);
+                      (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
+    if (rank == 0) printf("Mapping %s partially exchanged: %d (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i], reduced_map_halo_sizes[i], reduced_total_halo_sizes[OP_map_list[i]->to->index]);
   }
   free(reduced_total_halo_sizes);
   free(reduced_map_halo_sizes);
@@ -1519,7 +1519,7 @@ void op_halo_permap_create() {
     }
   }
 
-  int *set_import_buffer_size = (int *)calloc(OP_set_index, sizeof(int));
+  set_import_buffer_size = (int *)calloc(OP_set_index, sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_partial_exchange[i]) continue;
     op_map map = OP_map_list[i];
