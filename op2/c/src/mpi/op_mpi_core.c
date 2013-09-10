@@ -2738,7 +2738,25 @@ void op_mpi_exit()
   //free memory used for holding partition information
   op_partition_destroy();
   //print each mpi process's timing info for each kernel
-
+  if (OP_mpi_experimental) {
+    for (int i = 0; i < OP_map_index; i++) {
+      if (OP_map_partial_exchange[i]==0) continue;
+      free(OP_import_nonexec_permap[i]->ranks);
+      free(OP_import_nonexec_permap[i]->disps);
+      free(OP_import_nonexec_permap[i]->sizes);
+      free(OP_import_nonexec_permap[i]->sizes2);
+      free(OP_import_nonexec_permap[i]->list);
+      free(OP_export_nonexec_permap[i]->ranks);
+      free(OP_export_nonexec_permap[i]->disps);
+      free(OP_export_nonexec_permap[i]->sizes);
+      free(OP_export_nonexec_permap[i]->sizes2);
+      free(OP_export_nonexec_permap[i]->list);
+      free(OP_import_nonexec_permap[i]);
+      free(OP_export_nonexec_permap[i]);
+    }
+    free(set_import_buffer_size);
+    free(OP_map_partial_exchange);
+  }
 }
 
 int getSetSizeFromOpArg (op_arg * arg)
