@@ -70,7 +70,6 @@ typedef struct {
   int    *disps;
   //number of elements exported to or imported from each ranks
   int    *sizes;
-  int    *sizes2;
   //the list of all elements
   int    *list;
 } halo_list_core;
