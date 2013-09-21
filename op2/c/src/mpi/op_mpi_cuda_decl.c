@@ -232,28 +232,26 @@ void op_mv_halo_list_device()
                       OP_export_nonexec_list[set->index]->size * sizeof(int) );
   }
 
-  if (OP_mpi_experimental) {
-      export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+  export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
 
-      for(int s=0; s<OP_map_index; s++) { //for each set
-          if (!OP_map_partial_exchange[s]) continue;
-          op_map map=OP_map_list[s];
+  for(int s=0; s<OP_map_index; s++) { //for each set
+      if (!OP_map_partial_exchange[s]) continue;
+      op_map map=OP_map_list[s];
 
-          op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_partial_d[map->index] ),
-                          ( void ** ) &(OP_export_nonexec_permap[map->index]->list),
-                          OP_export_nonexec_permap[map->index]->size * sizeof(int) );
-      }
+      op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_partial_d[map->index] ),
+                      ( void ** ) &(OP_export_nonexec_permap[map->index]->list),
+                      OP_export_nonexec_permap[map->index]->size * sizeof(int) );
+  }
 
-      import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+  import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
 
-      for(int s=0; s<OP_map_index; s++) { //for each set
-          if (!OP_map_partial_exchange[s]) continue;
-          op_map map=OP_map_list[s];
+  for(int s=0; s<OP_map_index; s++) { //for each set
+      if (!OP_map_partial_exchange[s]) continue;
+      op_map map=OP_map_list[s];
 
-          op_cpHostToDevice ( ( void ** ) &( import_nonexec_list_partial_d[map->index] ),
-                          ( void ** ) &(OP_import_nonexec_permap[map->index]->list),
-                          OP_import_nonexec_permap[map->index]->size * sizeof(int) );
-      }
+      op_cpHostToDevice ( ( void ** ) &( import_nonexec_list_partial_d[map->index] ),
+                      ( void ** ) &(OP_import_nonexec_permap[map->index]->list),
+                      OP_import_nonexec_permap[map->index]->size * sizeof(int) );
   }
 }
 
@@ -353,12 +351,10 @@ op_exit (  )
     if (export_exec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_exec_list_d[i]));
     if (export_nonexec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_nonexec_list_d[i]));
   }
-  if (OP_mpi_experimental) {
-    for (int i = 0; i < OP_map_index; i++) {
-      if (!OP_map_partial_exchange[i]) continue;
-      cutilSafeCall (cudaFree(export_nonexec_list_partial_d[i]));
-      cutilSafeCall (cudaFree(import_nonexec_list_partial_d[i]));
-    }
+  for (int i = 0; i < OP_map_index; i++) {
+    if (!OP_map_partial_exchange[i]) continue;
+    cutilSafeCall (cudaFree(export_nonexec_list_partial_d[i]));
+    cutilSafeCall (cudaFree(import_nonexec_list_partial_d[i]));
   }
 
   op_mpi_exit();

@@ -2742,23 +2742,21 @@ void op_mpi_exit()
   //free memory used for holding partition information
   op_partition_destroy();
   //print each mpi process's timing info for each kernel
-  if (OP_mpi_experimental) {
-    for (int i = 0; i < OP_map_index; i++) {
-      if (OP_map_partial_exchange[i]==0) continue;
-      free(OP_import_nonexec_permap[i]->ranks);
-      free(OP_import_nonexec_permap[i]->disps);
-      free(OP_import_nonexec_permap[i]->sizes);
-      free(OP_import_nonexec_permap[i]->list);
-      free(OP_export_nonexec_permap[i]->ranks);
-      free(OP_export_nonexec_permap[i]->disps);
-      free(OP_export_nonexec_permap[i]->sizes);
-      free(OP_export_nonexec_permap[i]->list);
-      free(OP_import_nonexec_permap[i]);
-      free(OP_export_nonexec_permap[i]);
-    }
-    free(set_import_buffer_size);
-    free(OP_map_partial_exchange);
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_partial_exchange[i]==0) continue;
+    free(OP_import_nonexec_permap[i]->ranks);
+    free(OP_import_nonexec_permap[i]->disps);
+    free(OP_import_nonexec_permap[i]->sizes);
+    free(OP_import_nonexec_permap[i]->list);
+    free(OP_export_nonexec_permap[i]->ranks);
+    free(OP_export_nonexec_permap[i]->disps);
+    free(OP_export_nonexec_permap[i]->sizes);
+    free(OP_export_nonexec_permap[i]->list);
+    free(OP_import_nonexec_permap[i]);
+    free(OP_export_nonexec_permap[i]);
   }
+  free(set_import_buffer_size);
+  free(OP_map_partial_exchange);
 }
 
 int getSetSizeFromOpArg (op_arg * arg)
@@ -2807,15 +2805,19 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
-      if (args[n].map == OP_ID || !OP_mpi_experimental) {
+      if (args[n].map == OP_ID) {
         op_exchange_halo(&args[n], exec_flag);
       } else {
+        //Check if dat-map combination was already done or if there is a mismatch (same dat, diff map)
         int found = 0;
-        for (int m = 0; m < n; m++) {
-          if (args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
-          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) {printf("Multiple maps referencing the same dat is not supported, please switch off OP_mpi_experimental\n"); MPI_Abort(MPI_COMM_WORLD,2);};
+        int fallback = 0;
+        for (int m = 0; m < nargs; m++) {
+          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
+          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) fallback = 1;
         }
-        if (!found) {
+        //If there was a map mismatch with other argument, do full halo exchange
+        if (fallback) op_exchange_halo(&args[n], exec_flag);
+        else if (!found) { //Otherwise, if partial halo exchange is enabled for this map, do it
           if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial(&args[n], exec_flag);
           else op_exchange_halo(&args[n], exec_flag);
         }
@@ -2861,22 +2863,25 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   op_timers_core(&c1, &t1);
   for (int n=0; n<nargs; n++) {
     if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
-      if (args[n].map == OP_ID || !OP_mpi_experimental) {
-        op_exchange_halo_cuda(&args[n], exec_flag);
+      if (args[n].map == OP_ID) {
+        op_exchange_halo(&args[n], exec_flag);
       } else {
+        //Check if dat-map combination was already done or if there is a mismatch (same dat, diff map)
         int found = 0;
-        for (int m = 0; m < n; m++) {
-          if (args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
-          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) {printf("Multiple maps referencing the same dat is not supported, please switch off OP_mpi_experimental\n"); MPI_Abort(MPI_COMM_WORLD,2);};
+        int fallback = 0;
+        for (int m = 0; m < nargs; m++) {
+          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) found = 1;
+          else if (args[n].dat == args[m].dat && args[n].map != args[m].map) fallback = 1;
         }
-        if (!found) {
-          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial_cuda(&args[n], exec_flag);
-          else op_exchange_halo_cuda(&args[n], exec_flag);
+        //If there was a map mismatch with other argument, do full halo exchange
+        if (fallback) op_exchange_halo(&args[n], exec_flag);
+        else if (!found) { //Otherwise, if partial halo exchange is enabled for this map, do it
+          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial(&args[n], exec_flag);
+          else op_exchange_halo(&args[n], exec_flag);
         }
       }
     }
   }
-
   op_timers_core(&c2, &t2);
   if (OP_kern_max>0) OP_kernels[OP_kern_curr].mpi_time += t2-t1;
   return size;

@@ -75,7 +75,6 @@ extern int OP_diags;
 extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
-extern int OP_mpi_experimental;
 
 /*
  * enum list for op_par_loop

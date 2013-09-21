@@ -275,7 +275,7 @@ void op_wait_all(op_arg* arg)
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
     arg->sent = 2; //set flag to indicate completed comm
-    if (OP_mpi_experimental && arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
+    if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
       halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
       int init = OP_export_nonexec_permap[arg->map->index]->size;
       char *buffer = &((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec[init*dat->size];
