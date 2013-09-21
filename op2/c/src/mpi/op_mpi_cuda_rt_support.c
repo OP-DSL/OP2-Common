@@ -174,7 +174,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
   if((arg->opt) && (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
 
-    //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
@@ -219,8 +218,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
       MPI_Isend(&outptr_exec[exp_exec_list->disps[i]*dat->size],
-        /*&((op_mpi_buffer)(dat->mpi_buffer))->
-            buf_exec[exp_exec_list->disps[i]*dat->size],*/
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -256,8 +253,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
 
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
       MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i]*dat->size],
-        /*&((op_mpi_buffer)(dat->mpi_buffer))->
-            buf_nonexec[exp_nonexec_list->disps[i]*dat->size],*/
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -368,8 +363,6 @@ void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag)
           r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
 
-    //clear dirty bit
-    dat->dirtybit = 0;
     arg->sent = 1;
   }
 }
@@ -422,8 +415,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
           buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
           (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
@@ -436,8 +427,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-     // printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-     //       my_rank, imp_exec_list->ranks[i], dat->name, imp_exec_list->sizes[i]);
       MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
@@ -468,8 +457,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
             buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //          my_rank, exp_nonexec_list->ranks[i], dat->name,exp_nonexec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
@@ -481,8 +468,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-      //      my_rank, imp_nonexec_list->ranks[i], dat->name, imp_nonexec_list->sizes[i]);
       MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
@@ -519,7 +504,6 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
     halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
-    //printf("%d: Exchanging partial Halo of data array %10s %p\n",rank, dat->name, exp_nonexec_list);
     //-------exchange nonexec elements related to this data array and map--------
 
     //sanity checks
@@ -538,15 +522,11 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
       for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
       {
-//        if (rank==2) printf("idx %d (%d)\n", exp_nonexec_list->disps[i]+j, exp_nonexec_list->size);
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
-//        if (rank==2) printf("exporting %d (%d)\n", set_elem_index, dat->set->size);
         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
           (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-//      if (rank == 2) printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-//                rank, exp_nonexec_list->ranks[i], dat->name,exp_nonexec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
@@ -555,12 +535,9 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
           &((op_mpi_buffer)(dat->mpi_buffer))->
           s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
-//    printf("%d: packed and sent Halo of data array %10s\n",rank, dat->name);
 
     int init = exp_nonexec_list->size;
     for(int i=0; i < imp_nonexec_list->ranks_size; i++) {
-     // printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-     //       my_rank, imp_exec_list->ranks[i], dat->name, imp_exec_list->sizes[i]);
       MPI_Irecv(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[(init+imp_nonexec_list->disps[i])*dat->size],
           dat->size*imp_nonexec_list->sizes[i],
@@ -569,8 +546,6 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
           &((op_mpi_buffer)(dat->mpi_buffer))->
           r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
-//    printf("%d: Irecv called partial Halo of data array %10s\n",rank, dat->name);
-
     //note that we are not settinging the dirtybit to 0, since it's not a full exchange
     arg->sent = 1;
   }
