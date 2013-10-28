@@ -70,6 +70,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 int main(int argc, char **argv)
 {
+op_printf("init... \n");
   // OP initialisation
   op_init(argc,argv,2);
 
@@ -95,6 +96,7 @@ int main(int argc, char **argv)
     op_printf("error reading from new_grid.dat\n"); exit(-1);
   }
 
+op_printf("mallocs... \n");
   cell   = (int *) malloc(4*ncell*sizeof(int));
   edge   = (int *) malloc(2*nedge*sizeof(int));
   ecell  = (int *) malloc(2*nedge*sizeof(int));
@@ -201,11 +203,12 @@ int main(int argc, char **argv)
   // main time-marching loop
 
   niter = 1000;
-
+op_printf("iteration start \n");
   for(int iter=1; iter<=niter; iter++) {
 
     // save old flow solution
 
+op_printf("save_sol... \n");
     op_par_loop(save_soln,"save_soln", cells,
       op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
       op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
@@ -256,12 +259,15 @@ int main(int argc, char **argv)
           op_arg_gbl(&rms,1,"float",OP_INC));
     }
 
+op_printf("rms... \n");
     // print iteration history
     rms = sqrt(rms/(float) op_get_size(cells));
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
   }
 
+op_printf("loopend... \n");
+    // print iteration history
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);

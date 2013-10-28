@@ -21,6 +21,7 @@ CUDA_LIB	= -L/usr/local/cuda/lib64
 
 OPENCL_INC	= -I$(OPENCL_INTEL_INSTALL_PATH)/include
 OPENCL_LIB	= -L$(OPENCL_INTEL_INSTALL_PATH)/lib64
+#OPENCL_LIB	= -L$(OPENCL_INTEL_INSTALL_PATH)/libmic
 
 
 ifeq ($(OP2_COMPILER),gnu)
@@ -32,9 +33,9 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  #CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   #CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
-  CCFLAGS	= -mmic -O3 -vec-report -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  #CCFLAGS	= -mmic -O3 -vec-report -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -119,7 +120,8 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 #
 
 airfoil_opencl:	airfoil_op.cpp airfoil_kernels_opencl.o Makefile
-		$(CPP) -L/home/endre/intel-ocl/usr/lib64 $(VAR) $(CPPFLAGS) $(OPENCL_INC) $(OP2_INC) $(OPENCL_LIB) -lOpenCL $(OP2_LIB) \
+		#$(CPP) -L/home/endre/intel-ocl/usr/lib64 $(VAR) $(CPPFLAGS) $(OPENCL_INC) $(OP2_INC) $(OPENCL_LIB) -lOpenCL $(OP2_LIB) 
+		$(CPP) $(VAR) $(CPPFLAGS) $(OPENCL_INC) $(OP2_INC) $(OPENCL_LIB) -lOpenCL $(OP2_LIB) \
 		airfoil_op.cpp airfoil_kernels_opencl.o -lop2_opencl -o airfoil_opencl
 
 airfoil_kernels_opencl.o:	airfoil_kernels_opencl.cpp      \

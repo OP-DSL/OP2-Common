@@ -194,6 +194,7 @@ void openclDeviceInit( int argc, char ** argv )
   OP_opencl_core.platform_id = NULL;
   OP_opencl_core.device_id = NULL;
 
+  //clGetPlatformIDs(0, NULL, &OP_opencl_core.n_platforms);
   clSafeCall( clGetPlatformIDs(0, NULL, &OP_opencl_core.n_platforms) );
   printf("num_platforms = %i \n",(int) OP_opencl_core.n_platforms);
   OP_opencl_core.platform_id = (cl_platform_id*) malloc( OP_opencl_core.n_platforms*sizeof(cl_uint) );
@@ -208,8 +209,8 @@ void openclDeviceInit( int argc, char ** argv )
 //  break;
 // }
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_GPU, 4, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  //clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+  //clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
  
