@@ -37,7 +37,8 @@ else
 ifeq ($(OP2_COMPILER),intel)
 	CC       := icc
 	#CCFLAGS  := -g3 -O0 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG -g
-	CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
+	#CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
+	CCFLAGS  := -mmic -O3 -vec-report #-DCOMM_PERF #-DDEBUG -g
 	CXX      := icpc
 	CXXFLAGS := $(CCFLAGS)
 	MPICXX   := mpiCC
@@ -74,7 +75,8 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp mpi_seq cuda opencl mpi_cuda
+all: clean core seq openmp opencl 
+#all: clean core hdf5 seq openmp mpi_seq cuda opencl mpi_cuda
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)

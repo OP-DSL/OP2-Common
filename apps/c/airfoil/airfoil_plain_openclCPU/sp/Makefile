@@ -33,7 +33,8 @@ else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
   #CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
-  CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  #CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -mmic -O3 -vec-report -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpiCC
@@ -70,7 +71,8 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # master to make all versions
 #
 
-all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_opencl airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp
+all: clean airfoil_seq airfoil_opencl airfoil_openmp
+#all: clean airfoil_seq airfoil_openmp airfoil_cuda airfoil_opencl airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp
 
 #
 # simple sequential version
