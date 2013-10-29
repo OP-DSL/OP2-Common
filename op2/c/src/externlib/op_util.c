@@ -102,7 +102,7 @@ void* xrealloc (void *ptr, size_t size)
 
 int min(int array[], int size)
 {
-  int min = 99;
+  int min = 99; //initialized to 99 .. should check op_mpi_part_core and fix
   int index = -1;
   for(int i=0; i<size; i++)
   {
