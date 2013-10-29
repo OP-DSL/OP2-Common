@@ -43,6 +43,7 @@ ifeq ($(OP2_COMPILER),intel)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
+  CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
   CCFLAGS  := -O3
   CXX	   := pgCC
   CXXFLAGS := $(CCFLAGS)
@@ -68,7 +69,7 @@ NVCCFLAGS	= -O3 -arch=sm_20 -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g 
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER?=4
+PARMETIS_VER?=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
@@ -111,11 +112,11 @@ seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
 cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
 	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
 
-	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_INC) -I$(INC) \
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_ALIGN_FLAG) $(CUDA_INC) -I$(INC) \
 	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/op_cuda_decl.o
-	$(CXX) $(CXXFLAGS) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGN_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
@@ -169,20 +170,20 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
+	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
 	-o $(OBJ)/op_mpi_cuda_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
+	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/mpi/op_mpi_cuda_decl.c \
 	-o $(OBJ)/op_mpi_cuda_decl.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	$(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_part_core.o $(OBJ)/op_util.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
+	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGN_FLAG) -I$(INC) $(HDF5_INC) $(HDF5_LIB) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/op_mpi_hdf5.o $(OBJ)/op_util.o
 	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_INSTALL_PATH)/include \
