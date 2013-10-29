@@ -135,15 +135,48 @@ __kernel void op_opencl_adt_calc(
 //  int n=get_local_id(0);
   for (int n=get_local_id(0); n<nelem; n+=get_local_size(0)) {
       // user-supplied kernel call
-      adt_calc(  ind_arg0_s+arg_map[0*set_size+n+offset_b]*2,
-                 ind_arg0_s+arg_map[1*set_size+n+offset_b]*2,
-                 ind_arg0_s+arg_map[2*set_size+n+offset_b]*2,
-                 ind_arg0_s+arg_map[3*set_size+n+offset_b]*2,
-                 arg4+(n+offset_b)*4,
-                 arg5+(n+offset_b)*1,
-                 *gam,
-                 *gm1,
-                 *cfl);
+   //   adt_calc(  ind_arg0_s+arg_map[0*set_size+n+offset_b]*2,
+   //              ind_arg0_s+arg_map[1*set_size+n+offset_b]*2,
+   //              ind_arg0_s+arg_map[2*set_size+n+offset_b]*2,
+   //              ind_arg0_s+arg_map[3*set_size+n+offset_b]*2,
+   //              arg4+(n+offset_b)*4,
+   //              arg5+(n+offset_b)*1,
+   //              *gam,
+   //              *gm1,
+   //              *cfl);
+   
+      __local float *x1 = ind_arg0_s+arg_map[0*set_size+n+offset_b]*2;
+      __local float *x2 = ind_arg0_s+arg_map[1*set_size+n+offset_b]*2;
+      __local float *x3 = ind_arg0_s+arg_map[2*set_size+n+offset_b]*2;
+      __local float *x4 = ind_arg0_s+arg_map[3*set_size+n+offset_b]*2;
+      __global float *q = arg4+(n+offset_b)*4;
+      __global float *adt = arg5+(n+offset_b)*1;
+
+
+       float dx,dy, ri,u,v,c;
+
+       ri =  1.0f/q[0];
+       u  =   ri*q[1];
+       v  =   ri*q[2];
+       c  = sqrt((*gam)*(*gm1)*(ri*q[3]-0.5f*(u*u+v*v)));
+
+       dx = x2[0] - x1[0];
+       dy = x2[1] - x1[1];
+       *adt = fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+
+       dx = x3[0] - x2[0];
+       dy = x3[1] - x2[1];
+       *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+
+       dx = x4[0] - x3[0];
+       dy = x4[1] - x3[1];
+       *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+
+       dx = x1[0] - x4[0];
+       dy = x1[1] - x4[1];
+       *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+
+       *adt = (*adt) / (*cfl);
 
 //      arg5[(n+offset_b)*1] = (float) 1.1;
 //      printf("abc\n");

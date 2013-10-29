@@ -84,6 +84,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int nthread = OP_block_size;
 #endif
 
+      nthread = 512;
 
       // For CPU OpenCL divide it by 4 (SSE) or by 8 (AVX)
 //      nthreads /= 4;

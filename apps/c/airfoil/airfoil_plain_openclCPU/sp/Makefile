@@ -33,8 +33,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
-  #CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  #CCFLAGS	= -g3 -O0 -vec-report -xAVX -parallel #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xAVX -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   #CCFLAGS	= -mmic -O3 -vec-report -parallel -openmp-report #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2

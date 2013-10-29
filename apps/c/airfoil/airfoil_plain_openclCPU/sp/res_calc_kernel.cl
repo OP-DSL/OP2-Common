@@ -157,8 +157,10 @@ int n = get_local_id(0);
 
       // initialise local variables
 
+      #pragma unroll(4)
       for (int d=0; d<4; d++)
         arg6_l[d] = ZERO_float;
+      #pragma unroll(4)
       for (int d=0; d<4; d++)
         arg7_l[d] = ZERO_float;
 
@@ -176,16 +178,53 @@ int n = get_local_id(0);
 //                 *gm1,
 //                 *eps);
 
-      res_calc(  ind_arg0_s+arg_map[0*set_size+n+offset_b]*2,
-                 ind_arg0_s+arg_map[1*set_size+n+offset_b]*2,
-                 ind_arg1_s+arg_map[2*set_size+n+offset_b]*4,
-                 ind_arg1_s+arg_map[3*set_size+n+offset_b]*4,
-                 ind_arg2_s+arg_map[4*set_size+n+offset_b]*1,
-                 ind_arg2_s+arg_map[5*set_size+n+offset_b]*1,
-                 arg6_l,
-                 arg7_l,
-                *gm1,
-                 *eps);
+//      res_calc(  ind_arg0_s+arg_map[0*set_size+n+offset_b]*2,
+//                 ind_arg0_s+arg_map[1*set_size+n+offset_b]*2,
+//                 ind_arg1_s+arg_map[2*set_size+n+offset_b]*4,
+//                 ind_arg1_s+arg_map[3*set_size+n+offset_b]*4,
+//                 ind_arg2_s+arg_map[4*set_size+n+offset_b]*1,
+//                 ind_arg2_s+arg_map[5*set_size+n+offset_b]*1,
+//                 arg6_l,
+//                 arg7_l,
+//                *gm1,
+//                 *eps);
+
+       __local float *x1 = ind_arg0_s+arg_map[0*set_size+n+offset_b]*2;
+       __local float *x2 = ind_arg0_s+arg_map[1*set_size+n+offset_b]*2;
+       __local float *q1 = ind_arg1_s+arg_map[2*set_size+n+offset_b]*4;
+       __local float *q2 = ind_arg1_s+arg_map[3*set_size+n+offset_b]*4;
+       __local float *adt1 = ind_arg2_s+arg_map[4*set_size+n+offset_b]*1;
+       __local float *adt2 = ind_arg2_s+arg_map[5*set_size+n+offset_b]*1;
+       float *res1 = arg6_l;
+       float *res2 = arg7_l;
+
+       float dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+     
+       dx = x1[0] - x2[0];
+       dy = x1[1] - x2[1];
+     
+       ri   = 1.0f/q1[0];
+       p1   = (*gm1)*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
+       vol1 =  ri*(q1[1]*dy - q1[2]*dx);
+     
+       ri   = 1.0f/q2[0];
+       p2   = (*gm1)*(q2[3]-0.5f*ri*(q2[1]*q2[1]+q2[2]*q2[2]));
+       vol2 =  ri*(q2[1]*dy - q2[2]*dx);
+     
+       mu = 0.5f*((*adt1)+(*adt2))*(*eps);
+     
+       f = 0.5f*(vol1* q1[0]         + vol2* q2[0]        ) + mu*(q1[0]-q2[0]);
+       res1[0] += f;
+       res2[0] -= f;
+       f = 0.5f*(vol1* q1[1] + p1*dy + vol2* q2[1] + p2*dy) + mu*(q1[1]-q2[1]);
+       res1[1] += f;
+       res2[1] -= f;
+       f = 0.5f*(vol1* q1[2] - p1*dx + vol2* q2[2] - p2*dx) + mu*(q1[2]-q2[2]);
+       res1[2] += f;
+       res2[2] -= f;
+       f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(q2[3]+p2)    ) + mu*(q1[3]-q2[3]);
+       res1[3] += f;
+       res2[3] -= f;
 
 //  col2 = colors[n*stride+offset2+offset_b];
     	col2 = colors[n+offset_b];

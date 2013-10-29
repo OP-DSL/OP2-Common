@@ -49,7 +49,7 @@
 
       int offset_s = nlocal*OP_WARPSIZE;
 
-      size_t localWorkSize = 128;
+      size_t localWorkSize = 2048;
 //      size_t globalWorkSize = set->size;
       size_t globalWorkSize = (set->size/(int)localWorkSize) * (int)localWorkSize;
       globalWorkSize += ( (set->size % localWorkSize) > 0 ? localWorkSize : 0);
@@ -64,6 +64,7 @@
       clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 4, nlocal, NULL) );
 
       clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[0], 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL) );
+      //clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[0], 1, NULL, &globalWorkSize, NULL, 0, NULL, NULL) );
       clSafeCall( clFlush(OP_opencl_core.command_queue) );
       clSafeCall( clFinish(OP_opencl_core.command_queue) );
     }

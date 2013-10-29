@@ -36,8 +36,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
 	CC       := icc
-	CCFLAGS  := -g3 -O0 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
-	#CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
+	#CCFLAGS  := -g3 -O0 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
+	CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
 	#CCFLAGS  := -mmic -O3 -vec-report #-DCOMM_PERF #-DDEBUG -g
 	CXX      := icpc
 	CXXFLAGS := $(CCFLAGS)
