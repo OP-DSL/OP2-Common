@@ -10,7 +10,7 @@
 
 #include "op_opencl_core.h"
 #include "op_opencl_rt_support.h"
-#include "op_opencl_reduction.h"
+//#include "op_opencl_reduction.h"
 
 extern op_opencl_core OP_opencl_core;
 
@@ -123,6 +123,7 @@ void buildOpenCLKernels() {
 //      sprintf(buildOpts,"-cl-std=CL1.1 -cl-mad-enable -DOP_WARPSIZE=%d", OP_WARPSIZE);
 //      sprintf(buildOpts,"-g -s \"adt_calc_kernel.cl\" -DOP_WARPSIZE=%d", OP_WARPSIZE);
 //      sprintf(buildOpts,"-cl-opt-disable -cl-mad-enable -DOP_WARPSIZE=%d", 4);
+      //sprintf(buildOpts,"-auto-prefetch-level=3 -cl-mad-enable -DOP_WARPSIZE=%d", 32);
       sprintf(buildOpts,"-cl-mad-enable -DOP_WARPSIZE=%d", 32);
       ret = clBuildProgram(OP_opencl_core.program, 1, &OP_opencl_core.device_id, buildOpts, NULL, NULL);
 //      ret = clBuildProgram(OP_opencl_core.program, 1, &OP_opencl_core.device_id, NULL, NULL, NULL);

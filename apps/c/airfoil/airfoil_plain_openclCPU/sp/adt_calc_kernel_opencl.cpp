@@ -89,21 +89,17 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         int nshared = Plan->nsharedCol[col];
 
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 0, sizeof(cl_mem), (void*) &arg0.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 1, sizeof(cl_mem), (void*) &Plan->ind_map) ); // int array is on device; Plan->ind_map was casted to cl_mem previously in op_plan_get
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 2, sizeof(cl_mem), (void*) &Plan->loc_map) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 3, sizeof(cl_mem), (void*) &arg4.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 4, sizeof(cl_mem), (void*) &arg5.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 5, sizeof(cl_mem), (void*) &Plan->ind_sizes) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 6, sizeof(cl_mem), (void*) &Plan->ind_offs) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 7, sizeof(cl_int), (void*) &block_offset) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 8, sizeof(cl_mem), (void*) &Plan->blkmap) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 9, sizeof(cl_mem), (void*) &Plan->offset) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],10, sizeof(cl_mem), (void*) &Plan->nelems) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],11, sizeof(cl_mem), (void*) &Plan->nthrcol) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],12, sizeof(cl_mem), (void*) &Plan->thrcol) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],13, sizeof(cl_int), (void*) &Plan->ncolblk[col]) ); // int array is on host
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],14, sizeof(cl_int), (void*) &set_size) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],15, nshared, NULL) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 1, sizeof(cl_mem), (void*) &arg0.map_data_d) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 2, sizeof(cl_mem), (void*) &arg4.data_d) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 3, sizeof(cl_mem), (void*) &arg5.data_d) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 4, sizeof(cl_int), (void*) &block_offset) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 5, sizeof(cl_mem), (void*) &Plan->blkmap) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 6, sizeof(cl_mem), (void*) &Plan->offset) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 7, sizeof(cl_mem), (void*) &Plan->nelems) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 8, sizeof(cl_mem), (void*) &Plan->nthrcol) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 9, sizeof(cl_mem), (void*) &Plan->thrcol) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],10, sizeof(cl_int), (void*) &Plan->ncolblk[col]) ); // int array is on host
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],11, sizeof(cl_int), (void*) &set_size) );
 
 //        cl_int ret;
 //
@@ -125,9 +121,9 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 ////          printf("cl_mem %d = %d \n", i, &OP_opencl_core.constant[i]);
 ////        }
 
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],16, sizeof(cl_mem), (void*) &OP_opencl_core.constant[0]) ); // gam
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[2]) ); // cfl
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],12, sizeof(cl_mem), (void*) &OP_opencl_core.constant[0]) ); // gam
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],13, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],14, sizeof(cl_mem), (void*) &OP_opencl_core.constant[2]) ); // cfl
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[1], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
 //        clSafeCall( clFlush(OP_opencl_core.command_queue) );

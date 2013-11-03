@@ -51,10 +51,37 @@
  * reduction routine for arbitrary datatypes
  */
 
+
+//inline void op_reductionCPU(op_access reduction, __global volatile T * dat_g, T dat_l, __local volatile float* temp ) // I'm not sure if the temp has to be in __local
 //typedef float T
-//
-//inline void op_reduction(op_access reduction, __global volatile T * dat_g, T dat_l, __local volatile float* temp ) // I'm not sure if the temp has to be in __local
-//{
+//template < op_access reduction, class T >
+inline void op_reductionCPU(__global volatile T * dat_g, T dat_l) {
+
+  const int block    = 32;
+  int   global_index = get_global_id(0) * block;
+  dat_l  = INFINITY;
+  int upper_bound = (get_global_id(0) + 1) * block;
+  if (upper_bound > length) upper_bound = length;
+  while (global_index < upper_bound) {
+    T dat_t = dat_g[global_index];
+//    switch ( reduction ) {
+//      case OP_INC:
+        dat_l = dat_l + dat_t;
+//        break;
+//      case OP_MIN:
+//        if ( dat_t < dat_l ) dat_l = dat_t;
+//        //  accumulator = (accumulator < element) ? accumulator : element;
+//        break;
+//      case OP_MAX:
+//        if ( dat_t > dat_l ) dat_l = dat_t;
+//        break;
+//    }
+    global_index++;
+  }
+//  result[get_group_id(0)] = dat_l;
+  printf("get_group_id(0) = %d: dat_l[0] = %f", get_group_id(0), dat_l[0]);
+}
+
 //  T   dat_t;
 //
 //  barrier(CLK_LOCAL_MEM_FENCE);     /* important to finish all previous activity */

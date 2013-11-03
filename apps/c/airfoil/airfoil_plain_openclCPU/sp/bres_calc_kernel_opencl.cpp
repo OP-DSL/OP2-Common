@@ -60,7 +60,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_3
       int nthread = OP_BLOCK_SIZE_3;
     #else
-      int nthread = OP_block_size;
+      //int nthread = OP_block_size;
+      int nthread = 128;
     #endif
 
       size_t nblocks[3] = {
@@ -74,26 +75,23 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       if (Plan->ncolblk[col] > 0) {
         int nshared = Plan->nsharedCol[col];
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 0, sizeof(cl_mem), (void*) &arg0.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 1, sizeof(cl_mem), (void*) &arg2.data_d) ); // int array is on device; Plan->ind_map was casted to cl_mem previously in op_plan_get
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 1, sizeof(cl_mem), (void*) &arg2.data_d) ); 
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 2, sizeof(cl_mem), (void*) &arg3.data_d) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 3, sizeof(cl_mem), (void*) &arg4.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 4, sizeof(cl_mem), (void*) &Plan->ind_map) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 5, sizeof(cl_mem), (void*) &Plan->loc_map) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 4, sizeof(cl_mem), (void*) &arg0.map_data_d) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 5, sizeof(cl_mem), (void*) &arg2.map_data_d) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 6, sizeof(cl_mem), (void*) &arg5.data_d) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 7, sizeof(cl_mem), (void*) &Plan->ind_sizes) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 8, sizeof(cl_mem), (void*) &Plan->ind_offs) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 9, sizeof(cl_int), (void*) &block_offset) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],10, sizeof(cl_mem), (void*) &Plan->blkmap) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],11, sizeof(cl_mem), (void*) &Plan->offset) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],12, sizeof(cl_mem), (void*) &Plan->nelems) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],13, sizeof(cl_mem), (void*) &Plan->nthrcol) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],14, sizeof(cl_mem), (void*) &Plan->thrcol) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],15, sizeof(cl_int), (void*) &Plan->ncolblk[col]) ); // int array is on host
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],16, sizeof(cl_int), (void*) &set_size) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],17, nshared, NULL) );
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],18, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],19, sizeof(cl_mem), (void*) &OP_opencl_core.constant[3]) ); // eps
-        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],20, sizeof(cl_mem), (void*) &OP_opencl_core.constant[6]) ); // qinf[4]
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 7, sizeof(cl_int), (void*) &block_offset) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 8, sizeof(cl_mem), (void*) &Plan->blkmap) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 9, sizeof(cl_mem), (void*) &Plan->offset) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],10, sizeof(cl_mem), (void*) &Plan->nelems) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],11, sizeof(cl_mem), (void*) &Plan->nthrcol) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],12, sizeof(cl_mem), (void*) &Plan->thrcol) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],13, sizeof(cl_int), (void*) &Plan->ncolblk[col]) ); // int array is on host
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],14, sizeof(cl_int), (void*) &set_size) );
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],15, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],16, sizeof(cl_mem), (void*) &OP_opencl_core.constant[3]) ); // eps
+        clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[6]) ); // qinf[4]
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[3], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
 //        clSafeCall( clFlush(OP_opencl_core.command_queue) );

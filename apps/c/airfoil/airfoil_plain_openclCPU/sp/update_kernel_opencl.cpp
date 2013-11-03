@@ -1,4 +1,4 @@
-//#define ROUND_UP(bytes) (((bytes) + 15) & ~15)
+#define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 // host stub function
 
 void op_par_loop_update(char const *name, op_set set,
@@ -41,14 +41,14 @@ void op_par_loop_update(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_4
       int nthread = OP_BLOCK_SIZE_4;
     #else
-      // int nthread = OP_block_size;
-      int nthread = 128;
+      int nthread = OP_block_size;
+      //int nthread = 128;
     #endif
 
 
 
       // For CPU OpenCL divide it by 4 (SSE) or by 8 (AVX)
-      nthread /= 4;
+      //nthread /= 4;
 
 
 
@@ -66,6 +66,7 @@ void op_par_loop_update(char const *name, op_set set,
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));
     reduct_size   = MAX(reduct_size,sizeof(float));
 
+
     reallocReductArrays(reduct_bytes);
 
     reduct_bytes = 0;
@@ -80,23 +81,23 @@ void op_par_loop_update(char const *name, op_set set,
 
     // work out shared memory requirements per element
 
-    int nshared = 0;
-    nshared = MAX(nshared,sizeof(float)*4);
-    nshared = MAX(nshared,sizeof(float)*4);
-    nshared = MAX(nshared,sizeof(float)*4);
+    //int nshared = 0;
+    //nshared = MAX(nshared,sizeof(float)*4);
+    //nshared = MAX(nshared,sizeof(float)*4);
+    //nshared = MAX(nshared,sizeof(float)*4);
 
     // execute plan
 
-    int offset_s = nshared*OP_WARPSIZE;
+    //int offset_s = nshared*OP_WARPSIZE;
 
-    nshared = MAX(nshared*nthread,reduct_size*nthread);
+    //nshared = MAX(nshared*nthread,reduct_size*nthread);
 
 
 //    size_t nblocks[3] = {
 //        Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
 //        Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1,
 //        1 };
-
+//
     size_t globalWorkSize = nblocks*nthread;
     size_t localWorkSize = nthread;
 
@@ -105,9 +106,7 @@ void op_par_loop_update(char const *name, op_set set,
     clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 2, sizeof(cl_mem), (void*) &arg2.data_d) );
     clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 3, sizeof(cl_mem), (void*) &arg3.data_d) );
     clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 4, sizeof(cl_mem), (void*) &arg4.data_d) );
-    clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 5, sizeof(cl_int), (void*) &offset_s) );
-    clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 6, sizeof(cl_int), (void*) &set->size) );
-    clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 7, nshared, NULL) );
+    clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 5, sizeof(cl_int), (void*) &set->size) );
 
     clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[4], 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL) );
 //        clSafeCall( clFlush(OP_opencl_core.command_queue) );
@@ -127,11 +126,21 @@ void op_par_loop_update(char const *name, op_set set,
 
     mvReductArraysToHost(reduct_bytes);
 
+    //clSafeCall( clEnqueueReadBuffer(OP_opencl_core.command_queue, (cl_mem) arg4.data_d, CL_FALSE, 0, 4, arg4.data, 0, NULL, NULL) );
+    //clSafeCall( clEnqueueReadBuffer(OP_opencl_core.command_queue, (cl_mem) arg4.data_d, CL_TRUE, 0, arg4.size * arg4.set->size, arg4.data, 0, NULL, NULL) );
+
+
+//    for (int b=0; b<maxblocks; b++) {
+//      printf("arg4.data[%d] = %e \n", b, ((float *)arg4.data)[b]);
+//    }
+//exit(-1);
     for (int b=0; b<maxblocks; b++)
       for (int d=0; d<1; d++)
         arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1];
 
   arg4.data = (char *)arg4h;
+
+//  printf("arg4.data = %e \n",(float)*arg4.data);
 
   op_mpi_reduce(&arg4,arg4h);
 

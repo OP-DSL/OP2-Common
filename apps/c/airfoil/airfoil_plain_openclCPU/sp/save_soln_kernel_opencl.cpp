@@ -30,38 +30,36 @@
 
       // set OpenCL execution parameters
 
-      //     #ifdef OP_BLOCK_SIZE_0
-      //       int nthread = OP_BLOCK_SIZE_0;
-      //     #else
-      //       // int nthread = OP_block_size;
-      //       int nthread = 128;
-      //     #endif
+      #ifdef OP_BLOCK_SIZE_0
+        int nthread = OP_BLOCK_SIZE_0;
+      #else
+        int nthread = OP_block_size;
+        //int nthread = 128;
+      #endif
 
       //     int nblocks = 200;
 
       // work out local memory requirements per element
 
-      int nlocal = 0;
-      nlocal = MAX(nlocal,sizeof(cl_float)*4);
-      nlocal = MAX(nlocal,sizeof(cl_float)*4);
+      //int nlocal = 0;
+      //nlocal = MAX(nlocal,sizeof(cl_float)*4);
+      //nlocal = MAX(nlocal,sizeof(cl_float)*4);
 
       // execute plan
 
-      int offset_s = nlocal*OP_WARPSIZE;
+      //int offset_s = nlocal*OP_WARPSIZE;
 
-      size_t localWorkSize = 2048;
+      size_t localWorkSize = nthread;
 //      size_t globalWorkSize = set->size;
       size_t globalWorkSize = (set->size/(int)localWorkSize) * (int)localWorkSize;
       globalWorkSize += ( (set->size % localWorkSize) > 0 ? localWorkSize : 0);
       globalWorkSize = globalWorkSize < localWorkSize ? localWorkSize : globalWorkSize;
 
-      nlocal = nlocal*localWorkSize;
+      //nlocal = nlocal*localWorkSize;
 
       clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 0, sizeof(cl_mem), (void *) &arg0.data_d) );
       clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 1, sizeof(cl_mem), (void *) &arg1.data_d) );
-      clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 2, sizeof(cl_int), (void *) &offset_s) );
-      clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 3, sizeof(cl_int), (void *) &(set->size)) );
-      clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 4, nlocal, NULL) );
+      clSafeCall( clSetKernelArg(OP_opencl_core.kernel[0], 2, sizeof(cl_int), (void *) &(set->size)) );
 
       clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[0], 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL) );
       //clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[0], 1, NULL, &globalWorkSize, NULL, 0, NULL, NULL) );

@@ -178,6 +178,12 @@ void __clSafeCall(cl_int ret, const char * file, const int line) {
   }
 }
 
+void pfn_notify(const char *errinfo, const void *private_info, size_t cb, void *user_data)
+{
+	fprintf(stderr, "OpenCL Error (via pfn_notify) errinfo     : %s\n", errinfo);
+	fprintf(stderr, "OpenCL Error (via pfn_notify) private info: %s\n", private_info);
+}
+
 void openclDeviceInit( int argc, char ** argv )
 {
   (void)argc;
@@ -209,26 +215,48 @@ void openclDeviceInit( int argc, char ** argv )
 //  break;
 // }
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_GPU, 4, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  //clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+  //clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
  
 //#pragma OPENCL EXTENSION cl_ext_device_fission : enable 
-//
-//  //Create sub-device properties: Equally with 4 compute units each:
-//  cl_device_partition_property_ext props[3];
-//  props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN_EXT; // By Affinity
-//  props[1] = CL_AFFINITY_DOMAIN_NUMA_EXT; // NUMA
-//  props[2] = 0; // End of the property list
-//  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
-//  cl_uint num_entries = 16;
-//  cl_uint numDevices = 0;
-//  // Create the sub-devices:
-//  clCreateSubDevicesEXT(OP_opencl_core.device_id, props, num_entries, OP_opencl_core.subdev_id, &numDevices);
-//
-//
-//  printf("numDevices = %d \n",numDevices);
+
+  //Create sub-device properties: Equally with 4 compute units each:
+  cl_device_partition_property props[3];
+  //props[0] = CL_DEVICE_PARTITION_EQUALLY; // By Affinity
+  //props[1] = 16; // 16threads / subdevice
+  //props[2] = 0; // End of the property list
+
+  //props[0] = CL_DEVICE_PARTITION_BY_COUNTS; // By Affinity
+  //props[1] = 16; // 16threads / subdevice
+  //props[2] = 16; // 16threads / subdevice
+  //props[3] = CL_DEVICE_PARTITION_BY_COUNTS_LIST_END; // 16threads / subdevice
+  //props[4] = 0; // End of the property list
+
+  //props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
+  //props[1] = CL_DEVICE_AFFINITY_DOMAIN_NUMA; // NUMA
+  //props[2] = 0; // End of the property list
+
+  //props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
+  //props[1] = CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE; // NUMA
+  //props[2] = 0; // End of the property list
+
+  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
+  cl_uint num_devices = 2;
+  cl_uint num_subdevices = 0;
+  // Create the sub-devices:
+  cl_int ret2 = clCreateSubDevices(OP_opencl_core.device_id, props, 0, NULL, &num_subdevices);
+  printf("ret code = %d \n",ret2);
+  printf("Number of NUMA SubDevices = %d \n",num_subdevices);
+  ret2 =  clCreateSubDevices(OP_opencl_core.device_id, props, num_devices, OP_opencl_core.subdev_id, NULL);//&num_subdevices);
+  printf("ret code = %d \n",ret2);
+//OP_opencl_core.device_id = OP_opencl_core.subdev_id[0];
+
+  printf("Number of NUMA SubDevices 2= %d \n",num_subdevices);
+  printf("  0 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[0]);
+  printf("  1 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[1]);
+  printf("  2 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[2]);
 
 
 
@@ -248,7 +276,7 @@ void openclDeviceInit( int argc, char ** argv )
   printf("\nCL_DEVICE_AVAILABLE = %s \n", available ? "true" : "false");
 
   // Create an OpenCL context
-  OP_opencl_core.context = clCreateContext( NULL, 1, &OP_opencl_core.device_id, NULL, NULL, &ret);
+  OP_opencl_core.context = clCreateContext( NULL, 1, &OP_opencl_core.device_id, &pfn_notify, NULL, &ret);
   clSafeCall( ret );
 
   // Create a command queue
@@ -536,6 +564,9 @@ void mvReductArraysToDevice ( int reduct_bytes )
 
 void mvReductArraysToHost ( int reduct_bytes )
 {
+  clSafeCall( clEnqueueReadBuffer(OP_opencl_core.command_queue, (cl_mem) OP_reduct_d, CL_TRUE, 0, reduct_bytes, (void*) OP_reduct_h, 0, NULL, NULL) );
+  clSafeCall( clFlush(OP_opencl_core.command_queue) );
+  clSafeCall( clFinish(OP_opencl_core.command_queue) );
 //  cutilSafeCall ( cudaMemcpy ( OP_reduct_h, OP_reduct_d, reduct_bytes,
 //                               cudaMemcpyDeviceToHost ) );
 //  cutilSafeCall ( cudaThreadSynchronize (  ) );
