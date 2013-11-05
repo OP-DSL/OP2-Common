@@ -41,8 +41,9 @@ void op_par_loop_update(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_4
       int nthread = OP_BLOCK_SIZE_4;
     #else
-      int nthread = OP_block_size;
-      //int nthread = 128;
+      //int nthread = OP_block_size;
+      int nthread = OP_part_size;
+      //int nthread = 256;
     #endif
 
 
@@ -54,8 +55,9 @@ void op_par_loop_update(char const *name, op_set set,
 
 
 
+    //int nblocks = 200;
+    int nblocks = 1+(set->size-1)/nthread;
 
-    int nblocks = 200;
 
     // transfer global reduction data to GPU
 
@@ -63,8 +65,8 @@ void op_par_loop_update(char const *name, op_set set,
 
     int reduct_bytes = 0;
     int reduct_size  = 0;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));
-    reduct_size   = MAX(reduct_size,sizeof(float));
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
+    reduct_size   = MAX(reduct_size,sizeof(float)*64);
 
 
     reallocReductArrays(reduct_bytes);
@@ -74,24 +76,10 @@ void op_par_loop_update(char const *name, op_set set,
     arg4.data_d = OP_reduct_d + reduct_bytes;
     for (int b=0; b<maxblocks; b++)
       for (int d=0; d<1; d++)
-        ((float *)arg4.data)[d+b*1] = ZERO_float;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));
+        ((float *)arg4.data)[d+b*1*64] = ZERO_float;
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
 
     mvReductArraysToDevice(reduct_bytes);
-
-    // work out shared memory requirements per element
-
-    //int nshared = 0;
-    //nshared = MAX(nshared,sizeof(float)*4);
-    //nshared = MAX(nshared,sizeof(float)*4);
-    //nshared = MAX(nshared,sizeof(float)*4);
-
-    // execute plan
-
-    //int offset_s = nshared*OP_WARPSIZE;
-
-    //nshared = MAX(nshared*nthread,reduct_size*nthread);
-
 
 //    size_t nblocks[3] = {
 //        Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
@@ -109,7 +97,7 @@ void op_par_loop_update(char const *name, op_set set,
     clSafeCall( clSetKernelArg(OP_opencl_core.kernel[4], 5, sizeof(cl_int), (void*) &set->size) );
 
     clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[4], 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL) );
-//        clSafeCall( clFlush(OP_opencl_core.command_queue) );
+    clSafeCall( clFlush(OP_opencl_core.command_queue) );
     clSafeCall( clFinish(OP_opencl_core.command_queue) );
 
 
@@ -135,12 +123,15 @@ void op_par_loop_update(char const *name, op_set set,
 //    }
 //exit(-1);
     for (int b=0; b<maxblocks; b++)
-      for (int d=0; d<1; d++)
-        arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1];
+      for (int d=0; d<1; d++) {
+        arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1*64];
+    //    printf("((float *)arg4.data)[d+b*1*64] = %e\n",((float *)arg4.data)[d+b*1*64]);
+      }
 
   arg4.data = (char *)arg4h;
 
-//  printf("arg4.data = %e \n",(float)*arg4.data);
+  //printf("arg4.data = %e \n",*((float*)arg4.data));
+  //printf("arg4ih = %e \n",(float)arg4h[0]);
 
   op_mpi_reduce(&arg4,arg4h);
 

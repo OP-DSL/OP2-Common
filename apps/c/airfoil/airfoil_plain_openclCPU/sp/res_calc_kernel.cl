@@ -1,31 +1,12 @@
 //#include "res_calc.h"
 
-//#include <iacaMarks.h>
-
 #define ROUND_UP(bytes) (((bytes) + 15) & ~15)
 #define ZERO_float 0.0f
-
-inline void AtomicAdd(volatile __global float *source, const float operand) {
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } newVal;
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } prevVal;
-    do {
-        prevVal.floatVal = *source;
-        newVal.floatVal = prevVal.floatVal + operand;
-    } while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
-}
 
 inline void res_calc(__global const float * restrict x1, __global const float * restrict x2, __global const  float * restrict q1, __global const  float * restrict q2,
                       __global const float * restrict adt1, __global const float * restrict adt2, float * restrict res1, float * restrict res2, float gm1, float eps) {
 
   float dx,dy,mu, ri, p1,vol1, p2,vol2, f;
-
-//  printf("x1[0] = %f; x1[1] = %f; q1[0] = %f; adt1[0] = %f\n", x1[0], x1[1], q1[0], adt1[0]);
 
   dx = x1[0] - x2[0];
   dy = x1[1] - x2[1];
@@ -53,42 +34,10 @@ inline void res_calc(__global const float * restrict x1, __global const float * 
   res1[3] += f;
   res2[3] -= f;
 }
-//inline void res_calc(__local float *x1, __local float *x2, __local  float *q1, __local  float *q2,
-//                      __local float *adt1, __local float *adt2, float *res1, float *res2, float gm1, float eps) {
-//
-//  float dx,dy,mu, ri, p1,vol1, p2,vol2, f;
-//
-//  dx = x1[0] - x2[0];
-//  dy = x1[1] - x2[1];
-//
-//  ri   = 1.0f/q1[0];
-//  p1   = gm1*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
-//  vol1 =  ri*(q1[1]*dy - q1[2]*dx);
-//
-//  ri   = 1.0f/q2[0];
-//  p2   = gm1*(q2[3]-0.5f*ri*(q2[1]*q2[1]+q2[2]*q2[2]));
-//  vol2 =  ri*(q2[1]*dy - q2[2]*dx);
-//
-//  mu = 0.5f*((*adt1)+(*adt2))*eps;
-//
-//  f = 0.5f*(vol1* q1[0]         + vol2* q2[0]        ) + mu*(q1[0]-q2[0]);
-//  res1[0] += f;
-//  res2[0] -= f;
-//  f = 0.5f*(vol1* q1[1] + p1*dy + vol2* q2[1] + p2*dy) + mu*(q1[1]-q2[1]);
-//  res1[1] += f;
-//  res2[1] -= f;
-//  f = 0.5f*(vol1* q1[2] - p1*dx + vol2* q2[2] - p2*dx) + mu*(q1[2]-q2[2]);
-//  res1[2] += f;
-//  res2[2] -= f;
-//  f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(q2[3]+p2)    ) + mu*(q1[3]-q2[3]);
-//  res1[3] += f;
-//  res2[3] -= f;
-//}
-
 
 // OpenCL kernel function
 
-// __kernel __attribute__(( work_group_size_hint(128, 1, 1) )) __attribute__(( vec_type_hint(int4) )) void op_opencl_res_calc(
+//__attribute__((vec_type_hint(float8)))
 __kernel void op_opencl_res_calc(
   __global const float* restrict ind_arg0,
   __global const float* restrict ind_arg1,
@@ -106,44 +55,36 @@ __kernel void op_opencl_res_calc(
   __global const int   * restrict colors,
            int    nblocks,
            int    set_size,
-  /*__local char*  shared,*/
   __constant float* gm1,
   __constant float* eps) {
 
-//  for(int q=0; q<100; q++) printf("ind_arg0_map_data[%d] = %d\n",q,ind_arg0_map_data[q]);
-
   float arg6_l[4];
   float arg7_l[4];
-  __local int    nelems2, ncolor;
-  __local int    nelem, offset_b;
+  //__local int    nelems2, ncolor;
+  //__local int    nelem, offset_b;
+  int    /*nelems2,*/ ncolor;
+  int    nelem, offset_b;
 
   if (get_group_id(0)+get_group_id(1)*get_num_groups(0) >= nblocks) return;
 
-  if (get_local_id(0) == 0) {
+//  if (get_local_id(0) == 0) {
     // get sizes and shift pointers and direct-mapped data
     int blockId = blkmap[get_group_id(0) + get_group_id(1)*get_num_groups(0)  + block_offset];
 
     nelem    = nelems[blockId];
     offset_b = offset[blockId];
 
-    nelems2  = get_local_size(0)*(1+(nelem-1)/get_local_size(0));
+//    nelems2  = get_local_size(0)*(1+(nelem-1)/get_local_size(0));
     ncolor   = ncolors[blockId];
+//  }
 
-    //ind_arg0_size = ind_arg_sizes[0+blockId*4];
-    //ind_arg1_size = ind_arg_sizes[1+blockId*4];
-    //ind_arg2_size = ind_arg_sizes[2+blockId*4];
-    //ind_arg3_size = ind_arg_sizes[3+blockId*4];
+//  barrier(CLK_LOCAL_MEM_FENCE); // make sure all of above completed
 
-    //ind_arg0_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*4];
-    //ind_arg1_map = &ind_map[2*set_size] + ind_arg_offs[1+blockId*4];
-    //ind_arg2_map = &ind_map[4*set_size] + ind_arg_offs[2+blockId*4];
-    //ind_arg3_map = &ind_map[6*set_size] + ind_arg_offs[3+blockId*4];
-  }
-
-  barrier(CLK_LOCAL_MEM_FENCE); // make sure all of above completed
-
-  int n=get_local_id(0);
+  const int n=get_local_id(0);
+//  if(n>=nelem) return;
+//  if(get_local_id(0)>=nelem) return;
 //  for (int n=get_local_id(0); n<nelems2; n+=get_local_size(0)) {
+    
     int col2 = -1;
 
     int map0idx;
@@ -151,13 +92,7 @@ __kernel void op_opencl_res_calc(
     int map2idx;
     int map3idx;
 
-#define N 16
-
     if (n<nelem) {
-       // prefetch(&ind_arg0_map_data[n + offset_b + set_size * 0],N); /* *x1    */
-       // prefetch(&ind_arg0_map_data[n + offset_b + set_size * 1],N); /* *x2    */
-       // prefetch(&ind_arg2_map_data[n + offset_b + set_size * 0],N); /* *q1    */
-       // prefetch(&ind_arg2_map_data[n + offset_b + set_size * 1],N); /* *q2    */
 
       //initialise local variables
       for ( int d=0; d<4; d++ ){
@@ -167,27 +102,12 @@ __kernel void op_opencl_res_calc(
         arg7_l[d] = ZERO_float;
       }
    
-      //int map0idx = ind_arg0_map_data[(offset_b+n) * (ind_arg0->map->dim) + 0];
-      //int map1idx = ind_arg0_map_data[(offset_b+n) * (ind_arg0->map->dim) + 1];
-      //int map2idx = ind_arg2_map_data[(offset_b+n) * (ind_arg2->map->dim) + 0];
-      //int map3idx = ind_arg2_map_data[(offset_b+n) * (ind_arg2->map->dim) + 1];
-      //int map0idx = ind_arg0_map_data[(offset_b+n) * 2 + 0];
-      //int map1idx = ind_arg0_map_data[(offset_b+n) * 2 + 1];
-      //int map2idx = ind_arg2_map_data[(offset_b+n) * 2 + 0];
-      //int map3idx = ind_arg2_map_data[(offset_b+n) * 2 + 1];
+
       map0idx = ind_arg0_map_data[n + offset_b + set_size * 0];
       map1idx = ind_arg0_map_data[n + offset_b + set_size * 1];
       map2idx = ind_arg2_map_data[n + offset_b + set_size * 0];
       map3idx = ind_arg2_map_data[n + offset_b + set_size * 1];
     
-       // prefetch(&ind_arg0[2 * map0idx],N); /* *x1    */
-       // prefetch(&ind_arg0[2 * map1idx],N); /* *x2    */
-       // prefetch(&ind_arg1[4 * map2idx],N); /* *q1    */
-       // prefetch(&ind_arg1[4 * map3idx],N); /* *q2    */
-       // prefetch(&ind_arg2[1 * map2idx],N); /* *adt1  */
-       // prefetch(&ind_arg2[1 * map3idx],N); /* *adt2  */
-
-
       // user-supplied kernel call
       res_calc(
         &ind_arg0[2 * map0idx], /* *x1    */
@@ -201,46 +121,9 @@ __kernel void op_opencl_res_calc(
         *gm1,
         *eps);
 
-//       __global float *x1   = &(ind_arg0)[2 * map0idx];
-//       __global float *x2   = &(ind_arg0)[2 * map1idx];
-//       __global float *q1   = &(ind_arg1)[4 * map2idx];
-//       __global float *q2   = &(ind_arg1)[4 * map3idx];
-//       __global float *adt1 = &(ind_arg2)[1 * map2idx];
-//       __global float *adt2 = &(ind_arg2)[1 * map3idx];
-//       float *res1 = arg6_l;
-//       float *res2 = arg7_l;
-//
-//       float dx,dy,mu, ri, p1,vol1, p2,vol2, f;
-//     
-//       dx = x1[0] - x2[0];
-//       dy = x1[1] - x2[1];
-//     
-//       ri   = 1.0f/q1[0];
-//       p1   = (*gm1)*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
-//       vol1 =  ri*(q1[1]*dy - q1[2]*dx);
-//     
-//       ri   = 1.0f/q2[0];
-//       p2   = (*gm1)*(q2[3]-0.5f*ri*(q2[1]*q2[1]+q2[2]*q2[2]));
-//       vol2 =  ri*(q2[1]*dy - q2[2]*dx);
-//     
-//       mu = 0.5f*((*adt1)+(*adt2))*(*eps);
-//     
-//       f = 0.5f*(vol1* q1[0]         + vol2* q2[0]        ) + mu*(q1[0]-q2[0]);
-//       res1[0] += f;
-//       res2[0] -= f;
-//       f = 0.5f*(vol1* q1[1] + p1*dy + vol2* q2[1] + p2*dy) + mu*(q1[1]-q2[1]);
-//       res1[1] += f;
-//       res2[1] -= f;
-//       f = 0.5f*(vol1* q1[2] - p1*dx + vol2* q2[2] - p2*dx) + mu*(q1[2]-q2[2]);
-//       res1[2] += f;
-//       res2[2] -= f;
-//       f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(q2[3]+p2)    ) + mu*(q1[3]-q2[3]);
-//       res1[3] += f;
-//       res2[3] -= f;
-
       col2 = colors[n+offset_b];
     } // end if
-
+   
     //store local variables - colored increments
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
@@ -251,9 +134,7 @@ __kernel void op_opencl_res_calc(
           ind_arg3[d+map3idx*4] += arg7_l[d];
         }
       }
-      barrier(CLK_GLOBAL_MEM_FENCE);//__syncthreads();
-      //read_mem_fence(CLK_GLOBAL_MEM_FENCE);//__syncthreads();
-      //write_mem_fence(CLK_GLOBAL_MEM_FENCE);//__syncthreads();
+      //barrier(CLK_GLOBAL_MEM_FENCE);//__syncthreads();
     }
 //    for ( int col=0; col<ncolor; col++ ){
 ////      if (col2==col) {

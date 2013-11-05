@@ -108,6 +108,9 @@ void op_par_loop_update(char const *name, op_set set,
   for (int thr=0; thr<nthreads; thr++)
     for(int d=0; d<1; d++) arg4h[d] += arg4_l[d+thr*64];
 
+  //printf("arg4h = %e \n",(float)arg4h[0]);
+
+
   op_mpi_reduce(&arg4,arg4h);
 
   op_mpi_set_dirtybit(nargs, args);

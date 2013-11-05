@@ -60,15 +60,13 @@ __kernel void op_opencl_adt_calc(
   __constant float *cfl) {
 
 
-  //__global int*   __local ind_arg0_map;
-  //__local  int            ind_arg0_size;
-  //__local  float* __local ind_arg0_s;
-  __local  int       nelem, offset_b;
+  //__local  int       nelem, offset_b;
+  int       nelem, offset_b;
 
   //int blockId;
   if (get_group_id(0)+get_group_id(1)*get_num_groups(0) >= nblocks) return;
 
-  if (get_local_id(0) == 0) {
+//  if (get_local_id(0) == 0) {
 
     // get sizes and shift pointers and direct-mapped data
 
@@ -84,12 +82,12 @@ __kernel void op_opencl_adt_calc(
 
     //int nbytes = 0;
     //ind_arg0_s = (__local float *) &shared[nbytes];
-  }
+//  }
 
 //  arg5[get_global_id(0)+offset_b] = nelem;
 //  barrier(CLK_GLOBAL_MEM_FENCE);
 
-  barrier(CLK_LOCAL_MEM_FENCE);
+// barrier(CLK_LOCAL_MEM_FENCE);
 
 //
 //  // copy indirect datasets into shared memory or zero increment
@@ -107,8 +105,11 @@ __kernel void op_opencl_adt_calc(
   int map1idx;
   int map2idx;
   int map3idx;
-//  int n=get_local_id(0);
-  for (int n=get_local_id(0); n<nelem; n+=get_local_size(0)) {
+  const int n=get_local_id(0);
+  
+  if(n>=nelem) return;
+  
+//  for (int n=get_local_id(0); n<nelem; n+=get_local_size(0)) {
     map0idx = ind_arg0_map_data[n + offset_b + set_size * 0];
     map1idx = ind_arg0_map_data[n + offset_b + set_size * 1];
     map2idx = ind_arg0_map_data[n + offset_b + set_size * 2];
@@ -156,7 +157,7 @@ __kernel void op_opencl_adt_calc(
       // *adt += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
       // *adt = (*adt) / (*cfl);
-  }
+//  } // end for
 }
 
 //  __global int* __local ind_arg0_map;

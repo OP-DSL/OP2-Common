@@ -342,11 +342,21 @@ op_printf("iteration start \n");
     op_printf("Plan->nelems[%d] = On Device %f \n",i,adt[i]);
 
 
-  FILE* fp_out;
-  fp_out = fopen("out.txt","w");
+  FILE *fp_out_dat, *fp_out_txt;
+#ifdef _OPENMP
+  fp_out_dat = fopen("airfoil_op_omp.dat","w");
+  fp_out_txt = fopen("airfoil_op_omp.txt","w");
+#else
+  fp_out_dat = fopen("airfoil_op_ocl.dat","w");
+  fp_out_txt = fopen("airfoil_op_ocl.txt","w");
+#endif
+
+  fwrite(q,sizeof(float),ncell,fp_out_dat);
   for(int i=0; i<ncell; i++)
-    fprintf(fp_out,"%e\n", q[i]);
-  fclose(fp_out);
+    fprintf(fp_out_txt,"%e\n", q[i]);
+
+  fclose(fp_out_dat);
+  fclose(fp_out_txt);
 
 
   op_exit();

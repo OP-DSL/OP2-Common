@@ -94,7 +94,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[6]) ); // qinf[4]
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[3], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
-//        clSafeCall( clFlush(OP_opencl_core.command_queue) );
+        clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
 
 

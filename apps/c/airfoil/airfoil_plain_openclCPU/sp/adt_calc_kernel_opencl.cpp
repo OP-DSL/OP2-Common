@@ -65,7 +65,9 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_1
       size_t nthread = OP_BLOCK_SIZE_1;
     #else
-      size_t nthread = OP_block_size;
+      size_t nthread = OP_part_size;
+      //size_t nthread = OP_block_size;
+      //size_t nthread = 256;
     #endif
 
 
@@ -126,7 +128,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1],14, sizeof(cl_mem), (void*) &OP_opencl_core.constant[2]) ); // cfl
 
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[1], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
-//        clSafeCall( clFlush(OP_opencl_core.command_queue) );
+        clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
       }
 

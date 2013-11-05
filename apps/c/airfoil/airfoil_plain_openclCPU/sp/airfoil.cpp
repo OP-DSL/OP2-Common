@@ -95,8 +95,6 @@ op_printf("init... \n");
   if (fscanf(fp,"%d %d %d %d \n",&nnode, &ncell, &nedge, &nbedge) != 4) {
     op_printf("error reading from new_grid.dat\n"); exit(-1);
   }
-
-op_printf("mallocs... \n");
   cell   = (int *) malloc(4*ncell*sizeof(int));
   edge   = (int *) malloc(2*nedge*sizeof(int));
   ecell  = (int *) malloc(2*nedge*sizeof(int));
@@ -208,7 +206,6 @@ op_printf("iteration start \n");
 
     // save old flow solution
 
-op_printf("save_sol... \n");
     op_par_loop(save_soln,"save_soln", cells,
       op_arg_dat(p_q,   -1,OP_ID, 4,"float",OP_READ ),
       op_arg_dat(p_qold,-1,OP_ID, 4,"float",OP_WRITE));
@@ -259,18 +256,28 @@ op_printf("save_sol... \n");
           op_arg_gbl(&rms,1,"float",OP_INC));
     }
 
-op_printf("rms... \n");
     // print iteration history
     rms = sqrt(rms/(float) op_get_size(cells));
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
   }
 
-op_printf("loopend... \n");
     // print iteration history
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+
+  FILE *fp_out_dat, *fp_out_txt;
+  fp_out_dat = fopen("airfoil_seq.dat","w");
+  fp_out_txt = fopen("airfoil_seq.txt","w");
+
+  fwrite(q,sizeof(float),ncell,fp_out_dat);
+  for(int i=0; i<ncell; i++)
+    fprintf(fp_out_txt,"%e\n", q[i]);
+
+  fclose(fp_out_dat);
+  fclose(fp_out_txt);
+
 
   op_exit();
 
