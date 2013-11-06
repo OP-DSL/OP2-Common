@@ -19,7 +19,7 @@ typedef struct{
   cl_program        program;
   cl_context        context;
   cl_uint           n_kernels;
-  cl_memi          *constant;
+  cl_mem           *constant;
   cl_uint           n_constants;
   //cl_mem         *data_d; // cl_mem struct corresponding to op_core_dat char* data_d
 } op_opencl_core;

@@ -223,7 +223,7 @@ void openclDeviceInit( int argc, char ** argv )
 //#pragma OPENCL EXTENSION cl_ext_device_fission : enable 
 
   //Create sub-device properties: Equally with 4 compute units each:
-  cl_device_partition_property props[3];
+//  cl_device_partition_property props[3];
   //props[0] = CL_DEVICE_PARTITION_EQUALLY; // By Affinity
   //props[1] = 16; // 16threads / subdevice
   //props[2] = 0; // End of the property list
@@ -242,21 +242,21 @@ void openclDeviceInit( int argc, char ** argv )
   //props[1] = CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE; // NUMA
   //props[2] = 0; // End of the property list
 
-  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
-  cl_uint num_devices = 2;
-  cl_uint num_subdevices = 0;
-  // Create the sub-devices:
-  cl_int ret2 = clCreateSubDevices(OP_opencl_core.device_id, props, 0, NULL, &num_subdevices);
-  printf("ret code = %d \n",ret2);
-  printf("Number of NUMA SubDevices = %d \n",num_subdevices);
-  ret2 =  clCreateSubDevices(OP_opencl_core.device_id, props, num_devices, OP_opencl_core.subdev_id, NULL);//&num_subdevices);
-  printf("ret code = %d \n",ret2);
-//OP_opencl_core.device_id = OP_opencl_core.subdev_id[0];
-
-  printf("Number of NUMA SubDevices 2= %d \n",num_subdevices);
-  printf("  0 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[0]);
-  printf("  1 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[1]);
-  printf("  2 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[2]);
+//  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
+//  cl_uint num_devices = 2;
+//  cl_uint num_subdevices = 0;
+//  // Create the sub-devices:
+//  cl_int ret2 = clCreateSubDevices(OP_opencl_core.device_id, props, 0, NULL, &num_subdevices);
+//  printf("ret code = %d \n",ret2);
+//  printf("Number of NUMA SubDevices = %d \n",num_subdevices);
+//  ret2 =  clCreateSubDevices(OP_opencl_core.device_id, props, num_devices, OP_opencl_core.subdev_id, NULL);//&num_subdevices);
+//  printf("ret code = %d \n",ret2);
+////OP_opencl_core.device_id = OP_opencl_core.subdev_id[0];
+//
+//  printf("Number of NUMA SubDevices 2= %d \n",num_subdevices);
+//  printf("  0 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[0]);
+//  printf("  1 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[1]);
+//  printf("  2 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[2]);
 
 
 

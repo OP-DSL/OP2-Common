@@ -1,13 +1,13 @@
 //#include "op_opencl_reduction.h"
 typedef enum { OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX } op_access;
-typedef float T;
+typedef double T;
 #define reduction OP_INC
 #define WARP_SIZE 32
 
-#define ZERO_float 0.0f
+#define ZERO_double 0.0f
 
 //inline void op_reduction_openclCPU(__global volatile T * dat_g, T dat_l, int set_size) {
-//  __local float temp[2048];
+//  __local double temp[2048];
 //  T   dat_t;
 //
 //  barrier(CLK_LOCAL_MEM_FENCE);     /* important to finish all previous activity */
@@ -117,7 +117,7 @@ typedef float T;
 //  const int block   = 8;
 ////  int   local_index = get_local_id(0) * block;
 ////  int   global_index = get_global_id(0) * block;
-//  T dat_t = ZERO_float;//dat_g[global_index];
+//  T dat_t = ZERO_double;//dat_g[global_index];
 ////  dat_l  = INFINITY;
 ////  int upper_bound = (get_global_id(0) + 1) * block;
 ////  if (upper_bound > set_size) upper_bound = set_size;
@@ -153,12 +153,12 @@ typedef float T;
  
 //  printf("dat_l = %e \n", dat_s[0]);
 //  result[get_group_id(0)] = dat_l;
-// printf("get_group_id(0) = %d: dat_g[] = %e\n", get_local_id(0),(float)dat_l);//g[get_group_id(0)]);
-  //printf("a = %e \n", (float)dat_s[0]);
+// printf("get_group_id(0) = %d: dat_g[] = %e\n", get_local_id(0),(double)dat_l);//g[get_group_id(0)]);
+  //printf("a = %e \n", (double)dat_s[0]);
 //}
 
-inline void update(__global const float * restrict qold, __global float * restrict q, __global float * restrict res, __global const float * restrict adt, float *rms){
-  float del, adti;
+inline void update(__global const double * restrict qold, __global double * restrict q, __global double * restrict res, __global const double * restrict adt, double *rms){
+  double del, adti;
 
   adti = 1.0f/(*adt);
 
@@ -172,20 +172,20 @@ inline void update(__global const float * restrict qold, __global float * restri
 
 // OpenCL kernel function
 __kernel void op_opencl_update(
-  __global const float * restrict arg0,
-  __global       float * restrict arg1,
-  __global       float * restrict arg2,
-  __global const float * restrict arg3,
-  __global       float * restrict arg4,
+  __global const double * restrict arg0,
+  __global       double * restrict arg1,
+  __global       double * restrict arg2,
+  __global const double * restrict arg3,
+  __global       double * restrict arg4,
                  int    set_size) {
 
-  float arg0_l[4];
-  float arg1_l[4];
-  float arg2_l[4];
-  float arg4_l[1];
+  double arg0_l[4];
+  double arg1_l[4];
+  double arg2_l[4];
+  double arg4_l[1];
 
   for (int d=0; d<1; d++) {
-    arg4_l[d]=ZERO_float;
+    arg4_l[d]=ZERO_double;
  }
 
   // process set elements
@@ -209,10 +209,10 @@ __kernel void op_opencl_update(
 //  int d=0;
 //  for(d=0; d<1; d++) { 
 //    //op_reductionCPU<OP_INC>(&arg4[d+get_group_id(0)*1],arg4_l[d]);
-//    //op_reductionCPU<OP_INC,float>(&arg4[d],arg4_l[d]);
+//    //op_reductionCPU<OP_INC,double>(&arg4[d],arg4_l[d]);
 //    //op_reduction_openclCPU(&arg4[d+get_group_id(0)*1],arg4_l[d],set_size);
 //
-//    float sum = ZERO_float; 
+//    double sum = ZERO_double; 
 //    if(get_local_id(0) == 0) {
 //      int i;
 //      for(i=0; i<8; i++) {

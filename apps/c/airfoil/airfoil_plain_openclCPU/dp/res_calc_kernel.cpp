@@ -16,7 +16,7 @@ void op_x86_res_calc(
   double *ind_arg2,
   double *ind_arg3,
   int   *ind_map,
-  int   *arg_map,
+  int *arg_map,
   int   *ind_arg_sizes,
   int   *ind_arg_offs,
   int    block_offset,
