@@ -249,7 +249,7 @@ op_printf("init... \n");
   op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
-  niter = 500;
+  niter = 1000;
 
 op_printf("iteration start \n");
   for(int iter=1; iter<=niter; iter++) {
