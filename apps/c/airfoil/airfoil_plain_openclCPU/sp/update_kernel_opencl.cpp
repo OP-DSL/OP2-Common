@@ -65,8 +65,9 @@ void op_par_loop_update(char const *name, op_set set,
 
     int reduct_bytes = 0;
     int reduct_size  = 0;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
-    reduct_size   = MAX(reduct_size,sizeof(float)*64);
+int simd_width = (64/sizeof(float));// scalar code
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
+    reduct_size   = MAX(reduct_size,sizeof(float)*64*simd_width);
 
 
     reallocReductArrays(reduct_bytes);
@@ -76,8 +77,9 @@ void op_par_loop_update(char const *name, op_set set,
     arg4.data_d = OP_reduct_d + reduct_bytes;
     for (int b=0; b<maxblocks; b++)
       for (int d=0; d<1; d++)
-        ((float *)arg4.data)[d+b*1*64] = ZERO_float;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
+      for (int lane=0; lane<simd_width; lane++)
+        ((float *)arg4.data)[lane+d+b*1*64*simd_width] = ZERO_float;
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
 
     mvReductArraysToDevice(reduct_bytes);
 
@@ -118,13 +120,10 @@ void op_par_loop_update(char const *name, op_set set,
     //clSafeCall( clEnqueueReadBuffer(OP_opencl_core.command_queue, (cl_mem) arg4.data_d, CL_TRUE, 0, arg4.size * arg4.set->size, arg4.data, 0, NULL, NULL) );
 
 
-//    for (int b=0; b<maxblocks; b++) {
-//      printf("arg4.data[%d] = %e \n", b, ((float *)arg4.data)[b]);
-//    }
-//exit(-1);
     for (int b=0; b<maxblocks; b++)
       for (int d=0; d<1; d++) {
-        arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1*64];
+        for (int lane=0; lane<simd_width; lane++)
+          arg4h[d] = arg4h[d] + ((float *)arg4.data)[lane+d+b*1*64*simd_width];
     //    printf("((float *)arg4.data)[d+b*1*64] = %e\n",((float *)arg4.data)[d+b*1*64]);
       }
 
