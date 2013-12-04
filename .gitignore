@@ -32,6 +32,6 @@
 
 #directories
 ./op2/c/lib/
-OP2-Common/op2/c/obj/
-OP2-Common/op2/fortran/lib/
-OP2-Common/op2/fortran/obj/
+./op2/c/obj/
+./op2/fortran/lib/
+./op2/fortran/obj/
