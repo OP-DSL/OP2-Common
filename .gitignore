@@ -29,9 +29,12 @@
 *.aux
 *.toc
 *.out
+*.backup
+*~
 
 #directories
 ./op2/c/lib/
+./op2/c/build/
 ./op2/c/obj/
 ./op2/fortran/lib/
 ./op2/fortran/obj/

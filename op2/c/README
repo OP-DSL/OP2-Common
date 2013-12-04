@@ -155,7 +155,8 @@ To compile using the regular Makefiles provided, it is required to:
    commands and flags.
 
 3. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
-   or PTSCOTCH_INSTALL_PATH, HDF5_INSTALL_PATH to the installation directories of these libraries.
+   or PTSCOTCH_INSTALL_PATH, HDF5_INSTALL_PATH to the installation
+   directories of these libraries.
    For instance:
 
       export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
