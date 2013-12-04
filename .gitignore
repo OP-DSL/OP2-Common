@@ -1,0 +1,37 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*_cu.o
+# Compiled Dynamic libraries
+*.so
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*_seq
+*_openmp
+*_cuda
+*_mpi
+*.txt
+*.dat
+*_mpi
+*.h5
+*.bin
+#fortran
+*.mod
+
+#python
+*.pyc
+
+#latex
+*.log
+*.aux
+*.toc
+*.out
+
+#directories
+./op2/c/lib/
+OP2-Common/op2/c/obj/
+OP2-Common/op2/fortran/lib/
+OP2-Common/op2/fortran/obj/
