@@ -23,7 +23,7 @@
 \begin{list}{}{
 \renewcommand{\makelabel}[1]{{\tt ##1} \hfil}
 \itemsep 0pt plus 1pt minus 1pt
-\leftmargin  1.2in
+\leftmargin  1.5in
 \rightmargin 0.0in
 \labelwidth  1.1in
 \itemindent  0.0in
@@ -350,8 +350,11 @@ appropriate variable with global scope.}
                      at present this must be a literal constant (i.e. a number not a variable);
                      this restriction will be removed in the future but a literal constant will
                      remain more efficient
-\item[type]          datatype, either intrinsic or user-defined -- expert users can add a qualifier to control data layout and management within OP2 (see section \ref{sec:expert})
-\item[data]          input data of type {\tt T}  (checked for consistency with {\tt type} at run-time) -- for each element in {\tt set}, the {\tt dim} data items muct be contiguous, but OP2 may use a different data layout internally for better performance on certain hardware platforms (see section \ref{sec:expert})
+\item[type]          datatype, either intrinsic or user-defined -- expert users can add a qualifier to control data
+layout and management within OP2 (see section \ref{sec:expert})
+\item[data]          input data of type {\tt T}  (checked for consistency with {\tt type} at run-time) -- for each
+element in {\tt set}, the {\tt dim} data items muct be contiguous, but OP2 may use a different data layout internally
+for better performance on certain hardware platforms (see section \ref{sec:expert})
 \item[name]          a name used for output diagnostics
 \end{routine}
 
@@ -730,7 +733,7 @@ on MPI\_ROOT else 0}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_dump\_to\_hdf5}
 \begin{routine} {void op\_dump\_to\_hdf5(char const * file\_name)}
-{Dump the contents of all the op\_sets, op\_dats and op\_maps to an hdf5 file \textbf{as held internally by OP2},
+{Dump the contents of all the op\_sets, op\_dats and op\_maps to an hdf5 file \underline{as held internally by OP2},
 useful for debugging}
 \item [file\_name] the file name to be written to
 \end{routine}
@@ -748,7 +751,7 @@ useful for debugging}
 \item \vspace{-0.3in}
 \end{routine}
 
-
+\newpage
 \subsection{MPI message-passing without HDF5 files}
 
 Some users will prefer not to use HDF5 files, or at least not to use them in
