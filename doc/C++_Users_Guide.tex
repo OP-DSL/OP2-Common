@@ -36,7 +36,7 @@
 \begin{document}
 
 \title{OP2 C++ User's Manual}
-\author{Mike Giles, Gihan Mudalige, Istv{\'a}n Reguly}
+\author{Mike Giles, Gihan R. Mudalige, Istv{\'a}n Reguly}
 \maketitle
 
 
@@ -82,8 +82,7 @@ parallelised using CUDA for NVIDIA GPUs
 multi-threaded using OpenMP for multicore x86 systems
 \end{itemize}
 
-\noindent In the future, there will also be support for AVX vectorisation
-for x86 CPUs, and OpenCL for both CPUs and GPUS.
+\noindent A current development branch, also supports AVX vectorisation for x86 CPUs, and OpenCL for both CPUs and GPUS.
 
 In addition to this, there is support for distributed-memory MPI
 parallelisation in combination with any of the above.  The user
@@ -776,15 +775,15 @@ see: \\
 
 \newpage
 
-\section{OP2 Preprocessor}
+\section{OP2 Preprocessor/ Code generator}
 
 There are three preprocessors for OP2, one developed at Imperial College using ROSE (currently not maintained),
 a second one developed at Oxford using MATLAB and finally a Python parser/generator also developed at Oxford.
 
 \subsection{MATLAB preprocessor}
-The MATLAB preprocessor is run by the command
+The MATLAB preprocessor is run by the command\\
 
-{\tt op2('main')}
+{\tt op2('main')}\\
 
 \noindent
 where {\tt main.cpp} is the user's main program.  It produces as output
@@ -812,15 +811,18 @@ lead to the generation of output files {\tt sub1\_op.cpp, sub2\_op.cpp, sub3\_op
 in addition to {\tt main\_op.cpp, main\_kernels.cu, main\_kernels.cpp}
 and the individual kernel files.
 
+The MATLAB preprocessor was the first prototype source-to-source translator developed in the OP2 project. This has been
+now superseded by the Python code generator.
+
 %The preprocessor cannot currently handle cases in which the same user kernel is
 %used in more than one parallel loop, or when global constant data is set/updated
 %in more than one place within the code.  This will be addressed in the future.
 
-\subsection{Python preprocessor}
+\subsection{Python code generator}
 
-The Python preprocessor is run on the command-line with the command
+The Python preprocessor is run on the command-line with the command\\
 
-{\tt ./op2.py main.cpp sub1.cpp sub2.cpp sub3.cpp}
+{\tt ./op2.py main.cpp sub1.cpp sub2.cpp sub3.cpp}\\
 
 \noindent Assuming that the user's application is split over several files. This will lead to the generation of output
 files {\tt sub1\_op.cpp, sub2\_op.cpp, sub3\_op.cpp} in addition to {\tt main\_op.cpp, main\_kernels.cu,
@@ -843,9 +845,7 @@ xxx\_kernel.cpp} containing the OpenMP implementations of the user's kernel func
 
 At compile-time, there is a check to ensure that CUDA 3.2 or later is used
 when compiling the CUDA executable; this is because of compiler bugs in previous
-versions of CUDA.
-
-At run-time, OP2 checks the user-supplied data in various ways:
+versions of CUDA. At run-time, OP2 checks the user-supplied data in various ways:
 \begin{itemize}
 \item
 checks that a set has a strictly positive number of elements
@@ -902,6 +902,7 @@ within the CUDA toolkit distribution.  This will need to be changed to
 
 \newpage
 
+\begin{comment}
 \section{User-defined datatypes}
 
 If the user defines a new datatype {\tt mytype} it must be included in
@@ -939,7 +940,7 @@ if there are any {\tt OP\_MIN, OP\_MAX} accesses to the datatype.
 In addition, the user must specify the name of the new header file using the
 environment variable {\tt OP\_USER\_DATATYPES}
 so that this header file is included into the OP2 header file {\tt op\_datatypes.h}.
-
+\end{comment}
 
 
 
