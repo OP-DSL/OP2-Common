@@ -1,6 +1,5 @@
 \documentclass[11pt]{article}
-
-\usepackage[colorlinks,urlcolor=blue]{hyperref}
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue]{hyperref}
 
 \usepackage{graphicx}
 \usepackage{verbatim}
@@ -20,7 +19,7 @@
 %
 %
 \newenvironment{routine}[2]
-{\vspace{.25in}{\noindent\bf\hspace{0pt} #1}{\\ \noindent #2}
+{\vspace{.0in}{\noindent\bf\hspace{-5pt} #1}{\\ \noindent #2}
 \begin{list}{}{
 \renewcommand{\makelabel}[1]{{\tt ##1} \hfil}
 \itemsep 0pt plus 1pt minus 1pt
@@ -90,13 +89,10 @@ parallelised using CUDA for NVIDIA GPUs
 multi-threaded using OpenMP for multicore x86 systems
 \end{itemize}
 
-\noindent A current development branch, also supports AVX vectorisation for x86 CPUs, and OpenCL for both CPUs and GPUS.
-
-In addition to this, there is support for distributed-memory MPI
-parallelisation in combination with any of the above.  The user
-can either use OP2's parallel file I/O capabilities for HDF5
-files with a specified structure, or perform their own parallel
-file I/O using custom MPI code.
+\noindent A current development branch, also supports AVX vectorisation for x86 CPUs, and OpenCL for both CPUs and
+GPUS. In addition to this, there is support for distributed-memory MPI parallelisation in combination with any of the
+above.  The user can either use OP2's parallel file I/O capabilities for HDF5 files with a specified structure, or
+perform their own parallel file I/O using custom MPI code.
 
 \newpage
 \section{Overview}
@@ -384,6 +380,7 @@ block.}
 \item[data]          pointer to a block of memory of type T -- allocated by the user
 \end{routine}
 
+\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_free\_dat\_tmp}
 \begin{routine} {void op\_free\_dat\_tmp(op\_dat dat)}
 {This routine terminates a temporary dataset.}
 \item[dat]           OP dataset ID
@@ -633,8 +630,9 @@ the user must then call {\bf op\_decl\_const} to declare it to OP2.}
 \end{routine}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_partition}
-\begin{routine} {void op\_partition(char *lib\_name, const char* lib\_routine,
-  op\_set prime\_set, op\_map prime\_map, op\_dat coords)}
+\begin{routine} {void op\_partition(char *lib\_name, const char* lib\_routine,\\
+\hspace*{1.35in} op\_set prime\_set, op\_map prime\_map,
+op\_dat coords)}
 {This routine controls how the various sets are partitioned.}
 \item[lib\_name]  A string which declares the partitioning library to be used.
 
