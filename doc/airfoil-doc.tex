@@ -1,6 +1,6 @@
 \documentclass[11pt]{article}
 
-\usepackage[colorlinks,urlcolor=blue]{hyperref}
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue]{hyperref}
 \usepackage{graphicx}
 \usepackage[footnotesize]{subfigure}
 \usepackage{listings}
@@ -64,7 +64,7 @@ consists of 1.5M edges. In such a mesh the most compute intensive loop, \texttt{
 the total execution of the application and performs about 100 floating-point operations per mesh edge. Extensive
 performance analysis of Airfoil and optimisations have been detailed in our published work~\cite{PER2011, CJ2011,
 PER2012, InPar2012}. What follows is a step-by-step treatment of the stages involved in developing Airfoil. The
-application and generated code can be found under \texttt{OP2-Common/apps/c/airfoil}.
+application and generated code can be found under \texttt{OP2-Common/apps/c/airfoil}.\vspace{-5pt}
 
 \section{Airfoil - The Development CPU Version}
 
@@ -101,29 +101,24 @@ the edges of the mesh.
 \normalsize\vspace{-10pt}\label{fig:rescalc}
 \end{figure}
 
-The first argument specifies the name of the function (implemented in \texttt{res\_calc.h}) that contains the operations
-to be performed per iteration in the loop. The second argument notes the name of the loop, while the third specifies the
-\texttt{op\_set} over which the loop will iterate. The remaining arguments specify the access descriptors of the
-data used in the loop. More details of the \texttt{op\_arg\_dat} API statements are given in the user guide. 
+\noindent The first argument specifies the name of the function (implemented in \texttt{res\_calc.h}) that contains the
+operations to be performed per iteration in the loop. The second argument notes the name of the loop, while the third
+specifies the \texttt{op\_set} over which the loop will iterate. The remaining arguments specify the access descriptors
+of the data used in the loop. More details of the \texttt{op\_arg\_dat} API statements are given in the user guide.
 
-For Airfoil, \texttt{airfoil.cpp} include the standard C++ header files, the OP2 header files and the elemental kernel
-header files as follows. Additionally global constants must be declared before the \texttt{main()} function.
+For Airfoil, \texttt{airfoil.cpp} include the OP2 header files and the elemental kernel header files as follows.
+Additionally global constants must be declared before the \texttt{main()} function.
 
 \begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
 \begin{lstlisting}
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-
 // OP2 header file
 #include "op_seq.h"
 
 // global constants
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
-// kernel routines for parallel loops
+// user kernel routines for parallel loops
 #include "save_soln.h"
 #include "adt_calc.h"
 #include "res_calc.h"
@@ -134,12 +129,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 \caption{\small Header and global constants }
 \normalsize\vspace{-10pt}\label{fig:header}
 \end{figure}
-
-\small
-\begin{verbatim}
-
-\end{verbatim}
-\normalsize
 
 \noindent The main function of an OP2 applications need to begin with the initialisation statement \texttt{op\_init()}
 before any other OP2 API statements can be called. The Airfoil application then reads in the input mesh file. As
@@ -166,12 +155,12 @@ allocate memory to hold the data. The data is then passed to the appropriate OP2
   op_map pbecell = op_decl_map(bedges,cells,1,becell,"pbecell");
   op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
 
-  op_dat p_bound = op_decl_dat(bedges,1,"int"  ,bound,"p_bound");
-  op_dat p_x     = op_decl_dat(nodes ,2,"double",x    ,"p_x");
-  op_dat p_q     = op_decl_dat(cells ,4,"double",q    ,"p_q");
-  op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
-  op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
-  op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
+  op_dat p_bound = op_decl_dat(bedges,1,"int"   , bound ,"p_bound");
+  op_dat p_x     = op_decl_dat(nodes ,2,"double", x     ,"p_x");
+  op_dat p_q     = op_decl_dat(cells ,4,"double", q     ,"p_q");
+  op_dat p_qold  = op_decl_dat(cells ,4,"double", qold  ,"p_qold");
+  op_dat p_adt   = op_decl_dat(cells ,1,"double", adt   ,"p_adt");
+  op_dat p_res   = op_decl_dat(cells ,4,"double", res   ,"p_res");
 
   op_decl_const(1,"double",&gam  );
   op_decl_const(1,"double",&gm1  );
@@ -213,7 +202,6 @@ for(int iter=1; iter<=niter; iter++) {
       op_par_loop(update, ... );
     }
     ...
-    ...
 }
 \end{lstlisting}\vspace{-10pt}
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
@@ -251,7 +239,7 @@ airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h \
 \end{figure}
 
 \noindent Once the application is debugged and tested on a single CPU, OP2's code generation capabilities can be used
-to generate executables for different parallel architectures. We will use OP2's MATLAB code parser for code generation
+to generate executables for different parallel architectures. We will use OP2's Python code parser for code generation
 throughout this document. The various back-ends supported by OP2, and their build process are detailed in
 Figure~\ref{fig/build-paths}. 
 
@@ -266,21 +254,21 @@ application. As such \texttt{airfoil\_mpi.cpp} will be an MPI application writte
 parallel I/O as will be detailed in Section~\ref{sec/mpi}. As mentioned before, the single CPU Airfoil application
 (\texttt{airfoi\_seq}) can be built without any code generation. Similarly the distributed memory MPI application,
 \texttt{airfoi\_mpi}, for executing on a single threaded cluster of CPUs, also can be built without code generation
-(see Section ~\ref{sec/mpi}). With the above two versions of the application, the current OP2 code generation tools can
-generate code for parallel execution on (1) a single GPU using NVIDIA CUDA, (2) Multi-threaded CPU using OpenMP, (3)
-cluster of GPUs using MPI+CUDA and (4) a cluster of multi-threaded CPUs using MPI+OpenMP. In order to obtain the code
-for these targets, the code generator will need to be applied \underline{\textbf{two times}}, once
-to \texttt{airfoil.cpp} and then to \texttt{airfoil\_mpi.cpp}. The former will generate a modified main program and
+(see Section ~\ref{sec/mpi}). The current OP2 code generation tools can be applied to the above two versions of the
+application to generate code for parallel execution on (1) a single GPU using NVIDIA CUDA, (2) Multi-threaded CPU using
+OpenMP, (3) cluster of GPUs using MPI+CUDA and (4) a cluster of multi-threaded CPUs using MPI+OpenMP. In order to obtain
+the code for these targets, the code generator will need to be applied \underline{\textbf{two times}}, once to
+\texttt{airfoil.cpp} and then to \texttt{airfoil\_mpi.cpp}. The former will generate a modified main program and
 kernel files for single node parallel execution and the latter will generate code for parallel execution on a
-heterogeneous distributed memory cluster. \\
+heterogeneous distributed memory cluster. 
 
-\noindent The code generator needs to be run through MATLAB, for example for parsing \texttt{airfoil.cpp}:
+\noindent The code generator needs to be invoked, for example for parsing \texttt{airfoil.cpp}:
 
-$>>$ \texttt{op2('airfoil')}
+$\$>$ ./op2.py airfoil.cpp
 
 \noindent For parsing \texttt{airfoil\_mpi.cpp}, to generate the distributed memory code:
 
-$>>$ \texttt{op2('airfoil\_mpi')}
+$\$>$ ./op2.py airfoil\_mpi.cpp
 
 \noindent More specific details of the build process for each target back-end is detailed in the next sections. 
 
