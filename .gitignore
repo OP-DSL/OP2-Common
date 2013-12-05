@@ -33,6 +33,7 @@
 *.blg
 *.bbl
 *~
+*.pyg.*
 
 #directories
 ./op2/c/lib/

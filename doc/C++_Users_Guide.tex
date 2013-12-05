@@ -3,6 +3,7 @@
 \usepackage[footnotesize]{subfigure}
 \usepackage{graphicx}
 \usepackage{verbatim}
+\usepackage{verbments}
 \setlength{\oddsidemargin}{-0.01in}
 \setlength{\topmargin}{-0.4in}
 \setlength{\textheight}{9.0in}
@@ -19,9 +20,9 @@
 %
 %
 \newenvironment{routine}[2]
-{\vspace{.0in}{\noindent\bf\hspace{-5pt} #1}{\\ \noindent #2}
+{\vspace{.0in}{\noindent\bf\hspace{-5pt}  #1}{\\ \noindent #2}
 \begin{list}{}{
-\renewcommand{\makelabel}[1]{{\tt ##1} \hfil}
+\renewcommand{\makelabel}[1]{{\tt  ##1 } \hfil}
 \itemsep 0pt plus 1pt minus 1pt
 \leftmargin  1.5in
 \rightmargin 0.0in
@@ -31,6 +32,10 @@
 \labelsep    0.05in}
 }{\end{list}}
 %
+
+
+%
+
 
 \begin{document}
 
@@ -286,9 +291,9 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 \section{OP2 C++ API}
 
 \subsection{Initialisation and termination routines}
-
+% 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_init}
-\begin{routine} {void op\_init(int argc, char **argv, int diags\_level)}
+\begin{routine} { void op\_init(int argc, char **argv, int diags\_level)}
 {This routine must be called before all other OP routines. Under MPI back-ends, this routine also calls
 \texttt{MPI\_Init()} unless its already called previously}
 \item[argc, argv]   the usual command line arguments
@@ -301,6 +306,7 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
                     \\4 -- report use of old plans;
                     \\7 -- report positive checks in op\_plan\_check;
 \end{routine}
+
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_exit}
 \begin{routine} {void op\_exit()}

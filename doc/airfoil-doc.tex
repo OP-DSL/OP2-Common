@@ -4,6 +4,7 @@
 \usepackage{graphicx}
 \usepackage[footnotesize]{subfigure}
 \usepackage{listings}
+\usepackage{verbments}
 
  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
  \oddsidemargin 0.1in 
@@ -82,23 +83,24 @@ iteration are detailed in a header file for each loop: \texttt{save\_soln.h, adt
 the edges of the mesh.
 
 
+
 \begin{figure}\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=c]
 //  calculate flux residual
-    op_par_loop(res_calc,"res_calc",edges,
-          op_arg_dat(p_x,    0,pedge, 2,"double",OP_READ),
-          op_arg_dat(p_x,    1,pedge, 2,"double",OP_READ),
-          op_arg_dat(p_q,    0,pecell,4,"double",OP_READ),
-          op_arg_dat(p_q,    1,pecell,4,"double",OP_READ),
-          op_arg_dat(p_adt,  0,pecell,1,"double",OP_READ),
-          op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
-          op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
-          op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+op_par_loop(res_calc,"res_calc",edges,
+            op_arg_dat(p_x,    0,pedge, 2,"double",OP_READ),
+            op_arg_dat(p_x,    1,pedge, 2,"double",OP_READ),
+            op_arg_dat(p_q,    0,pecell,4,"double",OP_READ),
+            op_arg_dat(p_q,    1,pecell,4,"double",OP_READ),
+            op_arg_dat(p_adt,  0,pecell,1,"double",OP_READ),
+            op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
+            op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
+            op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small res\_calc loop}
-\normalsize\vspace{-10pt}\label{fig:rescalc}
+\normalsize\vspace{-0pt}\label{fig:rescalc}
 \end{figure}
 
 \noindent The first argument specifies the name of the function (implemented in \texttt{res\_calc.h}) that contains the
@@ -109,23 +111,21 @@ of the data used in the loop. More details of the \texttt{op\_arg\_dat} API stat
 For Airfoil, \texttt{airfoil.cpp} include the OP2 header files and the elemental kernel header files as follows.
 Additionally global constants must be declared before the \texttt{main()} function.
 
-\begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\begin{figure}\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=c]
 // OP2 header file
 #include "op_seq.h"
-
 // global constants
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
-
 // user kernel routines for parallel loops
 #include "save_soln.h"
 #include "adt_calc.h"
 #include "res_calc.h"
 #include "bres_calc.h"
 #include "update.h"
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small Header and global constants }
 \normalsize\vspace{-10pt}\label{fig:header}
 \end{figure}
@@ -142,8 +142,8 @@ allocate memory to hold the data. The data is then passed to the appropriate OP2
 \texttt{op\_set}s, \texttt{op\_map}s and \texttt{op\_dat}s as follows:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=c]
   op_set nodes  = op_decl_set(nnode,  "nodes");
   op_set edges  = op_decl_set(nedge,  "edges");
   op_set bedges = op_decl_set(nbedge, "bedges");
@@ -169,8 +169,8 @@ allocate memory to hold the data. The data is then passed to the appropriate OP2
   op_decl_const(1,"double",&mach );
   op_decl_const(1,"double",&alpha);
   op_decl_const(4,"double",qinf  );
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small OP2 set, map and dat declarations }
 \normalsize\vspace{-10pt}\label{fig:decls}
 \end{figure}
@@ -180,8 +180,8 @@ declared to establish connectivity between sets. The six data arrays are declare
 \texttt{cells}. Any constants used by the program are also declared at this point using \texttt{op\_decl\_const()}.
 The five parallel loops that make up the Airfoil application are detailed next within a time-marching loop.
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=c]
 //main time-marching loop
 for(int iter=1; iter<=niter; iter++) {
     // save old flow solution
@@ -203,8 +203,8 @@ for(int iter=1; iter<=niter; iter++) {
     }
     ...
 }
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small Time marching loop }
 \normalsize\vspace{-10pt}\label{fig:timemarching}
 \end{figure}
@@ -222,20 +222,20 @@ parallelisation issues. The compilation of the application for single-threaded C
 sequential library \texttt{libop2\_seq.a}, for example as follows:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
-CPPFLAGS         = -O3 -xSSE4.2 
+CPPFLAGS        = -O3 -xSSE4.2
 airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h \
-	      bres_calc.h update.h
+	     bres_calc.h update.h
              $(CPP) $(CPPFLAGS) airfoil.cpp \
              $(OP2_INC) $(OP2_LIB) -lop2_seq -o airfoil_seq 
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small Sequential developer version build }
-\normalsize\vspace{-10pt}\label{fig:seqbuild}
+\normalsize\vspace{-0pt}\label{fig:seqbuild}
 \end{figure}
 
 \noindent Once the application is debugged and tested on a single CPU, OP2's code generation capabilities can be used
@@ -285,7 +285,7 @@ compiler and linking with the openmp back-end library, \texttt{libop2\_openmp.a}
 
 \begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\begin{pyglist}[language=make]
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
@@ -296,11 +296,11 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
                 adt_calc_kernel.cpp adt_calc.h \
                 res_calc_kernel.cpp res_calc.h \
                 bres_calc_kernel.cpp bres_calc.h \
-                update_kernel.cpp update.h \
+                update_kernel.cpp update.h 
                 $(CPP) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
-                airfoil_op.cpp airfoil_kernels.cpp \
+                airfoil_op.cpp airfoil_kernels.cpp \ 
                 -lm -lop2_openmp -o airfoil_openmp
-\end{lstlisting}\vspace{-10pt}
+\end{pyglist}
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small OpenMP version build }
 \normalsize\vspace{-10pt}\label{fig:ompbuild}
@@ -315,8 +315,8 @@ file appearing in the compile line. The \texttt{airfoil\_openmp} can be run on m
 conventional C++ compiler and linking with the CUDA back-end library, \texttt{libop2\_cuda.a}, for example as follows:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
@@ -335,12 +335,12 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
                 adt_calc_kernel.cu  adt_calc.h  \
                 res_calc_kernel.cu  res_calc.h  \
                 bres_calc_kernel.cu bres_calc.h \
-                update_kernel.cu    update.h    \
+                update_kernel.cu    update.h    
                 nvcc $(NVCCFLAGS) $(OP2_INC) \
                 -c -o airfoil_kernels_cu.o \
                 airfoil_kernels.cu
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small CUDA version build }
 \normalsize\vspace{-10pt}\label{fig:cudabuild}
 \end{figure}
@@ -364,8 +364,8 @@ all that is required is to include the \texttt{op\_seq.h} header file. The MPI a
 with mpiCC and linking with the MPI back-end library, \texttt{libop2\_mpi.a}, for example as follows:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 MPICPP          = mpiCC
 MPIFLAGS        = -O3 -xSSE4.2 
 
@@ -383,10 +383,10 @@ airfoil_mpi: airfoil_mpi.cpp \
         $(PARMETIS_INC) $(PTSCOTCH_INC) \
         $(OP2_LIB) airfoil_mpi.cpp -lop2_mpi \
         $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small MPI version build }
-\normalsize\vspace{-10pt}\label{fig:mpibuild}
+\normalsize\vspace{-0pt}\label{fig:mpibuild}
 \end{figure}
 
 \noindent The unstructured mesh, will be repartitioned by OP2, using parallel graph/mesh partitioning libraries
@@ -411,8 +411,8 @@ for the single-node parallel back-ends.
 C++ compiler and linking with the back-end library, \texttt{libop2\_mpi.a}, for example as follows:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
                     save_soln_kernel.cpp  save_soln.h \
                     adt_calc_kernel.cpp   adt_calc.h  \
@@ -426,10 +426,10 @@ airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
                     $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
                     $(OP2_LIB) -lop2_mpi \
                     $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_openmp
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small MPI+OpenMP version build }
-\normalsize\vspace{-10pt}\label{fig:mpi_openmpbuild}
+\normalsize\vspace{-0pt}\label{fig:mpi_openmpbuild}
 \end{figure}
 
 \noindent \texttt{airfoil\_mpi\_openmp} needs to be executed using mpirun and will utilise OMP\_NUM\_THREADS per MPI
@@ -440,8 +440,8 @@ process on the multi-threaded CPU cluster during execution.
 CUDA compiler nvcc and linking with the back-end library, \texttt{libop2\_mpi\_cuda.a}, for example as follows:
 
 \begin{figure}[h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 airfoil_mpi_cuda: airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o Makefile
                   $(MPICPP) $(MPIFLAGS) airfoil_mpi_op.cpp \
                   airfoil_kernels_mpi_cu.o \
@@ -460,8 +460,8 @@ airfoil_kernels_mpi_cu.o:       airfoil_kernels.cu      \
                   nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
                   -I $(MPI_INSTALL_PATH)/include \
                   -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small MPI+CUDA version build }
 \normalsize\vspace{-10pt}\label{fig:mpi_cudabuild}
 \end{figure}
@@ -486,8 +486,8 @@ linked with the appropriate OP2 back-ends libraries to give the desired target e
 \noindent The library \texttt{libop2\_hdf5.a} needs to be linked when building single node executables, for example:
 
 \begin{figure}[!h]\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
@@ -507,8 +507,8 @@ airfoil_kernels_cu.o:   airfoil_kernels.cu      \
                 nvcc $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) \
                 -I /home/gihan/openmpi-intel/include \
                 -c -o airfoil_kernels_cu.o airfoil_kernels.cu
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small CUDA with HDF5 build }
 \normalsize\vspace{-10pt}\label{fig:hdf5build}
 \end{figure}
@@ -518,8 +518,8 @@ airfoil_kernels_cu.o:   airfoil_kernels.cu      \
 implicitly. Thus linking should not be done with \texttt{libop2\_hdf5.a} in this case, for example:
 
 \begin{figure}\small
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
-\begin{lstlisting}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
+\begin{pyglist}[language=make]
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
@@ -541,8 +541,8 @@ airfoil_kernels_mpi_cu.o: airfoil_kernels.cu \
                 nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
                 -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
-\end{lstlisting}\vspace{-10pt}
-\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small MPI+CUDA with HDF5 build }
 \normalsize\vspace{-0pt}\label{fig:mpicudahdf5build}
 \end{figure}

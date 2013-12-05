@@ -34,15 +34,16 @@ compare_results -- small utility code to compare two files (txt or bin), used to
 
 The various parallel versions of Airfoil should be compared against the single-threaded CPU version (also known as the
 reference implementation) to ascertain the correctness of the results. The p_q array holds the final result and as such
-will be the data array to compare. One way to achieve this is to use :
+will be the data array to compare. One way to achieve this is to use the following OP2 calls to write the data array to
+text or binary files, for example after the end of the 1000 iterations in the airfoil code.
 
 ```
 op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
 op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
 ```
 
-For example after the end of the 1000 iterations in the airfoil code and then use the code in compare.cpp and
-comparebin.cpp to compare the text file or binary file with the reference implementation.
+Then the code in compare.cpp and comparebin.cpp can be used to compare the text file or binary file with the reference
+implementation.
 
 Bitwise accuracy can be expected across systems for the double precision version to within the accuracy of machine
 precision. For the single precision version, answers should be very close. A summary print of the rms value of the
