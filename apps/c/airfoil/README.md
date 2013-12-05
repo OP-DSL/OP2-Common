@@ -17,12 +17,15 @@ Please see airfoil-doc under the ../../doc directory for further OP2 application
 ### Airfoil Application Directory Structure
 
 Airfoil has been the main development, testing and benchmarking application in OP2. As such this directory contains
-several versions of Airfoil that demonstrate the use of various features of OP2.
+several versions of Airfoil that demonstrate the use of various OP2 features.
 
 airfoil_plain -- airfoil implemented with user I/O routines (mesh file in ASCI - see ../../apps/mesh_generators on how
 to generate the mesh)
+
 airfoil_hdf5 -- airfoil implemented with OP2 HDF5 routines (mesh file in HDF5, see ASCI to HDF5 file converter)
-airfoil_vector -- airfoil user kernels modified to achieve vectorization 
+
+airfoil_vector -- airfoil user kernels modified to achieve vectorization
+
 airfoil_tempdats -- airfoil use op_decl_temp, i.e. temporary dats in application
 
 

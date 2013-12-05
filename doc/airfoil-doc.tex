@@ -3,6 +3,7 @@
 \usepackage[colorlinks,urlcolor=blue]{hyperref}
 \usepackage{graphicx}
 \usepackage[footnotesize]{subfigure}
+\usepackage{listings}
 
  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
  \oddsidemargin 0.1in 
@@ -32,6 +33,15 @@
 \author{Mike Giles, Gihan Mudalige, Istv{\'a}n Reguly}
 \maketitle
 
+\newpage
+
+
+
+
+\tableofcontents
+
+\newpage
+
 
 \newpage
 \section{Introduction}
@@ -56,7 +66,7 @@ performance analysis of Airfoil and optimisations have been detailed in our publ
 PER2012, InPar2012}. What follows is a step-by-step treatment of the stages involved in developing Airfoil. The
 application and generated code can be found under \texttt{OP2-Common/apps/c/airfoil}.
 
-\section{The Single CPU Version}
+\section{Airfoil - The Development CPU Version}
 
 For the application developer wishing to utilise the OP2 framework for developing unstructured mesh codes, the first
 step is to develop the application assuming that the target execution system is a traditional single threaded CPU.
@@ -70,8 +80,11 @@ mentioned five loops. Each loop iterates over a specified \texttt{op\_set} and t
 iteration are detailed in a header file for each loop: \texttt{save\_soln.h, adt\_calc.h, res\_calc.h, bres\_calc.h} and
 \texttt{update.h}. The following code illustrates the declaration of the \texttt{res\_calc} loop, which iterates over
 the edges of the mesh.
-\small
-\begin{verbatim}
+
+
+\begin{figure}\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 //  calculate flux residual
     op_par_loop(res_calc,"res_calc",edges,
           op_arg_dat(p_x,    0,pedge, 2,"double",OP_READ),
@@ -82,8 +95,12 @@ the edges of the mesh.
           op_arg_dat(p_adt,  1,pecell,1,"double",OP_READ),
           op_arg_dat(p_res,  0,pecell,4,"double",OP_INC ),
           op_arg_dat(p_res,  1,pecell,4,"double",OP_INC ));
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small res\_calc loop}
+\normalsize\vspace{-10pt}\label{fig:rescalc}
+\end{figure}
+
 The first argument specifies the name of the function (implemented in \texttt{res\_calc.h}) that contains the operations
 to be performed per iteration in the loop. The second argument notes the name of the loop, while the third specifies the
 \texttt{op\_set} over which the loop will iterate. The remaining arguments specify the access descriptors of the
@@ -92,28 +109,35 @@ data used in the loop. More details of the \texttt{op\_arg\_dat} API statements 
 For Airfoil, \texttt{airfoil.cpp} include the standard C++ header files, the OP2 header files and the elemental kernel
 header files as follows. Additionally global constants must be declared before the \texttt{main()} function.
 
-\small
-\begin{verbatim}
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-//
-// OP header file
-//
+
+// OP2 header file
 #include "op_seq.h"
 
 // global constants
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
-//
 // kernel routines for parallel loops
-//
 #include "save_soln.h"
 #include "adt_calc.h"
 #include "res_calc.h"
 #include "bres_calc.h"
 #include "update.h"
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small Header and global constants }
+\normalsize\vspace{-10pt}\label{fig:header}
+\end{figure}
+
+\small
+\begin{verbatim}
+
 \end{verbatim}
 \normalsize
 
@@ -127,8 +151,10 @@ utilising OP2's hdf5 file I/O capabilities.
 Assume that the application reads an ASCI file using standard C++ file I/O statements to read in the input mesh and
 allocate memory to hold the data. The data is then passed to the appropriate OP2 declaration statements to declare
 \texttt{op\_set}s, \texttt{op\_map}s and \texttt{op\_dat}s as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
   op_set nodes  = op_decl_set(nnode,  "nodes");
   op_set edges  = op_decl_set(nedge,  "edges");
   op_set bedges = op_decl_set(nbedge, "bedges");
@@ -154,15 +180,19 @@ allocate memory to hold the data. The data is then passed to the appropriate OP2
   op_decl_const(1,"double",&mach );
   op_decl_const(1,"double",&alpha);
   op_decl_const(4,"double",qinf  );
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small OP2 set, map and dat declarations }
+\normalsize\vspace{-10pt}\label{fig:decls}
+\end{figure}
 
 \noindent Four sets are declared (\texttt{nodes, edges, bedges} and \texttt{cells}) and five mappings between sets are
 declared to establish connectivity between sets. The six data arrays are declared on the sets \texttt{bedges, nodes} and
 \texttt{cells}. Any constants used by the program are also declared at this point using \texttt{op\_decl\_const()}.
-The five parallel loops that make up the Airfoil application are detailed next within a time-marching loop. \newpage
-\small
-\begin{verbatim}
+The five parallel loops that make up the Airfoil application are detailed next within a time-marching loop.
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 //main time-marching loop
 for(int iter=1; iter<=niter; iter++) {
     // save old flow solution
@@ -185,8 +215,12 @@ for(int iter=1; iter<=niter; iter++) {
     ...
     ...
 }
-\end{verbatim}
-\normalsize\vspace{-5pt}
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small Time marching loop }
+\normalsize\vspace{-10pt}\label{fig:timemarching}
+\end{figure}
+
 Finally, statistics about the performance of the application can be printed to stdout using
 \texttt{op\_timing\_output()} and OP2 is terminated with \texttt{op\_exit()}, deallocating internal OP2 allocated
 memory. If the application developer allocated memory, for example to read in the mesh, then he/she will need to
@@ -198,26 +232,30 @@ required at this stage, where the application developer is only using the single
 development. This enable the developer to build the application and test its accuracy without considering any
 parallelisation issues. The compilation of the application for single-threaded CPUs is achieved by linking with the OP2
 sequential library \texttt{libop2\_seq.a}, for example as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
 CPPFLAGS         = -O3 -xSSE4.2 
-airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h bres_calc.h update.h
+airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h \
+	      bres_calc.h update.h
              $(CPP) $(CPPFLAGS) airfoil.cpp \
              $(OP2_INC) $(OP2_LIB) -lop2_seq -o airfoil_seq 
- 
-
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small Sequential developer version build }
+\normalsize\vspace{-10pt}\label{fig:seqbuild}
+\end{figure}
 
 \noindent Once the application is debugged and tested on a single CPU, OP2's code generation capabilities can be used
 to generate executables for different parallel architectures. We will use OP2's MATLAB code parser for code generation
 throughout this document. The various back-ends supported by OP2, and their build process are detailed in
 Figure~\ref{fig/build-paths}. 
 
-\begin{figure}[ht]\centering\vspace{0pt}
+\begin{figure}[!ht]\centering\vspace{0pt}
 \subfigure[Single-Node build]{\includegraphics[width=9cm]{airfoil_plain}\vspace{-0pt}}
 \subfigure[MPI Build]{\includegraphics[width=9cm]{airfoil_plain_mpi}\vspace{-0pt}}
 \caption{Code generation and build for Airfoil (with user I/O)}\label{fig/build-paths}\vspace{-5pt}
@@ -256,8 +294,10 @@ will be transformed to \texttt{airfoil\_op.cpp} and a kernel file will be produc
 \texttt{op\_par\_loop} in the main program (\texttt{*\_kernel.cpp} for OpenMP and \texttt{*\_kernel.cu} for CUDA). For
 running on SMP CPU nodes, OpenMP is utilised. The executable can be built by compiling the code with a conventional C++
 compiler and linking with the openmp back-end library, \texttt{libop2\_openmp.a}, for example as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
@@ -272,8 +312,12 @@ airfoil_openmp:	airfoil_op.cpp airfoil_kernels.cpp \
                 $(CPP) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) \
                 airfoil_op.cpp airfoil_kernels.cpp \
                 -lm -lop2_openmp -o airfoil_openmp
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small OpenMP version build }
+\normalsize\vspace{-10pt}\label{fig:ompbuild}
+\end{figure}
+
 
 \noindent The \texttt{airfoil\_kernels.cpp} includes all the \texttt{*\_kernel.cpp} files. This is why it is the only
 file appearing in the compile line. The \texttt{airfoil\_openmp} can be run on multiple OpenMP threads by setting the
@@ -281,8 +325,10 @@ file appearing in the compile line. The \texttt{airfoil\_openmp} can be run on m
 
 \noindent For running on a single GPU, NVIDIA CUDA is utilised. The executable can be built by compiling with nvcc and a
 conventional C++ compiler and linking with the CUDA back-end library, \texttt{libop2\_cuda.a}, for example as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 OP2_INC         = -I$(OP2_INSTALL_PATH)/c/include
 OP2_LIB         = -L$(OP2_INSTALL_PATH)/c/lib
 CPP             = icpc
@@ -293,7 +339,8 @@ NVCCFLAGS       = -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math
 airfoil_cuda:	airfoil_op.cpp airfoil_kernels_cu.o
                 $(CPP) $(CPPFLAGS) $(CUDA_INC) $(OP2_INC) \
                 $(OP2_LIB) $(CUDA_LIB) \
-                airfoil_op.cpp airfoil_kernels_cu.o -lcudart -lop2_cuda -o airfoil_cuda
+                airfoil_op.cpp airfoil_kernels_cu.o -lcudart \
+               -lop2_cuda -o airfoil_cuda                                      
 
 airfoil_kernels_cu.o:	airfoil_kernels.cu      \
                 save_soln_kernel.cu save_soln.h \
@@ -304,8 +351,11 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
                 nvcc $(NVCCFLAGS) $(OP2_INC) \
                 -c -o airfoil_kernels_cu.o \
                 airfoil_kernels.cu
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small CUDA version build }
+\normalsize\vspace{-10pt}\label{fig:cudabuild}
+\end{figure}
 
 \noindent Similar to the OpenMP compilation, the \texttt{airfoil\_kernels.cu} includes all the \texttt{*\_kernel.cu}
 files. When \texttt{airfoil\_cuda} is executed, it will select any available GPU  on the system. The GPU to be selected
@@ -325,8 +375,9 @@ MPI application, without the need for any code generation. Similar to the develo
 all that is required is to include the \texttt{op\_seq.h} header file. The MPI application can be built by compiling
 with mpiCC and linking with the MPI back-end library, \texttt{libop2\_mpi.a}, for example as follows:
 
-\small
-\begin{verbatim}
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 MPICPP          = mpiCC
 MPIFLAGS        = -O3 -xSSE4.2 
 
@@ -340,11 +391,15 @@ PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 
 airfoil_mpi: airfoil_mpi.cpp \
         save_soln.h adt_calc.h res_calc.h bres_calc.h Makefile
-        $(MPICPP) $(MPIFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+        $(MPICPP) $(MPIFLAGS) $(OP2_INC) \
+        $(PARMETIS_INC) $(PTSCOTCH_INC) \
         $(OP2_LIB) airfoil_mpi.cpp -lop2_mpi \
         $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small MPI version build }
+\normalsize\vspace{-10pt}\label{fig:mpibuild}
+\end{figure}
 
 \noindent The unstructured mesh, will be repartitioned by OP2, using parallel graph/mesh partitioning libraries
 (ParMetis or PTScotch) as detailed in the user documentation. Thus linking with the appropriate mesh partitioning
@@ -366,8 +421,10 @@ for the single-node parallel back-ends.
 
 \noindent The executable for a cluster of multi-threaded CPUs can be built by compiling the code using a conventional
 C++ compiler and linking with the back-end library, \texttt{libop2\_mpi.a}, for example as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
                     save_soln_kernel.cpp  save_soln.h \
                     adt_calc_kernel.cpp   adt_calc.h  \
@@ -375,14 +432,17 @@ airfoil_mpi_openmp: airfoil_mpi_op.cpp airfoil_kernels.cpp \
                     bres_calc_kernel.cpp  bres_calc.h \
                     update_kernel.cpp     update.h    \
                     Makefile
-                    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_op.cpp \
+                    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) \
+                    airfoil_mpi_op.cpp \
                     airfoil_kernels.cpp \
                     $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
                     $(OP2_LIB) -lop2_mpi \
                     $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_openmp
-
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small MPI+OpenMP version build }
+\normalsize\vspace{-10pt}\label{fig:mpi_openmpbuild}
+\end{figure}
 
 \noindent \texttt{airfoil\_mpi\_openmp} needs to be executed using mpirun and will utilise OMP\_NUM\_THREADS per MPI
 process on the multi-threaded CPU cluster during execution. 
@@ -390,12 +450,16 @@ process on the multi-threaded CPU cluster during execution.
 \newpage
 \noindent The executable for a cluster of GPUs can be built by compiling the code using a conventional C++ compiler,
 CUDA compiler nvcc and linking with the back-end library, \texttt{libop2\_mpi\_cuda.a}, for example as follows:
-\small
-\begin{verbatim}
+
+\begin{figure}[h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 airfoil_mpi_cuda: airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o Makefile
-                  $(MPICPP) $(MPIFLAGS) airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o \
+                  $(MPICPP) $(MPIFLAGS) airfoil_mpi_op.cpp \
+                  airfoil_kernels_mpi_cu.o \
                   $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
-                  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+                  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) \
+                  $(PTSCOTCH_LIB) \
                   $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
 airfoil_kernels_mpi_cu.o:       airfoil_kernels.cu      \
@@ -405,10 +469,15 @@ airfoil_kernels_mpi_cu.o:       airfoil_kernels.cu      \
                   bres_calc_kernel.cu  bres_calc.h \
                   update_kernel.cu     update.h    \
                   Makefile
-                  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+                  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
+                  -I $(MPI_INSTALL_PATH)/include \
                   -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small MPI+CUDA version build }
+\normalsize\vspace{-10pt}\label{fig:mpi_cudabuild}
+\end{figure}
+
 \noindent \texttt{airfoil\_mpi\_cuda} needs to be executed using mpirun and will utilise one GPU per MPI process on the
 GPU cluster during execution. 
 
@@ -424,10 +493,13 @@ linked with the appropriate OP2 back-ends libraries to give the desired target e
 \includegraphics[width=15.5cm]{airfoil_hdf5}\vspace{-0pt}
 \caption{Code generation and build for Airfoil (with OP2 HDF5 file I/O)}\label{fig/build-paths-hdf5}\vspace{-5pt}
 \end{figure}
- 
+
+\newpage
 \noindent The library \texttt{libop2\_hdf5.a} needs to be linked when building single node executables, for example:
-\small
-\begin{verbatim}
+
+\begin{figure}[!h]\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
@@ -447,20 +519,28 @@ airfoil_kernels_cu.o:   airfoil_kernels.cu      \
                 nvcc $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) \
                 -I /home/gihan/openmpi-intel/include \
                 -c -o airfoil_kernels_cu.o airfoil_kernels.cu
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small CUDA with HDF5 build }
+\normalsize\vspace{-10pt}\label{fig:hdf5build}
+\end{figure}
+
 \newpage
 \noindent On the other hand the functions facilitating MPI parallel file I/O with hdf5 are contained in the MPI back-end
 implicitly. Thus linking should not be done with \texttt{libop2\_hdf5.a} in this case, for example:
-\small
-\begin{verbatim}
+
+\begin{figure}\small
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\begin{lstlisting}
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 airfoil_mpi_cuda: airfoil_op.cpp airfoil_kernels_mpi_cu.o Makefile
-                  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp -lm airfoil_kernels_mpi_cu.o \
+                  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp \
+                  -lm airfoil_kernels_mpi_cu.o \
                   $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-                  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+                  $(OP2_LIB) -lop2_mpi_cuda \
+                  $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
                   $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
                   
 airfoil_kernels_mpi_cu.o: airfoil_kernels.cu \
@@ -470,13 +550,16 @@ airfoil_kernels_mpi_cu.o: airfoil_kernels.cu \
                 bres_calc_kernel.cu  bres_calc.h \
                 update_kernel.cu     update.h    \
                 Makefile
-                nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+                nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) \
+                -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
-\end{verbatim}
-\normalsize
+\end{lstlisting}\vspace{-10pt}
+\vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
+\caption{\small MPI+CUDA with HDF5 build }
+\normalsize\vspace{-0pt}\label{fig:mpicudahdf5build}
+\end{figure}
 
-
-\newpage
+\newpage\newpage
 \section{OP2 Example Application Directory Structure and Cmake Build Process}\label{structure}
 
 Airfoil is one of several example applications that is available with the public OP2 release. Currently there are
