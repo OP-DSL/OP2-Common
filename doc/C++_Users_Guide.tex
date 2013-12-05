@@ -1,6 +1,6 @@
 \documentclass[11pt]{article}
 \usepackage[colorlinks,urlcolor=blue,linkcolor=blue]{hyperref}
-
+\usepackage[footnotesize]{subfigure}
 \usepackage{graphicx}
 \usepackage{verbatim}
 \setlength{\oddsidemargin}{-0.01in}
@@ -86,7 +86,7 @@ single-threaded on a CPU
 \item
 parallelised using CUDA for NVIDIA GPUs
 \item
-multi-threaded using OpenMP for multicore x86 systems
+multi-threaded using OpenMP for multicore CPU systems
 \end{itemize}
 
 \noindent A current development branch, also supports AVX vectorisation for x86 CPUs, and OpenCL for both CPUs and
@@ -113,32 +113,32 @@ providing as much performance as possible for the third.
 To achieve the high performance for large applications, a
 preprocessor is needed to generate the CUDA code for GPUs
 or OpenMP code for multicore x86 systems.  However, to keep
-the initial development simple, the single-threaded executable
-does not use any special tools; the user's main code is simply
+the initial development simple, a development single-threaded executable
+can be created without any special tools; the user's main code is simply
 linked to a set of library routines, most of which do little
 more than error-checking to assist the debugging process by
 checking the correctness of the user's program.  Note that this
 single-threaded version will not execute efficiently.  The
 preprocessor is needed to generate efficient single-threaded and OpenMP code for
-CPU systems.
+CPU systems.\\
 
-Figure \ref{fig:seq} shows the build process for a single
+\noindent Figure \ref{fig:seq} shows the build process for a single
 thread CPU executable.  The user's main program (in this case
 {\tt jac.cpp}) uses the OP2 header file {\tt op\_seq.h} and is
 linked to the appropriate OP2 libraries using {\tt g++},
-perhaps controlled by a Makefile.
+perhaps controlled by a Makefile.\\
 
-Figure \ref{fig:cuda} shows the build process for the corresponding
+\noindent Figure \ref{fig:cuda} shows the build process for the corresponding
 CUDA executable.  The preprocessor parses the user's main program
 and produces a modified main program and a CUDA file which
 includes a separate file for each of the kernel functions.  These
 are then compiled and linked to the OP libraries
 using {\tt g++} and the NVIDIA CUDA compiler {\tt nvcc}, again
-perhaps controlled by a Makefile.
+perhaps controlled by a Makefile.\\
 
-Figure \ref{fig:op} shows the OpenMP build process which is very
+\noindent Figure \ref{fig:op} shows the OpenMP build process which is very
 similar to the CUDA process except that it uses {\tt *.cpp} files
-produced by the preprocessor instead of {\tt *.cu} files.
+produced by the preprocessor instead of {\tt *.cu} files.\\
 
 In looking at the API specification, users may think it is
 a little verbose in places. e.g.~users have to re-supply
@@ -157,6 +157,7 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 
 \newpage
 
+% \begin{comment}
 \begin{figure}
 \begin{center}
 {\setlength{\unitlength}{1in}
@@ -180,9 +181,17 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 \end{picture}}
 \end{center}
 
-\caption{Sequential code build process}
+\caption{Build process for the development single threaded CPU version}
 \label{fig:seq}
 \end{figure}
+% \end{comment}
+
+
+% \begin{figure}[ht]\centering\vspace{0pt}
+% \subfigure[Single-Node build]{\includegraphics[width=9cm]{airfoil_plain}\vspace{-0pt}}
+% \subfigure[MPI Build]{\includegraphics[width=9cm]{airfoil_plain_mpi}\vspace{-0pt}}
+% \caption{Code generation and build for Airfoil (with user I/O)}\label{fig/build-paths}\vspace{-5pt}
+% \end{figure}
 
 
 
@@ -865,13 +874,17 @@ main\_kernels.cpp} and the individual kernel files.
 
 \begin{itemize}
 \item
-The modified main program {\tt main\_op.cpp} is used for both the CUDA and OpenMP executables;
+The modified main program {\tt main\_op.cpp} is used for the efficient single threaded CPU (also called as
+generated sequential or Gen\_Seq) OpenMP and CUDA executables;
+
+\item
+For the Gen\_Seq and OpenMP executable, {\tt main\_kernels.cpp} is a new C++ file which includes one or more files of
+the form {\tt xxx\_kernel.cpp} containing the OpenMP implementations of the user's kernel functions.
+
 \item
 For the CUDA executable, {\tt main\_kernels.cu} is a new CUDA file which includes one or more files of the form {\tt
 xxx\_kernel.cu} containing the CUDA implementations of the user's kernel functions;
-\item
-For the OpenMP executable, {\tt main\_kernels.cpp} is a new C++ file which includes one or more files of the form {\tt
-xxx\_kernel.cpp} containing the OpenMP implementations of the user's kernel functions.
+
 \end{itemize}
 
 
