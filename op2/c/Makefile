@@ -88,7 +88,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: docs clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
@@ -205,8 +205,6 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_mpi_util.o \
 	$(OBJ)/op_renumber.o
 
-docs:	../../doc/dev.tex
-	cd ../../doc/; ./build_docs.sh;	cd -;
 
 clean:
 	-rm -if $(OBJ)/*.o
