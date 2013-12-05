@@ -19,8 +19,8 @@ Please see airfoil-doc under the ../../doc directory for further OP2 application
 Airfoil has been the main development, testing and benchmarking application in OP2. As such this directory contains
 several versions of Airfoil that demonstrate the use of various OP2 features.
 
-airfoil_plain -- airfoil implemented with user I/O routines (mesh file in ASCI - see ../../apps/mesh_generators on how
-to generate the mesh)
+airfoil_plain -- airfoil implemented with user I/O routines (mesh file in ASCI - see ../../apps/mesh_generators
+on how to generate the mesh)
 
 airfoil_hdf5 -- airfoil implemented with OP2 HDF5 routines (mesh file in HDF5, see ASCI to HDF5 file converter)
 
@@ -28,5 +28,33 @@ airfoil_vector -- airfoil user kernels modified to achieve vectorization
 
 airfoil_tempdats -- airfoil use op_decl_temp, i.e. temporary dats in application
 
+compare_results -- small utility code to compare two files (txt or bin), used to compare the final result from airfoil
 
+### Testing the Results
+
+The various parallel versions of Airfoil should be compared against the single-threaded CPU version (also known as the
+reference implementation) to ascertain the correctness of the results. The p_q array holds the final result and as such
+will be the data array to compare. One way to achieve this is to use :
+
+  op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
+  op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
+
+For example after the end of the 1000 iterations in the airfoil code and then use the code in compare.cpp and
+comparebin.cpp to compare the text file or binary file with the reference implementation.
+
+Bitwise accuracy can be expected across systems for the double precision version to within the accuracy of machine
+precision. For the single precision version, answers should be very close. A summary print of the rms value of the
+residual is printed out by default every 100 iterations. This in double precision for the first 1000 iterations should
+be exactly:
+
+100  5.02186e-04
+200  3.41746e-04
+300  2.63430e-04
+400  2.16288e-04
+500  1.84659e-04
+600  1.60866e-04
+700  1.42253e-04
+800  1.27627e-04
+900  1.15810e-04
+1000  1.06011e-04
 
