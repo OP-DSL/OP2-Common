@@ -14,7 +14,7 @@
 *_cuda
 *_mpi
 #*.txt
-*.dat
+#*.dat
 *_mpi
 *.h5
 *.bin

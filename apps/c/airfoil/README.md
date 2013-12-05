@@ -1,3 +1,4 @@
+### Airfoil
 
 Airfoil is a nonlinear 2D inviscid airfoil code that uses an unstructured grid. It is a finite volume application that
 solves the 2D Euler equations using a scalar numerical dissipation. The algorithm iterates towards the steady state
@@ -13,12 +14,16 @@ indirect loops.
 
 Please see airfoil-doc under the ../../doc directory for further OP2 application development details
 
-## Airfoil Application Directory Structure
+### Airfoil Application Directory Structure
 
 Airfoil has been the main development, testing and benchmarking application in OP2. As such this directory contains
 several versions of Airfoil that demonstrate the use of various features of OP2.
 
-
+airfoil_plain -- airfoil implemented with user I/O routines (mesh file in ASCI - see ../../apps/mesh_generators on how
+to generate the mesh)
+airfoil_hdf5 -- airfoil implemented with OP2 HDF5 routines (mesh file in HDF5, see ASCI to HDF5 file converter)
+airfoil_vector -- airfoil user kernels modified to achieve vectorization 
+airfoil_tempdats -- airfoil use op_decl_temp, i.e. temporary dats in application
 
 
 
