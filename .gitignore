@@ -30,6 +30,8 @@
 *.toc
 *.out
 *.backup
+*.blg
+*.bbl
 *~
 
 #directories
