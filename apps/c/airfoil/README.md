@@ -36,8 +36,10 @@ The various parallel versions of Airfoil should be compared against the single-t
 reference implementation) to ascertain the correctness of the results. The p_q array holds the final result and as such
 will be the data array to compare. One way to achieve this is to use :
 
-  `op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI`
-  `op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary`
+```
+op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
+op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
+```
 
 For example after the end of the 1000 iterations in the airfoil code and then use the code in compare.cpp and
 comparebin.cpp to compare the text file or binary file with the reference implementation.
