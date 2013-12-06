@@ -22,7 +22,7 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall #-O0 -g -Wextra
+  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CCFLAGS)
@@ -69,7 +69,7 @@ VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOC
 #
 # partitioning software for MPI versions
 #
-PARMETIS_VER=4
+PARMETIS_VER=3
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
