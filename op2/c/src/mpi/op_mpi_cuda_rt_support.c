@@ -66,6 +66,8 @@ typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 int** export_exec_list_d;
 int** export_nonexec_list_d;
+int** export_nonexec_list_partial_d;
+int** import_nonexec_list_partial_d;
 
 void cutilDeviceInit( int argc, char ** argv )
 {
@@ -172,7 +174,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
   if((arg->opt) && (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
 
-    //printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
@@ -217,8 +218,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
 
     for(int i=0; i<exp_exec_list->ranks_size; i++) {
       MPI_Isend(&outptr_exec[exp_exec_list->disps[i]*dat->size],
-        /*&((op_mpi_buffer)(dat->mpi_buffer))->
-            buf_exec[exp_exec_list->disps[i]*dat->size],*/
           dat->size*exp_exec_list->sizes[i],
           MPI_CHAR, exp_exec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -254,8 +253,6 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
 
     for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
       MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i]*dat->size],
-        /*&((op_mpi_buffer)(dat->mpi_buffer))->
-            buf_nonexec[exp_nonexec_list->disps[i]*dat->size],*/
           dat->size*exp_nonexec_list->sizes[i],
           MPI_CHAR, exp_nonexec_list->ranks[i],
           dat->index, OP_MPI_WORLD,
@@ -282,12 +279,96 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
   }
 }
 
+void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag)
+{
+  op_dat dat = arg->dat;
+
+  if(arg->sent == 1)
+  {
+    printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
+    fflush(stdout);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+
+  //For a directly accessed op_dat do not do halo exchanges if not executing over
+  //redundant compute block
+  if (exec_flag == 0 && arg->idx == -1) return;
+
+  arg->sent = 0; //reset flag
+  //need to exchange both direct and indirect data sets if they are dirty
+  if((arg->opt) && (arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+      (dat->dirtybit == 1)) {
+
+    halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
+    halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
+
+    //-------first exchange exec elements related to this data array--------
+
+    //sanity checks
+    if(compare_sets(imp_nonexec_list->set,dat->set) == 0)
+    {
+      printf("Error: Import list and set mismatch\n");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+    if(compare_sets(exp_nonexec_list->set,dat->set) == 0)
+    {
+      printf("Error: Export list and set mismatch\n");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+
+    gather_data_to_buffer_partial(*arg, exp_nonexec_list);
+
+    char *outptr_exec = NULL;
+    char *outptr_nonexec = NULL;
+    if (OP_gpu_direct) {
+      outptr_nonexec = arg->dat->buffer_d;
+      cutilSafeCall(cudaDeviceSynchronize(  ));
+    } else {
+      cutilSafeCall( cudaMemcpy ( ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec,
+          arg->dat->buffer_d, exp_nonexec_list->size*arg->dat->size, cudaMemcpyDeviceToHost ) );
+
+      cutilSafeCall(cudaDeviceSynchronize(  ));
+      outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))-> buf_nonexec;
+    }
+
+    //-----second exchange nonexec elements related to this data array------
+    //sanity checks
+    if(compare_sets(imp_nonexec_list->set,dat->set) == 0) {
+      printf("Error: Non-Import list and set mismatch");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+    if(compare_sets(exp_nonexec_list->set,dat->set)==0) {
+      printf("Error: Non-Export list and set mismatch");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+
+    for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
+      MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i]*dat->size],
+          dat->size*exp_nonexec_list->sizes[i],
+          MPI_CHAR, exp_nonexec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+    }
+
+    int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;
+    for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
+      char *ptr = OP_gpu_direct ? &arg->dat->buffer_d[(nonexec_init+imp_nonexec_list->disps[i])*dat->size] :
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+            buf_nonexec[(nonexec_init+imp_nonexec_list->disps[i])*dat->size];
+      MPI_Irecv(ptr, dat->size*imp_nonexec_list->sizes[i],
+          MPI_CHAR, imp_nonexec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+    }
+
+    arg->sent = 1;
+  }
+}
+
 void op_exchange_halo(op_arg* arg, int exec_flag)
 {
-  //int my_rank, comm_size;
-  //MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  //MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
   op_dat dat = arg->dat;
 
   if (exec_flag == 0 && arg->idx == -1) return;
@@ -334,8 +415,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
           buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
           (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //          my_rank, exp_exec_list->ranks[i], dat->name,exp_exec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_exec[exp_exec_list->disps[i]*dat->size],
           dat->size*exp_exec_list->sizes[i],
@@ -348,8 +427,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
     int init = dat->set->size*dat->size;
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
-     // printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-     //       my_rank, imp_exec_list->ranks[i], dat->name, imp_exec_list->sizes[i]);
       MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
           dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
@@ -380,8 +457,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
             buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
             (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
       }
-      //printf("export from %d to %d data %10s, number of elements of size %d | sending:\n ",
-      //          my_rank, exp_nonexec_list->ranks[i], dat->name,exp_nonexec_list->sizes[i]);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
           buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
           dat->size*exp_nonexec_list->sizes[i],
@@ -393,8 +468,6 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
 
     int nonexec_init = (dat->set->size+imp_exec_list->size)*dat->size;
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
-      //printf("import on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-      //      my_rank, imp_nonexec_list->ranks[i], dat->name, imp_nonexec_list->sizes[i]);
       MPI_Irecv(&(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]),
           dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
@@ -404,6 +477,76 @@ void op_exchange_halo(op_arg* arg, int exec_flag)
     }
     //clear dirty bit
     dat->dirtybit = 0;
+    arg->sent = 1;
+  }
+}
+
+
+void op_exchange_halo_partial(op_arg* arg, int exec_flag)
+{
+  op_dat dat = arg->dat;
+
+  if (arg->opt == 0) return;
+
+  if(arg->sent == 1)
+  {
+    printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
+    fflush(stdout);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+  arg->sent = 0; //reset flag
+
+  //need to exchange indirect data sets if they are dirty
+  if((arg->acc == OP_READ || arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+     (dat->dirtybit == 1))
+  {
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
+    halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
+    //-------exchange nonexec elements related to this data array and map--------
+
+    //sanity checks
+    if(compare_sets(imp_nonexec_list->set,dat->set) == 0)
+    {
+      printf("Error: Import list and set mismatch\n");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+    if(compare_sets(exp_nonexec_list->set,dat->set) == 0)
+    {
+      printf("Error: Export list and set mismatch\n");
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+
+    int set_elem_index;
+    for(int i=0; i<exp_nonexec_list->ranks_size; i++) {
+      for(int j = 0; j < exp_nonexec_list->sizes[i]; j++)
+      {
+        set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i]+j];
+        memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
+          buf_nonexec[exp_nonexec_list->disps[i]*dat->size+j*dat->size],
+          (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
+      }
+      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
+          buf_nonexec[exp_nonexec_list->disps[i]*dat->size],
+          dat->size*exp_nonexec_list->sizes[i],
+          MPI_CHAR, exp_nonexec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+    }
+
+    int init = exp_nonexec_list->size;
+    for(int i=0; i < imp_nonexec_list->ranks_size; i++) {
+      MPI_Irecv(&((op_mpi_buffer)(dat->mpi_buffer))->
+          buf_nonexec[(init+imp_nonexec_list->disps[i])*dat->size],
+          dat->size*imp_nonexec_list->sizes[i],
+          MPI_CHAR, imp_nonexec_list->ranks[i],
+          dat->index, OP_MPI_WORLD,
+          &((op_mpi_buffer)(dat->mpi_buffer))->
+          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+    }
+    //note that we are not settinging the dirtybit to 0, since it's not a full exchange
     arg->sent = 1;
   }
 }
@@ -422,26 +565,34 @@ void op_wait_all_cuda(op_arg* arg)
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
 
-    if (OP_gpu_direct == 0) {
-      if (strstr( arg->dat->type, ":soa")!= NULL)
-      {
-        int init = dat->set->size*dat->size;
-        int size = (dat->set->exec_size+dat->set->nonexec_size)*dat->size;
-        cutilSafeCall( cudaMemcpyAsync( dat->buffer_d_r, dat->data + init,
-          size, cudaMemcpyHostToDevice, 0 ) );
-        scatter_data_from_buffer(*arg);
+    if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
+      halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
+      int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;;
+      if (OP_gpu_direct == 0)
+        cutilSafeCall( cudaMemcpyAsync( dat->buffer_d + nonexec_init*dat->size,
+          &((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec[nonexec_init*dat->size],
+          imp_nonexec_list->size * dat->size, cudaMemcpyHostToDevice, 0 ) );
+      scatter_data_from_buffer_partial(*arg);
+    } else {
+      if (OP_gpu_direct == 0) {
+        if (strstr( arg->dat->type, ":soa")!= NULL)
+        {
+          int init = dat->set->size*dat->size;
+          int size = (dat->set->exec_size+dat->set->nonexec_size)*dat->size;
+          cutilSafeCall( cudaMemcpyAsync( dat->buffer_d_r, dat->data + init,
+            size, cudaMemcpyHostToDevice, 0 ) );
+          scatter_data_from_buffer(*arg);
+        }
+        else{
+          int init = dat->set->size*dat->size;
+          cutilSafeCall( cudaMemcpyAsync( dat->data_d + init, dat->data + init,
+            (OP_import_exec_list[dat->set->index]->size+
+            OP_import_nonexec_list[dat->set->index]->size)*arg->dat->size,
+            cudaMemcpyHostToDevice, 0 ) );
+        }
+        } else if (strstr( arg->dat->type, ":soa")!= NULL)
+          scatter_data_from_buffer(*arg);
       }
-      else{
-        int init = dat->set->size*dat->size;
-        cutilSafeCall( cudaMemcpyAsync( dat->data_d + init, dat->data + init,
-          (OP_import_exec_list[dat->set->index]->size+
-          OP_import_nonexec_list[dat->set->index]->size)*arg->dat->size,
-          cudaMemcpyHostToDevice, 0 ) );
-      }
-    } else if (strstr( arg->dat->type, ":soa")!= NULL)
-      scatter_data_from_buffer(*arg);
-
-    //cutilSafeCall(cudaDeviceSynchronize ());
     arg->sent = 2; //set flag to indicate completed comm
   }
 
@@ -460,8 +611,17 @@ void op_wait_all(op_arg* arg)
       MPI_STATUSES_IGNORE );
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
+    if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
+      halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
+      int init = OP_export_nonexec_permap[arg->map->index]->size;
+      char *buffer = &((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec[init*dat->size];
+      for (int i = 0; i < imp_nonexec_list->size; i++) {
+        int set_elem_index = imp_nonexec_list->list[i];
+        memcpy((void *)&dat->data[dat->size*(set_elem_index)],
+          &buffer[i*dat->size],dat->size);
+      }
+    }
   }
-
   arg->sent = 0;
 }
 
