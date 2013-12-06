@@ -564,18 +564,26 @@ elements could be computed. A reference implementation of the above can be found
 
 \subsection{Partial Halo Exchange}\label{sec/partialhalo}
 
-The halo exchange for a given \texttt{op\_set} will trigger an exchange of the halo elements in all the
-\texttt{op\_dat}s defined on this set, for \underline{all} the elements in the halo. The reason is due to OP2 creating
-the halo for an \texttt{op\_set} based on all the mapping tables from and to that set (as detailed previously).Therefore
-when a parallel loop is executed over a boundary set that has a very sparse connectivity to an internal set, the full
-internal set's halo will be exchanged. In some 3D mesh applications the connectivity from boundary set to internal set
-is significantly smaller, pointing to a case where a partial halo exchange would be advantageous to gain better
-performance. With a partial halo exchange you only need to hide message latency rather than latency plus time to
-actually transfer the full halo of data.
+The halo exchange for a given \texttt{op\_set} will trigger a exchange of all the halo elements for this set. The reason
+is due to OP2 creating the halo for an \texttt{op\_set} based on all the mapping tables from and to that set (as
+detailed previously). Therefore when a parallel loop is executed over a boundary set that has a very sparse connectivity
+to an internal set, the full internal set's halo will be exchanged. In some 3D mesh applications the connectivity from
+boundary set to internal set is significantly smaller, pointing to a case where a partial halo exchange would be
+advantageous to gain better performance. With a partial halo exchange you only need to hide message latency rather than
+latency plus time to actually transfer the full halo of data.
 
-A partial halo exchange mechanism is implemented to support this, where based on the mapping table that determines the
-connectivity between the sets only the halo elements related to this map is exchanged. A per map halo is created and
-stored in \texttt{op_halo_permap_create()}.
+As a result, a partial halo exchange mechanism has now been implemented, where based on the mapping table that
+determines the connectivity between the sets, only the halo elements related to this map is exchanged. The same halo
+structs are used as before, but now a per map halo is created in \texttt{op\_halo\_permap\_create()}. This per map halo
+is exchanged if the total number of (global) mapping table entries (for this map) that references foreign elements over
+a partition boundary is less than 30\% of the total size of the halo for the exchanged set.
+
+Thus for example, assume that a map exists from boundary edges to internal nodes (\texttt{bedges\_to\_nodes}) and a
+mapping exists between internal edges to internal nodes (\texttt{edges\_to\_nodes}). If the number of halo elements due
+to \texttt{bedges\_to\_nodes} is less than 30\% of the halo elements due to both \texttt{bedges\_to\_nodes} and
+\texttt{edges\_to\_nodes}, then a partial halo will be exchanged only using the per map halo of
+\texttt{bedges\_to\_nodes}, in a loop over \texttt{bedges} that indirectly accesses internal nodes.
+
 
 
 % global operations
@@ -605,21 +613,6 @@ level application can modify the internal values of an \texttt{op\_dat}. In this
 will replace the internal \texttt{op\_dat}'s data values. A valid implementation will need to translate the original set
 element index to the current set element index.
 
-
-% performance measurements - including flags to trigger them
-\subsection{Performance Measurements}\label{subsec/perf}
-
-For measuring the execution time of code two timer routines are implemented. Firstly, \texttt{op\_timers \_core()} (in
-\texttt{op\_lib\_core.c}) measures the elapsed time on a single MPI process while \texttt{op\_timers()}
-(in \texttt{op\_mpi\_decl.c}) has an implicit \texttt{MPI\_Barrier()} so that time across the whole MPI universe can be
-measured. \noindent The time spent in the \texttt{op\_par\_loop()} calls is measured and accumulated. The setup costs
-due to halo creation and partitioning are also measured and the maximum on all the processors is printed to standard out
-by rank 0. Additionally information about the amount of MPI communications performed is also collected. For each
-\texttt{op\_par\_loop()} we maintain a struct that holds (1) the accumulated time spent in the loop (2) the number of
-times the \texttt{op\_par\_loop()} routine is called, (3) the indices of the \texttt{op\_dat}s that requires halo
-exchanges during the loop, (4) the total number of times halo exchanges are done for each \texttt{op\_dat} and (5) the
-total number of bytes exported for each \texttt{op\_dat}.
-
 \begin{figure}[t]\small
 \vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
 \begin{pyglist}[language=c]
@@ -643,6 +636,20 @@ typedef struct
 \caption{\small MPI performance measurement collection struct}
 \normalsize\vspace{-0pt}\label{fig:perf}
 \end{figure}
+
+% performance measurements - including flags to trigger them
+\subsection{Performance Measurements}\label{subsec/perf}
+
+For measuring the execution time of code two timer routines are implemented. Firstly, \texttt{op\_timers \_core()} (in
+\texttt{op\_lib\_core.c}) measures the elapsed time on a single MPI process while \texttt{op\_timers()}
+(in \texttt{op\_mpi\_decl.c}) has an implicit \texttt{MPI\_Barrier()} so that time across the whole MPI universe can be
+measured. \noindent The time spent in the \texttt{op\_par\_loop()} calls is measured and accumulated. The setup costs
+due to halo creation and partitioning are also measured and the maximum on all the processors is printed to standard out
+by rank 0. Additionally information about the amount of MPI communications performed is also collected. For each
+\texttt{op\_par\_loop()} we maintain a struct that holds (1) the accumulated time spent in the loop (2) the number of
+times the \texttt{op\_par\_loop()} routine is called, (3) the indices of the \texttt{op\_dat}s that requires halo
+exchanges during the loop, (4) the total number of times halo exchanges are done for each \texttt{op\_dat} and (5) the
+total number of bytes exported for each \texttt{op\_dat}.
 
 Currently, the only way to identify a loop is by its name. Thus we use a hash function to compute a key corresponding to
 the \texttt{op\_mpi\_kernel} struct (\figurename{~\ref{fig:perf}}) for each loop and store it in a hash table.
@@ -834,9 +841,9 @@ load on the different processors depending on their relative speeds for solving 
 
 \section{To do list}
 \begin{itemize}
-\item Hybrid CPU/GPU - to write in doc
-\item Partial halo exchanged - to write in doc
-\item Mesh renumbering - to write in doc
+\item Need documentation for Hybrid CPU/GPU 
+% \item Need documentation for Partial halo exchanged 
+\item Need documentation for Mesh renumbering 
 \item Implement automatic check-pointing over MPI
 \end{itemize}
 
