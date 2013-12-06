@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}
-\usepackage[colorlinks,urlcolor=blue,linkcolor=blue]{hyperref}
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue,citecolor=blue]{hyperref}
 \usepackage[footnotesize]{subfigure}
 \usepackage{graphicx}
 \usepackage{verbatim}
@@ -488,7 +488,7 @@ which are not being modified.
 \end{routine}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_arg\_dat\_opt}
-\begin{routine} {op\_arg op\_arg\_dat\_opt(op\_dat dat, int idx, op\_map map,\\
+\begin{routine} {op\_arg op\_opt\_arg\_dat(op\_dat dat, int idx, op\_map map,\\
 \hspace*{1.7in} int dim, char *typ, op\_access acc, int flag)}{}
 \item
 
@@ -502,6 +502,9 @@ lots of different features turned on and off by logical flags.
 
 Note that if the user's kernel needs to know the value of {\tt flag} then this
 must be passed as an additional {\tt op\_arg\_gbl} argument.
+
+The pointer corresponding to the optional argument in the user kernel must not be dereferenced when the flag is
+false or not set
 \end{routine}
 
 \newpage

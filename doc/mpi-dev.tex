@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}
-\usepackage[colorlinks,urlcolor=blue]{hyperref}
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue,citecolor=blue]{hyperref}
 \usepackage{graphicx}
 \usepackage{verbatim}
 \setlength{\oddsidemargin}{-0.01in}
@@ -51,7 +51,8 @@ instead read the Users Manual.
 \section{Introduction}
 The OP2 design uses hierarchical parallelism with two principal levels. At the highest level, OP2 is parallelised across
 distributed-memory clusters using MPI message-passing.  This uses essentially the same implementation approach as the
-original OPlus. The domain is partitioned among the compute nodes of the cluster, and import/export halos are
+original OPlus\cite{oplus}. The domain is partitioned among the compute nodes of the cluster, and import/export halos
+are
 constructed for message-passing. Data conflicts when  incrementing indirectly referenced datasets are avoided by
 using an ``owner-compute'' model, in which each process performs the computations which are required to update data
 owned by that partition. The second level of parallelisation is achieved within a single multi-core CPU or
@@ -761,6 +762,11 @@ different processors depending on their relative speeds for solving a given mesh
 \bibitem{PTScotch} Scotch and PTScotch,\\http://www.labri.fr/perso/pelegrin/scotch/
 \bibitem{gpudirect} NVIDIA GPUDirect, \\http://developer.nvidia.com/gpudirect
 \bibitem{metis} METIS \\http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/manual.pdf
+
+\bibitem{oplus} P. I. Crumpton and M. B. Giles, \textit{Multigrid {A}ircraft {C}omputations {U}sing the {OP}lus
+{P}arallel {L}ibrary}, Parallel Computational Fluid Dynamics: Implementations and Results Using Parallel
+Computers, 339-346, {A}. Ecer, J. Periaux, N. Satofuka, and S. Taylor, (eds.), North-Holland, 1996.
+
 \end{thebibliography}
 
 
