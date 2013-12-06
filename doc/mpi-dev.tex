@@ -7,6 +7,7 @@
 \setlength{\textheight}{9.0in}
 \setlength{\textwidth}{6.5 in}
 \usepackage{url}
+\usepackage{verbments}
 
 \newenvironment{routine}[2]
 {\vspace{.25in}{\noindent\bf\hspace{0pt} #1}{\\ \noindent #2}
@@ -178,11 +179,13 @@ this local process, then it should be imported in from a foreign MPI process.
 Conversely, if a node located on an MPI process is part of a cell that resides
 in a foreign MPI process, then that cell needs to be imported in to this local
 process because it may need to be executed for the local node to receive all the
-required contributions.\\
+required contributions.
+
 \begin{figure}[!h]\centering\vspace{-10pt}
 \includegraphics[width=10cm]{mesh-mpidev}\vspace{-0pt}
 \caption{Example mesh with cells and nodes}\label{fig/mesh}\vspace{-10pt}
 \end{figure}
+
 
 \noindent In the example mesh illustrated in \figurename{ \ref{fig/mesh}} there
 are 16 nodes and 9 cells partitioned across two MPI processes (rank X and rank
@@ -200,6 +203,24 @@ for each set that needs to be imported from and exported to other
 halos occur immediately after partitioning (see Section~\ref{sec/partitioning}) with a call to
 \texttt{op\_halo\_create()}. The remainder of this section illustrates the
 design and implementation of this routine and the data structures used.
+
+
+\begin{table}[t]
+\centering\vspace{-10pt}
+\caption{Import/Export lists}\small
+\begin{tabular}{|c|c|c|c|c|c|} \hline
+On X 	& \textit{core}	& \textit{ieh}	& \textit{eeh} 	& \textit{inh}	&
+\textit{enh} 	\\\hline
+Nodes	& 0, 1, 2, 3, 4, 5, 6, 7	& -	& -	& 8, 9, 10, 11	& 4, 5,
+6, 7	\\\hline
+Cells	& 0, 1, 2			& 3	& 4, 5	&	&\\\hline\hline
+On Y 	& \textit{core}	& \textit{ieh}	& \textit{eeh}	& \textit{inh} & enh
+\\\hline
+Nodes	& 8, 9, 10, 11, 12, 13, 14, 15	& -	& -	& 4, 5, 6, 7	& 8, 9,
+10, 11 	\\\hline
+Cells	& 6, 7, 8	& 4, 5	& 3	& -		& - \\\hline
+\end{tabular}\label{tab/impexp}\vspace{-0pt}
+\end{table}\normalsize
 
 \noindent In order to determine what elements of a set should be imported or
 exported (via MPI Send/Receives) to or from another MPI process, we create the
@@ -265,28 +286,17 @@ Section~\ref{subsec/exchange}). For the mesh given in \figurename{
 \ref{fig/mesh}}, the import/export elements can be separated as in Table~\ref{tab/impexp}.\\
 
 
-\begin{table}[ht]
-\centering\vspace{-10pt}
-\caption{Import/Export lists}\small
-\begin{tabular}{|c|c|c|c|c|c|} \hline
-On X 	& \textit{core}	& \textit{ieh}	& \textit{eeh} 	& \textit{inh}	&
-\textit{enh} 	\\\hline
-Nodes	& 0, 1, 2, 3, 4, 5, 6, 7	& -	& -	& 8, 9, 10, 11	& 4, 5,
-6, 7	\\\hline
-Cells	& 0, 1, 2			& 3	& 4, 5	&	&\\\hline\hline
-On Y 	& \textit{core}	& \textit{ieh}	& \textit{eeh}	& \textit{inh} & enh
-\\\hline
-Nodes	& 8, 9, 10, 11, 12, 13, 14, 15	& -	& -	& 4, 5, 6, 7	& 8, 9,
-10, 11 	\\\hline
-Cells	& 6, 7, 8	& 4, 5	& 3	& -		& - \\\hline
-\end{tabular}\label{tab/impexp}\vspace{-0pt}
-\end{table}\normalsize
+
 
 \noindent The \texttt{op\_halo\_create()} routine (defined in \texttt{op\_mpi\_core.c}) goes through all the mapping
 tables and creates lists that hold the indices of the set elements that fall in to each of the above categories. An
-export or an import list for an \texttt{op\_set} has the following structure (defined in \texttt{op\_mpi\_core.h} and
-\texttt{op\_mpi\_core.c}):\vspace{-0pt}
-\begin{verbatim}
+export or an import list for an \texttt{op\_set} has the structure in \figurename{ \ref{fig:haloliststruct}} (defined in
+\texttt{op\_mpi\_core.h} and
+\texttt{op\_mpi\_core.c}):\\\vspace{-0pt}
+
+\begin{figure}\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-0pt}
+\begin{pyglist}[language=c]
 typedef struct {
   op_set set;     //set related to this list
   int size;       //number of elements in this list
@@ -305,7 +315,39 @@ halo_list *OP_import_exec_list;//ieh list
 
 halo_list *OP_import_nonexec_list;//inh list
 halo_list *OP_export_nonexec_list;//enh list
-\end{verbatim}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small \texttt{halo\_list\_core} struct}
+\normalsize\vspace{-0pt}\label{fig:haloliststruct}
+\end{figure}
+
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-0pt}
+\begin{pyglist}[language=c]
+typedef struct {
+ int         dat_index;    //index of the op_dat to which
+                           //this buffer belongs
+ char        *buf_exec;    //buffer holding exec halo
+                           //to be exported;
+ char        *buf_nonexec; //buffer holding nonexec halo
+                           //to be exported;
+ MPI_Request *s_req;       //array of MPI_Reqests for sends
+ MPI_Request *r_req;       //array of MPI_Reqests for receives
+ int         s_num_req;    //number of sends in flight
+                           //at a given time for this op_dat
+ int         r_num_req;    //number of receives awaiting
+                           //at a given time for this op_dat
+} op_mpi_buffer_core;
+
+typedef op_mpi_buffer_core *op_mpi_buffer;
+op_mpi_buffer *OP_mpi_buffer_list;
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small \texttt{op\_mpi\_buffer} struct}
+\normalsize\vspace{-0pt}\label{fig:mpisendbufstruct}
+\end{figure}
+
 % \newpage
 \noindent The above four arrays are indexed using \texttt{set->index} and is of
 size \texttt{OP\_set\_index}. Import and export list creation in
@@ -367,26 +409,8 @@ referenced elements (or a copy of it) should be now available locally on each MP
 
 \item \textbf{Create MPI send buffers}\\
 For each \texttt{op\_dat}, create buffer space for \texttt{MPI\_Isend}s.
-The following struct holds the required buffers and related data.
-\begin{verbatim}
-typedef struct {
- int         dat_index;    //index of the op_dat to which
-                           //this buffer belongs
- char        *buf_exec;    //buffer holding exec halo
-                           //to be exported;
- char        *buf_nonexec; //buffer holding nonexec halo
-                           //to be exported;
- MPI_Request *s_req;       //array of MPI_Reqests for sends
- MPI_Request *r_req;       //array of MPI_Reqests for receives
- int         s_num_req;    //number of sends in flight
-                           //at a given time for this op_dat
- int         r_num_req;    //number of receives awaiting
-                           //at a given time for this op_dat
-} op_mpi_buffer_core;
-
-typedef op_mpi_buffer_core *op_mpi_buffer;
-op_mpi_buffer *OP_mpi_buffer_list;
-\end{verbatim}
+The struct detailed in \figurename{ \ref{fig:mpisendbufstruct}} holds the
+required buffers and related data.
 
 \item \textbf{Separate \textit{core} elements}\\
 To facilitate overlapping of computation with communication, for each set, the
@@ -399,7 +423,7 @@ computed over without halo data and elements from \texttt{set->core\_size}
 to \texttt{set->size} + \texttt{OP\_import\_exec[set->index]->size} will need to
 be computed over after all the calls to \texttt{wait\_all()} are completed.
 
-\begin{figure}[ht]\centering\vspace{-0pt}\hspace{10pt}
+\begin{figure}[t]\centering\vspace{-0pt}\hspace{10pt}
 \includegraphics[width=14cm]{elementorder}\vspace{-5pt}
 \caption{Element order of an \texttt{op\_set} after halo creation}
 \label{fig/elementorganization}\vspace{-0pt}
@@ -443,8 +467,11 @@ loop. Else it is a direct loop.
 \item Direct loops will only need to loop over the local set size using local
 data and no halo exchanges are needed.
 
-\item For indirect loops the following algorithm determines a halo exchange.
-\begin{verbatim}
+\item For indirect loops the algorithm detailed in \figurename{ \ref{fig:haloexchange}} determines a halo exchange.
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=c]
 for each indirect op_arg {
   if ((op_arg.access is OP_READ or OP_RW) and (dirty bit is set))
   then do halo exchange for op_arg.dat and clear dirty bit
@@ -453,7 +480,12 @@ if(all indirect op_arg.access == OP_READ)
    execute/loop over set size
 else
    execute/loop over set size + ieh
-\end{verbatim}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small Algorithm to determine a halo exchange}
+\normalsize\vspace{-0pt}\label{fig:haloexchange}
+\end{figure}
+
 \item After the loop computation block we set the dirty bit for each
 \texttt{op\_arg.dat} with \texttt{op\_arg.access} equal to \texttt{OP\_INC,
 OP\_WRITE} or \texttt{OP\_RW}.
@@ -466,8 +498,12 @@ non-blocking operations (\texttt{MPI\_Isend} and \texttt{MPI\_Irecev}) and will 
 communication is \textit{in-flight}. As detailed in Section~\ref{subsec/halolists}, the \textit{eeh} and the
 \textit{enh} of an MPI process provides the indices of the elements that needs to be exported as well as the MPI ranks
 that will be exported to. Using these lists an MPI process will pack the data to be set into the send buffers and then
-will send them using \texttt{MPI\_Isend} operations. The following is for sending the \textit{eeh}:
-\begin{verbatim}
+will send them using \texttt{MPI\_Isend} operations. The following code detailed in \figurename{ \ref{fig:sendhalo}} is
+for sending the \textit{eeh}.\\
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=c]
 halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
 
 for(int i=0; i<exp_exec_list->ranks_size; i++) {
@@ -486,12 +522,19 @@ for(int i=0; i<exp_exec_list->ranks_size; i++) {
          &((op_mpi_buffer)(dat->mpi_buffer))->
          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
-\end{verbatim}
-\noindent The \texttt{MPI\_Isend} operations are immediately followed by
-\texttt{MPI\_Irecev} operations, which sets up the non-blocking communications
-to directly copy the incoming data in to the relevant \texttt{op\_dat}, using
-the \textit{ieh} and \textit{inh} lists.
-\begin{verbatim}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small MPI send halo}
+\normalsize\vspace{-0pt}\label{fig:sendhalo}
+\end{figure}
+
+\noindent The \texttt{MPI\_Isend} operations are immediately followed by \texttt{MPI\_Irecev} operations (\figurename{
+\ref{fig:recivehalo}} ), which sets up the non-blocking communications to directly copy the incoming data in to the
+relevant \texttt{op\_dat}, using the \textit{ieh} and \textit{inh} lists.
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=c]
 halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
 
 int init = dat->set->size*dat->size;
@@ -503,7 +546,11 @@ for(int i=0; i < imp_exec_list->ranks_size; i++) {
          &((op_mpi_buffer)(dat->mpi_buffer))->
          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
 }
-\end{verbatim}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small MPI receive halo}
+\normalsize\vspace{-0pt}\label{fig:recivehalo}
+\end{figure}
 
 \noindent A call to \texttt{op\_wait\_all(op\_arg arg)} routine needs to be performed in order to complete the MPI
 communications. The \texttt{op\_par\_loop} is structured so that all the \texttt{op\_exchange\_halo()} calls are done at
@@ -511,6 +558,8 @@ the beginning of the loop, followed by computation over the \textit{core} elemen
 \texttt{op\_wait\_all()}. This will allow for maximum overlapping of computation with communication as none of the
 \textit{core} elements reference any halo data. After the calls to the \texttt{op\_wait\_all()} the remaining set
 elements could be computed. A reference implementation of the above can be found in \texttt{op\_seq.h}.
+
+\subsection{Partial Halo Exchange}\label{sec/partialhalo}
 
 % global operations
 \subsection{Global Operations}\label{subsec/globalops}
@@ -553,7 +602,10 @@ by rank 0. Additionally information about the amount of MPI communications perfo
 times the \texttt{op\_par\_loop()} routine is called, (3) the indices of the \texttt{op\_dat}s that requires halo
 exchanges during the loop, (4) the total number of times halo exchanges are done for each \texttt{op\_dat} and (5) the
 total number of bytes exported for each \texttt{op\_dat}.
-\begin{verbatim}
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=c]
 typedef struct
 {
   char const  *name;   // name of kernel
@@ -569,15 +621,17 @@ typedef struct
   int*        tot_bytes;   //total number of bytes halo exported
                            //for this op_dat in this kernel
 } op_mpi_kernel;
-\end{verbatim}
-\noindent Currently, the only way to identify a loop is by its name. Thus we use
-a simple hash function on the name string to index into a hash table
-(\texttt{op\_mpi\_kernel\_tab[]}) that holds an \texttt{op\_mpi\_kernel} struct
-for each loop. Monitoring the halo exchanges require calls to
-the \texttt{op\_mpi\_perf\_comm()} (defined in \texttt{op\_mpi\_core.c}) for
-each \texttt{op\_arg} that has had a halo exchanged during each call to an
-\texttt{op\_par\_loop()}. As this may cause some performance degradation, we
-allow the MPI message monitoring to be enabled at compile time using the
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small MPI performance measurement collection struct}
+\normalsize\vspace{-0pt}\label{fig:perf}
+\end{figure}
+
+Currently, the only way to identify a loop is by its name. Thus we use a hash function to compute a key corresponding to
+the \texttt{op\_mpi\_kernel} struct (\figurename{~\ref{fig:perf}}) for each loop and store it in a hash table.
+Monitoring the halo exchanges require calls to the \texttt{op\_mpi\_perf\_comm()} (defined in \texttt{op\_mpi\_core.c})
+for each \texttt{op\_arg} that has had a halo exchanged during each call to an \texttt{op\_par\_loop()}. As this may
+cause some performance degradation, we allow the MPI message monitoring to be enabled at compile time using the
 \texttt{-DCOMM\_PERF} switch.
 
 \begin{comment}
@@ -658,7 +712,7 @@ The logic of secondary sets \textit{inheriting} the partitioning from the primar
 cost associated with using each mapping table to partition some secondary set using a partitioned set starting from
 the primary set. Partitioning a set using a mapping \textit{from} a partitioned set costs more than partitioning a set
 using a mapping \textit{to} a partitioned set. Each secondary set is partitioned using the map identified as the one
-that gives the smallest cost. We assign some integer value to indicate the cost. \\
+that gives the smallest cost. We assign some integer value to indicate the cost.
 
 For example if we have a cells to nodes mapping and the primary set is nodes (and has been partitioned) using the
 map then we can determine where each cell should reside. Thus if a majority of the nodes that is pointed to by a cell
@@ -667,9 +721,9 @@ similar reasoning is used when partitioning the nodes, given the primary set is 
 map is created (i.e. a nodes to cells mapping) to determine the partition of nodes. After all the set elements have been
 assigned a partition a call to, \texttt{migrate\_all()} will migrates the data and mappings to the new MPI process and
 will sort the elements on the new MPI ranks. Finally \texttt{renumber\_maps()} will renumber mapping table entries with
-new indices.
+new indices.\\
 
-\indent At the end of an OP2 application, the data structures used for partitioning is freed as part of garbage
+\noindent At the end of an OP2 application, the data structures used for partitioning is freed as part of garbage
 collection. For debugging purposes, we have also implemented a wrapper function: \texttt{op\_partition\_ random()} that
 performs a random partitioning of a given set. Currently partitioning and halo creation is achieved by a call to
 \texttt{op\_partition()} with the appropriate arguments (to select the specific library and \texttt{op\_set},
@@ -677,10 +731,13 @@ performs a random partitioning of a given set. Currently partitioning and halo c
 distributed memory parallelism (i.e. MPI back-end) is used. Otherwise, dummy (null operations) routines are substituted
 in place of the actual partitioner calls.
 
-\section{Local Renumbering}\label{sec/localrenumbering}
-OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to improve
-data locality and reuse. This will be facilitated by the use of the serial partitioners (METIS~\cite{metis} and
-Scotch~\cite{PTScotch}. Currently this functionality is under development.
+\subsection{Mesh Renumbering}\label{subsec/meshrenum}
+
+
+% \section{Local Renumbering}\label{sec/localrenumbering}
+% OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to
+% improve data locality and reuse. This will be facilitated by the use of the serial partitioners (METIS~\cite{metis}
+% and Scotch~\cite{PTScotch}. Currently this functionality is under development.
 
 
 
@@ -706,8 +763,11 @@ halo exchanges, OP2 assigns mini-partitions such that each will consists only ei
 non-\textit{core} element (including execute halo, \textit{ieh} elements). This will allow to assign coloring to
 mini-partitions such that one set of colors are exclusively for mini-partitions containing only \textit{core} element's
 while a different set will be assigned for the others. As such the pseudo-code for executing an \texttt{op\_par\_loop}
-on a single GPU within a GPU cluster is detailed below.
-\begin{verbatim}
+on a single GPU within a GPU cluster is detailed in \figurename{~\ref{fig:mpi_cuda_exchange}}.
+
+\begin{figure}[t]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=c]
 for each op dat requiring a halo exchange {
   execute CUDA kernel to gather export halo data
   copy export halo data from GPU to host
@@ -721,38 +781,42 @@ for each color (i) {
   }
   execute CUDA kernel for color (i) mini-partitions
 }
-\end{verbatim}
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small MPI+CUDA halo exchange}
+\normalsize\vspace{-0pt}\label{fig:mpi_cuda_exchange}
+\end{figure}
 
-\noindent The \textit{core} elements will be computed while non-blocking communications are in-flight. The coloring of
+The \textit{core} elements will be computed while non-blocking communications are in-flight. The coloring of
 mini-partitions is ordered such that the mini-partitions with the non-\textit{core} elements will be computed after all
 the \textit{core} elements are computed. This allows for an MPI wait\_all to be placed before non-\texttt{core} colors
 are reached. Each \texttt{op\_plan} consists of a mini-partitioning and coloring strategy optimized for their respective
-loop and number of elements.
+loop and number of elements. In the above pseudo-code the halos are transfered via MPI by first copying it to the host
+over the PCIe bus. As such its an implementation that does not utilize NVIDIA's new GPUDirect~\cite{gpudirect}
+technology for transferring data directly between GPUs. However, OP2's latest release has an implementation that utilize
+GPUDirect (see user guide on how to enable this mode). With GPUDirect the host copy statements in the above code is not
+required where simply calling the MPI send and receives will result in the required communications between two GPUs.\\
 
-In the above pseudo-code the halos are transfered via MPI by first copying it to the host over the PCIe bus. As such
-its an implementation that does not utilize NVIDIA's new GPUDirect~\cite{gpudirect} technology for transferring data
-directly between GPUs. However, OP2's latest release has an implementation that utilize GPUDirect (see user guide on
-how to enable this mode). With GPUDirect the host copy statements in the above code is not required where simply
-calling the MPI send and receives will result in the required communications between two GPUs.
-
-The multi-threaded CPU cluster implementation is based on MPI and OpenMP and follows a similar design to the
+\noindent The multi-threaded CPU cluster implementation is based on MPI and OpenMP and follows a similar design to the
 GPU cluster design except that there is no data transfer to and from a discretely attached accelerator; all the data
-resides in CPU main memory.
+resides in CPU main memory.\\
 
-Currently, for simplicity the OP2 design does not utilize both the host (CPU) and the accelerator (GPU) simultaneously
-for the problem solution. However, such a design is a possible avenue for future work. One possibility is to assign an
-MPI process that performs computations on the host CPU and another MPI process that ``manages'' the computations on the
-GPU attached to the host. The managing MPI process will utilize MPI and CUDA in exactly the same way described above,
-while the MPI process computing on the host will either use the single threaded implementation (MPI only) or
-multi-threaded (MPI and OpenMP) implementation. The key issue in this case is on assigning and managing the load on the
-different processors depending on their relative speeds for solving a given mesh computation.
+\noindent Currently, for simplicity the OP2 design does not utilize both the host (CPU) and the accelerator (GPU)
+simultaneously for the problem solution. However, such a design is a possible avenue for future work. One possibility is
+to assign an MPI process that performs computations on the host CPU and another MPI process that ``manages'' the
+computations on the GPU attached to the host. The managing MPI process will utilize MPI and CUDA in exactly the same way
+described above, while the MPI process computing on the host will either use the single threaded implementation (MPI
+only) or multi-threaded (MPI and OpenMP) implementation. The key issue in this case is on assigning and managing the
+load on the different processors depending on their relative speeds for solving a given mesh computation.
+
+\section{Hybrid CPU/GPU Execution}\label{sec/hybrid}
 
 \section{To do list}
 \begin{itemize}
+\item additional partitioner (RCB/INERTIAL, EXTERN)
 \item Hybrid CPU/GPU - to write in doc
 \item Partial halo exchanged - to write in doc
 \item Mesh renumbering - to write in doc
-\item Change MPI mesh partition figure- to write in doc
 \item Implement automatic check-pointing over MPI
 \end{itemize}
 
