@@ -9,6 +9,8 @@
 \usepackage{url}
 \usepackage{verbments}
 
+\date{December 2013}
+
 \newenvironment{routine}[2]
 {\vspace{.25in}{\noindent\bf\hspace{0pt} #1}{\\ \noindent #2}
 \begin{list}{}{
@@ -32,6 +34,7 @@
 \author{Mike Giles, Gihan R. Mudalige and Istvan Reguly}
 
 \maketitle
+
 
 \begin{abstract}
 \noindent This document explains OP2's distributed memory parallelisation design and implementation based on MPI.  It is
@@ -295,7 +298,7 @@ export or an import list for an \texttt{op\_set} has the structure in \figurenam
 \texttt{op\_mpi\_core.c}):\\\vspace{-0pt}
 
 \begin{figure}\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-0pt}
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
 \begin{pyglist}[language=c]
 typedef struct {
   op_set set;     //set related to this list
@@ -323,7 +326,7 @@ halo_list *OP_export_nonexec_list;//enh list
 
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-0pt}
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
 \begin{pyglist}[language=c]
 typedef struct {
  int         dat_index;    //index of the op_dat to which
@@ -521,7 +524,7 @@ for(int i=0; i<exp_exec_list->ranks_size; i++) {
          dat->index, OP_MPI_WORLD,
          &((op_mpi_buffer)(dat->mpi_buffer))->
          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-    }
+}
 \end{pyglist}
 \vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
 \caption{\small MPI send halo}
@@ -560,6 +563,20 @@ the beginning of the loop, followed by computation over the \textit{core} elemen
 elements could be computed. A reference implementation of the above can be found in \texttt{op\_seq.h}.
 
 \subsection{Partial Halo Exchange}\label{sec/partialhalo}
+
+The halo exchange for a given \texttt{op\_set} will trigger an exchange of the halo elements in all the
+\texttt{op\_dat}s defined on this set, for \underline{all} the elements in the halo. The reason is due to OP2 creating
+the halo for an \texttt{op\_set} based on all the mapping tables from and to that set (as detailed previously).Therefore
+when a parallel loop is executed over a boundary set that has a very sparse connectivity to an internal set, the full
+internal set's halo will be exchanged. In some 3D mesh applications the connectivity from boundary set to internal set
+is significantly smaller, pointing to a case where a partial halo exchange would be advantageous to gain better
+performance. With a partial halo exchange you only need to hide message latency rather than latency plus time to
+actually transfer the full halo of data.
+
+A partial halo exchange mechanism is implemented to support this, where based on the mapping table that determines the
+connectivity between the sets only the halo elements related to this map is exchanged. A per map halo is created and
+stored in \texttt{op_halo_permap_create()}.
+
 
 % global operations
 \subsection{Global Operations}\label{subsec/globalops}
@@ -679,21 +696,25 @@ universe is achieved by a mesh partitioner in order to avoid building large halo
 partitions without the intervention of the application programmer. Once the OP2 declaration routines are executed,
 invoking \texttt{op\_partition()} from the application, with the appropriate arguments (see user guide) will partition
 the sets and maps and migrate the data to new MPI processes as required. There are a number of grid/mesh partitioners
-that can be used for this task, however at the moment it is not clear which one will provide the best performance. The
-current distributed memory implementation gives the option of using either (1) a geometric partitioning with
-ParMetis~\cite{ParMETIS}, (2) k-way graph partitioning with ParMetis~\cite{ParMETIS} or (3) k-way graph partitioning
-with PT-Scotch~\cite{PTScotch}. OP2 also provides a number of supporting functions and data migration routines to
-facilitate the above goals.\\
+that can be used for this task.  The best partitioner for a given application can be selected as requred. The
+current distributed memory implementation gives the option of using the following partitioning routines:
+\begin{itemize}
+\item a geometric partitioning with ParMetis~\cite{ParMETIS}
+\item k-way graph partitioning with ParMetis~\cite{ParMETIS}
+\item k-way graph partitioning with PT-Scotch~\cite{PTScotch}
+\item Inertial coordinate bisection partitioning (for 3D meshes only) based on the original OPlus partitioning in Hydra
+\item A user defined partitioning that can be read from an hdf5 file
+\end{itemize}
 
-\indent OP2 should partition the mesh immediately after all the calls to \texttt{op\_decl\_*}. For this OP2 assumes
-that an initial parallel distribution of the sets and mapping tables has been performed during input, either by user
-defined I/O routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_plain} application the
-data and mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by calls
-to wrapper functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or
-\texttt{op\_partition\_ptscotch()} defined in \texttt{op\_mpi\_ part\_core.c}. A wrapper function is required to
-organize the data and/or mesh elements into a format that is acceptable to the ParMetis and PT-Scotch partitioning
-routines. We anticipate that supporting other different partitioners may require new wrapper functions to be developed
-into the MPI back-end.
+\noindent OP2 also provides a number of supporting functions and data migration routines to facilitate the above goals.
+OP2 should partition the mesh immediately after all the calls to \texttt{op\_decl\_*}. For this OP2 assumes that an
+initial parallel distribution of the sets and mapping tables has been performed during input, either by user defined I/O
+routines or using the HDF5 parallel I/O routines. For example in the \texttt{airfoil\_plain} application the data and
+mappings are distributed in a block partitioning fashion. The partitioning of the sets are performed by calls to wrapper
+functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or \texttt{op\_partition\_ptscotch()} defined
+in \texttt{op\_mpi\_ part\_core.c}. A wrapper function is required to organize the data and/or mesh elements into a
+format that is acceptable to the ParMetis and PT-Scotch partitioning routines. We anticipate that supporting other
+different partitioners may require new wrapper functions to be developed into the MPI back-end.
 
 % A future proposal is to provide decision logic that selects the appropriate partitioner
 % routine (by calling the appropriate wrapper function) depending on the available \texttt{op\_set}s, \texttt{op\_map}s
@@ -809,11 +830,10 @@ described above, while the MPI process computing on the host will either use the
 only) or multi-threaded (MPI and OpenMP) implementation. The key issue in this case is on assigning and managing the
 load on the different processors depending on their relative speeds for solving a given mesh computation.
 
-\section{Hybrid CPU/GPU Execution}\label{sec/hybrid}
+\subsection{Hybrid CPU/GPU Execution}\label{sec/hybrid}
 
 \section{To do list}
 \begin{itemize}
-\item additional partitioner (RCB/INERTIAL, EXTERN)
 \item Hybrid CPU/GPU - to write in doc
 \item Partial halo exchanged - to write in doc
 \item Mesh renumbering - to write in doc

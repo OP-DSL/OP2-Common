@@ -9,7 +9,7 @@
 \setlength{\textheight}{9.0in}
 \setlength{\textwidth}{6.5 in}
 
-
+\date{December 2013}
 
 %  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
 %  \oddsidemargin 0.1in
@@ -390,14 +390,6 @@ for better performance on certain hardware platforms (see section \ref{sec:exper
 \item[name]          a name used for output diagnostics
 \end{routine}
 
-\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data}
-\begin{routine} {void op\_fetch\_data ( op\_dat dat, T* data)}
-{This routine transfers a copy of the data currently held in an op\_dat from the OP2 back-end to a user allocated memory
-block.}
-\item[dat]           OP dataset ID -- The op\_dat who's data is to be fetched from OP2 space to user space
-\item[data]          pointer to a block of memory of type T -- allocated by the user
-\end{routine}
-
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_free\_dat\_tmp}
 \begin{routine} {void op\_free\_dat\_tmp(op\_dat dat)}
 {This routine terminates a temporary dataset.}
@@ -657,11 +649,11 @@ op\_dat coords)}
 {This routine controls how the various sets are partitioned.}
 \item[lib\_name]  A string which declares the partitioning library to be used.
 
-                 ``PTSCOTCH'' - select \href{http://www.labri.fr/perso/pelegrin/scotch/}{\tt PT-Scotch}\\
-                 ``PARMETIS'' - select \href{http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview} {\tt ParMetis}\\
-                 ``INERTIAL'' - select the recursive inertial bisection partitioning in
+                 ``PTSCOTCH'' - \href{http://www.labri.fr/perso/pelegrin/scotch/}{\tt PT-Scotch}\\
+                 ``PARMETIS'' - \href{http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview} {\tt ParMetis}\\
+                 ``INERTIAL'' - 3D recursive inertial bisection partitioning in
 			        \href{http://people.maths.ox.ac.uk/gilesm/parallel.html} {\tt OPlus}\\
-		 ``EXTERNAL'' - external partitioning read in from hdf5 file \\
+		  ``EXTERNAL'' - external partitioning read in from hdf5 file \\
 		 ``RANDOM''   - select a generic random partitioning (for debugging) 
 		 
 
@@ -702,14 +694,30 @@ function which would print the same on each MPI process.}
 \item \vspace{-0.3in}
 \end{routine}
 
+\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data}
+\begin{routine} {void op\_fetch\_data ( op\_dat dat, T* data)}
+{This routine transfers a copy of the data currently held in an op\_dat from the OP2 back-end to a user allocated memory
+block.}
+\item[dat]           OP dataset ID -- The op\_dat who's data is to be fetched from OP2 space to user space
+\item[data]          pointer to a block of memory of type T -- allocated by the user
+\end{routine}
+
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_hdf5}
 \begin{routine} {void op\_fetch\_data\_hdf5(op\_dat dat, T* data, int low, int high)}
 {Transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
-to by data pointer of type T. the {\tt low} and {\tt high} integers gives the range of elements to be fetched}
+to by data pointer of type T. The {\tt low} and {\tt high} integers gives the range of elements to be fetched. Under MPI
+(with hdf5) all the processes will hold the same data block(i.e. after an \texttt{MPI\_Allgather})}
 \item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
 \item [data] pointer to a block of memory of type T -- allocated by the user
 \item [low] index of the first element to be fetched
 \item [high] index of the last element to be fetched
+\end{routine}
+
+\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_hdf5\_file}
+\begin{routine}{void op\_fetch\_data\_hdf5\_file(op\_dat dat, char const *file\_name)}
+{Write the data in the op\_dat to an HDF5 file}
+\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [file\_name] the file name to be written to
 \end{routine}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_print\_dat\_to\_binfile}
@@ -726,14 +734,9 @@ to by data pointer of type T. the {\tt low} and {\tt high} integers gives the ra
 \item [file\_name] the file name to be written to
 \end{routine}
 
-\newpage
+% \newpage
 
-\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_hdf5\_file}
-\begin{routine}{void op\_fetch\_data\_hdf5\_file(op\_dat dat, char const *file\_name)}
-{Write the data in the op\_dat to an HDF5 file}
-\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
-\item [file\_name] the file name to be written to
-\end{routine}
+
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_is\_root}
 \begin{routine} {int op\_is\_root()}
