@@ -839,10 +839,47 @@ load on the different processors depending on their relative speeds for solving 
 
 \subsection{Hybrid CPU/GPU Execution}\label{sec/hybrid}
 
+The OP2 back-end also supports the execution of the problem on both the CPUs and the GPUs on a node. This is called a
+fully hybrid execution. Currently only applications written with the Fortran back-end can utilize this feature, as this
+was developed for Rolls Royce's Hydra. See \cite{hydra-paper} for initial performance results.
+
+The natural approach to enable hybrid CPU-GPU execution in OP2 is to assign some processes to execute on the GPU
+and others to execute on the CPU. This hardware selection happens at runtime: on a node with $N$ GPUs, the first $N$
+processes assigned to it pick up a GPU and the rest become CPU processes. To enable hybrid execution, the generated
+kernel files include code for execution with both MPI+CUDA and MPI+OpenMP, thus at runtime the different MPI processes
+assigned to different hardware can call the appropriate one.
+
+The most important challenge with hybrid execution in general is to appropriately load balance between different
+hardware so that both are utilized as much as possible. Finding such a balance for simple applications where one
+computational phase (such as a single loop) dominates the runtime may not be difficult. One only needs to compare
+execution times on the CPU and the GPU separately and assign proportionally sized partitions to the two. However, for an
+application such as Hydra consisting of several phases of computations, such a load balancing is not trivial: the
+performance difference between the CPU and the GPU varies widely for different loops.
+
+Currently the partitioning for a fully hybrid execution can only be carried out using the heterogeneous load balancing
+feature of ParMetis. This is set via run-time arguments:
+
+\begin{figure}[h]\small
+\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{pyglist}[language=bash]
+export OP_HYBRID_BALANCE=2.5
+mpirun -np 3 ./OP2_application
+\end{pyglist}
+\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\caption{\small MPI+CUDA fully hybrid execution}
+\normalsize\vspace{-0pt}\label{fig:hybrid}
+\end{figure}
+
+\noindent If the above is executed on a 2 CPU node with a single GPU, a partition size balance of 2.5 implies that the
+GPU executes a partition that is 2.5 times larger than a single CPU (i.e. 1.25 times larger than the combined size of
+the partitions assigned to the two CPUs).
+
+
+
+
 \section{To do list}
 \begin{itemize}
-\item Need documentation for Hybrid CPU/GPU 
-% \item Need documentation for Partial halo exchanged 
+% \item Need documentation for Partial halo exchanged
 \item Need documentation for Mesh renumbering 
 \item Implement automatic check-pointing over MPI
 \end{itemize}
