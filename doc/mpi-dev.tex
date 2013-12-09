@@ -761,6 +761,17 @@ in place of the actual partitioner calls.
 
 \subsection{Mesh Renumbering}\label{subsec/meshrenum}
 
+OP2 allows the ordering or numbering of mesh elements in an unstructured mesh to be optimized. The renumbering of
+the execution set and related sets that are accessed through indirections has an important effect on
+performance~\cite{Burgess}: cache locality can be improved by making sure that data accessed by elements which are
+executed consecutively are close, so that data and cache lines are reused. OP2, implements a renumbering routine that
+can be called to convert the input data meshes based on the Gibbs-Poole-Stockmeyer algorithm in Scotch~\cite{PTScotch}.
+The renumbering is implemented in \texttt{../op2/c/src/externlib/op\_renumber.cpp}.
+
+However this renumbering is currently only works on a single node (i.e. no MPI support ) and the usual method of
+utilizing its benefits is to read in an unoptimized mesh in an OPS HDF5 file, use the mesh renumbering to optimize the
+numbering of this mesh and then use OP2's HDF5 write functions to write the resulting mesh back to a new hdf5 file. The
+new hdf5 file can them be used on both single node and distributed memory versions of the application.
 
 % \section{Local Renumbering}\label{sec/localrenumbering}
 % OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to
@@ -879,8 +890,6 @@ the partitions assigned to the two CPUs).
 
 \section{To do list}
 \begin{itemize}
-% \item Need documentation for Partial halo exchanged
-\item Need documentation for Mesh renumbering 
 \item Implement automatic check-pointing over MPI
 \end{itemize}
 
@@ -894,6 +903,10 @@ the partitions assigned to the two CPUs).
 \bibitem{oplus} P. I. Crumpton and M. B. Giles, \textit{Multigrid {A}ircraft {C}omputations {U}sing the {OP}lus
 {P}arallel {L}ibrary}, Parallel Computational Fluid Dynamics: Implementations and Results Using Parallel
 Computers, 339-346, {A}. Ecer, J. Periaux, N. Satofuka, and S. Taylor, (eds.), North-Holland, 1996.
+
+\bibitem{Burgess} D.~A. Burgess and M.~B. Giles. 1997. \textit{Renumbering unstructured grids to
+improve the   performance of codes on hierarchical memory machines}. \em Adv. Eng. Softw. 28 (April 1997), 189--201.
+Issue 3. ISSN 0965-9978.
 
 \end{thebibliography}
 
