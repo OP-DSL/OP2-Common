@@ -463,7 +463,7 @@ void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
   op_dat temp = op_mpi_get_data(dat);
 
   //do allgather on temp->data and copy it to memory block pointed to by use_ptr
-  fetch_data_hdf5(dat, usr_ptr, low, high);
+  fetch_data_hdf5(temp, usr_ptr, low, high);
 
   free(temp->data);
   free(temp->set);
