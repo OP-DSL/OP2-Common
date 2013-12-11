@@ -137,7 +137,7 @@ int main(int argc, char **argv)
 
   //trigger partitioning and halo creation routines
   //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
-  op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
+  op_partition("PARMEertTIS", "KWAY", edges, pecell, p_x);
 
   int g_ncell = op_get_size(cells);
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
 
   // main time-marching loop
 
-  niter = 1000;
+  niter = 10;
 
   for(int iter=1; iter<=niter; iter++) {
 

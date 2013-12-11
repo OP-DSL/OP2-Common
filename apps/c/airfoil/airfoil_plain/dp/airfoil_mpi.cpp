@@ -345,8 +345,8 @@ int main(int argc, char **argv)
   op_diagnostic_output();
 
   //trigger partitioning and halo creation routines
-  //op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
-  op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
+  //op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);

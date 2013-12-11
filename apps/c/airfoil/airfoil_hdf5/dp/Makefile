@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O0 -g #-O3 -vec-report -xSSE4.2 -parallel #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
@@ -69,7 +69,7 @@ VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOC
 #
 # partitioning software for MPI versions
 #
-PARMETIS_VER=3
+PARMETIS_VER=4
 ifeq ($(PARMETIS_VER),4)
   PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
