@@ -136,8 +136,8 @@ int main(int argc, char **argv)
   op_write_const_hdf5("qinf",4,"double",(char *)qinf,  "new_grid_out.h5");
 
   //trigger partitioning and halo creation routines
-  //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
-  op_partition("PARMEertTIS", "KWAY", edges, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+  //op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
 
   int g_ncell = op_get_size(cells);
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
 
   // main time-marching loop
 
-  niter = 10;
+  niter = 1000;
 
   for(int iter=1; iter<=niter; iter++) {
 
