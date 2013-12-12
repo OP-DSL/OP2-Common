@@ -318,7 +318,6 @@ void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag)
 
     gather_data_to_buffer_partial(*arg, exp_nonexec_list);
 
-    char *outptr_exec = NULL;
     char *outptr_nonexec = NULL;
     if (OP_gpu_direct) {
       outptr_nonexec = arg->dat->buffer_d;

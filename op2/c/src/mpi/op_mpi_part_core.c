@@ -65,6 +65,13 @@ typedef idx_t idxtype;
 #endif
 
 #include <op_mpi_core.h>
+#include <op_mpi_core.h>
+
+
+extern int *OP_map_partial_exchange;//flag for each map ..
+                                    //used for checking if partial halo exchanges
+                                    //are to be performed
+
 
 //
 //MPI Communicator for partitioning
@@ -3345,6 +3352,12 @@ void partition(const char* lib_name, const char* lib_routine,
   (void)prime_map;
 #endif
 
+  int partial_halo_flag = 1; //flag to indicate that partial halos should be created
+                             // default is 1, but if a proper partitioning is not done
+                             // i.e. with ParMetis or PTScotch then we will have orphen
+                             // set elements which will result in a runtime error
+                             //when using partial halos
+
   /*initial error checks for NULL variables*/
   if(lib_name == NULL) lib_name = "NULL";
   if(lib_routine == NULL) lib_routine = "NULL";
@@ -3359,11 +3372,13 @@ void partition(const char* lib_name, const char* lib_routine,
       else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
       }
     }
     else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
     }
     #else
     op_printf("OP2 Library Not built with Partitioning Library : %s\n",lib_name);
@@ -3372,6 +3387,7 @@ void partition(const char* lib_name, const char* lib_routine,
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
     if(data != NULL)op_printf("Ignoring input data : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
+    partial_halo_flag = 0;
     #endif
   }
   else
@@ -3385,6 +3401,7 @@ void partition(const char* lib_name, const char* lib_routine,
       else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
       }
     }
     else if(strcmp(lib_routine,"GEOMKWAY")==0) {
@@ -3394,6 +3411,7 @@ void partition(const char* lib_name, const char* lib_routine,
       else {
         op_printf("Partitioning prime_map or coordinates : NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
       }
     }
     else if(strcmp(lib_routine,"GEOM")==0) {
@@ -3403,11 +3421,13 @@ void partition(const char* lib_name, const char* lib_routine,
       else {
         op_printf("Partitioning coordinates: NULL - UNSUPPORTED Partitioner Specification\n");
         op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
       }
     }
     else {
       op_printf("Partitioning Routine : %s UNSUPPORTED\n",lib_routine);
       op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
     }
     #else
     /*  Suppress warning */
@@ -3418,6 +3438,7 @@ void partition(const char* lib_name, const char* lib_routine,
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
     if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
+    partial_halo_flag = 0;
     #endif
   }
   else if (strcmp(lib_name,"RANDOM")==0) {
@@ -3427,25 +3448,32 @@ void partition(const char* lib_name, const char* lib_routine,
     else {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
     }
   }
   else if (strcmp(lib_name,"EXTERNAL")==0) {
     op_printf("Selected Partitioning Routine : %s\n",lib_name);
     if(prime_set != NULL) {
       if(data->data != NULL) {
-        if (data->dim == 1)
+        if (data->dim == 1) {
           op_partition_external(prime_set, data); //use an external partitioning read in from hdf5 file
+          partial_halo_flag = 0;
+        }
         else {
           op_printf("External Partition vector should be an integer array with dimension 1\n");
           op_printf("Reverting to trivial block partitioning\n");
+          partial_halo_flag = 0;
         }
       }
-      else
+      else {
         op_printf("External Partition vector : NULL - UNSUPPORTED Partitioner Specification\n");
+        partial_halo_flag = 0;
+      }
     }
     else {
       op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
     }
   }
   else if (strcmp(lib_name,"INERTIAL")==0) {
@@ -3456,11 +3484,13 @@ void partition(const char* lib_name, const char* lib_routine,
         else {
           op_printf("Onlt supports 3D Inertial Bisection Partitioning - Need 3D coordinates - dim should be 3\n");
           op_printf("Reverting to trivial block partitioning\n");
+          partial_halo_flag = 0;
         }
     }
     else {
       op_printf("Partitioning based on dataset : NULL - UNSUPPORTED Partitioner Specification\n");
       op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
     }
   }
   else {
@@ -3470,11 +3500,20 @@ void partition(const char* lib_name, const char* lib_routine,
     if(prime_map != NULL)op_printf("Ignoring input mapping : %s\n",prime_map->name);
     if(data != NULL)op_printf("Ignoring input coordinates : %s\n",data->name);
     op_printf("Reverting to trivial block partitioning\n");
+    partial_halo_flag = 0;
   }
 
   //trigger halo creation routines
   op_halo_create();
-  op_halo_permap_create();
+
+  if (partial_halo_flag == 1) //only do partial halo
+    op_halo_permap_create();  //creation if a valid partitioning is done
+  else {
+    OP_map_partial_exchange = (int *)malloc(OP_map_index*sizeof(int));
+    for (int i = 0; i < OP_map_index; i++)
+      OP_map_partial_exchange[i] = 0;
+  }
+
 
 #ifdef DEBUG //sanity check to identify if the partitioning results in ophan elements
   int ctr = 0;
