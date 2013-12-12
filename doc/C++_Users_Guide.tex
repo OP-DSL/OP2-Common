@@ -291,9 +291,8 @@ of type {\tt OP\_DOUBLE} and later say that it is of type
 \section{OP2 C++ API}
 
 \subsection{Initialisation and termination routines}
-% 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_init}
-\begin{routine} { void op\_init(int argc, char **argv, int diags\_level)}
+\begin{routine} {void op\_init(int argc, char **argv, int diags\_level)}
 {This routine must be called before all other OP routines. Under MPI back-ends, this routine also calls
 \texttt{MPI\_Init()} unless its already called previously}
 \item[argc, argv]   the usual command line arguments
