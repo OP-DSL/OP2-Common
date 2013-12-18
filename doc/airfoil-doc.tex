@@ -49,7 +49,7 @@
 \section{Introduction}
 
 Airfoil, is an industrial representative CFD application benchmark, written using OP2's C/C++ API. In this document we
-detail its development using OP2 and is a guide to application developers wishing to write applications using the OP2
+detail its development using OP2 as a guide to application developers wishing to write applications using the OP2
 API and framework. 
 
 \noindent Full details of OP2 can be found at: \url{http://www.oerc.ox.ac.uk/research/op2}
@@ -59,7 +59,7 @@ solves the 2D Euler equations using a scalar numerical dissipation. The algorith
 solution, in each iteration using a control volume approach - for example the rate at which the mass changes within a
 control volume is equal to the net flux of mass into the control volume across the four faces around the cell. This is
 representative of the 3D viscous flow calculations OP2 supports for production-grade CFD applications (such as the
-Hydra~\cite{11,12} CFD code at Rolls Royce plc.). The Airfoil code consists of five parallel loops: \texttt{save\_soln},
+Hydra~\cite{11,12} CFD code at Rolls Royce plc.). Airfoil consists of five parallel loops: \texttt{save\_soln}, 
 \texttt{adt\_calc}, \texttt{res\_calc}, \texttt{bres\_calc} and \texttt{update}. Out of these, \texttt{save\_soln} and
 \texttt{update} are direct loops while the other three are indirect loops. The standard mesh size solved with Airfoil
 consists of 1.5M edges. In such a mesh the most compute intensive loop, \texttt{res\_calc}, is called 2000 times during
@@ -77,7 +77,7 @@ domain and science involved and not the intricacies of parallel programming. Dur
 without any OP2 code generation, on a single CPU thread by simply including the \texttt{op\_seq.h} header file. 
 
 The Airfoil application level code (i.e. the code written by the domain scientist) consists of only a main function (in
-\texttt{airfoil.cpp}) where it performs a time marching loop that executes 1000 times, each time calling the above
+\texttt{airfoil.cpp}) where it performs a time marching loop that executes 1000 times, each iteration calling the above
 mentioned five loops. Each loop iterates over a specified \texttt{op\_set} and the operations to be performed per
 iteration are detailed in a header file for each loop: \texttt{save\_soln.h, adt\_calc.h, res\_calc.h, bres\_calc.h} and
 \texttt{update.h}. The following code illustrates the declaration of the \texttt{res\_calc} loop, which iterates over
@@ -243,48 +243,24 @@ airfoil_seq: airfoil.cpp save_soln.h adt_calc.h res_calc.h \
 
 \noindent Once the application is debugged and tested on a single CPU, OP2's code generation capabilities can be used
 to generate executables for different parallel architectures. We will use OP2's Python code parser for code generation
-throughout this document. The various back-ends supported by OP2, and their build process are detailed in
-Figure~\ref{fig/build-paths}. 
-
-\begin{figure}[!ht]\centering\vspace{0pt}
-\subfigure[Single-Node build]{\includegraphics[width=9cm]{airfoil_plain}\vspace{-0pt}}
-\subfigure[MPI Build]{\includegraphics[width=9cm]{airfoil_plain_mpi}\vspace{-0pt}}
-\caption{Code generation and build for Airfoil (with user I/O)}\label{fig/build-paths}\vspace{-5pt}
-\end{figure}
-
-\noindent Figure~\ref{fig/build-paths} assumes that the user is responsible for performing the required I/O for the
-application. As such \texttt{airfoil\_mpi.cpp} will be an MPI application written by the user utilising his/her own
-parallel I/O as will be detailed in Section~\ref{sec/mpi}. As mentioned before, the single CPU Airfoil application
-(\texttt{airfoi\_seq}) can be built without any code generation. Similarly the distributed memory MPI application,
-\texttt{airfoi\_mpi}, for executing on a single threaded cluster of CPUs, also can be built without code generation
-(see Section ~\ref{sec/mpi}). The current OP2 code generation tools can be applied to the above two versions of the
-application to generate code for parallel execution on (1) a single GPU using NVIDIA CUDA, (2) Multi-threaded CPU using
-OpenMP, (3) cluster of GPUs using MPI+CUDA and (4) a cluster of multi-threaded CPUs using MPI+OpenMP. In order to obtain
-the code for these targets, the code generator will need to be applied \underline{\textbf{two times}}, once to
-\texttt{airfoil.cpp} and then to \texttt{airfoil\_mpi.cpp}. The former will generate a modified main program and
-kernel files for single node parallel execution and the latter will generate code for parallel execution on a
-heterogeneous distributed memory cluster. 
-
-\noindent The code generator needs to be invoked, for example for parsing \texttt{airfoil.cpp}:
-
-$\$>$ ./op2.py airfoil.cpp
-
-\noindent For parsing \texttt{airfoil\_mpi.cpp}, to generate the distributed memory code:
-
-$\$>$ ./op2.py airfoil\_mpi.cpp
-
-\noindent More specific details of the build process for each target back-end is detailed in the next sections. 
+throughout this document. Specific details of the build process for each target back-end is detailed in the next 
+sections. 
 
 \newpage
 \section{Generating Single Node OpenMP and CUDA Executables}\label{sec/cuda_openmp}
-This section will detail generating code for a single CPU node (SMP or CMP node) or a single GPU, using OpenMP and
-NVIDIA CUDA respectively. 
 
-The code generator will produce a modified main program and back-end specific code. In this case \texttt{airfoil.cpp}
-will be transformed to \texttt{airfoil\_op.cpp} and a kernel file will be produced corresponding to each
-\texttt{op\_par\_loop} in the main program (\texttt{*\_kernel.cpp} for OpenMP and \texttt{*\_kernel.cu} for CUDA). For
-running on SMP CPU nodes, OpenMP is utilised. The executable can be built by compiling the code with a conventional C++
-compiler and linking with the openmp back-end library, \texttt{libop2\_openmp.a}, for example as follows:
+This section will detail code generation for a single CPU node (SMP or CMP node) or a single GPU, targeting OpenMP and
+NVIDIA CUDA respectively. First, the code generator needs to be invoked, for example for parsing 
+\texttt{airfoil.cpp}:
+
+$\$>$ ./op2.py airfoil.cpp
+
+\noindent The code generator will produce a modified main program and back-end specific code. In this case 
+\texttt{airfoil.cpp} will be transformed to \texttt{airfoil\_op.cpp} and a kernel file will be produced corresponding 
+to each \texttt{op\_par\_loop} in the main program (\texttt{*\_kernel.cpp} for OpenMP and \texttt{*\_kernel.cu} for 
+CUDA). For running on SMP CPU nodes, OpenMP is utilised. The executable can be built by compiling the code with a 
+conventional C++ compiler and linking with the openmp back-end library, \texttt{libop2\_openmp.a}, for example as 
+follows:
 
 \begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-10pt}
@@ -350,7 +326,13 @@ airfoil_kernels_cu.o:	airfoil_kernels.cu      \
 
 \noindent Similar to the OpenMP compilation, the \texttt{airfoil\_kernels.cu} includes all the \texttt{*\_kernel.cu}
 files. When \texttt{airfoil\_cuda} is executed, it will select any available GPU  on the system. The GPU to be selected
-can be set by using the \texttt{CUDA\_VISIBLE\_DEVICES} environment variable. 
+can be set by using the \texttt{CUDA\_VISIBLE\_DEVICES} environment variable. The steps are illustrated in 
+Figure~\ref{fig/build-paths-snode}. 
+
+\begin{figure}[!ht]\centering\vspace{0pt}
+\includegraphics[width=9cm]{airfoil_plain}\vspace{-0pt}
+\caption{Single-node Code generation and build for Airfoil (with user I/O)}\label{fig/build-paths-snode}\vspace{-5pt}
+\end{figure}
 
 \newpage
 \section{Building Airfoil for Distributed Memory (MPI) Execution}\label{sec/mpi}
@@ -361,10 +343,10 @@ automated. As such OP2's code generation tools does not support generating an MP
 \texttt{airfoil.cpp}. What is required is the development of \texttt{airfoil\_mpi.cpp} that explicitly codes the
 parallel I/O. The only difference between \texttt{airfoil.cpp} and \texttt{airfoi\_mpi.cpp} is that the latter hands
 partitions of the \texttt{op\_set}s, \texttt{op\_map}s and \texttt{op\_dat}s that resides on each MPI process to OP2 via
-\texttt{op\_decl\_*} statements (see \texttt{OP2-Common/airfoil/dp/airfoi\_mpi.cpp}). OP2 supports the coding of such an
-MPI application, without the need for any code generation. Similar to the development process for a single threaded CPU,
-all that is required is to include the \texttt{op\_seq.h} header file. The MPI application can be built by compiling
-with mpiCC and linking with the MPI back-end library, \texttt{libop2\_mpi.a}, for example as follows:
+\texttt{op\_decl\_*} statements (see \texttt{OP2-Common/airfoil/dp/airfoi\_mpi.cpp}). OP2 supports the development of 
+such an MPI application, without the need for any code generation. Similar to the development process for a single 
+threaded CPU, all that is required is to include the \texttt{op\_seq.h} header file. The MPI application can be built by 
+compiling with mpiCC and linking with the MPI back-end library, \texttt{libop2\_mpi.a}, for example as follows:
 
 \begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
@@ -402,16 +384,22 @@ cluster of single threaded CPUs, with the use of the usual mpirun command.
 
 Once developed, \texttt{airfoi\_mpi.cpp} can be used to generate the code required to build the application for
 execution on distributed memory heterogeneous systems. Currently supported systems, are a cluster of multi-threaded CPUs
-(Using MPI and OpenMP) and a cluster of GPUs (using MPI and CUDA).
+(Using MPI and OpenMP) and a cluster of GPUs (using MPI and CUDA). The code generator needs to be invoked on the mpi 
+program to generate MPI+OpenMP and MPI+CUDA versions of the application. For example, to generate distributed memory 
+code from \texttt{airfoil\_mpi.cpp}:
 
-Similar to the single-node parallel version, the code generator will produce a modified main program and back-end
-specific code. In this case \texttt{airfoil\_mpi.cpp} will be transformed to \texttt{airfoil\_mpi\_op.cpp} and a kernel
-file will be produced corresponding to each \texttt{op\_par\_loop} in the main program (\texttt{*\_kernel.cpp} for
-OpenMP and \texttt{*\_kernel.cu} for CUDA). By design these kernel files will be identical to the kernel files created
-for the single-node parallel back-ends. 
+$\$>$ ./op2.py airfoil\_mpi.cpp
 
-\noindent The executable for a cluster of multi-threaded CPUs can be built by compiling the code using a conventional
-C++ compiler and linking with the back-end library, \texttt{libop2\_mpi.a}, for example as follows:
+\noindent Similar to the single-node parallel version, the code generator will produce a modified main program and 
+back-end specific code. The build steps are illustrated in Figure~\ref{fig/build-paths-mpi}. In this case 
+\texttt{airfoil\_mpi.cpp} will be transformed to \texttt{airfoil\_mpi\_op.cpp} and a kernel file will be produced 
+corresponding to each \texttt{op\_par\_loop} in the main program (\texttt{*\_kernel.cpp} for OpenMP and 
+\texttt{*\_kernel.cu} for CUDA). By design these kernel files will be identical to the kernel files created for the 
+single-node parallel back-ends. The executable for a cluster of multi-threaded CPUs can be built by compiling the code 
+using a conventional C++ compiler and linking with the back-end library, \texttt{libop2\_mpi.a} 
+(see~\figurename{~\ref{fig:mpi_openmpbuild}}). Note that the linking library is the same op2 library used when 
+building the pure MPI version. This is simply due to the fact that there are no special functionality needed in the 
+backend library to enable OpenMP parallelisam on top of MPI.\\
 
 \begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
@@ -442,7 +430,7 @@ process on the multi-threaded CPU cluster during execution.
 \noindent The executable for a cluster of GPUs can be built by compiling the code using a conventional C++ compiler,
 CUDA compiler nvcc and linking with the back-end library, \texttt{libop2\_mpi\_cuda.a}, for example as follows:
 
-\begin{figure}[h]\small
+\begin{figure}[!h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
 \begin{pyglist}[language=make]
 airfoil_mpi_cuda: airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o Makefile
@@ -466,11 +454,18 @@ airfoil_kernels_mpi_cu.o:       airfoil_kernels.cu      \
 \end{pyglist}
 \vspace{-10pt}\noindent\line(1,0){8}\vspace{-10pt}
 \caption{\small MPI+CUDA version build }
-\normalsize\vspace{-10pt}\label{fig:mpi_cudabuild}
+\normalsize\vspace{-5pt}\label{fig:mpi_cudabuild}
 \end{figure}
 
-\noindent \texttt{airfoil\_mpi\_cuda} needs to be executed using mpirun and will utilise one GPU per MPI process on the
-GPU cluster during execution. 
+
+\begin{figure}[!ht]\centering\vspace{0pt}
+\includegraphics[width=9cm]{airfoil_plain_mpi}\vspace{-0pt}
+\caption{Distributed memory code generation and build for Airfoil (with user 
+I/O)}\label{fig/build-paths-mpi}\vspace{-0pt}
+\end{figure}
+
+\noindent \texttt{airfoil\_mpi\_cuda} needs to be executed using mpirun and will utilise one GPU per MPI process on the 
+GPU cluster during execution.
 
 \newpage
 \section{Airfoil with HDF5 I/O}\label{hdf5}
@@ -482,7 +477,7 @@ linked with the appropriate OP2 back-ends libraries to give the desired target e
 
 \begin{figure}[ht]\centering\vspace{0pt}
 \includegraphics[width=15.5cm]{airfoil_hdf5}\vspace{-0pt}
-\caption{Code generation and build for Airfoil (with OP2 HDF5 file I/O)}\label{fig/build-paths-hdf5}\vspace{-5pt}
+\caption{Code generation and build for Airfoil (with OP2 HDF5 file I/O)}\label{fig/build-paths-hdf5}\vspace{-0pt}
 \end{figure}
 
 \newpage
@@ -520,7 +515,7 @@ airfoil_kernels_cu.o:   airfoil_kernels.cu      \
 \noindent On the other hand the functions facilitating MPI parallel file I/O with hdf5 are contained in the MPI back-end
 implicitly. Thus linking should not be done with \texttt{libop2\_hdf5.a} in this case, for example:
 
-\begin{figure}\small
+\begin{figure}[h]\small
 \vspace{-0pt}\noindent\line(1,0){8}\vspace{-20pt}
 \begin{pyglist}[language=make]
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
@@ -572,3 +567,34 @@ details are given in the README file.
 \bibliography{BIB} 
 
 \end{document}
+
+
+The various back-ends supported by OP2, and their build process are detailed in
+Figure~\ref{fig/build-paths}. 
+
+\begin{figure}[!ht]\centering\vspace{0pt}
+\subfigure[Single-Node build]{\includegraphics[width=9cm]{airfoil_plain}\vspace{-0pt}}
+\subfigure[MPI Build]{\includegraphics[width=9cm]{airfoil_plain_mpi}\vspace{-0pt}}
+\caption{Code generation and build for Airfoil (with user I/O)}\label{fig/build-paths}\vspace{-5pt}
+\end{figure}
+
+\noindent Figure~\ref{fig/build-paths} assumes that the user is responsible for performing the required I/O for the
+application. As such \texttt{airfoil\_mpi.cpp} will be an MPI application written by the user utilising his/her own
+parallel I/O as will be detailed in Section~\ref{sec/mpi}. As mentioned before, the single CPU Airfoil application
+(\texttt{airfoi\_seq}) can be built without any code generation. Similarly the distributed memory MPI application,
+\texttt{airfoi\_mpi}, for executing on a single threaded cluster of CPUs, also can be built without code generation
+(see Section ~\ref{sec/mpi}). The current OP2 code generation tools can be applied to the above two versions of the
+application to generate code for parallel execution on (1) a single GPU using NVIDIA CUDA, (2) Multi-threaded CPU using
+OpenMP, (3) cluster of GPUs using MPI+CUDA and (4) a cluster of multi-threaded CPUs using MPI+OpenMP. In order to obtain
+the code for these targets, the code generator will need to be applied \underline{\textbf{two times}}, once to
+\texttt{airfoil.cpp} and then to \texttt{airfoil\_mpi.cpp}. The former will generate a modified main program and
+kernel files for single node parallel execution and the latter will generate code for parallel execution on a
+heterogeneous distributed memory cluster. 
+
+\noindent The code generator needs to be invoked, for example for parsing \texttt{airfoil.cpp}:
+
+$\$>$ ./op2.py airfoil.cpp
+
+\noindent For parsing \texttt{airfoil\_mpi.cpp}, to generate the distributed memory code:
+
+$\$>$ ./op2.py airfoil\_mpi.cpp
