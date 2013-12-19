@@ -56,8 +56,7 @@ instead read the Users Manual.
 The OP2 design uses hierarchical parallelism with two principal levels. At the highest level, OP2 is parallelised across
 distributed-memory clusters using MPI message-passing.  This uses essentially the same implementation approach as the
 original OPlus\cite{oplus}. The domain is partitioned among the compute nodes of the cluster, and import/export halos
-are
-constructed for message-passing. Data conflicts when  incrementing indirectly referenced datasets are avoided by
+are constructed for message-passing. Data conflicts when  incrementing indirectly referenced datasets are avoided by
 using an ``owner-compute'' model, in which each process performs the computations which are required to update data
 owned by that partition. The second level of parallelisation is achieved within a single multi-core CPU or
 GPU node. The multi-CPU parallelisation is currently supported by OpenMP threads and in the future will support other
@@ -81,7 +80,7 @@ is the design of how the sets, mappings and data on sets that defines an
 unstructured mesh application is read in by OP2. The current implementation
 achieve this input (and output) via two approaches:
 \begin{enumerate}
-\item Allow the application developer handles the file I/O where a minor
+\item Allow the application developer to handle the file I/O where a minor
 extension to the OP2 API will makes it possible to define \texttt{op\_set}s,
 \texttt{op\_dat}s and \texttt{op\_map}s that are distributed across the MPI
 universe.
@@ -129,9 +128,9 @@ which corresponds to its share of the {\tt from} set
 share of {\tt set}
 \end{itemize}
 \noindent An example implementation of the above is given in the Airfoil application (\texttt{airfoil\_plain}) where an
-initial  distribution of data on sets and mapping tables are achieved. MPI rank 0 will serially read in to its RAM the
-data on sets and mapping tables from \texttt{new\_grid.dat} and then will distribute the part of data and mappings
-(using MPI\_Scatter operations) to other processors.\\
+initial  distribution of data on sets and mapping tables are achieved. MPI rank 0 will serially read into its RAM the
+data on sets and mapping tables from the mesh file (\texttt{new\_grid.dat}) and then will distribute the part of data
+and mappings (using MPI\_Scatter operations) to other processors.\\
 
 \noindent In the second case, OP2 defines an HDF5 file format (described
 later in Section~\ref{sec/hdf5}) using which an applications programmer can
@@ -205,7 +204,7 @@ for each set that needs to be imported from and exported to other
 ``neighbouring'' MPI processes. Within an OP2 application, creation of these
 halos occur immediately after partitioning (see Section~\ref{sec/partitioning}) with a call to
 \texttt{op\_halo\_create()}. The remainder of this section illustrates the
-design and implementation of this routine and the data structures used.
+design and implementation of this routine and the data structures used.\\\\
 
 
 \begin{table}[t]
@@ -434,7 +433,7 @@ be computed over after all the calls to \texttt{wait\_all()} are completed.
 
 \item \textbf{Save the original set element indices}\\
 As the set elements are now rearranged, we need to keep track of the original order in which they appeared so that calls
-to \texttt{op\_fetch()} as well as final outputs can be accurately handled. The \texttt{part} struct
+to \texttt{op\_fetch\_data()} as well as final outputs can be accurately handled. The \texttt{part} struct
 (see \texttt{op\_mpi\_core.h}) is used to hold the original global indices of each set element.
 
 \item \textbf{Clean up and compute rough estimate of average worst-case halo
@@ -501,7 +500,7 @@ non-blocking operations (\texttt{MPI\_Isend} and \texttt{MPI\_Irecev}) and will 
 communication is \textit{in-flight}. As detailed in Section~\ref{subsec/halolists}, the \textit{eeh} and the
 \textit{enh} of an MPI process provides the indices of the elements that needs to be exported as well as the MPI ranks
 that will be exported to. Using these lists an MPI process will pack the data to be set into the send buffers and then
-will send them using \texttt{MPI\_Isend} operations. The following code detailed in \figurename{ \ref{fig:sendhalo}} is
+will send them using \texttt{MPI\_Isend} operations. The code detailed in \figurename{ \ref{fig:sendhalo}} is
 for sending the \textit{eeh}.\\
 
 \begin{figure}[t]\small
@@ -533,7 +532,7 @@ for(int i=0; i<exp_exec_list->ranks_size; i++) {
 
 \noindent The \texttt{MPI\_Isend} operations are immediately followed by \texttt{MPI\_Irecev} operations (\figurename{
 \ref{fig:recivehalo}} ), which sets up the non-blocking communications to directly copy the incoming data in to the
-relevant \texttt{op\_dat}, using the \textit{ieh} and \textit{inh} lists.
+relevant \texttt{op\_dat}, using the \textit{ieh} and \textit{inh} lists.\\
 
 \begin{figure}[t]\small
 \vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
@@ -578,7 +577,7 @@ structs are used as before, but now a per map halo is created in \texttt{op\_hal
 is exchanged if the total number of (global) mapping table entries (for this map) that references foreign elements over
 a partition boundary is less than 30\% of the total size of the halo for the exchanged set.
 
-Thus for example, assume that a map exists from boundary edges to internal nodes (\texttt{bedges\_to\_nodes}) and a
+Thus for example, assume that a map exists from boundary edges to internal nodes (\texttt{bedges \_to\_nodes}) and a
 mapping exists between internal edges to internal nodes (\texttt{edges\_to\_nodes}). If the number of halo elements due
 to \texttt{bedges\_to\_nodes} is less than 30\% of the halo elements due to both \texttt{bedges\_to\_nodes} and
 \texttt{edges\_to\_nodes}, then a partial halo will be exchanged only using the per map halo of
@@ -600,7 +599,7 @@ routine checks for the type of the data exchanged and the type of the operation 
 
 % implementing op_fetch and op_put
 \subsection{Fetching Data}\label{subsec/putfetch}
-The operation of \texttt{op\_fetch\_data ()} within an OP2 application executing over MPI will be to present the current
+The operation of \texttt{op\_fetch\_data()} within an OP2 application executing over MPI will be to present the current
 values of the \texttt{op\_dat}'s data array in the order of the elements that was originally handed to OP2. It should be
 noted that the data array presented to the user level application is a \underline{copy} of the current state of the
 internal \texttt{op\_dat}. The implementation first makes a copy of the current data values in the \texttt{op\_dat}
@@ -640,8 +639,8 @@ typedef struct
 % performance measurements - including flags to trigger them
 \subsection{Performance Measurements}\label{subsec/perf}
 
-For measuring the execution time of code two timer routines are implemented. Firstly, \texttt{op\_timers \_core()} (in
-\texttt{op\_lib\_core.c}) measures the elapsed time on a single MPI process while \texttt{op\_timers()}
+For measuring the execution time of code, two timer routines are implemented. Firstly, \texttt{op\_timers \_core()}
+(in \texttt{op\_lib\_core.c}) measures the elapsed time on a single MPI process while \texttt{op\_timers()}
 (in \texttt{op\_mpi\_decl.c}) has an implicit \texttt{MPI\_Barrier()} so that time across the whole MPI universe can be
 measured. \noindent The time spent in the \texttt{op\_par\_loop()} calls is measured and accumulated. The setup costs
 due to halo creation and partitioning are also measured and the maximum on all the processors is printed to standard out
@@ -677,7 +676,7 @@ to \texttt{op\_fetch()}.
 % clean-up routines
 \subsection{Garbage Collection}\label{subsec/cleanup}
 At the end of the OP2 application a call to \texttt{op\_exit()} will free all halo lists, MPI send buffers and the table
-holding performance measures. Also any \texttt{dat}s and \texttt{map}s held internally by OP2 is also freed.
+holding performance measures. Also any \texttt{dat}s and \texttt{map}s held internally by OP2 is freed.
 
 \section{HDF5 File I/O}\label{sec/hdf5}
 The current hdf5 file format follows the ASCI file format generated by the naca0012.m Airfoil mesh generator. The
@@ -721,7 +720,7 @@ mappings are distributed in a block partitioning fashion. The partitioning of th
 functions: \texttt{op\_partition\_geom()}, \texttt{op\_partition\_kway()} or \texttt{op\_partition\_ptscotch()} defined
 in \texttt{op\_mpi\_ part\_core.c}. A wrapper function is required to organize the data and/or mesh elements into a
 format that is acceptable to the ParMetis and PT-Scotch partitioning routines. We anticipate that supporting other
-different partitioners may require new wrapper functions to be developed into the MPI back-end.
+partitioners may require new wrapper functions to be developed into the MPI back-end.
 
 % A future proposal is to provide decision logic that selects the appropriate partitioner
 % routine (by calling the appropriate wrapper function) depending on the available \texttt{op\_set}s, \texttt{op\_map}s
@@ -745,7 +744,7 @@ that gives the smallest cost. We assign some integer value to indicate the cost.
 For example if we have a cells to nodes mapping and the primary set is nodes (and has been partitioned) using the
 map then we can determine where each cell should reside. Thus if a majority of the nodes that is pointed to by a cell
 resides in some partition X (i.e. MPI rank X) then the cell is also best placed on partition X (if not already on X). A
-similar reasoning is used when partitioning the nodes, given the primary set is cells. In this case a temporary reveres
+similar reasoning is used when partitioning the nodes, given the primary set is cells. In this case a temporary reverse
 map is created (i.e. a nodes to cells mapping) to determine the partition of nodes. After all the set elements have been
 assigned a partition a call to, \texttt{migrate\_all()} will migrates the data and mappings to the new MPI process and
 will sort the elements on the new MPI ranks. Finally \texttt{renumber\_maps()} will renumber mapping table entries with
@@ -769,9 +768,9 @@ can be called to convert the input data meshes based on the Gibbs-Poole-Stockmey
 The renumbering is implemented in \texttt{../op2/c/src/externlib/op\_renumber.cpp}.
 
 However this renumbering is currently only works on a single node (i.e. no MPI support ) and the usual method of
-utilizing its benefits is to read in an unoptimized mesh in an OPS HDF5 file, use the mesh renumbering to optimize the
-numbering of this mesh and then use OP2's HDF5 write functions to write the resulting mesh back to a new hdf5 file. The
-new hdf5 file can them be used on both single node and distributed memory versions of the application.
+utilizing its benefits is to read in an unoptimized mesh in an OP2 HDF5 file, use the mesh renumbering to optimize the
+numbering of this mesh and then write the resulting mesh back to a new hdf5 file. The new hdf5 file can then be used on
+both single node and distributed memory versions of the application.
 
 % \section{Local Renumbering}\label{sec/localrenumbering}
 % OP2 will also perform a second level of renumbering (and partitioning) on each individual node (or MPI rank) to
@@ -905,9 +904,13 @@ the partitions assigned to the two CPUs).
 Computers, 339-346, {A}. Ecer, J. Periaux, N. Satofuka, and S. Taylor, (eds.), North-Holland, 1996.
 
 \bibitem{Burgess} D.~A. Burgess and M.~B. Giles. 1997. \textit{Renumbering unstructured grids to
-improve the   performance of codes on hierarchical memory machines}. \em Adv. Eng. Softw. 28 (April 1997), 189--201.
+improve the   performance of codes on hierarchical memory machines}. Adv. Eng. Softw. 28 (April 1997), 189--201.
 Issue 3. ISSN 0965-9978.
 
+
+\bibitem{hydra-paper} Istv\'an Z. Reguly and Gihan R. Mudalige and Carlo Bertolli and Michael B. Giles and Adam Betts
+and Paul H.J. Kelly and David Radford. \textit{Acceleration of a Full-scale Industrial CFD Application with OP2} (Under
+Review)
 \end{thebibliography}
 
 
