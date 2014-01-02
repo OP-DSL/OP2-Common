@@ -149,11 +149,14 @@ To compile using the regular Makefiles provided, it is required to:
 
       export CUDA_INSTALL_PATH=/apps/cuda/4.0.11
 
-2. Set the environment variable OP2_COMPILER to either 'intel' or 'gnu' to
-   select building with either icc or gcc compilers.
+2. Set the environment variable OP2_COMPILER to either 'intel', 'pgi',
+   'gnu' or 'cray' to select building with either icc or gcc compilers.
+   Other compilers can also be supported by adding the relevant compilers
+   commands and flags.
 
 3. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
-   or PTSCOTCH_INSTALL_PATH to the installation directories of these libraries.
+   or PTSCOTCH_INSTALL_PATH, HDF5_INSTALL_PATH to the installation
+   directories of these libraries.
    For instance:
 
       export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1

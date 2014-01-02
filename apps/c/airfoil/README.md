@@ -1,0 +1,64 @@
+### Airfoil
+
+Airfoil is a nonlinear 2D inviscid airfoil code that uses an unstructured grid. It is a finite volume application that
+solves the 2D Euler equations using a scalar numerical dissipation. The algorithm iterates towards the steady state
+solution, in each iteration using a control volume approach – for example the rate at which the mass changes within a
+control volume is equal to the net flux of mass into the control volume across the four faces around the cell. This is
+representative of the 3D viscous flow calculations OP2 aims to eventually support for production-grade CFD applications
+(such as the Hydra CFD code at Rolls-Royce plc.). The application implements a predictor/corrector time-marching
+loop, by (1) looping over the cells of the mesh and computing the time step for each cell, (2) computing the flux over
+internal edges (3) computing the flux over boundary edges (4) updating the solution and (5) saving the old solution
+before repeating. These main stages of the application is solved in Airfoil within five parallel loops: adt_calc,
+res_calc, bres_calc, update and save_soln. Out of these, save_soln and update are direct loops while the other three are
+indirect loops.
+
+Please see airfoil-doc under the ../../doc directory for further OP2 application development details
+
+### Airfoil Application Directory Structure
+
+Airfoil has been the main development, testing and benchmarking application in OP2. As such this directory contains
+several versions of Airfoil that demonstrate the use of various OP2 features.
+
+airfoil_plain -- airfoil implemented with user I/O routines (mesh file in ASCI - see ../../apps/mesh_generators
+on how to generate the mesh)
+
+airfoil_hdf5 -- airfoil implemented with OP2 HDF5 routines (mesh file in HDF5, see ASCI to HDF5 file converter)
+
+airfoil_vector -- airfoil user kernels modified to achieve vectorization
+
+airfoil_tempdats -- airfoil use op_decl_temp, i.e. temporary dats in application
+
+compare_results -- small utility code to compare two files (txt or bin), used to compare the final result from airfoil
+
+### Testing the Results
+
+The various parallel versions of Airfoil should be compared against the single-threaded CPU version (also known as the
+reference implementation) to ascertain the correctness of the results. The p_q array holds the final result and as such
+will be the data array to compare. One way to achieve this is to use the following OP2 calls to write the data array to
+text or binary files, for example after the end of the 1000 iterations in the airfoil code.
+
+```
+op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
+op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
+```
+
+Then the code in compare.cpp and comparebin.cpp can be used to compare the text file or binary file with the reference
+implementation.
+
+Bitwise accuracy can be expected across systems for the double precision version to within the accuracy of machine
+precision. For the single precision version, answers should be very close. A summary print of the rms value of the
+residual is printed out by default every 100 iterations. This in double precision for the first 1000 iterations should
+be exactly:
+
+```
+100  5.02186e-04
+200  3.41746e-04
+300  2.63430e-04
+400  2.16288e-04
+500  1.84659e-04
+600  1.60866e-04
+700  1.42253e-04
+800  1.27627e-04
+900  1.15810e-04
+1000  1.06011e-04
+```
