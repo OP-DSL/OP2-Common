@@ -1,7 +1,9 @@
 #!/bin/bash
 #set -e
 #check/install pakages
-#sudo apt-get install texlive-science  python-pygments latex-xcolor
+#sudo apt-get install latex-xcolor texlive-science texlive-latex-extra
+#sudo apt-get install python-pygments (or easy_install Pygments)
+
 
 pdflatex C++_Users_Guide.tex
 pdflatex C++_Users_Guide.tex
