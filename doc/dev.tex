@@ -79,10 +79,10 @@ minimal level of redundant computation if the cluster satisfies the first
 of our key assumptions:
 
 \vspace{0.1in}
-{\bf Key assumption 1: each compute node will have GBs of memory}
+\noindent {\bf Key assumption 1: each compute node will have GBs of memory}
 \vspace{0.1in}
 
-At the lower level, there are different kinds of parallelism depending
+\noindent At the lower level, there are different kinds of parallelism depending
 on the target hardware:
 \begin{itemize}
 \item
@@ -94,26 +94,26 @@ multithreading through OpenMP, and a possibility of each thread using
 vectorization to exploit the capabilities of SSE/AVX vector units.
 \end{itemize}
 
-In both cases, we have two further key assumptions:
+\noindent In both cases, we have two further key assumptions:
 
 \vspace{0.1in}
-{\bf Key assumption 2: memory bandwidth is a major limitation}
+\noindent {\bf Key assumption 2: memory bandwidth is a major limitation}
 \vspace{0.1in}
 
-In the case of GPUs, this refers to the bandwidth between the main
+\noindent In the case of GPUs, this refers to the bandwidth between the main
 graphics memory and the GPU, whereas for CPUs it is the bandwidth between
 the main system memory and the CPUs.
 
 \vspace{0.1in}
-{\bf Key assumption 3: there is very little local shared memory}
+\noindent {\bf Key assumption 3: there is very little local shared memory}
 \vspace{0.1in}
 
-In the case of GPUs, this refers to shared memory with a SM
+\noindent In the case of GPUs, this refers to shared memory with a SM
 (Streaming Multiprocessor) unit of the GPU, whereas for CPUs it
-refers to the size of the L1 cache.
+refers to the size of the L1 cache.\\
 
 
-These assumptions will motivate the implementation design decisions.
+\noindent These assumptions will motivate the implementation design decisions.
 
 
 
