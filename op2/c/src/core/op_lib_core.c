@@ -864,3 +864,11 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
   }
   fclose(fp);
 }
+
+
+int op_size_of_set(const char * name) {
+  for (int i = 0; i < OP_set_index; i++) {
+    if (strcmp(name, OP_set_list[i]->name) == 0)
+      return OP_set_list[i]->size + OP_set_list[i]->exec_size + OP_set_list[i]->nonexec_size;
+  }
+}
