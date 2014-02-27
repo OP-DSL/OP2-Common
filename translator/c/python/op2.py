@@ -36,9 +36,11 @@ import re
 import datetime
 
 # import OpenMP and CUDA code generation functions
-from op2_gen_openmp import op2_gen_openmp
-from op2_gen_cuda import op2_gen_cuda
-
+from op2_gen_openmp_simple import op2_gen_openmp_simple
+from op2_gen_seq import op2_gen_seq
+#from op2_gen_cuda import op2_gen_cuda
+from op2_gen_cuda_simple import op2_gen_cuda_simple
+from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
@@ -69,6 +71,36 @@ def op_parse_calls(text):
     hdf5s = len(re.findall('hdf5', text))
 
     return (inits, exits, parts, hdf5s)
+
+
+def op_decl_set_parse(text):
+    """Parsing for op_decl_set calls"""
+
+    sets = []
+    for m in re.finditer('op_decl_set\((.*)\)', text):
+        args = m.group(1).split(',')
+
+        # check for syntax errors
+        if len(args) != 2:
+            print 'Error in op_decl_set : must have three arguments'
+            return
+
+        sets.append({
+            'name': args[1].strip()
+            })
+    for m in re.finditer('op_decl_set_hdf5\((.*)\)', text):
+        args = m.group(1).split(',')
+
+        # check for syntax errors
+        if len(args) != 2:
+            print 'Error in op_decl_set : must have three arguments'
+            return
+
+        sets.append({
+            'name': args[1].strip()[1:-1]
+            })
+
+    return sets
 
 
 def op_decl_const_parse(text):
@@ -234,6 +266,7 @@ def main():
     nkernels = 0
     consts = []
     kernels = []
+    sets = []
     kernels_in_files = []
 
     OP_ID = 1
@@ -284,6 +317,9 @@ def main():
         # parse and process constants
 
         const_args = op_decl_const_parse(text)
+        set_list = op_decl_set_parse(text)
+        for i in range(0,len(set_list)):
+          sets.append(set_list[i])
 
         # cleanup '&' symbols from name and convert dim to integer
         for i in range(0, len(const_args)):
@@ -332,6 +368,7 @@ def main():
             idxs = [0] * nargs
             dims = [''] * nargs
             maps = [0] * nargs
+            mapnames = ['']*nargs
             typs = [''] * nargs
             accs = [0] * nargs
             soaflags = [0] * nargs
@@ -350,16 +387,17 @@ def main():
                             print 'invalid index for argument' + str(m)
                     else:
                         maps[m] = OP_MAP
+                        mapnames[m] = str(args['map']).strip()
 
                     dims[m] = args['dim']
                     soa_loc = args['typ'].find(':soa')
 
                     if soa_loc > 0:
                         soaflags[m] = 1
-                        print soaflags
                         typs[m] = args['typ'][1:soa_loc]
                     else:
                         typs[m] = args['typ'][1:-1]
+
 
                     l = -1
                     for l in range(0, len(OP_accs_labels)):
@@ -406,6 +444,8 @@ def main():
             indtyps = [''] * nargs
             inddims = [''] * nargs
             indaccs = [0] * nargs
+            invmapinds = [0]*nargs
+            mapinds = [0]*nargs
 
             j = [i for i, x in enumerate(maps) if x == OP_MAP]
 
@@ -427,6 +467,18 @@ def main():
                             and accs[j[0]] == accs[j[i]]):  # same variable
                         k = k + [j[i]]
                 j = k
+
+            if ninds > 0:
+              invmapinds = invinds[:]
+              for i in range(0,ninds):
+                for j in range(0,i):
+                  if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+                    invmapinds[i] = invmapinds[j]
+              for i in range(0,nargs):
+                mapinds[i] = i
+                for j in range(0,i):
+                  if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+                    mapinds[i] = mapinds[j]
 
             # check for repeats
 
@@ -508,7 +560,10 @@ def main():
                         'inddims': inddims,
                         'indaccs': indaccs,
                         'indtyps': indtyps,
-                        'invinds': invinds}
+                        'invinds': invinds,
+                        'mapnames' : mapnames,
+                        'mapinds': mapinds,
+                        'invmapinds' : invmapinds}
                 kernels.append(temp)
                 (kernels_in_files[a - 1]).append(nkernels - 1)
             else:
@@ -565,6 +620,10 @@ def main():
 
             if (locs[loc] in loc_header) and (locs[loc] != -1):
                 fid.write(' "op_lib_cpp.h"\n\n')
+                line = '\n#define STRIDE(x,y) x\n'
+                for ns in range (0,len(sets)):
+                  line += 'int '+sets[ns]['name']+'_stride = 1;\n'
+                fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
@@ -643,9 +702,9 @@ def main():
         print'---------------------------------------------------'
 
     #  finally, generate target-specific kernel files
-
-    op2_gen_openmp(str(sys.argv[1]), date, consts, kernels)
-    op2_gen_cuda(str(sys.argv[1]), date, consts, kernels)
+    op2_gen_seq(str(sys.argv[1]), date, consts, kernels)
+    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels)
+    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets)
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -654,3 +713,4 @@ if __name__ == '__main__':
     else:
         print __doc__
         sys.exit(1)
+

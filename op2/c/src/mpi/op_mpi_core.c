@@ -2868,7 +2868,7 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   for (int n=0; n<nargs; n++) {
     if(args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID) {
-        op_exchange_halo(&args[n], exec_flag);
+        op_exchange_halo_cuda(&args[n], exec_flag);
       } else {
         //Check if dat-map combination was already done or if there is a mismatch (same dat, diff map)
         int found = 0;
@@ -2878,10 +2878,10 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
           else if (args[n].dat == args[m].dat && args[n].map != args[m].map) fallback = 1;
         }
         //If there was a map mismatch with other argument, do full halo exchange
-        if (fallback) op_exchange_halo(&args[n], exec_flag);
+        if (fallback) op_exchange_halo_cuda(&args[n], exec_flag);
         else if (!found) { //Otherwise, if partial halo exchange is enabled for this map, do it
-          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial(&args[n], exec_flag);
-          else op_exchange_halo(&args[n], exec_flag);
+          if (OP_map_partial_exchange[args[n].map->index]) op_exchange_halo_partial_cuda(&args[n], exec_flag);
+          else op_exchange_halo_cuda(&args[n], exec_flag);
         }
       }
     }
