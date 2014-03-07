@@ -871,4 +871,7 @@ int op_size_of_set(const char * name) {
     if (strcmp(name, OP_set_list[i]->name) == 0)
       return OP_set_list[i]->size + OP_set_list[i]->exec_size + OP_set_list[i]->nonexec_size;
   }
+  printf("Error: set %s not found\n", name);
+  exit(-1);
+  return -1;
 }

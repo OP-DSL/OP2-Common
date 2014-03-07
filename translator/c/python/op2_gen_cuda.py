@@ -701,7 +701,7 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('  int part_size = OP_part_size;')
       code('#endif')
       code('')
-      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
 # direct bit
@@ -712,7 +712,7 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges(set, nargs, args);')
+      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
 #
 # start timing
 #
@@ -832,7 +832,7 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('int block_offset = 0;')
       FOR('col','0','Plan->ncolors')
       IF('col==Plan->ncolors_core')
-      code('op_mpi_wait_all(nargs, args);')
+      code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
@@ -948,7 +948,7 @@ def op2_gen_cuda(master, date, consts, kernels):
           code('op_mpi_reduce(&ARG,ARGh);')
 
     ENDIF()
-    code('op_mpi_set_dirtybit(nargs, args);')
+    code('op_mpi_set_dirtybit_cuda(nargs, args);')
 
 #
 # update kernel record

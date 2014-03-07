@@ -90,7 +90,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 # master to make all versions
 #
 
-all: clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_cuda airfoil_mpi_openmp convert_mesh
+all: clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_openmp convert_mesh
 
 #
 # simple sequential version
