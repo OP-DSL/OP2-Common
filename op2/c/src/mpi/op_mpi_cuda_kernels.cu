@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define MPICH_IGNORE_CXX_SEEK
 #include <op_lib_mpi.h>
 
 

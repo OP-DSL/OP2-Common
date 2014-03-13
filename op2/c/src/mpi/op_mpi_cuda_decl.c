@@ -34,6 +34,7 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
+#include <mpi.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
