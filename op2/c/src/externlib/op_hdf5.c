@@ -39,6 +39,9 @@
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
  */
 
+//hdf5 header
+#include <hdf5.h>
+
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -47,8 +50,6 @@
 #define H5Dopen_vers 2
 #define H5Acreate_vers 2
 #define H5Dcreate_vers 2
-//hdf5 header
-#include <hdf5.h>
 
 #include <op_util.h> //just to include xmalloc routine
 
