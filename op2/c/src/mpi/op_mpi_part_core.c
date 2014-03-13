@@ -39,6 +39,9 @@
  * written by: Gihan R. Mudalige, (Started 07-04-2011)
  */
 
+//mpi header
+#include <mpi.h>
+
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,9 +49,6 @@
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_util.h>
-
-//mpi header
-#include <mpi.h>
 
 //ptscotch header
 #ifdef HAVE_PTSCOTCH

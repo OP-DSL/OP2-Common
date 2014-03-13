@@ -39,13 +39,14 @@
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
  */
 
+
+//mpi header
+#include <mpi.h>
+
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 #include <op_util.h>
-
-//mpi header
-#include <mpi.h>
 
 // Use version 2 of H5Dopen H5Acreate and H5Dcreate
 #define H5Dopen_vers 2
