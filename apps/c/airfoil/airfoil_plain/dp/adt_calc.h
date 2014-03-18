@@ -1,4 +1,4 @@
-inline void adt_calc(double *x1,double *x2,double *x3,double *x4,double *q,double *adt){
+inline void adt_calc(const double *x1, const double *x2, const double *x3, const double *x4, const double *q,double *adt){
   double dx,dy, ri,u,v,c;
 
   ri =  1.0f/q[0];

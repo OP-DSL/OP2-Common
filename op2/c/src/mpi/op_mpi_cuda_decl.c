@@ -339,23 +339,25 @@ void
 op_exit (  )
 {
   //need to free buffer_d used for mpi comms in each op_dat
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries)
-  {
-    if (strstr( item->dat->type, ":soa")!= NULL) {
-      cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
+  if (OP_hybrid_gpu) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries)
+    {
+      if (strstr( item->dat->type, ":soa")!= NULL) {
+        cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
+      }
+      cutilSafeCall (cudaFree((item->dat)->buffer_d));
     }
-    cutilSafeCall (cudaFree((item->dat)->buffer_d));
-  }
 
-  for (int i = 0; i < OP_set_index; i++) {
-    if (export_exec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_exec_list_d[i]));
-    if (export_nonexec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_nonexec_list_d[i]));
-  }
-  for (int i = 0; i < OP_map_index; i++) {
-    if (!OP_map_partial_exchange[i]) continue;
-    cutilSafeCall (cudaFree(export_nonexec_list_partial_d[i]));
-    cutilSafeCall (cudaFree(import_nonexec_list_partial_d[i]));
+    for (int i = 0; i < OP_set_index; i++) {
+      if (export_exec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_exec_list_d[i]));
+      if (export_nonexec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_nonexec_list_d[i]));
+    }
+    for (int i = 0; i < OP_map_index; i++) {
+      if (!OP_map_partial_exchange[i]) continue;
+      cutilSafeCall (cudaFree(export_nonexec_list_partial_d[i]));
+      cutilSafeCall (cudaFree(import_nonexec_list_partial_d[i]));
+    }
   }
 
   op_mpi_exit();

@@ -265,6 +265,8 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name);
 
 void op_compute_moment(double t, double *first, double *second);
 
+int op_size_of_set(const char *);
+
 /*******************************************************************************
 * Core MPI lib function prototypes
 *******************************************************************************/

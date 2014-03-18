@@ -1,5 +1,5 @@
-inline void bres_calc(double *x1,  double *x2,  double *q1,
-                      double *adt1,double *res1,int *bound) {
+inline void bres_calc(const double *x1, const double *x2, const double *q1,
+                      const double *adt1, double *res1, const int *bound) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
   dx = x1[0] - x2[0];

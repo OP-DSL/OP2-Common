@@ -1,5 +1,5 @@
-inline void res_calc(double *x1,  double *x2,  double *q1,  double *q2,
-                     double *adt1,double *adt2,double *res1,double *res2) {
+inline void res_calc(const double *x1, const double *x2, const double *q1, const double *q2,
+                     const double *adt1, const double *adt2, double *res1, double *res2) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
   dx = x1[0] - x2[0];

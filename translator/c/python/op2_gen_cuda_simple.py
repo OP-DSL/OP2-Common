@@ -21,7 +21,7 @@ def comm(line):
   elif FORTRAN:
     file_text +='!  '+line+'\n'
   elif CPP:
-    file_text +=prefix+'//'+line+'\n'
+    file_text +=prefix+'//'+line.rstrip()+'\n'
 
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
@@ -39,8 +39,12 @@ def rep(line,m):
 def code(text):
   global file_text, FORTRAN, CPP, g_m
   global depth
-  prefix = ' '*depth
-  file_text += prefix+rep(text,g_m)+'\n'
+  if text == '':
+    prefix = ''
+  else:
+    prefix = ' '*depth
+  file_text += prefix+rep(text,g_m).rstrip()+'\n'
+
 
 def FOR(i,start,finish):
   global file_text, FORTRAN, CPP, g_m
@@ -87,7 +91,7 @@ def ENDIF():
   elif CPP:
     code('}')
 
-def op2_gen_cuda(master, date, consts, kernels):
+def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -125,6 +129,13 @@ def op2_gen_cuda(master, date, consts, kernels):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
+    mapnames = kernels[nk]['mapnames']
+    invmapinds = kernels[nk]['invmapinds']
+    mapinds = kernels[nk]['mapinds']
+    nmaps = 0
+
+    if ninds > 0:
+      nmaps = max(mapinds)+1
 
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
 
@@ -243,52 +254,32 @@ def op2_gen_cuda(master, date, consts, kernels):
     depth = 2
 
     for g_m in range(0,ninds):
-      if FORTRAN:
-        code('INDTYP *ind_ARG,')
-      elif CPP:
-        code('INDTYP *ind_ARG,')
+      if (indaccs[g_m]==OP_READ):
+        code('const INDTYP *__restrict INDARG,')
+      else:
+        code('INDTYP *__restrict INDARG,')
 
-    if ninds>0:
-      if FORTRAN:
-        code('int   *ind_map,')
-        code('short *arg_map,')
-      elif CPP:
-        code('int   *ind_map,')
-        code('short *arg_map,')
-
-    for g_m in range (0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m] == OP_READ:
-        # declared const for performance
-        if FORTRAN:
-          code('const TYP *ARG,')
-        elif CPP:
-          code('const TYP *ARG,')
-      elif maps[g_m]==OP_ID and ninds>0:
-        if FORTRAN:
-          code('ARG,')
-        elif CPP:
-          code('TYP  *ARG,')
-      elif maps[g_m]==OP_GBL or maps[g_m]==OP_ID:
-        if FORTRAN:
-          code('ARG,')
-        elif CPP:
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        if accs[g_m] == OP_READ:
+          code('const TYP *__restrict ARG,')
+        else:
           code('TYP *ARG,')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL:
+        if accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
+          code('TYP *ARG,')
+        elif accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+          code('const TYP *ARG,')
 
     if ninds>0:
-      if FORTRAN:
-        code('int   *ind_arg_sizes,')
-        code('int   *ind_arg_offs, ')
-        code('int    block_offset, ')
-        code('int   *blkmap,       ')
-        code('int   *offset,       ')
-        code('int   *nelems,       ')
-        code('int   *ncolors,      ')
-        code('int   *colors,       ')
-        code('int   nblocks,       ')
-        code('int   set_size) {    ')
       if CPP:
-        code('int   *ind_arg_sizes,')
-        code('int   *ind_arg_offs, ')
         code('int    block_offset, ')
         code('int   *blkmap,       ')
         code('int   *offset,       ')
@@ -298,7 +289,6 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('int   nblocks,       ')
         code('int   set_size) {    ')
     else:
-      code('int   offset_s,    ')
       code('int   set_size ) {')
       code('')
 
@@ -314,8 +304,6 @@ def op2_gen_cuda(master, date, consts, kernels):
           code('ARG_l[d]=ARG[d+blockIdx.x*DIM];')
           ENDFOR()
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-        code('TYP ARG_l[DIM];')
-      elif (ninds==0 and maps[g_m]==OP_ID and dims[g_m]<>'1') and not(soaflags[g_m]):
         code('TYP ARG_l[DIM];')
 
     for m in range (1,ninds+1):
@@ -340,11 +328,6 @@ def op2_gen_cuda(master, date, consts, kernels):
 #
     if ninds>0:
       code('')
-      for g_m in range (0,ninds):
-        code('__shared__  int  *ind_ARG_map, ind_ARG_size;')
-      for g_m in range (0,ninds):
-        code('__shared__  INDTYP *ind_ARG_s;')
-
       if ind_inc:
         code('__shared__ int    nelems2, ncolor;')
 
@@ -370,52 +353,17 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('ncolor   = ncolors[blockId];')
         code('')
 
-      for g_m in range (0,ninds):
-        code('ind_ARG_size = ind_arg_sizes['+str(g_m)+'+blockId*'+ str(ninds)+'];')
-
-      code('')
-
-      for m in range (1,ninds+1):
-        g_m = m - 1
-        c = [i for i in range(len(inds)) if inds[i]==m]
-        code('ind_ARG_map = &ind_map['+str(cumulative_indirect_index[c[0]])+\
-        '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds)+'];')
-
-      code('')
-      comm('set shared memory pointers')
-      code('int nbytes = 0;')
-
-      for g_m in range(0,ninds):
-        code('ind_ARG_s = (INDTYP *) &shared[nbytes];')
-        if g_m < ninds-1:
-          code('nbytes    += ROUND_UP(ind_ARG_size*sizeof(INDTYP)*INDDIM);')
-
       ENDIF()
       code('__syncthreads(); // make sure all of above completed')
-      code('')
-      comm('copy indirect datasets into shared memory or zero increment')
-      code('')
-
-      for m in range(0,ninds):
-        g_m = m
-        if indaccs[m]==OP_READ or indaccs[m]==OP_RW or indaccs[m]==OP_INC:
-          FOR_INC('n','threadIdx.x','ind_ARG_size*INDDIM','blockDim.x')
-          if indaccs[m]==OP_READ or indaccs[m]==OP_RW:
-            code('ind_arg'+str(m)+'_s[n] = ind_arg'+str(m)+'[n%'+inddims[m]+
-            '+ind_arg'+str(m)+'_map[n/'+inddims[m]+']*'+inddims[m]+'];')
-            code('')
-          elif indaccs[m]==OP_INC:
-            code('ind_ARG_s[n] = ZERO_INDTYP;')
-          ENDFOR()
-
-      code('')
-      code('__syncthreads();')
-      comm('process set elements')
-      code('')
 
       if ind_inc:
         FOR_INC('n','threadIdx.x','nelems2','blockDim.x')
         code('int col2 = -1;')
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('int map'+str(mapinds[g_m])+'idx;')
         IF('n<nelem')
         comm('initialise local variables')
 
@@ -426,66 +374,33 @@ def op2_gen_cuda(master, date, consts, kernels):
             ENDFOR()
       else:
         FOR_INC('n','threadIdx.x','nelem','blockDim.x')
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('int map'+str(mapinds[g_m])+'idx;')
+
+
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+
 
 #
 # simple alternative when no indirection
 #
     else:
-      use_shared = 0;
-      for m in range(0,nargs):
-        if maps[m]<>OP_GBL and dims[m]<>'1':
-          use_shared = 1
-
-      if use_shared:
-        code('int   tid = threadIdx.x%OP_WARPSIZE;')
-        code('')
-        code('extern __shared__ char shared[];')
-        code('char *arg_s = shared + offset_s*(threadIdx.x/OP_WARPSIZE);')
-
       code('')
       comm('process set elements')
       FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
 
-      if use_shared:
-        code('int offset = n - tid;')
-        code('int nelems = MIN(OP_WARPSIZE,set_size-offset);')
-        comm('copy data into shared memory, then into local')
-
-      for m in range(0,nargs):
-        g_m = m
-        if (maps[m]<>OP_GBL and accs[m]<>OP_WRITE and dims[m]<>'1') and not(soaflags[m]):
-          FOR('m','0','DIM')
-          code('((TYP *)arg_s)[tid+m*nelems] = ARG[tid+m*nelems+offset*DIM];')
-          ENDFOR()
-          code('')
-          FOR('m','0','DIM')
-          code('ARG_l[m] = ((TYP *)arg_s)[m+tid*DIM];')
-          ENDFOR()
-          code('')
-
-
-
 #
 # kernel call
 #
-
-    # xxx: array of pointers for non-locals
-    for m in range(1,ninds+1):
-      s = [i for i in range(len(inds)) if inds[i]==m]
-      if sum(s)>1:
-        if indaccs[m-1] <> OP_INC:
-          code('')
-          ctr = 0
-          for n in range(0,nargs):
-            if inds[n] == m and vectorised[n]:
-              code('arg'+str(m-1)+'_vec['+str(ctr)+'] = ind_arg'+\
-              str(inds[n]-1)+'_s+arg_map['+str(cumulative_indirect_index[n])+\
-              '*set_size+n+offset_b]*'+str(dims[n])+';')
-              ctr = ctr+1
-
     code('')
     comm('user-supplied kernel call')
-
     line = name+'('
     prefix = ' '*len(name)
     a = 0 #only apply indentation if its not the 0th argument
@@ -500,21 +415,14 @@ def op2_gen_cuda(master, date, consts, kernels):
         else:
           line += rep(indent+'ARG_l,\n',m);
         a =a+1
-      elif maps[m]==OP_MAP and  accs[m]==OP_INC and vectorised[m]==0:
+      elif maps[m]==OP_MAP and  accs[m]==OP_INC:
         line += rep(indent+'ARG_l,\n',m)
         a =a+1
-      elif maps[m]==OP_MAP and vectorised[m]==0:
-        line += rep(indent+'ind_arg'+str(inds[m]-1)+'_s+arg_map['+\
-        str(cumulative_indirect_index[m])+'*set_size+n+offset_b]*DIM,'+'\n',m)
-        a =a+1
-      elif maps[m]==OP_MAP and m == 0:
-        line += rep(indent+'ARG_vec,'+'\n',inds[m]-1)
-        a =a+1
-      elif maps[m]==OP_MAP and m>0 and vectorised[m] <> vectorised[m-1]: #xxx:vector
-        line += rep(indent+'ARG_vec,'+'\n',inds[m]-1)
-        a =a+1
-      elif maps[m]==OP_MAP and m>0 and vectorised[m] == vectorised[m-1]:
-        line = line
+      elif maps[m]==OP_MAP:
+        if soaflags[m]:
+          line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx,'+'\n',m)
+        else:
+          line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*DIM,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
         if ninds>0:
@@ -524,10 +432,10 @@ def op2_gen_cuda(master, date, consts, kernels):
             line += rep(indent+'ARG+(n+offset_b)*DIM,\n',m)
           a =a+1
         else:
-          if dims[m] == '1' or soaflags[m]:
+          if soaflags[m]:
             line += rep(indent+'ARG+n,\n',m)
           else:
-            line += rep(indent+'ARG_l,\n',m)
+            line += rep(indent+'ARG+n*DIM,\n',m)
           a =a+1
       else:
         print 'internal error 1 '
@@ -544,66 +452,22 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('')
         comm('store local variables')
         code('')
-
-        for g_m in range(0,nargs):
-          if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-            code('int ARG_map;')
-
-        IF('col2>=0')
-
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            code('ARG_map = arg_map['+str(cumulative_indirect_index[g_m])+'*set_size+n+offset_b];')
-
-        ENDIF()
-        code('')
         FOR('col','0','ncolor')
         IF('col2==col')
 
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            FOR('d','0','DIM')
-            code('ind_arg'+str(inds[g_m]-1)+'_s[d+ARG_map*DIM] += ARG_l[d];')
-            ENDFOR()
+            for d in range(0,int(dims[g_m])):
+              code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+            for d in range(0,int(dims[g_m])):
+              code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
         ENDFOR()
         code('__syncthreads();')
         ENDFOR()
-      ENDFOR()
-
-      s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
-
-      if len(s)>0 and max(s)>0:
-        code('')
-        comm('apply pointered write/increment')
-
-      for g_m in range(0,ninds):
-        if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW or indaccs[g_m]==OP_INC:
-          FOR_INC('n','threadIdx.x','INDARG_size*INDDIM','blockDim.x')
-          if indaccs[g_m]==OP_WRITE or indaccs[g_m]==OP_RW:
-            code('INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM] = INDARG_s[n];')
-          elif indaccs[g_m]==OP_INC:
-            code('INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM] += INDARG_s[n];')
-          ENDFOR()
-#
-# ... and direct kernels
-#
-    else:
-      if use_shared:
-        comm('copy back into shared memory, then to device')
-      for m in range(0,nargs):
-        g_m = m
-        if (maps[m]<>OP_GBL and accs[m]<>OP_READ and dims[m]<>'1') and not(soaflags[m]):
-          code('')
-          FOR('m','0','DIM')
-          code('((TYP *)arg_s)[m+tid*DIM] = ARG_l[m];')
-          ENDFOR()
-          FOR('m','0','DIM')
-          code('ARG[tid+m*nelems+offset*DIM] = ((TYP *)arg_s)[tid+m*nelems];')
-          ENDFOR()
-
-      depth -= 2
-      code('}')
+    ENDFOR()
 
 #
 # global reduction
@@ -678,12 +542,26 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('args['+str(g_m)+'] = ARG;')
 
 #
+# start timing
+#
+    code('')
+    comm(' initialise timers')
+    code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
+    code('op_timing_realloc('+str(nk)+');')
+    code('op_timers_core(&cpu_t1, &wall_t1);')
+    code('OP_kernels[' +str(nk)+ '].name      = name;')
+    code('OP_kernels[' +str(nk)+ '].count    += 1;')
+    code('if (OP_kernels[' +str(nk)+ '].count==1) op_register_strides();')
+
+    code('')
+
+#
 #   indirect bits
 #
     if ninds>0:
       code('')
       code('int    ninds   = '+str(ninds)+';')
-      line = '  int    inds['+str(nargs)+'] = {'
+      line = 'int    inds['+str(nargs)+'] = {'
       for m in range(0,nargs):
         line += str(inds[m]-1)+','
       code(line[:-1]+'};')
@@ -713,26 +591,14 @@ def op2_gen_cuda(master, date, consts, kernels):
       ENDIF()
       code('')
       code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
-#
-# start timing
-#
-    code('')
-    comm(' initialise timers')
-    code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code('op_timers_core(&cpu_t1, &wall_t1);')
-    code('')
 
     IF('set->size > 0')
     code('')
-    code('op_timing_realloc('+str(nk)+');')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('')
-    if any_soa:
-      code('int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;')
-      #code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
-      code('cutilSafeCall(cudaMemcpyToSymbol(op2_stride , &op2_stride_internal, sizeof(int)));');
-      code('')
+#    if any_soa:
+#      code('int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;')
+#      #code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
+#      code('cutilSafeCall(cudaMemcpyToSymbol(op2_stride , &op2_stride_internal, sizeof(int)));');
+#      code('')
 
 #
 # kernel call for indirect version
@@ -779,8 +645,8 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('  int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
       code('#else')
-      comm('  int nthread = OP_block_size;')
-      code('  int nthread = 128;')
+      code('  int nthread = OP_block_size;')
+      comm('  int nthread = 128;')
       code('#endif')
       code('')
       code('int nblocks = 200;')
@@ -845,26 +711,25 @@ def op2_gen_cuda(master, date, consts, kernels):
       IF('Plan->ncolblk[col] > 0')
 
       if reduct:
-        code('int nshared = MAX(Plan->nshared,reduct_size*nthread);')
+        code('int nshared = reduct_size*nthread;')
+        code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
       else:
-        code('int nshared = Plan->nsharedCol[col];')
-
-      code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
+        code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
 
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
         code('(TYP *)ARG.data_d,')
-
-      code('Plan->ind_map,')
-      code('Plan->loc_map,')
-
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(TYP*)ARG.data_d,')
 
 
-      code('Plan->ind_sizes,')
-      code('Plan->ind_offs,')
       code('block_offset,')
       code('Plan->blkmap,')
       code('Plan->offset,')
@@ -872,7 +737,7 @@ def op2_gen_cuda(master, date, consts, kernels):
       code('Plan->nthrcol,')
       code('Plan->thrcol,')
       code('Plan->ncolblk[col],')
-      code('set_size);')
+      code('set->size+set->exec_size);')
       code('')
       if reduct:
         comm('transfer global reduction data back to CPU')
@@ -887,25 +752,11 @@ def op2_gen_cuda(master, date, consts, kernels):
 # kernel call for direct version
 #
     else:
-      comm('work out shared memory requirements per element')
-      code('')
-      code('int nshared = 0;')
-
-      for g_m in range(0,nargs):
-         if maps[g_m]<>OP_GBL and dims[g_m]<>'1':
-           code('nshared = MAX(nshared,sizeof(TYP)*DIM);')
-
-      code('')
-      comm('execute plan')
-      code('int offset_s = nshared*OP_WARPSIZE;')
-      code('')
-
       if reduct:
-        code('nshared = MAX(nshared*nthread,reduct_size*nthread);')
+        code('int nshared = reduct_size*nthread;')
+        code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
       else:
-        code('nshared = nshared*nthread;')
-
-      code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
+        code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
 
       indent = '  '#*(len(name)+42)
       for g_m in range(0,nargs):
@@ -914,7 +765,6 @@ def op2_gen_cuda(master, date, consts, kernels):
         else:
           code(indent+'(TYP *) ARG.data_d,')
 
-      code(indent+'offset_s,')
       code(indent+'set->size );')
 
     if ninds>0:
@@ -954,6 +804,7 @@ def op2_gen_cuda(master, date, consts, kernels):
 # update kernel record
 #
 
+    code('cutilSafeCall(cudaDeviceSynchronize());')
     comm('update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
@@ -1000,6 +851,10 @@ def op2_gen_cuda(master, date, consts, kernels):
   code('#endif')
   code('')
 
+  code('#define STRIDE(x,y) x*y')
+  for ns in range (0,len(sets)):
+    code('__constant__ int '+sets[ns]['name']+'_stride;')
+
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
@@ -1016,6 +871,15 @@ def op2_gen_cuda(master, date, consts, kernels):
     code('')
     code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
 
+  code('')
+  code('void op_register_strides() {')
+  depth = depth + 2
+  code('int size;')
+  for ns in range (0,len(sets)):
+    code('size = op_size_of_set("'+sets[ns]['name']+'");')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name']+'_stride, &size, sizeof(int)));')
+  depth = depth - 2
+  code('}')
   code('')
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')
@@ -1051,6 +915,4 @@ def op2_gen_cuda(master, date, consts, kernels):
   fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
   fid.write(file_text)
   fid.close()
-
-
 
