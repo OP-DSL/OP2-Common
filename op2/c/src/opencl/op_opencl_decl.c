@@ -116,6 +116,34 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
 op_dat
 op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char const * name )
 {
+
+  char* data = NULL;
+  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
+
+  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat-> user_managed = 0;
+
+  //transpose data
+  if (strstr( type, ":soa")!= NULL) {
+    char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
+    int element_size = dat->size/dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set->size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size*i*set->size + element_size*j + c] = data[dat->size*j+element_size*i+c];
+        }
+      }
+    }
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                          ( void ** ) &( temp_data ), dat->size * set->size );
+    free(temp_data);
+  } else {
+    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
+                        ( void ** ) &( dat->data ), dat->size * set->size );
+  }
+
+  return dat;
+
 //  char* data = NULL;
 //  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
 //
@@ -142,7 +170,7 @@ op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char co
 //  }
 //
 //  return dat;
-  return 0;
+//  return 0;
 }
 
 int op_free_dat_temp_char ( op_dat dat )
@@ -206,33 +234,31 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 {
 #warning "const_d is not kept track of, therefore it will not be freed up!"
   // Add constant to constant array
-//  cl_mem const_tmp[OP_opencl_core.n_constants+1];
+  // Create temporary cl_mem array for constants
   cl_mem *const_tmp;
   const_tmp = (cl_mem*) malloc((OP_opencl_core.n_constants)*sizeof(cl_mem));
+  // Copy already existing constant to const_tmp
   for(int i=0; i<OP_opencl_core.n_constants; i++)
     const_tmp[i] = OP_opencl_core.constant[i];
 
+  // Allocate memory on host for a larger array of constant data structure
   cl_int ret = 0;
   OP_opencl_core.n_constants++;
   OP_opencl_core.constant = (cl_mem*) malloc((OP_opencl_core.n_constants)*sizeof(cl_mem));
 
+  // Copy already existing pointers
   for(int i=0; i<OP_opencl_core.n_constants-1; i++)
     OP_opencl_core.constant[i] = const_tmp[i];
 
+  // Allocate new memory space for the new constant
   OP_opencl_core.constant[OP_opencl_core.n_constants-1] = clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_ONLY, dim*size, NULL, &ret);
   clSafeCall( ret );
 
+  // Write the new constant to the memory of the device
   clSafeCall( clEnqueueWriteBuffer(OP_opencl_core.command_queue, OP_opencl_core.constant[OP_opencl_core.n_constants-1], CL_TRUE, 0, dim*size, (void*) dat, 0, NULL, NULL) );
   clSafeCall( clFlush(OP_opencl_core.command_queue) );
   clSafeCall( clFinish(OP_opencl_core.command_queue) );
-
-//  free(OP_opencl_core.constant);
-
-
-//  cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim * size, 0,
-//                                       cudaMemcpyHostToDevice ) );
 }
-
 
 int op_get_size(op_set set)
 {

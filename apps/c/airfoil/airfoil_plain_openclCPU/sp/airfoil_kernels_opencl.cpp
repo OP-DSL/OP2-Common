@@ -163,8 +163,3 @@ void buildOpenCLKernels() {
 #include "res_calc_kernel_opencl.cpp"
 #include "bres_calc_kernel_opencl.cpp"
 #include "update_kernel_opencl.cpp"
-
-
-
-
-

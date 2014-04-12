@@ -112,7 +112,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],13, sizeof(cl_mem), (void*) &Plan->thrcol) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],14, sizeof(cl_int), (void*) &Plan->ncolblk[col]) ); 
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],15, sizeof(cl_int), (void*) &set_size) );
-        
+
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],16, sizeof(cl_mem), (void*) &OP_opencl_core.constant[1]) ); // gm1
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[2],17, sizeof(cl_mem), (void*) &OP_opencl_core.constant[3]) ); // eps
 

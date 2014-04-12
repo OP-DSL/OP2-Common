@@ -438,7 +438,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].ind_offs = ( int * ) malloc ( nblocks * ninds * sizeof ( int ) );
   OP_plans[ip].ind_sizes = ( int * ) malloc ( nblocks * ninds * sizeof ( int ) );
   OP_plans[ip].nindirect = ( int * ) calloc ( ninds, sizeof ( int ) );
-  OP_plans[ip].loc_maps = ( int ** ) malloc ( nargs * sizeof ( int * ) );
+  OP_plans[ip].loc_maps = ( short ** ) malloc ( nargs * sizeof ( int * ) );
   OP_plans[ip].nelems = ( int * ) malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].ncolblk = ( int * ) calloc ( exec_length, sizeof ( int ) );  /* max possibly needed */
   OP_plans[ip].blkmap = ( int * ) calloc ( nblocks, sizeof ( int ) );
@@ -471,7 +471,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     OP_plans[ip].accs[m] = args[m].acc;
   }
 
-  OP_plans[ip].loc_map = ( int * ) malloc ( counter * exec_length * sizeof ( int ) );
+  OP_plans[ip].loc_map = ( short * ) malloc ( counter * exec_length * sizeof ( int ) );
   counter = 0;
   for ( int m = 0; m < nargs; m++ ) {
     if ( inds[m] >= 0 ) {

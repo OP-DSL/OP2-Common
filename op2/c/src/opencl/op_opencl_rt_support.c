@@ -216,7 +216,7 @@ void openclDeviceInit( int argc, char ** argv )
 // }
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_GPU, 4, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
   clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
-  //clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+//  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
  
@@ -504,6 +504,17 @@ void op_opencl_exit ( )
 
 void reallocConstArrays ( int consts_bytes )
 {
+  cl_int ret;
+  if ( consts_bytes > OP_consts_bytes ) {
+    if ( OP_consts_bytes > 0 ) {
+      free ( OP_consts_h );
+      clSafeCall( clReleaseMemObject((cl_mem)OP_consts_d) );
+    }
+    OP_consts_bytes = 4 * consts_bytes;  // 4 is arbitrary, more than needed
+    OP_consts_h = ( char * ) malloc ( OP_consts_bytes );
+    OP_consts_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_consts_bytes, NULL, &ret);
+    clSafeCall( ret );
+  }
 //  if ( consts_bytes > OP_consts_bytes ) {
 //    if ( OP_consts_bytes > 0 ) {
 //      free ( OP_consts_h );
@@ -519,16 +530,19 @@ void reallocConstArrays ( int consts_bytes )
 void reallocReductArrays ( int reduct_bytes )
 {
   cl_int ret;
-    if ( reduct_bytes > OP_reduct_bytes ) {
-      if ( OP_reduct_bytes > 0 ) {
-        free ( OP_reduct_h );
-        clSafeCall( clReleaseMemObject((cl_mem)OP_reduct_d) );
-      }
-      OP_reduct_bytes = 4 * reduct_bytes;  // 4 is arbitrary, more than needed
-      OP_reduct_h = ( char * ) malloc ( OP_reduct_bytes );
-      OP_reduct_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_reduct_bytes, NULL, &ret);
-      clSafeCall( ret );
+  if ( reduct_bytes > OP_reduct_bytes ) {
+    if ( OP_reduct_bytes > 0 ) {
+      free ( OP_reduct_h );
+      clSafeCall( clReleaseMemObject((cl_mem)OP_reduct_d) );
     }
+    OP_reduct_bytes = 4 * reduct_bytes;  // 4 is arbitrary, more than needed
+    OP_reduct_h = ( char * ) malloc ( OP_reduct_bytes );
+    OP_reduct_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_reduct_bytes, NULL, &ret);
+    clSafeCall( ret );
+  }
+
+
+
 //  if ( reduct_bytes > OP_reduct_bytes ) {
 //    if ( OP_reduct_bytes > 0 ) {
 //      free ( OP_reduct_h );
@@ -541,12 +555,43 @@ void reallocReductArrays ( int reduct_bytes )
 //  }
 }
 
+//void reallocReductArrays ( int reduct_bytes )
+//{
+//  cl_int ret;
+////  if ( reduct_bytes > OP_reduct_bytes ) {
+//    if ( OP_reduct_bytes > 0 ) {
+//      free ( OP_reduct_h );
+//      clSafeCall( clReleaseMemObject((cl_mem)OP_reduct_d) );
+//    }
+//    OP_reduct_bytes = 4 * reduct_bytes;  // 4 is arbitrary, more than needed
+//    OP_reduct_h = ( char * ) malloc ( OP_reduct_bytes );
+//    OP_reduct_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_reduct_bytes, NULL, &ret);
+//    clSafeCall( ret );
+////  }
+//
+//
+//
+////  if ( reduct_bytes > OP_reduct_bytes ) {
+////    if ( OP_reduct_bytes > 0 ) {
+////      free ( OP_reduct_h );
+////      cutilSafeCall ( cudaFree ( OP_reduct_d ) );
+////    }
+////    OP_reduct_bytes = 4 * reduct_bytes;  // 4 is arbitrary, more than needed
+////    OP_reduct_h = ( char * ) malloc ( OP_reduct_bytes );
+////    cutilSafeCall ( cudaMalloc ( ( void ** ) &OP_reduct_d,
+////                                 OP_reduct_bytes ) );
+////  }
+//}
+
 //
 // routines to move constant/reduct arrays
 //
 
 void mvConstArraysToDevice ( int consts_bytes )
 {
+  clSafeCall( clEnqueueWriteBuffer(OP_opencl_core.command_queue, (cl_mem) OP_consts_d, CL_TRUE, 0, consts_bytes, (void*) OP_consts_h, 0, NULL, NULL) );
+  clSafeCall( clFlush(OP_opencl_core.command_queue) );
+  clSafeCall( clFinish(OP_opencl_core.command_queue) );
 //  cutilSafeCall ( cudaMemcpy ( OP_consts_d, OP_consts_h, consts_bytes,
 //                               cudaMemcpyHostToDevice ) );
 //  cutilSafeCall ( cudaThreadSynchronize (  ) );

@@ -58,19 +58,13 @@ void op_par_loop_update(char const *name, op_set set,
     //int nblocks = 200;
     int nblocks = 1+(set->size-1)/nthread;
 
-
     // transfer global reduction data to GPU
-
     int maxblocks = nblocks;
-
     int reduct_bytes = 0;
     int reduct_size  = 0;
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
     reduct_size   = MAX(reduct_size,sizeof(float)*64);
-
-
     reallocReductArrays(reduct_bytes);
-
     reduct_bytes = 0;
     arg4.data   = OP_reduct_h + reduct_bytes;
     arg4.data_d = OP_reduct_d + reduct_bytes;
@@ -78,7 +72,6 @@ void op_par_loop_update(char const *name, op_set set,
       for (int d=0; d<1; d++)
         ((float *)arg4.data)[d+b*1*64] = ZERO_float;
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
-
     mvReductArraysToDevice(reduct_bytes);
 
 //    size_t nblocks[3] = {

@@ -102,7 +102,6 @@ __kernel void op_opencl_res_calc(
         arg7_l[d] = ZERO_float;
       }
    
-
       map0idx = ind_arg0_map_data[n + offset_b + set_size * 0];
       map1idx = ind_arg0_map_data[n + offset_b + set_size * 1];
       map2idx = ind_arg2_map_data[n + offset_b + set_size * 0];
