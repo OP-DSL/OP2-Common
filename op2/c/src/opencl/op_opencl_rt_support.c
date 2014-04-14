@@ -215,51 +215,55 @@ void openclDeviceInit( int argc, char ** argv )
 //  break;
 // }
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_GPU, 4, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+
   clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_CPU, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
+
 //  clSafeCall( clGetDeviceIDs(OP_opencl_core.platform_id[0], CL_DEVICE_TYPE_ACCELERATOR, 1, &OP_opencl_core.device_id, &OP_opencl_core.n_devices) );
 //  printf("ret clGetDeviceIDs(.,%d,...) = %d\n", device_type,ret);
 
  
 //#pragma OPENCL EXTENSION cl_ext_device_fission : enable 
 
-  //Create sub-device properties: Equally with 4 compute units each:
-//  cl_device_partition_property props[3];
-  //props[0] = CL_DEVICE_PARTITION_EQUALLY; // By Affinity
-  //props[1] = 16; // 16threads / subdevice
-  //props[2] = 0; // End of the property list
-
-  //props[0] = CL_DEVICE_PARTITION_BY_COUNTS; // By Affinity
-  //props[1] = 16; // 16threads / subdevice
-  //props[2] = 16; // 16threads / subdevice
-  //props[3] = CL_DEVICE_PARTITION_BY_COUNTS_LIST_END; // 16threads / subdevice
-  //props[4] = 0; // End of the property list
-
-  //props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
-  //props[1] = CL_DEVICE_AFFINITY_DOMAIN_NUMA; // NUMA
-  //props[2] = 0; // End of the property list
-
-  //props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
-  //props[1] = CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE; // NUMA
-  //props[2] = 0; // End of the property list
-
-//  OP_opencl_core.subdev_id = (cl_device_id*) malloc(16*sizeof(cl_device_id));
+//#define HTT_THREADS 24
+//#define NSOCKETS     2
+//#define SUBDEV_SIZE (HTT_THREADS / NSOCKETS)
+//  //Create sub-device properties: Equally with 4 compute units each:
+//  cl_device_partition_property props[100];
+////  props[0] = CL_DEVICE_PARTITION_EQUALLY; // By Affinity
+////  props[1] = SUBDEV_SIZE; // 16threads / subdevice
+////  props[2] = 0; // End of the property list
+//
+//  props[0] = CL_DEVICE_PARTITION_BY_COUNTS; // By Affinity
+//  props[1] = SUBDEV_SIZE; // 16threads / subdevice
+//  props[2] = SUBDEV_SIZE; // 16threads / subdevice
+//  props[3] = CL_DEVICE_PARTITION_BY_COUNTS_LIST_END; // 16threads / subdevice
+//  props[4] = 0; // End of the property list
+//
+////  props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
+////  props[1] = CL_DEVICE_AFFINITY_DOMAIN_NUMA; // NUMA
+////  props[2] = 0; // End of the property list
+//
+////  props[0] = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN; // By Affinity
+////  props[1] = CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE; // NUMA
+////  props[2] = 0; // End of the property list
+//
+//  OP_opencl_core.subdev_id = (cl_device_id*) malloc(NSOCKETS*sizeof(cl_device_id));
 //  cl_uint num_devices = 2;
 //  cl_uint num_subdevices = 0;
 //  // Create the sub-devices:
 //  cl_int ret2 = clCreateSubDevices(OP_opencl_core.device_id, props, 0, NULL, &num_subdevices);
 //  printf("ret code = %d \n",ret2);
-//  printf("Number of NUMA SubDevices = %d \n",num_subdevices);
-//  ret2 =  clCreateSubDevices(OP_opencl_core.device_id, props, num_devices, OP_opencl_core.subdev_id, NULL);//&num_subdevices);
+//  //printf("Number of NUMA SubDevices = %d \n",num_subdevices);
+//  ret2 =  clCreateSubDevices(OP_opencl_core.device_id, props, num_devices, OP_opencl_core.subdev_id, &num_subdevices);//&num_subdevices);
 //  printf("ret code = %d \n",ret2);
 ////OP_opencl_core.device_id = OP_opencl_core.subdev_id[0];
 //
-//  printf("Number of NUMA SubDevices 2= %d \n",num_subdevices);
+//  printf("Number of NUMA SubDevices = %d \n",num_subdevices);
 //  printf("  0 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[0]);
 //  printf("  1 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[1]);
 //  printf("  2 NUMA SubDeviceID = %d \n",OP_opencl_core.subdev_id[2]);
-
-
-
+//
+//  OP_opencl_core.device_id = OP_opencl_core.subdev_id[0];
 
   if(OP_opencl_core.n_platforms == 0 && OP_opencl_core.n_devices == 0) {
     printf("No OpenCL platform or device is available! Exiting.\n");
@@ -515,6 +519,7 @@ void reallocConstArrays ( int consts_bytes )
     OP_consts_d = (char*) clCreateBuffer(OP_opencl_core.context, CL_MEM_READ_WRITE, OP_consts_bytes, NULL, &ret);
     clSafeCall( ret );
   }
+
 //  if ( consts_bytes > OP_consts_bytes ) {
 //    if ( OP_consts_bytes > 0 ) {
 //      free ( OP_consts_h );
