@@ -8,7 +8,6 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   op_arg arg4,
   op_arg arg5 ){
 
-
   int    nargs   = 6;
   op_arg args[6];
 
@@ -55,7 +54,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
     for (int col=0; col < Plan->ncolors; col++) {
 
-      if (col==Plan->ncolors_core) op_mpi_wait_all(nargs,args);
+      //if (col==Plan->ncolors_core) op_mpi_wait_all(nargs,args);
 
     #ifdef OP_BLOCK_SIZE_3
       int nthread = OP_BLOCK_SIZE_3;
@@ -68,12 +67,10 @@ void op_par_loop_bres_calc(char const *name, op_set set,
           Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
           Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1,
           1 };
-
       size_t globalWorkSize[3] = {nblocks[0]*nthread, nblocks[1], nblocks[2]};
       size_t localWorkSize[3] = {nthread, 1, 1};
 
       if (Plan->ncolblk[col] > 0) {
-        int nshared = Plan->nsharedCol[col];
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 0, sizeof(cl_mem), (void*) &arg0.data_d) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 1, sizeof(cl_mem), (void*) &arg2.data_d) ); 
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[3], 2, sizeof(cl_mem), (void*) &arg3.data_d) );
@@ -96,7 +93,6 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         clSafeCall( clEnqueueNDRangeKernel(OP_opencl_core.command_queue, OP_opencl_core.kernel[3], 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL) );
         clSafeCall( clFlush(OP_opencl_core.command_queue) );
         clSafeCall( clFinish(OP_opencl_core.command_queue) );
-
 
 //        op_cuda_bres_calc<<<nblocks,nthread,nshared>>>(
 //           (float *)arg0.data_d,
@@ -131,7 +127,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   }
 
 
-  op_mpi_set_dirtybit(nargs, args);
+  //op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
 

@@ -15,7 +15,7 @@
       printf(" kernel routine w/o indirection:  save_soln\n");
     }
 
-    op_mpi_halo_exchanges(set, nargs, args);
+    //op_mpi_halo_exchanges(set, nargs, args);
 
     // initialise timers
 
@@ -67,7 +67,7 @@
       clSafeCall( clFinish(OP_opencl_core.command_queue) );
     }
 
-    op_mpi_set_dirtybit(nargs, args);
+    //op_mpi_set_dirtybit(nargs, args);
 
     // update kernel record
 

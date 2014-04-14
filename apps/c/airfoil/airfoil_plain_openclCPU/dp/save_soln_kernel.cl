@@ -4,17 +4,6 @@ inline void save_soln(double *q, double *qold){
   for (int n=0; n<4; n++) qold[n] = q[n];
 }
 
-///* Header to make Clang compatible with OpenCL */
-//#define __global __attribute__((address_space(1)))
-//
-//int get_global_id(int index);
-//int get_local_id(int index);
-//int get_local_size(int index);
-//int get_num_groups(int index);
-//
-//#define OP_WARPSIZE 32
-
-
 /*
  * min / max definitions
  */

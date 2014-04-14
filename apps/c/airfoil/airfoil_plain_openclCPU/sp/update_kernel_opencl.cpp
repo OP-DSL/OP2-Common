@@ -59,29 +59,49 @@ void op_par_loop_update(char const *name, op_set set,
     int nblocks = 1+(set->size-1)/nthread;
 
     // transfer global reduction data to GPU
+//    int maxblocks = nblocks;
+//    int reduct_bytes = 0;
+//    int reduct_size  = 0;
+//    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
+//    reduct_size   = MAX(reduct_size,sizeof(float)*64);
+//int simd_width = (64/sizeof(float));// scalar code
+//    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
+//    reduct_size   = MAX(reduct_size,sizeof(float)*64*simd_width);
+//
+//
+//    reallocReductArrays(reduct_bytes);
+//    reduct_bytes = 0;
+//    arg4.data   = OP_reduct_h + reduct_bytes;
+//    arg4.data_d = OP_reduct_d + reduct_bytes;
+//    for (int b=0; b<maxblocks; b++) {
+//    	for (int d=0; d<1; d++) {
+//    		((float *)arg4.data)[d+b*1*64] = ZERO_float;
+//    		reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
+//    		for (int lane=0; lane<simd_width; lane++) {
+//    			((float *)arg4.data)[lane+d+b*1*64*simd_width] = ZERO_float;
+//    		}
+//    	}
+//    }
+//    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
+//
+//    mvReductArraysToDevice(reduct_bytes);
     int maxblocks = nblocks;
     int reduct_bytes = 0;
     int reduct_size  = 0;
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
     reduct_size   = MAX(reduct_size,sizeof(float)*64);
-int simd_width = (64/sizeof(float));// scalar code
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
-    reduct_size   = MAX(reduct_size,sizeof(float)*64*simd_width);
-
-
     reallocReductArrays(reduct_bytes);
     reduct_bytes = 0;
     arg4.data   = OP_reduct_h + reduct_bytes;
     arg4.data_d = OP_reduct_d + reduct_bytes;
-    for (int b=0; b<maxblocks; b++)
-      for (int d=0; d<1; d++)
-        ((float *)arg4.data)[d+b*1*64] = ZERO_float;
+    for (int b=0; b<maxblocks; b++) {
+    	for (int d=0; d<1; d++) {
+    		((float *)arg4.data)[d+b*1*64] = ZERO_float;
+    	}
+    }
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64);
-      for (int lane=0; lane<simd_width; lane++)
-        ((float *)arg4.data)[lane+d+b*1*64*simd_width] = ZERO_float;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float)*64*simd_width);
-
     mvReductArraysToDevice(reduct_bytes);
+
 
 //    size_t nblocks[3] = {
 //        Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
@@ -120,24 +140,26 @@ int simd_width = (64/sizeof(float));// scalar code
     //clSafeCall( clEnqueueReadBuffer(OP_opencl_core.command_queue, (cl_mem) arg4.data_d, CL_TRUE, 0, arg4.size * arg4.set->size, arg4.data, 0, NULL, NULL) );
 
 
-    for (int b=0; b<maxblocks; b++)
+    for (int b=0; b<maxblocks; b++) {
       for (int d=0; d<1; d++) {
-        for (int lane=0; lane<simd_width; lane++)
-          arg4h[d] = arg4h[d] + ((float *)arg4.data)[lane+d+b*1*64*simd_width];
+       	arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1*64];
+//      	for (int lane=0; lane<simd_width; lane++)
+//          arg4h[d] = arg4h[d] + ((float *)arg4.data)[lane+d+b*1*64*simd_width];
     //    printf("((float *)arg4.data)[d+b*1*64] = %e\n",((float *)arg4.data)[d+b*1*64]);
       }
+    }
 
   arg4.data = (char *)arg4h;
 
   //printf("arg4.data = %e \n",*((float*)arg4.data));
   //printf("arg4ih = %e \n",(float)arg4h[0]);
 
-  op_mpi_reduce(&arg4,arg4h);
+  //op_mpi_reduce(&arg4,arg4h);
 
   }
 
 
-  op_mpi_set_dirtybit(nargs, args);
+  //op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
 

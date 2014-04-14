@@ -4,7 +4,7 @@ typedef double T;
 #define reduction OP_INC
 #define WARP_SIZE 32
 
-#define ZERO_double 0.0f
+#define ZERO_double 0.0
 
 //inline void op_reduction_openclCPU(__global volatile T * dat_g, T dat_l, int set_size) {
 //  __local double temp[2048];
@@ -160,7 +160,7 @@ typedef double T;
 inline void update(__global const double * restrict qold, __global double * restrict q, __global double * restrict res, __global const double * restrict adt, double *rms){
   double del, adti;
 
-  adti = 1.0f/(*adt);
+  adti = 1.0/(*adt);
 
   for (int n=0; n<4; n++) {
     del    = adti*res[n];
@@ -204,7 +204,7 @@ __kernel void op_opencl_update(
 //  barrier(CLK_LOCAL_MEM_FENCE);
 //arg4_l[0] += 1.0f;
 //   AtomicAdd(&dat_s[0],1.0f);// ++;//+= arg4_l[0];
-  arg4[get_group_id(0)*1*64] += arg4_l[0];//dat_s[0];
+  arg4[get_group_id(0)*1*64] += arg4_l[0];
   // global reductions
 //  int d=0;
 //  for(d=0; d<1; d++) { 

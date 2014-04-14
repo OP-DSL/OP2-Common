@@ -109,14 +109,7 @@ void op_par_loop_update(char const *, op_set,
 // kernel routines for parallel loops
 //
 
-//#include "save_soln.h"
-//#include "adt_calc.h"
-//#include "res_calc.h"
-//#include "bres_calc.h"
-//#include "update.h"
-
 // main program
-
 int main(int argc, char **argv)
 {
 op_printf("init... \n");

@@ -1,9 +1,4 @@
 // host stub function
-
-//extern double gam;
-//extern double gm1;
-//extern double cfl;
-
 void op_par_loop_adt_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
@@ -88,8 +83,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 //      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
 //                      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-        int nshared = Plan->nsharedCol[col];
-
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 0, sizeof(cl_mem), (void*) &arg0.data_d) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 1, sizeof(cl_mem), (void*) &arg0.map_data_d) );
         clSafeCall( clSetKernelArg(OP_opencl_core.kernel[1], 2, sizeof(cl_mem), (void*) &arg4.data_d) );
@@ -142,7 +135,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   }
 
 
-  op_mpi_set_dirtybit(nargs, args);
+  //op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
 

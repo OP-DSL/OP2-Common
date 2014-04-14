@@ -204,15 +204,7 @@ __kernel void op_opencl_update(
 //  barrier(CLK_LOCAL_MEM_FENCE);
 //arg4_l[0] += 1.0f;
 //   AtomicAdd(&dat_s[0],1.0f);// ++;//+= arg4_l[0];
-
-//int simd_width = 1;// scalar code
-int simd_width = (64/sizeof(float));// scalar code
-  arg4[get_local_id(0)%simd_width+get_group_id(0)*1*64*simd_width] += arg4_l[0];//dat_s[0];
-
-
-
-
-
+  arg4[get_group_id(0)*1*64] += arg4_l[0];
   // global reductions
 //  int d=0;
 //  for(d=0; d<1; d++) { 

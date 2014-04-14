@@ -109,14 +109,7 @@ void op_par_loop_update(char const *, op_set,
 // kernel routines for parallel loops
 //
 
-//#include "save_soln.h"
-//#include "adt_calc.h"
-//#include "res_calc.h"
-//#include "bres_calc.h"
-//#include "update.h"
-
 // main program
-
 int main(int argc, char **argv)
 {
 op_printf("init... \n");
@@ -266,7 +259,7 @@ op_printf("iteration start \n");
     for(int k=0; k<2; k++) {
 
       // calculate area/timstep
-
+    	//op_printf("adt_calc... \n");
       op_par_loop_adt_calc("adt_calc",cells,
                  op_arg_dat(p_x,0,pcell,2,"float",OP_READ),
                  op_arg_dat(p_x,1,pcell,2,"float",OP_READ),
@@ -276,7 +269,7 @@ op_printf("iteration start \n");
                  op_arg_dat(p_adt,-1,OP_ID,1,"float",OP_WRITE));
 
       // calculate flux residual
-
+      //op_printf("res_calc... \n");
       op_par_loop_res_calc("res_calc",edges,
                  op_arg_dat(p_x,0,pedge,2,"float",OP_READ),
                  op_arg_dat(p_x,1,pedge,2,"float",OP_READ),
@@ -287,6 +280,7 @@ op_printf("iteration start \n");
                  op_arg_dat(p_res,0,pecell,4,"float",OP_INC),
                  op_arg_dat(p_res,1,pecell,4,"float",OP_INC));
 
+      //op_printf("bres_calc... \n");
       op_par_loop_bres_calc("bres_calc",bedges,
                  op_arg_dat(p_x,0,pbedge,2,"float",OP_READ),
                  op_arg_dat(p_x,1,pbedge,2,"float",OP_READ),
@@ -298,7 +292,7 @@ op_printf("iteration start \n");
       // update flow field
 
       rms = 0.0;
-
+      //op_printf("update... \n");
       op_par_loop_update("update",cells,
                  op_arg_dat(p_qold,-1,OP_ID,4,"float",OP_READ),
                  op_arg_dat(p_q,-1,OP_ID,4,"float",OP_WRITE),
