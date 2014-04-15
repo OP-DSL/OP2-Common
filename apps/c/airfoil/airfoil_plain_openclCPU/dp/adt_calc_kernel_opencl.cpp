@@ -60,8 +60,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_1
       size_t nthread = OP_BLOCK_SIZE_1;
     #else
-      size_t nthread = OP_part_size;
-      //size_t nthread = OP_block_size;
+      //size_t nthread = OP_part_size;
+      size_t nthread = OP_block_size;
       //size_t nthread = 256;
     #endif
 

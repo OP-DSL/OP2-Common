@@ -60,8 +60,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     #ifdef OP_BLOCK_SIZE_3
       int nthread = OP_BLOCK_SIZE_3;
     #else
-      //int nthread = OP_block_size;
-      int nthread = 128;
+      int nthread = OP_block_size;
+      //int nthread = 128;
     #endif
 
       size_t nblocks[3] = {
