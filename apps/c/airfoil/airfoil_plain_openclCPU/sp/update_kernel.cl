@@ -140,17 +140,17 @@ typedef float T;
 ////  int i;
 ////  for(i=1; i<get_local_size(0); i++) {
 ////    dat_s[0] += dat_s[i];
-////  } 
+////  }
 //}
 
   // reduce step three: write out workgroup reduction result
-  //dat_g[get_global_id(0)/get_local_size(0)] = get_global_id(0);///get_local_size(0);//get_group_id(0);//] = get_global_offset(0);//get_local_size(0);//dat_s[0];  
-//  dat_g[get_group_id(0)+1] = 22;//get_group_id(0);//22.0f;//dat_s[0];  
-//if(get_local_id(0) <200)  dat_g[get_local_id(0)] = get_local_id(0);//22.0f;//dat_s[0];  
+  //dat_g[get_global_id(0)/get_local_size(0)] = get_global_id(0);///get_local_size(0);//get_group_id(0);//] = get_global_offset(0);//get_local_size(0);//dat_s[0];
+//  dat_g[get_group_id(0)+1] = 22;//get_group_id(0);//22.0f;//dat_s[0];
+//if(get_local_id(0) <200)  dat_g[get_local_id(0)] = get_local_id(0);//22.0f;//dat_s[0];
 //printf("get_group_id(0) = %d\n", get_global_id(0));//g[get_group_id(0)]);
 //printf("dat_g[0] = %e\n", dat_s[0]);//g[get_group_id(0)]);
-//if(get_local_id(0) == 0) *dat_g = dat_s[0];  
- 
+//if(get_local_id(0) == 0) *dat_g = dat_s[0];
+
 //  printf("dat_l = %e \n", dat_s[0]);
 //  result[get_group_id(0)] = dat_l;
 // printf("get_group_id(0) = %d: dat_g[] = %e\n", get_local_id(0),(float)dat_l);//g[get_group_id(0)]);
