@@ -35,7 +35,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -g
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
   OPENMP = -mp
   CPPLINK = -pgcpplibs
   ALL_TARGET = airfoil_seq airfoil_openmp_$(PART_SIZE_ENV) airfoil_cuda
