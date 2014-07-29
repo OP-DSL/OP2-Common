@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+export CURRENT_DIR=$PWD
 export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2
 export OP2_APPS_DIR=/home/mudalige/OP2-GIT/OP2-Common/apps
 cd $OP2_INSTALL_PATH/c
@@ -10,7 +11,7 @@ cd $OP2_INSTALL_PATH/c
 echo " "
 echo " "
 echo "=======================> Building C back-end libs with Intel Compilers"
-. source_intel
+. $CURRENT_DIR/source_intel
 make clean; make 
 
 ########
@@ -125,7 +126,7 @@ cd $OP2_INSTALL_PATH/fortran
 echo " "
 echo " "
 echo "=======================> Building Fortan back-end libs with PGI Compilers"
-. source_pgi
+. $CURRENT_DIR/source_pgi
 make clean; make 
 
 ########
