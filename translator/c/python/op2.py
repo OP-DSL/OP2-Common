@@ -622,7 +622,7 @@ def main():
                 fid.write(' "op_lib_cpp.h"\n\n')
                 line = '\n#define STRIDE(x,y) x\n'
                 for ns in range (0,len(sets)):
-                  line += 'int '+sets[ns]['name']+'_stride = 1;\n'
+                  line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
                 fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
