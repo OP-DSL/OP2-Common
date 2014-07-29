@@ -1,5 +1,10 @@
 #!/bin/bash
-#set -e
+set -e
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2
+export OP2_APPS_DIR=/home/mudalige/OP2-GIT/OP2-Common/apps
+export OP2_C_APPS_BIN_DIR=/home/mudalige/OP2-GIT/OP2-Common/apps/c/bin
+cd $OP2_C_APPS_BIN_DIR
+
 echo "In directory $PWD"
 which mpirun
 #-------------------------------------------------------------------------------
