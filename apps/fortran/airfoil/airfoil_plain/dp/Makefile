@@ -31,7 +31,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  FC = pgfortran -fast -Mcuda=cuda5.0,cc20,fastmath,ptxinfo
+  FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -90,5 +90,6 @@ clean:
 	rm -f $(EXEC)
 	rm -f *~
 	rm -f airfoil_seq
+	rm -f airfoil_openmp_*
 	rm -f airfoil_openmp_$(PART_SIZE_ENV)
 	rm -f airfoil_cuda

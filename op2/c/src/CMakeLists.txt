@@ -48,7 +48,7 @@ endif()
 if(OP2_WITH_CUDA)
   ## Override CUDA default cache variables
   # These need to be separated by semicolon
-  set(CUDA_NVCC_FLAGS -arch=sm_20;-Xptxas;-dlcm=ca;-Xptxas=-v
+  set(CUDA_NVCC_FLAGS -arch=sm_35;-Xptxas;-dlcm=ca;-Xptxas=-v
     CACHE STRING "Flags used by NVCC during release builds
       (semi-colon delimit multiple arguments).")
   set(CUDA_NVCC_FLAGS_RELEASE -O3;-use_fast_math
