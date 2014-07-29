@@ -1,0 +1,11 @@
+export OP2_COMPILER=pgi
+export PARMETIS_INSTALL_PATH=/opt/Parmetis-4-pgi
+export PTSCOTCH_INSTALL_PATH=/opt/PT-Scotch-pgi/
+export HDF5_INSTALL_PATH=/opt/hdf5-1.8.10-pgi/
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
+export CUDA_INSTALL_PATH=/usr/local/cuda-6.0
+export MPI_INSTALL_PATH=/opt/openmpi-1.8-pgi142/
+export PATH=/rubydisk2/pgi/linux86-64/14.2/bin/:$PATH
+export LD_LIBRARY_PATH=/rubydisk2/pgi/linux86-64/14.2/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/openmpi-1.8-pgi142/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/Parmetis-4-pgi/lib:/opt/PT-Scotch-pgi/lib:$LD_LIBRARY_PATH
