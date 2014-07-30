@@ -65,7 +65,21 @@ endif
 endif
 endif
 
-NVCCFLAGS	= -O3 -arch=sm_35 -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+# flags for nvcc
+# set NV_ARCH to select the correct one
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+endif
+endif
+
+NVCCFLAGS	= -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
