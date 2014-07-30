@@ -63,7 +63,20 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -O3 -arch=sm_35 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+endif
+endif
+
+NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
 #

@@ -48,7 +48,25 @@ MPI_LIB = $(MPI_INSTALL_PATH)/lib
 #
 # compiler settings
 #
-NVCCFLAGS = -O3 -arch=sm_35 -m64 -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math
+
+# flags for nvcc
+# set NV_ARCH to select the correct one
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
+  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc20
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
+endif
+endif
+
+NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+
 # Default to PGI compiler
 #OP2_COMPILER ?= pgi
 
@@ -82,7 +100,7 @@ ifeq ($(OP2_COMPILER),pgi)
   PGCC            = pgcc
   PGCFLAGS        = -O2 -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 -Mcuda=cuda5.5,cc35 -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
+  PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
   CFLAGS          = $(PGCFLAGS)
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)

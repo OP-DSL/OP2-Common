@@ -2,8 +2,10 @@
 set -e
 
 export CURRENT_DIR=$PWD
-export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2
-export OP2_APPS_DIR=/home/mudalige/OP2-GIT/OP2-Common/apps
+cd $OP2_INSTALL_PATH
+cd ../apps
+export OP2_APPS_DIR=$PWD
+export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
 cd $OP2_INSTALL_PATH/c
 
 ##<<COMMENT1
@@ -12,7 +14,7 @@ echo " "
 echo " "
 echo "=======================> Building C back-end libs with Intel Compilers"
 . $CURRENT_DIR/source_intel
-make clean; make 
+make clean; make
 
 ########
 echo " "
@@ -112,8 +114,8 @@ $MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
 
 
-###COMMENT1
 
+##COMMENT1
 
 
 
@@ -127,7 +129,7 @@ echo " "
 echo " "
 echo "=======================> Building Fortan back-end libs with PGI Compilers"
 . $CURRENT_DIR/source_pgi
-make clean; make 
+make clean; make
 
 ########
 echo " "
@@ -135,7 +137,7 @@ echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 export PART_SIZE_ENV=128
-make clean; make 
+make clean; make
 
 ########
 echo " "
@@ -143,7 +145,7 @@ echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 export PART_SIZE_ENV=128
-make clean; make 
+make clean; make
 
 
 ################################################################################
@@ -158,7 +160,7 @@ echo "=======================> Running Airfoil Fortran Plain DP built with PGI C
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 export PART_SIZE_ENV=128
 #./airfoil_seq
-./airfoil_cuda 
+./airfoil_cuda
 export OMP_NUM_THREADS=24
 ./airfoil_openmp_$PART_SIZE_ENV
 
@@ -170,7 +172,7 @@ echo "=======================> Running Airfoil Fortran HDF5 DP built with PGI Co
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 export PART_SIZE_ENV=128
 #./airfoil_hdf5_seq
-./airfoil_hdf5_cuda 
+./airfoil_hdf5_cuda
 export OMP_NUM_THREADS=24
 ./airfoil_hdf5_openmp_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
@@ -178,8 +180,8 @@ $MPI_INSTALL_PATH/bin/mpirun -np 22 ./airfoil_hdf5_mpi
 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 $MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=24
-./airfoil_hdf5_mpi_openmp OP_PART_SIZE=256
+./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_hdf5_mpi_openmp OP_PART_SIZE=256
+$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 
 
