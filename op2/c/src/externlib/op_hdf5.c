@@ -198,59 +198,50 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hid_t file_id; //file identifier
   hid_t dset_id; //dataset identifier
   hid_t dataspace; //data space identifier
-  hid_t attr;   //attribute identifier  
+  hid_t attr;   //attribute identifier
 
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n", file);
-    //exit(2);
     return NULL;
   }
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
-  
+
   /* Save old error handler */
   H5E_auto_t  old_func;
   void *old_client_data;
-  hid_t error_stack;   //error stack identifier
-  H5Eget_auto(error_stack, &old_func, &old_client_data);
-  H5Eset_auto(error_stack, NULL, NULL); // turn off HDF5's auto error reporting
-    
-  /*find element size of this dat with available attributes*/
-  size_t dat_size = 0;
-  //open existing data set
+  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
+  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+
+  /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if(dset_id < 0){
     printf("op_dat with name : %s not found in file : %s \n",name,file);
-    return NULL;    
+    return NULL;
   }
-  
+
+  /*find element size of this dat with available attributes*/
+  size_t dat_size = 0;
   //get OID of the attribute
   attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
   if(attr < 0){
     printf("op_dat with name : %s does not have attribute : %s \n",name,"size");
-    return NULL;    
+    return NULL;
   }
-  
   //read attribute
   H5Aread(attr,H5T_NATIVE_INT,&dat_size);
   H5Aclose(attr);
-  //H5Dclose(dset_id);
 
   /*find dim with available attributes*/
   int dat_dim = 0;
-  //open existing data set
-  //dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  
   //get OID of the attribute
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
   if(attr < 0){
     printf("op_dat with name : %s does not have attribute : %s \n",name,"dim");
-    return NULL;    
+    return NULL;
   }
-  
   //read attribute
   H5Aread(attr,H5T_NATIVE_INT,&dat_dim);
   H5Aclose(attr);
-  //H5Dclose(dset_id);
   if(dat_dim != dim)
   {
     printf("dat.dim %d in file %s and dim %d do not match\n",dat_dim,file,dim);
@@ -260,27 +251,21 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*find type with available attributes*/
   dataspace= H5Screate(H5S_SCALAR);
   hid_t  atype = H5Tcopy(H5T_C_S1);
-
-  //open existing data set
-  //dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  
   //get OID of the attribute
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
   if(attr < 0){
     printf("op_dat with name : %s does not have attribute : %s \n",name,"type");
-    return NULL;    
+    return NULL;
   }
-
   //get length of attribute
   int attlen = H5Aget_storage_size(attr);
   H5Tset_size(atype, attlen+1);
-
   //read attribute
   char typ[attlen+1];
   H5Aread(attr,atype,typ);
   H5Aclose(attr);
   H5Sclose(dataspace);
-  //H5Dclose(dset_id);
+
   char typ_soa[50];
   sprintf(typ_soa, "%s:soa", typ);
   if(strcmp(typ,type) != 0 && strcmp(type, typ_soa) != 0)
@@ -289,11 +274,10 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     return NULL;
   }
 
-  /* Restore previous error handler */
-  H5Eset_auto(error_stack, old_func, old_client_data);
+  //Restore previous error handler .. report hdf5 error stack automatically
+  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
 
-  //Create the dataset with default properties and close dataspace.
-  //dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  //Create the dataset with default properties
   dataspace = H5Dget_space(dset_id);
 
   //initialize data buffer and read in data
