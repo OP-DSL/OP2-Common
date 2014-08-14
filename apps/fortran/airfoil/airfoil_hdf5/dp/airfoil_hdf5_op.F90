@@ -43,7 +43,7 @@ program AIRFOIL
   ! integer reference (valid inside the OP2 library) for op_data
   type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
   type(op_dat) :: p_test
-  
+
 
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
@@ -56,7 +56,7 @@ program AIRFOIL
   real(8) :: p, r, u, e
 
   integer(4) :: status
-  
+
   ! OP initialisation
   call op_init (0)
   call op_print ("Initialising OP2")
@@ -74,18 +74,18 @@ program AIRFOIL
   call op_decl_map_hdf5 ( bedges, nodes, 2, pbedge, 'new_grid.h5', 'pbedge', status )
   call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, 'new_grid.h5', 'pbecell', status )
   call op_decl_map_hdf5 ( cells, nodes, 4, pcell, 'new_grid.h5', 'pcell', status )
-  
+
   write (*,*) 'size of pcell ', status
   if (status .lt. 0)then
     write (*,*) 'pcell does do not exist', status
   end if
-  
+
   call op_decl_map_hdf5 ( cells, nodes, 4, m_test, 'new_grid.h5', 'm_test', status )
 
   if (status .lt. 0)then
     write (*,*) 'm_test does do not exist', status
   end if
-  
+
   call op_print ("Declaring OP2 data")
   call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'int', 'new_grid.h5', 'p_bound', status )
   call op_decl_dat_hdf5 ( nodes, 2, p_x, 'double', 'new_grid.h5', 'p_x' , status)
@@ -93,20 +93,20 @@ program AIRFOIL
   call op_decl_dat_hdf5 ( cells, 4, p_qold, 'double', 'new_grid.h5', 'p_qold' , status)
   call op_decl_dat_hdf5 ( cells, 1, p_adt, 'double', 'new_grid.h5', 'p_adt' , status)
   call op_decl_dat_hdf5 ( cells, 4, p_res, 'double', 'new_grid.h5', 'p_res' , status)
-  
+
   write (*,*) 'size of p_res ', status
   if (status .lt. 0)then
     write (*,*) 'p_res does do not exist', status
   end if
-  
+
   call op_decl_dat_hdf5 ( cells, 4, p_test, 'double', 'new_grid.h5', 'p_test' , status)
-  
+
   if (status .lt. 0)then
     write (*,*) 'p_test does do not exist', status
   end if
-  
+
   call op_print ("Declaring OP2 constants")
-       
+
   call op_print ('Initialising constants')
   call initialise_constants ( )
   !call op_write_hdf5("new_grid_out.h5");
