@@ -94,6 +94,7 @@ module OP2_Fortran_Declarations
 
     type(op_map_core), pointer :: mapPtr => null()
     type(c_ptr) :: mapCptr
+    integer (kind=c_int) :: status = -1
 
   end type op_map
 
@@ -122,7 +123,7 @@ module OP2_Fortran_Declarations
 
     type(op_dat_core), pointer :: dataPtr => null()
     type(c_ptr) :: dataCptr
-
+    integer (kind=c_int) :: status = -1
   end type op_dat
 
   type, BIND(C) :: op_arg
