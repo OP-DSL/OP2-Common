@@ -184,7 +184,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if(dset_id < 0) {
-    printf("op_map with name : %s not found in file : %s \n",name,file);
+    op_printf("op_map with name : %s not found in file : %s \n",name,file);
+    H5Dclose(dset_id);
+    H5Fclose(file_id);
     return NULL;
   }
 
@@ -192,7 +194,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   int g_size;
   hid_t attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n",name,"size");
+    op_printf("op_map with name : %s does not have attribute : %s \n",name,"size");
     return NULL;
   }
   H5Aread(attr,H5T_NATIVE_INT,&g_size);
@@ -201,7 +203,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   int l_size = compute_local_size_weight (g_size, comm_size, my_rank);
   //check if size is accurate
   if(from->size != l_size) {
-    printf("map from set size %d in file %s and size %d do not match on rank %d\n",
+    op_printf("map from set size %d in file %s and size %d do not match on rank %d\n",
         l_size,file,from->size, my_rank);
     return NULL;
   }
@@ -210,13 +212,13 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   int map_dim = 0;
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n",name,"dim");
+    op_printf("op_map with name : %s does not have attribute : %s \n",name,"dim");
     return NULL;
   }
   H5Aread(attr,H5T_NATIVE_INT,&map_dim);
   H5Aclose(attr);
   if(map_dim != dim) {
-    printf("map.dim %d in file %s and dim %d do not match\n",map_dim,file,dim);
+    op_printf("map.dim %d in file %s and dim %d do not match\n",map_dim,file,dim);
     return NULL;
   }
 
@@ -226,7 +228,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   H5Tset_size(atype, 10);
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n",name,"type");
+    op_printf("op_map with name : %s does not have attribute : %s \n",name,"type");
     return NULL;
   }
   char typ[10];
@@ -273,7 +275,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
     H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
   }
   else {
-    printf("unknown type\n");
+    op_printf("unknown type\n");
     return NULL;
   }
 
@@ -336,7 +338,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if(dset_id < 0) {
-    printf("op_dat with name : %s not found in file : %s \n",name,file);
+    op_printf("op_dat with name : %s not found in file : %s \n",name,file);
+    H5Dclose(dset_id);
+    H5Fclose(file_id);
     return NULL;
   }
 
@@ -344,7 +348,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   size_t dat_size = 0;
   attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n",name,"size");
+    op_printf("op_dat with name : %s does not have attribute : %s \n",name,"size");
     return NULL;
   }
   H5Aread(attr,H5T_NATIVE_INT,&dat_size);
@@ -355,13 +359,13 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   int dat_dim = 0;
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n",name,"dim");
+    op_printf("op_dat with name : %s does not have attribute : %s \n",name,"dim");
     return NULL;
   }
   H5Aread(attr,H5T_NATIVE_INT,&dat_dim);
   H5Aclose(attr);
   if(dat_dim != dim) {
-    printf("dat.dim %d in file %s and dim %d do not match\n",dat_dim,file,dim);
+    op_printf("dat.dim %d in file %s and dim %d do not match\n",dat_dim,file,dim);
     return NULL;
   }
 
@@ -370,7 +374,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hid_t  atype = H5Tcopy(H5T_C_S1);
   attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
   if(attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n",name,"type");
+    op_printf("op_dat with name : %s does not have attribute : %s \n",name,"type");
     return NULL;
   }
   //get length of attribute
@@ -384,7 +388,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   char typ_soa[50];
   sprintf(typ_soa, "%s:soa", typ);
   if(strcmp(typ,type) != 0 && strcmp(typ_soa,type) != 0) {
-    printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
+    op_printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     return NULL;
   }
 
@@ -420,7 +424,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, data);
 
     if(dat_size != dim*sizeof(double)) {
-      printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
+      op_printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",dat_size,file,dim);
       return NULL;
     }
     else
@@ -431,7 +435,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, data);
 
     if(dat_size != dim*sizeof(float)) {
-      printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
+      op_printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",dat_size,file,dim);
       return NULL;
     }
     else
@@ -443,13 +447,13 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, data);
 
     if(dat_size != dim*sizeof(int)) {
-      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      op_printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
       return NULL;
     }
     else
       dat_size = sizeof(int);
   } else {
-    printf("unknown type\n");
+    op_printf("unknown type\n");
     return NULL;
   }
 
