@@ -140,7 +140,7 @@ contains
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: mapName
     integer (kind=c_int) :: status
-    
+
     status = -1
     map%mapPtr => null()
 
@@ -164,10 +164,10 @@ contains
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: datName
     integer (kind=c_int) :: status
-    
+
     status = -1
     data%dataPtr => null()
-    
+
     ! assume names are /0 terminated
     data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type//C_NULL_CHAR, fileName//C_NULL_CHAR, datName//C_NULL_CHAR)
 
