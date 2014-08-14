@@ -132,23 +132,29 @@ contains
 
   end subroutine op_decl_set_hdf5_setSize
 
-  subroutine op_decl_map_hdf5 ( from, to, mapdim, map, fileName, mapName )
+  subroutine op_decl_map_hdf5 ( from, to, mapdim, map, fileName, mapName, status )
 
     type(op_set), intent(in) :: from, to
     integer, intent(in) :: mapdim
     type(op_map) :: map
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: mapName
+    integer (kind=c_int) :: status
+    
+    status = -1
+    map%mapPtr => null()
 
     ! assume names are /0 terminated - will fix this if needed later
     map%mapCPtr = op_decl_map_hdf5_c ( from%setCPtr, to%setCPtr, mapdim, fileName//C_NULL_CHAR, mapName//C_NULL_CHAR )
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( map%mapCPtr, map%mapPtr )
-
+    if (associated(map%mapPtr)) then
+      status = 20
+    end if
   end subroutine op_decl_map_hdf5
 
-  subroutine op_decl_dat_hdf5 ( set, datdim, data, type, fileName, datName )
+  subroutine op_decl_dat_hdf5 ( set, datdim, data, type, fileName, datName, status )
     implicit none
 
     type(op_set), intent(in) :: set
@@ -157,13 +163,19 @@ contains
     character(kind=c_char,len=*) :: type
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: datName
-
+    integer (kind=c_int) :: status
+    
+    status = -1
+    data%dataPtr => null()
+    
     ! assume names are /0 terminated
     data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type//C_NULL_CHAR, fileName//C_NULL_CHAR, datName//C_NULL_CHAR)
 
-    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_dat variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )
-
+    if (associated(data%dataPtr)) then
+      status = 20
+    end if
     ! debugging
 
   end subroutine op_decl_dat_hdf5
