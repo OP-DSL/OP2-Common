@@ -150,7 +150,7 @@ contains
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
     call c_f_pointer ( map%mapCPtr, map%mapPtr )
     if (associated(map%mapPtr)) then
-      status = 20
+      status = from%setPtr%size
     end if
   end subroutine op_decl_map_hdf5
 
@@ -174,7 +174,7 @@ contains
     ! convert the generated C pointer to Fortran pointer and store it inside the op_dat variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )
     if (associated(data%dataPtr)) then
-      status = 20
+      status = set%setPtr%size
     end if
     ! debugging
 

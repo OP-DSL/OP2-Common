@@ -67,6 +67,7 @@ program AIRFOIL
   call op_decl_map_hdf5 ( bedges, cells, 1, pbecell, 'new_grid.h5', 'pbecell', status )
   call op_decl_map_hdf5 ( cells, nodes, 4, pcell, 'new_grid.h5', 'pcell', status )
   
+  write (*,*) 'size of pcell ', status
   if (status .lt. 0)then
     write (*,*) 'pcell does do not exist', status
   end if
@@ -85,6 +86,7 @@ program AIRFOIL
   call op_decl_dat_hdf5 ( cells, 1, p_adt, 'double', 'new_grid.h5', 'p_adt' , status)
   call op_decl_dat_hdf5 ( cells, 4, p_res, 'double', 'new_grid.h5', 'p_res' , status)
   
+  write (*,*) 'size of p_res ', status
   if (status .lt. 0)then
     write (*,*) 'p_res does do not exist', status
   end if
