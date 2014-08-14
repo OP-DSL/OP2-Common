@@ -154,6 +154,9 @@ int main(int argc, char **argv)
   op_dat p_qold  = op_decl_dat_hdf5(cells ,4,"double",file,"p_qold");
   op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double",file,"p_adt");
   op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
+  
+  op_dat p_test  = op_decl_dat_hdf5(cells ,4,"double",file,"p_test");
+  if (p_test == NULL) printf("p_test not found");
 
   op_get_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid.h5");
   op_get_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid.h5");
