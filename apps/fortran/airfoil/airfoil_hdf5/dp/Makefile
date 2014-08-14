@@ -159,6 +159,6 @@ clean:
 	rm -f *~
 	rm -f airfoil_hdf5_seq
 	rm -f airfoil_hdf5_mpi
-	rm -f airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV)
+	rm -f airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
 	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda
