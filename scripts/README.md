@@ -3,7 +3,7 @@
 This directory contains various scripts used for testing the build and correct 
 execution of OP2 and its example applications. These are provided and commited 
 to the repository simply as a referance to any one who is installing and using OP2. 
-Currently all these scripts are specific to ruby.oerc.ox.ac.uk 
+Currently all these scripts are specific to ```ruby.oerc.ox.ac.uk``` 
 
 #### Files
 
