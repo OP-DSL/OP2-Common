@@ -42,3 +42,5 @@
 ./op2/c/CMakeFiles/
 ./op2/fortran/lib/
 ./op2/fortran/obj/
+./apps/c/build/
+./apps/c/bin/
