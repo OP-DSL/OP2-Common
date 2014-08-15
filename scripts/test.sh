@@ -8,7 +8,7 @@ export OP2_APPS_DIR=$PWD
 export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
 cd $OP2_INSTALL_PATH/c
 
-<<COMMENT1
+##<<COMMENT1
 
 echo " "
 echo " "
@@ -115,7 +115,7 @@ $MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
 
 
-COMMENT1
+##COMMENT1
 
 
 
@@ -131,7 +131,7 @@ echo "=======================> Building Fortan back-end libs with PGI Compilers"
 . $CURRENT_DIR/source_pgi
 make clean; make
 
-<<COMMENT1
+##<<COMMENT1
 
 ########
 echo " "
@@ -140,7 +140,7 @@ echo "=======================> Building Airfoil Fortran Plain DP with PGI Compil
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 export PART_SIZE_ENV=128
 make clean; make
-COMMENT1
+##COMMENT1
 
 ########
 echo " "
@@ -155,7 +155,7 @@ make clean; make
 echo " "
 echo " "
 echo "=======================> Running Fortran Apps built with PGI Compilers"
-<<COMMENT1
+##<<COMMENT1
 
 ########
 echo " "
@@ -167,7 +167,7 @@ export PART_SIZE_ENV=128
 ./airfoil_cuda
 export OMP_NUM_THREADS=24
 ./airfoil_openmp_$PART_SIZE_ENV
-COMMENT1
+##COMMENT1
 
 
 ########
