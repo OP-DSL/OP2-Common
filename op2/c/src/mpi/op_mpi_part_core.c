@@ -679,7 +679,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
         part to_set = OP_part_list[map->to->index];
         part from_set = OP_part_list[map->from->index];
 
-        if(to_set->is_partitioned == 1)
+        if(to_set->is_partitioned == 1 && from_set->is_partitioned == 0)
         {
           if( partition_from_set(map, my_rank, comm_size, part_range) > 0)
           {
@@ -690,7 +690,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           else //partitioning unsuccessful with this map- find another map
             cost[selected] = 99;
         }
-        else if(from_set->is_partitioned == 1)
+        else if(from_set->is_partitioned == 1 && to_set->is_partitioned == 0)
         {
           if( partition_to_set(map, my_rank, comm_size, part_range) > 0)
           {
@@ -700,6 +700,9 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size)
           }
           else //partitioning unsuccessful with this map - find another map
             cost[selected] = 99;
+        }
+        else {
+          cost[selected] = 99;
         }
       }
       else //partitioning error;
