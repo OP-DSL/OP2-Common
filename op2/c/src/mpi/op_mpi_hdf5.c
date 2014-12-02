@@ -55,7 +55,7 @@
 //hdf5 header
 #include <hdf5.h>
 
-#include <op_mpi_core.h>
+#include <op_lib_mpi.h>
 #include <op_hdf5.h>
 
 //
@@ -92,7 +92,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name)
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -147,7 +147,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -299,7 +299,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -478,7 +478,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -602,7 +602,7 @@ void op_dump_to_hdf5(char const * file_name)
   op_timers(&cpu_t1, &wall_t1); //timer start for hdf5 file write
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -888,7 +888,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -1034,7 +1034,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
 
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_HDF5_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
   MPI_Comm_rank(OP_MPI_HDF5_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_HDF5_WORLD, &comm_size);
 
@@ -1058,7 +1058,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
 
   if (file_exist(file_name) == 0) {
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(OP_MPI_WORLD);
     op_printf("File %s does not exist .... creating file\n", file_name);
     MPI_Barrier(OP_MPI_HDF5_WORLD);
     if (op_is_root()) {

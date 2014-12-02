@@ -157,6 +157,32 @@ typedef struct {
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
+/*******************************************************************************
+* Data Type to hold sliding planes info
+*******************************************************************************/
+
+
+typedef struct {
+  int index;
+  int nprocs;
+  int *proclist;
+  int nprocs_send;
+  int *proclist_send;
+  op_map cellsToNodes;
+} op_export_core;
+
+typedef op_export_core *op_export;
+
+typedef struct {
+  int index;
+  int nprocs;
+  int *proclist;
+  op_dat coords;
+} op_import_core;
+
+typedef op_import_core *op_import;
+
+
 /** external variables **/
 
 extern int OP_part_index;
@@ -249,6 +275,8 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Comm global, MPI_Comm local );
+
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_device(op_set set, op_dat dat);
 
@@ -308,6 +336,14 @@ void op_wait_all_cuda(op_arg* arg);
 void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
 
+/*******************************************************************************
+* Sliding planes functionality
+*******************************************************************************/
+op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes);
+void op_export_data(op_export handle, int ndats, op_dat* datlist);
+op_import op_import_init(int nprocs, int* proclist, op_dat coords);
+void op_inc_theta(op_import handle, double dtheta);
+void op_import_data(op_import handle, int ndats, op_dat* datlist);
 
 #endif /* __OP_MPI_CORE_H */
 

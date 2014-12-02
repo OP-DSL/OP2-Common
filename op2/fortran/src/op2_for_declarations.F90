@@ -170,6 +170,18 @@ module OP2_Fortran_Declarations
 
     end subroutine op_init_c
 
+    subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      integer(kind=c_int), intent(in), value :: argc
+      type(c_ptr), intent(in)                :: argv
+      integer(kind=c_int), intent(in), value :: diags
+      integer(kind=c_int), intent(in), value :: global
+      integer(kind=c_int), intent(in), value :: local
+
+    end subroutine op_init_c
+
     subroutine op_exit_c (  ) BIND(C,name='op_exit')
 
       use, intrinsic :: ISO_C_BINDING
@@ -502,6 +514,43 @@ contains
     OP_GBL%mapPtr => gblPtr
 
     call op_init_c ( argc, C_NULL_PTR, diags )
+
+  end subroutine op_init
+
+    subroutine op_mpi_init ( diags, global, local )
+
+    ! formal parameter
+    integer(4) :: diags
+    integer(4) :: global
+    integer(4) :: local
+
+    ! local variables
+    integer(4) :: argc = 0
+
+#ifdef OP2_WITH_CUDAFOR
+    integer(4) :: setDevReturnVal = -1
+    integer(4) :: devPropRetVal = -1
+    type(cudadeviceprop) :: deviceProperties
+#endif
+
+    type (op_map_core), pointer :: idPtr
+    type (op_map_core), pointer :: gblPtr
+
+    ! calling C function
+    OP_ID%mapCPtr = op_decl_null_map ()
+    OP_GBL%mapCPtr = op_decl_null_map ()
+
+    ! idptr and gblPtr are required because of a gfortran compiler internal error
+    call c_f_pointer ( OP_ID%mapCPtr, idPtr )
+    call c_f_pointer ( OP_GBL%mapCPtr, gblPtr )
+
+    idPtr%dim = 0 ! OP_ID code used in arg_set
+    gblPtr%dim = -1 ! OP_GBL code used in arg_set
+
+    OP_ID%mapPtr => idPtr
+    OP_GBL%mapPtr => gblPtr
+
+    call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
 
   end subroutine op_init
 

@@ -64,8 +64,7 @@ typedef idx_t idxtype;
 #endif
 #endif
 
-#include <op_mpi_core.h>
-#include <op_mpi_core.h>
+#include <op_lib_mpi.h>
 
 
 extern int *OP_map_partial_exchange;//flag for each map ..
@@ -1342,7 +1341,7 @@ void op_partition_external(op_set primary_set, op_dat partvec)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -1421,7 +1420,7 @@ void op_partition_random(op_set primary_set)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -1529,7 +1528,7 @@ void op_partition_geom(op_dat coords)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -1659,7 +1658,7 @@ void op_partition_kway(op_map primary_map)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -2031,7 +2030,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -2422,7 +2421,7 @@ void op_partition_meshkway(op_map primary_map) //not working !!
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -2594,7 +2593,7 @@ void op_partition_ptscotch(op_map primary_map)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -2978,7 +2977,7 @@ void op_partition_inertial(op_dat x_dat)
 
   //create new communicator for partitioning
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
@@ -3261,7 +3260,7 @@ void op_partition_inertial(op_dat x_dat)
   }
   op_free(x);
   quickSort(global_indices, 0, current_part_size-1);
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_PART_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
   //start binning (global indices -> processes)

@@ -54,6 +54,7 @@
 //
 
 MPI_Comm OP_MPI_WORLD;
+MPI_Comm OP_MPI_GLOBAL;
 
 //
 //MPI Halo related global variables
@@ -94,6 +95,13 @@ part *OP_part_list;
 //
 
 int** orig_part_range = NULL;
+
+//Sliding planes data structures
+int OP_import_index = 0, OP_import_max = 0;
+int OP_export_index = 0, OP_export_max = 0;
+op_import *OP_import_list;
+op_export *OP_export_list;
+
 
 // Timing
 double t1,t2,c1,c2;
@@ -162,7 +170,7 @@ int get_partition(int global_index, int* part_range, int* local_index,
     }
   }
   printf("Error: orphan global index\n");
-  MPI_Abort(MPI_COMM_WORLD, 2);
+  MPI_Abort(OP_MPI_WORLD, 2);
   return -1;
 }
 
@@ -360,7 +368,7 @@ int is_onto_map(op_map map)
   //create new communicator
   int my_rank, comm_size;
   MPI_Comm OP_CHECK_WORLD;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_CHECK_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_CHECK_WORLD);
   MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
   MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
 
@@ -520,7 +528,7 @@ void op_halo_create()
 
   //create new communicator for OP mpi operation
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_WORLD);
+  //MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_WORLD);
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
@@ -1467,7 +1475,7 @@ void op_halo_create()
 void op_halo_permap_create() {
 
   int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   /* --------Step 1: Decide which maps will do partial halo exchange ----------*/
 
   int *total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
@@ -1491,9 +1499,9 @@ void op_halo_permap_create() {
   int *reduced_total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
   int *reduced_map_halo_sizes = (int *)xcalloc(OP_map_index,sizeof(int));
   MPI_Allreduce(total_halo_sizes, reduced_total_halo_sizes,
-                OP_set_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                OP_set_index, MPI_INT, MPI_SUM, OP_MPI_WORLD);
   MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes,
-                OP_map_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                OP_map_index, MPI_INT, MPI_SUM, OP_MPI_WORLD);
 
   OP_map_partial_exchange = (int *)xmalloc(OP_map_index*sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
@@ -1644,7 +1652,7 @@ void op_halo_permap_create() {
     for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
       send_buffer[2*j] = import_sizes2[i][j];
       send_buffer[2*j+1] = OP_import_nonexec_permap[i]->sizes[j] - import_sizes2[i][j];
-      MPI_Isend(&send_buffer[2*j], 2, MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 0, MPI_COMM_WORLD, &send_request[j]);
+      MPI_Isend(&send_buffer[2*j], 2, MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD, &send_request[j]);
     }
 
     OP_export_nonexec_permap[i]->set = map->to;
@@ -1674,7 +1682,7 @@ void op_halo_permap_create() {
     export_sizes2[i] = (int*)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
     OP_export_nonexec_permap[i]->disps[0] = 0;
     for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
-      MPI_Recv(&recv_buffer[2*j], 2, MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 0, MPI_COMM_WORLD, &recv_status[j]);
+      MPI_Recv(&recv_buffer[2*j], 2, MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD, &recv_status[j]);
       export_sizes2[i][j] = recv_buffer[2*j];
       OP_export_nonexec_permap[i]->sizes[j] = recv_buffer[2*j] + recv_buffer[2*j+1];
       if (j>0) OP_export_nonexec_permap[i]->disps[j] = OP_export_nonexec_permap[i]->disps[j-1] + OP_export_nonexec_permap[i]->sizes[j-1];
@@ -1719,11 +1727,11 @@ void op_halo_permap_create() {
     //
     for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
       MPI_Isend(&OP_import_nonexec_permap[i]->list[OP_import_nonexec_permap[i]->disps[j]], OP_import_nonexec_permap[i]->sizes[j],
-                MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 1, MPI_COMM_WORLD, &send_request[j]);
+                MPI_INT, OP_import_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD, &send_request[j]);
     }
     for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
       MPI_Recv(&OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]], OP_export_nonexec_permap[i]->sizes[j],
-                MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 1, MPI_COMM_WORLD, &recv_status[j]);
+                MPI_INT, OP_export_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD, &recv_status[j]);
       for (int k = 0; k < export_sizes2[i][j]; k++) {
         int element = OP_export_nonexec_permap[i]->list[OP_export_nonexec_permap[i]->disps[j]+k];
         int source_partition_idx = linear_search(OP_export_exec_list[map->to->index]->ranks,
@@ -1859,7 +1867,7 @@ void op_halo_destroy()
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
   }
 
-  MPI_Comm_free(&OP_MPI_WORLD);
+  //MPI_Comm_free(&OP_MPI_WORLD);
 }
 
 /*******************************************************************************
@@ -2510,8 +2518,8 @@ void op_compute_moment(double t, double *first, double *second) {
   int comm_size;
   times[0] = t;
   times[1] = t*t;
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-  MPI_Reduce(times, times_reduced, 2, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Reduce(times, times_reduced, 2, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
 
   *first = times_reduced[0]/(double)comm_size;
   *second = times_reduced[1]/(double)comm_size;
@@ -2524,7 +2532,7 @@ void mpi_timing_output()
 {
   int my_rank, comm_size;
   MPI_Comm OP_MPI_IO_WORLD;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
@@ -2936,7 +2944,7 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() {
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(OP_MPI_WORLD);
 }
 
 
@@ -2957,4 +2965,166 @@ int op_get_size(op_set set)
   op_free(sizes);
 
   return g_size;
+}
+
+/*******************************************************************************
+ * Sliding planes implementations
+ *******************************************************************************/
+
+op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
+
+  //set up data structure
+  if ( OP_export_index == OP_export_max )
+  {
+    OP_export_max += 10;
+    OP_export_list = ( op_export * ) realloc ( OP_export_list, OP_export_max * sizeof ( op_export ) );
+
+    if ( OP_export_list == NULL )
+    {
+      printf ( " op_export_init error -- error reallocating memory\n" );
+      exit ( -1 );
+    }
+  }
+
+  op_export handle = ( op_export ) malloc ( sizeof ( op_export_core ) );
+  handle->index = OP_export_index;
+  handle->nprocs = nprocs;
+  handle->proclist = proclist; //TODO: should we make a copy?
+  handle->cellsToNodes = cellsToNodes;
+  OP_export_list[OP_export_index++] = handle;
+
+  //figure out communication patterns
+
+  //step 1: all OP2 processes to all coupling processes: number of cells and nodes owned
+  int count[2] = {cellsToNodes->from->core_size, cellsToNodes->to->core_size};
+  MPI_Request requests[nprocs];
+  MPI_Status  statuses[nprocs];
+  for (int i = 0; i < nprocs; i++) {
+    MPI_Isend(count, 2, MPI_INT, proclist[i], 100, OP_MPI_GLOBAL, &requests[i]);
+  }
+  MPI_Waitall(nprocs, requests, statuses);
+
+  //step 2: all OP2 processes to all coupling processes: list of global node indices owned and the owned part of cellsToNodes
+  int *node_gbl_indices = NULL; //TODO: how do we construct this?
+  for (int i = 0; i < nprocs; i++) {
+    MPI_Isend(node_gbl_indices, count[1], MPI_INT, proclist[i], 101, OP_MPI_GLOBAL, &requests[i]);
+  }
+  MPI_Waitall(nprocs, requests, statuses);
+  for (int i = 0; i < nprocs; i++) {
+    MPI_Isend(cellsToNodes->map, count[0] * cellsToNodes->dim, MPI_INT, proclist[i], 102, OP_MPI_GLOBAL, &requests[i]);
+  }
+  MPI_Waitall(nprocs, requests, statuses);
+
+
+  //step 3: receive from root coupling process: list of coupling nodes to send all data to
+  MPI_Recv(&handle->nprocs_send, 1, MPI_INT, proclist[0], 103, OP_MPI_GLOBAL, statuses);
+  handle->proclist_send = (int *)malloc(handle->nprocs_send*sizeof(int));
+  MPI_Recv(handle->proclist_send, handle->nprocs_send, MPI_INT, proclist[0], 104, OP_MPI_GLOBAL, statuses);
+
+  return handle;
+}
+
+int OP_sliding_buffer_size = 0;
+char *OP_sliding_buffer = NULL;
+
+void op_export_data(op_export handle, int ndats, op_dat* datlist) {
+  int total_size = 0;
+  for (int i = 0; i < ndats; i++) total_size += datlist[i]->size * datlist[i]->set->core_size;
+  if (OP_sliding_buffer_size < total_size) {
+    OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
+    OP_sliding_buffer_size = total_size;
+  }
+
+  total_size = 0;
+  for (int i = 0; i < ndats; i++) {
+    op_download_dat(datlist[i]);
+    memcpy(OP_sliding_buffer + total_size, datlist[i]->data, datlist[i]->size * datlist[i]->set->core_size);
+    total_size += datlist[i]->size * datlist[i]->set->core_size;
+  }
+  MPI_Request requests[handle->nprocs_send];
+  MPI_Status  statuses[handle->nprocs_send];
+  //TODO: should we send the size first? The coupling processes should know this though
+  for (int i = 0; i < handle->nprocs_send; i++)
+    MPI_Isend(OP_sliding_buffer, total_size, MPI_CHAR, handle->proclist_send[i], 200, OP_MPI_GLOBAL, &requests[i]);
+
+  MPI_Waitall(handle->nprocs_send, requests, statuses); //TODO: make this non-blocking up to the next export
+}
+
+op_import op_import_init(int nprocs, int* proclist, op_dat coords) {
+  //set up data structure
+  if ( OP_import_index == OP_import_max )
+  {
+    OP_import_max += 10;
+    OP_import_list = ( op_import * ) realloc ( OP_import_list, OP_import_max * sizeof ( op_import ) );
+
+    if ( OP_import_list == NULL )
+    {
+      printf ( " op_import_init error -- error reallocating memory\n" );
+      exit ( -1 );
+    }
+  }
+
+  op_import handle = ( op_import ) malloc ( sizeof ( op_import_core ) );
+  handle->index = OP_import_index;
+  handle->nprocs = nprocs;
+  handle->proclist = proclist; //TODO: should we make a copy?
+  handle->coords = coords;
+  OP_import_list[OP_import_index++] = handle;
+
+  //figure out communication patterns
+  //step 1: all OP2 processes to all coupling processes: number of nodes owned
+  MPI_Request requests[nprocs];
+  MPI_Status  statuses[nprocs];
+  for (int i = 0; i < nprocs; i++) {
+    MPI_Isend(&(coords->set->core_size), 1, MPI_INT, proclist[i], 400, OP_MPI_GLOBAL, &requests[i]);
+  }
+  MPI_Waitall(nprocs, requests, statuses);
+
+  //step 2: all OP2 processes to all coupling processes: coordinate data
+  op_download_dat(coords);
+  for (int i = 0; i < nprocs; i++) {
+    MPI_Isend(coords->data, coords->set->core_size * coords->size, MPI_BYTE, proclist[i], 401, OP_MPI_GLOBAL, &requests[i]);
+  }
+  MPI_Waitall(nprocs, requests, statuses);
+  return handle;
+}
+
+void op_inc_theta(op_import handle, double dtheta) {
+  //TODO: update docs
+  if (op_is_root()) MPI_Send(&dtheta, 1, MPI_DOUBLE, handle->proclist[0], 300, OP_MPI_GLOBAL); //TODO: non-blocking? when sync?
+}
+
+void op_import_data(op_import handle, int ndats, op_dat* datlist) {
+  int total_size = datlist[0]->set->core_size * sizeof(int);
+  for (int i = 0; i < ndats; i++) {
+    total_size += (datlist[i]->size) * datlist[i]->set->core_size;
+    op_download_dat(datlist[i]);
+  }
+  int item_size = total_size / datlist[0]->set->core_size;
+  if (OP_sliding_buffer_size < total_size) {
+    OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
+    OP_sliding_buffer_size = total_size;
+  }
+
+  int recv_size = 0;
+  while (1) {
+    if (recv_size == total_size) break;
+    MPI_Status status, status2;
+    int size;
+    MPI_Probe(MPI_ANY_SOURCE,500,OP_MPI_GLOBAL,&status);
+    MPI_Get_count(&status, MPI_BYTE, &size);
+    MPI_Recv(OP_sliding_buffer, size, MPI_BYTE, status.MPI_SOURCE, 500, OP_MPI_GLOBAL, &status2);
+    for (int i = 0; i < size / item_size; i++) {
+      int idx = *(int*)(OP_sliding_buffer+i*item_size); //TODO: this is where we need to do global->local index
+      int cum_size = sizeof(int);
+      for (int j = 0; j < ndats; j++) {
+        memcpy(datlist[j]->data + idx * datlist[j]->size, OP_sliding_buffer+i*item_size+cum_size, datlist[j]->size);
+        cum_size += datlist[j]->size;
+      }
+    }
+    recv_size += size;
+  }
+  for (int i = 0; i < ndats; i++) {
+    op_upload_dat(datlist[i]);
+  }
 }

@@ -83,7 +83,7 @@ void cutilDeviceInit( int argc, char ** argv )
   }
   printf("Trying to select a device\n");
   int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   if (getenv("OMPI_COMM_WORLD_LOCAL_RANK")!=NULL) {
     rank = atoi(getenv("OMPI_COMM_WORLD_LOCAL_RANK"));
   } else if (getenv("MV2_COMM_WORLD_LOCAL_RANK")!=NULL) {
@@ -508,7 +508,7 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
      (dat->dirtybit == 1))
   {
     int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
     halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
     halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
     //-------exchange nonexec elements related to this data array and map--------
@@ -672,6 +672,6 @@ void op_partition(const char* lib_name, const char* lib_routine,
 int op_is_root()
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   return (my_rank==MPI_ROOT);
 }
