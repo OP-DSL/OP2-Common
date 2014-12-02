@@ -57,8 +57,26 @@ void op_init ( int argc, char ** argv, int diags )
   {
     MPI_Init(&argc, &argv);
   }
+  OP_MPI_WORLD = MPI_COMM_WORLD;
+  OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core ( argc, argv, diags );
 }
+
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Comm global, MPI_Comm local )
+{
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+    printf("Error: MPI has to be initialized when calling op_init with communicators\n");
+    exit(-1);
+  }
+  OP_MPI_WORLD = local;
+  OP_MPI_GLOBAL = global;
+  op_init_core ( argc, argv, diags );
+}
+
+
 
 op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
@@ -192,7 +210,7 @@ op_plan_get_stage ( char const * name, op_set set, int part_size,
 void op_printf(const char* format, ...)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     va_list argptr;
@@ -205,7 +223,7 @@ void op_printf(const char* format, ...)
 void op_print(const char* line)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     printf("%s\n",line);
@@ -262,7 +280,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 
 void op_timers(double * cpu, double * et)
 {
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu,et);
 }
 
@@ -270,7 +288,7 @@ void op_timers(double * cpu, double * et)
 void op_timing_output()
 {
    double max_plan_time = 0.0;
-   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, OP_MPI_WORLD);
    op_timing_output_core();
    if (op_is_root()) printf("Total plan time: %8.4f\n", OP_plan_time);
    mpi_timing_output();

@@ -292,7 +292,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void op_printf(const char* format, ...)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     va_list argptr;
@@ -305,7 +305,7 @@ void op_printf(const char* format, ...)
 void op_print(const char* line)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     printf("%s\n",line);
@@ -315,7 +315,7 @@ void op_print(const char* line)
 
 void op_timers(double * cpu, double * et)
 {
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu,et);
 }
 

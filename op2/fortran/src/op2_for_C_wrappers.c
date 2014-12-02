@@ -357,16 +357,16 @@ void op_barrier () {
 #else
 int op_mpi_size () {
   int size;
-  MPI_Comm_size (MPI_COMM_WORLD, &size);
+  MPI_Comm_size (OP_MPI_WORLD, &size);
   return size;
 }
 
 void op_mpi_rank (int * rank) {
-  MPI_Comm_rank (MPI_COMM_WORLD, rank);
+  MPI_Comm_rank (OP_MPI_WORLD, rank);
 }
 
 void op_barrier () {
-  MPI_Barrier (MPI_COMM_WORLD);
+  MPI_Barrier (OP_MPI_WORLD);
 }
 
 void printDat_noGather (op_dat dat) {
