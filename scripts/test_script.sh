@@ -1,9 +1,16 @@
 #!/bin/bash
 #set -e
 
-##Need to do th cmake build invocation here ....
-
 export CURRENT_DIR=$PWD
+
+#Build with cmake
+. ./source_intel
+cd ../op2/c
+pwd
+./ruby.sh
+cd ../../apps/c
+./ruby-apps.sh
+
 cd $OP2_INSTALL_PATH
 export OP2_APPS_DIR=../apps
 export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
