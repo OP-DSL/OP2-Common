@@ -101,6 +101,9 @@ int OP_import_index = 0, OP_import_max = 0;
 int OP_export_index = 0, OP_export_max = 0;
 op_import *OP_import_list;
 op_export *OP_export_list;
+int OP_sliding_buffer_size = 0;
+char *OP_sliding_buffer = NULL;
+
 
 
 // Timing
@@ -2999,12 +3002,13 @@ op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
   handle->nprocs = nprocs;
   handle->proclist = proclist; //TODO: should we make a copy?
   handle->cellsToNodes = cellsToNodes;
+  handle->gbl_offset = 0;
   OP_export_list[OP_export_index++] = handle;
 
   //figure out communication patterns
 
   //step 1: all OP2 processes to all coupling processes: number of cells and nodes owned
-  int count[2] = {cellsToNodes->from->core_size, cellsToNodes->to->core_size};
+  int count[2] = {cellsToNodes->from->size, cellsToNodes->to->size};
   MPI_Request requests[nprocs];
   MPI_Status  statuses[nprocs];
   for (int i = 0; i < nprocs; i++) {
@@ -3013,7 +3017,18 @@ op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
   MPI_Waitall(nprocs, requests, statuses);
 
   //step 2: all OP2 processes to all coupling processes: list of global node indices owned and the owned part of cellsToNodes
-  int *node_gbl_indices = NULL; //TODO: how do we construct this?
+  //figure out global index offset for this partition
+  int mpi_comm_size, mpi_comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &mpi_comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &mpi_comm_rank);
+  int *global_sizes = (int*)malloc(mpi_comm_size*sizeof(int));
+  MPI_Allgather(&cellsToNodes->to->size, 1, MPI_INT, global_sizes, 1, MPI_INT, OP_MPI_WORLD);
+  for (int i = 0; i < mpi_comm_rank; i++) handle->gbl_offset += global_sizes[i];
+
+  //sequentially number nodes
+  int *node_gbl_indices = (int *)malloc(cellsToNodes->to->size * sizeof(int));
+  for (int i = 0; i < cellsToNodes->to->size; ++i) node_gbl_indices[i] = handle->gbl_offset + i;
+
   for (int i = 0; i < nprocs; i++) {
     MPI_Isend(node_gbl_indices, count[1], MPI_INT, proclist[i], 101, OP_MPI_GLOBAL, &requests[i]);
   }
@@ -3032,12 +3047,9 @@ op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
   return handle;
 }
 
-int OP_sliding_buffer_size = 0;
-char *OP_sliding_buffer = NULL;
-
 void op_export_data(op_export handle, int ndats, op_dat* datlist) {
   int total_size = 0;
-  for (int i = 0; i < ndats; i++) total_size += datlist[i]->size * datlist[i]->set->core_size;
+  for (int i = 0; i < ndats; i++) total_size += datlist[i]->size * datlist[i]->set->size;
   if (OP_sliding_buffer_size < total_size) {
     OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
     OP_sliding_buffer_size = total_size;
@@ -3046,8 +3058,8 @@ void op_export_data(op_export handle, int ndats, op_dat* datlist) {
   total_size = 0;
   for (int i = 0; i < ndats; i++) {
     op_download_dat(datlist[i]);
-    memcpy(OP_sliding_buffer + total_size, datlist[i]->data, datlist[i]->size * datlist[i]->set->core_size);
-    total_size += datlist[i]->size * datlist[i]->set->core_size;
+    memcpy(OP_sliding_buffer + total_size, datlist[i]->data, datlist[i]->size * datlist[i]->set->size);
+    total_size += datlist[i]->size * datlist[i]->set->size;
   }
   MPI_Request requests[handle->nprocs_send];
   MPI_Status  statuses[handle->nprocs_send];
@@ -3077,21 +3089,31 @@ op_import op_import_init(int nprocs, int* proclist, op_dat coords) {
   handle->nprocs = nprocs;
   handle->proclist = proclist; //TODO: should we make a copy?
   handle->coords = coords;
+  handle->gbl_offset = 0;
   OP_import_list[OP_import_index++] = handle;
+
+  //figure out global index offset for this partition
+  int mpi_comm_size, mpi_comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &mpi_comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &mpi_comm_rank);
+  int *global_sizes = (int*)malloc(mpi_comm_size*sizeof(int));
+  MPI_Allgather(&coords->set->size, 1, MPI_INT, global_sizes, 1, MPI_INT, OP_MPI_WORLD);
+  for (int i = 0; i < mpi_comm_rank; i++) handle->gbl_offset += global_sizes[i];
+
 
   //figure out communication patterns
   //step 1: all OP2 processes to all coupling processes: number of nodes owned
   MPI_Request requests[nprocs];
   MPI_Status  statuses[nprocs];
   for (int i = 0; i < nprocs; i++) {
-    MPI_Isend(&(coords->set->core_size), 1, MPI_INT, proclist[i], 400, OP_MPI_GLOBAL, &requests[i]);
+    MPI_Isend(&(coords->set->size), 1, MPI_INT, proclist[i], 400, OP_MPI_GLOBAL, &requests[i]);
   }
   MPI_Waitall(nprocs, requests, statuses);
 
   //step 2: all OP2 processes to all coupling processes: coordinate data
   op_download_dat(coords);
   for (int i = 0; i < nprocs; i++) {
-    MPI_Isend(coords->data, coords->set->core_size * coords->size, MPI_BYTE, proclist[i], 401, OP_MPI_GLOBAL, &requests[i]);
+    MPI_Isend(coords->data, coords->set->size * coords->size, MPI_BYTE, proclist[i], 401, OP_MPI_GLOBAL, &requests[i]);
   }
   MPI_Waitall(nprocs, requests, statuses);
   return handle;
@@ -3103,12 +3125,12 @@ void op_inc_theta(op_import handle, double dtheta) {
 }
 
 void op_import_data(op_import handle, int ndats, op_dat* datlist) {
-  int total_size = datlist[0]->set->core_size * sizeof(int);
+  int total_size = datlist[0]->set->size * sizeof(int);
   for (int i = 0; i < ndats; i++) {
-    total_size += (datlist[i]->size) * datlist[i]->set->core_size;
+    total_size += (datlist[i]->size) * datlist[i]->set->size;
     op_download_dat(datlist[i]);
   }
-  int item_size = total_size / datlist[0]->set->core_size;
+  int item_size = total_size / datlist[0]->set->size;
   if (OP_sliding_buffer_size < total_size) {
     OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
     OP_sliding_buffer_size = total_size;
@@ -3123,7 +3145,7 @@ void op_import_data(op_import handle, int ndats, op_dat* datlist) {
     MPI_Get_count(&status, MPI_BYTE, &size);
     MPI_Recv(OP_sliding_buffer, size, MPI_BYTE, status.MPI_SOURCE, 500, OP_MPI_GLOBAL, &status2);
     for (int i = 0; i < size / item_size; i++) {
-      int idx = *(int*)(OP_sliding_buffer+i*item_size); //TODO: this is where we need to do global->local index
+      int idx = *(int*)(OP_sliding_buffer+i*item_size) - handle->gbl_offset;
       int cum_size = sizeof(int);
       for (int j = 0; j < ndats; j++) {
         memcpy(datlist[j]->data + idx * datlist[j]->size, OP_sliding_buffer+i*item_size+cum_size, datlist[j]->size);

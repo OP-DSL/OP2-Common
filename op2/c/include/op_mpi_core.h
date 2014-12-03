@@ -168,6 +168,7 @@ typedef struct {
   int *proclist;
   int nprocs_send;
   int *proclist_send;
+  int gbl_offset;
   op_map cellsToNodes;
 } op_export_core;
 
@@ -177,6 +178,7 @@ typedef struct {
   int index;
   int nprocs;
   int *proclist;
+  int gbl_offset;
   op_dat coords;
 } op_import_core;
 
