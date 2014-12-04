@@ -11,12 +11,12 @@ export OP2_INSTALL_PATH=$PWD
 cd $OP2_INSTALL_PATH/c
 rm -rf ruby.sh
 ln -s $CURRENT_DIR/ruby.sh ruby.sh
-#./ruby.sh
+./ruby.sh
 cd $OP2_INSTALL_PATH
 cd ../apps/c
 rm -rf ruby-apps.sh
 ln -s $CURRENT_DIR/ruby-apps.sh ruby-apps.sh
-#./ruby-apps.sh
+./ruby-apps.sh
 export OP2_APPS_DIR=$PWD
 export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/bin
 cd $OP2_C_APPS_BIN_DIR
