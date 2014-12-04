@@ -30,10 +30,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O2 -vec-report -xSSE4.2 #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O2 -vec-report -xAVX -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
   CPPFLAGS	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CCFLAGS)
 else
 print:
@@ -44,9 +44,19 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -use_fast_math
-#NVCCFLAGS	= -g -G -arch=sm_20 -Xptxas=-v -use_fast_math
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+endif
+endif
 
+NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 #
 # partitioning software for MPI versions

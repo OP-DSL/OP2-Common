@@ -853,7 +853,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   code('#define STRIDE(x,y) x*y')
   for ns in range (0,len(sets)):
-    code('__constant__ int '+sets[ns]['name']+'_stride;')
+    code('__constant__ int '+sets[ns]['name'].replace('"','')+'_stride;')
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
@@ -876,8 +876,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   depth = depth + 2
   code('int size;')
   for ns in range (0,len(sets)):
-    code('size = op_size_of_set("'+sets[ns]['name']+'");')
-    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name']+'_stride, &size, sizeof(int)));')
+    code('size = op_size_of_set("'+sets[ns]['name'].replace('"','')+'");')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name'].replace('"','')+'_stride, &size, sizeof(int)));')
   depth = depth - 2
   code('}')
   code('')
