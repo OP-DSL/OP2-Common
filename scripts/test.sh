@@ -1,7 +1,15 @@
 #!/bin/bash
+
+#
+#Test OP2 example applications using the basic makefiles build
+#
+
+#exit script if any error is encountered during the build or 
+#application executions.
 set -e
 
 export CURRENT_DIR=$PWD
+export OP2_INSTALL_PATH=../op2
 cd $OP2_INSTALL_PATH
 cd ../apps
 export OP2_APPS_DIR=$PWD

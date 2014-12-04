@@ -1,22 +1,27 @@
 #!/bin/bash
 #set -e
 
-export CURRENT_DIR=$PWD
-
-#Build with cmake
+#
+#Set up directory vars and Build with cmake
+#
 . ./source_intel
-cd ../op2/c
-pwd
-./ruby.sh
-cd ../../apps/c
-./ruby-apps.sh
-
+export CURRENT_DIR=$PWD
+cd ../op2
+export OP2_INSTALL_PATH=$PWD
+cd $OP2_INSTALL_PATH/c
+rm -rf ruby.sh
+ln -s $CURRENT_DIR/ruby.sh ruby.sh
+#./ruby.sh
 cd $OP2_INSTALL_PATH
-export OP2_APPS_DIR=../apps
-export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
-
+cd ../apps/c
+rm -rf ruby-apps.sh
+ln -s $CURRENT_DIR/ruby-apps.sh ruby-apps.sh
+#./ruby-apps.sh
+export OP2_APPS_DIR=$PWD
+export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/bin
 cd $OP2_C_APPS_BIN_DIR
 echo "In directory $PWD"
+
 
 #-------------------------------------------------------------------------------
 # test Arifoil DP- with plain text file I/O
@@ -83,7 +88,7 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-----------------Testing airfoil_sp_seq----------------------------------"
 echo " "
-./airfoil_sp_seq > perf_out;
+#./airfoil_sp_seq > perf_out;
 grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 echo " "
