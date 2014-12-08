@@ -1,0 +1,345 @@
+
+Begin optimization report for: main(int, char **)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at airfoil.cpp(86,3)
+<Peeled>
+LOOP END
+
+LOOP BEGIN at airfoil.cpp(86,3)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at airfoil.cpp(86,3)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at airfoil.cpp(97,3)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at airfoil.cpp(99,5)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at airfoil.cpp(99,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at airfoil.cpp(109,3)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at airfoil.cpp(111,5)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at airfoil.cpp(111,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(130,3) inlined into airfoil.cpp(213,5)
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(156,3) inlined into airfoil.cpp(213,5)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(213,5)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(213,5)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(213,5)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(213,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(413,3) inlined into airfoil.cpp(257,7)
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(439,3) inlined into airfoil.cpp(257,7)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into airfoil.cpp(257,7)
+   <Remainder>
+   LOOP END
+LOOP END
+===========================================================================
+
+Begin optimization report for: update(const double *, double *, double *, const double *, double *)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at update.h(6,3)
+LOOP END
+===========================================================================
+
+Begin optimization report for: save_soln(const double *, double *)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at save_soln.h(2,3)
+LOOP END
+===========================================================================
+
+Begin optimization report for: op_par_loop<const double, const double, const double, const double, double, const int, double, double>(void (*)(const double *, const double *, const double *, const double *, double *, const int *, double *, double *), const char *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(789,3)
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(815,3)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(819,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(819,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(821,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(821,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(823,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(823,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(825,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(825,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(827,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(827,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(829,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(829,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(831,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(831,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(833,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(833,27)
+   <Remainder>
+   LOOP END
+LOOP END
+===========================================================================
+
+Begin optimization report for: op_par_loop<const double, const double, const double, const double, const double, const double, double, double>(void (*)(const double *, const double *, const double *, const double *, const double *, const double *, double *, double *), const char *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(789,3)
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(815,3)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(819,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(819,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(821,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(821,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(823,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(823,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(825,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(825,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(827,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(827,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(829,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(829,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(831,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(831,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(833,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(833,27)
+   <Remainder>
+   LOOP END
+LOOP END
+===========================================================================
+
+Begin optimization report for: op_par_loop<const double, const double, const double, const double, const double, double>(void (*)(const double *, const double *, const double *, const double *, const double *, double *), const char *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg)
+
+    Report from: Vector optimizations [vec]
+
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(530,3)
+LOOP END
+
+LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(556,3)
+   remark #25460: No loop optimizations reported
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(560,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(560,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(562,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(562,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(564,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(564,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(566,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(566,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(568,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(568,27)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(570,27)
+      remark #25460: No loop optimizations reported
+   LOOP END
+
+   LOOP BEGIN at /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(30,3) inlined into /Users/reguly/Work/OP2-Common/op2/c/include/op_seq.h(570,27)
+   <Remainder>
+   LOOP END
+LOOP END
+===========================================================================
