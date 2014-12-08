@@ -126,21 +126,60 @@ int main(int argc, char **argv)
   }
 
   //
+  // op_import_init
+  //
+  //Step 1 receive node set size from all OP2 procs
+  int recv_nodesize[count];
+  for (int i = 0; i < count; i++) {
+    MPI_Recv(&recv_nodesize[i], 1, MPI_INT, groups2[i], 400, MPI_COMM_WORLD, &statuses[i]);
+  }
+
+  //Step 2 receive coordinate data (3D)
+  char *coords[count];
+  for (int i = 0; i < count; ++i) {
+    coords[i] = (char*)malloc(recv_nodesize[i]*3*sizeof(double));
+  }
+  for (int i = 0; i < count; i++) {
+    MPI_Recv(coords[i], recv_nodesize[i]*3*sizeof(double), MPI_CHAR, groups2[i], 401, MPI_COMM_WORLD, &statuses[i]);
+  }
+
+  //prepare send buffers for import
+  char *send_buf[count];
+  for (int i = 0; i < count; ++i) {
+    send_buf[i] = (char*)malloc(node_sizes[i]*(2*sizeof(int) + 4*sizeof(double)));
+  }
+  int item_size = 2*sizeof(int) + 4*sizeof(double);
+
+  //
   // op_export
   //
 
   //  we are going to be receiving bound, coord, p
   char *recv_buffers[count];
   for (int i = 0; i < count; ++i) {
-    recv_buffers[i] = (char*)malloc(node_sizes[i]*(sizeof(int) + 3*sizeof(double)));
+    recv_buffers[i] = (char*)malloc(node_sizes[i]*(sizeof(int) + 4*sizeof(double)));
   }
   for (int repeat = 0; repeat < 10; repeat++) {
     for (int i = 0; i < count; ++i) {
-      MPI_Irecv(recv_buffers, node_sizes[i]*(sizeof(int) + 3*sizeof(double)), MPI_CHAR, groups2[i], 200, MPI_COMM_WORLD, &requests[i]);
+      MPI_Irecv(recv_buffers[i], node_sizes[i]*(sizeof(int) + 4*sizeof(double)), MPI_CHAR, groups2[i], 200, MPI_COMM_WORLD, &requests[i]);
+      printf("Coupling (%d) receiving %d bytes from %d\n",rank, node_sizes[i]*(sizeof(int) + 4*sizeof(double)), groups2[i]);
     }
     MPI_Waitall(count, requests, statuses);
     printf("Arrived\n");
     //Do something with it
+    for (int i = 0; i < count; ++i) {
+      for (int j = 0; j < node_sizes[i]; j++) {
+        *(int*)(send_buf[i]+j*item_size) = node_indices[i][j]; //global node id
+        *(int*)(send_buf[i]+j*item_size + sizeof(int)) = ((int*)(recv_buffers[i]))[j]; //p_bound
+        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int))                  = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+0]; //coord x
+        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+sizeof(double))   = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+1]; //coord y
+        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+2*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+2]; //coord z
+        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+3*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)+node_sizes[i]*3*sizeof(double)))[j]; //pressure
+      }
+      MPI_Isend(send_buf[i], node_sizes[i]*(2*sizeof(int) + 4*sizeof(double)), MPI_CHAR, groups2[i], 500, MPI_COMM_WORLD, &requests[i]);
+    }
+    MPI_Waitall(count, requests, statuses);
+    printf("Sent back\n");
   }
 
 }

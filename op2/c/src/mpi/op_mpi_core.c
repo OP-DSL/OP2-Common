@@ -3061,11 +3061,15 @@ void op_export_data(op_export_handle handle, int ndats, op_dat* datlist) {
     memcpy(OP_sliding_buffer + total_size, datlist[i]->data, datlist[i]->size * datlist[i]->set->size);
     total_size += datlist[i]->size * datlist[i]->set->size;
   }
+  int rank;
+  MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
   MPI_Request requests[handle->nprocs_send];
   MPI_Status  statuses[handle->nprocs_send];
   //TODO: should we send the size first? The coupling processes should know this though
-  for (int i = 0; i < handle->nprocs_send; i++)
+  for (int i = 0; i < handle->nprocs_send; i++) {
     MPI_Isend(OP_sliding_buffer, total_size, MPI_CHAR, handle->proclist_send[i], 200, OP_MPI_GLOBAL, &requests[i]);
+    printf("OP2 (%d) sending %d bytes from %d\n",rank, total_size, handle->proclist_send[i]);
+  }
 
   MPI_Waitall(handle->nprocs_send, requests, statuses); //TODO: make this non-blocking up to the next export
 }

@@ -67,6 +67,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "res_calc.h"
 #include "bres_calc.h"
 #include "update.h"
+#include "comparethem.h"
 
 // main program
 
@@ -106,7 +107,7 @@ int main(int argc, char **argv)
   }
 
   //coupling procs
-  for (int i = 0; i < num_groups; ++i) {
+  for (int i = 0; i < 1; ++i) {
     count = 0;
     for (int j = 0; j < size; ++j) {
       if (groups[j] == i) {
@@ -191,13 +192,19 @@ int main(int argc, char **argv)
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   //op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
 
-  op_export_handle handle = op_export_init(count, groups2, pbndbnd);
-
   int g_ncell = op_get_size(cells);
 
   double *ptr = NULL;
-  op_dat center = op_decl_dat_temp(bedges, 1, "double", ptr, "center");
+  op_dat center = op_decl_dat_temp(bedges, 3, "double", ptr, "center");
   op_dat pres = op_decl_dat_temp(bedges, 1, "double", ptr, "pres");
+
+  int *ptr2 = NULL;
+  op_dat p_bound2 = op_decl_dat_temp(bedges, 1, "int", ptr2, "p_bound2");
+  op_dat center2 = op_decl_dat_temp(bedges, 3, "double", ptr, "center2");
+  op_dat pres2 = op_decl_dat_temp(bedges, 1, "double", ptr, "pres2");
+
+  op_export_handle handle = op_export_init(count, groups2, pbndbnd);
+  op_import_handle handle2 = op_import_init(count, groups2, center);
 
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -247,7 +254,7 @@ int main(int argc, char **argv)
           op_arg_dat(p_adt,   0,pbecell,1,"double",OP_READ),
           op_arg_dat(p_res,   0,pbecell,4,"double",OP_INC ),
           op_arg_dat(p_bound,-1,OP_ID  ,1,"int",  OP_READ),
-          op_arg_dat(center, -1, OP_ID, 2, "double", OP_WRITE),
+          op_arg_dat(center, -1, OP_ID, 3, "double", OP_WRITE),
           op_arg_dat(pres, -1, OP_ID, 1, "double", OP_WRITE));
 
       //    update flow field
@@ -270,6 +277,15 @@ int main(int argc, char **argv)
       op_printf(" %d  %10.5e \n",iter,rms);
       op_dat arr[] = {p_bound, center, pres};
       op_export_data(handle, 3, arr);
+      op_dat arr2[] = {p_bound2, center2, pres2};
+      op_import_data(handle2, 3, arr2);
+      op_par_loop(comparethem, "comparethem", bedges,
+          op_arg_dat(p_bound,-1, OP_ID, 1, "int", OP_READ),
+          op_arg_dat(p_bound2,-1, OP_ID, 1, "int", OP_READ),
+          op_arg_dat(center,-1, OP_ID, 3, "double", OP_READ),
+          op_arg_dat(center2,-1, OP_ID, 3, "double", OP_READ),
+          op_arg_dat(pres,-1, OP_ID, 1, "double", OP_READ),
+          op_arg_dat(pres2,-1, OP_ID, 1, "double", OP_READ));
     }
   }
 

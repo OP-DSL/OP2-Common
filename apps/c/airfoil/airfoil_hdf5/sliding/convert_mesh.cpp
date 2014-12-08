@@ -151,7 +151,7 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
+  int    *becell, *ecell,  *bound, *bedge, *edge, *cell, *bndbnd;
   double  *x, *q, *qold, *adt, *res;
 
   int    nnode,ncell,nedge,nbedge;
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 
   check_scan(fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge), 4);
 
-  int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0, *g_cell = 0;
+  int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0, *g_cell = 0, *g_bndbnd = 0;
   double *g_x = 0,*g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
 
   // set constants
