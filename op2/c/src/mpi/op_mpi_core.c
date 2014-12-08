@@ -99,8 +99,8 @@ int** orig_part_range = NULL;
 //Sliding planes data structures
 int OP_import_index = 0, OP_import_max = 0;
 int OP_export_index = 0, OP_export_max = 0;
-op_import *OP_import_list;
-op_export *OP_export_list;
+op_import_handle *OP_import_list;
+op_export_handle *OP_export_list;
 int OP_sliding_buffer_size = 0;
 char *OP_sliding_buffer = NULL;
 
@@ -2982,13 +2982,13 @@ int op_get_size(op_set set)
  * Sliding planes implementations
  *******************************************************************************/
 
-op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
 
   //set up data structure
   if ( OP_export_index == OP_export_max )
   {
     OP_export_max += 10;
-    OP_export_list = ( op_export * ) realloc ( OP_export_list, OP_export_max * sizeof ( op_export ) );
+    OP_export_list = ( op_export_handle * ) realloc ( OP_export_list, OP_export_max * sizeof ( op_export_handle ) );
 
     if ( OP_export_list == NULL )
     {
@@ -2997,7 +2997,7 @@ op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
     }
   }
 
-  op_export handle = ( op_export ) malloc ( sizeof ( op_export_core ) );
+  op_export_handle handle = ( op_export_handle ) malloc ( sizeof ( op_export_core ) );
   handle->index = OP_export_index;
   handle->nprocs = nprocs;
   handle->proclist = proclist; //TODO: should we make a copy?
@@ -3047,7 +3047,7 @@ op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes) {
   return handle;
 }
 
-void op_export_data(op_export handle, int ndats, op_dat* datlist) {
+void op_export_data(op_export_handle handle, int ndats, op_dat* datlist) {
   int total_size = 0;
   for (int i = 0; i < ndats; i++) total_size += datlist[i]->size * datlist[i]->set->size;
   if (OP_sliding_buffer_size < total_size) {
@@ -3070,12 +3070,12 @@ void op_export_data(op_export handle, int ndats, op_dat* datlist) {
   MPI_Waitall(handle->nprocs_send, requests, statuses); //TODO: make this non-blocking up to the next export
 }
 
-op_import op_import_init(int nprocs, int* proclist, op_dat coords) {
+op_import_handle op_import_init(int nprocs, int* proclist, op_dat coords) {
   //set up data structure
   if ( OP_import_index == OP_import_max )
   {
     OP_import_max += 10;
-    OP_import_list = ( op_import * ) realloc ( OP_import_list, OP_import_max * sizeof ( op_import ) );
+    OP_import_list = ( op_import_handle * ) realloc ( OP_import_list, OP_import_max * sizeof ( op_import_handle ) );
 
     if ( OP_import_list == NULL )
     {
@@ -3084,7 +3084,7 @@ op_import op_import_init(int nprocs, int* proclist, op_dat coords) {
     }
   }
 
-  op_import handle = ( op_import ) malloc ( sizeof ( op_import_core ) );
+  op_import_handle handle = ( op_import_handle ) malloc ( sizeof ( op_import_core ) );
   handle->index = OP_import_index;
   handle->nprocs = nprocs;
   handle->proclist = proclist; //TODO: should we make a copy?
@@ -3119,12 +3119,12 @@ op_import op_import_init(int nprocs, int* proclist, op_dat coords) {
   return handle;
 }
 
-void op_inc_theta(op_import handle, double dtheta) {
+void op_inc_theta(op_import_handle handle, double dtheta) {
   //TODO: update docs
   if (op_is_root()) MPI_Send(&dtheta, 1, MPI_DOUBLE, handle->proclist[0], 300, OP_MPI_GLOBAL); //TODO: non-blocking? when sync?
 }
 
-void op_import_data(op_import handle, int ndats, op_dat* datlist) {
+void op_import_data(op_import_handle handle, int ndats, op_dat* datlist) {
   int total_size = datlist[0]->set->size * sizeof(int);
   for (int i = 0; i < ndats; i++) {
     total_size += (datlist[i]->size) * datlist[i]->set->size;

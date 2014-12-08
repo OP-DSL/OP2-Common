@@ -172,7 +172,7 @@ typedef struct {
   op_map cellsToNodes;
 } op_export_core;
 
-typedef op_export_core *op_export;
+typedef op_export_core *op_export_handle;
 
 typedef struct {
   int index;
@@ -182,7 +182,7 @@ typedef struct {
   op_dat coords;
 } op_import_core;
 
-typedef op_import_core *op_import;
+typedef op_import_core *op_import_handle;
 
 
 /** external variables **/
@@ -321,6 +321,15 @@ void op_partition_ptscotch(op_map primary_map);
 #endif
 
 
+/*******************************************************************************
+* Sliding planes functionality
+*******************************************************************************/
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes);
+void op_export_data(op_export_handle handle, int ndats, op_dat* datlist);
+op_import_handle op_import_init(int nprocs, int* proclist, op_dat coords);
+void op_inc_theta(op_import_handle handle, double dtheta);
+void op_import_data(op_import_handle handle, int ndats, op_dat* datlist);
+
 #ifdef __cplusplus
 }
 #endif
@@ -337,15 +346,6 @@ void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag);
 void op_wait_all_cuda(op_arg* arg);
 void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
-
-/*******************************************************************************
-* Sliding planes functionality
-*******************************************************************************/
-op_export op_export_init(int nprocs, int *proclist, op_map cellsToNodes);
-void op_export_data(op_export handle, int ndats, op_dat* datlist);
-op_import op_import_init(int nprocs, int* proclist, op_dat coords);
-void op_inc_theta(op_import handle, double dtheta);
-void op_import_data(op_import handle, int ndats, op_dat* datlist);
 
 #endif /* __OP_MPI_CORE_H */
 
