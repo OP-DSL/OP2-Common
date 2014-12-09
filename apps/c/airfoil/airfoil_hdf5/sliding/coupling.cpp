@@ -57,12 +57,14 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  //Figure out who belongs in what group
   int *groups = (int *)malloc(size * sizeof(int));
   int *groups2 = (int *)malloc(size * sizeof(int));
   int *coupling_group = (int *)malloc(size * sizeof(int));
   int my_type = 0; //This is to be read from a configuration file
   MPI_Allgather(&my_type, 1, MPI_INT, groups, 1, MPI_INT, MPI_COMM_WORLD);
 
+  //count number of groups
   int num_groups = 0;
   for (int i = 0; i < size; i++) num_groups = num_groups > groups[i] ? num_groups : groups[i];
   num_groups++;
@@ -89,6 +91,7 @@ int main(int argc, char **argv)
     MPI_Comm_create(MPI_COMM_WORLD, mpigroups[i], &mpicomms[i]);
   }
 
+  //Figure out who is in the coupling group (id 0)
   int coupling_group_size = 0;
   int rank_in_group = -1;
   for (int j = 0; j < size; ++j) {
@@ -157,7 +160,7 @@ int main(int argc, char **argv)
     MPI_Recv(coords[i], recv_nodesize[i]*3*sizeof(double), MPI_CHAR, groups2[i], 401, MPI_COMM_WORLD, &statuses[i]);
   }
 
-
+  //Divide up who sends back what - in reality this will change
   int send_begin[count];
   int send_end[count];
   for (int i = 0; i < count; i++) {
@@ -176,24 +179,27 @@ int main(int argc, char **argv)
 
 
   //
-  // op_export
+  // op_export and op_import - iterative loop
   //
 
-  //  we are going to be receiving bound, coord, p
+  //  we are going to be receiving bound (1 int), coord (3 double), p (1 double)
   char *recv_buffers[count];
   for (int i = 0; i < count; ++i) {
     recv_buffers[i] = (char*)malloc(node_sizes[i]*(sizeof(int) + 4*sizeof(double)));
   }
   for (int repeat = 0; repeat < 10; repeat++) {
+    //op_export - the receive side. Data is received as SoA
     for (int i = 0; i < count; ++i) {
       MPI_Irecv(recv_buffers[i], node_sizes[i]*(sizeof(int) + 4*sizeof(double)), MPI_CHAR, groups2[i], 200, MPI_COMM_WORLD, &requests[i]);
       printf("Coupling (%d) receiving %d bytes from %d\n",rank, node_sizes[i]*(sizeof(int) + 4*sizeof(double)), groups2[i]);
     }
     MPI_Waitall(count, requests, statuses);
-    printf("Arrived\n");
-    //Do something with it
+
+    //op_import - send side
+    //we send the data back, based on up-front division
     for (int i = 0; i < count; ++i) {
       for (int j = send_begin[i]; j < send_end[i]; j++) {
+        //Pack structure: global node id and then the payload, data is sent back as AoS
         *(int*)(send_buf[i]+(j-send_begin[i])*item_size) = node_indices[i][j]; //global node id
         *(int*)(send_buf[i]+(j-send_begin[i])*item_size + sizeof(int)) = ((int*)(recv_buffers[i]))[j]; //p_bound
         *(double*)(send_buf[i]+(j-send_begin[i])*item_size + 2*sizeof(int))                  = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+0]; //coord x
