@@ -59,12 +59,15 @@ int main(int argc, char **argv)
 
   int *groups = (int *)malloc(size * sizeof(int));
   int *groups2 = (int *)malloc(size * sizeof(int));
+  int *coupling_group = (int *)malloc(size * sizeof(int));
   int my_type = 0; //This is to be read from a configuration file
   MPI_Allgather(&my_type, 1, MPI_INT, groups, 1, MPI_INT, MPI_COMM_WORLD);
 
   int num_groups = 0;
   for (int i = 0; i < size; i++) num_groups = num_groups > groups[i] ? num_groups : groups[i];
   num_groups++;
+
+  int iam_root = 0;
 
   //The global group
   MPI_Group global_grp;
@@ -78,11 +81,21 @@ int main(int argc, char **argv)
     count = 0;
     for (int j = 0; j < size; ++j) {
       if (groups[j] == i) {
+        if (i==0 && count == 0 && rank == j) iam_root = 1;
         groups2[count++] = j;
       }
     }
     MPI_Group_incl(global_grp, count, groups2, &mpigroups[i]);
     MPI_Comm_create(MPI_COMM_WORLD, mpigroups[i], &mpicomms[i]);
+  }
+
+  int coupling_group_size = 0;
+  int rank_in_group = -1;
+  for (int j = 0; j < size; ++j) {
+    if (groups[j] == 0) {
+      if (j==rank) rank_in_group = coupling_group_size;
+      coupling_group[coupling_group_size++] = j;
+    }
   }
 
   //
@@ -117,12 +130,13 @@ int main(int argc, char **argv)
     MPI_Recv(cellsToNodes[i], 4*cell_sizes[i], MPI_INT, groups2[i], 102, MPI_COMM_WORLD, &statuses[i]);
   }
 
-  //Step 3: send list of processes that the OP2 processes will have to send to
-  int num_target_procs = 1;
-  int target_procs = rank;
-  for (int i = 0; i < count; i++) {
-    MPI_Send(&num_target_procs, 1, MPI_INT, groups2[i], 103, MPI_COMM_WORLD);
-    MPI_Send(&target_procs, 1, MPI_INT, groups2[i], 104, MPI_COMM_WORLD);
+  //Step 3: root sends list of processes that the OP2 processes will have to send to
+  if (iam_root) {
+    int num_target_procs = coupling_group_size;
+    for (int i = 0; i < count; i++) {
+      MPI_Send(&num_target_procs, 1, MPI_INT, groups2[i], 103, MPI_COMM_WORLD);
+      MPI_Send(coupling_group, num_target_procs, MPI_INT, groups2[i], 104, MPI_COMM_WORLD);
+    }
   }
 
   //
@@ -143,12 +157,23 @@ int main(int argc, char **argv)
     MPI_Recv(coords[i], recv_nodesize[i]*3*sizeof(double), MPI_CHAR, groups2[i], 401, MPI_COMM_WORLD, &statuses[i]);
   }
 
+
+  int send_begin[count];
+  int send_end[count];
+  for (int i = 0; i < count; i++) {
+    send_begin[i] = (recv_nodesize[i]/coupling_group_size) * rank_in_group;
+    send_end[i] = (recv_nodesize[i]/coupling_group_size) * (rank_in_group+1);
+    if (rank_in_group == coupling_group_size-1) send_end[i] = recv_nodesize[i];
+  }
+
   //prepare send buffers for import
   char *send_buf[count];
   for (int i = 0; i < count; ++i) {
-    send_buf[i] = (char*)malloc(node_sizes[i]*(2*sizeof(int) + 4*sizeof(double)));
+    send_buf[i] = (char*)malloc((send_end[i]-send_begin[i])*(2*sizeof(int) + 4*sizeof(double)));
   }
   int item_size = 2*sizeof(int) + 4*sizeof(double);
+
+
 
   //
   // op_export
@@ -168,15 +193,16 @@ int main(int argc, char **argv)
     printf("Arrived\n");
     //Do something with it
     for (int i = 0; i < count; ++i) {
-      for (int j = 0; j < node_sizes[i]; j++) {
-        *(int*)(send_buf[i]+j*item_size) = node_indices[i][j]; //global node id
-        *(int*)(send_buf[i]+j*item_size + sizeof(int)) = ((int*)(recv_buffers[i]))[j]; //p_bound
-        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int))                  = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+0]; //coord x
-        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+sizeof(double))   = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+1]; //coord y
-        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+2*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+2]; //coord z
-        *(double*)(send_buf[i]+j*item_size + 2*sizeof(int)+3*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)+node_sizes[i]*3*sizeof(double)))[j]; //pressure
+      for (int j = send_begin[i]; j < send_end[i]; j++) {
+        *(int*)(send_buf[i]+(j-send_begin[i])*item_size) = node_indices[i][j]; //global node id
+        *(int*)(send_buf[i]+(j-send_begin[i])*item_size + sizeof(int)) = ((int*)(recv_buffers[i]))[j]; //p_bound
+        *(double*)(send_buf[i]+(j-send_begin[i])*item_size + 2*sizeof(int))                  = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+0]; //coord x
+        *(double*)(send_buf[i]+(j-send_begin[i])*item_size + 2*sizeof(int)+sizeof(double))   = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+1]; //coord y
+        *(double*)(send_buf[i]+(j-send_begin[i])*item_size + 2*sizeof(int)+2*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)))[3*j+2]; //coord z
+        *(double*)(send_buf[i]+(j-send_begin[i])*item_size + 2*sizeof(int)+3*sizeof(double)) = ((double*)(recv_buffers[i] + node_sizes[i]*sizeof(int)+node_sizes[i]*3*sizeof(double)))[j]; //pressure
       }
-      MPI_Isend(send_buf[i], node_sizes[i]*(2*sizeof(int) + 4*sizeof(double)), MPI_CHAR, groups2[i], 500, MPI_COMM_WORLD, &requests[i]);
+      MPI_Isend(send_buf[i], (send_end[i]-send_begin[i])*(2*sizeof(int) + 4*sizeof(double)), MPI_CHAR, groups2[i], 500, MPI_COMM_WORLD, &requests[i]);
+      printf("Coupling (%d) sending %d->%d (%d bytes) to %d\n", rank, send_begin[i], send_end[i], (send_end[i]-send_begin[i])*(2*sizeof(int) + 4*sizeof(double)), groups2[i]);
     }
     MPI_Waitall(count, requests, statuses);
     printf("Sent back\n");
