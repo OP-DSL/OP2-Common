@@ -3104,7 +3104,6 @@ op_import_handle op_import_init(int nprocs, int* proclist, op_dat coords) {
   MPI_Allgather(&coords->set->size, 1, MPI_INT, global_sizes, 1, MPI_INT, OP_MPI_WORLD);
   for (int i = 0; i < mpi_comm_rank; i++) handle->gbl_offset += global_sizes[i];
 
-
   //figure out communication patterns
   //step 1: all OP2 processes to all coupling processes: number of nodes owned
   MPI_Request requests[nprocs];
@@ -3139,6 +3138,8 @@ void op_import_data(op_import_handle handle, int ndats, op_dat* datlist) {
     OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
     OP_sliding_buffer_size = total_size;
   }
+  int rank;
+  MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
 
   int recv_size = 0;
   while (1) {
@@ -3148,6 +3149,7 @@ void op_import_data(op_import_handle handle, int ndats, op_dat* datlist) {
     MPI_Probe(MPI_ANY_SOURCE,500,OP_MPI_GLOBAL,&status);
     MPI_Get_count(&status, MPI_BYTE, &size);
     MPI_Recv(OP_sliding_buffer, size, MPI_BYTE, status.MPI_SOURCE, 500, OP_MPI_GLOBAL, &status2);
+    printf("OP2 import (%d) received %d bytes from %d\n", rank, size, status.MPI_SOURCE);
     for (int i = 0; i < size / item_size; i++) {
       int idx = *(int*)(OP_sliding_buffer+i*item_size) - handle->gbl_offset;
       int cum_size = sizeof(int);
