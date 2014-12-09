@@ -194,6 +194,7 @@ int main(int argc, char **argv)
 
   int g_ncell = op_get_size(cells);
 
+  //create some temporaries so we can exchange data defined on the boundary
   double *ptr = NULL;
   op_dat center = op_decl_dat_temp(bedges, 3, "double", ptr, "center");
   op_dat pres = op_decl_dat_temp(bedges, 1, "double", ptr, "pres");
@@ -203,6 +204,7 @@ int main(int argc, char **argv)
   op_dat center2 = op_decl_dat_temp(bedges, 3, "double", ptr, "center2");
   op_dat pres2 = op_decl_dat_temp(bedges, 1, "double", ptr, "pres2");
 
+  //create import and export handles
   op_export_handle handle = op_export_init(count, groups2, pbndbnd);
   op_import_handle handle2 = op_import_init(count, groups2, center);
 
@@ -275,10 +277,13 @@ int main(int argc, char **argv)
 
     if (iter%100 == 0) {
       op_printf(" %d  %10.5e \n",iter,rms);
+      //Export data
       op_dat arr[] = {p_bound, center, pres};
       op_export_data(handle, 3, arr);
+      //Import data
       op_dat arr2[] = {p_bound2, center2, pres2};
       op_import_data(handle2, 3, arr2);
+      //check whether the two are the same
       op_par_loop(comparethem, "comparethem", bedges,
           op_arg_dat(p_bound,-1, OP_ID, 1, "int", OP_READ),
           op_arg_dat(p_bound2,-1, OP_ID, 1, "int", OP_READ),

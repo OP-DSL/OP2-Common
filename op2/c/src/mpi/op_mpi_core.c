@@ -3061,14 +3061,17 @@ void op_export_data(op_export_handle handle, int ndats, op_dat* datlist) {
     memcpy(OP_sliding_buffer + total_size, datlist[i]->data, datlist[i]->size * datlist[i]->set->size);
     total_size += datlist[i]->size * datlist[i]->set->size;
   }
-  int rank;
-  MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
+
   MPI_Request requests[handle->nprocs_send];
   MPI_Status  statuses[handle->nprocs_send];
   //TODO: should we send the size first? The coupling processes should know this though
   for (int i = 0; i < handle->nprocs_send; i++) {
     MPI_Isend(OP_sliding_buffer, total_size, MPI_CHAR, handle->proclist_send[i], 200, OP_MPI_GLOBAL, &requests[i]);
-    printf("OP2 (%d) sending %d bytes from %d\n",rank, total_size, handle->proclist_send[i]);
+    if (OP_diags > 5) {
+      int rank;
+      MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
+      printf("OP2 (%d) sending %d bytes from %d\n",rank, total_size, handle->proclist_send[i]);
+    }
   }
 
   MPI_Waitall(handle->nprocs_send, requests, statuses); //TODO: make this non-blocking up to the next export
@@ -3138,8 +3141,6 @@ void op_import_data(op_import_handle handle, int ndats, op_dat* datlist) {
     OP_sliding_buffer = (char*)realloc(OP_sliding_buffer, total_size * sizeof(char));
     OP_sliding_buffer_size = total_size;
   }
-  int rank;
-  MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
 
   int recv_size = 0;
   while (1) {
@@ -3149,7 +3150,11 @@ void op_import_data(op_import_handle handle, int ndats, op_dat* datlist) {
     MPI_Probe(MPI_ANY_SOURCE,500,OP_MPI_GLOBAL,&status);
     MPI_Get_count(&status, MPI_BYTE, &size);
     MPI_Recv(OP_sliding_buffer, size, MPI_BYTE, status.MPI_SOURCE, 500, OP_MPI_GLOBAL, &status2);
-    printf("OP2 import (%d) received %d bytes from %d\n", rank, size, status.MPI_SOURCE);
+    if (OP_diags > 5) {
+      int rank;
+      MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
+      printf("OP2 import (%d) received %d bytes from %d\n", rank, size, status.MPI_SOURCE);
+    }
     for (int i = 0; i < size / item_size; i++) {
       int idx = *(int*)(OP_sliding_buffer+i*item_size) - handle->gbl_offset;
       int cum_size = sizeof(int);
