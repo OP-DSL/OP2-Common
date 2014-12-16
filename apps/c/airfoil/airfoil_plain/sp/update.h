@@ -1,4 +1,4 @@
-inline void update(float *qold, float *q, float *res, float *adt, float *rms){
+inline void update(const float *qold, float *q, float *res, const float *adt, float *rms){
   float del, adti;
 
   adti = 1.0f/(*adt);

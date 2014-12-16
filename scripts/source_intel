@@ -1,0 +1,8 @@
+export OP2_COMPILER=intel
+export PARMETIS_INSTALL_PATH=/opt/Parmetis-4-intel
+export PTSCOTCH_INSTALL_PATH=/opt/PT-Scotch-intel/
+export HDF5_INSTALL_PATH=/opt/hdf5-1.8.10-intel/
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
+export CUDA_INSTALL_PATH=/usr/local/cuda-6.0
+export MPI_INSTALL_PATH=/opt/openmpi-1.6.4-intel/
+export LD_LIBRARY_PATH=/opt/Parmetis-4-intel/lib:/opt/PT-Scotch-intel/lib:$LD_LIBRARY_PATH

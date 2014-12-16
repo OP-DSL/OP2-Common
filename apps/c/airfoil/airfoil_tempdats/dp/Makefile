@@ -29,10 +29,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xSSE4.2 -parallel -DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -vec-report -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF#-g #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 print:
@@ -43,8 +43,19 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+endif
+endif
 
-NVCCFLAGS	= -O3 -arch=sm_20 -Xptxas=-v -Dlcm=ca -use_fast_math #-g -G -O0
+NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
