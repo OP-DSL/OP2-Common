@@ -697,7 +697,7 @@ function which would print the same on each MPI process.}
 \begin{routine} {void op\_fetch\_data ( op\_dat dat, T* data)}
 {This routine transfers a copy of the data currently held in an op\_dat from the OP2 back-end to a user allocated memory
 block.}
-\item[dat]           OP dataset ID -- The op\_dat who's data is to be fetched from OP2 space to user space
+\item[dat]           OP dataset ID -- The op\_dat whose data is to be fetched from OP2 space to user space
 \item[data]          pointer to a block of memory of type T -- allocated by the user
 \end{routine}
 
@@ -706,7 +706,7 @@ block.}
 {Transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
 to by data pointer of type T. The {\tt low} and {\tt high} integers gives the range of elements to be fetched. Under MPI
 (with hdf5) all the processes will hold the same data block(i.e. after an \texttt{MPI\_Allgather})}
-\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [dat] OP dataset ID -- The op dat whose data is to be fetched from OP2 space to user space
 \item [data] pointer to a block of memory of type T -- allocated by the user
 \item [low] index of the first element to be fetched
 \item [high] index of the last element to be fetched
@@ -715,21 +715,21 @@ to by data pointer of type T. The {\tt low} and {\tt high} integers gives the ra
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_hdf5\_file}
 \begin{routine}{void op\_fetch\_data\_hdf5\_file(op\_dat dat, char const *file\_name)}
 {Write the data in the op\_dat to an HDF5 file}
-\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [dat] OP dataset ID -- The op dat whose data is to be fetched from OP2 space to user space
 \item [file\_name] the file name to be written to
 \end{routine}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_print\_dat\_to\_binfile}
 \begin{routine}{void op\_print\_dat\_to\_binfile(op\_dat dat, const char *file\_name)}
 {Write the data in the op\_dat to a binary file}
-\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [dat] OP dataset ID -- The op dat whose data is to be fetched from OP2 space to user space
 \item [file\_name] the file name to be written to
 \end{routine}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_print\_dat\_to\_txtfile}
 \begin{routine}{void op\_print\_dat\_to\_txtfile(op\_dat dat, const char *file\_name)}
 {Write the data in the op\_dat to a ASCI text file}
-\item [dat] OP dataset ID -- The op dat who's data is to be fetched from OP2 space to user space
+\item [dat] OP dataset ID -- The op dat whose data is to be fetched from OP2 space to user space
 \item [file\_name] the file name to be written to
 \end{routine}
 

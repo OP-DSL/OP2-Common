@@ -8,7 +8,14 @@
 \setlength{\textwidth}{6.5 in}
 \usepackage{url}
 \usepackage{verbments}
+\usepackage{minted}
 
+% \captionsetup[subfigure]{justification=left}
+
+
+\renewcommand{\theFancyVerbLine}{
+  \sffamily\textcolor[rgb]{0.5,0.5,0.5}{\scriptsize\arabic{FancyVerbLine}}}
+  
 \date{December 2013}
 
 \newenvironment{routine}[2]
@@ -296,56 +303,53 @@ export or an import list for an \texttt{op\_set} has the structure in \figurenam
 \texttt{op\_mpi\_core.h} and
 \texttt{op\_mpi\_core.c}):\\\vspace{-0pt}
 
-\begin{figure}\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-typedef struct {
-  op_set set;     //set related to this list
-  int size;       //number of elements in this list
-  int *ranks;     //MPI ranks to be exported to or imported from
-  int ranks_size; //number of MPI neighbors to be exported to or imported from
-  int *disps;     //displacements for the starting point of each rank's
-                  //element list
-  int    *sizes;  //number of elements exported to or imported from each ranks
-  int    *list;   //the list of all elements
-} halo_list_core;
+\begin{figure}[h]\small
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  typedef struct {
+    op_set set;     //set related to this list
+    int size;       //number of elements in this list
+    int *ranks;     //MPI ranks to be exported to or imported from
+    int ranks_size; //number of MPI neighbors to be exported to or imported from
+    int *disps;     //displacements for the starting point of each rank's
+                    //element list
+    int    *sizes;  //number of elements exported to or imported from each ranks
+    int    *list;   //the list of all elements
+  } halo_list_core;
 
-typedef halo_list_core * halo_list;
+  typedef halo_list_core * halo_list;
 
-halo_list *OP_export_exec_list;//eeh list
-halo_list *OP_import_exec_list;//ieh list
+  halo_list *OP_export_exec_list;//eeh list
+  halo_list *OP_import_exec_list;//ieh list
 
-halo_list *OP_import_nonexec_list;//inh list
-halo_list *OP_export_nonexec_list;//enh list
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
-\caption{\small \texttt{halo\_list\_core} struct}
-\normalsize\vspace{-0pt}\label{fig:haloliststruct}
-\end{figure}
+  halo_list *OP_import_nonexec_list;//inh list
+  halo_list *OP_export_nonexec_list;//enh list
+\end{minted}
+\vspace{-20pt}
+\caption{\small \texttt{halo\_list\_core} struct}\vspace{-5pt}\label{fig:haloliststruct}
+\end{figure}\normalsize
 
 
-\begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-typedef struct {
- int         dat_index;    //index of the op_dat to which
-                           //this buffer belongs
- char        *buf_exec;    //buffer holding exec halo
-                           //to be exported;
- char        *buf_nonexec; //buffer holding nonexec halo
-                           //to be exported;
- MPI_Request *s_req;       //array of MPI_Reqests for sends
- MPI_Request *r_req;       //array of MPI_Reqests for receives
- int         s_num_req;    //number of sends in flight
-                           //at a given time for this op_dat
- int         r_num_req;    //number of receives awaiting
-                           //at a given time for this op_dat
-} op_mpi_buffer_core;
 
-typedef op_mpi_buffer_core *op_mpi_buffer;
-op_mpi_buffer *OP_mpi_buffer_list;
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{figure}[h]\small
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  typedef struct {
+    int         dat_index;    //index of the op_dat to which
+                              //this buffer belongs
+    char        *buf_exec;    //buffer holding exec halo
+                              //to be exported;
+    char        *buf_nonexec; //buffer holding nonexec halo
+                              //to be exported;
+    MPI_Request *s_req;       //array of MPI_Reqests for sends
+    MPI_Request *r_req;       //array of MPI_Reqests for receives
+    int         s_num_req;    //number of sends in flight
+                              //at a given time for this op_dat
+    int         r_num_req;    //number of receives awaiting
+                              //at a given time for this op_dat
+   } op_mpi_buffer_core;
+   
+   typedef op_mpi_buffer_core *op_mpi_buffer;
+   op_mpi_buffer *OP_mpi_buffer_list;
+\end{minted}
 \caption{\small \texttt{op\_mpi\_buffer} struct}
 \normalsize\vspace{-0pt}\label{fig:mpisendbufstruct}
 \end{figure}
@@ -472,18 +476,16 @@ data and no halo exchanges are needed.
 \item For indirect loops the algorithm detailed in \figurename{ \ref{fig:haloexchange}} determines a halo exchange.
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-for each indirect op_arg {
-  if ((op_arg.access is OP_READ or OP_RW) and (dirty bit is set))
-  then do halo exchange for op_arg.dat and clear dirty bit
-}
-if(all indirect op_arg.access == OP_READ)
-   execute/loop over set size
-else
-   execute/loop over set size + ieh
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  for each indirect op_arg {
+    if ((op_arg.access is OP_READ or OP_RW) and (dirty bit is set))
+    then do halo exchange for op_arg.dat and clear dirty bit
+  }
+  if(all indirect op_arg.access == OP_READ)
+    execute/loop over set size
+  else
+    execute/loop over set size + ieh
+\end{minted}
 \caption{\small Algorithm to determine a halo exchange}
 \normalsize\vspace{-0pt}\label{fig:haloexchange}
 \end{figure}
@@ -504,28 +506,26 @@ will send them using \texttt{MPI\_Isend} operations. The code detailed in \figur
 for sending the \textit{eeh}.\\
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
 
-for(int i=0; i<exp_exec_list->ranks_size; i++) {
-  for(int j = 0; j < exp_exec_list->sizes[i]; j++)
-  {
-    set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
-    memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
-    buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
-    (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
-  }
-  MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
+  for(int i=0; i<exp_exec_list->ranks_size; i++) {
+    for(int j = 0; j < exp_exec_list->sizes[i]; j++)
+    {
+      set_elem_index = exp_exec_list->list[exp_exec_list->disps[i]+j];
+      memcpy(&((op_mpi_buffer)(dat->mpi_buffer))->
+      buf_exec[exp_exec_list->disps[i]*dat->size+j*dat->size],
+      (void *)&dat->data[dat->size*(set_elem_index)],dat->size);
+    }
+    MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->
          buf_exec[exp_exec_list->disps[i]*dat->size],
          dat->size*exp_exec_list->sizes[i],
          MPI_CHAR, exp_exec_list->ranks[i],
          dat->index, OP_MPI_WORLD,
          &((op_mpi_buffer)(dat->mpi_buffer))->
          s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-}
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+  }
+\end{minted}
 \caption{\small MPI send halo}
 \normalsize\vspace{-0pt}\label{fig:sendhalo}
 \end{figure}
@@ -535,21 +535,19 @@ for(int i=0; i<exp_exec_list->ranks_size; i++) {
 relevant \texttt{op\_dat}, using the \textit{ieh} and \textit{inh} lists.\\
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
 
-int init = dat->set->size*dat->size;
-for(int i=0; i < imp_exec_list->ranks_size; i++) {
-  MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
+  int init = dat->set->size*dat->size;
+  for(int i=0; i < imp_exec_list->ranks_size; i++) {
+    MPI_Irecv(&(dat->data[init+imp_exec_list->disps[i]*dat->size]),
          dat->size*imp_exec_list->sizes[i],
          MPI_CHAR, imp_exec_list->ranks[i],
          dat->index, OP_MPI_WORLD,
          &((op_mpi_buffer)(dat->mpi_buffer))->
          r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-}
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+  }
+\end{minted}
 \caption{\small MPI receive halo}
 \normalsize\vspace{-0pt}\label{fig:recivehalo}
 \end{figure}
@@ -613,25 +611,23 @@ will replace the internal \texttt{op\_dat}'s data values. A valid implementation
 element index to the current set element index.
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-typedef struct
-{
-  char const  *name;   // name of kernel
-  double      time;    //total time spent in this
-                       //kernel (compute+comm-overlapping)
-  int         count;   //number of times this kernel is called
-  int*        op_dat_indices;  //array to hold op_dat index of
-                               //each op_dat used in MPI halo
-                               //exports for this kernel
-  int         num_indices; //number of op_dat indices
-  int*        tot_count;   //total number of times this op_dat was
-                           //halo exported within this kernel
-  int*        tot_bytes;   //total number of bytes halo exported
-                           //for this op_dat in this kernel
-} op_mpi_kernel;
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  typedef struct
+  {
+    char const  *name;   // name of kernel
+    double      time;    //total time spent in this
+                         //kernel (compute+comm-overlapping)
+    int         count;   //number of times this kernel is called
+    int*        op_dat_indices;  //array to hold op_dat index of
+                                 //each op_dat used in MPI halo
+                                 //exports for this kernel
+    int         num_indices; //number of op_dat indices
+    int*        tot_count;   //total number of times this op_dat was
+                             //halo exported within this kernel
+    int*        tot_bytes;   //total number of bytes halo exported
+                             //for this op_dat in this kernel
+  } op_mpi_kernel;
+\end{minted}
 \caption{\small MPI performance measurement collection struct}
 \normalsize\vspace{-0pt}\label{fig:perf}
 \end{figure}
@@ -804,23 +800,21 @@ while a different set will be assigned for the others. As such the pseudo-code f
 on a single GPU within a GPU cluster is detailed in \figurename{~\ref{fig:mpi_cuda_exchange}}.
 
 \begin{figure}[t]\small
-\vspace{-0pt}\noindent\line(1,0){470}\vspace{-10pt}
-\begin{pyglist}[language=c]
-for each op dat requiring a halo exchange {
-  execute CUDA kernel to gather export halo data
-  copy export halo data from GPU to host
-  start non-blocking MPI communication
-}
-for each color (i) {
-  if color ! = core colors {
-    wait for all MPI communications to complete
-    for each op dat requiring a halo exchange
-      copy import halo data from host to GPU
+\begin{minted}[mathescape, linenos, numbersep=5pt, gobble=2, frame=lines, framesep=2mm]{c}
+  for each op dat requiring a halo exchange {
+    execute CUDA kernel to gather export halo data
+    copy export halo data from GPU to host
+    start non-blocking MPI communication
   }
-  execute CUDA kernel for color (i) mini-partitions
-}
-\end{pyglist}
-\vspace{-10pt}\noindent\line(1,0){470}\vspace{-10pt}
+  for each color (i) {
+    if color ! = core colors {
+      wait for all MPI communications to complete
+      for each op dat requiring a halo exchange
+        copy import halo data from host to GPU
+    }
+    execute CUDA kernel for color (i) mini-partitions
+  }
+\end{minted}
 \caption{\small MPI+CUDA halo exchange}
 \normalsize\vspace{-0pt}\label{fig:mpi_cuda_exchange}
 \end{figure}
