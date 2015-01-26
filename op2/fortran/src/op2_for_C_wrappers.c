@@ -267,6 +267,11 @@ void dumpOpGbl (op_dat_core * data)
     }
 }
 
+int getMapDimFromOpArg (op_arg * arg)
+{
+  return (arg->map!=NULL) ? arg->map->dim : 0;
+}
+
 void dumpOpMap (op_map_core * map, const char * fileName)
 {
   int i, j;

@@ -346,6 +346,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('const INDTYP *__restrict INDARG,')
       else:
         code('INDTYP *__restrict INDARG,')
+        code('int ind'+str(g_m)+'_stride,')
 
     if nmaps > 0:
       k = []
@@ -549,11 +550,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
-              code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
+              if soaflags[g_m]:
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx];')
+              else:
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
-              code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
+              if soaflags[g_m]:
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
+              else:
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
         ENDFOR()
         code('__syncthreads();')
@@ -810,6 +817,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
         code('(TYP *)ARG.data_d,')
+        if accs[g_m] <> OP_READ:
+          code('ARG.map->to->size + ARG.map->to->exec_size + ARG.map->to->nonexec_size,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):

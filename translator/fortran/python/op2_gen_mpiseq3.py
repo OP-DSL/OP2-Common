@@ -138,7 +138,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
+def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -229,8 +229,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('USE OP2_FORTRAN_DECLARATIONS')
     code('USE OP2_FORTRAN_RT_SUPPORT')
     code('USE ISO_C_BINDING')
-    if hydra == 0:
+    if hydra == 0 and bookleaf == 0:
       code('USE OP2_CONSTANTS')
+    if bookleaf:
+      code('USE kinds_mod,    ONLY: ink,rlk')
+      code('USE parameters_mod,ONLY: LI')
 
     code('')
 
@@ -240,11 +243,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('')
     code('CONTAINS')
     code('')
-    if hydra == 0:
-      comm('user function')
-      code('#include "'+name+'.inc"')
-      code('')
-    else:
+
+    if hydra == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
       print modfile
@@ -265,6 +265,19 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
       text = text.replace('end !module','!end module')
       file_text += text
       #code(kernels[nk]['mod_file'])
+    elif bookleaf == 1:
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
+      modfile = kernels[nk]['mod_file']
+      fid = open(modfile, 'r')
+      text = fid.read()
+      i = text.find('SUBROUTINE '+name)
+      j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
+      file_text += text[i:j]+'\n\n'
+    else:
+      comm('user function')
+      code('#include "'+name+'.inc"')
+      code('')
+
     code('')
 
 ##########################################################################
@@ -507,6 +520,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_seqkernel.F95','w')
+    elif bookleaf:
+      fid = open(name+'_seqkernel.f90','w')
     else:
       fid = open(name+'_seqkernel.F90','w')
     date = datetime.datetime.now()

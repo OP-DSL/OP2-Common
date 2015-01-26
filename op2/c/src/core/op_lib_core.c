@@ -52,6 +52,7 @@ int OP_diags = 0,
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
+int OP_auto_soa = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
@@ -146,6 +147,12 @@ void
     printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
+  if ( getenv ( "OP_AUTO_SOA" ) )
+  {
+    OP_auto_soa = 1;
+    printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+  }
+
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;
 #endif
@@ -178,6 +185,11 @@ void
     {
       OP_gpu_direct = 1;
       printf ( "\n Enabling GPU Direct \n" );
+    }
+    if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 )
+    {
+      OP_auto_soa = 1;
+      printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
     }
     if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 )
     {

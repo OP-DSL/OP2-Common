@@ -32,6 +32,7 @@
 
 #define MPICH_IGNORE_CXX_SEEK
 #include <op_lib_mpi.h>
+#include <op_lib_c.h>
 
 
 __global__ void export_halo_gather(int* list, char * dat, int copy_size,
@@ -144,7 +145,7 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_no
   int threads = 192;
   int blocks = 1+((exp_exec_list->size-1)/192);
 
-  if (strstr( arg.dat->type, ":soa")!= NULL) {
+  if (strstr( arg.dat->type, ":soa")!= NULL || (OP_auto_soa && arg.dat->dim > 1)) {
 
     int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
 
@@ -172,7 +173,7 @@ void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list)
   int threads = 192;
   int blocks = 1+((exp_nonexec_list->size-1)/192);
 
-  if (strstr( arg.dat->type, ":soa")!= NULL) {
+  if (strstr( arg.dat->type, ":soa")!= NULL || (OP_auto_soa && arg.dat->dim > 1)) {
 
     int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
 
@@ -192,7 +193,7 @@ void scatter_data_from_buffer(op_arg arg)
   int threads = 192;
   int blocks = 1+((arg.dat->set->exec_size-1)/192);
 
-  if (strstr( arg.dat->type, ":soa")!= NULL) {
+  if (strstr( arg.dat->type, ":soa")!= NULL || (OP_auto_soa && arg.dat->dim > 1)) {
 
     int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
     int offset = arg.dat->set->size;
@@ -216,7 +217,7 @@ void scatter_data_from_buffer_partial(op_arg arg)
   int threads = 192;
   int blocks = 1+((OP_import_nonexec_permap[arg.map->index]->size-1)/192);
 
-  if (strstr( arg.dat->type, ":soa")!= NULL) {
+  if (strstr( arg.dat->type, ":soa" )!= NULL || (OP_auto_soa && arg.dat->dim > 1)) {
 
     int set_size = arg.dat->set->size + arg.dat->set->exec_size + arg.dat->set->nonexec_size;
     int init = OP_export_nonexec_permap[arg.map->index]->size;

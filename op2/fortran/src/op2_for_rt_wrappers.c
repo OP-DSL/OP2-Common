@@ -134,9 +134,10 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
   /* copy the name because FORTRAN doesn't allow allocating
      strings */
-  int nameLen = strlen (name);
+  int nameLen = strlen (name)+1;
   char * heapName = (char *) calloc (nameLen, sizeof(char));
-  strncpy (heapName, name, nameLen);
+  strncpy (heapName, name, nameLen-1);
+  heapName[nameLen-1] = '\0';
 
   /* call the C OP2 function */
   generatedPlan = op_plan_get_stage (heapName, set, partitionSize,
@@ -146,11 +147,11 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 }
 
 
-
+/*
 int getMapDimFromOpArg (op_arg * arg)
 {
   return (arg->map!=NULL) ? arg->map->dim : 0;
-}
+}*/
 
 int reductionSize (op_arg *args, int nargs)
 {
