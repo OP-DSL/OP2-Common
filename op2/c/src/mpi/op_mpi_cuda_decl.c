@@ -160,7 +160,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
   dat-> user_managed = 0;
 
   //transpose
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
       dat->size * (OP_import_exec_list[set->index]->size +
       OP_import_nonexec_list[set->index]->size) ));
@@ -213,7 +213,7 @@ int op_free_dat_temp_char ( op_dat dat )
   //need to free device buffers used in mpi comms
   cutilSafeCall (cudaFree(dat->buffer_d));
 
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall (cudaFree(dat->buffer_d_r));
   }
 
@@ -227,8 +227,13 @@ void op_mv_halo_device(op_set set, op_dat dat)
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
 
+<<<<<<< HEAD
   if (strstr( dat->type, ":soa")!= NULL) {
     char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
+=======
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
+    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+>>>>>>> Enabled automatic AoS->SoA conversion. Set OP_AUTO_SOA at runtime and switch to 1 in op2.py or op2_fortran.py. Also added BookLeaf support
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -387,7 +392,7 @@ op_exit (  )
     op_dat_entry *item;
     TAILQ_FOREACH(item, &OP_dat_list, entries)
     {
-      if (strstr( item->dat->type, ":soa")!= NULL) {
+      if (strstr( item->dat->type, ":soa")!= NULL || (OP_auto_soa && item->dat->dim > 1)) {
         cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
       }
       cutilSafeCall (cudaFree((item->dat)->buffer_d));
@@ -457,8 +462,13 @@ void op_upload_all ()
     int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
+<<<<<<< HEAD
       if (strstr( dat->type, ":soa")!= NULL) {
         char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
+=======
+      if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
+        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+>>>>>>> Enabled automatic AoS->SoA conversion. Set OP_AUTO_SOA at runtime and switch to 1 in op2.py or op2_fortran.py. Also added BookLeaf support
         int element_size = dat->size/dat->dim;
         for (int i = 0; i < dat->dim; i++) {
           for (int j = 0; j < set_size; j++) {

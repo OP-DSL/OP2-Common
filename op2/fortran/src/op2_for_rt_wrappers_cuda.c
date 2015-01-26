@@ -32,6 +32,7 @@
 
 
 #include <op_lib_core.h>
+ #include <op_lib_c.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -40,7 +41,7 @@
 
 void op_put_dat(op_dat dat) {
   int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -59,7 +60,7 @@ void op_put_dat(op_dat dat) {
 
 void op_get_dat(op_dat dat) {
   int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
     int element_size = dat->size/dat->dim;

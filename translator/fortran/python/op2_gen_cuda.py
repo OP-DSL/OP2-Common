@@ -166,7 +166,7 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
-def op2_gen_cuda(master, date, consts, kernels, hydra):
+def op2_gen_cuda(master, date, consts, kernels, hydra, bookleaf):
 
   global dims, idxs, typs, indtyps, inddims
   global file_format, cont, comment
@@ -279,17 +279,14 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
     if hydra:
       code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
-      modfile = kernels[nk]['mod_file'][4:]
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
-      if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
-      fid = open(filename, 'r')
-      text = fid.read()
-      fid.close()
       code('USE HYDRA_CUDA_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
-      code('USE OP2_CONSTANTS')
+      if not bookleaf:
+        code('USE OP2_CONSTANTS')
+    if bookleaf:
+      code('USE kinds_mod,    ONLY: ink,rlk')
+      code('USE parameters_mod,ONLY: LI')
     code('USE OP2_FORTRAN_DECLARATIONS')
     code('USE OP2_FORTRAN_RT_SUPPORT')
     code('USE ISO_C_BINDING')
@@ -477,6 +474,13 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 #  Inline user kernel function
 ##########################################################################
     if hydra:
+      modfile = kernels[nk]['mod_file'][4:]
+      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      if not os.path.isfile(filename):
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
+      fid = open(filename, 'r')
+      text = fid.read()
+      fid.close()
       code('')
       comm(name + ' user functions (CPU and GPU)')
       code('')
@@ -583,7 +587,15 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
 
 
       file_text += text
-
+    elif bookleaf:
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
+      modfile = kernels[nk]['mod_file']
+      fid = open(modfile, 'r')
+      text = fid.read()
+      i = text.find('SUBROUTINE '+name)
+      j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
+      file_text += 'attributes (host) subroutine ' + name + text[i+ 11 + len(name):j]+'\n\n'
+      file_text += 'attributes (device) subroutine ' + name + '_gpu' + text[i+ 11 + len(name):j]+'_gpu\n\n'
     else:
       depth -= 2
       code('attributes (host) &')

@@ -285,6 +285,8 @@ def main():
     OP_MAX = 5
     OP_MIN = 6
 
+    auto_soa = 0
+
     OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
                       'OP_MAX', 'OP_MIN']
 
@@ -397,6 +399,8 @@ def main():
 
                     dims[m] = args['dim']
                     soa_loc = args['typ'].find(':soa')
+                    if auto_soa == 1 and int(args['dim'])>1 and soa_loc < 0:
+                        soa_loc = len(args['typ'])-1
 
                     if soa_loc > 0:
                         soaflags[m] = 1

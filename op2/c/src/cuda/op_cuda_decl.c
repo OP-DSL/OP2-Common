@@ -111,7 +111,7 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
   //transpose data
-  if (strstr( type, ":soa")!= NULL) {
+  if (strstr( type, ":soa")!= NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -143,7 +143,7 @@ op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char co
   dat-> user_managed = 0;
 
   //transpose data
-  if (strstr( type, ":soa")!= NULL) {
+  if (strstr( type, ":soa")!= NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -302,7 +302,7 @@ void op_upload_all ()
     op_dat dat = item->dat;
     int set_size = dat->set->size;
     if (dat->data_d) {
-      if (strstr( dat->type, ":soa")!= NULL) {
+      if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
         int element_size = dat->size/dat->dim;
         for (int i = 0; i < dat->dim; i++) {
