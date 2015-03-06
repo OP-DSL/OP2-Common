@@ -41,6 +41,7 @@ from op2_gen_mpi_vec import op2_gen_mpi_vec
 
 # import OpenMP and CUDA code generation functions
 from op2_gen_openmp_simple import op2_gen_openmp_simple
+
 from op2_gen_openacc import op2_gen_openacc
 
 #from op2_gen_cuda import op2_gen_cuda
@@ -634,8 +635,11 @@ def main():
                 if any_soa:
                   line = '\n#define STRIDE(x,y) x\n'
                   for ns in range (0,len(sets)):
-                    line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
-                  fid.write(line)
+                    if a == 1:
+                      line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
+                    else:
+                      line += 'extern int '+sets[ns]['name'].replace('"','')+'_stride;\n'
+                      fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
