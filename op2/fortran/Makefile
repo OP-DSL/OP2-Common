@@ -92,16 +92,16 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
-  CC              = nvcc
-  CXX             = pgCC
+  CC              = pgcc
+  CXX             = pgc++
   FC              = pgfortran
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc
   PGCC            = pgcc
-  PGCFLAGS        = -O2 -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
+  PGCFLAGS        = -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe" $(DEBUG_FLAGS)
   PGFC            = pgfortran
   PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
-  CFLAGS          = $(PGCFLAGS)
+  CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
   MPIF90          = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -303,7 +303,8 @@ f_mpi_seq: directories core \
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_rt_support.c -o $(F_OP2_OBJ)/op_mpi_rt_support.o
 	$(CC) $(CFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
 	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) \
+	$(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_rt_support.o \

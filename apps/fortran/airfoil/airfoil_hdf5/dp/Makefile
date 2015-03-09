@@ -5,7 +5,7 @@ OP2 = $(OP2_INSTALL_PATH)
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)
 F_OP2_LIB = $(OP2)/fortran/lib
 
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
+HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz -ldl
 
 PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
@@ -37,15 +37,15 @@ ifeq ($(OP2_COMPILER),gnu)
                 airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CC = pgcc
+  CC = pgc++
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
-  FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo
+  FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
   OPENMP = -mp
-  CPPLINK = -pgcpplibs
+  CPPLINK = -pgc++libs -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp_$(PART_SIZE_ENV) \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_cuda \
@@ -92,7 +92,7 @@ all: $(ALL_TARGETS)
 airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 airfoil_hdf5.F90
 	$(MPIF90) $(OPT) constants.o input.o airfoil_hdf5.o airfoil_seqfun.o -o airfoil_hdf5_seq \
-		$(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)
+		$(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK)
 
 airfoil_hdf5_openmp_$(PART_SIZE_ENV): airfoil_hdf5_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 input.F90 \
 	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 constants.F90 airfoil_seqfun.F90

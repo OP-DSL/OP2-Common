@@ -16,7 +16,7 @@ PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
-PART_SIZE_ENV ?= 0
+PART_SIZE_ENV ?= 128
 
 ifeq ($(OP2_COMPILER),gnu)
   CC = gcc

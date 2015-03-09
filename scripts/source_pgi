@@ -1,11 +1,26 @@
+#A rough example of environmental variables for compiling with PGI compilers
+
+#OP2 specifics
 export OP2_COMPILER=pgi
-export PARMETIS_INSTALL_PATH=/opt/Parmetis-4-pgi
-export PTSCOTCH_INSTALL_PATH=/opt/PT-Scotch-pgi/
-export HDF5_INSTALL_PATH=/opt/hdf5-1.8.10-pgi/
-export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
-export CUDA_INSTALL_PATH=/usr/local/cuda-6.0
-export MPI_INSTALL_PATH=/opt/openmpi-1.8-pgi142/
-export PATH=/rubydisk2/pgi/linux86-64/14.2/bin/:$PATH
-export LD_LIBRARY_PATH=/rubydisk2/pgi/linux86-64/14.2/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/opt/openmpi-1.8-pgi142/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/opt/Parmetis-4-pgi/lib:/opt/PT-Scotch-pgi/lib:$LD_LIBRARY_PATH
+export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+
+#External libraries
+export PARMETIS_INSTALL_PATH=/opt/parmetis-pgi
+export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-pgi/
+export HDF5_INSTALL_PATH=/opt/hdf5-pgi/
+export LD_LIBRARY_PATH=/opt/parmetis-pgi/lib:/opt/ptscotch-pgi/lib:$LD_LIBRARY_PATH
+
+#NVIDIA CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+#PGI openmpi and Compilers
+export MPI_INSTALL_PATH=/opt/openmpi-1.8.4-pgi151/ #/opt/pgi/linux86-64/2015/mpi/mpich/
+export PATH=/opt/pgi/linux86-64/2015/bin/:$PATH
+export PATH=/opt/openmpi-1.8.4-pgi151/bin:$PATH #/opt/pgi/linux86-64/2015/mpi/mpich/bin/:$PATH
+export LD_LIBRARY_PATH=/usr/lib64/:/opt/pgi/linux86-64/2015/lib/:/opt/openmpi-1.8.4-pgi151/lib:$LD_LIBRARY_PATH
+
+export MPICH_CXX=/opt/pgi/linux86-64/2015/bin/pgc++
+export MPICH_CC=/opt/pgi/linux86-64/2015/bin/pgcc
+export MPICH_F90=/opt/pgi/linux86-64/2015/bin/pgfortran

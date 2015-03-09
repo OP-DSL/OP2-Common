@@ -1,8 +1,26 @@
+#A rough example of environmental variables for compiling with Intel compilers
+
+#OP2 specifics
 export OP2_COMPILER=intel
-export PARMETIS_INSTALL_PATH=/opt/Parmetis-4-intel
-export PTSCOTCH_INSTALL_PATH=/opt/PT-Scotch-intel/
-export HDF5_INSTALL_PATH=/opt/hdf5-1.8.10-intel/
-export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
-export CUDA_INSTALL_PATH=/usr/local/cuda-6.0
-export MPI_INSTALL_PATH=/opt/openmpi-1.6.4-intel/
-export LD_LIBRARY_PATH=/opt/Parmetis-4-intel/lib:/opt/PT-Scotch-intel/lib:$LD_LIBRARY_PATH
+export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+
+#External libraries
+export PARMETIS_INSTALL_PATH=/opt/parmetis-intel/
+export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-intel/
+export HDF5_INSTALL_PATH=/opt/hdf5-intel/
+export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:$LD_LIBRARY_PATH
+
+#NVIDIA CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+
+#Intel MPI and Compilers
+export MPI_INSTALL_PATH=/opt/compilers/intel/intelPS-2015/impi_latest/intel64/
+source /opt/compilers/intel/intelPS-2015/composerxe/bin/compilervars.sh intel64
+source /opt/compilers/intel/intelPS-2015/impi_latest/intel64/bin/mpivars.sh intel64
+
+export INTEL_PATH=/opt/compilers/intel/intelPS-2015/composerxe/
+export MPICH_CXX=/opt/compilers/intel/intelPS-2015/composerxe/bin/icpc
+export MPICH_CC=/opt/compilers/intel/intelPS-2015/composerxe/bin/icc
+export MPICH_F90=/opt/compilers/intel/intelPS-2015/composerxe/bin/ifort

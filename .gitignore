@@ -34,6 +34,7 @@
 *.bbl
 *~
 *.pyg.*
+*.optrpt
 
 #directories
 op2/c/lib/
