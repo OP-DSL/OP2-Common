@@ -703,9 +703,10 @@ def main():
 
     #  finally, generate target-specific kernel files
     op2_gen_seq(str(sys.argv[1]), date, consts, kernels)
-    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels)
-    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets)
-    op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets)
+    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) 
+    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # generates openmp code as well as cuda code into the same file 
+									   # -- both CPU and GPU will then do comutations as a hybrid application
+    op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

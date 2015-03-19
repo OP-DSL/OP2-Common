@@ -21,6 +21,7 @@
 #fortran
 *.mod
 
+
 #python
 *.pyc
 
@@ -34,6 +35,9 @@
 *.bbl
 *~
 *.pyg.*
+
+#opt files
+*.optrpt
 
 #directories
 op2/c/lib/
