@@ -202,7 +202,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #
     j = 0
     for i in range(0,nargs):
-      if maps[i] == OP_MAP and accs[i] == OP_INC:
+      if maps[i] == OP_MAP and (accs[i] == OP_INC or accs[i] == OP_RW):
         j = i
     ind_inc = j > 0
 
@@ -263,6 +263,23 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
+
+      #
+      # substitute npdes with DNPDE
+      #
+      using_npdes = 0
+      for g_m in range(0,nargs):
+        if var[g_m] == 'npdes':
+          using_npdes = 1
+      if using_npdes:
+        i = re.search('\\bnpdes\\b',text)
+        j = i.start()
+        i = re.search('\\bnpdes\\b',text[j:])
+        j = j + i.start()+5
+        i = re.search('\\bnpdes\\b',text[j:])
+        j = j + i.start()+5
+        text = text[1:j] + re.sub('\\bnpdes\\b','DNPDE',text[j:])
+
       file_text += text
       #code(kernels[nk]['mod_file'])
     elif bookleaf == 1:
@@ -327,6 +344,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           line += 'map'+str(mapinds[g_m]+1)+'idx, '
       code(line[:-2])
     code('')
+#    if ind_inc == 0 and reduct == 0:
+#      code('!DIR$ simd')
     DO('i1','bottom','top')
     k = []
     for g_m in range(0,nargs):
