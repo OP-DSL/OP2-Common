@@ -375,7 +375,8 @@ def op_par_loop_parse(text):
 
 #####################loop over all input source files#####################
 init_ctr = 1
-auto_soa=0
+auto_soa=os.getenv('OP_AUTO_SOA','0')
+print auto_soa
 if len(sys.argv) > 1:
   if sys.argv[1] == 'hydra':
     hydra = 1
