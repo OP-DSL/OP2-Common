@@ -1644,6 +1644,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_kernel.CUF','w')
+    elif bookleaf:
+      fid = open(name+'_gpukernel.CUF','w')
     else:
       fid = open(name+'_kernel.CUF','w')
     date = datetime.datetime.now()
