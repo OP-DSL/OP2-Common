@@ -40,6 +40,9 @@
 #opt files
 *.optrpt
 
+#opt files
+*.optrpt
+
 #directories
 op2/c/lib/
 op2/c/build/
