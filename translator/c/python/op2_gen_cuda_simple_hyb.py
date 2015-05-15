@@ -241,7 +241,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
     f = open(name+'.h', 'r')
     kernel_text = f.read()
     kernel_text = kernel_text.replace(name,name+'_gpu')
-    file_text += kernel_text   
+    file_text += kernel_text
     f.close()
 
     comm('')
@@ -938,6 +938,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')
   depth = depth + 2
+  IF('OP_hybrid_gpu')
 
   for nc in range(0,len(consts)):
     IF('!strcmp(name,"'+consts[nc]['name']+'")')
@@ -953,7 +954,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   depth = depth + 2
   code('printf("error: unknown const name\\n"); exit(1);')
   ENDIF()
-
+  ENDIF()
 
   depth = depth - 2
   code('}')

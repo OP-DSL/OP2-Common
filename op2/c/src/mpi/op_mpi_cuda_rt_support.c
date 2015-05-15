@@ -95,23 +95,29 @@ void cutilDeviceInit( int argc, char ** argv )
   }
 
   // Test we have access to a device
-  if (rank >= deviceCount) {
+  float *test;
+  cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+  if (err != cudaSuccess) {
     OP_hybrid_gpu = 0;
   } else {
-    cutilSafeCall( cudaSetDevice(rank) );
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {
+    cudaFree(test);
+
     cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+
     int deviceId = -1;
     cudaGetDevice(&deviceId);
     cudaDeviceProp_t deviceProp;
     cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
-    printf ( "\n Using CUDA device: %d %s\n",deviceId, deviceProp.name );
+    printf ( "\n Using CUDA device: %d %s on rank %d\n",deviceId, deviceProp.name,rank );
   } else {
-    printf ( "\n Using CPU\n" );
+    printf ( "\n Using CPU on rank %d\n",rank );
   }
 }
+
+
 
 
 void op_upload_dat(op_dat dat) {

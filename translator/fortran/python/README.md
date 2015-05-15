@@ -18,7 +18,7 @@ This directory contains the OP2 code generators written in python targetting the
 * op2_gen_cuda_old.py  - Code generator targettign Fermi GPUs
 
 ######If hydra:
-* op2_gen_cuda_hydra() #includes several Hydra specific features
+* op2_gen_cuda_hydra() - includes several Hydra specific features
 
 ###Invoking the Code Generator
 

@@ -32,6 +32,8 @@ echo "=======================> Building Airfoil Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
 make clean;make
 
+
+
 echo " "
 echo " "
 echo "=======================> Building Airfoil Plain SP with Intel Compilers"
@@ -77,7 +79,7 @@ echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
 make clean;make
 
-
+#COMMENT1
 
 #<<COMMENT1
 
@@ -102,6 +104,7 @@ export OMP_NUM_THREADS=24
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
+#<<COMMENT1
 echo " "
 echo " "
 echo "=======================> Running Airfoil HDF5 DP built with Intel Compilers"
@@ -207,7 +210,7 @@ export OMP_NUM_THREADS=24
 $MPI_INSTALL_PATH/bin/mpirun -np 22 ./jac_mpi
 
 #COMMENT1
-
+#COMMENT1
 
 ################################################################################
 ################################################################################
