@@ -7,7 +7,8 @@
 . ./source_intel
 export CURRENT_DIR=$PWD
 export OP2_INSTALL_PATH=$PWD
-./ruby.sh #build libs and apps with cmake for ruby.oerc.ox.ac.uk
+#./ruby.sh #build libs and apps with cmake for ruby.oerc.ox.ac.uk
+./octon.sh #build libs and apps with cmake for octon.arc.ox.ac.uk
 
 #
 # Change Dir to OP2 C apps
