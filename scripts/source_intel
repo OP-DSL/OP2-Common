@@ -1,5 +1,10 @@
 #A rough example of environmental variables for compiling with Intel compilers
 
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
 #OP2 specifics
 export OP2_COMPILER=intel
 export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/

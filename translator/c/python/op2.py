@@ -9,7 +9,7 @@ target-specific code to execute the user's kernel functions.
 This prototype is written in Python and is directly based on the
 parsing and code generation of the matlab source code transformation code
 
-usage: op2('file1','file2',...)
+usage: ./op2.py 'file1','file2',...
 
 This takes as input
 
@@ -703,10 +703,15 @@ def main():
 
     #  finally, generate target-specific kernel files
     op2_gen_seq(str(sys.argv[1]), date, consts, kernels)
-    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) 
-    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # generates openmp code as well as cuda code into the same file 
-									   # -- both CPU and GPU will then do comutations as a hybrid application
+
+    #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator
+    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
+
+    #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Fermi GPUs
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
+
+    # generates openmp code as well as cuda code into the same file
+    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

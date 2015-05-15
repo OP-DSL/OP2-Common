@@ -9,7 +9,7 @@
  This prototype is written in Python and is directly based on the
  parsing and code generation of the matlab source code transformation code
 
- usage: op2('file1','file2',...)
+ usage: ./op2_fortran.py 'file1','file2',...
 
  This code generator is for parsing applications written using the OP2 FORTRAN API
 
@@ -860,7 +860,7 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimi
 
 #CUDA
 op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra) # permute does a different coloring (permute execution within blocks by color) 
+#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
