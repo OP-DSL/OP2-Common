@@ -6,7 +6,7 @@
 #include "update.h"
 
 // host stub function
-void op_par_loop_update(char const *name, op_set set,
+void op_par_loop_update_cpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,

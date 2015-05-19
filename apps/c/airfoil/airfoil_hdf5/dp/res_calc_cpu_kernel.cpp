@@ -6,7 +6,7 @@
 #include "res_calc.h"
 
 // host stub function
-void op_par_loop_res_calc(char const *name, op_set set,
+void op_par_loop_res_calc_cpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,

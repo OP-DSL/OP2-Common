@@ -241,7 +241,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
     f = open(name+'.h', 'r')
     kernel_text = f.read()
     kernel_text = kernel_text.replace(name,name+'_gpu')
-    file_text += kernel_text   
+    file_text += kernel_text
     f.close()
 
     comm('')
@@ -840,6 +840,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
 
     code('')
     comm('GPU host stub function')
+    code('#if OP_HYBRID_GPU')
     code('void op_par_loop_'+name+'(char const *name, op_set set,')
     depth += 2
 
@@ -876,6 +877,32 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
     ENDIF()
     depth-=2
     code('}')
+    code('#else')
+    code('void op_par_loop_'+name+'(char const *name, op_set set,')
+    depth += 2
+
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('op_arg ARG){')
+        code('')
+      else:
+        code('op_arg ARG,')
+
+
+    code('op_par_loop_'+name+'_gpu(name, set,')
+    depth += 2
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('ARG);')
+        code('')
+      else:
+        code('ARG,')
+    depth-=2
+    code('}')
+    depth-=2
+    code('#endif //OP_HYBRID_GPU')
 
 ##########################################################################
 #  output individual kernel file
@@ -938,6 +965,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')
   depth = depth + 2
+  IF('OP_hybrid_gpu')
 
   for nc in range(0,len(consts)):
     IF('!strcmp(name,"'+consts[nc]['name']+'")')
@@ -953,7 +981,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   depth = depth + 2
   code('printf("error: unknown const name\\n"); exit(1);')
   ENDIF()
-
+  ENDIF()
 
   depth = depth - 2
   code('}')

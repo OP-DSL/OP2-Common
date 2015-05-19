@@ -3,21 +3,19 @@
 //
 
 //user function
-#include "res_calc.h"
+#include "bres_calc.h"
 
 // host stub function
-void op_par_loop_res_calc(char const *name, op_set set,
+void op_par_loop_bres_calc_cpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
   op_arg arg3,
   op_arg arg4,
-  op_arg arg5,
-  op_arg arg6,
-  op_arg arg7){
+  op_arg arg5){
 
-  int nargs = 8;
-  op_arg args[8];
+  int nargs = 6;
+  op_arg args[6];
 
   args[0] = arg0;
   args[1] = arg1;
@@ -25,24 +23,22 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[3] = arg3;
   args[4] = arg4;
   args[5] = arg5;
-  args[6] = arg6;
-  args[7] = arg7;
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timing_realloc(2);
+  op_timing_realloc(3);
   op_timers_core(&cpu_t1, &wall_t1);
 
   int  ninds   = 4;
-  int  inds[8] = {0,0,1,1,2,2,3,3};
+  int  inds[6] = {0,0,1,2,3,-1};
 
   if (OP_diags>2) {
-    printf(" kernel routine with indirection: res_calc\n");
+    printf(" kernel routine with indirection: bres_calc\n");
   }
 
   // get plan
-  #ifdef OP_PART_SIZE_2
-    int part_size = OP_PART_SIZE_2;
+  #ifdef OP_PART_SIZE_3
+    int part_size = OP_PART_SIZE_3;
   #else
     int part_size = OP_part_size;
   #endif
@@ -70,24 +66,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
           int map0idx = arg0.map_data[n * arg0.map->dim + 0];
           int map1idx = arg0.map_data[n * arg0.map->dim + 1];
           int map2idx = arg2.map_data[n * arg2.map->dim + 0];
-          int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
-          res_calc(
+          bres_calc(
             &((double*)arg0.data)[2 * map0idx],
             &((double*)arg0.data)[2 * map1idx],
             &((double*)arg2.data)[4 * map2idx],
-            &((double*)arg2.data)[4 * map3idx],
-            &((double*)arg4.data)[1 * map2idx],
-            &((double*)arg4.data)[1 * map3idx],
-            &((double*)arg6.data)[4 * map2idx],
-            &((double*)arg6.data)[4 * map3idx]);
+            &((double*)arg3.data)[1 * map2idx],
+            &((double*)arg4.data)[4 * map2idx],
+            &((int*)arg5.data)[1 * n]);
         }
       }
 
       block_offset += nblocks;
     }
-    OP_kernels[2].transfer  += Plan->transfer;
-    OP_kernels[2].transfer2 += Plan->transfer2;
+    OP_kernels[3].transfer  += Plan->transfer;
+    OP_kernels[3].transfer2 += Plan->transfer2;
   }
 
   if (set_size == 0 || set_size == set->core_size) {
@@ -98,7 +91,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[2].name      = name;
-  OP_kernels[2].count    += 1;
-  OP_kernels[2].time     += wall_t2 - wall_t1;
+  OP_kernels[3].name      = name;
+  OP_kernels[3].count    += 1;
+  OP_kernels[3].time     += wall_t2 - wall_t1;
 }

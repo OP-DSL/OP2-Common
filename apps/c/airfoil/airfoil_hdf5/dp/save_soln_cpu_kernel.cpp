@@ -6,7 +6,7 @@
 #include "save_soln.h"
 
 // host stub function
-void op_par_loop_save_soln(char const *name, op_set set,
+void op_par_loop_save_soln_cpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1){
 
@@ -26,14 +26,26 @@ void op_par_loop_save_soln(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  save_soln");
   }
 
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
+  op_mpi_halo_exchanges(set, nargs, args);
+  // set number of threads
+  #ifdef _OPENMP
+    int nthreads = omp_get_max_threads();
+  #else
+    int nthreads = 1;
+  #endif
 
   if (set->size >0) {
 
-    for ( int n=0; n<set_size; n++ ){
-      save_soln(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n]);
+    // execute plan
+    #pragma omp parallel for
+    for ( int thr=0; thr<nthreads; thr++ ){
+      int start  = (set->size* thr)/nthreads;
+      int finish = (set->size*(thr+1))/nthreads;
+      for ( int n=start; n<finish; n++ ){
+        save_soln(
+          &((double*)arg0.data)[4*n],
+          &((double*)arg1.data)[4*n]);
+      }
     }
   }
 
@@ -46,5 +58,5 @@ void op_par_loop_save_soln(char const *name, op_set set,
   OP_kernels[0].count    += 1;
   OP_kernels[0].time     += wall_t2 - wall_t1;
   OP_kernels[0].transfer += (float)set->size * arg0.size;
-  OP_kernels[0].transfer += (float)set->size * arg1.size * 2.0f;
+  OP_kernels[0].transfer += (float)set->size * arg1.size;
 }

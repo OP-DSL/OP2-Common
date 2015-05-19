@@ -1,5 +1,10 @@
 #A rough example of environmental variables for compiling with PGI compilers
 
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
 #OP2 specifics
 export OP2_COMPILER=pgi
 export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
@@ -11,9 +16,12 @@ export HDF5_INSTALL_PATH=/opt/hdf5-pgi/
 export LD_LIBRARY_PATH=/opt/parmetis-pgi/lib:/opt/ptscotch-pgi/lib:$LD_LIBRARY_PATH
 
 #NVIDIA CUDA
-export PATH=/usr/local/cuda/bin:$PATH
-export CUDA_INSTALL_PATH=/usr/local/cuda
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+#export PATH=/usr/local/cuda/bin:$PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda
+#export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export PATH=/usr/local/cuda-6.5.14/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
 
 #PGI openmpi and Compilers
 export MPI_INSTALL_PATH=/opt/openmpi-1.8.4-pgi151/ #/opt/pgi/linux86-64/2015/mpi/mpich/

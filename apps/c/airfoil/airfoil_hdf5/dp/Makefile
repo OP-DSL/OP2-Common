@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -vec-report -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O3 -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
@@ -103,7 +103,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 # master to make all versions
 #
 
-all: clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_openmp convert_mesh
+all: clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_openmp airfoil_mpi_cuda_hyb convert_mesh
 
 #
 # simple sequential version
@@ -210,7 +210,7 @@ airfoil_kernels_mpi_cu.o: airfoil_kernels.cu \
 #
 
 airfoil_mpi_cuda_hyb: airfoil_op.cpp airfoil_kernels_mpi_cu.o airfoil_kernels_mpi_openmp.o Makefile
-		  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp -lm airfoil_kernels_mpi_cu.o airfoil_kernels_mpi_openmp.o \
+		  $(MPICPP) $(MPIFLAGS) -DOP_HYBRID_GPU airfoil_op.cpp -lm airfoil_kernels_mpi_cu.o airfoil_kernels_mpi_openmp.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda_hyb
@@ -222,10 +222,13 @@ airfoil_kernels_mpi_openmp.o: airfoil_cpu_kernels.cpp \
                 bres_calc_cpu_kernel.cpp  bres_calc.h \
                 update_cpu_kernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) -DOP_HYBRID_GPU $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
 		$(PARMETIS_INC) $(PTSCOTCH_INC) \
 		airfoil_cpu_kernels.cpp $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -c -o airfoil_kernels_mpi_openmp.o
+		rm -rf airfoil_kernels_mpi_cu.o
+		nvcc -DOP_HYBRID_GPU $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+                -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
 #
 # convert ASCI new_gird.dat to HDF5 new_grid.h5
 #
