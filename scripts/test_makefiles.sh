@@ -117,6 +117,9 @@ export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 22 ./airfoil_mpi
 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 $MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+
 export OMP_NUM_THREADS=24
 ./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -248,7 +251,7 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 export PART_SIZE_ENV=128
 ./airfoil_seq
 ./airfoil_cuda
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=20
 ./airfoil_openmp_$PART_SIZE_ENV
 
 echo " "
@@ -258,15 +261,15 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 export PART_SIZE_ENV=128
 ./airfoil_hdf5_seq
 ./airfoil_hdf5_cuda
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=20
 ./airfoil_hdf5_openmp_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 22 ./airfoil_hdf5_mpi
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi
 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 $MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=20
 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 
 
