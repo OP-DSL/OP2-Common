@@ -840,6 +840,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
 
     code('')
     comm('GPU host stub function')
+    code('#if OP_HYBRID_GPU')
     code('void op_par_loop_'+name+'(char const *name, op_set set,')
     depth += 2
 
@@ -876,6 +877,32 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
     ENDIF()
     depth-=2
     code('}')
+    code('#else')
+    code('void op_par_loop_'+name+'(char const *name, op_set set,')
+    depth += 2
+
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('op_arg ARG){')
+        code('')
+      else:
+        code('op_arg ARG,')
+
+
+    code('op_par_loop_'+name+'_gpu(name, set,')
+    depth += 2
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('ARG);')
+        code('')
+      else:
+        code('ARG,')
+    depth-=2
+    code('}')
+    depth-=2
+    code('#endif //OP_HYBRID_GPU')
 
 ##########################################################################
 #  output individual kernel file

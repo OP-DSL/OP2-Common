@@ -708,7 +708,7 @@ def main():
     op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
     #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Fermi GPUs
-    #op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
+    op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
     op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application

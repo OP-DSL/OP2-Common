@@ -7,7 +7,7 @@ This directory contains the OP2 code generators written in python targetting the
 * op2_gen_openmp_simple.py - Simplified and Optimized OpenMP code generator
 * op2_gen_cuda.py - Optimized for Fermi GPUs
 * op2_gen_cuda_simple - Optimized for Kepler GPUs
-* op2_gen_cuda_simple_hyb.py - generates openmp code as well as cuda code into the same file CPU and GPU will then do comutations as a hybrid application.
+* op2_gen_cuda_simple_hyb.py - generates openmp code as well as cuda code into the same file. Both CPUs and GPUs will then be used to do computations as a hybrid application.
 
 
 ###Invoking the Code Generator
