@@ -3,7 +3,37 @@
 //
 
 //user function
-#include "res_calc.h"
+inline void res_calc(const double *x1, const double *x2, const double *q1, const double *q2,
+                     const double *adt1, const double *adt2, double *res1, double *res2) {
+  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+
+  dx = x1[0] - x2[0];
+  dy = x1[1] - x2[1];
+
+  ri   = 1.0f/q1[0];
+  p1   = gm1*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
+  vol1 =  ri*(q1[1]*dy - q1[2]*dx);
+
+  ri   = 1.0f/q2[0];
+  p2   = gm1*(q2[3]-0.5f*ri*(q2[1]*q2[1]+q2[2]*q2[2]));
+  vol2 =  ri*(q2[1]*dy - q2[2]*dx);
+
+  mu = 0.5f*((*adt1)+(*adt2))*eps;
+
+  f = 0.5f*(vol1* q1[0]         + vol2* q2[0]        ) + mu*(q1[0]-q2[0]);
+  res1[0] += f;
+  res2[0] -= f;
+  f = 0.5f*(vol1* q1[1] + p1*dy + vol2* q2[1] + p2*dy) + mu*(q1[1]-q2[1]);
+  res1[1] += f;
+  res2[1] -= f;
+  f = 0.5f*(vol1* q1[2] - p1*dx + vol2* q2[2] - p2*dx) + mu*(q1[2]-q2[2]);
+  res1[2] += f;
+  res2[2] -= f;
+  f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(q2[3]+p2)    ) + mu*(q1[3]-q2[3]);
+  res1[3] += f;
+  res2[3] -= f;
+}
+
 
 inline void res_calc2(const double  x1[2], double  x2[2]) {
 
@@ -46,7 +76,7 @@ inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_V
 }
 
 
-inline void res_calc3(double q1[*][8], double q2[*][8], int idx) {
+inline void res_calc3(double q1[*][SIMD_VEC], double q2[*][SIMD_VEC], int idx) {
   q2[0][idx] = q1[0][idx];
   q2[1][idx] = q1[1][idx];
 
@@ -60,6 +90,14 @@ inline void res_calc3(double q1[*][8], double q2[*][8], int idx) {
     q2[0][idx] = 0.0;
     q2[1][idx] = 0.0;
   }
+}
+
+static inline void store_scatter_add(const double d[SIMD_VEC],
+  double *p, const int idx[SIMD_VEC]) {
+  p[idx[0]] += d[0];
+  p[idx[1]] += d[1];
+  p[idx[2]] += d[2];
+  p[idx[3]] += d[3];
 }
 
 // host stub function
@@ -115,51 +153,78 @@ void op_par_loop_res_calc(char const *name, op_set set,
         double dat6[4][SIMD_VEC];
         double dat7[4][SIMD_VEC];
 
-      #pragma ivdep
-      //#pragma simd
+      //#pragma ivdep
+      #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
-          map0idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 0];
+          /*map0idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 0];
           map1idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 1];
           map2idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 0];
           map3idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 1];
 
-          dat0[0][i] = ((double*)arg0.data)[2 * map0idx[i] + 0];
-          dat0[1][i] = ((double*)arg0.data)[2 * map0idx[i] + 1];
+          int idx0_2 = 2 * map0idx[i];
+          int idx1_2 = 2 * map1idx[i];
+          int idx2_4 = 4 * map2idx[i];
+          int idx3_4 = 4 * map3idx[i];
+          int idx2_1 = 1 * map2idx[i];
+          int idx3_1 = 1 * map3idx[i];*/
 
-          dat1[0][i] = ((double*)arg1.data)[2 * map1idx[i] + 0];
-          dat1[1][i] = ((double*)arg1.data)[2 * map1idx[i] + 1];
+          int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
+          int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
+          int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+          int idx3_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 1];
+          int idx2_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+          int idx3_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 1];
 
-          dat2[0][i] = ((double*)arg2.data)[4 * map2idx[i] + 0];
-          dat2[1][i] = ((double*)arg2.data)[4 * map2idx[i] + 1];
-          dat2[2][i] = ((double*)arg2.data)[4 * map2idx[i] + 2];
-          dat2[3][i] = ((double*)arg2.data)[4 * map2idx[i] + 3];
+          dat0[0][i] = ((double*)arg0.data)[idx0_2 + 0];
+          dat0[1][i] = ((double*)arg0.data)[idx0_2 + 1];
 
-          dat3[0][i] = ((double*)arg3.data)[4 * map3idx[i] + 0];
-          dat3[1][i] = ((double*)arg3.data)[4 * map3idx[i] + 1];
-          dat3[2][i] = ((double*)arg3.data)[4 * map3idx[i] + 2];
-          dat3[3][i] = ((double*)arg3.data)[4 * map3idx[i] + 3];
+          dat1[0][i] = ((double*)arg1.data)[idx1_2 + 0];
+          dat1[1][i] = ((double*)arg1.data)[idx1_2 + 1];
 
-          dat4[0][i] = ((double*)arg4.data)[1 * map2idx[i] + 0];
+          dat2[0][i] = ((double*)arg2.data)[idx2_4 + 0];
+          dat2[1][i] = ((double*)arg2.data)[idx2_4 + 1];
+          dat2[2][i] = ((double*)arg2.data)[idx2_4 + 2];
+          dat2[3][i] = ((double*)arg2.data)[idx2_4 + 3];
 
-          dat5[0][i] = ((double*)arg4.data)[1 * map3idx[i] + 0];
+          dat3[0][i] = ((double*)arg3.data)[idx3_4 + 0];
+          dat3[1][i] = ((double*)arg3.data)[idx3_4 + 1];
+          dat3[2][i] = ((double*)arg3.data)[idx3_4 + 2];
+          dat3[3][i] = ((double*)arg3.data)[idx3_4 + 3];
 
-          dat6[0][i] = ((double*)arg6.data)[4 * map2idx[i] + 0];
-          dat6[1][i] = ((double*)arg6.data)[4 * map2idx[i] + 1];
-          dat6[2][i] = ((double*)arg6.data)[4 * map2idx[i] + 2];
-          dat6[3][i] = ((double*)arg6.data)[4 * map2idx[i] + 3];
+          dat4[0][i] = ((double*)arg4.data)[idx2_1 + 0];
 
-          dat7[0][i] = ((double*)arg7.data)[4 * map3idx[i] + 0];
-          dat7[1][i] = ((double*)arg7.data)[4 * map3idx[i] + 1];
-          dat7[2][i] = ((double*)arg7.data)[4 * map3idx[i] + 2];
-          dat7[3][i] = ((double*)arg7.data)[4 * map3idx[i] + 3];
+          dat5[0][i] = ((double*)arg4.data)[idx3_1 + 0];
 
+          dat6[0][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 0];
+          dat6[1][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 1];
+          dat6[2][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 2];
+          dat6[3][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 3];
+
+          dat7[0][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 0];
+          dat7[1][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 1];
+          dat7[2][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 2];
+          dat7[3][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 3];
+      }
+
+      #pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
           res_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, dat6, dat7, i);
+      }
 
-          ((double*)arg7.data)[4 * map0idx[i] + 0] += dat7[0][i];
-          ((double*)arg7.data)[4 * map0idx[i] + 1] += dat7[1][i];
-          ((double*)arg7.data)[4 * map0idx[i] + 2] += dat7[2][i];
-          ((double*)arg7.data)[4 * map0idx[i] + 3] += dat7[3][i];
 
+      for ( int i=0; i<SIMD_VEC; i++ ){
+          int idx1 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+          int idx2 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 1];
+
+          ((double*)arg6.data)[idx1 + 0] += dat6[0][i];
+          ((double*)arg6.data)[idx1 + 1] += dat6[1][i];
+          ((double*)arg6.data)[idx1 + 2] += dat6[2][i];
+          ((double*)arg6.data)[idx1 + 3] += dat6[3][i];
+
+          ((double*)arg7.data)[idx2 + 0] += dat7[0][i];
+          ((double*)arg7.data)[idx2 + 1] += dat7[1][i];
+          ((double*)arg7.data)[idx2 + 2] += dat7[2][i];
+          ((double*)arg7.data)[idx2 + 3] += dat7[3][i];
       }
     }
 
