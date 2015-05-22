@@ -4,9 +4,9 @@
 
 // header
 #include "op_lib_cpp.h"
-//#ifdef VECTORIZE
+#ifdef VECTORIZE
 #include "op_vector.h"
-//#endif
+#endif
 
 
 // global constants
