@@ -902,3 +902,49 @@ int op_size_of_set(const char * name) {
   exit(-1);
   return -1;
 }
+
+
+void* op_malloc (size_t size) {
+  #ifdef __INTEL_COMPILER
+    //return _mm_malloc(size, OP2_ALIGNMENT);
+    return memalign(OP2_ALIGNMENT,size);
+  #else
+    return malloc(size);
+  #endif
+}
+
+void* op_calloc (size_t num, size_t size) {
+  #ifdef __INTEL_COMPILER
+    //void * ptr = _mm_malloc(num*size, OP2_ALIGNMENT);
+    void * ptr = memalign(OP2_ALIGNMENT,num*size);
+    memset(ptr, 0, num*size);
+    return ptr;
+  #else
+    return calloc(num,size);
+  #endif
+}
+
+void* op_realloc (void *ptr, size_t size) {
+  #ifdef __INTEL_COMPILER
+    void *newptr = realloc(ptr,size);
+    if (((unsigned long)newptr & (OP2_ALIGNMENT - 1)) != 0) {
+      void *newptr2 = memalign(OP2_ALIGNMENT,size);
+      memcpy(newptr2, newptr, size);
+      free(newptr);
+      return newptr2;
+    } else {
+      return newptr;
+    }
+  #else
+    return realloc(ptr,size);
+  #endif
+}
+
+void op_free (void *ptr) {
+  #ifdef __INTEL_COMPILER
+    //_mm_free(ptr);
+    free(ptr);
+  #else
+    free(ptr);
+  #endif
+}
