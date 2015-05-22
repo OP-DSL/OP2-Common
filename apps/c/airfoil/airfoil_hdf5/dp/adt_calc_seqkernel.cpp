@@ -34,32 +34,36 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3, const
 #ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void adt_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC],
-                     const double x4[*][SIMD_VEC], const double q[*][SIMD_VEC], double adt[*][SIMD_VEC],
+                     const double x4[*][SIMD_VEC],
+                     //const double q[*][SIMD_VEC],
+                     const double *q,
+                     //double adt[*][SIMD_VEC],
+                     double *adt,
                      int idx){
   double dx,dy, ri,u,v,c;
 
-  ri =  1.0f/q[0][idx];
-  u  =   ri*q[1][idx];
-  v  =   ri*q[2][idx];
-  c  = sqrt(gam*gm1*(ri*q[3][idx]-0.5f*(u*u+v*v)));
+  ri =  1.0f/q[0];
+  u  =   ri*q[1];
+  v  =   ri*q[2];
+  c  = sqrt(gam*gm1*(ri*q[3]-0.5f*(u*u+v*v)));
 
   dx = x2[0][idx] - x1[0][idx];
   dy = x2[1][idx] - x1[1][idx];
-  adt[0][idx]  = fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+  adt[0]  = fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
   dx = x3[0][idx] - x2[0][idx];
   dy = x3[1][idx] - x2[1][idx];
-  adt[0][idx] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+  adt[0] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
   dx = x4[0][idx] - x3[0][idx];
   dy = x4[1][idx] - x3[1][idx];
-  adt[0][idx] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+  adt[0] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
   dx = x1[0][idx] - x4[0][idx];
   dy = x1[1][idx] - x4[1][idx];
-  adt[0][idx] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
+  adt[0] += fabs(u*dy-v*dx) + c*sqrt(dx*dx+dy*dy);
 
-  adt[0][idx] = (adt[0][idx]) / cfl;
+  adt[0] = (adt[0]) / cfl;
 }
 #endif
 
@@ -103,8 +107,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         double dat1[2][SIMD_VEC];
         double dat2[2][SIMD_VEC];
         double dat3[2][SIMD_VEC];
-        double dat4[4][SIMD_VEC];
-        double dat5[1][SIMD_VEC];
+        //double dat4[4][SIMD_VEC];
+        //double dat5[1][SIMD_VEC];
 
         #pragma simd
         for ( int i=0; i<SIMD_VEC; i++ ){
@@ -126,20 +130,25 @@ void op_par_loop_adt_calc(char const *name, op_set set,
           dat3[0][i] = ((double*)arg3.data)[idx3_2 + 0];
           dat3[1][i] = ((double*)arg3.data)[idx3_2 + 1];
 
-          dat4[0][i] = ((double*)arg4.data)[(n+i) * 4 + 0];
+          /*dat4[0][i] = ((double*)arg4.data)[(n+i) * 4 + 0];
           dat4[1][i] = ((double*)arg4.data)[(n+i) * 4 + 1];
           dat4[2][i] = ((double*)arg4.data)[(n+i) * 4 + 2];
-          dat4[3][i] = ((double*)arg4.data)[(n+i) * 4 + 3];
+          dat4[3][i] = ((double*)arg4.data)[(n+i) * 4 + 3];*/
 
         }
         #pragma simd
         for ( int i=0; i<SIMD_VEC; i++ ){
-          adt_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, i);
+          adt_calc_vec(dat0, dat1, dat2, dat3,
+            //dat4,
+            &((double*)arg4.data)[(n+i) * 4],
+            //dat5,
+            &((double*)arg5.data)[(n+i) * 1],
+            i);
         }
 
-        for ( int i=0; i<SIMD_VEC; i++ ){
+        /*for ( int i=0; i<SIMD_VEC; i++ ){
           ((double*)arg5.data)[(n+i) * 1 + 0] = dat5[0][i];
-        }
+        }*/
 
     }
     //remainder

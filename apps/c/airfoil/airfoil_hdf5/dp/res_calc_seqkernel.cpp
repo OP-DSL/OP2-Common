@@ -106,6 +106,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
   if (set->size >0) {
+
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
@@ -118,7 +120,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         double dat6[4][SIMD_VEC];
         double dat7[4][SIMD_VEC];
 
-#ifdef VECTORIZE
+
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
 

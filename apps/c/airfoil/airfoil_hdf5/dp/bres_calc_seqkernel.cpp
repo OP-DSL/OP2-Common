@@ -41,7 +41,9 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 #ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
-                      const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC], const int bound[*][SIMD_VEC],
+                      const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC],
+                      //const int bound[*][SIMD_VEC],
+                      const int *bound,
                       int idx) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
@@ -51,7 +53,7 @@ inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_
   ri = 1.0f/q1[0][idx];
   p1 = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
 
-  if (bound[0][idx]==1) {
+  if (bound[0]==1) {
     res1[1][idx] += + p1*dy;
     res1[2][idx] += - p1*dx;
   }
@@ -117,7 +119,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         double dat2[4][SIMD_VEC];
         double dat3[1][SIMD_VEC];
         double dat4[4][SIMD_VEC];
-        int dat5[1][SIMD_VEC];
+        //int dat5[1][SIMD_VEC];
 
         #pragma simd
         for ( int i=0; i<SIMD_VEC; i++ ){
@@ -144,11 +146,14 @@ void op_par_loop_bres_calc(char const *name, op_set set,
           dat4[2][i] = 0.0;
           dat4[3][i] = 0.0;
 
-          dat5[0][i] = ((int*)arg5.data)[(n+i) * 1 + 0];
+          //dat5[0][i] = ((int*)arg5.data)[(n+i) * 1 + 0];
         }
         #pragma simd
         for ( int i=0; i<SIMD_VEC; i++ ){
-          bres_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, i);
+          bres_calc_vec(dat0, dat1, dat2, dat3, dat4,
+            //dat5,
+            &((int*)arg5.data)[(n+i) * 1],
+            i);
         }
 
         for ( int i=0; i<SIMD_VEC; i++ ){

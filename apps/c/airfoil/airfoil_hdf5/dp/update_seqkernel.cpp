@@ -17,7 +17,7 @@ inline void update(const double *qold, double *q, double *res, const double *adt
   }
 }
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void update_vec(const double qold[*][SIMD_VEC], double q[*][SIMD_VEC],
   double res[*][SIMD_VEC], const double adt[*][SIMD_VEC], double rms[SIMD_VEC],
@@ -66,11 +66,12 @@ void op_par_loop_update(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
   if (set->size >0) {
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+      //double dat4[SIMD_VEC];
 
-      double dat0[4][SIMD_VEC];
+      /*double dat0[4][SIMD_VEC];
       double dat1[4][SIMD_VEC];
       double dat2[4][SIMD_VEC];
       double dat3[1][SIMD_VEC];
@@ -93,13 +94,24 @@ void op_par_loop_update(char const *name, op_set set,
 
         //dat4[i] = 0.0;
 
-      }
+      }*/
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
-        update_vec(dat0, dat1, dat2, dat3, dat4, i);
+        //update_vec(dat0, dat1, dat2, dat3, dat4, i);
+        update(
+        &((double*)arg0.data)[(n+i) * 4],
+        &((double*)arg1.data)[(n+i) * 4],
+        &((double*)arg2.data)[(n+i) * 4],
+        &((double*)arg3.data)[(n+i) * 1],
+        (double*)arg4.data);
+        //&dat4[i]);
       }
 
-      #pragma simd
+      /*for ( int i=0; i<SIMD_VEC; i++ ){
+        *(double*)arg4.data += dat4[i];
+      }*/
+
+      /*#pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         ((double*)arg1.data)[(n+i) * 4 + 0] = dat1[0][i];
         ((double*)arg1.data)[(n+i) * 4 + 1] = dat1[1][i];
@@ -112,7 +124,7 @@ void op_par_loop_update(char const *name, op_set set,
         ((double*)arg2.data)[(n+i) * 4 + 3] = dat2[3][i];
 
         //*(double*)arg4.data += dat4[i];
-      }
+      }*/
     }
 
 //remainder
