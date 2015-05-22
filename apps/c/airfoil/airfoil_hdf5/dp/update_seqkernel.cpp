@@ -4,6 +4,7 @@
 
 //user function
 //#include "update.h"
+#include "op_vector.h"
 inline void update(const double *qold, double *q, double *res, const double *adt, double *rms){
   double del, adti;
 
@@ -17,7 +18,7 @@ inline void update(const double *qold, double *q, double *res, const double *adt
   }
 }
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void update_vec(const double qold[*][SIMD_VEC], double q[*][SIMD_VEC],
   double res[*][SIMD_VEC], const double adt[*][SIMD_VEC], double rms[SIMD_VEC],
@@ -68,10 +69,10 @@ void op_par_loop_update(char const *name, op_set set,
 
   if (exec_size >0) {
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      //double dat4[SIMD_VEC];
+      double dat4[SIMD_VEC];
 
       /*double dat0[4][SIMD_VEC];
       double dat1[4][SIMD_VEC];
@@ -105,10 +106,10 @@ void op_par_loop_update(char const *name, op_set set,
         &((double*)arg1.data)[(n+i) * 4],
         &((double*)arg2.data)[(n+i) * 4],
         &((double*)arg3.data)[(n+i) * 1],
-        (double*)arg4.data);
-        //&dat4[i]);
+        //(double*)arg4.data);
+        &dat4[i]);
       }
-
+      *(double*)arg4.data += add_horizontal(dat4);
       /*for ( int i=0; i<SIMD_VEC; i++ ){
         *(double*)arg4.data += dat4[i];
       }*/

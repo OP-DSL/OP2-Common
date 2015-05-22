@@ -31,7 +31,7 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3, const
   *adt = (*adt) / cfl;
 }
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void adt_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC],
                      const double x4[*][SIMD_VEC],
@@ -100,7 +100,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   if (exec_size >0) {
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 

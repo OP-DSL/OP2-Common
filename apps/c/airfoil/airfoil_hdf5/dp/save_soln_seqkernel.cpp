@@ -8,7 +8,7 @@ inline void save_soln(const double *q, double *qold){
   for (int n=0; n<4; n++) qold[n] = q[n];
 }
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void save_soln_vec(const double q[*][SIMD_VEC], double qold[*][SIMD_VEC], int idx){
   for (int n=0; n<4; n++) qold[n][idx] = q[n][idx];
@@ -41,7 +41,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
   if (exec_size >0) {
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 

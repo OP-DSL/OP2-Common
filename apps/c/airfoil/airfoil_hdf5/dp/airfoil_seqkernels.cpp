@@ -4,6 +4,10 @@
 
 // header
 #include "op_lib_cpp.h"
+//#ifdef VECTORIZE
+#include "op_vector.h"
+//#endif
+
 
 // global constants
 extern double gam;

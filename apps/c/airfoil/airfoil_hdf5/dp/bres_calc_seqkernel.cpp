@@ -38,7 +38,7 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
   }
 }
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
                       const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC],
@@ -111,7 +111,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   if (exec_size >0) {
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
