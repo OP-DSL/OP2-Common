@@ -3,7 +3,78 @@
 //
 
 //user function
-#include "bres_calc.h"
+//#include "bres_calc.h"
+inline void bres_calc(const double *x1, const double *x2, const double *q1,
+                      const double *adt1, double *res1, const int *bound) {
+  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+
+  dx = x1[0] - x2[0];
+  dy = x1[1] - x2[1];
+
+  ri = 1.0f/q1[0];
+  p1 = gm1*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
+
+  if (*bound==1) {
+    res1[1] += + p1*dy;
+    res1[2] += - p1*dx;
+  }
+  else {
+    vol1 =  ri*(q1[1]*dy - q1[2]*dx);
+
+    ri   = 1.0f/qinf[0];
+    p2   = gm1*(qinf[3]-0.5f*ri*(qinf[1]*qinf[1]+qinf[2]*qinf[2]));
+    vol2 =  ri*(qinf[1]*dy - qinf[2]*dx);
+
+    mu = (*adt1)*eps;
+
+    f = 0.5f*(vol1* q1[0]         + vol2* qinf[0]        ) + mu*(q1[0]-qinf[0]);
+    res1[0] += f;
+    f = 0.5f*(vol1* q1[1] + p1*dy + vol2* qinf[1] + p2*dy) + mu*(q1[1]-qinf[1]);
+    res1[1] += f;
+    f = 0.5f*(vol1* q1[2] - p1*dx + vol2* qinf[2] - p2*dx) + mu*(q1[2]-qinf[2]);
+    res1[2] += f;
+    f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(qinf[3]+p2)    ) + mu*(q1[3]-qinf[3]);
+    res1[3] += f;
+  }
+}
+
+#ifdef VECTORIZE
+#define SIMD_VEC 4
+inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
+                      const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC], const int bound[*][SIMD_VEC],
+                      int idx) {
+  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+
+  dx = x1[0][idx] - x2[0][idx];
+  dy = x1[1][idx] - x2[1][idx];
+
+  ri = 1.0f/q1[0][idx];
+  p1 = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
+
+  if (bound[0][idx]==1) {
+    res1[1][idx] += + p1*dy;
+    res1[2][idx] += - p1*dx;
+  }
+  else {
+    vol1 =  ri*(q1[1][idx]*dy - q1[2][idx]*dx);
+
+    ri   = 1.0f/qinf[0];
+    p2   = gm1*(qinf[3]-0.5f*ri*(qinf[1]*qinf[1]+qinf[2]*qinf[2]));
+    vol2 =  ri*(qinf[1]*dy - qinf[2]*dx);
+
+    mu = (adt1[0][idx])*eps;
+
+    f = 0.5f*(vol1* q1[0][idx]         + vol2* qinf[0]        ) + mu*(q1[0][idx]-qinf[0]);
+    res1[0][idx] += f;
+    f = 0.5f*(vol1* q1[1][idx] + p1*dy + vol2* qinf[1] + p2*dy) + mu*(q1[1][idx]-qinf[1]);
+    res1[1][idx] += f;
+    f = 0.5f*(vol1* q1[2][idx] - p1*dx + vol2* qinf[2] - p2*dx) + mu*(q1[2][idx]-qinf[2]);
+    res1[2][idx] += f;
+    f = 0.5f*(vol1*(q1[3][idx]+p1)     + vol2*(qinf[3]+p2)    ) + mu*(q1[3][idx]-qinf[3]);
+    res1[3][idx] += f;
+  }
+}
+#endif
 
 // host stub function
 void op_par_loop_bres_calc(char const *name, op_set set,
@@ -37,10 +108,64 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
+#ifdef VECTORIZE
+    #pragma novector
+    for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+
+        double dat0[2][SIMD_VEC];
+        double dat1[2][SIMD_VEC];
+        double dat2[4][SIMD_VEC];
+        double dat3[1][SIMD_VEC];
+        double dat4[4][SIMD_VEC];
+        int dat5[1][SIMD_VEC];
+
+        #pragma simd
+        for ( int i=0; i<SIMD_VEC; i++ ){
+
+          int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
+          int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
+          int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+
+          dat0[0][i] = ((double*)arg0.data)[idx0_2 + 0];
+          dat0[1][i] = ((double*)arg0.data)[idx0_2 + 1];
+
+          dat1[0][i] = ((double*)arg1.data)[idx1_2 + 0];
+          dat1[1][i] = ((double*)arg1.data)[idx1_2 + 1];
+
+          dat2[0][i] = ((double*)arg2.data)[idx2_4 + 0];
+          dat2[1][i] = ((double*)arg2.data)[idx2_4 + 1];
+          dat2[2][i] = ((double*)arg2.data)[idx2_4 + 2];
+          dat2[3][i] = ((double*)arg2.data)[idx2_4 + 3];
+
+          dat3[0][i] = ((double*)arg3.data)[idx2_4 + 0];
+
+          dat4[0][i] = 0.0;
+          dat4[1][i] = 0.0;
+          dat4[2][i] = 0.0;
+          dat4[3][i] = 0.0;
+
+          dat5[0][i] = ((int*)arg5.data)[(n+i) * 1 + 0];
+        }
+        #pragma simd
+        for ( int i=0; i<SIMD_VEC; i++ ){
+          bres_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, i);
+        }
+
+        for ( int i=0; i<SIMD_VEC; i++ ){
+          int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+
+          ((double*)arg4.data)[idx2_4 + 0] += dat4[0][i];
+          ((double*)arg4.data)[idx2_4 + 1] += dat4[1][i];
+          ((double*)arg4.data)[idx2_4 + 2] += dat4[2][i];
+          ((double*)arg4.data)[idx2_4 + 3] += dat4[3][i];
+        }
+    }
+
+    //remainder
+    for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
+#else
     for ( int n=0; n<set_size; n++ ){
-      if (n==set->core_size) {
-        op_mpi_wait_all(nargs, args);
-      }
+#endif
       int map0idx = arg0.map_data[n * arg0.map->dim + 0];
       int map1idx = arg0.map_data[n * arg0.map->dim + 1];
       int map2idx = arg2.map_data[n * arg2.map->dim + 0];

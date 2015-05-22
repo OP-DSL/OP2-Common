@@ -3,8 +3,18 @@
 //
 
 //user function
-#include "save_soln.h"
+//#include "save_soln.h"
+inline void save_soln(const double *q, double *qold){
+  for (int n=0; n<4; n++) qold[n] = q[n];
+}
 
+#ifdef VECTORIZE
+#define SIMD_VEC 4
+inline void save_soln_vec(const double q[*][SIMD_VEC], double qold[*][SIMD_VEC], int idx){
+  for (int n=0; n<4; n++) qold[n][idx] = q[n][idx];
+}
+
+#endif
 // host stub function
 void op_par_loop_save_soln(char const *name, op_set set,
   op_arg arg0,
@@ -30,7 +40,39 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
   if (set->size >0) {
 
+#ifdef VECTORIZE
+    #pragma novector
+    for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+
+      double dat0[4][SIMD_VEC];
+      double dat1[4][SIMD_VEC];
+
+      #pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+
+        dat0[0][i] = ((double*)arg0.data)[(n+i) * 4 + 0];
+        dat0[1][i] = ((double*)arg0.data)[(n+i) * 4 + 1];
+        dat0[2][i] = ((double*)arg0.data)[(n+i) * 4 + 2];
+        dat0[3][i] = ((double*)arg0.data)[(n+i) * 4 + 3];
+      }
+      #pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+        save_soln_vec(dat0, dat1, i);
+      }
+
+      #pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+          ((double*)arg1.data)[(n+i) * 4 + 0] = dat1[0][i];
+          ((double*)arg1.data)[(n+i) * 4 + 1] = dat1[1][i];
+          ((double*)arg1.data)[(n+i) * 4 + 2] = dat1[2][i];
+          ((double*)arg1.data)[(n+i) * 4 + 3] = dat1[3][i];
+      }
+    }
+    //remainder
+    for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
+#else
     for ( int n=0; n<set_size; n++ ){
+#endif
       save_soln(
         &((double*)arg0.data)[4*n],
         &((double*)arg1.data)[4*n]);

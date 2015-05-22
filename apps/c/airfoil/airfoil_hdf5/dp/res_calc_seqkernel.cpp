@@ -34,13 +34,7 @@ inline void res_calc(const double *x1, const double *x2, const double *q1, const
   res2[3] -= f;
 }
 
-
-inline void res_calc2(const double  x1[2], double  x2[2]) {
-
-  x2[0] = x1[0];
-  x2[1] = x1[1];
-}
-
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 
 inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC],
@@ -74,31 +68,8 @@ inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_V
   res1[3][idx] += f;
   res2[3][idx] -= f;
 }
+#endif
 
-
-inline void res_calc3(double q1[*][SIMD_VEC], double q2[*][SIMD_VEC], int idx) {
-  q2[0][idx] = q1[0][idx];
-  q2[1][idx] = q1[1][idx];
-
-  double s = q1[0][idx]*q1[0][idx] - 4*q1[1][idx]*q1[1][idx];
-  if ( s >= 0 ) {
-    s = sqrt(s) ;
-    q2[0][idx] = (q1[0][idx]+s)/(2.0*q1[0][idx]);
-    q2[1][idx] = (q1[1][idx]+s)/(2.0*q1[1][idx]);
-  }
-  else {
-    q2[0][idx] = 0.0;
-    q2[1][idx] = 0.0;
-  }
-}
-
-static inline void store_scatter_add(const double d[SIMD_VEC],
-  double *p, const int idx[SIMD_VEC]) {
-  p[idx[0]] += d[0];
-  p[idx[1]] += d[1];
-  p[idx[2]] += d[2];
-  p[idx[3]] += d[3];
-}
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
@@ -138,11 +109,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #pragma novector
     for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
-        int map0idx[SIMD_VEC];
-        int map1idx[SIMD_VEC];
-        int map2idx[SIMD_VEC];
-        int map3idx[SIMD_VEC];
-
         double dat0[2][SIMD_VEC];
         double dat1[2][SIMD_VEC];
         double dat2[4][SIMD_VEC];
@@ -152,20 +118,9 @@ void op_par_loop_res_calc(char const *name, op_set set,
         double dat6[4][SIMD_VEC];
         double dat7[4][SIMD_VEC];
 
-      //#pragma ivdep
+#ifdef VECTORIZE
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
-          /*map0idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 0];
-          map1idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 1];
-          map2idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 0];
-          map3idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 1];
-
-          int idx0_2 = 2 * map0idx[i];
-          int idx1_2 = 2 * map1idx[i];
-          int idx2_4 = 4 * map2idx[i];
-          int idx3_4 = 4 * map3idx[i];
-          int idx2_1 = 1 * map2idx[i];
-          int idx3_1 = 1 * map3idx[i];*/
 
           int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
           int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -194,15 +149,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
           dat5[0][i] = ((double*)arg4.data)[idx3_1 + 0];
 
-          dat6[0][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 0];
-          dat6[1][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 1];
-          dat6[2][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 2];
-          dat6[3][i] = 0.0;//((double*)arg6.data)[4 * map2idx[i] + 3];
+          dat6[0][i] = 0.0;
+          dat6[1][i] = 0.0;
+          dat6[2][i] = 0.0;
+          dat6[3][i] = 0.0;
 
-          dat7[0][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 0];
-          dat7[1][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 1];
-          dat7[2][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 2];
-          dat7[3][i] = 0.0;//((double*)arg7.data)[4 * map3idx[i] + 3];
+          dat7[0][i] = 0.0;
+          dat7[1][i] = 0.0;
+          dat7[2][i] = 0.0;
+          dat7[3][i] = 0.0;
       }
 
       #pragma simd
@@ -226,10 +181,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
           ((double*)arg7.data)[idx2 + 3] += dat7[3][i];
       }
     }
-
     //remainder
     for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
-    //for ( int n=0; n<set_size; n++ ){
+#else
+    for ( int n=0; n<set_size; n++ ){
+#endif
       int map0idx = arg0.map_data[n * arg0.map->dim + 0];
       int map1idx = arg0.map_data[n * arg0.map->dim + 1];
       int map2idx = arg2.map_data[n * arg2.map->dim + 0];

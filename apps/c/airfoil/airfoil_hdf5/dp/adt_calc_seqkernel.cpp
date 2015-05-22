@@ -31,6 +31,7 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3, const
   *adt = (*adt) / cfl;
 }
 
+#ifdef VECTORIZE
 #define SIMD_VEC 4
 inline void adt_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC],
                      const double x4[*][SIMD_VEC], const double q[*][SIMD_VEC], double adt[*][SIMD_VEC],
@@ -60,6 +61,7 @@ inline void adt_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_V
 
   adt[0][idx] = (adt[0][idx]) / cfl;
 }
+#endif
 
 // host stub function
 void op_par_loop_adt_calc(char const *name, op_set set,
@@ -92,19 +94,16 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
   if (set->size >0) {
+
+#ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-
-        int map0idx[SIMD_VEC];
-        int map1idx[SIMD_VEC];
-        int map2idx[SIMD_VEC];
-        int map3idx[SIMD_VEC];
 
         double dat0[2][SIMD_VEC];
         double dat1[2][SIMD_VEC];
         double dat2[2][SIMD_VEC];
         double dat3[2][SIMD_VEC];
-        double dat4[2][SIMD_VEC];
+        double dat4[4][SIMD_VEC];
         double dat5[1][SIMD_VEC];
 
         #pragma simd
@@ -143,11 +142,11 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         }
 
     }
-
     //remainder
     for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
-    //for ( int n=0; n<set_size; n++ ){
-
+#else
+    for ( int n=0; n<set_size; n++ ){
+#endif
       int map0idx = arg0.map_data[n * arg0.map->dim + 0];
       int map1idx = arg0.map_data[n * arg0.map->dim + 1];
       int map2idx = arg0.map_data[n * arg0.map->dim + 2];
