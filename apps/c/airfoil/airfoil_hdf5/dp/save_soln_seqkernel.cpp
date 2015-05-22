@@ -8,7 +8,7 @@ inline void save_soln(const double *q, double *qold){
   for (int n=0; n<4; n++) qold[n] = q[n];
 }
 
-#ifdef VECTORIZE
+#ifdef VECTORIZE2
 #define SIMD_VEC 4
 inline void save_soln_vec(const double q[*][SIMD_VEC], double qold[*][SIMD_VEC], int idx){
   for (int n=0; n<4; n++) qold[n][idx] = q[n][idx];
@@ -36,13 +36,14 @@ void op_par_loop_save_soln(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  save_soln");
   }
 
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
+  int exec_size = op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = ((set->size+set->exec_size-1)/16+1)*16; //align to 512 bits
 
-  if (set->size >0) {
+  if (exec_size >0) {
 
-#ifdef VECTORIZE
+#ifdef VECTORIZE2
     #pragma novector
-    for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+    for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
       /*double dat0[4][SIMD_VEC];
       double dat1[4][SIMD_VEC];
@@ -71,9 +72,9 @@ void op_par_loop_save_soln(char const *name, op_set set,
       }*/
     }
     //remainder
-    for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
+    for ( int n=(exec_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
 #else
-    for ( int n=0; n<set_size; n++ ){
+    for ( int n=0; n<exec_size; n++ ){
 #endif
       save_soln(
         &((double*)arg0.data)[4*n],

@@ -17,7 +17,7 @@ inline void update(const double *qold, double *q, double *res, const double *adt
   }
 }
 
-#ifdef VECTORIZE
+#ifdef VECTORIZE2
 #define SIMD_VEC 4
 inline void update_vec(const double qold[*][SIMD_VEC], double q[*][SIMD_VEC],
   double res[*][SIMD_VEC], const double adt[*][SIMD_VEC], double rms[SIMD_VEC],
@@ -63,12 +63,14 @@ void op_par_loop_update(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  update");
   }
 
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
+  int exec_size = op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = ((set->size+set->exec_size-1)/16+1)*16; //align to 512 bits
 
-  if (set->size >0) {
-#ifdef VECTORIZE
+  if (exec_size >0) {
+
+#ifdef VECTORIZE2
     #pragma novector
-    for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+    for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
       //double dat4[SIMD_VEC];
 
       /*double dat0[4][SIMD_VEC];
@@ -128,9 +130,9 @@ void op_par_loop_update(char const *name, op_set set,
     }
 
 //remainder
-    for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
+    for ( int n=(exec_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
 #else
-    for ( int n=0; n<set_size; n++ ){
+    for ( int n=0; n<exec_size; n++ ){
 #endif
       update(
         &((double*)arg0.data)[4*n],
