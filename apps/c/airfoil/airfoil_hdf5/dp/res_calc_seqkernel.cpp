@@ -41,7 +41,7 @@ inline void res_calc2(const double  x1[2], double  x2[2]) {
   x2[1] = x1[1];
 }
 
-#define SIMD_VEC 8
+#define SIMD_VEC 4
 
 inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC],
                      const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC],
@@ -133,7 +133,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
-  //set_size = 64;
 
   if (set->size >0) {
     #pragma novector
