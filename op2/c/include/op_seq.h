@@ -10,7 +10,7 @@ static int op2_stride = 1;
 
 // scratch space to use for double counting in indirect reduction
 static int blank_args_size = 512;
-static char* blank_args = (char *)malloc(blank_args_size);
+static char* blank_args = (char *)op_malloc(blank_args_size);
 
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   *p_arg = arg.data;
@@ -48,7 +48,7 @@ void op_par_loop(void (*kernel)(T0*),
   char *p_a[1] = {0};
   op_arg args[1] = {arg0};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -56,7 +56,7 @@ void op_par_loop(void (*kernel)(T0*),
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -120,10 +120,10 @@ void op_par_loop(void (*kernel)(T0*, T1*),
   char *p_a[2] = {0,0};
   op_arg args[2] = {arg0, arg1};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -131,7 +131,7 @@ void op_par_loop(void (*kernel)(T0*, T1*),
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -201,13 +201,13 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*),
   char *p_a[3] = {0,0,0};
   op_arg args[3] = {arg0, arg1, arg2};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -215,7 +215,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*),
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -291,16 +291,16 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*),
   char *p_a[4] = {0,0,0,0};
   op_arg args[4] = {arg0, arg1, arg2, arg3};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -308,7 +308,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*),
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -394,19 +394,19 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_arg args[5] = {arg0, arg1, arg2, arg3,
                     arg4};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -414,7 +414,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -508,22 +508,22 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_arg args[6] = {arg0, arg1, arg2, arg3,
                     arg4, arg5};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
   if(arg5.idx < -1) {
-    p_a[5] = (char *)malloc(-1*args[5].idx*sizeof(T5));
+    p_a[5] = (char *)op_malloc(-1*args[5].idx*sizeof(T5));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -531,7 +531,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -630,25 +630,25 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_arg args[7] = {arg0, arg1, arg2, arg3,
                     arg4, arg5, arg6};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
   if(arg5.idx < -1) {
-    p_a[5] = (char *)malloc(-1*args[5].idx*sizeof(T5));
+    p_a[5] = (char *)op_malloc(-1*args[5].idx*sizeof(T5));
   }
   if(arg6.idx < -1) {
-    p_a[6] = (char *)malloc(-1*args[6].idx*sizeof(T6));
+    p_a[6] = (char *)op_malloc(-1*args[6].idx*sizeof(T6));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -656,7 +656,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -761,28 +761,28 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
   op_arg args[8] = {arg0, arg1, arg2, arg3,
                     arg4, arg5, arg6, arg7};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
   if(arg5.idx < -1) {
-    p_a[5] = (char *)malloc(-1*args[5].idx*sizeof(T5));
+    p_a[5] = (char *)op_malloc(-1*args[5].idx*sizeof(T5));
   }
   if(arg6.idx < -1) {
-    p_a[6] = (char *)malloc(-1*args[6].idx*sizeof(T6));
+    p_a[6] = (char *)op_malloc(-1*args[6].idx*sizeof(T6));
   }
   if(arg7.idx < -1) {
-    p_a[7] = (char *)malloc(-1*args[7].idx*sizeof(T7));
+    p_a[7] = (char *)op_malloc(-1*args[7].idx*sizeof(T7));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -790,7 +790,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -905,31 +905,31 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
                     arg4, arg5, arg6, arg7,
                     arg8};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
   if(arg5.idx < -1) {
-    p_a[5] = (char *)malloc(-1*args[5].idx*sizeof(T5));
+    p_a[5] = (char *)op_malloc(-1*args[5].idx*sizeof(T5));
   }
   if(arg6.idx < -1) {
-    p_a[6] = (char *)malloc(-1*args[6].idx*sizeof(T6));
+    p_a[6] = (char *)op_malloc(-1*args[6].idx*sizeof(T6));
   }
   if(arg7.idx < -1) {
-    p_a[7] = (char *)malloc(-1*args[7].idx*sizeof(T7));
+    p_a[7] = (char *)op_malloc(-1*args[7].idx*sizeof(T7));
   }
   if(arg8.idx < -1) {
-    p_a[8] = (char *)malloc(-1*args[8].idx*sizeof(T8));
+    p_a[8] = (char *)op_malloc(-1*args[8].idx*sizeof(T8));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -937,7 +937,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;
@@ -1059,34 +1059,34 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
                     arg4, arg5, arg6, arg7,
                     arg8, arg9};
   if(arg0.idx < -1) {
-    p_a[0] = (char *)malloc(-1*args[0].idx*sizeof(T0));
+    p_a[0] = (char *)op_malloc(-1*args[0].idx*sizeof(T0));
   }
   if(arg1.idx < -1) {
-    p_a[1] = (char *)malloc(-1*args[1].idx*sizeof(T1));
+    p_a[1] = (char *)op_malloc(-1*args[1].idx*sizeof(T1));
   }
   if(arg2.idx < -1) {
-    p_a[2] = (char *)malloc(-1*args[2].idx*sizeof(T2));
+    p_a[2] = (char *)op_malloc(-1*args[2].idx*sizeof(T2));
   }
   if(arg3.idx < -1) {
-    p_a[3] = (char *)malloc(-1*args[3].idx*sizeof(T3));
+    p_a[3] = (char *)op_malloc(-1*args[3].idx*sizeof(T3));
   }
   if(arg4.idx < -1) {
-    p_a[4] = (char *)malloc(-1*args[4].idx*sizeof(T4));
+    p_a[4] = (char *)op_malloc(-1*args[4].idx*sizeof(T4));
   }
   if(arg5.idx < -1) {
-    p_a[5] = (char *)malloc(-1*args[5].idx*sizeof(T5));
+    p_a[5] = (char *)op_malloc(-1*args[5].idx*sizeof(T5));
   }
   if(arg6.idx < -1) {
-    p_a[6] = (char *)malloc(-1*args[6].idx*sizeof(T6));
+    p_a[6] = (char *)op_malloc(-1*args[6].idx*sizeof(T6));
   }
   if(arg7.idx < -1) {
-    p_a[7] = (char *)malloc(-1*args[7].idx*sizeof(T7));
+    p_a[7] = (char *)op_malloc(-1*args[7].idx*sizeof(T7));
   }
   if(arg8.idx < -1) {
-    p_a[8] = (char *)malloc(-1*args[8].idx*sizeof(T8));
+    p_a[8] = (char *)op_malloc(-1*args[8].idx*sizeof(T8));
   }
   if(arg9.idx < -1) {
-    p_a[9] = (char *)malloc(-1*args[9].idx*sizeof(T9));
+    p_a[9] = (char *)op_malloc(-1*args[9].idx*sizeof(T9));
   }
 
   //allocate scratch mememory to do double counting in indirect reduction
@@ -1094,7 +1094,7 @@ void op_par_loop(void (*kernel)(T0*, T1*, T2*, T3*,
     if(args[i].argtype == OP_ARG_GBL && args[i].size > blank_args_size )
     {
       blank_args_size = args[i].size;
-      blank_args = (char *)malloc(blank_args_size);
+      blank_args = (char *)op_malloc(blank_args_size);
     }
   // consistency checks
   int ninds = 0;

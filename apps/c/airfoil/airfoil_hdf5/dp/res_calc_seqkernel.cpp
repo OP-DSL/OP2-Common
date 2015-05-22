@@ -111,14 +111,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #pragma novector
     for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
-        double dat0[2][SIMD_VEC];
-        double dat1[2][SIMD_VEC];
-        double dat2[4][SIMD_VEC];
-        double dat3[4][SIMD_VEC];
-        double dat4[1][SIMD_VEC];
-        double dat5[1][SIMD_VEC];
-        double dat6[4][SIMD_VEC];
-        double dat7[4][SIMD_VEC];
+      if (n==set->core_size/SIMD_VEC) {
+        op_mpi_wait_all(nargs, args);
+      }
+
+      double dat0[2][SIMD_VEC];
+      double dat1[2][SIMD_VEC];
+      double dat2[4][SIMD_VEC];
+      double dat3[4][SIMD_VEC];
+      double dat4[1][SIMD_VEC];
+      double dat5[1][SIMD_VEC];
+      double dat6[4][SIMD_VEC];
+      double dat7[4][SIMD_VEC];
 
 
       #pragma simd
@@ -188,6 +192,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
 #else
     for ( int n=0; n<set_size; n++ ){
 #endif
+
+      if (n==set->core_size) {
+        op_mpi_wait_all(nargs, args);
+      }
+
       int map0idx = arg0.map_data[n * arg0.map->dim + 0];
       int map1idx = arg0.map_data[n * arg0.map->dim + 1];
       int map2idx = arg2.map_data[n * arg2.map->dim + 0];

@@ -37,6 +37,7 @@
 
 #include <sys/time.h>
 #include "op_lib_core.h"
+#include <malloc.h>
 
 /*
  * OP2 global state variables
@@ -72,7 +73,7 @@ op_kernel * OP_kernels;
 static char * copy_str( char const * src )
 {
   const size_t len = strlen( src ) + 1;
-  char * dest = (char *) calloc ( len, sizeof ( char ) );
+  char * dest = (char *) op_calloc ( len, sizeof ( char ) );
   return strncpy ( dest, src, len );
 }
 
@@ -200,7 +201,7 @@ op_decl_set_core ( int size, char const * name )
   if ( OP_set_index == OP_set_max )
   {
     OP_set_max += 10;
-    OP_set_list = ( op_set * ) realloc ( OP_set_list, OP_set_max * sizeof ( op_set ) );
+    OP_set_list = ( op_set * ) op_realloc ( OP_set_list, OP_set_max * sizeof ( op_set ) );
 
     if ( OP_set_list == NULL )
     {
@@ -210,7 +211,7 @@ op_decl_set_core ( int size, char const * name )
 
   }
 
-  op_set set = ( op_set ) malloc ( sizeof ( op_set_core ) );
+  op_set set = ( op_set ) op_malloc ( sizeof ( op_set_core ) );
   set->index = OP_set_index;
   set->size = size;
   set->core_size = size;
@@ -263,7 +264,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   if ( OP_map_index == OP_map_max )
   {
     OP_map_max += 10;
-    OP_map_list = ( op_map * ) realloc ( OP_map_list, OP_map_max * sizeof ( op_map ) );
+    OP_map_list = ( op_map * ) op_realloc ( OP_map_list, OP_map_max * sizeof ( op_map ) );
 
     if ( OP_map_list == NULL )
     {
@@ -272,7 +273,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
     }
   }
 
-  op_map map = ( op_map ) malloc ( sizeof ( op_map_core ) );
+  op_map map = ( op_map ) op_malloc ( sizeof ( op_map_core ) );
   map->index = OP_map_index;
   map->from = from;
   map->to = to;
@@ -301,7 +302,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
     exit ( -1 );
   }
 
-  op_dat dat = ( op_dat ) malloc ( sizeof ( op_dat_core ) );
+  op_dat dat = ( op_dat ) op_malloc ( sizeof ( op_dat_core ) );
   dat->index = OP_dat_index;
   dat->set = set;
   dat->dim = dim;
@@ -318,7 +319,7 @@ op_decl_dat_core ( op_set set, int dim, char const * type, int size, char * data
   op_dat_entry* item;
 
   //add the newly created op_dat to list
-  item = (op_dat_entry *)malloc(sizeof(op_dat_entry));
+  item = (op_dat_entry *)op_malloc(sizeof(op_dat_entry));
   if (item == NULL) {
     printf ( " op_decl_dat error -- error allocating memory to double linked list entry\n" );
     exit ( -1 );
@@ -757,7 +758,7 @@ op_timing_realloc ( int kernel )
   if ( kernel >= OP_kern_max )
   {
     OP_kern_max_new = kernel + 10;
-    OP_kernels = ( op_kernel * ) realloc ( OP_kernels, OP_kern_max_new * sizeof ( op_kernel ) );
+    OP_kernels = ( op_kernel * ) op_realloc ( OP_kernels, OP_kern_max_new * sizeof ( op_kernel ) );
     if ( OP_kernels == NULL )
     {
       printf ( " op_timing_realloc error \n" );
