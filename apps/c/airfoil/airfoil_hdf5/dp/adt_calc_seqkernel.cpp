@@ -104,7 +104,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
-      if (n==set->core_size/SIMD_VEC) {
+      if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
 

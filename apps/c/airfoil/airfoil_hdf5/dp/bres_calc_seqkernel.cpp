@@ -40,8 +40,9 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 
 #ifdef VECTORIZE
 //#define SIMD_VEC 8
-inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
-                      const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC],
+inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC],
+                          const double q1[*][SIMD_VEC],
+                          const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC],
                       //const int bound[*][SIMD_VEC],
                       const int *bound,
                       int idx) {
@@ -54,6 +55,7 @@ inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_
   p1 = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
 
   if (bound[0]==1) {
+  //if (bound[0][idx] ==1) {
     res1[1][idx] += + p1*dy;
     res1[2][idx] += - p1*dx;
   }
@@ -107,15 +109,15 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   }
 
   int exec_size = op_mpi_halo_exchanges(set, nargs, args);
-  int set_size = ((set->size+set->exec_size-1)/16+1)*16; //align to 512 bits
-
+  //printf("exec_size %d\n",exec_size);
   if (exec_size >0) {
 
 #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+    //for ( int n=0; n<0+(set->core_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
-      if (n==set->core_size/SIMD_VEC) {
+      if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
 
@@ -173,6 +175,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
     //remainder
     for ( int n=(exec_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
+    //for ( int n=(set->core_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
 #else
     for ( int n=0; n<exec_size; n++ ){
 #endif

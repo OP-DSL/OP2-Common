@@ -65,7 +65,7 @@ void op_par_loop_update(char const *name, op_set set,
   }
 
   int exec_size = op_mpi_halo_exchanges(set, nargs, args);
-  int set_size = ((set->size+set->exec_size-1)/16+1)*16; //align to 512 bits
+  //int set_size = ((set->size+set->exec_size-1)/16+1)*16; //align to 512 bits
 
   if (exec_size >0) {
 
