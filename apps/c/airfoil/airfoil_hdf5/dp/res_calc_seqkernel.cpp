@@ -35,7 +35,7 @@ inline void res_calc(const double *x1, const double *x2, const double *q1, const
 }
 
 #ifdef VECTORIZE
-#define SIMD_VEC 4
+//#define SIMD_VEC 8
 
 inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC],
                      const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC],
@@ -219,36 +219,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
     }
 
   }
-
-
-      //double q[4][8] = {…}
-
-
-
-      //if (n==set->core_size) {
-        //op_mpi_wait_all(nargs, args);
-      //}
-
-      //map data has dim 2 - 1 edge points to 2 nodes
-      /*int map0idx = arg0.map_data[n * arg0.map->dim + 0]; //index of 1st node
-      int map1idx = arg0.map_data[n * arg0.map->dim + 1]; //index of 2nd node
-      */
-
-      //map data has dim 2 -  1 edge points to 2 cells
-      /*int map2idx = arg2.map_data[n * arg2.map->dim + 0]; //index of 1st cell
-      int map3idx = arg2.map_data[n * arg2.map->dim + 1]; //index of 2nd cell
-      */
-
-      /*res_calc(
-        ((double*)arg0.data)[2 * map0idx], //p_x is defind on nodes - dims of p_x is 2
-        &((double*)arg0.data)[2 * map1idx], //p_x is defind on nodes - dims of p_x is 2
-        &((double*)arg2.data)[4 * map2idx], //p_q is defind on cells - dims of p_q is 4
-        &((double*)arg2.data)[4 * map3idx], //p_q is defind on cells - dims of p_q is 4
-        &((double*)arg4.data)[1 * map2idx], //p_adt is defind on cells - dims of p_adt is 1
-        &((double*)arg4.data)[1 * map3idx], //p_adt is defind on cells - dims of p_adt is 1
-        &((double*)arg6.data)[4 * map2idx], //p_res is defind on cells - dims of p_res is 4
-        &((double*)arg6.data)[4 * map3idx]); //p_res is defind on cells - dims of p_res is 4
-      */
 
   if (exec_size == 0 || exec_size == set->core_size) {
     op_mpi_wait_all(nargs, args);

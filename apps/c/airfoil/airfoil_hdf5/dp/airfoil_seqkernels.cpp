@@ -5,7 +5,7 @@
 // header
 #include "op_lib_cpp.h"
 #ifdef VECTORIZE
-#include "op_vector.h"
+#define SIMD_VEC 4
 #endif
 
 

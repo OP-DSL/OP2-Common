@@ -39,7 +39,7 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 }
 
 #ifdef VECTORIZE
-#define SIMD_VEC 4
+//#define SIMD_VEC 8
 inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
                       const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC],
                       //const int bound[*][SIMD_VEC],

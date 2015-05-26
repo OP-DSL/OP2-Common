@@ -32,7 +32,7 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3, const
 }
 
 #ifdef VECTORIZE
-#define SIMD_VEC 4
+//#define SIMD_VEC 8
 inline void adt_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC],
                      const double x4[*][SIMD_VEC],
                      //const double q[*][SIMD_VEC],

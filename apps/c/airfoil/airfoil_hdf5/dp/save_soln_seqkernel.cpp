@@ -9,7 +9,7 @@ inline void save_soln(const double *q, double *qold){
 }
 
 #ifdef VECTORIZE
-#define SIMD_VEC 4
+//#define SIMD_VEC 8
 inline void save_soln_vec(const double q[*][SIMD_VEC], double qold[*][SIMD_VEC], int idx){
   for (int n=0; n<4; n++) qold[n][idx] = q[n][idx];
 }
