@@ -54,7 +54,7 @@ inline void bres_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_
   ri = 1.0f/q1[0][idx];
   p1 = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
 
-  if (bound[0]==1) {
+  if (*bound==1) {
   //if (bound[0][idx] ==1) {
     res1[1][idx] += + p1*dy;
     res1[2][idx] += - p1*dx;
@@ -109,7 +109,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   }
 
   int exec_size = op_mpi_halo_exchanges(set, nargs, args);
-  //printf("exec_size %d\n",exec_size);
+
   if (exec_size >0) {
 
 #ifdef VECTORIZE
@@ -134,6 +134,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
         int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+        int idx2_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
 
         dat0[0][i] = ((double*)arg0.data)[idx0_2 + 0];
         dat0[1][i] = ((double*)arg0.data)[idx0_2 + 1];
@@ -146,7 +147,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         dat2[2][i] = ((double*)arg2.data)[idx2_4 + 2];
         dat2[3][i] = ((double*)arg2.data)[idx2_4 + 3];
 
-        dat3[0][i] = ((double*)arg3.data)[idx2_4 + 0];
+        dat3[0][i] = ((double*)arg3.data)[idx2_1 + 0];
 
         dat4[0][i] = 0.0;
         dat4[1][i] = 0.0;
