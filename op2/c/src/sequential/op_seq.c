@@ -69,7 +69,7 @@ op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char co
   char* data = NULL;
   op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
 
-  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat->data = (char*) op_calloc(set->size*dim*size, 1); //initialize data bits to 0
   dat-> user_managed = 0;
   return dat;
 }

@@ -66,7 +66,7 @@ MPI_Comm OP_MPI_HDF5_WORLD;
 
 int compute_local_size_weight (int global_size, int mpi_comm_size, int mpi_rank )
 {
-  int *hybrid_flags = (int *)malloc(mpi_comm_size*sizeof(int));
+  int *hybrid_flags = (int *)xmalloc(mpi_comm_size*sizeof(int));
   MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
       1,MPI_INT,OP_MPI_HDF5_WORLD);
   double total = 0;

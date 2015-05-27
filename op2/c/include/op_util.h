@@ -55,6 +55,8 @@ int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
 
 void* xmalloc(size_t size);
 
+void* xcalloc(size_t number, size_t size);
+
 void* xrealloc(void *ptr, size_t size);
 
 int compare_sets(op_set set1, op_set set2);

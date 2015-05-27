@@ -49,10 +49,6 @@
 #include <sys/queue.h> //contains double linked list implementation
 #include <stdbool.h>
 
-#ifdef __INTEL_COMPILER
-#include "dvec.h"
-#endif
-
 #ifndef OP2_ALIGNMENT
 #define OP2_ALIGNMENT 64
 #endif

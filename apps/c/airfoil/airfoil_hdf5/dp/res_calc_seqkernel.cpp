@@ -116,14 +116,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
         op_mpi_wait_all(nargs, args);
       }
 
-      double dat0[2][SIMD_VEC];
-      double dat1[2][SIMD_VEC];
-      double dat2[4][SIMD_VEC];
-      double dat3[4][SIMD_VEC];
-      double dat4[1][SIMD_VEC];
-      double dat5[1][SIMD_VEC];
-      double dat6[4][SIMD_VEC];
-      double dat7[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat0[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat1[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat2[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat3[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat4[1][SIMD_VEC];
+      __attribute__((aligned(128))) double dat5[1][SIMD_VEC];
+      __attribute__((aligned(128))) double dat6[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat7[4][SIMD_VEC];
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){

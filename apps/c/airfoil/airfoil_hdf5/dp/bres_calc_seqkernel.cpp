@@ -121,11 +121,11 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         op_mpi_wait_all(nargs, args);
       }
 
-      double dat0[2][SIMD_VEC];
-      double dat1[2][SIMD_VEC];
-      double dat2[4][SIMD_VEC];
-      double dat3[1][SIMD_VEC];
-      double dat4[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat0[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat1[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat2[4][SIMD_VEC];
+      __attribute__((aligned(128))) double dat3[1][SIMD_VEC];
+      __attribute__((aligned(128))) double dat4[4][SIMD_VEC];
       //int dat5[1][SIMD_VEC];
 
       #pragma simd

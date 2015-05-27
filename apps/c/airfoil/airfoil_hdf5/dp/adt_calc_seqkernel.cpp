@@ -108,12 +108,10 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         op_mpi_wait_all(nargs, args);
       }
 
-      double dat0[2][SIMD_VEC];
-      double dat1[2][SIMD_VEC];
-      double dat2[2][SIMD_VEC];
-      double dat3[2][SIMD_VEC];
-      //double dat4[4][SIMD_VEC];
-      //double dat5[1][SIMD_VEC];
+      __attribute__((aligned(128))) double dat0[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat1[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat2[2][SIMD_VEC];
+      __attribute__((aligned(128))) double dat3[2][SIMD_VEC];
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
@@ -135,26 +133,14 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         dat3[0][i] = ((double*)arg3.data)[idx3_2 + 0];
         dat3[1][i] = ((double*)arg3.data)[idx3_2 + 1];
 
-        /*dat4[0][i] = ((double*)arg4.data)[(n+i) * 4 + 0];
-        dat4[1][i] = ((double*)arg4.data)[(n+i) * 4 + 1];
-        dat4[2][i] = ((double*)arg4.data)[(n+i) * 4 + 2];
-        dat4[3][i] = ((double*)arg4.data)[(n+i) * 4 + 3];*/
-
       }
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         adt_calc_vec(dat0, dat1, dat2, dat3,
-          //dat4,
           &((double*)arg4.data)[(n+i) * 4],
-          //dat5,
           &((double*)arg5.data)[(n+i) * 1],
           i);
       }
-
-      /*for ( int i=0; i<SIMD_VEC; i++ ){
-        ((double*)arg5.data)[(n+i) * 1 + 0] = dat5[0][i];
-      }*/
-
     }
     //remainder
     for ( int n=(exec_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){

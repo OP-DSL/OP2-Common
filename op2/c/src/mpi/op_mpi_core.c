@@ -1470,8 +1470,8 @@ void op_halo_permap_create() {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   /* --------Step 1: Decide which maps will do partial halo exchange ----------*/
 
-  int *total_halo_sizes = (int *)calloc(OP_set_index, sizeof(int));
-  int *map_halo_sizes = (int *)calloc(OP_map_index,sizeof(int));
+  int *total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
+  int *map_halo_sizes = (int *)xcalloc(OP_map_index,sizeof(int));
 
   //Total halo size for each set
   for (int i = 0; i < OP_set_index; i++)
@@ -1488,14 +1488,14 @@ void op_halo_permap_create() {
     }
   }
 
-  int *reduced_total_halo_sizes = (int *)calloc(OP_set_index, sizeof(int));
-  int *reduced_map_halo_sizes = (int *)calloc(OP_map_index,sizeof(int));
+  int *reduced_total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
+  int *reduced_map_halo_sizes = (int *)xcalloc(OP_map_index,sizeof(int));
   MPI_Allreduce(total_halo_sizes, reduced_total_halo_sizes,
                 OP_set_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes,
                 OP_map_index, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  OP_map_partial_exchange = (int *)malloc(OP_map_index*sizeof(int));
+  OP_map_partial_exchange = (int *)xmalloc(OP_map_index*sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
     OP_map_partial_exchange[i] = 0;//(double)reduced_map_halo_sizes[i] <
                       //(double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
@@ -1507,21 +1507,21 @@ void op_halo_permap_create() {
   free(map_halo_sizes);
 
   /* --------Step 2: go through maps, determine import subset -----------------*/
-  OP_import_nonexec_permap = (halo_list *)malloc(OP_map_index *
+  OP_import_nonexec_permap = (halo_list *)xmalloc(OP_map_index *
                                                       sizeof(halo_list));
-  OP_export_nonexec_permap = (halo_list *)malloc(OP_map_index *
+  OP_export_nonexec_permap = (halo_list *)xmalloc(OP_map_index *
                                                       sizeof(halo_list));
-  int **import_sizes2 = (int **)malloc(OP_map_index*sizeof(int*));
-  int **export_sizes2 = (int **)malloc(OP_map_index*sizeof(int*));
+  int **import_sizes2 = (int **)xmalloc(OP_map_index*sizeof(int*));
+  int **export_sizes2 = (int **)xmalloc(OP_map_index*sizeof(int*));
 
   for (int i = 0; i < OP_map_index; i++) {
     if (OP_map_partial_exchange[i]) {
-      OP_import_nonexec_permap[i] = (halo_list)malloc(sizeof(halo_list_core));
-      OP_export_nonexec_permap[i] = (halo_list)malloc(sizeof(halo_list_core));
+      OP_import_nonexec_permap[i] = (halo_list)xmalloc(sizeof(halo_list_core));
+      OP_export_nonexec_permap[i] = (halo_list)xmalloc(sizeof(halo_list_core));
     }
   }
 
-  set_import_buffer_size = (int *)calloc(OP_set_index, sizeof(int));
+  set_import_buffer_size = (int *)xcalloc(OP_set_index, sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_partial_exchange[i]) continue;
     op_map map = OP_map_list[i];
@@ -1533,7 +1533,7 @@ void op_halo_permap_create() {
     //
     OP_import_nonexec_permap[i]->ranks_size = 0;
     int total = (OP_import_exec_list[map->to->index]->ranks_size + OP_import_nonexec_list[map->to->index]->ranks_size);
-    OP_import_nonexec_permap[i]->ranks = (int*)calloc(total, sizeof(int));
+    OP_import_nonexec_permap[i]->ranks = (int*)xcalloc(total, sizeof(int));
     for (int j = 0; j < total; j++) {
       int merge = j < OP_import_exec_list[map->to->index]->ranks_size ?
         OP_import_exec_list[map->to->index]->ranks[j] : OP_import_nonexec_list[map->to->index]->ranks[j-OP_import_exec_list[map->to->index]->ranks_size];
@@ -1548,12 +1548,12 @@ void op_halo_permap_create() {
     //
     // Count how many we will actually need from each of them for this particular map
     //
-    OP_import_nonexec_permap[i]->disps = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
-    OP_import_nonexec_permap[i]->sizes = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_import_nonexec_permap[i]->disps = (int*)xcalloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
+    OP_import_nonexec_permap[i]->sizes = (int*)xcalloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
     import_sizes2[i] = (int*)calloc(OP_import_nonexec_permap[i]->ranks_size, sizeof(int));
 
     //Create flag array: -1 for halo elements that are not eccessed by this map, gbl partition ID for elements that are
-    int *scratch = (int *)malloc((map->to->exec_size + map->to->nonexec_size) *sizeof(int));
+    int *scratch = (int *)xmalloc((map->to->exec_size + map->to->nonexec_size) *sizeof(int));
     for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
       scratch[j] = -1;
     }
@@ -1635,11 +1635,11 @@ void op_halo_permap_create() {
     //
     // Let the other ranks know how many elements we will need from their exec/nonexec halo regions
     //
-    int *send_buffer = (int *)malloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
-    int *recv_buffer = (int *)malloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
-    MPI_Status *send_status = (MPI_Status *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
-    MPI_Status *recv_status = (MPI_Status *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
-    MPI_Request *send_request = (MPI_Request *)malloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Request));
+    int *send_buffer = (int *)xmalloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
+    int *recv_buffer = (int *)xmalloc(2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
+    MPI_Status *send_status = (MPI_Status *)xmalloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
+    MPI_Status *recv_status = (MPI_Status *)xmalloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
+    MPI_Request *send_request = (MPI_Request *)xmalloc(OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Request));
 
     for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
       send_buffer[2*j] = import_sizes2[i][j];
@@ -1685,7 +1685,7 @@ void op_halo_permap_create() {
 
     OP_export_nonexec_permap[i]->size = OP_export_nonexec_permap[i]->disps[OP_export_nonexec_permap[i]->ranks_size-1] +
                                         OP_export_nonexec_permap[i]->sizes[OP_export_nonexec_permap[i]->ranks_size-1];
-    OP_export_nonexec_permap[i]->list = (int*)malloc(OP_export_nonexec_permap[i]->size * sizeof(int));
+    OP_export_nonexec_permap[i]->list = (int*)xmalloc(OP_export_nonexec_permap[i]->size * sizeof(int));
 
     //
     // Collapse import and export lists (remove 0 size destinations)
@@ -1884,7 +1884,7 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
   for (int i = 0; i < nargs; i++) {
     if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) nreductions++;
   }
-  op_arg *arg_list = (op_arg*)malloc(nreductions*sizeof(op_arg));
+  op_arg *arg_list = (op_arg *) xmalloc(nreductions*sizeof(op_arg));
   nreductions = 0;
   int nbytes = 0;
   for (int i = 0; i < nargs; i++) {
@@ -1894,7 +1894,7 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
     }
   }
 
-  char *data = (char *)malloc(nbytes*sizeof(char));
+  char *data = (char *) xmalloc(nbytes*sizeof(char));
   int char_counter = 0;
   for (int i = 0; i < nreductions; i++) {
     for (int j = 0; j < arg_list[i].size; j++)
@@ -1904,7 +1904,7 @@ void op_mpi_reduce_combined(op_arg* args, int nargs) {
   int comm_size, comm_rank;
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
   MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
-  char *result = (char *)malloc(comm_size*nbytes*sizeof(char));
+  char *result = (char *) xmalloc(comm_size*nbytes*sizeof(char));
   MPI_Allgather(data,   nbytes, MPI_CHAR,
                 result, nbytes, MPI_CHAR,
                 OP_MPI_WORLD);

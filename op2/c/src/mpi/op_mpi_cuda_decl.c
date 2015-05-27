@@ -90,7 +90,7 @@ op_init ( int argc, char ** argv, int diags)
 op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {
-  char* d = (char*) malloc(set->size*dim*size);
+  char* d = (char*) xmalloc(set->size*dim*size);
   if (d == NULL) {
     printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
     exit ( -1 );
@@ -112,7 +112,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
 
-  dat->data = (char*) calloc(set_size*dim*size, 1); //initialize data bits to 0
+  dat->data = (char*) xcalloc(set_size*dim*size, 1); //initialize data bits to 0
   dat-> user_managed = 0;
 
   //transpose
@@ -184,7 +184,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
   OP_import_nonexec_list[set->index]->size;
 
   if (strstr( dat->type, ":soa")!= NULL) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -263,7 +263,7 @@ op_set op_decl_set(int size, char const * name )
 
 op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * name )
 {
-  int* m = (int*) malloc(from->size*dim*sizeof(int));
+  int* m = (int*) xmalloc(from->size*dim*sizeof(int));
   memcpy(m, imap, from->size*dim*sizeof(int));
   return op_decl_map_core ( from, to, dim, m, name );
   //return op_decl_map_core ( from, to, dim, imap, name );
@@ -414,7 +414,7 @@ void op_upload_all ()
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
       if (strstr( dat->type, ":soa")!= NULL) {
-        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+        char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
         int element_size = dat->size/dat->dim;
         for (int i = 0; i < dat->dim; i++) {
           for (int j = 0; j < set_size; j++) {

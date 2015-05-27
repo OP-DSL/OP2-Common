@@ -97,6 +97,19 @@ void* xrealloc (void *ptr, size_t size)
 }
 
 /*******************************************************************************
+* Wrapper for calloc from www.gnu.org/
+*******************************************************************************/
+
+void* xcalloc (size_t number, size_t size)
+{
+  if(size == 0) return (void *)NULL;
+
+  register void *value = op_calloc (number, size);
+  if (value == 0) printf("Virtual memory exhausted at malloc\n");
+  return value;
+}
+
+/*******************************************************************************
 * Return the index of the min value in an array
 *******************************************************************************/
 

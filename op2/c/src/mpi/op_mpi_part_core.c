@@ -1948,7 +1948,7 @@ void op_partition_kway(op_map primary_map)
   idxtype wgtflag = 0;
   int options[3] = {1,3,15};
 
-  int *hybrid_flags = (int *)malloc(comm_size*sizeof(int));
+  int *hybrid_flags = (int *)xmalloc(comm_size*sizeof(int));
   MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
       1,MPI_INT,OP_PART_WORLD);
   double total = 0;
@@ -2971,7 +2971,7 @@ void op_partition_inertial(op_dat x_dat)
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
   double max_time;
-  double *x = (double *)malloc(x_dat->set->size*x_dat->dim*sizeof(double));
+  double *x = (double *)xmalloc(x_dat->set->size*x_dat->dim*sizeof(double));
   memcpy(x, x_dat->data, x_dat->set->size*x_dat->dim*sizeof(double));
 
   op_timers(&cpu_t1, &wall_t1); //timer start for partitioning
@@ -3021,7 +3021,7 @@ void op_partition_inertial(op_dat x_dat)
   int block_upper = part_range[x_dat->set->index][2*my_rank+1]; //losg2
   int block_size = block_upper-block_lower+1; //losgd
 
-  int *global_indices = (int *)malloc(block_size*sizeof(int));
+  int *global_indices = (int *)xmalloc(block_size*sizeof(int));
   for (int i = 0; i < block_size; i++) global_indices[i] = block_lower + i;
   int nlevel = 0;
   while ((1<<nlevel) < comm_size) nlevel++;
@@ -3040,7 +3040,7 @@ void op_partition_inertial(op_dat x_dat)
   for (int level = 0; level < nlevel; level++) {
     //op_inert begin
     if (comm_size != 1) {
-      dist = (double *)malloc(current_part_size*sizeof(double));
+      dist = (double *)xmalloc(current_part_size*sizeof(double));
       double x_local = 0.0;
       double y_local = 0.0;
       double z_local = 0.0;
@@ -3157,10 +3157,10 @@ void op_partition_inertial(op_dat x_dat)
       int current_group_lower = nlower_g;
       int current_group_upper = current_group_size - nlower_g;
 
-      double *x_keep = (double *)malloc(3*current_part_size*sizeof(double));
-      int *idx_gbl_keep = (int *)malloc(current_part_size*sizeof(int));
-      double *x_send = (double *)malloc(3*current_part_size*sizeof(double));
-      int *idx_gbl_send = (int *)malloc(current_part_size*sizeof(int));
+      double *x_keep = (double *)xmalloc(3*current_part_size*sizeof(double));
+      int *idx_gbl_keep = (int *)xmalloc(current_part_size*sizeof(int));
+      double *x_send = (double *)xmalloc(3*current_part_size*sizeof(double));
+      int *idx_gbl_send = (int *)xmalloc(current_part_size*sizeof(int));
       int keep_ctr = 0;
       int send_ctr = 0;
       if (my_rank <= comm_size/2-1) {
@@ -3205,8 +3205,8 @@ void op_partition_inertial(op_dat x_dat)
 
     //Allocate for next iteration
       free(x); free(global_indices);
-      x = (double *)realloc(x_keep, (keep_ctr+size_0+size_1)*3*sizeof(double)); //Implicitly assign x = x_keep
-      global_indices = (int *)realloc(idx_gbl_keep, (keep_ctr+size_0+size_1)*sizeof(int)); //Implicitly assign global_indices = idx_gbl_keep
+      x = (double *)xrealloc(x_keep, (keep_ctr+size_0+size_1)*3*sizeof(double)); //Implicitly assign x = x_keep
+      global_indices = (int *)xrealloc(idx_gbl_keep, (keep_ctr+size_0+size_1)*sizeof(int)); //Implicitly assign global_indices = idx_gbl_keep
       current_part_size = keep_ctr+size_0+size_1;
 
       MPI_Wait(&s_request, &s_status);
@@ -3225,8 +3225,8 @@ void op_partition_inertial(op_dat x_dat)
       }
 
     //Divide group in two
-      int *processes_lower = (int *)malloc(comm_size/2*sizeof(int));
-      int *processes_upper = (int *)malloc((comm_size-comm_size/2)*sizeof(int));
+      int *processes_lower = (int *)xmalloc(comm_size/2*sizeof(int));
+      int *processes_upper = (int *)xmalloc((comm_size-comm_size/2)*sizeof(int));
       for (int i = 0; i < comm_size/2; i++)
         processes_lower[i] = i;
       for (int i = 0; i < comm_size - comm_size/2; i++)
@@ -3265,14 +3265,14 @@ void op_partition_inertial(op_dat x_dat)
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
   //start binning (global indices -> processes)
-  int *sizes = (int*)calloc(comm_size,sizeof(int));
+  int *sizes = (int*)xcalloc(comm_size,sizeof(int));
   int target = 0;
   for (int i = 0; i < current_part_size; i++) {
     while (!(orig_part_range[x_dat->set->index][2*target]   <= global_indices[i] &&
              orig_part_range[x_dat->set->index][2*target+1] >= global_indices[i])) target++;
     sizes[target]++;
   }
-  int *sizes_recv = (int*)calloc(comm_size,sizeof(int));
+  int *sizes_recv = (int*)xcalloc(comm_size,sizeof(int));
   MPI_Alltoall(sizes, 1, MPI_INT, sizes_recv, 1, MPI_INT, OP_PART_WORLD);
 
   //Sanity check
@@ -3292,11 +3292,11 @@ void op_partition_inertial(op_dat x_dat)
   }
 
   //Send
-  MPI_Request *send_requests = (MPI_Request *)malloc(send_count * sizeof(MPI_Request));
-  MPI_Request *recv_requests = (MPI_Request *)malloc(recv_count * sizeof(MPI_Request));
-  MPI_Status *send_statuses = (MPI_Status *)malloc(send_count * sizeof(MPI_Status));
-  MPI_Status *recv_statuses = (MPI_Status *)malloc(recv_count * sizeof(MPI_Status));
-  int *global_indices_recv = (int *)malloc(total_size*sizeof(int));
+  MPI_Request *send_requests = (MPI_Request *)xmalloc(send_count * sizeof(MPI_Request));
+  MPI_Request *recv_requests = (MPI_Request *)xmalloc(recv_count * sizeof(MPI_Request));
+  MPI_Status *send_statuses = (MPI_Status *)xmalloc(send_count * sizeof(MPI_Status));
+  MPI_Status *recv_statuses = (MPI_Status *)xmalloc(recv_count * sizeof(MPI_Status));
+  int *global_indices_recv = (int *)xmalloc(total_size*sizeof(int));
   send_count = 0;
   recv_count = 0;
   int send_offset = 0;
@@ -3531,7 +3531,7 @@ void partition(const char* lib_name, const char* lib_routine,
   if (partial_halo_flag == 1) //only do partial halo
     op_halo_permap_create();  //creation if a valid partitioning is done
   else {
-    OP_map_partial_exchange = (int *)malloc(OP_map_index*sizeof(int));
+    OP_map_partial_exchange = (int *)xmalloc(OP_map_index*sizeof(int));
     for (int i = 0; i < OP_map_index; i++)
       OP_map_partial_exchange[i] = 0;
   }
