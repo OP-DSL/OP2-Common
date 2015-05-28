@@ -6,6 +6,8 @@
 #include "op_lib_cpp.h"
 #ifdef VECTORIZE
 #define SIMD_VEC 4
+#define ALIGNED_DOUBLE /*__attribute__((aligned(128)))*/
+#define ALIGNED_INT /*__attribute__((aligned(64)))*/
 #endif
 
 

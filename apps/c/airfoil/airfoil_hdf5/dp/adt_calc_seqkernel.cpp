@@ -108,10 +108,10 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         op_mpi_wait_all(nargs, args);
       }
 
-      __attribute__((aligned(128))) double dat0[2][SIMD_VEC];
-      __attribute__((aligned(128))) double dat1[2][SIMD_VEC];
-      __attribute__((aligned(128))) double dat2[2][SIMD_VEC];
-      __attribute__((aligned(128))) double dat3[2][SIMD_VEC];
+      ALIGNED_DOUBLE double dat0[2][SIMD_VEC];
+      ALIGNED_DOUBLE double dat1[2][SIMD_VEC];
+      ALIGNED_DOUBLE double dat2[2][SIMD_VEC];
+      ALIGNED_DOUBLE double dat3[2][SIMD_VEC];
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
