@@ -11,6 +11,7 @@
 
 import re
 import datetime
+import glob
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -81,8 +82,55 @@ def ENDIF():
   elif CPP:
     code('}')
 
+def comment_remover(text):
+    """Remove comments from text"""
 
-def op2_gen_seq(master, date, consts, kernels):
+    def replacer(match):
+        s = match.group(0)
+        if s.startswith('/'):
+            return ''
+        else:
+            return s
+    pattern = re.compile(
+        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+        re.DOTALL | re.MULTILINE
+    )
+    return re.sub(pattern, replacer, text)
+
+def remove_trailing_w_space(text):
+  text = text+' '
+  line_start = 0
+  line = ""
+  line_end = 0
+  striped_test = ''
+  count = 0
+  while 1:
+    line_end =  text.find("\n",line_start+1)
+    line = text[line_start:line_end]
+    line = line.rstrip()
+    striped_test = striped_test + line +'\n'
+    line_start = line_end + 1
+    line = ""
+    if line_end < 0:
+      return striped_test[:-1]
+
+def para_parse(text, j, op_b, cl_b):
+    """Parsing code block, i.e. text to find the correct closing brace"""
+
+    depth = 0
+    loc2 = j
+
+    while 1:
+      if text[loc2] == op_b:
+            depth = depth + 1
+
+      elif text[loc2] == cl_b:
+            depth = depth - 1
+            if depth == 0:
+                return loc2
+      loc2 = loc2 + 1
+
+def op2_gen_mpi_vec(master, date, consts, kernels):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -201,7 +249,7 @@ def op2_gen_seq(master, date, consts, kernels):
         cumulative_indirect_index[i] = j
         j = j + 1
 #
-# set two logicals
+# set three logicals
 #
     j = 0
     for i in range(0,nargs):
@@ -215,9 +263,15 @@ def op2_gen_seq(master, date, consts, kernels):
         j = i
     reduct = j > 0
 
-##########################################################################
-#  start with the user kernel function
-##########################################################################
+    j = 0
+    for i in range(0,nargs):
+      if maps[i] == OP_MAP :
+        j = i
+    indirect_kernel = j > 0
+
+####################################################################################
+#  generate the user kernel function - creating versions for vectorisation as needed
+####################################################################################
 
     FORTRAN = 0;
     CPP     = 1;
@@ -225,12 +279,101 @@ def op2_gen_seq(master, date, consts, kernels):
     file_text = ''
     depth = 0
 
+    #
+    # First original version
+    #
     comm('user function')
+    found = 0
+    for files in glob.glob( "*.h" ):
+      f = open( files, 'r' )
+      for line in f:
+        if name in line:
+          file_name = f.name
+          found = 1;
+          break
+      if found == 1:
+        break;
 
-    if FORTRAN:
-      code('include '+name+'.inc')
-    elif CPP:
-      code('#include "'+name+'.h"')
+    if found == 0:
+      print "COUND NOT FIND KERNEL", name
+
+    f = open(file_name, 'r')
+    kernel_text = f.read()
+    file_text += kernel_text
+    f.close()
+
+    #
+    # Modified vectorisable version if its an indirect kernel
+    # - direct kernels can be vectorised without modification
+    #
+    if indirect_kernel:
+      comm('user function -- modified for vectorisation')
+      f = open(file_name, 'r')
+      kernel_text = f.read()
+      f.close()
+
+      kernel_text = comment_remover(kernel_text)
+      kernel_text = remove_trailing_w_space(kernel_text)
+
+      p = re.compile('void\\s+\\b'+name+'\\b')
+      i = p.search(kernel_text).start()
+
+      if(i < 0):
+        print "\n********"
+        print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+        exit(2)
+      i2 = i
+
+      #i = kernel_text[0:i].rfind('\n') #reverse find
+      j = kernel_text[i:].find('{')
+      k = para_parse(kernel_text, i+j, '{', '}')
+      signature_text = kernel_text[i:i+j]
+      l = signature_text[0:].find('(')
+      head_text = signature_text[0:l] #save function name
+      m = para_parse(signature_text, 0, '(', ')')
+      signature_text = signature_text[l+1:m]
+      body_text = kernel_text[i+j+1:k]
+
+
+      # check for number of arguments
+      if len(signature_text.split(',')) != nargs:
+          print 'Error parsing user kernel(%s): must have %d arguments' \
+                % name, nargs
+          return
+
+      new_signature_text = ''
+      for i in range(0,nargs):
+        var = signature_text.split(',')[i].strip()
+
+        if maps[i] <> OP_GBL and maps[i] <> OP_ID:
+          #remove * and add [*][SIMD_VEC]
+          var = var.replace('*','')
+          #locate var in body and replace by adding [idx]
+          length = len(re.compile('\\s+\\b').split(var))
+          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
+
+          print var2
+
+          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
+          body_text = re.sub(r'('+var2+'\[[A-Za-z0-9]*\]'+')', r'\1'+'[idx]', body_text)
+
+
+          var = var + '[*][SIMD_VEC]'
+        new_signature_text +=  var+', '
+
+
+      #add ( , idx and )
+      signature_text = head_text + '( '+new_signature_text + 'int idx ) {'
+      #finally update name
+      signature_text = signature_text.replace(name,name+'_vec')
+
+      #print head_text
+      #print signature_text
+      #print  body_text
+
+      file_text += signature_text + body_text + '}'
+
+
 
 ##########################################################################
 # then C++ stub function
@@ -447,9 +590,9 @@ def op2_gen_seq(master, date, consts, kernels):
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
-    code('#include "'+kernels[nk]['name']+'_seqkernel.cpp"')
+    code('#include "'+kernels[nk]['name']+'_veckernel.cpp"')
   master = master.split('.')[0]
-  fid = open(master.split('.')[0]+'_seqkernels.cpp','w')
+  fid = open(master.split('.')[0]+'_veckernels.cpp','w')
   fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
   fid.write(file_text)
   fid.close()

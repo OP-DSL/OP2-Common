@@ -5,7 +5,8 @@
 //user function
 //#include "update.h"
 
-inline void update(const double *qold, double *q, double *res, const double *adt, double *rms){
+inline void update(const double *qold, double *q,
+  double *res, const double *adt, double *rms){
   double del, adti;
 
   adti = 1.0f/(*adt);
