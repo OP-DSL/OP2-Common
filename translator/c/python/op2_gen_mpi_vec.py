@@ -430,14 +430,14 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
 # create aligned pointers
 #
-    code('')
+    comm('create aligned pointers for dats')
     for g_m in range (0,nargs):
         if maps[g_m] <> OP_GBL:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-            code('__attribute__((aligned(128)))       TYP * __restrict__ ptr'+\
+            code('ALIGNED_TYP       TYP * __restrict__ ptr'+\
             str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
           else:
-            code('__attribute__((aligned(128))) const TYP * __restrict__ ptr'+\
+            code('ALIGNED_TYP const TYP * __restrict__ ptr'+\
             str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
 
 
@@ -730,8 +730,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#include "op_lib_cpp.h"       ')
   code('#ifdef VECTORIZE')
   code('#define SIMD_VEC 4')
-  code('#define ALIGNED_DOUBLE /*__attribute__((aligned(128)))*/')
-  code('#define ALIGNED_INT /*__attribute__((aligned(64)))*/')
+  code('#define ALIGNED_double __attribute__((aligned(128)))')
+  code('#define ALIGNED_float __attribute__((aligned(64)))')
+  code('#define ALIGNED_int __attribute__((aligned(64)))')
   code('#endif')
   code('')
   comm(' global constants       ')

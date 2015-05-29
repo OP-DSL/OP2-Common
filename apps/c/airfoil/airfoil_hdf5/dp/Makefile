@@ -263,4 +263,4 @@ convert_mesh: convert_mesh.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh *.o *.optrpt
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh *.o *.optrpt
