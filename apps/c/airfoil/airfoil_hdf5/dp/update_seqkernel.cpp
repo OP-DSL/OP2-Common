@@ -78,7 +78,7 @@ void op_par_loop_update(char const *name, op_set set,
 #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      //double dat4[SIMD_VEC];
+
       double dat4[SIMD_VEC] = {0.0,0.0,0.0,0.0};
 
       #pragma simd

@@ -494,6 +494,22 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       #setup gathers
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP :
+            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      code('')
+      for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP :
+            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+              for d in range(0,int(dims[g_m])):
+                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'];')
+              code('')
+            elif (accs[g_m] == OP_INC):
+              for d in range(0,int(dims[g_m])):
+                code('dat'+str(g_m)+'['+str(d)+'][i] = 0.0;')
+              code('')
 
       ENDFOR()
       #kernel call
@@ -511,6 +527,22 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDFOR()
       #do the scatters
       FOR('i','0','SIMD_VEC')
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP :
+            if (accs[g_m] == OP_INC or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      code('')
+      for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP :
+            if (accs[g_m] == OP_INC ):
+              for d in range(0,int(dims[g_m])):
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
+              code('')
+            if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
+              for d in range(0,int(dims[g_m])):
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
+              code('')
 
       ENDFOR()
       ENDFOR()
@@ -561,7 +593,32 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('#ifdef VECTORIZE')
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          if accs[g_m] == OP_INC:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+          elif accs[g_m] == OP_MAX:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+          elif accs[g_m] == OP_MIN:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
 
+      code('#pragma simd')
+      FOR('i','0','SIMD_VEC')
+      line = name+'('
+      indent = '\n'+' '*(depth+2)
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)]'
+        if maps[g_m] == OP_MAP:
+          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+        if maps[g_m] == OP_GBL:
+          line = line + indent +'&dat'+str(g_m)+'[i]'
+        if g_m < nargs-1:
+          line = line +','
+        else:
+           line = line +');'
+      code(line)
+      ENDFOR()
       ENDFOR()
       comm('remainder')
       FOR ('n','(exec_size/SIMD_VEC)*SIMD_VEC','exec_size')

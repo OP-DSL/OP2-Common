@@ -123,7 +123,6 @@ __attribute__((aligned(64)))  const int    * __restrict__ ptr5 = (int *) arg5.da
 #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-    //for ( int n=0; n<0+(set->core_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
       if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
@@ -175,10 +174,10 @@ __attribute__((aligned(64)))  const int    * __restrict__ ptr5 = (int *) arg5.da
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
 
-        ((double*)ptr4)[idx2_4 + 0] += dat4[0][i];
-        ((double*)ptr4)[idx2_4 + 1] += dat4[1][i];
-        ((double*)ptr4)[idx2_4 + 2] += dat4[2][i];
-        ((double*)ptr4)[idx2_4 + 3] += dat4[3][i];
+        (ptr4)[idx2_4 + 0] += dat4[0][i];
+        (ptr4)[idx2_4 + 1] += dat4[1][i];
+        (ptr4)[idx2_4 + 2] += dat4[2][i];
+        (ptr4)[idx2_4 + 3] += dat4[3][i];
       }
     }
 
