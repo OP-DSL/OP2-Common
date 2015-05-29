@@ -141,20 +141,20 @@ __attribute__((aligned(64)))  const int    * __restrict__ ptr5 = (int *) arg5.da
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
         int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
-        int idx2_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+        int idx3_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
 
-        dat0[0][i] = ((double*)ptr0)[idx0_2 + 0];
-        dat0[1][i] = ((double*)ptr0)[idx0_2 + 1];
+        dat0[0][i] = (ptr0)[idx0_2 + 0];
+        dat0[1][i] = (ptr0)[idx0_2 + 1];
 
-        dat1[0][i] = ((double*)ptr1)[idx1_2 + 0];
-        dat1[1][i] = ((double*)ptr1)[idx1_2 + 1];
+        dat1[0][i] = (ptr1)[idx1_2 + 0];
+        dat1[1][i] = (ptr1)[idx1_2 + 1];
 
-        dat2[0][i] = ((double*)ptr2)[idx2_4 + 0];
-        dat2[1][i] = ((double*)ptr2)[idx2_4 + 1];
-        dat2[2][i] = ((double*)ptr2)[idx2_4 + 2];
-        dat2[3][i] = ((double*)ptr2)[idx2_4 + 3];
+        dat2[0][i] = (ptr2)[idx2_4 + 0];
+        dat2[1][i] = (ptr2)[idx2_4 + 1];
+        dat2[2][i] = (ptr2)[idx2_4 + 2];
+        dat2[3][i] = (ptr2)[idx2_4 + 3];
 
-        dat3[0][i] = ((double*)ptr3)[idx2_1 + 0];
+        dat3[0][i] = (ptr3)[idx3_1 + 0];
 
         dat4[0][i] = 0.0;
         dat4[1][i] = 0.0;

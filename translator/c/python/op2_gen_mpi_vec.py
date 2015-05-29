@@ -519,7 +519,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * n],'
+          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)],'
         else:
           line = line + indent + 'dat'+str(g_m)+','
       line = line +indent +'i);'
@@ -543,6 +543,18 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               for d in range(0,int(dims[g_m])):
                 code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
+
+      #do reductions
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          FOR('i','0','SIMD_VEC')
+          if accs[g_m] == OP_INC:
+            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+          elif accs[g_m] == OP_MAX:
+            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+          elif accs[g_m] == OP_MIN:
+            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+          ENDFOR()
 
       ENDFOR()
       ENDFOR()
@@ -619,7 +631,19 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      #do reductions
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          FOR('i','0','SIMD_VEC')
+          if accs[g_m] == OP_INC:
+            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+          elif accs[g_m] == OP_MAX:
+            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+          elif accs[g_m] == OP_MIN:
+            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+          ENDFOR()
       ENDFOR()
+
       comm('remainder')
       FOR ('n','(exec_size/SIMD_VEC)*SIMD_VEC','exec_size')
       depth = depth -2
@@ -641,7 +665,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
-
     ENDIF()
     code('')
 
