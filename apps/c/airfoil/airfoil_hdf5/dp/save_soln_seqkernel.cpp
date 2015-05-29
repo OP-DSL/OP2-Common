@@ -21,6 +21,10 @@ void op_par_loop_save_soln(char const *name, op_set set,
   op_arg arg1){
 
   int nargs = 2;
+
+  __attribute__((aligned(128))) const double * __restrict__ ptr0 = (double *) arg0.data;
+  __attribute__((aligned(128)))       double * __restrict__ ptr1 = (double *) arg1.data;
+
   op_arg args[2];
 
   args[0] = arg0;
@@ -47,8 +51,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
-        save_soln(&((double*)arg0.data)[(n+i) * 4],
-                  &((double*)arg1.data)[(n+i) * 4]);
+        save_soln(&(ptr0)[(n+i) * 4],
+                  &(ptr1)[(n+i) * 4]);
       }
     }
     //remainder
@@ -57,8 +61,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
     for ( int n=0; n<exec_size; n++ ){
 #endif
       save_soln(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n]);
+        &(ptr0)[4*n],
+        &(ptr1)[4*n]);
     }
   }
 

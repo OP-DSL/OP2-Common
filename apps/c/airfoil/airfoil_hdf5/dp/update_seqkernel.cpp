@@ -47,6 +47,11 @@ void op_par_loop_update(char const *name, op_set set,
   op_arg arg4){
 
   int nargs = 5;
+  __attribute__((aligned(128))) const double * __restrict__ ptr0 = (double *) arg0.data;
+  __attribute__((aligned(128)))       double * __restrict__ ptr1 = (double *) arg1.data;
+  __attribute__((aligned(128)))       double * __restrict__ ptr2 = (double *) arg2.data;
+  __attribute__((aligned(128))) const double * __restrict__ ptr3 = (double *) arg3.data;
+
   op_arg args[5];
 
   args[0] = arg0;
@@ -79,10 +84,10 @@ void op_par_loop_update(char const *name, op_set set,
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         update(
-        &((double*)arg0.data)[(n+i) * 4],
-        &((double*)arg1.data)[(n+i) * 4],
-        &((double*)arg2.data)[(n+i) * 4],
-        &((double*)arg3.data)[(n+i) * 1],
+        &(ptr0)[(n+i) * 4],
+        &(ptr1)[(n+i) * 4],
+        &(ptr2)[(n+i) * 4],
+        &(ptr3)[(n+i) * 1],
         &dat4[i]);
       }
 
@@ -97,10 +102,10 @@ void op_par_loop_update(char const *name, op_set set,
     for ( int n=0; n<exec_size; n++ ){
 #endif
       update(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n],
-        &((double*)arg2.data)[4*n],
-        &((double*)arg3.data)[1*n],
+        &(ptr0)[4*n],
+        &(ptr1)[4*n],
+        &(ptr2)[4*n],
+        &(ptr3)[1*n],
         (double*)arg4.data);
     }
   }

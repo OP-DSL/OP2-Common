@@ -85,6 +85,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int nargs = 8;
   op_arg args[8];
 
+__attribute__((aligned(128))) const double * __restrict__ ptr0 = (double *) arg0.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr1 = (double *) arg1.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr2 = (double *) arg2.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr3 = (double *) arg3.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr4 = (double *) arg4.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr5 = (double *) arg5.data;
+__attribute__((aligned(128)))       double * __restrict__ ptr6 = (double *) arg6.data;
+__attribute__((aligned(128)))       double * __restrict__ ptr7 = (double *) arg7.data;
+
   args[0] = arg0;
   args[1] = arg1;
   args[2] = arg2;
@@ -107,7 +116,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (exec_size>0) {
 
-#ifdef VECTORIZE
+    #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<0+(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
     //for ( int n=0; n<0+(set->core_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
@@ -135,25 +144,25 @@ void op_par_loop_res_calc(char const *name, op_set set,
           int idx2_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
           int idx3_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 1];
 
-          dat0[0][i] = ((double*)arg0.data)[idx0_2 + 0];
-          dat0[1][i] = ((double*)arg0.data)[idx0_2 + 1];
+          dat0[0][i] = (ptr0)[idx0_2 + 0];
+          dat0[1][i] = (ptr0)[idx0_2 + 1];
 
-          dat1[0][i] = ((double*)arg1.data)[idx1_2 + 0];
-          dat1[1][i] = ((double*)arg1.data)[idx1_2 + 1];
+          dat1[0][i] = (ptr1)[idx1_2 + 0];
+          dat1[1][i] = (ptr1)[idx1_2 + 1];
 
-          dat2[0][i] = ((double*)arg2.data)[idx2_4 + 0];
-          dat2[1][i] = ((double*)arg2.data)[idx2_4 + 1];
-          dat2[2][i] = ((double*)arg2.data)[idx2_4 + 2];
-          dat2[3][i] = ((double*)arg2.data)[idx2_4 + 3];
+          dat2[0][i] = (ptr2)[idx2_4 + 0];
+          dat2[1][i] = (ptr2)[idx2_4 + 1];
+          dat2[2][i] = (ptr2)[idx2_4 + 2];
+          dat2[3][i] = (ptr2)[idx2_4 + 3];
 
-          dat3[0][i] = ((double*)arg3.data)[idx3_4 + 0];
-          dat3[1][i] = ((double*)arg3.data)[idx3_4 + 1];
-          dat3[2][i] = ((double*)arg3.data)[idx3_4 + 2];
-          dat3[3][i] = ((double*)arg3.data)[idx3_4 + 3];
+          dat3[0][i] = (ptr3)[idx3_4 + 0];
+          dat3[1][i] = (ptr3)[idx3_4 + 1];
+          dat3[2][i] = (ptr3)[idx3_4 + 2];
+          dat3[3][i] = (ptr3)[idx3_4 + 3];
 
-          dat4[0][i] = ((double*)arg4.data)[idx2_1 + 0];
+          dat4[0][i] = (ptr4)[idx2_1 + 0];
 
-          dat5[0][i] = ((double*)arg4.data)[idx3_1 + 0];
+          dat5[0][i] = (ptr5)[idx3_1 + 0];
 
           dat6[0][i] = 0.0;
           dat6[1][i] = 0.0;
@@ -176,23 +185,23 @@ void op_par_loop_res_calc(char const *name, op_set set,
           int idx1 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
           int idx2 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 1];
 
-          ((double*)arg6.data)[idx1 + 0] += dat6[0][i];
-          ((double*)arg6.data)[idx1 + 1] += dat6[1][i];
-          ((double*)arg6.data)[idx1 + 2] += dat6[2][i];
-          ((double*)arg6.data)[idx1 + 3] += dat6[3][i];
+          ((double*)ptr6)[idx1 + 0] += dat6[0][i];
+          ((double*)ptr6)[idx1 + 1] += dat6[1][i];
+          ((double*)ptr6)[idx1 + 2] += dat6[2][i];
+          ((double*)ptr6)[idx1 + 3] += dat6[3][i];
 
-          ((double*)arg7.data)[idx2 + 0] += dat7[0][i];
-          ((double*)arg7.data)[idx2 + 1] += dat7[1][i];
-          ((double*)arg7.data)[idx2 + 2] += dat7[2][i];
-          ((double*)arg7.data)[idx2 + 3] += dat7[3][i];
+          ((double*)ptr7)[idx2 + 0] += dat7[0][i];
+          ((double*)ptr7)[idx2 + 1] += dat7[1][i];
+          ((double*)ptr7)[idx2 + 2] += dat7[2][i];
+          ((double*)ptr7)[idx2 + 3] += dat7[3][i];
       }
     }
     //remainder
     for ( int n=(exec_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
     //for ( int n=(set->core_size/SIMD_VEC)*SIMD_VEC; n<exec_size; n++ ){
-#else
+    #else
     for ( int n=0; n<exec_size; n++ ){
-#endif
+    #endif
 
       if (n == set->core_size) {
         op_mpi_wait_all(nargs, args);
@@ -204,14 +213,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
       res_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg2.data)[4 * map2idx],
-        &((double*)arg2.data)[4 * map3idx],
-        &((double*)arg4.data)[1 * map2idx],
-        &((double*)arg4.data)[1 * map3idx],
-        &((double*)arg6.data)[4 * map2idx],
-        &((double*)arg6.data)[4 * map3idx]);
+        &(ptr0)[2 * map0idx],
+        &(ptr0)[2 * map1idx],
+        &(ptr2)[4 * map2idx],
+        &(ptr2)[4 * map3idx],
+        &(ptr4)[1 * map2idx],
+        &(ptr4)[1 * map3idx],
+        &(ptr6)[4 * map2idx],
+        &(ptr6)[4 * map3idx]);
     }
 
   }

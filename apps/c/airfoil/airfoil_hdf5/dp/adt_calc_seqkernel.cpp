@@ -79,6 +79,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   int nargs = 6;
   op_arg args[6];
 
+__attribute__((aligned(128))) const double * __restrict__ ptr0 = (double *) arg0.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr1 = (double *) arg1.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr2 = (double *) arg2.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr3 = (double *) arg3.data;
+__attribute__((aligned(128))) const double * __restrict__ ptr4 = (double *) arg4.data;
+__attribute__((aligned(128)))       double * __restrict__ ptr5 = (double *) arg5.data;
+
   args[0] = arg0;
   args[1] = arg1;
   args[2] = arg2;
@@ -121,24 +128,24 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         int idx2_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 2];
         int idx3_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 3];
 
-        dat0[0][i] = ((double*)arg0.data)[idx0_2 + 0];
-        dat0[1][i] = ((double*)arg0.data)[idx0_2 + 1];
+        dat0[0][i] = (ptr0)[idx0_2 + 0];
+        dat0[1][i] = (ptr0)[idx0_2 + 1];
 
-        dat1[0][i] = ((double*)arg1.data)[idx1_2 + 0];
-        dat1[1][i] = ((double*)arg1.data)[idx1_2 + 1];
+        dat1[0][i] = (ptr1)[idx1_2 + 0];
+        dat1[1][i] = (ptr1)[idx1_2 + 1];
 
-        dat2[0][i] = ((double*)arg2.data)[idx2_2 + 0];
-        dat2[1][i] = ((double*)arg2.data)[idx2_2 + 1];
+        dat2[0][i] = (ptr2)[idx2_2 + 0];
+        dat2[1][i] = (ptr2)[idx2_2 + 1];
 
-        dat3[0][i] = ((double*)arg3.data)[idx3_2 + 0];
-        dat3[1][i] = ((double*)arg3.data)[idx3_2 + 1];
+        dat3[0][i] = (ptr3)[idx3_2 + 0];
+        dat3[1][i] = (ptr3)[idx3_2 + 1];
 
       }
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         adt_calc_vec(dat0, dat1, dat2, dat3,
-          &((double*)arg4.data)[(n+i) * 4],
-          &((double*)arg5.data)[(n+i) * 1],
+          &(ptr4)[(n+i) * 4],
+          &(ptr5)[(n+i) * 1],
           i);
       }
     }
@@ -157,12 +164,12 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       int map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
       adt_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg0.data)[2 * map2idx],
-        &((double*)arg0.data)[2 * map3idx],
-        &((double*)arg4.data)[4 * n],
-        &((double*)arg5.data)[1 * n]);
+        &(ptr0)[2 * map0idx],
+        &(ptr0)[2 * map1idx],
+        &(ptr0)[2 * map2idx],
+        &(ptr0)[2 * map3idx],
+        &(ptr4)[4 * n],
+        &(ptr5)[1 * n]);
     }
   }
 
