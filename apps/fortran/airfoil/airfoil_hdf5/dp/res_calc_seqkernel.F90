@@ -12,8 +12,79 @@ USE OP2_CONSTANTS
 CONTAINS
 
 ! user function
-#include "res_calc.inc"
+SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2) :: x1
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q1
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q2
+  REAL(kind=8), INTENT(IN) :: adt1
+  REAL(kind=8), INTENT(IN) :: adt2
+  REAL(kind=8), DIMENSION(4) :: res1
+  REAL(kind=8), DIMENSION(4) :: res2
+  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
 
+  dx = x1(1) - x2(1)
+  dy = x1(2) - x2(2)
+  ri = 1.0 / q1(1)
+  p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+  vol1 = ri * (q1(2) * dy - q1(3) * dx)
+  ri = 1.0 / q2(1)
+  p2 = gm1 * (q2(4) - 0.5 * ri * (q2(2) * q2(2) + q2(3) * q2(3)))
+  vol2 = ri * (q2(2) * dy - q2(3) * dx)
+  mu = 0.5 * (adt1 + adt2) * eps
+  f = 0.5 * (vol1 * q1(1) + vol2 * q2(1)) + mu * (q1(1) - q2(1))
+  res1(1) = res1(1) + f
+  res2(1) = res2(1) - f
+  f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * q2(2) + p2 * dy) + mu * (q1(2) - q2(2))
+  res1(2) = res1(2) + f
+  res2(2) = res2(2) - f
+  f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * q2(3) - p2 * dx) + mu * (q1(3) - q2(3))
+  res1(3) = res1(3) + f
+  res2(3) = res2(3) - f
+  f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (q2(4) + p2)) + mu * (q1(4) - q2(4))
+  res1(4) = res1(4) + f
+  res2(4) = res2(4) - f
+END SUBROUTINE
+
+#define SIMD_VEC 4
+
+SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2,SIMD_VEC) :: x1
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(4,SIMD_VEC), INTENT(IN) :: q1
+  REAL(kind=8), DIMENSION(4,SIMD_VEC), INTENT(IN) :: q2
+  REAL(kind=8), DIMENSION(1,SIMD_VEC), INTENT(IN) :: adt1
+  REAL(kind=8), DIMENSION(1,SIMD_VEC), INTENT(IN) :: adt2
+  REAL(kind=8), DIMENSION(4,SIMD_VEC) :: res1
+  REAL(kind=8), DIMENSION(4,SIMD_VEC) :: res2
+  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
+  INTEGER(4) :: idx
+
+  dx = x1(1,idx) - x2(1,idx)
+  dy = x1(2,idx) - x2(2,idx)
+  ri = 1.0 / q1(1,idx)
+  p1 = gm1 * (q1(4,idx) - 0.5 * ri * (q1(2,idx) * q1(2,idx) + q1(3,idx) * q1(3,idx)))
+  vol1 = ri * (q1(2,idx) * dy - q1(3,idx) * dx)
+  ri = 1.0 / q2(1,idx)
+  p2 = gm1 * (q2(4,idx) - 0.5 * ri * (q2(2,idx) * q2(2,idx) + q2(3,idx) * q2(3,idx)))
+  vol2 = ri * (q2(2,idx) * dy - q2(3,idx) * dx)
+  mu = 0.5 * (adt1(1,idx) + adt2(1,idx)) * eps
+  f = 0.5 * (vol1 * q1(1,idx) + vol2 * q2(1,idx)) + mu * (q1(1,idx) - q2(1,idx))
+  res1(1,idx) = res1(1,idx) + f
+  res2(1,idx) = res2(1,idx) - f
+  f = 0.5 * (vol1 * q1(2,idx) + p1 * dy + vol2 * q2(2,idx) + p2 * dy) + mu * (q1(2,idx) - q2(2,idx))
+  res1(2,idx) = res1(2,idx) + f
+  res2(2,idx) = res2(2,idx) - f
+  f = 0.5 * (vol1 * q1(3,idx) - p1 * dx + vol2 * q2(3,idx) - p2 * dx) + mu * (q1(3,idx) - q2(3,idx))
+  res1(3,idx) = res1(3,idx) + f
+  res2(3,idx) = res2(3,idx) - f
+  f = 0.5 * (vol1 * (q1(4,idx) + p1) + vol2 * (q2(4,idx) + p2)) + mu * (q1(4,idx) - q2(4,idx))
+  res1(4,idx) = res1(4,idx) + f
+  res2(4,idx) = res2(4,idx) - f
+
+END SUBROUTINE
 
 SUBROUTINE op_wrap_res_calc( &
   & opDat1Local, &
@@ -33,15 +104,122 @@ SUBROUTINE op_wrap_res_calc( &
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) opDat3Map(*)
   INTEGER(kind=4) opDat3MapDim
-  INTEGER(kind=4) bottom,top,i1
+  INTEGER(kind=4) bottom,top,i1, i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
-  DO i1 = bottom, top-1, 1
+  real(8) dat1(2,SIMD_VEC)
+  real(8) dat2(2,SIMD_VEC)
+  real(8) dat3(4,SIMD_VEC)
+  real(8) dat4(4,SIMD_VEC)
+  real(8) dat5(1,SIMD_VEC)
+  real(8) dat6(1,SIMD_VEC)
+  real(8) dat7(4,SIMD_VEC)
+  real(8) dat8(4,SIMD_VEC)
+
+  DO i1 = bottom, bottom+((top-bottom-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
+
+    DO i2 = 1, SIMD_VEC
+      map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
+      map2idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 1)+1
+      map3idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 0)+1
+      map4idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 1)+1
+
+      dat1(1,i2) = opDat1Local(1,map1idx)
+      dat1(2,i2) = opDat1Local(2,map1idx)
+
+      dat2(1,i2) = opDat1Local(1,map2idx)
+      dat2(2,i2) = opDat1Local(2,map2idx)
+
+      dat3(1,i2) = opDat3Local(1,map3idx)
+      dat3(2,i2) = opDat3Local(2,map3idx)
+      dat3(3,i2) = opDat3Local(3,map3idx)
+      dat3(4,i2) = opDat3Local(4,map3idx)
+
+      dat4(1,i2) = opDat3Local(1,map4idx)
+      dat4(2,i2) = opDat3Local(2,map4idx)
+      dat4(3,i2) = opDat3Local(3,map4idx)
+      dat4(4,i2) = opDat3Local(4,map4idx)
+
+      dat5(1,i2) = opDat5Local(1,map3idx)
+
+      dat6(1,i2) = opDat5Local(1,map4idx)
+
+      dat7(1,i2) = 0.0
+      dat7(2,i2) = 0.0
+      dat7(3,i2) = 0.0
+      dat7(4,i2) = 0.0
+
+      dat8(1,i2) = 0.0
+      dat8(2,i2) = 0.0
+      dat8(3,i2) = 0.0
+      dat8(4,i2) = 0.0
+
+      ! kernel call
+      CALL res_calc( &
+        & dat1(1,i2), &
+        & dat2(1,i2), &
+        & dat3(1,i2), &
+        & dat4(1,i2), &
+        & dat5(1,i2), &
+        & dat6(1,i2), &
+        & dat7(1,i2), &
+        & dat8(1,i2))!, &
+        !& i2)
+      !CALL res_calc( &
+    !& opDat1Local(1,map1idx), &
+    !& opDat1Local(1,map2idx), &
+    !& opDat3Local(1,map3idx), &
+    !& opDat3Local(1,map4idx), &
+    !& opDat5Local(1,map3idx), &
+    !& opDat5Local(1,map4idx), &
+    !& opDat7Local(1,map3idx), &
+    !& opDat7Local(1,map4idx) &
+    !& )
+
+      opDat7Local(1,map3idx) = dat7(1,i2)
+      opDat7Local(2,map3idx) = dat7(2,i2)
+      opDat7Local(3,map3idx) = dat7(3,i2)
+      opDat7Local(4,map3idx) = dat7(4,i2)
+
+      opDat7Local(1,map4idx) = dat8(1,i2)
+      opDat7Local(2,map4idx) = dat8(2,i2)
+      opDat7Local(3,map4idx) = dat8(3,i2)
+      opDat7Local(4,map4idx) = dat8(4,i2)
+
+    END DO
+
+    !DIR$ SIMD
+    DO i2 = 1, SIMD_VEC
+
+      ! kernel call
+      !CALL res_calc_vec( &
+      !  & dat1, &
+      !  & dat2, &
+      !  & dat3, &
+      !  & dat4, &
+      !  & dat5, &
+      !  & dat6, &
+      !  & dat7, &
+      !  & dat8, &
+      !  & i2)
+      END DO
+    END DO
+
+    DO i2 = 1, SIMD_VEC
+      !map3idx = opDat3Map(0 + (i1+i2-1) * opDat3MapDim + 0)+1
+      !map4idx = opDat3Map(0 + (i1+i2-1) * opDat3MapDim + 1)+1
+
+
+
+    END DO
+
+  ! remainder
+  DO i1 = bottom+((top-bottom-1)/SIMD_VEC)*SIMD_VEC, top-1, SIMD_VEC
     map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
     map2idx = opDat1Map(1 + i1 * opDat1MapDim + 1)+1
     map3idx = opDat3Map(1 + i1 * opDat3MapDim + 0)+1
     map4idx = opDat3Map(1 + i1 * opDat3MapDim + 1)+1
-! kernel call
+  ! kernel call
   CALL res_calc( &
     & opDat1Local(1,map1idx), &
     & opDat1Local(1,map2idx), &

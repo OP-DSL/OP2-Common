@@ -117,7 +117,7 @@ ifeq ($(OP2_COMPILER),intel)
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
-  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpiCC $(OPT)
+  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx $(OPT)
   MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
