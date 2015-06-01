@@ -165,7 +165,7 @@ airfoil_mpi_genseq: airfoil_op.cpp airfoil_seqkernels.cpp \
                 bres_calc_seqkernel.cpp  bres_calc.h \
                 update_seqkernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
 		$(PARMETIS_INC) $(PTSCOTCH_INC) \
 		airfoil_op.cpp -lm airfoil_seqkernels.cpp $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_genseq
@@ -181,7 +181,7 @@ airfoil_mpi_vec: airfoil_op.cpp airfoil_veckernels.cpp \
                 bres_calc_veckernel.cpp  bres_calc.h \
                 update_veckernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) -DVECTORIZE $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) $(CPPFLAGS) -DVECTORIZE $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
                 $(PARMETIS_INC) $(PTSCOTCH_INC) \
                 airfoil_op.cpp -lm airfoil_veckernels.cpp $(OP2_LIB) -lop2_mpi \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_vec
