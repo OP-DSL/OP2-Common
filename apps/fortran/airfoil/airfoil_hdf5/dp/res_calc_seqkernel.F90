@@ -55,6 +55,7 @@ END SUBROUTINE
 
 
 SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
+!dir$ attributes vector :: res_calc_vec
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2,SIMD_VEC) :: x1
   REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x2
@@ -64,8 +65,9 @@ SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
   REAL(kind=8), DIMENSION(1,SIMD_VEC), INTENT(IN) :: adt2
   REAL(kind=8), DIMENSION(4,SIMD_VEC) :: res1
   REAL(kind=8), DIMENSION(4,SIMD_VEC) :: res2
-  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
   INTEGER(4) :: idx
+  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
+
 
   dx = x1(1,idx) - x2(1,idx)
   dy = x1(2,idx) - x2(2,idx)
@@ -121,7 +123,7 @@ SUBROUTINE op_wrap_res_calc( &
   real(8) dat7(4*SIMD_VEC)
   real(8) dat8(4*SIMD_VEC)
 
-#ifdef VECTORIZE
+#ifdef VECTORIZE2
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
     !DIR$ SIMD
     DO i2 = 1, SIMD_VEC
@@ -165,16 +167,16 @@ SUBROUTINE op_wrap_res_calc( &
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC
       ! kernel call
-      CALL res_calc( &
-        & dat1(2*(i2-1)+1), &
-        & dat2(2*(i2-1)+1), &
-        & dat3(4*(i2-1)+1), &
-        & dat4(4*(i2-1)+1), &
-        & dat5(1*(i2-1)+1), &
-        & dat6(1*(i2-1)+1), &
-        & dat7(4*(i2-1)+1), &
-        & dat8(4*(i2-1)+1))!, &
-        !& i2)
+      CALL res_calc_vec( &
+        & dat1, &
+        & dat2, &
+        & dat3, &
+        & dat4, &
+        & dat5, &
+        & dat6, &
+        & dat7, &
+        & dat8, &
+        & i2)
     END DO
 
     DO i2 = 1, SIMD_VEC

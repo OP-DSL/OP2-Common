@@ -8,11 +8,71 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
+#define SIMD_VEC 4
 
 CONTAINS
 
 ! user function
-#include "adt_calc.inc"
+SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x3
+  REAL(kind=8), DIMENSION(2), INTENT(IN) :: x4
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
+  REAL(kind=8) :: adt
+  REAL(kind=8) :: dx,dy,ri,u,v,c
+
+  ri = 1.0 / q(1)
+  u = ri * q(2)
+  v = ri * q(3)
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  dx = x2(1) - x1(1)
+  dy = x2(2) - x1(2)
+  adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x3(1) - x2(1)
+  dy = x3(2) - x2(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x4(1) - x3(1)
+  dy = x4(2) - x3(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x1(1) - x4(1)
+  dy = x1(2) - x4(2)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  adt = adt / cfl
+END SUBROUTINE
+
+SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
+!dir$ attributes vector :: adt_calc_vec
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x3
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x4
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
+  REAL(kind=8) :: adt
+  INTEGER(4) :: idx
+  REAL(kind=8) :: dx,dy,ri,u,v,c
+
+  ri = 1.0 / q(1)
+  u = ri * q(2)
+  v = ri * q(3)
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  dx = x2(1,idx) - x1(1,idx)
+  dy = x2(2,idx) - x1(2,idx)
+  adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x3(1,idx) - x2(1,idx)
+  dy = x3(2,idx) - x2(2,idx)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x4(1,idx) - x3(1,idx)
+  dy = x4(2,idx) - x3(2,idx)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  dx = x1(1,idx) - x4(1,idx)
+  dy = x1(2,idx) - x4(2,idx)
+  adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+  adt = adt / cfl
+END SUBROUTINE
+
 
 
 SUBROUTINE op_wrap_adt_calc( &
@@ -30,7 +90,54 @@ SUBROUTINE op_wrap_adt_calc( &
   INTEGER(kind=4) bottom,top,i1
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
+  real(8) dat1(2*SIMD_VEC)
+  real(8) dat2(2*SIMD_VEC)
+  real(8) dat3(2*SIMD_VEC)
+  real(8) dat4(2*SIMD_VEC)
+
+
+
+#ifdef VECTORIZE2
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
+    !DIR$ SIMD
+    DO i2 = 1, SIMD_VEC
+      map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
+      map2idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 1)+1
+      map3idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 2)+1
+      map4idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 3)+1
+
+      dat1(1+2*(i2-1)) = opDat1Local(1,map1idx)
+      dat1(2+2*(i2-1)) = opDat1Local(2,map1idx)
+
+      dat2(1+2*(i2-1)) = opDat1Local(1,map2idx)
+      dat2(2+2*(i2-1)) = opDat1Local(2,map2idx)
+
+      dat3(1+2*(i2-1)) = opDat1Local(1,map3idx)
+      dat3(2+2*(i2-1)) = opDat1Local(2,map3idx)
+
+      dat4(1+2*(i2-1)) = opDat1Local(1,map4idx)
+      dat4(2+2*(i2-1)) = opDat1Local(2,map4idx)
+
+    END DO
+
+    !DIR$ SIMD
+    !DIR$ FORCEINLINE
+    DO i2 = 1, SIMD_VEC
+      CALL adt_calc_vec( &
+      & dat1, &
+      & dat2, &
+      & dat3, &
+      & dat4, &
+      & opDat5Local(1,(i1+i2-1)+1), &
+      & opDat6Local(1,(i1+i2-1)+1), &
+      & i2)
+    END DO
+  END DO
+  ! remainder
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, SIMD_VEC
+#else
   DO i1 = bottom, top-1, 1
+#endif
     map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
     map2idx = opDat1Map(1 + i1 * opDat1MapDim + 1)+1
     map3idx = opDat1Map(1 + i1 * opDat1MapDim + 2)+1

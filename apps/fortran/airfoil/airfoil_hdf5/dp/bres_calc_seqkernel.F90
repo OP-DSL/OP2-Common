@@ -48,6 +48,43 @@ SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
   END IF
 END SUBROUTINE
 
+SUBROUTINE bres_calc_vec(x1,x2,q1,adt1,res1,bound,idx)
+!dir$ attributes vector :: bres_calc_vec
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x1
+  REAL(kind=8), DIMENSION(2,SIMD_VEC), INTENT(IN) :: x2
+  REAL(kind=8), DIMENSION(4,SIMD_VEC), INTENT(IN) :: q1
+  REAL(kind=8), DIMENSION(1,SIMD_VEC), INTENT(IN) :: adt1
+  REAL(kind=8), DIMENSION(4,SIMD_VEC) :: res1
+  INTEGER(kind=4), INTENT(IN) :: bound
+  INTEGER(4) :: idx
+  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
+
+  dx = x1(1,idx) - x2(1,idx)
+  dy = x1(2,idx) - x2(2,idx)
+  ri = 1.0 / q1(1,idx)
+  p1 = gm1 * (q1(4,idx) - 0.5 * ri * (q1(2,idx) * q1(2,idx) + q1(3,idx) * q1(3,idx)))
+
+  IF (bound .EQ. 1) THEN
+    res1(2,idx) = res1(2,idx) + p1 * dy
+    res1(3,idx) = res1(3,idx) -(p1 * dx)
+  ELSE
+    vol1 = ri * (q1(2,idx) * dy - q1(3,idx) * dx)
+    ri = 1.0 / qinf(1)
+    p2 = gm1 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+    vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
+    mu = adt1(1,idx) * eps
+    f = 0.5 * (vol1 * q1(1,idx) + vol2 * qinf(1)) + mu * (q1(1,idx) - qinf(1))
+    res1(1,idx) = res1(1,idx) + f
+    f = 0.5 * (vol1 * q1(2,idx) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2,idx) - qinf(2))
+    res1(2,idx) = res1(2,idx) + f
+    f = 0.5 * (vol1 * q1(3,idx) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3,idx) - qinf(3))
+    res1(3,idx) = res1(3,idx) + f
+    f = 0.5 * (vol1 * (q1(4,idx) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4,idx) - qinf(4))
+    res1(4,idx) = res1(4,idx) + f
+  END IF
+END SUBROUTINE
+
 SUBROUTINE op_wrap_bres_calc( &
   & opDat1Local, &
   & opDat3Local, &
@@ -79,9 +116,9 @@ SUBROUTINE op_wrap_bres_calc( &
 
 
 
-#ifdef VECTORIZE2
+#ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
-    !DIR$ SIMD
+    !!!DIR$ SIMD
     DO i2 = 1, SIMD_VEC
       map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
       map2idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 1)+1
@@ -106,18 +143,18 @@ SUBROUTINE op_wrap_bres_calc( &
       dat5(4+4*(i2-1)) = 0.0
     END DO
 
-    !DIR$ SIMD
+    !!!DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC
       ! kernel call
-      CALL bres_calc( &
-        & dat1(2*(i2-1)+1), &
-        & dat2(2*(i2-1)+1), &
-        & dat3(4*(i2-1)+1), &
-        & dat4(1*(i2-1)+1), &
-        & dat5(4*(i2-1)+1), &
-        & opDat6Local(1,(i1+i2-1)+1) &
-        & )
+      CALL bres_calc_vec( &
+        & dat1, &
+        & dat2, &
+        & dat3, &
+        & dat4, &
+        & dat5, &
+        & opDat6Local(1,(i1+i2-1)+1), &
+        & i2)
     END DO
 
     DO i2 = 1, SIMD_VEC
