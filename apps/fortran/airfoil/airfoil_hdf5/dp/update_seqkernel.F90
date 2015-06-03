@@ -28,7 +28,7 @@ SUBROUTINE update(qold,q,res,adt,rms)
   DO i = 1, 4
     del = adti * res(i)
     q(i) = qold(i) - del
-    res(i) = 0.0_8
+    res(i) = 0.0
     rms(2) = rms(2) + del * del
   END DO
 END SUBROUTINE
