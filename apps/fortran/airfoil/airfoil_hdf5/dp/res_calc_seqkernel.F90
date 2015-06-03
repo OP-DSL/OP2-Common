@@ -111,7 +111,7 @@ SUBROUTINE op_wrap_res_calc( &
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) opDat3Map(*)
   INTEGER(kind=4) opDat3MapDim
-  INTEGER(kind=4) bottom,top,i1, i2
+  INTEGER(kind=4) bottom,top,i1, i2, count
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
   real(8) dat1(2*SIMD_VEC)
@@ -123,8 +123,9 @@ SUBROUTINE op_wrap_res_calc( &
   real(8) dat7(4*SIMD_VEC)
   real(8) dat8(4*SIMD_VEC)
 
-#ifdef VECTORIZE2
-  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
+  count = 0
+#ifdef VECTORIZE
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     !DIR$ SIMD
     DO i2 = 1, SIMD_VEC
       map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
@@ -177,6 +178,17 @@ SUBROUTINE op_wrap_res_calc( &
         & dat7, &
         & dat8, &
         & i2)
+
+      !CALL res_calc( &
+      !  & dat1(1+2*(i2-1):1+2*(i2-1)+1), &
+      !  & dat2(1+2*(i2-1):1+2*(i2-1)+1), &
+      !  & dat3(1+4*(i2-1):1+4*(i2-1)+4), &
+      !  & dat4(1+4*(i2-1):1+4*(i2-1)+4), &
+      !  & dat5(1+1*(i2-1)), &
+      !  & dat6(1+1*(i2-1)), &
+      !  & dat7(1+4*(i2-1):1+4*(i2-1)+4), &
+      !  & dat8(1+4*(i2-1):1+4*(i2-1)+4))
+        !count = count + 1
     END DO
 
     DO i2 = 1, SIMD_VEC
@@ -195,7 +207,7 @@ SUBROUTINE op_wrap_res_calc( &
     END DO
   END DO
   ! remainder
-  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, SIMD_VEC
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
   DO i1 = bottom, top-1, 1
 #endif
@@ -214,7 +226,10 @@ SUBROUTINE op_wrap_res_calc( &
     & opDat7Local(1,map3idx), &
     & opDat7Local(1,map4idx) &
     & )
+    !count = count + 1
   END DO
+
+  !write (*,*) bottom, count, SIMD_VEC
 END SUBROUTINE
 SUBROUTINE res_calc_host( userSubroutine, set, &
   & opArg1, &

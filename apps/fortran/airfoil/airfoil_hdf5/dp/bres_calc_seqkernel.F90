@@ -14,6 +14,7 @@ CONTAINS
 
 ! user function
 SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
+!dir$ attributes vector :: bres_calc
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2) :: x1
   REAL(kind=8), DIMENSION(2) :: x2
@@ -117,8 +118,8 @@ SUBROUTINE op_wrap_bres_calc( &
 
 
 #ifdef VECTORIZE
-  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
-    !!!DIR$ SIMD
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
+    !DIR$ SIMD
     DO i2 = 1, SIMD_VEC
       map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
       map2idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 1)+1
@@ -143,7 +144,7 @@ SUBROUTINE op_wrap_bres_calc( &
       dat5(4+4*(i2-1)) = 0.0
     END DO
 
-    !!!DIR$ SIMD
+    !DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC
       ! kernel call
@@ -168,7 +169,7 @@ SUBROUTINE op_wrap_bres_calc( &
     END DO
   END DO
   ! remainder
-  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, SIMD_VEC
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
   DO i1 = bottom, top-1, 1
 #endif

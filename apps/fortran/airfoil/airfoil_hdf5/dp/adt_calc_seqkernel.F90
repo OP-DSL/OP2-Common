@@ -14,6 +14,7 @@ CONTAINS
 
 ! user function
 SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
+!dir$ attributes vector :: adt_calc
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
@@ -23,10 +24,10 @@ SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
-  ri = 1.0 / q(1)
+  ri = 1.0_8 / q(1)
   u = ri * q(2)
   v = ri * q(3)
-  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5_8 * (u * u + v * v)))
   dx = x2(1) - x1(1)
   dy = x2(2) - x1(2)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
@@ -54,10 +55,10 @@ SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
   INTEGER(4) :: idx
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
-  ri = 1.0 / q(1)
+  ri = 1.0_8 / q(1)
   u = ri * q(2)
   v = ri * q(3)
-  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5_8 * (u * u + v * v)))
   dx = x2(1,idx) - x1(1,idx)
   dy = x2(2,idx) - x1(2,idx)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
@@ -97,8 +98,8 @@ SUBROUTINE op_wrap_adt_calc( &
 
 
 
-#ifdef VECTORIZE2
-  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC, SIMD_VEC
+#ifdef VECTORIZE
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     !DIR$ SIMD
     DO i2 = 1, SIMD_VEC
       map1idx = opDat1Map(1 + (i1+i2-1) * opDat1MapDim + 0)+1
@@ -134,7 +135,7 @@ SUBROUTINE op_wrap_adt_calc( &
     END DO
   END DO
   ! remainder
-  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, SIMD_VEC
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
   DO i1 = bottom, top-1, 1
 #endif

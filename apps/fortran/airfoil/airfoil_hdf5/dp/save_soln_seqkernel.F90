@@ -8,11 +8,23 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
+#define SIMD_VEC 4
 
 CONTAINS
 
 ! user function
-#include "save_soln.inc"
+SUBROUTINE save_soln(q,qold)
+!dir$ attributes vector :: save_soln
+  IMPLICIT NONE
+
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
+  REAL(kind=8), DIMENSION(4) :: qold
+  INTEGER(kind=4) :: i
+
+  DO i = 1, 4
+    qold(i) = q(i)
+  END DO
+END SUBROUTINE
 
 
 SUBROUTINE op_wrap_save_soln( &
@@ -23,7 +35,23 @@ SUBROUTINE op_wrap_save_soln( &
   real(8) opDat2Local(4,*)
   INTEGER(kind=4) bottom,top,i1
 
+#ifdef VECTORIZE
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
+    !DIR$ SIMD
+    !DIR$ FORCEINLINE
+    DO i2 = 1, SIMD_VEC
+    CALL save_soln( &
+    & opDat1Local(1,(i1+i2-1)+1), &
+    & opDat2Local(1,(i1+i2-1)+1) &
+    & )
+    END DO
+  END DO
+
+! remainder
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
+#else
   DO i1 = bottom, top-1, 1
+#endif
 ! kernel call
   CALL save_soln( &
     & opDat1Local(1,i1+1), &

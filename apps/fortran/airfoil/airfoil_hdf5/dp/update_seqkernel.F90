@@ -8,11 +8,30 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
+#define SIMD_VEC 4
 
 CONTAINS
 
 ! user function
-#include "update.inc"
+SUBROUTINE update(qold,q,res,adt,rms)
+!dir$ attributes vector :: update
+  IMPLICIT NONE
+  REAL(kind=8), DIMENSION(4), INTENT(IN) :: qold
+  REAL(kind=8), DIMENSION(4) :: q
+  REAL(kind=8), DIMENSION(4) :: res
+  REAL(kind=8), INTENT(IN) :: adt
+  REAL(kind=8), DIMENSION(2) :: rms
+  REAL(kind=8) :: del,adti
+  INTEGER(kind=4) :: i
+  adti = 1.0 / adt
+
+  DO i = 1, 4
+    del = adti * res(i)
+    q(i) = qold(i) - del
+    res(i) = 0.0_8
+    rms(2) = rms(2) + del * del
+  END DO
+END SUBROUTINE
 
 
 SUBROUTINE op_wrap_update( &
@@ -29,7 +48,37 @@ SUBROUTINE op_wrap_update( &
   real(8) opDat5Local(2)
   INTEGER(kind=4) bottom,top,i1
 
+  real(8) dat5(2*SIMD_VEC)
+
+
+#ifdef VECTORIZE
+  DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
+
+    dat5 = 0.0
+    !DIR$ SIMD
+    !DIR$ FORCEINLINE
+    DO i2 = 1, SIMD_VEC
+      CALL update( &
+      & opDat1Local(1,(i1+i2-1)+1), &
+      & opDat2Local(1,(i1+i2-1)+1), &
+      & opDat3Local(1,(i1+i2-1)+1), &
+      & opDat4Local(1,(i1+i2-1)+1), &
+      !& opDat5Local(1) &
+      & dat5(2*(i2-1)+1:2*(i2-1)+2) &
+      & )
+    END DO
+
+    DO i2 = 1, SIMD_VEC
+      opDat5Local(1:2) = opDat5Local(1:2) + dat5(2*(i2-1)+1:2*(i2-1)+2)
+    END DO
+
+  END DO
+
+! remainder
+  DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
+#else
   DO i1 = bottom, top-1, 1
+#endif
 ! kernel call
   CALL update( &
     & opDat1Local(1,i1+1), &
