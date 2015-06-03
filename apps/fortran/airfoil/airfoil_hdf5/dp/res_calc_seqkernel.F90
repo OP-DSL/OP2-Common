@@ -8,8 +8,6 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
-#define SIMD_VEC 4
-
 CONTAINS
 
 ! user function
@@ -50,13 +48,12 @@ SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
 END SUBROUTINE
 
 
-
-
+#define SIMD_VEC 4
 
 SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
 !dir$ attributes vector :: res_calc_vec
   IMPLICIT NONE
-  REAL(kind=8), DIMENSION(SIMD_VEC,2) :: x1
+  REAL(kind=8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x1
   REAL(kind=8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x2
   REAL(kind=8), DIMENSION(SIMD_VEC,4), INTENT(IN) :: q1
   REAL(kind=8), DIMENSION(SIMD_VEC,4), INTENT(IN) :: q2
