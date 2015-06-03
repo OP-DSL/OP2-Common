@@ -62,7 +62,7 @@ ifeq ($(OP2_COMPILER),intel)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -DVECTORIZE -align array32byte -align rec32byte
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp_$(PART_SIZE_ENV) \
-                airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
+                airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq airfoil_hdf5_mpi_vec\
                 airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV)
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -131,6 +131,16 @@ airfoil_hdf5_mpi_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_seqkernel.F90 a
 	bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_mpi_genseq \
 	$(FLINK) -lop2_for_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
 
+airfoil_hdf5_mpi_vec: airfoil_hdf5_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
+        res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 \
+        save_soln_veckernel.F90 update_veckernel.F90 bres_calc_veckernel.F90 \
+        res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_hdf5_op.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(PARMETIS_INC) $(PTSCOTCH_INC) input.o constants.o \
+        save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
+        bres_calc_veckernel.o update_veckernel.o airfoil_hdf5_op.o -o airfoil_hdf5_mpi_vec \
+        $(FLINK) -lop2_for_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+
 airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV): airfoil_hdf5_op.F90 input.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 constants.F90 airfoil_seqfun.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 \
@@ -162,4 +172,5 @@ clean:
 	rm -f airfoil_hdf5_mpi
 	rm -f airfoil_hdf5_openmp_$(PART_SIZE_ENV) airfoil_hdf5_mpi_openmp_$(PART_SIZE_ENV) airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
+	rm -f airfoil_hdf5_mpi_vec
 	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda

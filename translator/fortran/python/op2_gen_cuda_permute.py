@@ -2,7 +2,7 @@
 #
 # CUDA code generator
 #
-# This routine is called by op2 which parses the input files
+# This routine is called by op2_fortran which parses the input files
 #
 # It produces a file xxx_kernel.CUF for each kernel,
 # plus a master kernel file
