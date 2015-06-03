@@ -165,6 +165,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
+  typestrigs = ['INTEGER','INT','REAL','DOUBLE','CHAR','FLOAT' ]
 
   any_soa = 0
   for nk in range (0,len(kernels)):
@@ -295,7 +296,9 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         i2 = i
         j = kernel_text[i:].find('(')
         k = para_parse(kernel_text, i+j, '(', ')')
+        l = kernel_text[k:].find('END'+'\\s+\\b'+'SUBROUTINE')
         para = kernel_text[j+1:k].split(',')
+
         code('SUBROUTINE '+name+'_vec('+kernel_text[j+1:k]+')')
         depth = depth + 2
         code('!dir$ attributes vector :: '+name+'_vec')
@@ -308,10 +311,28 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
               code('TYP, DIMENSION(SIMD_VEC,DIMS), INTENT(IN) :: '+para[g_m])
           else:
             code('TYP DIMENSION(DIMS) :: '+para[g_m])
+
+        #locate and remove non-local parameters
+        body_line = kernel_text[k+1:l].split('\n')
         depth = depth - 2
+        kernel_line = ''
+        for bl in range(0,len(body_line)-1):
+          if not(any(word in body_line[bl] for word in para) and \
+            any(word in body_line[bl].upper() for word in typestrigs)):
+              if not('IMPLICIT' in body_line[bl]):
+                temp = body_line[bl]
+                for p in range(0,len(para)):
+                  print para[p]
+                  temp = re.sub(r'('+para[p]+'\s*'+'\('+')', r'\1'+'idx,', temp)
+                  temp = re.sub(para[p]+'(?!\()', para[p]+'(idx,1)', temp)
+
+                kernel_line = temp
+              code(kernel_line)
+
         code('END SUBROUTINE')
         code('#endif')
 
+    ###  Hydra specifics #### should not be in code generator ..
     else:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
