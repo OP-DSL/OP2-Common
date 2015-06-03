@@ -96,7 +96,10 @@ SUBROUTINE op_wrap_adt_calc( &
   real(8) dat3(SIMD_VEC,2)
   real(8) dat4(SIMD_VEC,2)
 
-
+  !dir$ attributes align: 64:: dat1
+  !dir$ attributes align: 64:: dat2
+  !dir$ attributes align: 64:: dat3
+  !dir$ attributes align: 64:: dat4
 
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC

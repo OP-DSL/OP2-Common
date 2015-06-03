@@ -122,6 +122,15 @@ SUBROUTINE op_wrap_res_calc( &
   real(8) dat7(SIMD_VEC,4)
   real(8) dat8(SIMD_VEC,4)
 
+  !dir$ attributes align: 64:: dat1
+  !dir$ attributes align: 64:: dat2
+  !dir$ attributes align: 64:: dat3
+  !dir$ attributes align: 64:: dat4
+  !dir$ attributes align: 64:: dat5
+  !dir$ attributes align: 64:: dat6
+  !dir$ attributes align: 64:: dat7
+  !dir$ attributes align: 64:: dat8
+
 
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
@@ -152,17 +161,17 @@ SUBROUTINE op_wrap_res_calc( &
 
       dat6(i2,1) = opDat5Local(1,map4idx)
 
-      !dat7(1:4*SIMD_VEC) = 0.0
-      dat7((i2),1) = 0.0
-      dat7((i2),2) = 0.0
-      dat7((i2),3) = 0.0
-      dat7((i2),4) = 0.0
+      !dat7 = 0.0_8
+      dat7(i2,1) = 0.0
+      dat7(i2,2) = 0.0
+      dat7(i2,3) = 0.0
+      dat7(i2,4) = 0.0
 
-      !dat8(1:4*SIMD_VEC) = 0.0
-      dat8((i2),1) = 0.0
-      dat8((i2),2) = 0.0
-      dat8((i2),3) = 0.0
-      dat8((i2),4) = 0.0
+      !dat8 = 0.0_8
+      dat8(i2,1) = 0.0
+      dat8(i2,2) = 0.0
+      dat8(i2,3) = 0.0
+      dat8(i2,4) = 0.0
     END DO
 
     !DIR$ SIMD

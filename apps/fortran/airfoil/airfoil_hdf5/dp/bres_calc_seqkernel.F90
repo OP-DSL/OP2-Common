@@ -115,7 +115,11 @@ SUBROUTINE op_wrap_bres_calc( &
   real(8) dat4(SIMD_VEC,1)
   real(8) dat5(SIMD_VEC,4)
 
-
+  !dir$ attributes align: 64:: dat1
+  !dir$ attributes align: 64:: dat2
+  !dir$ attributes align: 64:: dat3
+  !dir$ attributes align: 64:: dat4
+  !dir$ attributes align: 64:: dat5
 
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
