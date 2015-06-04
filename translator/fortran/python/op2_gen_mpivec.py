@@ -83,6 +83,15 @@ def DO(i,start,finish):
     code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
   depth += 2
 
+def DO2(i,start,finish,step):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('DO '+i+' = '+start+', '+finish+'-1, '+step)
+  elif CPP:
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
+  depth += 2
+
 def FOR(i,start,finish):
   global file_text, FORTRAN, CPP, g_m
   global depth
@@ -403,14 +412,102 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           line += 'map'+str(mapinds[g_m]+1)+'idx, '
       code(line[:-2])
     code('')
+
+#
+# kernel call for indirect version
+#
+    #If indirect kernel then add vector gather/scatter variables
+    if indirect_kernel:
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
+          or accs[g_m] == OP_RW or accs[g_m] == OP_INC):
+          code('TYP dat'+str(g_m)+'(SIMD_VEC,DIMS)')
+      code('')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
+          or accs[g_m] == OP_RW or accs[g_m] == OP_INC):
+          code('!dir$ attributes align: 64:: dat'+str(g_m))
+      code('')
+
+      code('#ifdef VECTORIZE')
+      DO2('i1','bottom','((top-1)/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+      code('!DIR$ SIMD')
+      DO('i2','1','SIMD_VEC')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP :
+          if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+            code('map'+str(g_m+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i(i1+i2-1) * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') + 1')
+      code('')
+
+      #setup gathers
+      code('')
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP :
+          if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+            for d in range(0,int(dims[g_m])):
+              code('dat'+str(g_m+1)+'(i2,'+str(d+1)+') = opDat'+str(g_m+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx)')
+            code('')
+          elif (accs[g_m] == OP_INC):
+            for d in range(0,int(dims[g_m])):
+              code('dat'+str(g_m+1)+'(i,'+str(d+1)+') = 0.0')
+            code('')
+      ENDDO()
+
+      #vectorized kernel call
+      code('!DIR$ SIMD')
+      code('!DIR$ FORCEINLINE')
+      DO('i2','1','SIMD_VEC')
+      code('!vecotorized kernel call')
+      line = 'CALL '+name+'( &'
+      indent = '\n'+' '*depth
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          line = line + indent + '& opDat'+str(g_m+1)+'Local(1,(i1+i2-1)+1), &'
+        if maps[g_m] == OP_MAP:
+          line = line +indent + '& dat'+str(g_m+1)+', &'
+        if maps[g_m] == OP_GBL:
+          line = line + indent +'& dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS), &'
+      line = line + indent +'& i2)'
+      code(line)
+      ENDDO()
+
+      #do the scatters
+      FOR('i','0','SIMD_VEC')
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP :
+            if (accs[g_m] == OP_INC ):
+              code('map'+str(g_m+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i(i1+i2-1) * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+') + 1')
+              code('')
+              for d in range(0,int(dims[g_m])):
+                code('opDat'+str(g_m+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = opDat'+str(g_m+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) + dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
+            if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
+                for d in range(0,int(dims[g_m])):
+                  code('opDat'+str(g_m+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
+                code('')
+
+
+
+    #do reductions
+
+
+    ENDDO()
+    ENDDO()
+    code('!remainder')
+    DO('i1','((top-1)/SIMD_VEC)*SIMD_VEC','top')
+    depth = depth - 2
+    code('#else')
     DO('i1','bottom','top')
+    depth = depth - 2
+    code('#endif')
+    depth = depth + 2
     k = []
     for g_m in range(0,nargs):
       if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
         k = k + [mapinds[g_m]]
         code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
-    comm('kernel call')
-    line = 'CALL '+name+'( &'
+    code('!kernel call')
+    line = '  CALL '+name+'( &'
     indent = '\n'+' '*depth
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
