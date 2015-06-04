@@ -101,7 +101,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   if (exec_size >0) {
 
-    #ifdef VECTORIZE
+    #ifdef VECTORIZE2
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
       if (n+SIMD_VEC >= set->core_size) {

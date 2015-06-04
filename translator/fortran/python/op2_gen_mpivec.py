@@ -307,21 +307,29 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         l = kernel_text[k:].find('END'+'\\s+\\b'+'SUBROUTINE')
         para = kernel_text[j+1:k].split(',')
 
+        #remove direct vars from para
+        para_ind = []
+        for i in range(0,nargs):
+          if maps[i] == OP_ID:
+            para[i] = 'DIRECT'
+
+        print nargs, name, para
+
         code('SUBROUTINE '+name+'_vec('+kernel_text[j+1:k]+',idx)')
         depth = depth + 2
         code('!dir$ attributes vector :: '+name+'_vec')
         code('IMPLICIT NONE')
         for g_m in range(0,nargs):
-          if maps[g_m] <> OP_GBL:
+          if maps[g_m] == OP_MAP:
             if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
               code('TYP, DIMENSION(SIMD_VEC,DIMS) :: '+para[g_m])
             if (accs[g_m] == OP_READ):
               code('TYP, DIMENSION(SIMD_VEC,DIMS), INTENT(IN) :: '+para[g_m])
-          else:
-            code('TYP DIMENSION(DIMS) :: '+para[g_m])
+          elif maps[g_m] == OP_GBL:
+              code('TYP DIMENSION(DIMS) :: '+para[g_m])
         code('INTEGER(4) :: idx')
 
-        #locate and remove non-local parameters
+        #locate and remove non-indirection parameters and global parameters
         body_line = kernel_text[k+1:l].split('\n')
         depth = depth - 2
         kernel_line = ''
@@ -331,7 +339,6 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
               if not('IMPLICIT' in body_line[bl]):
                 temp = body_line[bl]
                 for p in range(0,len(para)):
-                  print para[p]
                   temp = re.sub(r'('+para[p]+'\s*'+'\('+')', r'\1'+'idx,', temp)
                   temp = re.sub(para[p]+r'(\s+|\)|\+|\-|\\|\*)', para[p]+'(idx,1)'+r'\1', temp)
 
@@ -441,7 +448,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       code_pre('#ifdef VECTORIZE')
       DO2('i1','bottom','((top-1)/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
       code('!DIR$ SIMD')
-      DO('i2','1','SIMD_VEC')
+      DO('i2','1','SIMD_VEC+1')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP :
           if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
@@ -458,14 +465,14 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
             code('')
           elif (accs[g_m] == OP_INC):
             for d in range(0,int(dims[g_m])):
-              code('dat'+str(g_m+1)+'(i,'+str(d+1)+') = 0.0')
+              code('dat'+str(g_m+1)+'(i2,'+str(d+1)+') = 0.0')
             code('')
       ENDDO()
 
       #vectorized kernel call
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
-      DO('i2','1','SIMD_VEC')
+      DO('i2','1','SIMD_VEC+1')
       code('!vecotorized kernel call')
       line = 'CALL '+name+'_vec( &'
       indent = '\n'+' '*depth
@@ -481,7 +488,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       ENDDO()
 
       #do the scatters
-      FOR('i','0','SIMD_VEC')
+      FOR('i2','1','SIMD_VEC+1')
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
@@ -525,7 +532,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       #vectorized kernel call
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
-      DO('i2','1','SIMD_VEC')
+      DO('i2','1','SIMD_VEC+1')
       code('!vecotorized kernel call')
       line = '  CALL '+name+'( &'
       indent = '\n'+' '*depth
@@ -547,7 +554,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       #do reductions
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
-          FOR('i','0','SIMD_VEC')
+          FOR('i2','1','SIMD_VEC+1')
           if accs[g_m] == OP_INC:
             code('opDat'+str(g_m+1)+'Local(1:DIMS) = opDat'+str(g_m+1)+'Local(1:DIMS) + dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS)')
           elif accs[g_m] == OP_MAX:
