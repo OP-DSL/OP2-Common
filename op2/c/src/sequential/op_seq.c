@@ -116,6 +116,20 @@ op_fetch_data_char ( op_dat dat, char * usr_ptr)
   memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);
 }
 
+op_plan *
+op_plan_get ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds )
+{
+  return op_plan_get_stage ( name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL );
+}
+
+op_plan *
+op_plan_get_stage ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds, int staging )
+{
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds, staging );
+}
+
 void
 op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high)
 {

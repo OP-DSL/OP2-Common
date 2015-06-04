@@ -15,7 +15,7 @@ import os
 import glob
 
 def comm(line):
-  global file_text, FORTRAN, CPP
+  global file_text, FORTRAN
   global depth
   if len(line) == 0:
     prefix = ''
@@ -24,7 +24,7 @@ def comm(line):
   if len(line) == 0:
     file_text +='\n'
   elif FORTRAN:
-    file_text +='! '+line+'\n'
+    file_text +=prefix+'! '+line+'\n'
   elif CPP:
     file_text +=prefix+'//'+line+'\n'
 
@@ -473,7 +473,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
       DO('i2','1','SIMD_VEC+1')
-      code('!vecotorized kernel call')
+      comm('vecotorized kernel call')
       line = 'CALL '+name+'_vec( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
@@ -533,7 +533,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
       DO('i2','1','SIMD_VEC+1')
-      code('!vecotorized kernel call')
+      comm('vecotorized kernel call')
       line = '  CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
@@ -569,7 +569,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 # remainder of loop
 #
 
-    code('!remainder')
+    comm('remainder')
     DO('i1','((top-1)/SIMD_VEC)*SIMD_VEC','top')
     depth = depth - 2
     code_pre('#else')
@@ -582,7 +582,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
         k = k + [mapinds[g_m]]
         code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
-    code('!kernel call')
+    comm('kernel call')
     line = '  CALL '+name+'( &'
     indent = '\n'+' '*depth
     for g_m in range(0,nargs):
