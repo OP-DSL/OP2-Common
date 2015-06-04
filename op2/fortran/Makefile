@@ -165,16 +165,20 @@ hdf5:   directories $(C_OP2_INC)/op_hdf5.h $(C_OP2_SRC)/externlib/op_hdf5.c
 
 f_seq:	directories core $(C_OP2_SRC)/sequential/op_seq.c \
 	$(C_OP2_SRC)/core/op_dummy_singlenode.c \
+	$(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/op_dummy_wrappers.c \
 	$(F_OP2_SRC)/op2_for_C_wrappers.c \
 	$(F_OP2_SRC)/op2_for_declarations.F90 \
 	$(F_OP2_SRC)/op2_for_reference.F90 \
 	$(F_OP2_SRC)/op2_C_reference.c \
+	$(F_OP2_SRC)/op2_for_rt_wrappers.c \
 	$(F_OP2_SRC)/op2_for_rt_support.F90
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/sequential/op_seq.c -o $(F_OP2_OBJ)/op_seq.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_dummy_singlenode.c -o $(F_OP2_OBJ)/op_dummy_singlenode.o
 	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I $(F_OP2_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op_dummy_wrappers.c -o $(F_OP2_OBJ)/op_dummy_wrappers.o
 	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -I$(MPI_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(shell cp $(F_OP2_SRC)/op2_for_reference.F90 $(F_OP2_SRC)/op2_for_reference.c)
 	$(shell cpp $(F_OP2_SRC)/op2_for_reference.c | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" > $(F_OP2_SRC)/op2_cpp_reference.F90)
@@ -186,7 +190,9 @@ f_seq:	directories core $(C_OP2_SRC)/sequential/op_seq.c \
 	$(F_OP2_OBJ)/op_util.o \
 	$(F_OP2_OBJ)/op_seq.o \
 	$(F_OP2_OBJ)/op_dummy_singlenode.o \
+	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_dummy_wrappers.o \
+	$(F_OP2_OBJ)/op2_for_rt_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_reference.o \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op2_for_declarations.o \
