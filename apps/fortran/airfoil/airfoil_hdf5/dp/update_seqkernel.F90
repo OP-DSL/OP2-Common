@@ -53,7 +53,6 @@ SUBROUTINE op_wrap_update( &
 
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
-
     dat5 = 0.0
     !DIR$ SIMD
     !DIR$ FORCEINLINE

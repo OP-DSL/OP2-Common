@@ -481,6 +481,17 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     if ninds>0:
       code('#ifdef VECTORIZE')
+
+      #initialze globals
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          if accs[g_m] == OP_INC:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+          elif accs[g_m] == OP_MAX:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+          elif accs[g_m] == OP_MIN:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
+
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
       IF('n+SIMD_VEC >= set->core_size')
@@ -587,7 +598,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * n]'
         if maps[g_m] == OP_MAP:
-          #line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
@@ -605,6 +615,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('#ifdef VECTORIZE')
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+
+      #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
