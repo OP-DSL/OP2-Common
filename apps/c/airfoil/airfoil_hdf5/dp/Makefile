@@ -29,7 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel #-DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
@@ -181,7 +181,7 @@ airfoil_mpi_vec: airfoil_op.cpp airfoil_veckernels.cpp \
                 bres_calc_veckernel.cpp  bres_calc.h \
                 update_veckernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) -DVECTORIZE $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
                 $(PARMETIS_INC) $(PTSCOTCH_INC) \
                 airfoil_op.cpp -lm airfoil_veckernels.cpp $(OP2_LIB) -lop2_mpi \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_vec
