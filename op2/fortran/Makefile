@@ -79,11 +79,13 @@ NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fas
 # All compilers define CC and FC plus compiler-specific macros
 ifeq ($(OP2_COMPILER),gnu)
   F_INC_MOD       = $(F_OP2_MOD)/gnu
+  F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   CC              = gcc
   CXX             = g++
   CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran
   FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   MPICC           = mpicc
   MPICXX          = mpicxx
   MPIF90          = mpif90
@@ -92,10 +94,12 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
+  F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   CC              = pgcc
   CXX             = pgc++
   FC              = pgfortran
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc -Xcompiler="-std=c99 -Wall -fPIC -pedantic -pipe"
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
@@ -110,12 +114,14 @@ ifeq ($(OP2_COMPILER),pgi)
 else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
+  F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   OPT             = -O3 -xAVX -vec-report
   CC              = icc $(OPT)
   CXX             = icpc $(OPT)
   CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
   MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx $(OPT)
   MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
@@ -130,6 +136,7 @@ ifeq ($(OP2_COMPILER),cray)
   CFLAGS          = #-std=c99 -Wall
   FC              = ftn
   FFLAGS          = -em -J $(F_INC_MOD)
+  FMPI_FLAGS	  = -em -J $(F_MPI_INC_MOD)
   MPICC           = $(CC)
   MPICXX          = $(CXX)
   MPIF90          = $(FC)
@@ -150,7 +157,7 @@ all: $(ALLTARGETS)
 
 directories:
 	mkdir -p $(F_OP2_LIB)
-	mkdir -p $(F_OP2_MOD) $(F_INC_MOD)
+	mkdir -p $(F_OP2_MOD) $(F_INC_MOD) $(F_INC_MOD)/mpi
 	mkdir -p $(F_OP2_OBJ)
 
 core: 	directories $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c
@@ -217,10 +224,10 @@ f_openmp: directories core $(C_OP2_SRC)/openmp/op_openmp_decl.c \
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(CC) $(CFLAGS) $(HDF5_INCLUDE) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_hdf5.c -o $(F_OP2_OBJ)/op_hdf5.o
-	$(CC) $(CFLAGS) -I $(F_OP2_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op_dummy_wrappers.c -o $(F_OP2_OBJ)/op_dummy_wrappers.o
+	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I $(F_OP2_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op_dummy_wrappers.c -o $(F_OP2_OBJ)/op_dummy_wrappers.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_dummy_singlenode.c -o $(F_OP2_OBJ)/op_dummy_singlenode.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
-	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
+	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -I$(MPI_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	$(shell cp $(F_OP2_SRC)/op2_for_reference.F90 $(F_OP2_SRC)/op2_for_reference.c)
 	$(shell cpp $(F_OP2_SRC)/op2_for_reference.c | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" > $(F_OP2_SRC)/op2_cpp_reference.F90)
 	$(FC) -c $(FFLAGS) $(F_OP2_SRC)/op2_cpp_reference.F90 -o $(F_OP2_OBJ)/op2_for_reference.o
@@ -294,13 +301,13 @@ f_mpi_seq: directories core \
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
 	$(CC) $(CFLAGS) -I$(F_OP2_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op_dummy_wrappers.c -o $(F_OP2_OBJ)/op_dummy_wrappers.o
 	$(CC) $(CFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
-	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
-	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
-	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
+	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
+	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(shell cp $(F_OP2_SRC)/op2_for_reference.F90 $(F_OP2_SRC)/op2_for_reference.c)
 	$(shell cpp $(F_OP2_SRC)/op2_for_reference.c | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" > $(F_OP2_SRC)/op2_cpp_reference.F90)
-	$(FC) -c $(FFLAGS) $(F_OP2_SRC)/op2_cpp_reference.F90 -o $(F_OP2_OBJ)/op2_for_reference.o
+	$(FC) -c $(FMPI_FLAGS) $(F_OP2_SRC)/op2_cpp_reference.F90 -o $(F_OP2_OBJ)/op2_for_reference.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -I$(MPI_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_core.c -o $(F_OP2_OBJ)/op_mpi_core.o
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_decl.c -o $(F_OP2_OBJ)/op_mpi_decl.o
@@ -355,7 +362,7 @@ f_mpi_cuda: directories core \
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
-	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
+	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
@@ -403,5 +410,6 @@ clean:
 	-rm -if $(F_OP2_SRC)/op2_cpp_reference.F90
 	-rm -if $(F_OP2_MOD)/*.mod
 	-rm -if $(F_INC_MOD)/*.mod
+	-rm -if $(F_MPI_INC_MOD)/*.mod
 	-rm -if $(F_OP2)/*~
 
