@@ -369,6 +369,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
 
           var = var + '[*][SIMD_VEC]'
+          #var = var + '[restrict][SIMD_VEC]'
         new_signature_text +=  var+', '
 
 
@@ -436,9 +437,16 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
             code('ALIGNED_TYP       TYP * __restrict__ ptr'+\
             str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+            #code('TYP* __restrict__ __attribute__((align_value (128)))  ptr'+\
+            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',128);')
+
           else:
             code('ALIGNED_TYP const TYP * __restrict__ ptr'+\
             str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',128);')
+            #code('const TYP* __restrict__ __attribute__((align_value (128)))  ptr'+\
+            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
 
 
 
@@ -500,7 +508,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
           or accs[g_m] == OP_RW or accs[g_m] == OP_INC):
-          code('TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
+          code('ALIGNED_TYP TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
+          #code('TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
+          #code('ASSUME_ALIGNED(&dat'+str(g_m)+');')
 
       #setup gathers
       code('#pragma simd')
