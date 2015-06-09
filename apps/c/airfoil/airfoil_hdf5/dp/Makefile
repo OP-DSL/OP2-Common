@@ -32,7 +32,7 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS	= -O3 -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)

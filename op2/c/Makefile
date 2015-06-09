@@ -38,7 +38,7 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS  := -O3 -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
   CXX      := icpc
   CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
