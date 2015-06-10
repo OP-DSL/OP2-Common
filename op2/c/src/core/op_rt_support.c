@@ -1052,3 +1052,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   return &( OP_plans[ip] );
 }
 
+
+//Plan to compute bandwidth requirements for indirect kernels under seq+mpi
+op_plan *op_plan_seq_core(char const *name, op_set set, int part_size,
+                      int nargs, op_arg *args, int ninds, int *inds) {
+
+}
