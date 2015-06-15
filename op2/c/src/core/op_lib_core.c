@@ -930,6 +930,7 @@ void* op_realloc (void *ptr, size_t size) {
     void *newptr = realloc(ptr,size);
     if (((unsigned long)newptr & (OP2_ALIGNMENT - 1)) != 0) {
       void *newptr2 = memalign(OP2_ALIGNMENT,size);
+      //void *newptr2 = _mm_malloc(size, OP2_ALIGNMENT);
       memcpy(newptr2, newptr, size);
       free(newptr);
       return newptr2;

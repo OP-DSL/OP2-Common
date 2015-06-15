@@ -67,6 +67,35 @@ void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], c
 }
 #endif
 
+#include <immintrin.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cassert>
+#include <ctime>
+
+// For double precision on AVX, VLEN = 4
+#define VLEN 4
+
+// Gather two adjacent 64-bit quantities and transpose them into SoA form.
+inline void gather_transpose_2x64(const double* restrict data,
+                                  const int idx[VLEN], double v[2][VLEN]){
+    // One 128-bit load for each of our 4 vector lanes.
+    // Note the interleaving -- because of the shuffle pattern I use, I store [0, 2] [1, 3] instead of [0, 1] [2, 3].
+    __m256d in02 = _mm256_castpd128_pd256(_mm_load_pd(&data[idx[0]]));
+    __m256d in13 = _mm256_castpd128_pd256(_mm_load_pd(&data[idx[1]]));
+    in02 = _mm256_insertf128_pd(in02, _mm_load_pd(&data[idx[2]]), 1);
+    in13 = _mm256_insertf128_pd(in13, _mm_load_pd(&data[idx[3]]), 1);
+
+    // Shuffle sequence to transpose.  This will be the same for other instruction sets.
+    // Note that the shuffle is identical for each 128-bits.
+    __m256d out0 = _mm256_shuffle_pd(in02, in13, 0b0000);
+    __m256d out1 = _mm256_shuffle_pd(in02, in13, 0b1111);
+
+    // One vector-length store per struct element.
+    _mm256_store_pd(v[0], out0);
+    _mm256_store_pd(v[1], out1);
+}
+
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
@@ -89,11 +118,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[5] = arg5;
   args[6] = arg6;
   args[7] = arg7;
-
-  int  ninds   = 4;
-  int  inds[8] = {0,0,1,1,2,2,3,3};
-
-
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
   __assume_aligned(ptr0,double_ALIGN);
@@ -123,15 +147,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int exec_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  #ifdef OP_PART_SIZE_2
-    int part_size = OP_PART_SIZE_2;
-  #else
-    int part_size = exec_size;
-  #endif
-
   if (exec_size >0) {
-
-    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     #ifdef VECTORIZE
     #pragma novector
@@ -139,6 +155,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
+
       ALIGNED_double double dat0[2][SIMD_VEC];
       ALIGNED_double double dat1[2][SIMD_VEC];
       ALIGNED_double double dat2[4][SIMD_VEC];
@@ -147,6 +164,20 @@ void op_par_loop_res_calc(char const *name, op_set set,
       ALIGNED_double double dat5[1][SIMD_VEC];
       ALIGNED_double double dat6[4][SIMD_VEC];
       ALIGNED_double double dat7[4][SIMD_VEC];
+
+      // Temporary variables
+      __declspec(align(64)) int idx0[SIMD_VEC];
+      __declspec(align(64)) int idx1[SIMD_VEC];
+      //__declspec(align(64)) double dat0[2][SIMD_VEC];
+
+      /*#pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+        idx0[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
+        idx1[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
+      }
+      gather_transpose_2x64(ptr0, idx0, dat0);
+      gather_transpose_2x64(ptr1, idx1, dat1);*/
+
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
@@ -155,6 +186,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int idx3_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 1];
         int idx4_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
         int idx5_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 1];
+
 
         dat0[0][i] = (ptr0)[idx0_2 + 0];
         dat0[1][i] = (ptr0)[idx0_2 + 1];
@@ -215,7 +247,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
         (ptr7)[idx7_4 + 3] += dat7[3][i];
 
       }
-
     }
 
     //remainder
@@ -241,9 +272,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
         &(ptr6)[4 * map2idx],
         &(ptr7)[4 * map3idx]);
     }
-
-    OP_kernels[2].transfer  += Plan->transfer;
-    OP_kernels[2].transfer2 += Plan->transfer2;
   }
 
   if (exec_size == 0 || exec_size == set->core_size) {

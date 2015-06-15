@@ -101,9 +101,6 @@ op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
 op_plan * op_plan_get ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int * inds );
 
-op_plan * op_plan_seq_get ( char const * name, op_set set, int part_size,
-                        int nargs, op_arg * args, int ninds, int * inds );
-
 void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
 
 void op_rt_exit ( void );
