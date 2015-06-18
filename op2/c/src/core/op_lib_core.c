@@ -104,6 +104,30 @@ op_dat search_dat(op_set set, int dim, char const * type, int size, char const *
   return NULL;
 }
 
+/*check if map points to elements within set range*/
+void check_map(char const *name, op_set from, op_set to, int dim, int* map) {
+
+  //first find global set sizes
+  int g_from = op_get_size(from);
+  int g_to = op_get_size(to);
+  //printf("%s from->size = %d (%d)\n",from->name, from->size, g_from);
+  //printf("%s to->size = %d (%d)\n",to->name, to->size, g_to);
+
+  for ( int d = 0; d < dim; d++ )
+  {
+    for ( int n = 0; n < from->size; n++ )
+    {
+      if ( map[d + n * dim] < 0 || map[d + n * dim] >= g_to )
+      {
+        printf ( "op_decl_map error -- invalid data for map %s\n", name );
+        printf ( "element = %d, dimension = %d, map = %d\n", n, d, map[d + n * dim] );
+        exit ( -1 );
+      }
+    }
+  }
+}
+
+
 /*
  * OP core functions: these must be called by back-end specific functions
  */
@@ -219,7 +243,10 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
     exit ( -1 );
   }
 
-  /*This check breaks for MPI - need to fix this  */
+  //check if map points to elements within set range
+  check_map(name, from, to, dim, imap);
+
+  /*This check breaks for MPI - check_map() above does the required check now */
   /*for ( int d = 0; d < dim; d++ )
   {
     for ( int n = 0; n < from->size; n++ )

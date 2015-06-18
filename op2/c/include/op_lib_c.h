@@ -104,8 +104,6 @@ void op_exit (  );
 
 void op_timing_output();
 
-int op_get_size(op_set set);
-
 void op_printf(const char* format, ...);
 
 void op_print(const char* line);
