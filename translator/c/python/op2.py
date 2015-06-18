@@ -716,7 +716,7 @@ def main():
 
     #code generators for OpenMP parallelisation with MPI
     #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator
-    #op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
+    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
     #code generators for NVIDIA GPUs with CUDA
     #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Fermi GPUs

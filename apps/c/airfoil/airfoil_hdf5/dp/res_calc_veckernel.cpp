@@ -168,15 +168,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
       // Temporary variables
       __declspec(align(64)) int idx0[SIMD_VEC];
       __declspec(align(64)) int idx1[SIMD_VEC];
-      //__declspec(align(64)) double dat0[2][SIMD_VEC];
+      __declspec(align(64)) int idx2[SIMD_VEC];
+      __declspec(align(64)) int idx3[SIMD_VEC];
+
 
       /*#pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         idx0[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         idx1[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
+        //idx2[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0]+0;
+        //idx3[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0]+2;
       }
       gather_transpose_2x64(ptr0, idx0, dat0);
-      gather_transpose_2x64(ptr1, idx1, dat1);*/
+      gather_transpose_2x64(ptr1, idx1, dat1);
+      //gather_transpose_2x64(ptr2, idx2, &dat2[0]);
+      //gather_transpose_2x64(ptr2, idx3, &dat2[2]);*/
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
