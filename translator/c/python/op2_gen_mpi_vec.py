@@ -751,11 +751,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   file_text =''
   comm(' header                 ')
   code('#include "op_lib_cpp.h"       ')
-  code('#ifdef VECTORIZE')
-  code('#define SIMD_VEC 4')
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')
   code('#define int_ALIGN 64')
+  code('#ifdef VECTORIZE')
+  code('#define SIMD_VEC 4')
   code('#define ALIGNED_double __attribute__((aligned(double_ALIGN)))')
   code('#define ALIGNED_float __attribute__((aligned(float_ALIGN)))')
   code('#define ALIGNED_int __attribute__((aligned(int_ALIGN)))')
