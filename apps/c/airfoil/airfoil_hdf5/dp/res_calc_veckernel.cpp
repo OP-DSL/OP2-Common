@@ -67,35 +67,6 @@ void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], c
 }
 #endif
 
-#include <immintrin.h>
-#include <cstdio>
-#include <cstdlib>
-#include <cassert>
-#include <ctime>
-
-// For double precision on AVX, VLEN = 4
-#define VLEN 4
-
-// Gather two adjacent 64-bit quantities and transpose them into SoA form.
-inline void gather_transpose_2x64(const double* restrict data,
-                                  const int idx[VLEN], double v[2][VLEN]){
-    // One 128-bit load for each of our 4 vector lanes.
-    // Note the interleaving -- because of the shuffle pattern I use, I store [0, 2] [1, 3] instead of [0, 1] [2, 3].
-    __m256d in02 = _mm256_castpd128_pd256(_mm_load_pd(&data[idx[0]]));
-    __m256d in13 = _mm256_castpd128_pd256(_mm_load_pd(&data[idx[1]]));
-    in02 = _mm256_insertf128_pd(in02, _mm_load_pd(&data[idx[2]]), 1);
-    in13 = _mm256_insertf128_pd(in13, _mm_load_pd(&data[idx[3]]), 1);
-
-    // Shuffle sequence to transpose.  This will be the same for other instruction sets.
-    // Note that the shuffle is identical for each 128-bits.
-    __m256d out0 = _mm256_shuffle_pd(in02, in13, 0b0000);
-    __m256d out1 = _mm256_shuffle_pd(in02, in13, 0b1111);
-
-    // One vector-length store per struct element.
-    _mm256_store_pd(v[0], out0);
-    _mm256_store_pd(v[1], out1);
-}
-
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
@@ -158,7 +129,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
       ALIGNED_double double dat0[2][SIMD_VEC];
       ALIGNED_double double dat1[2][SIMD_VEC];
+
       ALIGNED_double double dat2[4][SIMD_VEC];
+      ALIGNED_double double dat2_a[2][SIMD_VEC];
+      ALIGNED_double double dat2_b[2][SIMD_VEC];
+
+
       ALIGNED_double double dat3[4][SIMD_VEC];
       ALIGNED_double double dat4[1][SIMD_VEC];
       ALIGNED_double double dat5[1][SIMD_VEC];
@@ -172,17 +148,19 @@ void op_par_loop_res_calc(char const *name, op_set set,
       __declspec(align(64)) int idx3[SIMD_VEC];
 
 
-      /*#pragma simd
+      #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         idx0[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         idx1[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
-        //idx2[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0]+0;
-        //idx3[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0]+2;
+
+        idx2[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
+        idx3[i] = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0]+2;
       }
       gather_transpose_2x64(ptr0, idx0, dat0);
       gather_transpose_2x64(ptr1, idx1, dat1);
-      //gather_transpose_2x64(ptr2, idx2, &dat2[0]);
-      //gather_transpose_2x64(ptr2, idx3, &dat2[2]);*/
+
+      gather_transpose_2x64(ptr2, idx2, dat2_a);
+      gather_transpose_2x64(ptr2, idx3, dat2_b);
 
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
@@ -194,16 +172,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int idx5_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 1];
 
 
-        dat0[0][i] = (ptr0)[idx0_2 + 0];
-        dat0[1][i] = (ptr0)[idx0_2 + 1];
+        //dat0[0][i] = (ptr0)[idx0_2 + 0];
+        //dat0[1][i] = (ptr0)[idx0_2 + 1];
 
-        dat1[0][i] = (ptr1)[idx1_2 + 0];
-        dat1[1][i] = (ptr1)[idx1_2 + 1];
+        //dat1[0][i] = (ptr1)[idx1_2 + 0];
+        //dat1[1][i] = (ptr1)[idx1_2 + 1];
 
-        dat2[0][i] = (ptr2)[idx2_4 + 0];
+        /*dat2[0][i] = (ptr2)[idx2_4 + 0];
         dat2[1][i] = (ptr2)[idx2_4 + 1];
         dat2[2][i] = (ptr2)[idx2_4 + 2];
-        dat2[3][i] = (ptr2)[idx2_4 + 3];
+        dat2[3][i] = (ptr2)[idx2_4 + 3];*/
+
+        dat2[0][i] = dat2_a[0][i];
+        dat2[1][i] = dat2_a[1][i];
+        dat2[2][i] = dat2_b[0][i];
+        dat2[3][i] = dat2_b[1][i];
 
         dat3[0][i] = (ptr3)[idx3_4 + 0];
         dat3[1][i] = (ptr3)[idx3_4 + 1];

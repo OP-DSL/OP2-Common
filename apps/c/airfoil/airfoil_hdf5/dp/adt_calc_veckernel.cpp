@@ -79,10 +79,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   args[3] = arg3;
   args[4] = arg4;
   args[5] = arg5;
-
-  int  ninds   = 1;
-  int  inds[6] = {0,0,0,0,-1,-1};
-
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
   __assume_aligned(ptr0,double_ALIGN);
@@ -108,15 +104,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   int exec_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  #ifdef OP_PART_SIZE_2
-    int part_size = OP_PART_SIZE_2;
-  #else
-    int part_size = exec_size;
-  #endif
-
   if (exec_size >0) {
-
-    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     #ifdef VECTORIZE
     #pragma novector
@@ -128,7 +116,28 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       ALIGNED_double double dat1[2][SIMD_VEC];
       ALIGNED_double double dat2[2][SIMD_VEC];
       ALIGNED_double double dat3[2][SIMD_VEC];
+
+      // Temporary variables
+      __declspec(align(64)) int idx0[SIMD_VEC];
+      __declspec(align(64)) int idx1[SIMD_VEC];
+      __declspec(align(64)) int idx2[SIMD_VEC];
+      __declspec(align(64)) int idx3[SIMD_VEC];
+
+
       #pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+        idx0[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
+        idx1[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
+        idx2[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 2];
+        idx3[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 3];
+      }
+      gather_transpose_2x64(ptr0, idx0, dat0);
+      gather_transpose_2x64(ptr1, idx1, dat1);
+      gather_transpose_2x64(ptr2, idx2, dat2);
+      gather_transpose_2x64(ptr3, idx3, dat3);
+
+
+      /*#pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -147,7 +156,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         dat3[0][i] = (ptr3)[idx3_2 + 0];
         dat3[1][i] = (ptr3)[idx3_2 + 1];
 
-      }
+      }*/
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         adt_calc_vec(
@@ -185,9 +194,6 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         &(ptr4)[4 * n],
         &(ptr5)[1 * n]);
     }
-
-    OP_kernels[1].transfer  += Plan->transfer;
-    OP_kernels[1].transfer2 += Plan->transfer2;
   }
 
   if (exec_size == 0 || exec_size == set->core_size) {
