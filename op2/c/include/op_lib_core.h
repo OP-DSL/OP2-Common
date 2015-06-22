@@ -267,6 +267,10 @@ void op_compute_moment(double t, double *first, double *second);
 
 int op_size_of_set(const char *);
 
+int op_get_size(op_set set);
+
+void check_map(char const *name, op_set from, op_set to, int dim, int* map);
+
 /*******************************************************************************
 * Core MPI lib function prototypes
 *******************************************************************************/
