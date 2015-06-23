@@ -104,7 +104,8 @@ ifeq ($(OP2_COMPILER),pgi)
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -Minform=inform -DOP2_WITH_CUDAFOR $(DEBUG_FLAGS) -Mvect –Mvect=cachesize:12288
+  PGFFLAGS        = $(FFLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -Minform=inform -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288
+  PGMPI_FFLAGS    = $(FMPI_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -Minform=inform -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288
   CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
@@ -361,9 +362,9 @@ f_mpi_cuda: directories core \
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
 	$(NVCC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
-	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
+	$(PGFC) $(PGMPI_FFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
-	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
+	$(PGFC) $(PGMPI_FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(NVCC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	$(shell cp $(F_OP2_SRC)/op2_for_reference.F90 $(F_OP2_SRC)/op2_for_reference.c)
