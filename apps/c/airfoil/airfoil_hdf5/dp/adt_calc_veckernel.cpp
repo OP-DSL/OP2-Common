@@ -116,28 +116,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       ALIGNED_double double dat1[2][SIMD_VEC];
       ALIGNED_double double dat2[2][SIMD_VEC];
       ALIGNED_double double dat3[2][SIMD_VEC];
-
-      // Temporary variables
-      __declspec(align(64)) int idx0[SIMD_VEC];
-      __declspec(align(64)) int idx1[SIMD_VEC];
-      __declspec(align(64)) int idx2[SIMD_VEC];
-      __declspec(align(64)) int idx3[SIMD_VEC];
-
-
       #pragma simd
-      for ( int i=0; i<SIMD_VEC; i++ ){
-        idx0[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
-        idx1[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
-        idx2[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 2];
-        idx3[i] = 2 * arg0.map_data[(n+i) * arg0.map->dim + 3];
-      }
-      gather_transpose_2x64(ptr0, idx0, dat0);
-      gather_transpose_2x64(ptr1, idx1, dat1);
-      gather_transpose_2x64(ptr2, idx2, dat2);
-      gather_transpose_2x64(ptr3, idx3, dat3);
-
-
-      /*#pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -156,7 +135,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         dat3[0][i] = (ptr3)[idx3_2 + 0];
         dat3[1][i] = (ptr3)[idx3_2 + 1];
 
-      }*/
+      }
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         adt_calc_vec(
