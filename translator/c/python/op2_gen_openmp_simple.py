@@ -379,7 +379,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       FOR('n','offset_b','offset_b+nelem')
       if nmaps > 0:
         k = []
-        print name
+        print name, nargs, mapinds
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]

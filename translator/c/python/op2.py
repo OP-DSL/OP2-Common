@@ -478,6 +478,7 @@ def main():
                 for j in range(0,i):
                   if (mapnames[invinds[i]] == mapnames[invinds[j]]):
                     invmapinds[i] = invmapinds[j]
+              print name, nargs
               for i in range(0,nargs):
                 mapinds[i] = i
                 for j in range(0,i):
