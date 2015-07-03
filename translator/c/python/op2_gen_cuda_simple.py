@@ -351,7 +351,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
+          #code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
+          code('const int *__restrict opDat'+str(g_m)+'Map, ')
+
 
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
@@ -468,12 +470,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
 
-
+      print invinds, invmapinds, mapinds
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+
 
 
 #
@@ -812,7 +815,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
+            #code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
+            code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(TYP*)ARG.data_d,')
