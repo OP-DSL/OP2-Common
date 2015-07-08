@@ -934,18 +934,18 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
 
   code('#define STRIDE(x,y) x*y')
   for ns in range (0,len(sets)):
-    code('__constant__ int '+sets[ns]['name']+'_stride;')
+    code('__constant__ int '+sets[ns]['name'].replace('"','')+'_stride;')
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name'].replace('"','')+';')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
 
-      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name'].replace('"','')+'['+num+'];')
 
   if any_soa:
     code('__constant__ int op2_stride;')
@@ -957,8 +957,8 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   depth = depth + 2
   code('int size;')
   for ns in range (0,len(sets)):
-    code('size = op_size_of_set("'+sets[ns]['name']+'");')
-    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name']+'_stride, &size, sizeof(int)));')
+    code('size = op_size_of_set("'+sets[ns]['name'].replace('"','')+'");')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name'].replace('"','')+'_stride, &size, sizeof(int)));')
   depth = depth - 2
   code('}')
   code('')
@@ -968,12 +968,12 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   IF('OP_hybrid_gpu')
 
   for nc in range(0,len(consts)):
-    IF('!strcmp(name,"'+consts[nc]['name']+'")')
+    IF('!strcmp(name,"'+consts[nc]['name'].replace('"','')+'")')
     if consts[nc]['dim'] < 0:
       IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE) {')
       code('printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);')
       ENDIF()
-    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+', dat, dim*size));')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name'].replace('"','')+', dat, dim*size));')
     ENDIF()
     code('else ')
 

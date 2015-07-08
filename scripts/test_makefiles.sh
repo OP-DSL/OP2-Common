@@ -9,14 +9,19 @@
 set -e
 
 export CURRENT_DIR=$PWD
-export OP2_INSTALL_PATH=../op2
+cd ../op2
+export OP2_INSTALL_PATH=$PWD
 cd $OP2_INSTALL_PATH
 cd ../apps
 export OP2_APPS_DIR=$PWD
 export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
+cd ../translator/c/python/
+export OP2_C_CODEGEN_DIR=$PWD
+cd ../translator/fortran/python/
+export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-
+<<COMMENT1
 
 echo " "
 echo " "
@@ -24,12 +29,13 @@ echo "=======================> Building C back-end libs with Intel Compilers"
 . $CURRENT_DIR/source_intel
 make clean; make
 
-#<<COMMENT1
+
 
 echo " "
 echo " "
 echo "=======================> Building Airfoil Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
 
 
@@ -38,27 +44,32 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Airfoil HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
 
 echo " "
 echo " "
 echo "=======================> Building Aero Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
+#$OP2_C_CODEGEN_DIR/op2.py aero.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Aero HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
+#$OP2_C_CODEGEN_DIR/op2.py aero.cpp
 make clean;make
 
 #COMMENT1
@@ -67,16 +78,19 @@ echo " "
 echo " "
 echo "=======================> Building Jac1 Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 
 #COMMENT1
@@ -213,7 +227,7 @@ export OMP_NUM_THREADS=24
 $MPI_INSTALL_PATH/bin/mpirun -np 22 ./jac_mpi
 
 #COMMENT1
-#COMMENT1
+COMMENT1
 
 ################################################################################
 ################################################################################
@@ -229,6 +243,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
+$OP2_C_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 ##COMMENT1
@@ -237,6 +252,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+$OP2_C_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
