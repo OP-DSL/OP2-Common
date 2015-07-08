@@ -1234,12 +1234,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         code('')
         code('reductionArrayDevice'+str(g_m+1)+name+' = reductionArrayHost'+str(g_m+1)+'')
 
-    code('istat = cudaEventRecord(endTimeHost,0)')
-    code('istat = cudaEventSynchronize(endTimeHost)')
-    code('istat = cudaEventElapsedTime(accumulatorHostTime,startTimeHost,endTimeHost)')
-    code('')
-    code('loopTimeHost'+name+' = loopTimeHost'+name+' + accumulatorHostTime')
-    code('istat = cudaEventRecord(startTimeKernel,0)')
     code('')
 
     #indirect loop host stub call
@@ -1306,13 +1300,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
     code('')
 
     code('')
-    code('istat = cudaEventRecord(endTimeKernel,0)')
-    code('istat = cudaEventSynchronize(endTimeKernel)')
-    code('istat = cudaEventElapsedTime(accumulatorKernelTime,startTimeKernel,endTimeKernel)')
-    code('loopTimeKernel'+name+' = loopTimeKernel'+name+' + accumulatorKernelTime')
-    code('')
-
-    code('')
     code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
     code('')
 
@@ -1321,7 +1308,6 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
         code('opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim) = opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim)')
 
     if reduct:
-      code('istat = cudaEventRecord(startTimeHost,0)') #timer for reduction
       #reductions
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
