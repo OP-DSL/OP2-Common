@@ -102,6 +102,7 @@ static int find_mode(int* array, int size)
   int count = 0, mode = array[0], current;
   for(int i=0; i<size; i++)
   {
+    if (i>0 && array[i]==array[i-1]) continue;
     current = frequencyof(array[i], array, size);
     if(count< current)
     {
@@ -537,26 +538,44 @@ static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_r
   //sort both to_elems[] and correspondingly parts[] arrays
   if(count > 0)quickSort_2(to_elems, parts, 0, count-1);
 
-  int* found_parts;
-  for(int i = 0; i<count;)
-  {
-    int curr = to_elems[i];
-    int c = 0; cap = map->dim;
-    found_parts = (int *)xmalloc(sizeof(int)*cap);
+  if (count > comm_size*10) {
+    int* part_counter = (int*)xmalloc(comm_size*sizeof(int));
+    for(int i = 0; i < count;) {
+      memset(part_counter, 0, comm_size*sizeof(int));
+      int curr = to_elems[i];
+      do{
+        part_counter[parts[i]]++;
+        i++;
+        if(i>=count) break;
+      } while(curr == to_elems[i]);
+      int maxpos=0;
+      for (int j = 0; j < comm_size;j++)
+        if (part_counter[maxpos] < part_counter[j]) maxpos=j;
+      partition[curr] = maxpos;
+    }
+    free(part_counter);
+  } else {
+    int* found_parts;
+    for(int i = 0; i<count;)
+    {
+      int curr = to_elems[i];
+      int c = 0; cap = map->dim;
+      found_parts = (int *)xmalloc(sizeof(int)*cap);
 
-    do{
-      if(c>=cap)
-      {
-        cap = cap*2;
-        found_parts = (int *)xrealloc(found_parts, sizeof(int)*cap);
-      }
-      found_parts[c++] =  parts[i];
-      i++;
-      if(i>=count) break;
-    } while(curr == to_elems[i]);
+      do{
+        if(c>=cap)
+        {
+          cap = cap*2;
+          found_parts = (int *)xrealloc(found_parts, sizeof(int)*cap);
+        }
+        found_parts[c++] =  parts[i];
+        i++;
+        if(i>=count) break;
+      } while(curr == to_elems[i]);
 
-    partition[curr] = find_mode(found_parts, c);
-    free(found_parts);
+      partition[curr] = find_mode(found_parts, c);
+      free(found_parts);
+    }
   }
 
   if(count+pi_list->size > 0)
