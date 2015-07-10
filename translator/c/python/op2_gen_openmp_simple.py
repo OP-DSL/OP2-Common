@@ -379,12 +379,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       FOR('n','offset_b','offset_b+nelem')
       if nmaps > 0:
         k = []
-        print name, nargs, mapinds
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+\
               '.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+
       code('')
       line = name+'('
       indent = '\n'+' '*(depth+2)

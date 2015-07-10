@@ -573,8 +573,9 @@ static int partition_to_set(op_map map, int my_rank, int comm_size, int** part_r
         if(i>=count) break;
       } while(curr == to_elems[i]);
 
-    partition[curr] = find_mode(found_parts, c);
-    op_free(found_parts);
+      partition[curr] = find_mode(found_parts, c);
+      op_free(found_parts);
+    }
   }
 
   if(count+pi_list->size > 0)

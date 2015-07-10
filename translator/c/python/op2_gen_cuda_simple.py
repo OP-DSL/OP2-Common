@@ -351,8 +351,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          #code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
-          code('const int *__restrict opDat'+str(g_m)+'Map, ')
+          code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
+
 
 
     for g_m in range(0,nargs):
@@ -470,7 +470,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
 
-      print invinds, invmapinds, mapinds
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):

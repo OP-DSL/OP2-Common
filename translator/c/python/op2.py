@@ -435,8 +435,6 @@ def main():
                 if (maps[m] != OP_GBL) and (accs[m] == OP_MIN or accs[m] == OP_MAX):
                     print 'invalid access type for argument ' + str(m)
 
-                # print var[m]+' '+str(idxs[m])+' '+str(maps[m])+' '+\
-                # str(dims[m])+' '+typs[m]+' '+str(accs[m])
 
             print ' '
 
@@ -478,7 +476,7 @@ def main():
                 for j in range(0,i):
                   if (mapnames[invinds[i]] == mapnames[invinds[j]]):
                     invmapinds[i] = invmapinds[j]
-              print name, nargs
+
               for i in range(0,nargs):
                 mapinds[i] = i
                 for j in range(0,i):
@@ -680,7 +678,7 @@ def main():
                           const_args[curr_const]['name2'].strip() + ');')
                 loc_old = endofcall + 1
                 continue
-        print loc_old, len(text)
+
         fid.write(text[loc_old:])
         fid.close()
 
@@ -712,19 +710,19 @@ def main():
     #
 
 
-    #op2_gen_seq(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+    op2_gen_seq(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
     #op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
     #code generators for OpenMP parallelisation with MPI
     #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator
-    #op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
+    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
     #code generators for NVIDIA GPUs with CUDA
     #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Fermi GPUs
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

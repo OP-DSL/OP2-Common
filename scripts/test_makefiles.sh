@@ -21,13 +21,13 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-<<COMMENT1
+#<<COMMENT1
 
 echo " "
 echo " "
 echo "=======================> Building C back-end libs with Intel Compilers"
-. $CURRENT_DIR/source_intel
-make clean; make
+. $CURRENT_DIR/source_intel_16
+#make clean; make
 
 #<<COMMENT1
 
