@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void adt_calc( const float *x1, const float *x2, const float *x3, const float *x4, const float *q, float *adt) {
+__device__
+inline void adt_calc_gpu(const float *x1, const float *x2, const float *x3, const float *x4, const float *q, float *adt){
   float dx,dy, ri,u,v,c;
 
   ri =  1.0f/q[0];
@@ -29,6 +30,7 @@ __device__ void adt_calc( const float *x1, const float *x2, const float *x3, con
 
   *adt = (*adt) / cfl;
 }
+
 
 // CUDA kernel function
 __global__ void op_cuda_adt_calc(
@@ -74,7 +76,7 @@ __global__ void op_cuda_adt_calc(
     map3idx = opDat0Map[n + offset_b + set_size * 3];
 
     //user-supplied kernel call
-    adt_calc(ind_arg0+map0idx*2,
+    adt_calc_gpu(ind_arg0+map0idx*2,
              ind_arg0+map1idx*2,
              ind_arg0+map2idx*2,
              ind_arg0+map3idx*2,
@@ -84,8 +86,8 @@ __global__ void op_cuda_adt_calc(
 }
 
 
-//host stub function
-void op_par_loop_adt_calc(char const *name, op_set set,
+//GPU host stub function
+void op_par_loop_adt_calc_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
@@ -173,3 +175,62 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[1].time     += wall_t2 - wall_t1;
 }
+
+void op_par_loop_adt_calc_cpu(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5);
+
+
+//GPU host stub function
+#if OP_HYBRID_GPU
+void op_par_loop_adt_calc(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5){
+
+  if (OP_hybrid_gpu) {
+    op_par_loop_adt_calc_gpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4,
+      arg5);
+
+    }else{
+    op_par_loop_adt_calc_cpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4,
+      arg5);
+
+  }
+}
+#else
+void op_par_loop_adt_calc(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5){
+
+  op_par_loop_adt_calc_gpu(name, set,
+    arg0,
+    arg1,
+    arg2,
+    arg3,
+    arg4,
+    arg5);
+
+  }
+#endif //OP_HYBRID_GPU

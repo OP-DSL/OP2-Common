@@ -29,7 +29,7 @@ echo "=======================> Building C back-end libs with Intel Compilers"
 . $CURRENT_DIR/source_intel_16
 #make clean; make
 
-#<<COMMENT1
+<<COMMENT1
 
 echo " "
 echo " "
@@ -78,19 +78,19 @@ echo " "
 echo " "
 echo "=======================> Building Jac1 Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 
 #COMMENT1
@@ -193,7 +193,7 @@ export OMP_NUM_THREADS=24
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 11 ./aero_mpi_openmp OP_PART_SIZE=256
 
-##COMMENT1
+
 
 echo " "
 echo " "
@@ -226,7 +226,7 @@ export OMP_NUM_THREADS=24
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 22 ./jac_mpi
 
-##COMMENT1
+COMMENT1
 
 ################################################################################
 ################################################################################

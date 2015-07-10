@@ -3,9 +3,11 @@
 //
 
 //user function
-__device__ void save_soln( const double *q, double *qold) {
+__device__
+inline void save_soln_gpu(const double *q, double *qold){
   for (int n=0; n<4; n++) qold[n] = q[n];
 }
+
 
 // CUDA kernel function
 __global__ void op_cuda_save_soln(
@@ -18,14 +20,14 @@ __global__ void op_cuda_save_soln(
   for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n = n+=blockDim.x*gridDim.x ){
 
     //user-supplied kernel call
-    save_soln(arg0+n*4,
+    save_soln_gpu(arg0+n*4,
               arg1+n*4);
   }
 }
 
 
-//host stub function
-void op_par_loop_save_soln(char const *name, op_set set,
+//GPU host stub function
+void op_par_loop_save_soln_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1){
 
@@ -74,3 +76,38 @@ void op_par_loop_save_soln(char const *name, op_set set,
   OP_kernels[0].transfer += (float)set->size * arg0.size;
   OP_kernels[0].transfer += (float)set->size * arg1.size;
 }
+
+void op_par_loop_save_soln_cpu(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1);
+
+
+//GPU host stub function
+#if OP_HYBRID_GPU
+void op_par_loop_save_soln(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1){
+
+  if (OP_hybrid_gpu) {
+    op_par_loop_save_soln_gpu(name, set,
+      arg0,
+      arg1);
+
+    }else{
+    op_par_loop_save_soln_cpu(name, set,
+      arg0,
+      arg1);
+
+  }
+}
+#else
+void op_par_loop_save_soln(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1){
+
+  op_par_loop_save_soln_gpu(name, set,
+    arg0,
+    arg1);
+
+  }
+#endif //OP_HYBRID_GPU

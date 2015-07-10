@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void res_calc( const double *x1, const double *x2, const double *q1, const double *q2,
+__device__
+inline void res_calc_gpu(const double *x1, const double *x2, const double *q1, const double *q2,
                      const double *adt1, const double *adt2, double *res1, double *res2) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
@@ -33,6 +34,7 @@ __device__ void res_calc( const double *x1, const double *x2, const double *q1, 
   res1[3] += f;
   res2[3] -= f;
 }
+
 
 // CUDA kernel function
 __global__ void op_cuda_res_calc(
@@ -95,7 +97,7 @@ __global__ void op_cuda_res_calc(
       map3idx = opDat2Map[n + offset_b + set_size * 1];
 
       //user-supplied kernel call
-      res_calc(ind_arg0+map0idx*2,
+      res_calc_gpu(ind_arg0+map0idx*2,
              ind_arg0+map1idx*2,
              ind_arg1+map2idx*4,
              ind_arg1+map3idx*4,
@@ -133,8 +135,8 @@ __global__ void op_cuda_res_calc(
 }
 
 
-//host stub function
-void op_par_loop_res_calc(char const *name, op_set set,
+//GPU host stub function
+void op_par_loop_res_calc_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
@@ -228,3 +230,74 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[2].time     += wall_t2 - wall_t1;
 }
+
+void op_par_loop_res_calc_cpu(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5,
+  op_arg arg6,
+  op_arg arg7);
+
+
+//GPU host stub function
+#if OP_HYBRID_GPU
+void op_par_loop_res_calc(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5,
+  op_arg arg6,
+  op_arg arg7){
+
+  if (OP_hybrid_gpu) {
+    op_par_loop_res_calc_gpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4,
+      arg5,
+      arg6,
+      arg7);
+
+    }else{
+    op_par_loop_res_calc_cpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4,
+      arg5,
+      arg6,
+      arg7);
+
+  }
+}
+#else
+void op_par_loop_res_calc(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4,
+  op_arg arg5,
+  op_arg arg6,
+  op_arg arg7){
+
+  op_par_loop_res_calc_gpu(name, set,
+    arg0,
+    arg1,
+    arg2,
+    arg3,
+    arg4,
+    arg5,
+    arg6,
+    arg7);
+
+  }
+#endif //OP_HYBRID_GPU

@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void update( const float *qold, float *q, float *res, const float *adt, float *rms) {
+__device__
+inline void update_gpu(const float *qold, float *q, float *res, const float *adt, float *rms){
   float del, adti;
 
   adti = 1.0f/(*adt);
@@ -15,6 +16,7 @@ __device__ void update( const float *qold, float *q, float *res, const float *ad
     *rms  += del*del;
   }
 }
+
 
 // CUDA kernel function
 __global__ void op_cuda_update(
@@ -34,7 +36,7 @@ __global__ void op_cuda_update(
   for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n = n+=blockDim.x*gridDim.x ){
 
     //user-supplied kernel call
-    update(arg0+n*4,
+    update_gpu(arg0+n*4,
            arg1+n*4,
            arg2+n*4,
            arg3+n*1,
@@ -49,8 +51,8 @@ __global__ void op_cuda_update(
 }
 
 
-//host stub function
-void op_par_loop_update(char const *name, op_set set,
+//GPU host stub function
+void op_par_loop_update_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
@@ -139,3 +141,56 @@ void op_par_loop_update(char const *name, op_set set,
   OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg3.size;
 }
+
+void op_par_loop_update_cpu(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4);
+
+
+//GPU host stub function
+#if OP_HYBRID_GPU
+void op_par_loop_update(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4){
+
+  if (OP_hybrid_gpu) {
+    op_par_loop_update_gpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4);
+
+    }else{
+    op_par_loop_update_cpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3,
+      arg4);
+
+  }
+}
+#else
+void op_par_loop_update(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4){
+
+  op_par_loop_update_gpu(name, set,
+    arg0,
+    arg1,
+    arg2,
+    arg3,
+    arg4);
+
+  }
+#endif //OP_HYBRID_GPU

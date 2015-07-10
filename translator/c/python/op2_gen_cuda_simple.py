@@ -291,7 +291,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     for files in glob.glob( "*.h" ):
       f = open( files, 'r' )
       for line in f:
-        if name in line:
+        match = re.search(r''+name+'\\b', line)
+        if match :
           file_name = f.name
           found = 1;
           break
