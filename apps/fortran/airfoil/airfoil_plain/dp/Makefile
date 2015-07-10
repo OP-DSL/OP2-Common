@@ -57,6 +57,7 @@ endif
 
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
+FMPI_MODS = -I$(F_OP2_MOD)/mpi
 
 all: $(ALL_TARGET)
 

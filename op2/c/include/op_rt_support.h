@@ -93,8 +93,6 @@ op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
 
 op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int *, int );
 
-op_plan * op_plan_seq_core ( char const *, op_set, int, int, op_arg *, int, int *);
-
 op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
                         int nargs, op_arg * args, int ninds, int * inds, int staging );
 
