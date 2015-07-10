@@ -5,6 +5,63 @@
 //user function
 #include "res_calc.h"
 
+inline void res_calc2(const double  x1[2], double  x2[2]) {
+
+  x2[0] = x1[0];
+  x2[1] = x1[1];
+}
+
+#define SIMD_VEC 8
+
+inline void res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC],
+                     const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC],
+                     int idx) {
+  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+
+  dx = x1[0][idx] - x2[0][idx];
+  dy = x1[1][idx] - x2[1][idx];
+
+  ri   = 1.0f/q1[0][idx];
+  p1   = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
+  vol1 =  ri*(q1[1][idx]*dy - q1[2][idx]*dx);
+
+  ri   = 1.0f/q2[0][idx];
+  p2   = gm1*(q2[3][idx]-0.5f*ri*(q2[1][idx]*q2[1][idx]+q2[2][idx]*q2[2][idx]));
+  vol2 =  ri*(q2[1][idx]*dy - q2[2][idx]*dx);
+
+  mu = 0.5f*((adt1[0][idx])+(adt2[0][idx]))*eps;
+
+  f = 0.5f*(vol1* q1[0][idx]         + vol2* q2[0][idx]        ) + mu*(q1[0][idx]-q2[0][idx]);
+  res1[0][idx] += f;
+  res2[0][idx] -= f;
+  f = 0.5f*(vol1* q1[1][idx] + p1*dy + vol2* q2[1][idx] + p2*dy) + mu*(q1[1][idx]-q2[1][idx]);
+  res1[1][idx] += f;
+  res2[1][idx] -= f;
+  f = 0.5f*(vol1* q1[2][idx] - p1*dx + vol2* q2[2][idx] - p2*dx) + mu*(q1[2][idx]-q2[2][idx]);
+  res1[2][idx] += f;
+  res2[2][idx] -= f;
+  f = 0.5f*(vol1*(q1[3][idx]+p1)     + vol2*(q2[3][idx]+p2)    ) + mu*(q1[3][idx]-q2[3][idx]);
+  res1[3][idx] += f;
+  res2[3][idx] -= f;
+}
+
+
+inline void res_calc3(double q1[*][8], double q2[*][8], int idx) {
+  q2[0][idx] = q1[0][idx];
+  q2[1][idx] = q1[1][idx];
+
+  double s = q1[0][idx]*q1[0][idx] - 4*q1[1][idx]*q1[1][idx];
+  if ( s >= 0 ) {
+    s = sqrt(s) ;
+    q2[0][idx] = (q1[0][idx]+s)/(2.0*q1[0][idx]);
+    q2[1][idx] = (q1[1][idx]+s)/(2.0*q1[1][idx]);
+  }
+  else {
+    q2[0][idx] = 0.0;
+    q2[1][idx] = 0.0;
+  }
+}
+
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
@@ -38,13 +95,77 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
+  //set_size = 64;
 
   if (set->size >0) {
+    #pragma novector
+    for ( int n=0; n<0+(set_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
 
-    for ( int n=0; n<set_size; n++ ){
-      if (n==set->core_size) {
-        op_mpi_wait_all(nargs, args);
+        int map0idx[SIMD_VEC];
+        int map1idx[SIMD_VEC];
+        int map2idx[SIMD_VEC];
+        int map3idx[SIMD_VEC];
+
+        double dat0[2][SIMD_VEC];
+        double dat1[2][SIMD_VEC];
+        double dat2[4][SIMD_VEC];
+        double dat3[4][SIMD_VEC];
+        double dat4[1][SIMD_VEC];
+        double dat5[1][SIMD_VEC];
+        double dat6[4][SIMD_VEC];
+        double dat7[4][SIMD_VEC];
+
+      #pragma ivdep
+      //#pragma simd
+      for ( int i=0; i<SIMD_VEC; i++ ){
+          map0idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 0];
+          map1idx[i] = arg0.map_data[(n+i) * arg0.map->dim + 1];
+          map2idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 0];
+          map3idx[i] = arg2.map_data[(n+i) * arg2.map->dim + 1];
+
+          dat0[0][i] = ((double*)arg0.data)[2 * map0idx[i] + 0];
+          dat0[1][i] = ((double*)arg0.data)[2 * map0idx[i] + 1];
+
+          dat1[0][i] = ((double*)arg1.data)[2 * map1idx[i] + 0];
+          dat1[1][i] = ((double*)arg1.data)[2 * map1idx[i] + 1];
+
+          dat2[0][i] = ((double*)arg2.data)[4 * map2idx[i] + 0];
+          dat2[1][i] = ((double*)arg2.data)[4 * map2idx[i] + 1];
+          dat2[2][i] = ((double*)arg2.data)[4 * map2idx[i] + 2];
+          dat2[3][i] = ((double*)arg2.data)[4 * map2idx[i] + 3];
+
+          dat3[0][i] = ((double*)arg3.data)[4 * map3idx[i] + 0];
+          dat3[1][i] = ((double*)arg3.data)[4 * map3idx[i] + 1];
+          dat3[2][i] = ((double*)arg3.data)[4 * map3idx[i] + 2];
+          dat3[3][i] = ((double*)arg3.data)[4 * map3idx[i] + 3];
+
+          dat4[0][i] = ((double*)arg4.data)[1 * map2idx[i] + 0];
+
+          dat5[0][i] = ((double*)arg4.data)[1 * map3idx[i] + 0];
+
+          dat6[0][i] = ((double*)arg6.data)[4 * map2idx[i] + 0];
+          dat6[1][i] = ((double*)arg6.data)[4 * map2idx[i] + 1];
+          dat6[2][i] = ((double*)arg6.data)[4 * map2idx[i] + 2];
+          dat6[3][i] = ((double*)arg6.data)[4 * map2idx[i] + 3];
+
+          dat7[0][i] = ((double*)arg7.data)[4 * map3idx[i] + 0];
+          dat7[1][i] = ((double*)arg7.data)[4 * map3idx[i] + 1];
+          dat7[2][i] = ((double*)arg7.data)[4 * map3idx[i] + 2];
+          dat7[3][i] = ((double*)arg7.data)[4 * map3idx[i] + 3];
+
+          res_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, dat6, dat7, i);
+
+          ((double*)arg7.data)[4 * map0idx[i] + 0] += dat7[0][i];
+          ((double*)arg7.data)[4 * map0idx[i] + 1] += dat7[1][i];
+          ((double*)arg7.data)[4 * map0idx[i] + 2] += dat7[2][i];
+          ((double*)arg7.data)[4 * map0idx[i] + 3] += dat7[3][i];
+
       }
+    }
+
+    //remainder
+    for ( int n=(set_size/SIMD_VEC)*SIMD_VEC; n<set_size; n++ ){
+    //for ( int n=0; n<set_size; n++ ){
       int map0idx = arg0.map_data[n * arg0.map->dim + 0];
       int map1idx = arg0.map_data[n * arg0.map->dim + 1];
       int map2idx = arg2.map_data[n * arg2.map->dim + 0];
@@ -60,7 +181,38 @@ void op_par_loop_res_calc(char const *name, op_set set,
         &((double*)arg6.data)[4 * map2idx],
         &((double*)arg6.data)[4 * map3idx]);
     }
+
   }
+
+
+      //double q[4][8] = {…}
+
+
+
+      //if (n==set->core_size) {
+        //op_mpi_wait_all(nargs, args);
+      //}
+
+      //map data has dim 2 - 1 edge points to 2 nodes
+      /*int map0idx = arg0.map_data[n * arg0.map->dim + 0]; //index of 1st node
+      int map1idx = arg0.map_data[n * arg0.map->dim + 1]; //index of 2nd node
+      */
+
+      //map data has dim 2 -  1 edge points to 2 cells
+      /*int map2idx = arg2.map_data[n * arg2.map->dim + 0]; //index of 1st cell
+      int map3idx = arg2.map_data[n * arg2.map->dim + 1]; //index of 2nd cell
+      */
+
+      /*res_calc(
+        ((double*)arg0.data)[2 * map0idx], //p_x is defind on nodes - dims of p_x is 2
+        &((double*)arg0.data)[2 * map1idx], //p_x is defind on nodes - dims of p_x is 2
+        &((double*)arg2.data)[4 * map2idx], //p_q is defind on cells - dims of p_q is 4
+        &((double*)arg2.data)[4 * map3idx], //p_q is defind on cells - dims of p_q is 4
+        &((double*)arg4.data)[1 * map2idx], //p_adt is defind on cells - dims of p_adt is 1
+        &((double*)arg4.data)[1 * map3idx], //p_adt is defind on cells - dims of p_adt is 1
+        &((double*)arg6.data)[4 * map2idx], //p_res is defind on cells - dims of p_res is 4
+        &((double*)arg6.data)[4 * map3idx]); //p_res is defind on cells - dims of p_res is 4
+      */
 
   if (set_size == 0 || set_size == set->core_size) {
     op_mpi_wait_all(nargs, args);

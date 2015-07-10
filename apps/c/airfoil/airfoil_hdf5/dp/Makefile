@@ -29,10 +29,11 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -qopt-report #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -245,4 +246,4 @@ convert_mesh: convert_mesh.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh *.o
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh *.o *.optrpt

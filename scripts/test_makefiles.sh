@@ -30,7 +30,6 @@ echo "=======================> Building C back-end libs with Intel Compilers"
 make clean; make
 
 
-
 echo " "
 echo " "
 echo "=======================> Building Airfoil Plain DP with Intel Compilers"
