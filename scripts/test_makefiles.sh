@@ -17,7 +17,7 @@ export OP2_APPS_DIR=$PWD
 export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
 cd ../translator/c/python/
 export OP2_C_CODEGEN_DIR=$PWD
-cd ../translator/fortran/python/
+cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
@@ -226,8 +226,8 @@ export OMP_NUM_THREADS=24
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 22 ./jac_mpi
 
-#COMMENT1
 COMMENT1
+#COMMENT1
 
 ################################################################################
 ################################################################################
@@ -243,7 +243,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
-$OP2_C_CODEGEN_DIR/op2_fortran.py airfoil.F90
+#$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 ##COMMENT1
@@ -252,7 +252,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
-$OP2_C_CODEGEN_DIR/op2_fortran.py airfoil.F90
+#$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
