@@ -82,19 +82,19 @@ echo " "
 echo " "
 echo "=======================> Building Jac1 Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
-#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
-#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
-#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 
 #COMMENT1

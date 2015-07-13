@@ -460,13 +460,13 @@ def main():
                 ninds = ninds + 1
                 for i in range(0, len(j)):
                     if var[j[0]] == var[j[i]] and typs[j[0]] == typs[j[i]] \
-                            and accs[j[0]] == accs[j[i]]:  # same variable
+                            and accs[j[0]] == accs[j[i]] and mapnames[j[0]] == mapnames[j[i]]:  # same variable
                         inds[j[i]] = ninds
 
                 k = []
                 for i in range(0, len(j)):
                     if not (var[j[0]] == var[j[i]] and typs[j[0]] == typs[j[i]]
-                            and accs[j[0]] == accs[j[i]]):  # same variable
+                            and accs[j[0]] == accs[j[i]] and mapnames[j[0]] == mapnames[j[i]]):  # same variable
                         k = k + [j[i]]
                 j = k
 
@@ -722,7 +722,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
