@@ -107,6 +107,7 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg );
 
+
 //
 // kernel routines for parallel loops
 //

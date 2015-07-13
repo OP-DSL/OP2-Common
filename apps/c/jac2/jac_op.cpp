@@ -78,6 +78,7 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg );
 
+
 // jac header file
 
 #define STRIDE 2

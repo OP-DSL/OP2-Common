@@ -653,7 +653,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          code('INTEGER(kind=4), DEVICE :: opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
+          code('INTEGER(kind=4), DEVICE, INTENT(IN) :: opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         if accs[g_m] == OP_READ:
@@ -695,7 +695,7 @@ def op2_gen_cuda(master, date, consts, kernels, hydra):
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnelems')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnthrcol')
-      code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pthrcol')
+      code('INTEGER(kind=4), DIMENSION(0:*), DEVICE, INTENT(IN) :: pthrcol')
       code('INTEGER(kind=4), VALUE :: blockOffset')
       code('INTEGER(kind=4), VALUE :: setSize')
       code('')
