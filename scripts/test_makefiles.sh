@@ -235,7 +235,7 @@ export OMP_NUM_THREADS=20
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
-
+#COMMENT1
 ################################################################################
 ################################################################################
 echo " "
@@ -244,6 +244,7 @@ echo "**********************************************************************"
 echo "******************* Building Fortan back-end libs with Intel Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
+pwd
 . $CURRENT_DIR/source_intel_16
 make clean; make
 
@@ -260,6 +261,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
@@ -275,16 +277,20 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Fortran Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
+pwd
 export PART_SIZE_ENV=128
 ./airfoil_seq
 ./airfoil_vec
 export OMP_NUM_THREADS=20
 ./airfoil_openmp_$PART_SIZE_ENV
 
+
+
 echo " "
 echo " "
 echo "=======================> Running Airfoil Fortran HDF5 DP built with Intel Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+pwd
 export PART_SIZE_ENV=128
 ./airfoil_hdf5_seq
 #./airfoil_hdf5_vec
@@ -298,7 +304,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 
-#COMMENT1
+##COMMENT1
 ###################################################################################
 ###################################################################################
 echo " "
@@ -315,6 +321,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
+pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
@@ -324,6 +331,7 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
@@ -338,6 +346,7 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Fortran Plain DP built with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
+pwd
 export PART_SIZE_ENV=128
 ./airfoil_seq
 ./airfoil_cuda
@@ -348,6 +357,7 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Fortran HDF5 DP built with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+pwd
 export PART_SIZE_ENV=128
 ./airfoil_hdf5_seq
 ./airfoil_hdf5_cuda
