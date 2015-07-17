@@ -508,10 +508,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
-          or accs[g_m] == OP_RW or accs[g_m] == OP_INC):
+          or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE \
+          or accs[g_m] == OP_INC):
           code('ALIGNED_TYP TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
-          #code('TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
-          #code('ASSUME_ALIGNED(&dat'+str(g_m)+');')
 
       #setup gathers
       code('#pragma simd')
@@ -519,7 +518,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
               code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
@@ -552,7 +551,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_INC or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+            if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
               code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
