@@ -219,7 +219,7 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  double* q = (double *)malloc(sizeof(double)*op_get_size(cells)*4);
+  double* q = (double *)op_malloc(sizeof(double)*op_get_size(cells)*4);
   op_fetch_data_hdf5(p_q, q, 0, op_get_size(cells)-1);
   free(q);
 
@@ -234,7 +234,6 @@ int main(int argc, char **argv)
   // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
 
   op_timing_output();
-  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
   op_exit();
 }
-

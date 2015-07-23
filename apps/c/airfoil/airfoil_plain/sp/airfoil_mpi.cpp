@@ -435,4 +435,3 @@ int main(int argc, char **argv)
   free(res);
   free(adt);
 }
-

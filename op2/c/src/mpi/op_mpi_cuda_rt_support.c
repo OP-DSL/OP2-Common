@@ -125,7 +125,7 @@ void op_upload_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -146,7 +146,7 @@ void op_download_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
+    char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
     cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -654,7 +654,7 @@ void op_partition(const char* lib_name, const char* lib_routine,
     //Upload maps in transposed form
     op_map map = OP_map_list[m];
     int set_size = map->from->size+map->from->exec_size;
-    int *temp_map = (int *)malloc(map->dim*set_size*sizeof(int));
+    int *temp_map = (int *)xmalloc(map->dim*set_size*sizeof(int));
     for (int i = 0; i < map->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         temp_map[i*set_size + j] = map->map[map->dim*j+i];

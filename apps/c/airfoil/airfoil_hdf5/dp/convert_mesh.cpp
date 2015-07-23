@@ -82,8 +82,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
                                  int l_size, int elem_size)
 {
-  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int* sendcnts = (int *) op_malloc(comm_size*sizeof(int));
+  int* displs = (int *) op_malloc(comm_size*sizeof(int));
   int disp = 0;
 
   for(int i = 0; i<comm_size; i++)
@@ -106,8 +106,8 @@ static void scatter_double_array(double* g_array, double* l_array, int comm_size
 static void scatter_int_array(int* g_array, int* l_array, int comm_size, int g_size,
                               int l_size, int elem_size)
 {
-  int* sendcnts = (int *) malloc(comm_size*sizeof(int));
-  int* displs = (int *) malloc(comm_size*sizeof(int));
+  int* sendcnts = (int *) op_malloc(comm_size*sizeof(int));
+  int* displs = (int *) op_malloc(comm_size*sizeof(int));
   int disp = 0;
 
   for(int i = 0; i<comm_size; i++)
@@ -200,18 +200,18 @@ int main(int argc, char **argv)
       ,g_nnode,g_ncell,g_nedge,g_nbedge);
 
   if(my_rank == MPI_ROOT) {
-    g_cell   = (int *) malloc(4*g_ncell*sizeof(int));
-    g_edge   = (int *) malloc(2*g_nedge*sizeof(int));
-    g_ecell  = (int *) malloc(2*g_nedge*sizeof(int));
-    g_bedge  = (int *) malloc(2*g_nbedge*sizeof(int));
-    g_becell = (int *) malloc(  g_nbedge*sizeof(int));
-    g_bound  = (int *) malloc(  g_nbedge*sizeof(int));
+    g_cell   = (int *) op_malloc(4*g_ncell*sizeof(int));
+    g_edge   = (int *) op_malloc(2*g_nedge*sizeof(int));
+    g_ecell  = (int *) op_malloc(2*g_nedge*sizeof(int));
+    g_bedge  = (int *) op_malloc(2*g_nbedge*sizeof(int));
+    g_becell = (int *) op_malloc(  g_nbedge*sizeof(int));
+    g_bound  = (int *) op_malloc(  g_nbedge*sizeof(int));
 
-    g_x      = (double *) malloc(2*g_nnode*sizeof(double));
-    g_q      = (double *) malloc(4*g_ncell*sizeof(double));
-    g_qold   = (double *) malloc(4*g_ncell*sizeof(double));
-    g_res    = (double *) malloc(4*g_ncell*sizeof(double));
-    g_adt    = (double *) malloc(  g_ncell*sizeof(double));
+    g_x      = (double *) op_malloc(2*g_nnode*sizeof(double));
+    g_q      = (double *) op_malloc(4*g_ncell*sizeof(double));
+    g_qold   = (double *) op_malloc(4*g_ncell*sizeof(double));
+    g_res    = (double *) op_malloc(4*g_ncell*sizeof(double));
+    g_adt    = (double *) op_malloc(  g_ncell*sizeof(double));
 
     for (int n=0; n<g_nnode; n++){
       check_scan(fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]), 2);
@@ -253,18 +253,18 @@ int main(int argc, char **argv)
       ,my_rank,nnode,ncell,nedge,nbedge);
 
   /*Allocate memory to hold local sets, mapping tables and data*/
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-  edge   = (int *) malloc(2*nedge*sizeof(int));
-  ecell  = (int *) malloc(2*nedge*sizeof(int));
-  bedge  = (int *) malloc(2*nbedge*sizeof(int));
-  becell = (int *) malloc(  nbedge*sizeof(int));
-  bound  = (int *) malloc(  nbedge*sizeof(int));
+  cell   = (int *) op_malloc(4*ncell*sizeof(int));
+  edge   = (int *) op_malloc(2*nedge*sizeof(int));
+  ecell  = (int *) op_malloc(2*nedge*sizeof(int));
+  bedge  = (int *) op_malloc(2*nbedge*sizeof(int));
+  becell = (int *) op_malloc(  nbedge*sizeof(int));
+  bound  = (int *) op_malloc(  nbedge*sizeof(int));
 
-  x      = (double *) malloc(2*nnode*sizeof(double));
-  q      = (double *) malloc(4*ncell*sizeof(double));
-  qold   = (double *) malloc(4*ncell*sizeof(double));
-  res    = (double *) malloc(4*ncell*sizeof(double));
-  adt    = (double *) malloc(  ncell*sizeof(double));
+  x      = (double *) op_malloc(2*nnode*sizeof(double));
+  q      = (double *) op_malloc(4*ncell*sizeof(double));
+  qold   = (double *) op_malloc(4*ncell*sizeof(double));
+  res    = (double *) op_malloc(4*ncell*sizeof(double));
+  adt    = (double *) op_malloc(  ncell*sizeof(double));
 
   /* scatter sets, mappings and data on sets*/
   scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);

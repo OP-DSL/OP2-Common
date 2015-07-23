@@ -49,6 +49,10 @@
 #include <sys/queue.h> //contains double linked list implementation
 #include <stdbool.h>
 
+#ifndef OP2_ALIGNMENT
+#define OP2_ALIGNMENT 64
+#endif
+
 /*
  * essential typedefs
  */
@@ -329,6 +333,14 @@ int compare_sets(op_set set1, op_set set2);
 op_dat search_dat(op_set set, int dim, char const * type, int size, char const * name);
 
 int op_is_root();
+
+/*******************************************************************************
+* Memory allocation functions
+*******************************************************************************/
+void* op_malloc (size_t size);
+void* op_realloc (void *ptr, size_t size);
+void  op_free (void *ptr);
+void* op_calloc (size_t num, size_t size);
 
 #ifdef __cplusplus
 }

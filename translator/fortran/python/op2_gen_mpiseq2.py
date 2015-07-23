@@ -2,9 +2,9 @@
 #
 # OpenMP code generator
 #
-# This routine is called by op2 which parses the input files
+# This routine is called by op2_fortran which parses the input files
 #
-# It produces a file xxx_kernel.cpp for each kernel,
+# It produces a file xxx_kernel.F90 for each kernel,
 # plus a master kernel file
 #
 ##########################################################################

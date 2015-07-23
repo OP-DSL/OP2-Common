@@ -11,6 +11,7 @@
 
 import re
 import datetime
+import glob
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -90,6 +91,56 @@ def ENDIF():
     code('endif')
   elif CPP:
     code('}')
+
+
+def comment_remover(text):
+    """Remove comments from text"""
+
+    def replacer(match):
+        s = match.group(0)
+        if s.startswith('/'):
+            return ''
+        else:
+            return s
+    pattern = re.compile(
+        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+        re.DOTALL | re.MULTILINE
+    )
+    return re.sub(pattern, replacer, text)
+
+def remove_trailing_w_space(text):
+  text = text+' '
+  line_start = 0
+  line = ""
+  line_end = 0
+  striped_test = ''
+  count = 0
+  while 1:
+    line_end =  text.find("\n",line_start+1)
+    line = text[line_start:line_end]
+    line = line.rstrip()
+    striped_test = striped_test + line +'\n'
+    line_start = line_end + 1
+    line = ""
+    if line_end < 0:
+      return striped_test[:-1]
+
+
+def para_parse(text, j, op_b, cl_b):
+    """Parsing code block, i.e. text to find the correct closing brace"""
+
+    depth = 0
+    loc2 = j
+
+    while 1:
+      if text[loc2] == op_b:
+            depth = depth + 1
+
+      elif text[loc2] == cl_b:
+            depth = depth - 1
+            if depth == 0:
+                return loc2
+      loc2 = loc2 + 1
 
 def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
@@ -236,12 +287,49 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     depth = 0
 
     comm('user function')
+    found = 0
+    for files in glob.glob( "*.h" ):
+      f = open( files, 'r' )
+      for line in f:
+        match = re.search(r''+name+'\\b', line)
+        if match :
+          file_name = f.name
+          found = 1;
+          break
+      if found == 1:
+        break;
 
-    code('__device__')
-    if FORTRAN:
-      code('include '+name+'.inc')
-    elif CPP:
-      code('#include "'+name+'.h"')
+    if found == 0:
+      print "COUND NOT FIND KERNEL", name
+
+    f = open(file_name, 'r')
+    kernel_text = f.read()
+    f.close()
+
+    kernel_text = comment_remover(kernel_text)
+    kernel_text = remove_trailing_w_space(kernel_text)
+
+    p = re.compile('void\\s+\\b'+name+'\\b')
+    i = p.search(kernel_text).start()
+
+    if(i < 0):
+      print "\n********"
+      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+      exit(2)
+    i2 = i
+
+    #i = kernel_text[0:i].rfind('\n') #reverse find
+    j = kernel_text[i:].find('{')
+    k = para_parse(kernel_text, i+j, '{', '}')
+    signature_text = kernel_text[i:i+j]
+    l = signature_text[0:].find('(')
+    head_text = signature_text[0:l] #save function name
+    m = para_parse(signature_text, 0, '(', ')')
+    signature_text = signature_text[l+1:m]
+    body_text = kernel_text[i+j+1:k]
+
+    signature_text = '__device__ '+head_text + '( '+signature_text + ') {'
+    file_text += signature_text + body_text + '}\n'
 
     comm('')
     comm(' CUDA kernel function')
@@ -265,14 +353,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
           code('const int *__restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
+
+
+
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         if accs[g_m] == OP_READ:
           code('const TYP *__restrict ARG,')
         else:
           code('TYP *ARG,')
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL:
+    #for g_m in range(0,nargs):
+      elif maps[g_m] == OP_GBL:
         if accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
           code('TYP *ARG,')
         elif accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
@@ -380,12 +471,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
 
-
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+
 
 
 #
@@ -724,7 +815,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
+            #code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
+            code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(TYP*)ARG.data_d,')
@@ -828,7 +920,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 ##########################################################################
     fid = open(name+'_kernel.cu','w')
     date = datetime.datetime.now()
-    fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
+    fid.write('//\n// auto-generated by op2.py\n//\n\n')
     fid.write(file_text)
     fid.close()
 
@@ -912,7 +1004,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   master = master.split('.')[0]
   fid = open(master.split('.')[0]+'_kernels.cu','w')
-  fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
+  fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()
 

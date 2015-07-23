@@ -66,7 +66,7 @@ MPI_Comm OP_MPI_HDF5_WORLD;
 
 int compute_local_size_weight (int global_size, int mpi_comm_size, int mpi_rank )
 {
-  int *hybrid_flags = (int *)malloc(mpi_comm_size*sizeof(int));
+  int *hybrid_flags = (int *)xmalloc(mpi_comm_size*sizeof(int));
   MPI_Allgather( &OP_hybrid_gpu, 1, MPI_INT,  hybrid_flags,
       1,MPI_INT,OP_MPI_HDF5_WORLD);
   double total = 0;
@@ -246,7 +246,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
   int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
   MPI_Allgather(&l_size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
   for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
-  free(sizes);
+  op_free(sizes);
 
   count[0] = l_size; count[1] = dim;
   offset[0] = disp; offset[1] = 0;
@@ -403,7 +403,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   int* sizes = (int *)xmalloc(sizeof(int)*comm_size);
   MPI_Allgather(&(set->size), 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
   for(int i = 0; i<my_rank; i++)disp = disp + sizes[i];
-  free(sizes);
+  op_free(sizes);
 
   count[0] = set->size; count[1] = dim;
   offset[0] = disp; offset[1] = 0;
@@ -580,7 +580,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
     exit(2);
   }
 
-  free(data);
+  op_free(data);
 
   H5Pclose(plist_id);
   H5Dclose(dset_id);
@@ -709,7 +709,7 @@ void op_dump_to_hdf5(char const * file_name)
     H5Pclose(plist_id);
     H5Sclose(memspace);
     H5Sclose(dataspace);
-    free(sizes);
+    op_free(sizes);
 
     /*attach attributes to map*/
 
@@ -827,7 +827,7 @@ void op_dump_to_hdf5(char const * file_name)
     H5Pclose(plist_id);
     H5Sclose(memspace);
     H5Sclose(dataspace);
-    free(sizes);
+    op_free(sizes);
 
     /*attach attributes to dat*/
 
@@ -1195,12 +1195,12 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
       H5Sclose(memspace);
       H5Sclose(dataspace);
       H5Fclose(file_id);
-      free(sizes);
+      op_free(sizes);
 
       //free the temp op_dat used for this write
-      free(dat->data);
-      free(dat->set);
-      free(dat);
+      op_free(dat->data);
+      op_free(dat->set);
+      op_free(dat);
 
       MPI_Comm_free(&OP_MPI_HDF5_WORLD);
       return;
@@ -1276,7 +1276,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
   H5Pclose(plist_id);
   H5Sclose(memspace);
   H5Sclose(dataspace);
-  free(sizes);
+  op_free(sizes);
 
   /*attach attributes to dat*/
 
@@ -1315,9 +1315,9 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
   H5Fclose(file_id);
 
   //free the temp op_dat used for this write
-  free(dat->data);
-  free(dat->set);
-  free(dat);
+  op_free(dat->data);
+  op_free(dat->set);
+  op_free(dat);
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }

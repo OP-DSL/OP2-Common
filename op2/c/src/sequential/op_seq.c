@@ -69,7 +69,7 @@ op_decl_dat_temp_char (op_set set, int dim, char const * type, int size, char co
   char* data = NULL;
   op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
 
-  dat->data = (char*) calloc(set->size*dim*size, 1); //initialize data bits to 0
+  dat->data = (char*) op_calloc(set->size*dim*size, 1); //initialize data bits to 0
   dat-> user_managed = 0;
   return dat;
 }
@@ -88,6 +88,20 @@ void op_decl_const_char ( int dim, char const * type, int typeSize, char * data,
   (void)typeSize;
   (void)data;
   (void)name;
+}
+
+op_plan *
+op_plan_get ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds )
+{
+  return op_plan_get_stage ( name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL );
+}
+
+op_plan *
+op_plan_get_stage ( char const * name, op_set set, int part_size,
+              int nargs, op_arg * args, int ninds, int *inds, int staging )
+{
+  return op_plan_core ( name, set, part_size, nargs, args, ninds, inds, staging );
 }
 
 op_arg op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type, op_access acc )

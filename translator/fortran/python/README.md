@@ -5,6 +5,7 @@ This directory contains the OP2 code generators written in python targetting the
 ######MPI+SEQ
 * op2_gen_mpiseq.py  - generate host stubs for MPI+SEQ
 * op2_gen_mpiseq3.py - generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+op2_gen_mpivec.py - generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 ######OpenMP
 * op2_gen_openmp3.py - optimised by removing the overhead due to fortran c to f pointer setups

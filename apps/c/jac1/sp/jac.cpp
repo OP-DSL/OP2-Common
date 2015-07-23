@@ -47,15 +47,15 @@
 
 float alpha;
 
+// jac header file
+
+#include "check_result.h"
+
 //
 // OP header file
 //
 
 #include "op_seq.h"
-
-// jac header file
-
-#include "check_result.h"
 
 //
 // kernel routines for parallel loops
