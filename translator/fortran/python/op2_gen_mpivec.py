@@ -247,11 +247,11 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         j = i
     reduct = j > 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP :
         j = i
-    indirect_kernel = j > 0
+    indirect_kernel = j > -1
 
     FORTRAN = 1;
     CPP     = 0;
@@ -262,6 +262,15 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 ##########################################################################
 #  Generate Header
 ##########################################################################
+    if hydra :
+      if indirect_kernel:
+        if name <> 'ACCUMEDGES':
+          print "skipping indirect kernel :", name
+          continue
+      elif name <> 'XXX': #UPDATEK - problems with op_wirtes
+        print "skipping unspecified kernel :", name
+        continue
+
     if hydra:
       code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
     else:
@@ -322,7 +331,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           if maps[i] == OP_ID:
             para[i] = 'DIRECT'
 
-        print nargs, name, para
+
 
         code('SUBROUTINE '+name+'_vec('+kernel_text[j+1:k]+',idx)')
         depth = depth + 2
@@ -366,10 +375,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
-      print modfile
+      #print modfile
       modfile = modfile.replace('INIT_INIT','INIT')
       name2 = name.replace('INIT_INIT','INIT')
-      print modfile
+      #print modfile
       file_name = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
       if not os.path.isfile(file_name):
         file_name = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
@@ -478,9 +487,9 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 
     #vars for globals - used when called with vectorisation
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC \
+      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_WRITE\
         or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
-        code('TYP dat'+str(g_m+1)+'(SIMD_VEC*DIMS)')
+        code('TYP dat'+str(g_m+1)+'(SIMD_VEC*'+str(eval(dims[g_m]))+')')
     code('')
 #
 # kernel call for indirect version
@@ -523,7 +532,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_MAP :
           if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
             for d in range(0,int(eval(dims[g_m]))):
-              code('dat'+str(g_m+1)+'(i2,'+str(d+1)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Local('+str(d+1)+',map'+str(mapinds[g_m]+1)+'idx)')
+              code('dat'+str(g_m+1)+'(i2,'+str(d+1)+') = opDat'+\
+                str(invinds[inds[g_m]-1]+1)+'Local('+str(d+1)+',map'+str(mapinds[g_m]+1)+'idx)')
             code('')
           elif (accs[g_m] == OP_INC):
             for d in range(0,int(eval(dims[g_m]))):
@@ -544,7 +554,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_MAP:
           line = line +indent + '& dat'+str(g_m+1)+', &'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'& dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS), &'
+          if eval(dims[g_m]) == 1:
+            line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+          else:
+            line = line + indent +'& dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS), &'
       line = line + indent +'& i2)'
       code(line)
       ENDDO()
@@ -561,11 +574,14 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_INC ):
               for d in range(0,int(eval(dims[g_m]))):
-                code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = opDat'+str(invinds[inds[g_m]-1]+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) + dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
+                code('opDat'+str(invinds[inds[g_m]-1]+1)+\
+                  'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = opDat'+str(invinds[inds[g_m]-1]+1)+\
+                  'Local('+str(d+1)+',map'+str(g_m+1)+'idx) + dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
               code('')
             if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
                 for d in range(0,int(eval(dims[g_m]))):
-                  code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
+                  code('opDat'+str(invinds[inds[g_m]-1]+1)+\
+                    'Local('+str(d+1)+',map'+str(g_m+1)+'idx) = dat'+str(g_m+1)+'(i2,'+str(d+1)+')')
                 code('')
 
 
@@ -602,11 +618,15 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_ID:
           line = line + indent + '& opDat'+str(g_m+1)+'Local(1,(i1+i2-1)+1)'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'& dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS)'
+          if eval(dims[g_m]) == 1:#accs[g_m] == OP_READ:
+            line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+          elif accs[g_m] <> OP_READ:
+            line = line + indent +'& dat'+str(g_m+1)+'('+str(eval(dims[g_m]))+\
+            '*(i2-1)+1:'+str(eval(dims[g_m]))+'*(i2-1)+'+str(eval(dims[g_m]))+')'
         if g_m < nargs-1:
           line = line +', &'
         else:
-           line = line +' &'
+          line = line +' &'
       depth = depth - 2
       code(line + indent + '& )')
       depth = depth + 2
@@ -619,13 +639,15 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           if accs[g_m] == OP_INC:
             DO3('i2','1','SIMD_VEC')
             code('opDat'+str(g_m+1)+'Local(1:DIMS) = opDat'+str(g_m+1)+'Local(1:DIMS) + dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS)')
+            ENDDO()
           elif accs[g_m] == OP_MAX:
             DO3('i2','1','SIMD_VEC')
             code('opDat'+str(g_m+1)+'Local(1:DIMS) = MAX ( opDat'+str(g_m+1)+'Local(1:DIMS), dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS))')
+            ENDDO()
           elif accs[g_m] == OP_MIN:
             DO3('i2','1','SIMD_VEC')
             code('opDat'+str(g_m+1)+'Local(1:DIMS) = MIN ( opDat'+str(g_m+1)+'Local(1:DIMS), dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS))')
-          ENDDO()
+            ENDDO()
 
 
     ENDDO()# end of SIMD_VEC length strided loop
@@ -833,8 +855,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 ##########################################################################
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+      #fid = open(name+'_seqkernel.F95','w')
       fid = open(name+'_veckernel.F95','w')
     else:
+      #fid = open(name+'_seqkernel.F90','w')
       fid = open(name+'_veckernel.F90','w')
     date = datetime.datetime.now()
     fid.write('!\n! auto-generated by op2_fortran.py\n!\n\n')
