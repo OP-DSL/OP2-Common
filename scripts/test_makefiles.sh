@@ -304,7 +304,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
 
-##COMMENT1
+#COMMENT1
 ###################################################################################
 ###################################################################################
 echo " "
