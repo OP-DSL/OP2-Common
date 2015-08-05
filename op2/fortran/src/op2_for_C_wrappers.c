@@ -76,6 +76,7 @@
 #else
 #include <mpi.h>
 #include <op_mpi_core.h>
+#include <op_lib_mpi.h>
 #endif
 
 #include "../include/op2_for_C_wrappers.h"
@@ -290,7 +291,7 @@ op_arg
 op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access acc ) {
 
   int len = strlen (typ);
-  char * heapType = (char *) calloc (len, sizeof (char));
+  char * heapType = (char *) calloc (len + 1, sizeof (char));
 
   strncpy (heapType, typ, len);
 
@@ -343,11 +344,11 @@ void print_type (op_arg * arg)
 #ifdef NO_MPI
 
 int op_mpi_size () {
-  return -1;
+  return 1;
 }
 
 void op_mpi_rank (int * rank) {
-  (void) rank;
+  *rank = 0;
 }
 
 void op_barrier () {

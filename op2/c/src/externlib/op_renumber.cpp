@@ -41,6 +41,7 @@
 
 #ifdef PARMETIS_VER_4
 #include <metis.h>
+typedef idx_t idxtype;
 #endif
 
 typedef struct {
@@ -244,10 +245,10 @@ void op_renumber(op_map base) {
     int possible[] = {2,4,6,8,12,16,22,24,32,64,128,192,256,512,1024,2048,4096};
     for (int i = 0; i < 17; i++) {
       int *partvec = (int *)malloc(base->to->size * sizeof(int));
-      int nconstr = 1;
-      int edgecut;
-      int nparts = possible[i];
-      idx_t options[METIS_NOPTIONS];
+      idxtype nconstr = 1;
+      idxtype edgecut;
+      idxtype nparts = possible[i];
+      idxtype options[METIS_NOPTIONS];
       METIS_SetDefaultOptions(options);
       options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
       options[METIS_OPTION_NCUTS] = 3;
@@ -255,8 +256,8 @@ void op_renumber(op_map base) {
       options[METIS_OPTION_NUMBERING] = 0;
       options[METIS_OPTION_MINCONN] = 1;
 
-      METIS_PartGraphKway(&base->to->size, &nconstr, &row_offsets[0],
-      &col_indices[0], NULL, NULL, NULL, &nparts, NULL, NULL, options, &edgecut, partvec);
+      METIS_PartGraphKway((idxtype *) &base->to->size, &nconstr, (idxtype *) &row_offsets[0],
+			  (idxtype *) &col_indices[0], NULL, NULL, NULL, &nparts, NULL, NULL, options, &edgecut, (idxtype *) partvec);
       printf("Metis partitioning precomputed for %d partitions. Edgecut: %d\n",nparts, edgecut);
       char buffer[50];
       sprintf(buffer,"partvec%04d",possible[i]);

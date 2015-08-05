@@ -32,9 +32,8 @@
 
 #include <mpi.h>
 
-#include <op_lib_core.h>
+#include <op_lib_mpi.h>
 #include <op_util.h>
-#include <op_mpi_core.h>
 
 MPI_Comm OP_MPI_IO_WORLD;
 
@@ -79,7 +78,7 @@ void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
 {
   //create new communicator
   int my_rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
@@ -165,7 +164,7 @@ void write_file(op_dat dat, const char* file_name)
 {
   //create new communicator for output
   int rank, comm_size;
-  MPI_Comm_dup(MPI_COMM_WORLD, &OP_MPI_IO_WORLD);
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 

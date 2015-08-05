@@ -57,7 +57,7 @@ module OP2_Fortran_Declarations
 
   type, BIND(C) :: op_set_core
 
-   integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
+    integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
     integer(kind=c_int) :: size         ! number of elements in the set
     type(c_ptr)         :: name         ! set name
     integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
@@ -124,6 +124,7 @@ module OP2_Fortran_Declarations
     type(op_dat_core), pointer :: dataPtr => null()
     type(c_ptr) :: dataCptr
     integer (kind=c_int) :: status = -1
+
   end type op_dat
 
   type, BIND(C) :: op_arg
@@ -157,6 +158,50 @@ module OP2_Fortran_Declarations
   ! declaration of identity and global mapping
   type(op_map) :: OP_ID, OP_GBL
 
+  type, BIND(C) :: op_export_core
+
+    integer(kind=c_int) :: index
+    integer(kind=c_int) :: num_ifaces
+    type(c_ptr)         :: iface_list
+    type(c_ptr)         :: nprocs_per_int
+    type(c_ptr)         :: proclist_per_int
+    integer(kind=c_int) :: nprocs_send
+    type(c_ptr)         :: proclist_send
+    integer(kind=c_int) :: gbl_offset
+    type(c_ptr)         :: cellsToNodes
+    type(c_ptr)         :: coords
+    type(c_ptr)         :: mark
+
+  end type op_export_core
+
+  type :: op_export_handle
+
+    type(op_export_core), pointer :: exportPtr => null()
+    type(c_ptr)                   :: exportCptr
+    integer(kind=c_int)           :: status = -1
+
+  end type op_export_handle
+
+
+  type, BIND(C) :: op_import_core
+
+    integer(kind=c_int)  :: index
+    integer(kind=c_int)  :: nprocs
+    type(c_ptr)          :: proclist
+    integer(kind=c_int)  :: gbl_offset
+    type(c_ptr)          :: coords
+    type(c_ptr)          :: mark
+
+  end type op_import_core
+
+  type :: op_import_handle
+
+    type(op_import_core), pointer :: importPtr => null()
+    type(c_ptr)                   :: importCptr
+    integer(kind=c_int)           :: status = -1
+
+  end type op_import_handle
+
   ! Declarations of op_par_loop implemented in C
   interface
 
@@ -180,7 +225,7 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), intent(in), value :: global
       integer(kind=c_int), intent(in), value :: local
 
-    end subroutine op_init_c
+    end subroutine op_mpi_init_c
 
     subroutine op_exit_c (  ) BIND(C,name='op_exit')
 
@@ -451,6 +496,92 @@ module OP2_Fortran_Declarations
       character(kind=c_char) :: line(*)
     end subroutine op_print_c
 
+    type (c_ptr) function op_import_init_size_c (nprocs, proclist_ptr, mark) BIND(C,name='op_import_init_size')
+      use ISO_C_BINDING
+
+      import :: op_dat_core
+    
+      integer(c_int), value :: nprocs
+      type(c_ptr), value    :: proclist_ptr
+      type(op_dat_core)     :: mark
+    
+    end function op_import_init_size_c
+
+    type (c_ptr) function op_import_init_c (exp_handle, coords, mark) BIND(C,name='op_import_init')
+      use ISO_C_BINDING
+
+      import :: op_dat_core
+      import :: op_export_core
+    
+      type(op_export_core)  :: exp_handle
+      type(op_dat_core)     :: coords
+      type(op_dat_core)     :: mark
+    
+    end function op_import_init_c
+
+    type (c_ptr) function op_export_init_c (nprocs, proclist_ptr, cells2Nodes, sp_nodes, coords, mark) BIND(C,name='op_export_init')
+      use ISO_C_BINDING
+
+      import :: op_dat_core
+      import :: op_map_core
+      import :: op_set_core
+
+      integer(c_int), value :: nprocs
+      type(c_ptr), value    :: proclist_ptr
+      type(op_map_core)     :: cells2Nodes
+      type(op_set_core)     :: sp_nodes
+      type(op_dat_core)     :: coords
+      type(op_dat_core)     :: mark
+    
+    end function op_export_init_c
+
+    subroutine op_export_data_c (exp_handle, dat) BIND(C,name='op_export_data')
+      use ISO_C_BINDING
+
+      import :: op_export_core
+      import :: op_dat_core
+
+      type(op_export_core)  :: exp_handle
+      type(op_dat_core)     :: dat
+    
+    end subroutine op_export_data_c
+
+    subroutine op_import_data_c (imp_handle, dat) BIND(C,name='op_import_data')
+      use ISO_C_BINDING
+
+      import :: op_import_core
+      import :: op_dat_core
+
+      type(op_import_core)  :: imp_handle
+      type(op_dat_core)     :: dat
+    
+    end subroutine op_import_data_c
+
+    subroutine op_inc_theta_c (exp_handle, bc_id, dtheta_exp, dtheta_imp) BIND(C,name='op_inc_theta')
+      use ISO_C_BINDING
+
+      import :: op_export_core
+
+      type(op_export_core)  :: exp_handle
+      type(c_ptr), value    :: bc_id
+      type(c_ptr), value    :: dtheta_exp
+      type(c_ptr), value    :: dtheta_imp
+    
+    end subroutine op_inc_theta_c
+
+    subroutine op_theta_init_c (exp_handle, bc_id, dtheta_exp, dtheta_imp, alpha) BIND(C,name='op_theta_init')
+      use ISO_C_BINDING
+
+      import :: op_export_core
+
+      type(op_export_core)  :: exp_handle
+      type(c_ptr), value    :: bc_id
+      type(c_ptr), value    :: dtheta_exp
+      type(c_ptr), value    :: dtheta_imp
+      type(c_ptr), value    :: alpha
+    
+    end subroutine op_theta_init_c
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -464,7 +595,8 @@ module OP2_Fortran_Declarations
     module procedure op_arg_gbl_python_r8_scalar, &
        & op_arg_gbl_python_i4_scalar, op_arg_gbl_python_logical_scalar, op_arg_gbl_python_r8_1dim, &
        & op_arg_gbl_python_i4_1dim, op_arg_gbl_python_logical_1dim, op_arg_gbl_python_r8_2dim, &
-       & op_arg_gbl_python_i4_2dim, op_arg_gbl_python_logical_2dim
+       & op_arg_gbl_python_i4_2dim, op_arg_gbl_python_logical_2dim, &
+       & op_arg_gbl_python_r8_3dim
   end interface op_arg_gbl
 
   interface op_decl_const
@@ -517,7 +649,7 @@ contains
 
   end subroutine op_init
 
-    subroutine op_mpi_init ( diags, global, local )
+  subroutine op_mpi_init ( diags, global, local )
 
     ! formal parameter
     integer(4) :: diags
@@ -525,7 +657,9 @@ contains
     integer(4) :: local
 
     ! local variables
-    integer(4) :: argc = 0
+    integer(c_int) :: argc = 0
+
+    integer(4) :: rank2, ierr
 
 #ifdef OP2_WITH_CUDAFOR
     integer(4) :: setDevReturnVal = -1
@@ -535,6 +669,7 @@ contains
 
     type (op_map_core), pointer :: idPtr
     type (op_map_core), pointer :: gblPtr
+
 
     ! calling C function
     OP_ID%mapCPtr = op_decl_null_map ()
@@ -552,7 +687,7 @@ contains
 
     call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
 
-  end subroutine op_init
+  end subroutine op_mpi_init
 
 
   subroutine op_exit ( )
@@ -612,9 +747,9 @@ contains
     character(kind=c_char,len=*) :: type
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 8, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -659,9 +794,9 @@ contains
     character(kind=c_char,len=*) :: type
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 4, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -806,7 +941,7 @@ contains
 #endif
 !      op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
       print *, "Error, NULL pointer for op_dat"
-      op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
+      op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
     else
       if (dat%dataPtr%dim .ne. dim) then
         print *, "Wrong dim",dim,dat%dataPtr%dim
@@ -814,11 +949,11 @@ contains
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
-!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
+        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       else
-        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
-!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
+        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+!        op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       endif
     endif
 
@@ -849,23 +984,23 @@ contains
     if (opt) then
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       else
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       endif
     else
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type//C_NULL_CHAR, access-1 )
       else
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, type, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, type//C_NULL_CHAR, access-1 )
       endif
 !      op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1 )
     endif
 
   end function op_opt_arg_dat_python
 
-    INTEGER function op_get_size (set )
+  INTEGER function op_get_size (set )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -1006,6 +1141,34 @@ contains
     !op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_r8_2dim
+
+#ifdef __GFORTRAN__
+  function real_ptr3 ( arg ) 
+    real(8), dimension(:,:,:), target, intent(in) :: arg
+    real(8), target :: real_ptr3
+
+    real_ptr3 = arg(1, 1, 1)
+  end function
+#else
+#define real_ptr3(arg) arg
+#endif
+
+  type(op_arg) function op_arg_gbl_python_r8_3dim ( dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(:,:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_arg_gbl_python_r8_3dim = op_arg_gbl_c ( c_loc (dat(1,1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_r8_3dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
+
+  end function op_arg_gbl_python_r8_3dim
 
 #ifdef __GFORTRAN__
   function int_ptr ( arg )
@@ -1180,5 +1343,126 @@ contains
     call op_print_c (line//C_NULL_CHAR)
 
   end subroutine
+
+  subroutine op_import_init_size ( nprocs, proclist_ptr, mark, handle )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer                       :: nprocs
+    integer, dimension(:), target :: proclist_ptr
+    type(op_dat)                  :: mark
+    type(op_import_handle)        :: handle
+
+    handle%importCptr = op_import_init_size_c ( nprocs, c_loc(proclist_ptr), mark%dataPtr)
+
+    call c_f_pointer ( handle%importCPtr, handle%importPtr )
+
+  end subroutine op_import_init_size
+
+  subroutine op_import_init ( exp_handle, coords, mark, handle )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_export_handle) :: exp_handle
+    type(op_dat)           :: coords
+    type(op_dat)           :: mark
+    type(op_import_handle) :: handle
+
+    handle%importCptr = op_import_init_c ( exp_handle%exportPtr, coords%dataPtr, mark%dataPtr)
+
+    call c_f_pointer ( handle%importCPtr, handle%importPtr )
+
+  end subroutine op_import_init
+
+  subroutine op_export_init ( nprocs, proclist_ptr, cells2Nodes, sp_nodes, coords, mark, handle )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer                       :: nprocs
+    integer, dimension(:), target :: proclist_ptr
+    type(op_map)                  :: cells2Nodes
+    type(op_set)                  :: sp_nodes
+    type(op_dat)                  :: coords
+    type(op_dat)                  :: mark
+    type(op_export_handle)        :: handle
+
+    handle%exportCptr = op_export_init_c ( nprocs, c_loc(proclist_ptr), cells2Nodes%mapPtr, sp_nodes%setPtr, coords%dataPtr, mark%dataPtr)
+
+    call c_f_pointer ( handle%exportCPtr, handle%exportPtr )
+
+  end subroutine op_export_init
+
+  subroutine op_export_data ( handle, dat )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_export_handle)      :: handle
+    type(op_dat)                :: dat
+
+    ! local variables
+
+    call op_export_data_c ( handle%exportPtr, dat%dataPtr )
+
+  end subroutine op_export_data
+
+
+  subroutine op_import_data ( handle, dat )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_import_handle)      :: handle
+    type(op_dat)                :: dat
+
+    ! local variables
+
+    call op_import_data_c ( handle%importPtr, dat%dataPtr )
+
+  end subroutine op_import_data
+
+
+  subroutine op_inc_theta ( handle, bc_id, dtheta_exp, dtheta_imp )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_export_handle)             :: handle
+    integer, dimension(:), target      :: bc_id
+    real(kind=8), dimension(:), target :: dtheta_exp
+    real(kind=8), dimension(:), target :: dtheta_imp
+
+    ! local variables
+
+    call op_inc_theta_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp) )
+
+  end subroutine op_inc_theta
+
+  subroutine op_theta_init ( handle, bc_id, dtheta_exp, dtheta_imp, alpha )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_export_handle)             :: handle
+    integer, dimension(:), target      :: bc_id
+    real(kind=8), dimension(:), target :: dtheta_exp
+    real(kind=8), dimension(:), target :: dtheta_imp
+    real(kind=8), dimension(:), target :: alpha
+
+    ! local variables
+
+    call op_theta_init_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp), c_loc(alpha) )
+
+  end subroutine op_theta_init
 
 end module OP2_Fortran_Declarations

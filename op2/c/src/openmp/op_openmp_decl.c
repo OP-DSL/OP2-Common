@@ -50,6 +50,12 @@ op_init ( int argc, char ** argv, int diags )
   op_init_core ( argc, argv, diags );
 }
 
+void 
+op_mpi_init ( int argc, char ** argv, int diags, int global, int local )
+{
+  op_init_core ( argc, argv, diags );
+}
+
 op_dat
 op_decl_dat_char ( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {

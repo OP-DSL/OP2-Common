@@ -43,6 +43,11 @@ void op_init ( int argc, char ** argv, int diags )
   op_init_core ( argc, argv, diags );
 }
 
+void op_mpi_init ( int argc, char ** argv, int diags, int global, int local )
+{
+  op_init_core ( argc, argv, diags );
+}
+
 op_set op_decl_set ( int size, char const * name )
 {
   return op_decl_set_core ( size, name );
@@ -186,3 +191,54 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
 {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
+
+
+//Dummy for sequential compile
+
+typedef struct {
+} op_export_core;
+
+typedef op_export_core *op_export_handle;
+
+typedef struct {
+} op_import_core;
+
+typedef op_import_core *op_import_handle;
+
+
+op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
+
+  exit(1);
+}
+
+op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark) {
+
+  exit(1);
+}
+
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark) {
+
+  exit(1);
+}
+
+void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp, double *alpha) {
+
+  exit(1);
+}
+
+void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp) {
+
+  exit(1);
+}
+
+
+void op_export_data(op_export_handle handle, op_dat dat) {
+
+  exit(1);
+}
+
+void op_import_data(op_import_handle handle, op_dat dat) {
+
+  exit(1);
+}
+
