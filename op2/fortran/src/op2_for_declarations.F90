@@ -161,12 +161,30 @@ module OP2_Fortran_Declarations
   type, BIND(C) :: op_export_core
 
     integer(kind=c_int) :: index
+    integer(kind=c_int) :: coupling_group_size
+    type(c_ptr)         :: coupling_proclist
+
     integer(kind=c_int) :: num_ifaces
     type(c_ptr)         :: iface_list
+
     type(c_ptr)         :: nprocs_per_int
     type(c_ptr)         :: proclist_per_int
-    integer(kind=c_int) :: nprocs_send
-    type(c_ptr)         :: proclist_send
+    type(c_ptr)         :: nodelist_send_size
+    type(c_ptr)         :: nodelist_send
+
+    integer(kind=c_int) :: max_data_size
+    type(c_ptr)         :: send_buf
+    type(c_ptr)         :: requests
+    type(c_ptr)         :: statuses
+
+    type(c_ptr)         :: OP_global_buffer
+    integer(kind=c_int) :: OP_global_buffer_size
+
+    integer(kind=c_int) :: gbl_num_ifaces
+    type(c_ptr)         :: gbl_iface_list
+    type(c_ptr)         :: nprocs_per_gint
+    type(c_ptr)         :: proclist_per_gint
+
     integer(kind=c_int) :: gbl_offset
     type(c_ptr)         :: cellsToNodes
     type(c_ptr)         :: coords
@@ -191,6 +209,19 @@ module OP2_Fortran_Declarations
     integer(kind=c_int)  :: gbl_offset
     type(c_ptr)          :: coords
     type(c_ptr)          :: mark
+    integer(kind=c_int)  :: max_dat_size
+    integer(kind=c_int)  :: num_my_ifaces
+    type(c_ptr)          :: iface_list
+    type(c_ptr)          :: nprocs_per_int
+    type(c_ptr)          :: proclist_per_int
+    type(c_ptr)          :: node_size_per_int
+    type(c_ptr)          :: nodelist_per_int
+    type(c_ptr)          :: recv_buf
+    type(c_ptr)          :: recv2int
+    type(c_ptr)          :: recv2proc
+    type(c_ptr)          :: requests
+    type(c_ptr)          :: statuses
+    type(c_ptr)          :: interp_dist
 
   end type op_import_core
 
@@ -500,11 +531,11 @@ module OP2_Fortran_Declarations
       use ISO_C_BINDING
 
       import :: op_dat_core
-    
+
       integer(c_int), value :: nprocs
       type(c_ptr), value    :: proclist_ptr
       type(op_dat_core)     :: mark
-    
+
     end function op_import_init_size_c
 
     type (c_ptr) function op_import_init_c (exp_handle, coords, mark) BIND(C,name='op_import_init')
@@ -512,11 +543,11 @@ module OP2_Fortran_Declarations
 
       import :: op_dat_core
       import :: op_export_core
-    
+
       type(op_export_core)  :: exp_handle
       type(op_dat_core)     :: coords
       type(op_dat_core)     :: mark
-    
+
     end function op_import_init_c
 
     type (c_ptr) function op_export_init_c (nprocs, proclist_ptr, cells2Nodes, sp_nodes, coords, mark) BIND(C,name='op_export_init')
@@ -532,7 +563,7 @@ module OP2_Fortran_Declarations
       type(op_set_core)     :: sp_nodes
       type(op_dat_core)     :: coords
       type(op_dat_core)     :: mark
-    
+
     end function op_export_init_c
 
     subroutine op_export_data_c (exp_handle, dat) BIND(C,name='op_export_data')
@@ -543,7 +574,7 @@ module OP2_Fortran_Declarations
 
       type(op_export_core)  :: exp_handle
       type(op_dat_core)     :: dat
-    
+
     end subroutine op_export_data_c
 
     subroutine op_import_data_c (imp_handle, dat) BIND(C,name='op_import_data')
@@ -554,7 +585,7 @@ module OP2_Fortran_Declarations
 
       type(op_import_core)  :: imp_handle
       type(op_dat_core)     :: dat
-    
+
     end subroutine op_import_data_c
 
     subroutine op_inc_theta_c (exp_handle, bc_id, dtheta_exp, dtheta_imp) BIND(C,name='op_inc_theta')
@@ -566,7 +597,7 @@ module OP2_Fortran_Declarations
       type(c_ptr), value    :: bc_id
       type(c_ptr), value    :: dtheta_exp
       type(c_ptr), value    :: dtheta_imp
-    
+
     end subroutine op_inc_theta_c
 
     subroutine op_theta_init_c (exp_handle, bc_id, dtheta_exp, dtheta_imp, alpha) BIND(C,name='op_theta_init')
@@ -579,7 +610,7 @@ module OP2_Fortran_Declarations
       type(c_ptr), value    :: dtheta_exp
       type(c_ptr), value    :: dtheta_imp
       type(c_ptr), value    :: alpha
-    
+
     end subroutine op_theta_init_c
 
   end interface
@@ -1143,7 +1174,7 @@ contains
   end function op_arg_gbl_python_r8_2dim
 
 #ifdef __GFORTRAN__
-  function real_ptr3 ( arg ) 
+  function real_ptr3 ( arg )
     real(8), dimension(:,:,:), target, intent(in) :: arg
     real(8), target :: real_ptr3
 
