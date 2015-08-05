@@ -87,6 +87,42 @@ op_init ( int argc, char ** argv, int diags)
   printf ( "\n 16/48 L1/shared \n" );
 }
 
+void
+op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )
+{
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+      MPI_Init(&argc, &argv);
+  }
+
+  op_init_core ( argc, argv, diags );
+
+#if CUDART_VERSION < 3020
+#error : "must be compiled using CUDA 3.2 or later"
+#endif
+
+#ifdef CUDA_NO_SM_13_DOUBLE_INTRINSICS
+#warning : " *** no support for double precision arithmetic *** "
+#endif
+
+  cutilDeviceInit( argc, argv);
+
+//
+// The following call is only made in the C version of OP2,
+// as it causes memory trashing when called from Fortran.
+// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
+// for this file when implementing C OP2.
+//
+
+#ifdef SET_CUDA_CACHE_CONFIG
+  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
+#endif
+
+  printf ( "\n 16/48 L1/shared \n" );
+}
+
 op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
 {

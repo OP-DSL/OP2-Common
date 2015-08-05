@@ -157,34 +157,6 @@ typedef struct {
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
-/*******************************************************************************
-* Data Type to hold sliding planes info
-*******************************************************************************/
-
-
-typedef struct {
-  int index;
-  int nprocs;
-  int *proclist;
-  int nprocs_send;
-  int *proclist_send;
-  int gbl_offset;
-  op_map cellsToNodes;
-} op_export_core;
-
-typedef op_export_core *op_export_handle;
-
-typedef struct {
-  int index;
-  int nprocs;
-  int *proclist;
-  int gbl_offset;
-  op_dat coords;
-} op_import_core;
-
-typedef op_import_core *op_import_handle;
-
-
 /** external variables **/
 
 extern int OP_part_index;
@@ -198,6 +170,70 @@ extern int** export_nonexec_list_d;
 extern int** export_nonexec_list_partial_d;
 extern int** import_nonexec_list_partial_d;
 extern int *set_import_buffer_size;
+
+/*******************************************************************************
+* Data Type to hold sliding planes info
+*******************************************************************************/
+
+typedef struct {
+  int index;
+  int coupling_group_size;
+  int *coupling_proclist;
+
+  int num_ifaces;
+  int *iface_list;
+
+  int *nprocs_per_int;
+  int **proclist_per_int;
+  int **nodelist_send_size;
+  int ***nodelist_send;
+
+  int max_data_size;
+  char ***send_buf;
+  MPI_Request **requests;
+  MPI_Status **statuses;
+
+  char *OP_global_buffer;
+  int OP_global_buffer_size;
+
+  int gbl_num_ifaces ;
+  int *gbl_iface_list;
+  int *nprocs_per_gint;
+  int **proclist_per_gint;
+
+  int gbl_offset;
+  op_map cellsToNodes;
+  op_dat coords;
+  op_dat mark;
+} op_export_core;
+
+typedef op_export_core *op_export_handle;
+
+typedef struct {
+  int index;
+  int nprocs;
+  int *proclist;
+  int gbl_offset;
+  op_dat coords; 
+  op_dat mark;
+  int max_dat_size;
+  int num_my_ifaces;
+  int *iface_list;
+  int *nprocs_per_int;
+  int **proclist_per_int;
+  int *node_size_per_int;
+  int **nodelist_per_int;
+  char ***recv_buf;
+  int *recv2int;
+  int *recv2proc;
+  MPI_Request *requests;
+  MPI_Status *statuses;
+  double *interp_dist;
+
+} op_import_core;
+
+typedef op_import_core *op_import_handle;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -277,7 +313,7 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
-void op_mpi_init ( int argc, char ** argv, int diags, MPI_Comm global, MPI_Comm local );
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local );
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_device(op_set set, op_dat dat);
@@ -324,11 +360,12 @@ void op_partition_ptscotch(op_map primary_map);
 /*******************************************************************************
 * Sliding planes functionality
 *******************************************************************************/
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes);
-void op_export_data(op_export_handle handle, int ndats, op_dat* datlist);
-op_import_handle op_import_init(int nprocs, int* proclist, op_dat coords);
-void op_inc_theta(op_import_handle handle, double dtheta);
-void op_import_data(op_import_handle handle, int ndats, op_dat* datlist);
+  op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark);
+  void op_export_data(op_export_handle handle, op_dat dat);
+  op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark);
+  void op_inc_theta(op_export_handle handle, int *sp_id, double *dtheta1, double *dtheta2);
+  void op_import_data(op_import_handle handle, op_dat dat);
+  void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1, double *dtheta2, double *alpha);
 
 #ifdef __cplusplus
 }

@@ -35,7 +35,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC       := icc
-  CCFLAGS  := -O0 -g -vec-report -xAVX #-DCOMM_PERF #-DDEBUG -g
+  CCFLAGS  := -O3 -xAVX #-DCOMM_PERF #-DDEBUG -g
   CXX      := icpc
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
@@ -44,7 +44,8 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
   CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
-  CCFLAGS  := -O3
+#  CCFLAGS  := -O3
+  CCFLAGS  := -g
   CXX	   := pgCC
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC

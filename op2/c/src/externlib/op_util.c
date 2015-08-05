@@ -136,6 +136,17 @@ int binary_search(int a[], int value, int low, int high)
 {
   if (high < low)
     return -1; // not found
+  else if (high == low)
+    {
+      if (a[low] == value) return low;
+      else return -1;
+    }
+  else if (high == (low+1))
+    {
+      if (a[low] == value) return low;
+      else if (a[high] == value) return high;
+      else return -1;
+    }
 
   int mid = low + (high - low) / 2;
   if (a[mid] > value)
@@ -238,7 +249,8 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
   while (i <= j) {
     while (arr[i] < pivot)i++;
     while (arr[j] > pivot)j--;
-    if (i <= j) {
+    //    if (i <= j) {
+    if (i < j) {
       tmp = arr[i];
       arr[i] = arr[j];
       arr[j] = tmp;
@@ -249,6 +261,9 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
       memcpy(&dat[i*elem_size],(void *)&dat[j*elem_size],elem_size);
       //dat[j] = tmp_dat;
       memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);
+      i++; j--;
+    }
+    else if (i==j) {
       i++; j--;
     }
   };
@@ -276,7 +291,8 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
   while (i <= j) {
     while (arr[i] < pivot)i++;
     while (arr[j] > pivot)j--;
-    if (i <= j) {
+    //    if (i <= j) {
+    if (i < j) {
       tmp = arr[i];
       arr[i] = arr[j];
       arr[j] = tmp;
@@ -289,6 +305,10 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
       memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));
       i++; j--;
     }
+    else if (i==j) {
+      i++; j--;
+    }
+
   };
 
   // recursion

@@ -43,6 +43,14 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+//
+//MPI Communicator for halo creation and exchange
+//
+
+MPI_Comm OP_MPI_WORLD;
+MPI_Comm OP_MPI_GLOBAL;
+
+
 /*
  * Routines called by user code and kernels
  * these wrappers are used by non-CUDA versions
@@ -62,17 +70,18 @@ void op_init ( int argc, char ** argv, int diags )
   op_init_core ( argc, argv, diags );
 }
 
-void op_mpi_init ( int argc, char ** argv, int diags, MPI_Comm global, MPI_Comm local )
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )
 {
   int flag = 0;
   MPI_Initialized(&flag);
   if(!flag)
   {
-    printf("Error: MPI has to be initialized when calling op_init with communicators\n");
+    printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
     exit(-1);
   }
-  OP_MPI_WORLD = local;
-  OP_MPI_GLOBAL = global;
+  OP_MPI_WORLD = MPI_Comm_f2c(local);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
+
   op_init_core ( argc, argv, diags );
 }
 
@@ -232,6 +241,7 @@ void op_print(const char* line)
 
 void op_exit()
 {
+
   op_mpi_exit();
   op_rt_exit();
   op_exit_core();
@@ -241,6 +251,12 @@ void op_exit()
   if(!flag)
     MPI_Finalize();
 }
+
+void op_rank(int* rank)
+{
+  MPI_Comm_rank(OP_MPI_WORLD,rank);
+}
+
 
 /*
  * Wrappers of core lib
@@ -316,3 +332,27 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   free(temp->set);
   free(temp);
 }
+
+void op_debug_arg(int n, op_arg arg)
+{
+  op_dat dat;
+
+  dat = arg.dat;
+
+  int my_rank;
+  op_rank(&my_rank);
+
+  if (arg.argtype == OP_ARG_DAT) {
+    printf("NJH %i debug %s\n",my_rank,dat->name);
+    printf("NJH %i debug %p\n",my_rank,((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+
+    if (n==3 && (strcmp(dat->name,"dist")==0)) {
+      printf("NJH %i trying free here...\n",my_rank);
+      free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+      printf("NJH %i succeeded free here...\n",my_rank);
+
+    };
+
+  }
+}
+

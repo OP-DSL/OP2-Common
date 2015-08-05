@@ -108,6 +108,8 @@ void op_printf(const char* format, ...);
 
 void op_print(const char* line);
 
+  void op_rank(int* rank);
+
 void op_timers( double *cpu, double *et );
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name);

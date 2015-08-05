@@ -36,6 +36,7 @@
  */
 
 #include <sys/time.h>
+#include <string.h>
 #include "op_lib_core.h"
 #include <malloc.h>
 
@@ -537,7 +538,9 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.map_data = NULL;
   }
 
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -579,7 +582,9 @@ op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const c
     arg.map_data = (map == NULL ? NULL : map->map);
   }
 
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -602,7 +607,9 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.idx = -1;
   arg.size = dim*size;
   arg.data = data;
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
   arg.map_data_d = NULL;
   arg.map_data = NULL;
@@ -613,6 +620,10 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
 
   /*not used in global args*/
   arg.sent = 0;
+  
+
+  /* TODO: properly??*/
+  if (data==NULL) arg.opt = 0;
 
   return arg;
 }
