@@ -21,6 +21,8 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
+##<<COMMENT1
+
 echo " "
 echo " "
 echo "**********************************************************************"

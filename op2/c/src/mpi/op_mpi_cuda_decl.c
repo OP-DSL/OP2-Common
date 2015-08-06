@@ -48,6 +48,13 @@
 #include <op_lib_mpi.h>
 
 //
+//MPI Communicator for halo creation and exchange
+//
+
+MPI_Comm OP_MPI_WORLD;
+MPI_Comm OP_MPI_GLOBAL;
+
+//
 // CUDA-specific OP2 functions
 //
 
@@ -60,7 +67,8 @@ op_init ( int argc, char ** argv, int diags)
   {
       MPI_Init(&argc, &argv);
   }
-
+  OP_MPI_WORLD = MPI_COMM_WORLD;
+  OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020

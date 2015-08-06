@@ -2791,7 +2791,7 @@ void op_mpi_exit()
   for (int i = 0; i < OP_export_index; i++)
     op_free(OP_export_list[i]);
   if (OP_export_list) op_free(OP_export_list);
-  if (OP_sliding_buffer_size) op_free(OP_sliding_buffer);
+
 }
 
 int getSetSizeFromOpArg (op_arg * arg)
