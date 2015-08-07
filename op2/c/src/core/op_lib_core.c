@@ -246,7 +246,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   }
 
   //check if map points to elements within set range
-  check_map(name, from, to, dim, imap);
+//  check_map(name, from, to, dim, imap);
 
   /*This check breaks for MPI - check_map() above does the required check now */
   /*for ( int d = 0; d < dim; d++ )
