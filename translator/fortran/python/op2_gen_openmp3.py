@@ -286,6 +286,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
         text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
 
       file_text += text
+      #code(kernels[nk]['mod_file'])
     elif bookleaf:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file']
@@ -298,8 +299,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       comm('user function')
       code('#include "'+name+'.inc"')
       code('')
-      file_text += text
-      #code(kernels[nk]['mod_file'])
+
+
     code('')
 
 ##########################################################################

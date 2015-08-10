@@ -169,7 +169,7 @@ SUBROUTINE update_host( userSubroutine, set, &
 
     dataTransfer = 0.0
     dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
-    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2) * 2.d0
+    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
     dataTransfer = dataTransfer + opArg3%size * getSetSizeFromOpArg(opArg3) * 2.d0
     dataTransfer = dataTransfer + opArg4%size * getSetSizeFromOpArg(opArg4)
     dataTransfer = dataTransfer + opArg5%size * 2.d0

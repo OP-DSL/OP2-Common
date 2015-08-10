@@ -119,7 +119,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
     dataTransfer = 0.0
     dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
-    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2) * 2.d0
+    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
     returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
     & endTime-startTime, dataTransfer, 0.00000, 1)
   END SUBROUTINE
