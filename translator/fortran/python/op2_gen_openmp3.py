@@ -252,10 +252,15 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('CONTAINS')
     code('')
     if hydra:
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      modfile = modfile.replace('INIT_INIT','INIT')
+      name2 = name.replace('INIT_INIT','INIT')
+      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
       if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      if not os.path.isfile(filename):
+        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2[:-1] + '.F95'
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
@@ -263,8 +268,6 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
-      text = text.replace('subroutine '+name, 'subroutine '+name)
-      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name +'\n'
 
       #
       # substitute npdes with DNPDE
@@ -280,8 +283,10 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
         j = j + i.start()+5
         i = re.search('\\bnpdes\\b',text[j:])
         j = j + i.start()+5
-        text = text[1:j] + re.sub('\\bnpdes\\b','DNPDE',text[j:])
-    if bookleaf:
+        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
+
+      file_text += text
+    elif bookleaf:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file']
       fid = open(modfile, 'r')
@@ -689,7 +694,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 ##########################################################################
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_kernel.F95','w')
+      fid = open(name+'_ompkernel.F95','w')
     elif bookleaf:
       fid = open(name+'_kernel.f90','w')
     else:

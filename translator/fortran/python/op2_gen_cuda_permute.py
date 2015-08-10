@@ -601,7 +601,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         j = j + i.start()+5
         i = re.search('\\bnpdes\\b',text[j:])
         j = j + i.start()+5
-        text = text[1:j] + re.sub('\\bnpdes\\b','DNPDE',text[j:])
+        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
 
       file_text += text
     elif bookleaf:
@@ -1572,7 +1572,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
       code('& bottom,top)')
-  
+
       for g_m in range(0,ninds):
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
       for g_m in range(0,nargs):
@@ -1587,7 +1587,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             k = k + [mapnames[g_m]]
             code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
             code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
-  
+
       code('INTEGER(kind=4) bottom,top,i1')
       if nmaps > 0:
         k = []
@@ -1621,11 +1621,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       depth = depth - 2
       code(line + indent + '& )')
       depth = depth + 2
-  
+
       ENDDO()
       depth = depth - 2
       code('END SUBROUTINE')
-  
+
 ############################################################################
 ###  Generate OpenMP host stub
 ############################################################################
@@ -1635,7 +1635,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           code('& opArg'+str(g_m+1)+' )')
         else:
           code('& opArg'+str(g_m+1)+', &')
-  
+
       code('END SUBROUTINE')
     code('END MODULE')
 ##########################################################################
@@ -1643,7 +1643,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_kernel.CUF','w')
+      fid = open(name+'_gpukernel.CUF','w')
     elif bookleaf:
       fid = open(name+'_gpukernel.CUF','w')
     else:

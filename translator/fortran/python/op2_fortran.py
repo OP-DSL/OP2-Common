@@ -190,7 +190,7 @@ def get_arg_dat(arg_string, j):
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
-
+  dat_args_string = dat_args_string.replace('&','')
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 6:
     print 'Error parsing op_arg_dat(%s): must have six arguments' \
@@ -210,6 +210,12 @@ def get_arg_dat(arg_string, j):
 
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+  if 'npdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+  if 'nfcrow' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+  if 'ntqmu' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
   if temp_dat['dim']=='njaca':
     temp_dat['dim']='1*1'
   if 'mpdes' in temp_dat['dim']:
@@ -232,6 +238,7 @@ def get_opt_arg_dat(arg_string, j):
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
+  dat_args_string = dat_args_string.replace('&','')
 
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 7:
@@ -252,6 +259,12 @@ def get_opt_arg_dat(arg_string, j):
 
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+  if 'npdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+  if 'ntqmu' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+  if 'nfcrow' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
   if temp_dat['dim']=='njaca':
     temp_dat['dim']='1*1'
   if temp_dat['dim']=='njacs':
@@ -275,6 +288,7 @@ def get_arg_gbl(arg_string, k):
 
   #remove comments
   gbl_args_string = comment_remover(gbl_args_string)
+  gbl_args_string = gbl_args_string.replace('&','')
 
   #check for syntax errors
   if len(gbl_args_string.split(',')) != 4:
@@ -293,6 +307,14 @@ def get_arg_gbl(arg_string, k):
 
   if 'DNPDE' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+  if 'nfcrow' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+  if 'npdes' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+  if 'ntqmu' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+  if 'maxzone' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
   if 'mpdes' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_gbl['dim']:
@@ -507,7 +529,7 @@ for a in range(init_ctr,len(sys.argv)):
 
         dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
-        if auto_soa and ((not dims[m].isdigit()) or int(dims[m])>1) and soa_loc < 0:
+        if ((auto_soa==1) and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
           soa_loc = len(args['typ'])-1
 
         if soa_loc > 0:
@@ -885,17 +907,17 @@ if npart==0 and nhdf5>0:
 
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
+op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 
 #CUDA
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra) # permute does a different coloring (permute execution within blocks by color)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
+op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
