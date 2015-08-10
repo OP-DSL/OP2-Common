@@ -21,7 +21,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-##<<COMMENT1
+#<<COMMENT1
 
 echo " "
 echo " "
@@ -233,6 +233,7 @@ export OMP_NUM_THREADS=20
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
 ##COMMENT1
+
 ################################################################################
 ################################################################################
 echo " "
