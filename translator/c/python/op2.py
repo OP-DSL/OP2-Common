@@ -297,6 +297,7 @@ def main():
         src_file = str(sys.argv[a])
         f = open(src_file, 'r')
         text = f.read()
+        any_soa = 0
 
         # check for op_init/op_exit/op_partition/op_hdf5 calls
 
@@ -398,6 +399,7 @@ def main():
 
                     if soa_loc > 0:
                         soaflags[m] = 1
+                        any_soa = 1
                         typs[m] = args['typ'][1:soa_loc]
                     else:
                         typs[m] = args['typ'][1:-1]
@@ -624,10 +626,11 @@ def main():
 
             if (locs[loc] in loc_header) and (locs[loc] != -1):
                 fid.write(' "op_lib_cpp.h"\n\n')
-                line = '\n#define STRIDE(x,y) x\n'
-                for ns in range (0,len(sets)):
-                  line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
-                fid.write(line)
+                if any_soa:
+                  line = '\n#define STRIDE(x,y) x\n'
+                  for ns in range (0,len(sets)):
+                    line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
+                  fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
@@ -722,7 +725,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

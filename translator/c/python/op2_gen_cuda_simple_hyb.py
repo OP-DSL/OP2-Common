@@ -61,7 +61,7 @@ def FOR_INC(i,start,finish,inc):
   if FORTRAN:
     code('do '+i+' = '+start+', '+finish+'-1')
   elif CPP:
-    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+' = '+i+'+='+inc+' ){')
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'+='+inc+' ){')
   depth += 2
 
 def ENDFOR():
