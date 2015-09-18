@@ -1524,6 +1524,9 @@ void op_halo_permap_create() {
   }
 
   set_import_buffer_size = (int *)xcalloc(OP_set_index, sizeof(int));
+  for (int i = 0; i < OP_set_index; i++)
+    set_import_buffer_size[i] = 0;
+  
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_partial_exchange[i]) continue;
     op_map map = OP_map_list[i];
