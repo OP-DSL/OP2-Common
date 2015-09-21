@@ -98,6 +98,7 @@ extern int OP_hybrid_gpu;
 #define OP_STAGE_INC 1
 #define OP_STAGE_ALL 2
 #define OP_STAGE_PERMUTE 3
+#define OP_COLOR2 4
 
 typedef int op_access; //holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
 typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT

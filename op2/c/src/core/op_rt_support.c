@@ -75,6 +75,11 @@ op_rt_exit (  )
     free ( OP_plans[ip].loc_maps );
     free ( OP_plans[ip].ncolblk );
     free ( OP_plans[ip].nsharedCol);
+    op_free(OP_plans[ip].col_reord);
+    if (OP_plans[ip].col_offsets != NULL) {
+      op_free(OP_plans[ip].col_offsets[0]);
+      op_free(OP_plans[ip].col_offsets);
+    }
   }
 
   OP_plan_index = 0;
@@ -388,6 +393,17 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   op_timers_core(&cpu_t1, &wall_t1);
   /* work out worst case shared memory requirement per element */
 
+
+  int halo_exchange = 0;
+  for(int i = 0; i< nargs; i++)
+  {
+    if(args[i].opt && args[i].idx != -1 && args[i].acc != OP_WRITE && args[i].acc != OP_INC  )
+    {
+      halo_exchange = 1;
+      break;
+    }
+  }
+
   int maxbytes = 0;
   for ( int m = 0; m < nargs; m++ )
   {
@@ -406,6 +422,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   else if (bsize == 0 && maxbytes == 0)
     bsize = 256;
 
+  //If we do 1 level of coloring, do it in one go
+  if (staging == OP_COLOR2) bsize = exec_length;
+  
   int nblocks = 0;
 
   int indirect_reduce = 0;
@@ -458,6 +477,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     }
     nblocks++;
   }
+  
+  //If we do 1 level of coloring, we have a single "block"
+  if (staging == OP_COLOR2) {nblocks = 1; prev_offset = 0; next_offset = exec_length;};
 
   /* enlarge OP_plans array if needed */
 
@@ -484,7 +506,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   OP_plans[ip].nthrcol = ( int * ) op_malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].thrcol = ( int * ) op_malloc ( exec_length * sizeof ( int ) );
-  OP_plans[ip].col_reord = ( int * ) op_malloc ( exec_length * sizeof ( int ) );
+  OP_plans[ip].col_reord = ( int * ) op_malloc ( (exec_length+16) * sizeof ( int ) );
+  OP_plans[ip].col_offsets = NULL;
   OP_plans[ip].offset = ( int * ) op_malloc ( nblocks * sizeof ( int ) );
   OP_plans[ip].ind_maps = ( int ** ) op_malloc ( ninds_staged * sizeof ( int * ) );
   OP_plans[ip].ind_offs = ( int * ) op_malloc ( nblocks * ninds_staged * sizeof ( int ) );
@@ -601,6 +624,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
     } else {
       next_offset = prev_offset + bsize;
     }
+    
+    if (staging == OP_COLOR2) {prev_offset = 0; next_offset = exec_length;};
     int bs = next_offset-prev_offset;
 
     offset[b] = prev_offset;  /* offset for block */
@@ -711,6 +736,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
         if ( OP_plans[ip].thrcol[e] == -1 )
         {
           int mask = 0;
+          if (staging==OP_COLOR2 && halo_exchange && e >= set->core_size && ncolor==0) mask = 1;
           for ( int m = 0; m < nargs; m++ )
             if ( inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) && args[m].opt )
               mask |= work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]]; /* set bits of mask */
@@ -743,20 +769,39 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   }
 
   /* create element permutation by color */
-  if (staging == OP_STAGE_PERMUTE) {
-    printf("Creating permuation for %s\n", name);
+  if (staging == OP_STAGE_PERMUTE || staging == OP_COLOR2 ) {
+    int size_of_col_offsets = 0;
+    for (int b = 0; b < nblocks; b++) {
+      size_of_col_offsets += OP_plans[ip].nthrcol[b]+1;
+    }
+    //allocate
+    OP_plans[ip].col_offsets = (int **)op_malloc(nblocks*sizeof(int*));
+    int *col_offsets = (int *)op_malloc(size_of_col_offsets*sizeof(int*));
+    
+    size_of_col_offsets = 0;
     op_keyvalue *kv = (op_keyvalue *)op_malloc(bsize * sizeof(op_keyvalue));
     for (int b = 0; b < nblocks; b++) {
+      int ncolor = OP_plans[ip].nthrcol[b];
       for (int e = 0; e < nelems[b]; e++) {
         kv[e].key = OP_plans[ip].thrcol[offset[b]+e];
         kv[e].value = e;
       }
       qsort ( kv, nelems[b], sizeof ( op_keyvalue ), comp2 );
+      OP_plans[ip].col_offsets[b] = col_offsets+size_of_col_offsets;
+      OP_plans[ip].col_offsets[b][0] = 0;
+      size_of_col_offsets+=(ncolor+1);
+      
+      //Set up permutation and pointers to beginning of each color
+      ncolor = 0;
       for (int e = 0; e < nelems[b]; e++) {
         OP_plans[ip].thrcol[offset[b]+e] = kv[e].key;
         OP_plans[ip].col_reord[offset[b]+e] = kv[e].value;
+        if (e > 0)
+          if (kv[e].key > kv[e-1].key) {ncolor++; OP_plans[ip].col_offsets[b][ncolor]=e;}
       }
+      OP_plans[ip].col_offsets[b][ncolor+1] = nelems[b];
     }
+    for (int i = exec_length; i < exec_length+16; i++) OP_plans[ip].col_reord[i] = 0;
   }
 
   /* color the blocks, after initialising colors to 0 */
@@ -846,6 +891,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   if (indirect_reduce && OP_plans[ip].ncolors_owned == 0) OP_plans[ip].ncolors_owned = ncolors; //no MPI, so get the reduction arrays after everyting is done
   OP_plans[ip].ncolors = ncolors;
+  if (staging==OP_COLOR2) OP_plans[ip].ncolors = OP_plans[ip].nthrcol[0];
 
   /*for(int col = 0; col = OP_plans[ip].ncolors;col++) //should initialize to zero because op_calloc returns garbage!!
     {
@@ -926,84 +972,86 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].transfer2 = 0;
   float transfer3 = 0;
 
-  for ( int b = 0; b < nblocks; b++ )
-  {
-    for ( int m = 0; m < nargs; m++ ) //for each argument
+  if (staging != OP_COLOR2) {
+    for ( int b = 0; b < nblocks; b++ )
     {
-      if (args[m].opt) {
-        if ( inds[m] < 0 ) //if it is directly addressed
-        {
-          float fac = 2.0f;
-          if ( accs[m] == OP_READ ) //if you only read it - only write???
-            fac = 1.0f;
-          if ( dats[m] != NULL )
+      for ( int m = 0; m < nargs; m++ ) //for each argument
+      {
+        if (args[m].opt) {
+          if ( inds[m] < 0 ) //if it is directly addressed
           {
-            OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
-            OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
-            transfer3 += fac * nelems[b] * dats[m]->size;
+            float fac = 2.0f;
+            if ( accs[m] == OP_READ ) //if you only read it - only write???
+              fac = 1.0f;
+            if ( dats[m] != NULL )
+            {
+              OP_plans[ip].transfer += fac * nelems[b] * dats[m]->size; //cost of reading it all
+              OP_plans[ip].transfer2 += fac * nelems[b] * dats[m]->size;
+              transfer3 += fac * nelems[b] * dats[m]->size;
+            }
+          }
+          else //if it is indirectly addressed: cost of reading the pointer to it
+          {
+            OP_plans[ip].transfer += nelems[b] * sizeof ( short );
+            OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
+            transfer3 += nelems[b] * sizeof ( short );
           }
         }
-        else //if it is indirectly addressed: cost of reading the pointer to it
+      }
+      for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
+      {
+        int m2 = 0;
+        while ( inds[m2] != m ) //find the first argument that uses this mapping
+          m2++;
+        if ( args[m2].opt == 0 ) continue;
+        float fac = 2.0f;
+        if ( accs[m2] == OP_READ ) //only read it (write??)
+          fac = 1.0f;
+        OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size; //simply read all data one by one
+  
+        /* work out how many cache lines are used by indirect addressing */
+  
+        int i_map, l_new, l_old;
+        int e0 = ind_offs[m + b * ninds]; //where it starts
+        int e1 = e0 + ind_sizes[m + b * ninds]; //where it ends
+  
+        l_old = -1;
+  
+        for ( int e = e0; e < e1; e++ ) //iterate through every indirectly accessed data element
         {
-          OP_plans[ip].transfer += nelems[b] * sizeof ( short );
-          OP_plans[ip].transfer2 += nelems[b] * sizeof ( short );
-          transfer3 += nelems[b] * sizeof ( short );
+          i_map = ind_maps[m][e]; //the pointer to the data element
+          l_new = ( i_map * dats[m2]->size ) / OP_cache_line_size; //which cache line it is on (full size, dim*sizeof(type))
+          if ( l_new > l_old ) //if it is on a further cache line (that is not yet loaded, - i_map is ordered)
+            OP_plans[ip].transfer2 += fac * OP_cache_line_size; //load the cache line
+          l_old = l_new;
+          l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / OP_cache_line_size; //the last byte of the data
+          OP_plans[ip].transfer2 += fac * ( l_new - l_old ) * OP_cache_line_size; //again, if not loaded, load it (can be multiple cache lines)
+          l_old = l_new;
         }
-      }
-    }
-    for ( int m = 0; m < ninds; m++ ) //for each indirect mapping
-    {
-      int m2 = 0;
-      while ( inds[m2] != m ) //find the first argument that uses this mapping
-        m2++;
-      if ( args[m2].opt == 0 ) continue;
-      float fac = 2.0f;
-      if ( accs[m2] == OP_READ ) //only read it (write??)
+  
+        l_old = -1;
+  
+        for ( int e = e0; e < e1; e++ )
+        {
+          i_map = ind_maps[m][e]; //pointer to the data element
+          l_new = ( i_map * dats[m2]->size ) / ( dats[m2]->dim * OP_cache_line_size ); //which cache line the first dimension of the data is on
+          if ( l_new > l_old )
+            transfer3 += fac * dats[m2]->dim * OP_cache_line_size; //if not loaded yet, load all cache lines
+          l_old = l_new;
+          l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / ( dats[m2]->dim * OP_cache_line_size ); //primitve type's last byte
+          transfer3 += fac * ( l_new - l_old ) * dats[m2]->dim * OP_cache_line_size; //load it
+          l_old = l_new;
+        }
+  
+        /* also include mappings to load/store data */
+  
         fac = 1.0f;
-      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size; //simply read all data one by one
-
-      /* work out how many cache lines are used by indirect addressing */
-
-      int i_map, l_new, l_old;
-      int e0 = ind_offs[m + b * ninds]; //where it starts
-      int e1 = e0 + ind_sizes[m + b * ninds]; //where it ends
-
-      l_old = -1;
-
-      for ( int e = e0; e < e1; e++ ) //iterate through every indirectly accessed data element
-      {
-        i_map = ind_maps[m][e]; //the pointer to the data element
-        l_new = ( i_map * dats[m2]->size ) / OP_cache_line_size; //which cache line it is on (full size, dim*sizeof(type))
-        if ( l_new > l_old ) //if it is on a further cache line (that is not yet loaded, - i_map is ordered)
-          OP_plans[ip].transfer2 += fac * OP_cache_line_size; //load the cache line
-        l_old = l_new;
-        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / OP_cache_line_size; //the last byte of the data
-        OP_plans[ip].transfer2 += fac * ( l_new - l_old ) * OP_cache_line_size; //again, if not loaded, load it (can be multiple cache lines)
-        l_old = l_new;
+        if ( accs[m2] == OP_RW )
+          fac = 2.0f;
+        OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * sizeof ( int );
+        OP_plans[ip].transfer2 += fac * ind_sizes[m + b * ninds] * sizeof ( int );
+        transfer3 += fac * ind_sizes[m + b * ninds] * sizeof ( int );
       }
-
-      l_old = -1;
-
-      for ( int e = e0; e < e1; e++ )
-      {
-        i_map = ind_maps[m][e]; //pointer to the data element
-        l_new = ( i_map * dats[m2]->size ) / ( dats[m2]->dim * OP_cache_line_size ); //which cache line the first dimension of the data is on
-        if ( l_new > l_old )
-          transfer3 += fac * dats[m2]->dim * OP_cache_line_size; //if not loaded yet, load all cache lines
-        l_old = l_new;
-        l_new = ( ( i_map + 1 ) * dats[m2]->size - 1 ) / ( dats[m2]->dim * OP_cache_line_size ); //primitve type's last byte
-        transfer3 += fac * ( l_new - l_old ) * dats[m2]->dim * OP_cache_line_size; //load it
-        l_old = l_new;
-      }
-
-      /* also include mappings to load/store data */
-
-      fac = 1.0f;
-      if ( accs[m2] == OP_RW )
-        fac = 2.0f;
-      OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * sizeof ( int );
-      OP_plans[ip].transfer2 += fac * ind_sizes[m + b * ninds] * sizeof ( int );
-      transfer3 += fac * ind_sizes[m + b * ninds] * sizeof ( int );
     }
   }
 

@@ -151,7 +151,7 @@ void cutilDeviceInit( int argc, char ** argv )
 
 
 void op_upload_dat(op_dat dat) {
-  printf("Uploading %s\n", dat->name);
+//  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {
@@ -172,7 +172,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
-  printf("Downloading %s\n", dat->name);
+//  printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL) {

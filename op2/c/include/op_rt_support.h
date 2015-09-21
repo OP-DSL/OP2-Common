@@ -57,6 +57,7 @@ typedef struct {
   int        *nthrcol;    /* number of thread colors for each block */
   int        *thrcol;     /* thread colors */
   int        *col_reord;  /* permutation of elements by block color */
+  int       **col_offsets; /* offsets to beginning of colors for each block */
   int        *offset;     /* offset for primary set */
   int        *offset_d;   /* offset for primary set on the GPU (Fortran)*/
   int        *ind_map;    /* concatenated pointers for indirect datasets */
