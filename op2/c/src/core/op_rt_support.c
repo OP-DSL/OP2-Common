@@ -1087,7 +1087,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   free ( blk_col );
   free(inds_to_inds_staged);
   free(invinds_staged);
-
   op_timers_core(&cpu_t2, &wall_t2);
   for (int i = 0; i < OP_kern_max; i++) {
     if (strcmp(name, OP_kernels[i].name)==0) {

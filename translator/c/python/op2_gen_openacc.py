@@ -286,6 +286,8 @@ def op2_gen_openacc(master, date, consts, kernels):
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
     code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
+    code('OP_kernels[' +str(nk)+ '].name      = name;')
+    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('')
 
 #
@@ -514,8 +516,6 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
@@ -565,6 +565,8 @@ def op2_gen_openacc(master, date, consts, kernels):
 
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
 
+  code('void op_decl_const_char(int dim, char const *type,')
+  code('int size, char *dat, char const *name){}')
   if any_soa:
     code('')
     code('extern int op2_stride;')
