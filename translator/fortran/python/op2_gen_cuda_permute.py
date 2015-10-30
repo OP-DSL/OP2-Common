@@ -607,9 +607,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     elif bookleaf:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file']
-      fid = open(modfile, 'r')
+      prefixes=['./','ale/','utils/','io/','eos/','hydro/','mods/']
+      prefix_i=0
+      while (prefix_i<7 and (not os.path.exists(prefixes[prefix_i]+modfile))):
+        prefix_i=prefix_i+1
+      fid = open(prefixes[prefix_i]+modfile, 'r')
       text = fid.read()
-      i = text.find('SUBROUTINE '+name)
+      i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       file_text += 'attributes (host) subroutine ' + name + '' + text[i+ 11 + len(name):j]+'\n\n'
       kern_text = 'attributes (device) subroutine ' + name + '_gpu' + text[i+ 11 + len(name):j]+'_gpu\n\n'
@@ -1240,6 +1244,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('INTEGER(kind=4) :: blockSize')
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: i2')
+      code('INTEGER(kind=4) :: i10')
       code('INTEGER(kind=4), SAVE :: calledTimes')
       code('')
 
@@ -1370,6 +1375,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         code('allocate(opGblDat'+str(g_m+1)+'Device'+name+'(opArg'+str(g_m+1)+'%dim))')
         ENDIF()
         code('opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim) = opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim)')
+    if ninds>0 and reduct:
+      code('blocksPerGrid=0')
+      DO('i2','0','actualPlan_'+name+'%ncolors')
+      code('blocksPerGrid = blocksPerGrid+ncolblk(i2+1)')
+      ENDDO()
 
     #setup for reduction
     for g_m in range(0,nargs):
@@ -1645,7 +1655,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_gpukernel.CUF','w')
     elif bookleaf:
-      fid = open(name+'_gpukernel.CUF','w')
+      fid = open(prefixes[prefix_i]+name+'_gpukernel.CUF','w')
     else:
       fid = open(name+'_kernel.CUF','w')
     date = datetime.datetime.now()

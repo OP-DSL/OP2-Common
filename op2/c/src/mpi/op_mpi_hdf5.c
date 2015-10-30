@@ -263,7 +263,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char 
 
   //initialize data buffer and read data
   int* map = 0;
-  if(strcmp(typ,"int") == 0) {
+  if(strcmp(typ,"int") == 0 || strcmp(typ,"integer(4)") == 0) {
     map = (int *)xmalloc(sizeof(int)*l_size*dim);
     H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map);
   }

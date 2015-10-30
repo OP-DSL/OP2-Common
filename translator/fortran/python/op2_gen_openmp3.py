@@ -290,9 +290,13 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     elif bookleaf:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file']
-      fid = open(modfile, 'r')
+      prefixes=['./','ale/','utils/','io/','eos/','hydro/','mods/']
+      prefix_i=0
+      while (prefix_i<7 and (not os.path.exists(prefixes[prefix_i]+modfile))):
+        prefix_i=prefix_i+1
+      fid = open(prefixes[prefix_i]+modfile, 'r')
       text = fid.read()
-      i = text.find('SUBROUTINE '+name)
+      i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       file_text += text[i:j]+'\n\n'
     else:
@@ -697,7 +701,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_ompkernel.F95','w')
     elif bookleaf:
-      fid = open(name+'_kernel.f90','w')
+      fid = open(prefixes[prefix_i]+name+'_kernel.f90','w')
     else:
       fid = open(name+'_kernel.F90','w')
     date = datetime.datetime.now()
