@@ -4,6 +4,11 @@
 # CUDA_INSTALL_PATH - CUDA base directory
 # OP2_COMPILER      - Compiler toolchain: gnu (gcc, gfortran) or pgi (icc, pgfortran)
 # OP2_INSTALL_PATH  - OP2 base directory
+# PARMETIS_INSTALL_PATH
+# PTSCOTCH_INSTALL_PATH
+# HDF5_INSTALL_PATH
+# MPI_INSTALL_PATH
+#
 #
 # Note: the CUDA library can only be built with the PGI toolchain
 OP2 = $(OP2_INSTALL_PATH)

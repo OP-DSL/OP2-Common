@@ -529,7 +529,7 @@ for a in range(init_ctr,len(sys.argv)):
 
         dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
-        if ((auto_soa==1) and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
+        if ((auto_soa=='1') and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
           soa_loc = len(args['typ'])-1
 
         if soa_loc > 0:
@@ -580,7 +580,6 @@ for a in range(init_ctr,len(sys.argv)):
          print 'invalid access type for argument '+str(m)
 
     print ' '
-
 #
 # identify indirect datasets
 #

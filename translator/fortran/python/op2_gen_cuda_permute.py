@@ -494,14 +494,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         file_text += text
       code('')
       code('')
-      i = text.find('const2.inc')
+      i = text.find('use HYDRA_CONST_MODULE')
       if i > -1:
         fi2 = open("hydra_constants_list.txt","r")
         for line in fi2:
           fstr = '\\b'+line[:-1]+'\\b'
           rstr = line[:-1]+'_OP2CONSTANT'
           text = re.sub(fstr,rstr,text)
-      text = text.replace('#include "const2.inc"','!#include "const2.inc"')
       text = text.replace('attributes(host) subroutine','attributes(device) subroutine')
       text = text.replace('subroutine '+name, 'subroutine '+name+'_gpu')
       text = text.replace('use BCS_KERNELS', '!use BCS_KERNELS')
@@ -1292,7 +1291,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
 
     code('call op_timers_core(startTime)')
     code('')
@@ -1548,7 +1547,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     if ninds > 0:
       code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
 
     code('calledTimes = calledTimes + 1')
     depth = depth - 2

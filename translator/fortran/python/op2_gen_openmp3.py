@@ -472,7 +472,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
 
     code('call op_timers_core(startTime)')
     code('')
@@ -687,7 +687,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     if ninds > 0:
       code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
     else:
-      code('& endTime-startTime, dataTransfer, 0.00000, 1)')
+      code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
 
     depth = depth - 2
     code('END SUBROUTINE')
