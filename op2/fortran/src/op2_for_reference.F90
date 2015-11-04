@@ -78,10 +78,7 @@ end interface
 #define OP_LOOP2(N) subroutine op_par_loop_##N(kernel, set, &@\
    ARG_LIST(N) \
 ) @\
-interface @\
-   subroutine kernel () BIND(C) @\
-   end subroutine kernel @\
-end interface @\
+   external kernel @\
    type(op_set) :: set @\
    ARG_NOCORE_LIST(N) @\
    call op_par_loop_##N##_f(kernel, set%setPtr, &@\
