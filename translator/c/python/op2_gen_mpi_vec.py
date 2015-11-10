@@ -497,9 +497,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -541,6 +541,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)],'
+        elif maps[g_m] == OP_GBL:
+          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data,'
         else:
           line = line + indent + 'dat'+str(g_m)+','
       line = line +indent +'i);'
@@ -632,9 +634,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')

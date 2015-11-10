@@ -264,10 +264,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 ##########################################################################
     if hydra :
       if indirect_kernel:
-        if name <> 'ACCUMEDGES':
+        if name <> 'VFLUX_EDGEF': #'ACCUMEDGES':
           print "skipping indirect kernel :", name
           continue
-      elif name <> 'XXX': #UPDATEK - problems with op_wirtes
+      elif name <> 'xxxx': #UPDATEK - problems with op_wirtes, SRCSA_NODE
         print "skipping unspecified kernel :", name
         continue
 
@@ -340,11 +340,11 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP:
             if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-              code('TYP, DIMENSION(SIMD_VEC,DIMS) :: '+para[g_m])
+              code('TYP, DIMENSION(SIMD_VEC,(DIMS)) :: '+para[g_m])
             if (accs[g_m] == OP_READ):
-              code('TYP, DIMENSION(SIMD_VEC,DIMS), INTENT(IN) :: '+para[g_m])
+              code('TYP, DIMENSION(SIMD_VEC,(DIMS)), INTENT(IN) :: '+para[g_m])
           elif maps[g_m] == OP_GBL:
-              code('TYP DIMENSION(DIMS) :: '+para[g_m])
+              code('TYP DIMENSION((DIMS)) :: '+para[g_m])
         code('INTEGER(4) :: idx')
 
         #locate and remove non-indirection parameters and global parameters
@@ -428,11 +428,11 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP:
             if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-              code('TYP, DIMENSION(SIMD_VEC,DIMS) :: '+para[g_m])
+              code('TYP, DIMENSION(SIMD_VEC,(DIMS)) :: '+para[g_m])
             if (accs[g_m] == OP_READ):
-              code('TYP, DIMENSION(SIMD_VEC,DIMS), INTENT(IN) :: '+para[g_m])
+              code('TYP, DIMENSION(SIMD_VEC,(DIMS)), INTENT(IN) :: '+para[g_m])
           elif maps[g_m] == OP_GBL:
-              code('TYP DIMENSION(DIMS) :: '+para[g_m])
+              code('TYP DIMENSION((DIMS)) :: '+para[g_m])
         code('INTEGER(4) :: idx')
 
 
@@ -500,10 +500,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
           or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE \
           or accs[g_m] == OP_INC):
-          code('TYP dat'+str(g_m+1)+'(SIMD_VEC,DIMS)')
+          code('TYP dat'+str(g_m+1)+'(SIMD_VEC,(DIMS))')
         elif maps[g_m] == OP_GBL and (accs[g_m] == OP_INC \
           or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
-          code('TYP dat'+str(g_m+1)+'(SIMD_VEC*DIMS)')
+          code('TYP dat'+str(g_m+1)+'(SIMD_VEC*(DIMS))')
 
       code('')
       for g_m in range(0,nargs):
@@ -557,7 +557,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           if eval(dims[g_m]) == 1:
             line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
           else:
-            line = line + indent +'& dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS), &'
+            line = line + indent +'& dat'+str(g_m+1)+'((DIMS)*(i2-1)+1:(DIMS)*(i2-1)+(DIMS)), &'
       line = line + indent +'& i2)'
       code(line)
       ENDDO()
@@ -638,15 +638,15 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
             DO3('i2','1','SIMD_VEC')
-            code('opDat'+str(g_m+1)+'Local(1:DIMS) = opDat'+str(g_m+1)+'Local(1:DIMS) + dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS)')
+            code('opDat'+str(g_m+1)+'Local(1:(DIMS)) = opDat'+str(g_m+1)+'Local(1:(DIMS)) + dat'+str(g_m+1)+'((DIMS)*(i2-1)+1:(DIMS)*(i2-1)+(DIMS))')
             ENDDO()
           elif accs[g_m] == OP_MAX:
             DO3('i2','1','SIMD_VEC')
-            code('opDat'+str(g_m+1)+'Local(1:DIMS) = MAX ( opDat'+str(g_m+1)+'Local(1:DIMS), dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS))')
+            code('opDat'+str(g_m+1)+'Local(1:(DIMS)) = MAX ( opDat'+str(g_m+1)+'Local(1:(DIMS)), dat'+str(g_m+1)+'((DIMS)*(i2-1)+1:(DIMS)*(i2-1)+(DIMS)))')
             ENDDO()
           elif accs[g_m] == OP_MIN:
             DO3('i2','1','SIMD_VEC')
-            code('opDat'+str(g_m+1)+'Local(1:DIMS) = MIN ( opDat'+str(g_m+1)+'Local(1:DIMS), dat'+str(g_m+1)+'(DIMS*(i2-1)+1:DIMS*(i2-1)+DIMS))')
+            code('opDat'+str(g_m+1)+'Local(1:(DIMS)) = MIN ( opDat'+str(g_m+1)+'Local(1:(DIMS)), dat'+str(g_m+1)+'((DIMS)*(i2-1)+1:(DIMS)*(i2-1)+(DIMS)))')
             ENDDO()
 
 
@@ -713,6 +713,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
+    code('REAL(kind=4) :: dataTransfer')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
     code('REAL(kind=8) :: startTime')
@@ -843,8 +844,50 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 
     code('call op_timers_core(endTime)')
     code('')
+    code('dataTransfer = 0.0')
+    if ninds == 0:
+      for g_m in range(0,nargs):
+        if accs[g_m] == OP_READ or accs[g_m] == OP_WRITE:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * opSetCore%size')
+        else:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * opSetCore%size * 2.d0')
+    else:
+      names = []
+      for g_m in range(0,ninds):
+        mult=''
+        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+          mult = ' * 2.d0'
+        if not var[invinds[g_m]] in names:
+          code('dataTransfer = dataTransfer + opArg'+str(invinds[g_m]+1)+'%size *n_upper'+mult)
+          names = names + [var[invinds[g_m]]]
+      for g_m in range(0,nargs):
+        mult=''
+        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+          mult = ' * 2.d0'
+        if not var[g_m] in names:
+          names = names + [var[invinds[g_m]]]
+          if maps[g_m] == OP_ID:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size *n_upper'+mult)
+          elif maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size'+mult)
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('dataTransfer = dataTransfer + n_upper * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim * 4.d0')
+
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& endTime-startTime,0.00000,0.00000, 1)')
+    code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
+    code('')
+    #code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    #code('& endTime-startTime,0.00000,0.00000, 1)')
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE')

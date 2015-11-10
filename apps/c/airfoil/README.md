@@ -30,7 +30,10 @@ airfoil_tempdats -- airfoil use op_decl_temp, i.e. temporary dats in application
 
 compare_results -- small utility code to compare two files (txt or bin), used to compare the final result from airfoil
 
-### Testing the Results
+### Running the Application and Testing the Results
+
+The input meshes for the application can be found at:
+
 
 The various parallel versions of Airfoil should be compared against the single-threaded CPU version (also known as the
 reference implementation) to ascertain the correctness of the results. The p_q array holds the final result and as such

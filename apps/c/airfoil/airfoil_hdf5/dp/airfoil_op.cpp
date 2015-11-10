@@ -280,7 +280,7 @@ int main(int argc, char **argv)
   //printf("Root process = %d\n",op_is_root());
 
   //output the result dat array to files
-  //op_write_hdf5("new_grid_out.h5");
+  //op_dump_to_hdf5("new_grid_out.h5");
 
   //compress using
   // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
