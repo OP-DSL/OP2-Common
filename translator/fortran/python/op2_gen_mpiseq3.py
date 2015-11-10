@@ -364,6 +364,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
+    code('REAL(kind=4) :: dataTransfer')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
     code('REAL(kind=8) :: startTime')
@@ -494,8 +495,49 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 
     code('call op_timers_core(endTime)')
     code('')
+    code('dataTransfer = 0.0')
+    if ninds == 0:
+      for g_m in range(0,nargs):
+        if accs[g_m] == OP_READ or accs[g_m] == OP_WRITE:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * opSetCore%size')
+        else:
+          if maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
+          else:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * opSetCore%size * 2.d0')
+    else:
+      names = []
+      for g_m in range(0,ninds):
+        mult=''
+        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+          mult = ' * 2.d0'
+        if not var[invinds[g_m]] in names:
+          code('dataTransfer = dataTransfer + opArg'+str(invinds[g_m]+1)+'%size *n_upper'+mult)
+          names = names + [var[invinds[g_m]]]
+      for g_m in range(0,nargs):
+        mult=''
+        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+          mult = ' * 2.d0'
+        if not var[g_m] in names:
+          names = names + [var[invinds[g_m]]]
+          if maps[g_m] == OP_ID:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size *n_upper'+mult)
+          elif maps[g_m] == OP_GBL:
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size'+mult)
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('dataTransfer = dataTransfer + n_upper * opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim * 4.d0')
+
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& endTime-startTime,0.00000,0.00000, 1)')
+    code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
+    #code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+    #code('& endTime-startTime,0.00000,0.00000, 1)')
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE')
