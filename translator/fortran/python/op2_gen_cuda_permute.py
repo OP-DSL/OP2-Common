@@ -166,8 +166,117 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
+def replace_consts(text):
+  i = text.find('use HYDRA_CONST_MODULE')
+  if i > -1:
+    fi2 = open("hydra_constants_list.txt","r")
+    for line in fi2:
+      fstr = '\\b'+line[:-1]+'\\b'
+      rstr = line[:-1]+'_OP2CONSTANT'
+      text = re.sub(fstr,rstr,text)
+  return text
+
+def replace_npdes(text):
+  #
+  # substitute npdes with DNPDE
+  #
+  i = re.search('\\bnpdes\\b',text)
+  if not (i is None):
+    j = i.start()
+    i = re.search('\\bnpdes\\b',text[j:])
+    j = j + i.start()+5
+    i = re.search('\\bnpdes\\b',text[j:])
+    j = j + i.start()+5
+    text = text[0:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
+  return text
+
+funlist = []
+
+def find_function_calls(text):
+  global funlist
+  search_offset = 0
+  res=re.search('\\bcall\\b',text)
+  my_subs = ''
+  children_subs=''
+  while (not (res is None)):
+    i = search_offset + res.start() + 4
+    #find name: whatever is in front of opening bracket
+    openbracket = i+text[i:].find('(')
+    fun_name = text[i:openbracket].strip()
+    # #if hyd_dump, comment it out
+    # if fun_name == hyd_dump:
+    #   text = text[0:search_offset + res.start()]+'!'+text[search_offset + res.start():]
+    #   search_offset = i
+    #   res=re.search('\\bcall\\b',text[search_offset:])
+    #   continue
+
+    if fun_name.lower() in funlist:
+      search_offset = i
+      res=re.search('\\bcall\\b',text[search_offset:])
+      continue
+
+    print fun_name
+
+    funlist = funlist + [fun_name.lower()]
+    #find signature
+    line = text[openbracket:openbracket+text[openbracket:].find('\n')].strip()
+    curr_pos = openbracket+text[openbracket:].find('\n')+1
+    while (line[len(line)-1] == '&'):
+      line = text[curr_pos:curr_pos+text[curr_pos:].find('\n')].strip()
+      curr_pos = curr_pos+text[curr_pos:].find('\n')+1
+    curr_pos = curr_pos-1
+    arglist = text[openbracket:curr_pos]
+    #find the file containing the implementation
+    subr_file =  os.popen('grep -Rilw --include "*.F95" --exclude "*kernel.*" "subroutine '+fun_name+'" . | head -n1').read().strip()
+    if (len(subr_file) == 0) or (not os.path.exists(subr_file)):
+      print 'Error, subroutine '+fun_name+' implementation not found in files, check parser!'
+      exit(1)
+    #read the file and find the implementation
+    subr_fileh = open(subr_file,'r')
+    subr_fileh_text = subr_fileh.read()
+    subr_fileh_text = re.sub('\n*!.*\n','\n',subr_fileh_text)
+    subr_fileh_text = re.sub('!.*\n','\n',subr_fileh_text)
+    subr_begin = subr_fileh_text.lower().find('subroutine '+fun_name.lower())
+    #function name as spelled int he file
+    fun_name = subr_fileh_text[subr_begin+11:subr_begin+11+len(fun_name)]
+    subr_end = subr_fileh_text[subr_begin:].lower().find('end subroutine')
+    if subr_end<0:
+      print 'Error, could not find string "end subroutine" for implemenatation of '+fun_name+' in '+subr_file
+      exit(-1)
+    subr_end= subr_begin+subr_end
+    subr_text =  subr_fileh_text[subr_begin:subr_end+14]
+    if subr_text[10:len(subr_text)-20].lower().find('subroutine')>=0:
+      print 'Error, could not properly parse subroutine, more than one encompassed '+fun_name+' in '+subr_file
+      #print subr_text
+      exit(-1)
+
+
+    subr_text = subr_text.replace('call hyd_','!call hyd_')
+    subr_text = subr_text.replace('call op_','!call op_')
+    writes = re.search('\\bwrite\\b',subr_text)
+    writes_offset = 0
+    while not (writes is None):
+      writes_offset = writes_offset + writes.start()
+      subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
+      writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
+      while (subr_text[writes_offset:].strip()[0] == '&'):
+        subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
+        writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
+      writes = re.search('\\bwrite\\b',subr_text[writes_offset:])
+
+    subr_text = replace_npdes(subr_text)
+    subr_text = replace_consts(subr_text)
+    subr_text = subr_text.replace('subroutine '+fun_name, 'attributes(device) subroutine '+fun_name+'_gpu',1)
+    my_subs = my_subs + '\n' + subr_text
+    subr_text = re.sub('!.*\n','\n',subr_text)
+    children_subs = children_subs + '\n' + find_function_calls(subr_text)
+    search_offset = i
+    res=re.search('\\bcall\\b',text[search_offset:])
+  return my_subs+children_subs
+
 def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
+  global funlist
   global dims, idxs, typs, indtyps, inddims
   global file_format, cont, comment
   global FORTRAN, CPP, g_m, file_text, depth, header_text, body_text
@@ -253,8 +362,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         j = i
         if (not dims[i].isdigit()) or int(dims[i])>1:
           reduct_mdim = 1
-          if (accs[i] == OP_MAX or accs[i] == OP_MIN):
-            print 'ERROR: Multidimensional MIN/MAX reduction not yet implemented'
+          #if (accs[i] == OP_MAX or accs[i] == OP_MIN):
+            #print 'ERROR: Multidimensional MIN/MAX reduction not yet implemented'
         else:
           reduct_1dim = 1
       if maps[i] == OP_GBL and accs[i] == OP_WRITE:
@@ -286,7 +395,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
-      code('USE HYDRA_CUDA_MODULE')
       if ('ACCUMEDGES' in name) or ('IFLUX_EDGEF' in name) or ('GRAD_EDGECON' in name):
         permute = 1
     else:
@@ -459,9 +567,22 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       DOWHILE('i1 > 0')
       code('CALL syncthreads()')
       IF('threadID < i1')
+      code('SELECT CASE(reductionOperation)')
+      code('CASE (0)')
       DO('i2','0','dim')
       code('sharedDouble8(threadID*dim + i2) = sharedDouble8(threadID*dim + i2) + sharedDouble8((threadID + i1)*dim + i2)')
       ENDDO()
+      code('CASE (1)')
+      DO('i2','0','dim')
+#      IF('sharedDouble8(threadID*dim + i2).GT.sharedDouble8((threadID + i1)*dim + i2)')
+      code('sharedDouble8(threadID*dim + i2) = MIN(sharedDouble8(threadID*dim + i2), sharedDouble8((threadID + i1)*dim + i2))')
+      #ENDIF()
+      ENDDO()
+      code('CASE (2)')
+      DO('i2','0','dim')
+      code('sharedDouble8(threadID*dim + i2) = MAX(sharedDouble8(threadID*dim + i2), sharedDouble8((threadID + i1)*dim + i2))')
+      ENDDO()
+      code('END SELECT')
       ENDIF()
       code('i1 = ishft(i1,-1)')
       ENDDO()
@@ -469,7 +590,18 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('CALL syncthreads()')
 
       IF('threadID .EQ. 0')
+      code('SELECT CASE(reductionOperation)')
+      code('CASE (0)')
       code('reductionResult(1:dim) = reductionResult(1:dim) + sharedDouble8(0:dim-1)')
+      code('CASE (1)')
+      DO('i2','0','dim')
+      code('reductionResult(1+i2) = MIN(reductionResult(1+i2) , sharedDouble8(i2))')
+      ENDDO()
+      code('CASE (2)')
+      DO('i2','0','dim')
+      code('reductionResult(1+i2) = MAX(reductionResult(1+i2) , sharedDouble8(i2))')
+      ENDDO()
+      code('END SELECT')
       ENDIF()
 
       code('CALL syncthreads()')
@@ -488,40 +620,43 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
-      text = text.replace('recursive subroutine','attributes(host) subroutine')
-      text = text.replace('subroutine '+name, 'subroutine '+name)
+      text = text.replace('recursive subroutine','subroutine')
       if hybrid == 1:
+        text = text.replace('subroutine '+name, 'attributes(host) subroutine '+name)
         file_text += text
       code('')
       code('')
-      i = text.find('use HYDRA_CONST_MODULE')
-      if i > -1:
-        fi2 = open("hydra_constants_list.txt","r")
-        for line in fi2:
-          fstr = '\\b'+line[:-1]+'\\b'
-          rstr = line[:-1]+'_OP2CONSTANT'
-          text = re.sub(fstr,rstr,text)
-      text = text.replace('attributes(host) subroutine','attributes(device) subroutine')
-      text = text.replace('subroutine '+name, 'subroutine '+name+'_gpu')
-      text = text.replace('use BCS_KERNELS', '!use BCS_KERNELS')
-      text = text.replace('use REALGAS_KERNELS', '!use REALGAS_KERNELS')
-      text = text.replace('use UPDATE_KERNELS', '!use UPDATE_KERNELS')
-      if ('BCFLUXK' in name) or ('INVISCBNDS' in name):
-        code('#include "../../bcs_kernels_gpufun.inc"')
-        kern_names = ['QRG_SET','OUTFLOW_FS','FREESTREAM','INFLOW','MP_INFLOW_CHAR','MP_OUTFLOW_CHAR','OUTFLOW','INFLOW_WHIRL','UNIQUE_INC','FILM_INJ','WFLUX','FFLUX']
-        for i in range(0,12):
-          text = text.replace('call '+kern_names[i]+'(', 'call '+kern_names[i]+'_gpu(')
-          text = text.replace('call '+kern_names[i].lower()+'(', 'call '+kern_names[i].lower()+'_gpu(')
-          text = text.replace('CALL '+kern_names[i]+'(', 'CALL '+kern_names[i]+'_gpu(')
-      if 'call LOW' in text:
-        kern_names = ['LOW','LOWH','LOWK']
-        for i in range(0,3):
-          text = text.replace('call '+kern_names[i]+'(', 'call '+kern_names[i]+'_gpu(')
-          text = text.replace('CALL '+kern_names[i]+'(', 'CALL '+kern_names[i]+'_gpu(')
-        code('#include "../../flux_low_gpufun.inc"')
-      if ('INVJACS' in name):
-        text = text.replace('call MATINV5(', 'call MATINV5_gpu(')
-        code('#include "../../update_kernels_gpufun.inc"')
+      #remove all comments
+      text = re.sub('!.*\n','\n',text)
+      text = replace_consts(text)
+      text = text.replace('subroutine '+name, 'attributes(device) subroutine '+name+'_gpu',1)
+
+
+      using_npdes = 0
+      for g_m in range(0,nargs):
+        if var[g_m] == 'npdes':
+          using_npdes = 1
+      if using_npdes==1:
+        text = replace_npdes(text)
+
+      #find subroutine calls
+      funlist = [name.lower()]
+      plus_kernels = find_function_calls(text)
+      text = text + '\n' + plus_kernels
+      for fun in funlist:
+        regex = re.compile('\\b'+fun+'\\b',re.I)
+        text = regex.sub(fun+'_gpu',text)
+#        text = re.sub(r'\\b'+fun+'\\b',fun+'_gpu',text,flags=re.I)
+
+      #strip "use" statements
+      i = re.search('\\buse\\b',text.lower())
+      i_offset = 0
+      while not (i is None):
+        i_offset = i_offset+i.start()
+        if not ('HYDRA_CONST_MODULE' in text[i_offset:i_offset+23]):
+          text = text[0:i_offset]+'!'+text[i_offset:]
+        i_offset = i_offset+4
+        i = re.search('\\buse\\b',text[i_offset:].lower())
 
       #
       # Apply SoA to variable accesses
@@ -586,21 +721,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
 
 
-      #
-      # substitute npdes with DNPDE
-      #
-      using_npdes = 0
-      for g_m in range(0,nargs):
-        if var[g_m] == 'npdes':
-          using_npdes = 1
-      if using_npdes:
-        i = re.search('\\bnpdes\\b',text)
-        j = i.start()
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
 
       file_text += text
     elif bookleaf:
@@ -1457,7 +1577,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       ENDDO()
       code('')
     else: #direct loop host stub call
-      if "UPDATEK" in name:
+      if "UPDATEK" == name:
         code('istat = cudaFuncSetCacheConfig(op_cuda_UPDATEK,cudaFuncCachePreferShared)')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &')
       if nopts>0:
@@ -1671,7 +1791,6 @@ def op2_gen_cuda_hydra():
   global FORTRAN, CPP, g_m, file_text, depth, header_text, body_text
 
   file_text = ''
-  code('MODULE HYDRA_CUDA_MODULE')
   code('USE OP2_FORTRAN_DECLARATIONS')
   code('USE OP2_FORTRAN_RT_SUPPORT')
   code('USE ISO_C_BINDING')

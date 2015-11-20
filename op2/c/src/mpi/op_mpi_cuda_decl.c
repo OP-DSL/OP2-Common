@@ -103,9 +103,11 @@ op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local
   MPI_Initialized(&flag);
   if(!flag)
   {
-      MPI_Init(&argc, &argv);
+      printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
+      exit(-1);
   }
-
+  OP_MPI_WORLD = MPI_Comm_f2c(local);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020

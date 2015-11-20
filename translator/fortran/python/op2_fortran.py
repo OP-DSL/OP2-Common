@@ -858,7 +858,8 @@ for a in range(init_ctr,len(sys.argv)):
     text = fid.read()
     fid.close()
     if hydra:
-      replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      #replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      replace = 'use OP2_FORTRAN_DECLARATIONS\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     if bookleaf:
       text = text.replace('USE OP2_Fortran_Reference\n','')
