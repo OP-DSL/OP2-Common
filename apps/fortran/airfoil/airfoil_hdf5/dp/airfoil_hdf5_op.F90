@@ -106,7 +106,7 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 constants")
-
+       
   call op_print ('Initialising constants')
   call initialise_constants ( )
   !call op_dump_to_hdf5("new_grid_out.h5");
