@@ -1043,6 +1043,7 @@ contains
     else
       if (dat%dataPtr%dim .ne. dim) then
         print *, "Wrong dim",dim,dat%dataPtr%dim
+        stop 1
       endif
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then

@@ -219,6 +219,12 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     file_text = ''
     depth = 0
 
+    needDimList = []
+    for g_m in range(0,nargs):
+      if (not dims[g_m].isdigit()) and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
+        needDimList = needDimList + [g_m]
+
+
 ##########################################################################
 #  Generate Header
 ##########################################################################
@@ -314,11 +320,13 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('SUBROUTINE op_wrap_'+name+'( &')
     depth = depth + 2
     for g_m in range(0,ninds):
+      if invinds[g_m] in needDimList:
+        code('& opDat'+str(invinds[g_m]+1)+'Dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code('& opDat'+str(g_m+1)+'Local, &')
-      elif maps[g_m] == OP_GBL:
+      if maps[g_m] <> OP_MAP:
+        if g_m in needDimList:
+          code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
     if nmaps > 0:
       k = []
@@ -329,13 +337,27 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     code('& bottom,top)')
 
+    code('implicit none')
     for g_m in range(0,ninds):
-      code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+      if invinds[g_m] in needDimList:
+        code('INTEGER(kind=4) opDat'+str(invinds[g_m]+1)+'Dim')
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local(opDat'+str(invinds[g_m]+1)+'Dim,*)')
+      else:
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
     for g_m in range(0,nargs):
+      if maps[g_m] <> OP_MAP:
+        if g_m in needDimList:
+          code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
+        if g_m in needDimList:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim,*)')
+        else:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
       elif maps[g_m] == OP_GBL:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
+        if g_m in needDimList:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim)')
+        else:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
@@ -581,11 +603,17 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,ninds):
+        if invinds[g_m] in needDimList:
+          code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
+          if g_m in needDimList:
+            code('& opArg'+str(g_m+1)+'%dim, &')
           code('& opDat'+str(g_m+1)+'Local, &')
         elif maps[g_m] == OP_GBL:
+          if g_m in needDimList:
+            code('& opArg'+str(g_m+1)+'%dim, &')
           if accs[g_m] <> OP_READ:
             code('& reductionArrayHost'+str(g_m+1)+'(threadID * (('+dims[g_m]+'-1)/64+1)*64 + 1), &')
           else:
@@ -611,6 +639,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       comm('kernel call')
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,nargs):
+        if g_m in needDimList:
+          code('& opArg'+str(g_m+1)+'%dim, &')
         if maps[g_m] == OP_ID:
           code('& opDat'+str(g_m+1)+'Local, &')
         elif maps[g_m] == OP_GBL:

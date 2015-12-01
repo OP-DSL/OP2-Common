@@ -550,9 +550,9 @@ for a in range(init_ctr,len(sys.argv)):
 
         if arg_type.strip() == 'op_opt_arg_dat':
           optflags[m] = 1
-          if soaflags[m] == 1:
-            print "ERROR: cannot have SoA and optional argument at the same time"
-            sys.exit(-1)
+          # if soaflags[m] == 1:
+          #   print "ERROR: cannot have SoA and optional argument at the same time"
+          #   sys.exit(-1)
         else:
           optflags[m] = 0
 
