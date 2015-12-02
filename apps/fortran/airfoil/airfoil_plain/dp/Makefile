@@ -46,6 +46,7 @@ ifeq ($(OP2_COMPILER),intel)
   OPENMP = -openmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xMIC-AVX512 -parallel -qopt-report=5 -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp_$(PART_SIZE_ENV)
 else
@@ -67,19 +68,19 @@ airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
 
 airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
-	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_op.F90
-	$(FC) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
+	$(FC) $(OPT) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
         bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq
 
 airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
-	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_veckernel.F90 update_veckernel.F90 bres_calc_veckernel.F90 \
         res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_op.F90
-	$(FC) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
+	$(FC) $(OPT) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
         bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq
 
