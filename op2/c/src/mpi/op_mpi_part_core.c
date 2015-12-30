@@ -3580,7 +3580,6 @@ void partition(const char* lib_name, const char* lib_routine,
       OP_map_partial_exchange[i] = 0;
   }
 
-
 #ifdef DEBUG //sanity check to identify if the partitioning results in ophan elements
   int ctr = 0;
   for (int i = 0; i < prime_map->from->size; i++) {

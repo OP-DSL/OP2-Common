@@ -331,6 +331,17 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine prepareScratch(args,argsNumber, nthreads) BIND(C,name='prepareScratch')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      integer(kind=c_int), value :: nthreads
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end subroutine
+
     ! debugging routines
     subroutine op_dump_arg (arg) BIND(C,name='op_dump_arg')
 

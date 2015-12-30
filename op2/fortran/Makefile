@@ -122,7 +122,7 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -xAVX -vec-report
+  OPT             = -O3 -g -xAVX -vec-report
   CC              = icc $(OPT)
   CXX             = icpc $(OPT)
   CFLAGS          = -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981

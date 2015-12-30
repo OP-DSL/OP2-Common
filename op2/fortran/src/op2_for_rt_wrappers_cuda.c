@@ -88,3 +88,33 @@ op_put_dat_mpi (op_dat dat) {
   if (dat->data_d == NULL) return;
   op_put_dat(dat);
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+char *scratch = NULL;
+long scratch_size = 0;
+void prepareScratch(op_arg *args, int nargs, int nthreads) {
+  long req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+  }
+  if (scratch_size < req_size) {
+    if (!scratch) cudaFree(scratch);
+    cutilSafeCall(cudaMalloc((void**)&scratch, req_size*sizeof(char)));
+    scratch_size = req_size;
+  }
+  req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) {
+      args[i].data_d = scratch + req_size;
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+    }
+  }
+}
+
+#ifdef __cplusplus
+}
+#endif
+
