@@ -229,7 +229,6 @@ void op_mv_halo_device(op_set set, op_dat dat)
 {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
-
   if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
@@ -241,7 +240,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
       }
     }
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( dat->data ), dat->size * set_size );
+                        ( void ** ) &( temp_data ), dat->size * set_size );
     free(temp_data);
 
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),

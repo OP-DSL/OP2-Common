@@ -485,7 +485,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           needDimList = needDimList + [g_m]
           if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
             unknown_reduction_size = 1
-#            soaflags[g_m] = 1
+            soaflags[g_m] = 1
             is_soa = 1
 
     for idx in needDimList:
@@ -577,7 +577,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 #  Reduction kernel function - if an OP_GBL exists
 ##########################################################################
-    if reduct_1dim:
+    if reduct_1dim or unknown_reduction_size:
       comm('Reduction cuda kernel'); depth = depth +2;
       code('attributes (device) SUBROUTINE ReductionFloat8(reductionResult,inputValue,reductionOperation)')
       code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
@@ -1068,7 +1068,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       if maps[g_m] == OP_GBL:
         if accs[g_m] == OP_INC:
           if g_m in needDimList:
-            code('scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1:(thrIdx+1)*'+dims[g_m]+') = 0')
+            DO('i1','0',dims[g_m]) 
+            code('scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)) = 0')
+            ENDDO()
           else:
             code('opGblDat'+str(g_m+1)+'Device'+name+' = 0')
         elif accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
@@ -1076,7 +1078,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             code('opGblDat'+str(g_m+1)+'Device'+name+' = reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1)')
           else:
             if g_m in needDimList:
-              code('scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1:(thrIdx+1)*'+dims[g_m]+') = reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1:(blockIdx%x - 1)*('+dims[g_m]+') + ('+dims[g_m]+'))')
+              DO('i1','0',dims[g_m]) 
+              code('scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)) = reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1)')
+              ENDDO()
             else:
               code('opGblDat'+str(g_m+1)+'Device'+name+' = reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1:(blockIdx%x - 1)*('+dims[g_m]+') + ('+dims[g_m]+'))')
 
@@ -1197,7 +1201,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
           line = line + indent + '& opDat'+str(g_m+1)+'Staged'
-        elif soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
+        elif soaflags[g_m] == 1 and maps[g_m] <> OP_GBL and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
 #          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
           if maps[g_m] == OP_MAP:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ '(1 + map'+str(mapinds[g_m]+1)+'idx)'
@@ -1231,7 +1235,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name+'(1)'
           else:
             if (accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_INC) and g_m in needDimList:
-              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1:(thrIdx+1)*'+dims[g_m]+')'
+              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         if g_m < nargs-1:
@@ -1292,7 +1296,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
               '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
             else:
-              if soaflags[g_m] == 1:
+              if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
                 if dims[g_m].isdigit() and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
                     for i in range(0,int(dims[g_m])):
                       code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
@@ -1336,7 +1340,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
           line = line + indent + '& opDat'+str(g_m+1)+'Staged'
-        elif soaflags[g_m] == 1 and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
+        elif soaflags[g_m] == 1 and maps[g_m] <> OP_GBL and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
 #          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
            line = line +indent + '& opDat'+str(g_m+1)+'Device'+name+ '(1 + i1)'
         elif maps[g_m] == OP_GBL:
@@ -1344,7 +1348,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name+'(1)'
           else:
             if (accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_INC) and g_m in needDimList:
-              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1:(thrIdx+1)*'+dims[g_m]+')'
+              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         else:
@@ -1386,22 +1390,24 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             code('CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
           else:
-            code('do i1=0,'+dims[g_m]+'-1,8')
-            code('  i2 = MIN(i1+8,'+dims[g_m]+')')
             if g_m in needDimList:
-              code('  CALL ReductionFloat8Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1+i1:(thrIdx+1)*'+dims[g_m]+'+i1),'+op+',i2-i1)')
+              code('do i1=0,'+dims[g_m]+'-1,1')
+              code('  CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
             else:
+              code('do i1=0,'+dims[g_m]+'-1,8')
+              code('i2 = MIN(i1+8,'+dims[g_m]+')')
               code('  CALL ReductionFloat8Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
             code('end do')
         elif 'integer' in typs[g_m].lower():
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             code('CALL ReductionInt4(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
           else:
-            code('do i1=0,'+dims[g_m]+'-1,8')
-            code('  i2 = MIN(i1+8,'+dims[g_m]+')')
             if g_m in needDimList:
-              code('  CALL ReductionInt4Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx*'+dims[g_m]+'+1+i1:(thrIdx+1)*'+dims[g_m]+'+i1),'+op+',i2-i1)')
+              code('do i1=0,'+dims[g_m]+'-1,1')
+              code('  CALL ReductionInt4(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
             else:
+              code('do i1=0,'+dims[g_m]+'-1,8')
+              code('i2 = MIN(i1+8,'+dims[g_m]+')')
               code('  CALL ReductionInt4Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
             code('end do')
     code('')
