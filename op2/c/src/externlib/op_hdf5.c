@@ -482,8 +482,7 @@ void op_dump_to_hdf5(char const * file_name)
       H5Awrite(attribute, atype, "long");
     else if(sizeof(map->map[0]) == sizeof(long long))
       H5Awrite(attribute, atype, "long long");
-    else
-    {
+    else {
       printf("Unknown type for map elements\n");
       exit(2);
     }
@@ -509,19 +508,28 @@ void op_dump_to_hdf5(char const * file_name)
     dataspace = H5Screate_simple(2, dimsf, NULL);
 
     //Create the dataset with default properties and write data
-    if((strcmp(dat->type,"double")==0) || (strcmp(dat->type,"double:soa") == 0))
+    if(strcmp(dat->type,"double") ==0 ||
+       strcmp(dat->type,"double:soa") == 0 ||
+       strcmp(dat->type,"double precision") == 0 ||
+       strcmp(dat->type,"real(8)") == 0)
     {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
     }
-    else if((strcmp(dat->type,"float")==0) || (strcmp(dat->type,"float:soa") == 0))
+    else if(strcmp(dat->type,"float")==0 ||
+            strcmp(dat->type,"float:soa") == 0 ||
+            strcmp(dat->type,"real(4)") == 0 ||
+            strcmp(dat->type,"real") == 0 )
     {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
     }
-    else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
+    else if( strcmp(dat->type,"int")==0 || strcmp(dat->type,"int:soa") == 0 ||
+             strcmp(dat->type,"int(4)") == 0 ||
+             strcmp(dat->type,"integer") == 0 ||
+             strcmp(dat->type,"integer(4)") == 0 )
     {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -926,11 +934,21 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
       dimsf[0] = dat->set->size; dimsf[1] = dat->dim;
       dataspace = H5Screate_simple(2, dimsf, NULL);
 
-      if((strcmp(dat->type,"double")==0) || (strcmp(dat->type,"double:soa") == 0))
+      if(strcmp(dat->type,"double")==0 ||
+         strcmp(dat->type,"double:soa") == 0 ||
+         strcmp(dat->type,"double precision") == 0 ||
+         strcmp(dat->type,"real(8)") == 0)
         H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      else if((strcmp(dat->type,"float")==0) || (strcmp(dat->type,"float:soa") == 0))
+      else if(strcmp(dat->type,"float")==0 ||
+              strcmp(dat->type,"float:soa") == 0 ||
+              strcmp(dat->type,"real(4)") == 0 ||
+              strcmp(dat->type,"real") == 0 )
         H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
-      else if((strcmp(dat->type,"int")==0) || (strcmp(dat->type,"int:soa") == 0))
+      else if(strcmp(dat->type,"int") == 0 ||
+              strcmp(dat->type,"int:soa") == 0 ||
+              strcmp(dat->type,"int(4)") == 0 ||
+              strcmp(dat->type,"integer") == 0 ||
+              strcmp(dat->type,"integer(4)") == 0)
         H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
       else if((strcmp(dat->type,"long")==0) || (strcmp(dat->type,"long:soa") == 0))
         H5Dwrite(dset_id, H5T_NATIVE_LONG, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
@@ -940,6 +958,11 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
         printf("Unknown type for data elements\n");
         exit(2);
       }
+
+
+
+
+
 
       H5Dclose(dset_id);
       H5Sclose(dataspace);
