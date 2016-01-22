@@ -294,7 +294,10 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   //initialize data buffer and read in data
   char* data;
-  if((strcmp(type,"double") == 0) || (strcmp(type,"double:soa") == 0)) {
+  if(strcmp(type,"double") ==0 ||
+       strcmp(type,"double:soa") == 0 ||
+       strcmp(type,"double precision") == 0 ||
+       strcmp(type,"real(8)") == 0) {
     data = (char *)xmalloc(set->size*dim*sizeof(double));
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
@@ -305,7 +308,10 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     else
       dat_size = sizeof(double);
 
-  } else if((strcmp(type,"float") == 0) || (strcmp(type,"float:soa") == 0)) {
+  } else if(strcmp(type,"float")==0 ||
+            strcmp(type,"float:soa") == 0 ||
+            strcmp(type,"real(4)") == 0 ||
+            strcmp(type,"real") == 0) {
     data = (char *)xmalloc(set->size*dim*sizeof(float));
     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
@@ -316,7 +322,11 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     else
       dat_size = sizeof(float);
 
-  } else if((strcmp(type,"int") == 0) || (strcmp(type,"int:soa") == 0)) {
+  } else if(strcmp(type,"int")==0 ||
+            strcmp(type,"int:soa") == 0 ||
+            strcmp(type,"int(4)") == 0 ||
+            strcmp(type,"integer") == 0 ||
+            strcmp(type,"integer(4)") == 0) {
     data = (char *)xmalloc(set->size*dim*sizeof(int));
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
@@ -667,7 +677,10 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 
   char* data;
   //initialize data buffer and read data
-  if(strcmp(typ,"int") == 0)
+  if(strcmp(typ,"int")==0 ||
+     strcmp(typ,"int(4)") == 0 ||
+     strcmp(typ,"integer") == 0 ||
+     strcmp(typ,"integer(4)") == 0)
   {
      data = (char *)xmalloc(sizeof(int)*const_dim);
      H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
@@ -685,13 +698,17 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
      H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(long long)*const_dim);
   }
-  else if(strcmp(typ,"float") == 0)
+  else if(strcmp(typ,"float")==0 ||
+          strcmp(typ,"real(4)") == 0 ||
+          strcmp(typ,"real") == 0)
   {
      data = (char *)xmalloc(sizeof(float)*const_dim);
      H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
      memcpy((void *)const_data, (void *)data,sizeof(float)*const_dim);
   }
-  else if(strcmp(typ,"double") == 0)
+  else if(strcmp(typ,"double") ==0 ||
+       strcmp(typ,"double precision") == 0 ||
+       strcmp(typ,"real(8)") == 0)
   {
      data = (char *)xmalloc(sizeof(double)*const_dim);
      H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
@@ -738,7 +755,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   dataspace = H5Screate_simple(1, &dims_of_const, NULL);
 
   //Create the dataset with default properties
-  if((strcmp(type,"double")==0) || (strcmp(type,"double:soa") == 0))
+  if(strcmp(dat->"double") ==0 ||
+       strcmp(type,"double:soa") == 0 ||
+       strcmp(type,"double precision") == 0 ||
+       strcmp(type,"real(8)") == 0)
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_DOUBLE, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -746,7 +766,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, const_data);
     H5Dclose(dset_id);
   }
-  else if((strcmp(type,"float")==0) || (strcmp(type,"float:soa") == 0))
+  else if(strcmp(type,"float")==0 ||
+            strcmp(type,"float:soa") == 0 ||
+            strcmp(type,"real(4)") == 0 ||
+            strcmp(type,"real") == 0)
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_FLOAT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -754,7 +777,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, const_data);
     H5Dclose(dset_id);
   }
-  else if((strcmp(type,"int")==0) || (strcmp(type,"int:soa") == 0))
+  else if(strcmp(type,"int")==0 || strcmp(type,"int:soa") == 0 ||
+             strcmp(type,"int(4)") == 0 ||
+             strcmp(type,"integer") == 0 ||
+             strcmp(type,"integer(4)") == 0)
   {
     dset_id = H5Dcreate(file_id, name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -808,15 +834,22 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   attribute = H5Acreate(dset_id, "type", atype, dataspace,
     H5P_DEFAULT, H5P_DEFAULT);
 
-  if(strcmp(type,"double") == 0)
+  if(strcmp(dat->type,"double") ==0 ||
+     strcmp(dat->type,"double precision") == 0 ||
+     strcmp(dat->type,"real(8)") == 0)
     H5Awrite(attribute, atype, "double");
-  else if(strcmp(type,"int") == 0)
+  else if(strcmp(dat->type,"int")==0 ||
+          strcmp(dat->type,"int(4)") == 0 ||
+          strcmp(dat->type,"integer") == 0 ||
+          strcmp(dat->type,"integer(4)") == 0 )
     H5Awrite(attribute, atype, "int");
   else if(strcmp(type,"long") == 0)
     H5Awrite(attribute, atype, "long");
   else if(strcmp(type,"long long") == 0)
     H5Awrite(attribute, atype, "long long");
-  else  if(strcmp(type,"float") == 0)
+  else  if(strcmp(dat->type,"float")==0 ||
+           strcmp(dat->type,"real(4)") == 0 ||
+           strcmp(dat->type,"real") == 0)
     H5Awrite(attribute, atype, "float");
   else {
     printf("Unknown type %s for constant %s: cannot write constant to file\n",type, name);

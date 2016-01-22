@@ -87,7 +87,7 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 data")
-  call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'int', 'new_grid.h5', 'p_bound', status )
+  call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'integer', 'new_grid.h5', 'p_bound', status )
   call op_decl_dat_hdf5 ( nodes, 2, p_x, 'real(8)', 'new_grid.h5', 'p_x' , status)
   call op_decl_dat_hdf5 ( cells, 4, p_q, 'real(8)', 'new_grid.h5', 'p_q' , status)
   call op_decl_dat_hdf5 ( cells, 4, p_qold, 'real(8)', 'new_grid.h5', 'p_qold' , status)
@@ -106,7 +106,7 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 constants")
-
+       
   call op_print ('Initialising constants')
   call initialise_constants ( )
   call op_dump_to_hdf5("new_grid_out.h5");
