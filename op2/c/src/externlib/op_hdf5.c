@@ -755,7 +755,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   dataspace = H5Screate_simple(1, &dims_of_const, NULL);
 
   //Create the dataset with default properties
-  if(strcmp(dat->"double") ==0 ||
+  if(strcmp(type,"double") ==0 ||
        strcmp(type,"double:soa") == 0 ||
        strcmp(type,"double precision") == 0 ||
        strcmp(type,"real(8)") == 0)
@@ -834,22 +834,22 @@ void op_write_const_hdf5(char const *name, int dim, char const *type, char* cons
   attribute = H5Acreate(dset_id, "type", atype, dataspace,
     H5P_DEFAULT, H5P_DEFAULT);
 
-  if(strcmp(dat->type,"double") ==0 ||
-     strcmp(dat->type,"double precision") == 0 ||
-     strcmp(dat->type,"real(8)") == 0)
+  if(strcmp(type,"double") ==0 ||
+     strcmp(type,"double precision") == 0 ||
+     strcmp(type,"real(8)") == 0)
     H5Awrite(attribute, atype, "double");
-  else if(strcmp(dat->type,"int")==0 ||
-          strcmp(dat->type,"int(4)") == 0 ||
-          strcmp(dat->type,"integer") == 0 ||
-          strcmp(dat->type,"integer(4)") == 0 )
+  else if(strcmp(type,"int")==0 ||
+          strcmp(type,"int(4)") == 0 ||
+          strcmp(type,"integer") == 0 ||
+          strcmp(type,"integer(4)") == 0 )
     H5Awrite(attribute, atype, "int");
   else if(strcmp(type,"long") == 0)
     H5Awrite(attribute, atype, "long");
   else if(strcmp(type,"long long") == 0)
     H5Awrite(attribute, atype, "long long");
-  else  if(strcmp(dat->type,"float")==0 ||
-           strcmp(dat->type,"real(4)") == 0 ||
-           strcmp(dat->type,"real") == 0)
+  else  if(strcmp(type,"float")==0 ||
+           strcmp(type,"real(4)") == 0 ||
+           strcmp(type,"real") == 0)
     H5Awrite(attribute, atype, "float");
   else {
     printf("Unknown type %s for constant %s: cannot write constant to file\n",type, name);

@@ -66,25 +66,25 @@ all: $(ALL_TARGET)
 
 airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil.F90
-	$(FC) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq
+	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
 
 airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_op.F90
-	$(FC) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
+	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
-        bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq
+        bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
 
 airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_veckernel.F90 update_veckernel.F90 bres_calc_veckernel.F90 \
         res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_op.F90
-	$(FC) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
+	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
-        bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq
+        bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
 
 
 airfoil_openmp_$(PART_SIZE_ENV): airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
