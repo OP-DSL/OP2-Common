@@ -559,13 +559,13 @@ contains
     integer, intent(in) :: datdim
     real(8), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
-    character(kind=c_char,len=*), optional :: opName
+    character(kind=c_char,len=*), optional :: opname
     character(kind=c_char,len=*) :: type
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -610,9 +610,9 @@ contains
     character(kind=c_char,len=*) :: type
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 4, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 4, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable

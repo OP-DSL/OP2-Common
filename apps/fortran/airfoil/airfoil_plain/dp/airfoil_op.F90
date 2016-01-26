@@ -4,6 +4,7 @@
 
 program AIRFOIL
   use OP2_FORTRAN_DECLARATIONS
+  use OP2_FORTRAN_HDF5_DECLARATIONS
   use SAVE_SOLN_MODULE
   use ADT_CALC_MODULE
   use RES_CALC_MODULE
@@ -91,19 +92,22 @@ program AIRFOIL
   call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
   call op_decl_map ( edges, cells, 2, ecell, pecell, 'pecell' )
   call op_decl_map ( bedges, nodes, 2, bedge, pbedge, 'pbedge' )
-  call op_decl_map ( bedges, cells, 1, becell, pbecell, 'pecell' )
+  call op_decl_map ( bedges, cells, 1, becell, pbecell, 'pbecell' )
   call op_decl_map ( cells, nodes, 4, cell, pcell, 'pcell' )
 
   print *, "Declaring OP2 data"
-  call op_decl_dat ( bedges, 1, 'int' ,bound, p_bound, 'p_bound')
-  call op_decl_dat ( nodes, 2, 'double',x, p_x, 'p_x' )
-  call op_decl_dat ( cells, 4, 'double', q, p_q, 'p_q' )
-  call op_decl_dat ( cells, 4, 'double', qold, p_qold, 'p_qold' )
-  call op_decl_dat ( cells, 1, 'double', adt, p_adt, 'p_adt' )
-  call op_decl_dat ( cells, 4, 'double', res, p_res, 'p_res' )
+  call op_decl_dat ( bedges, 1, 'integer' ,bound, p_bound, 'p_bound')
+  call op_decl_dat ( nodes, 2, 'real(8)',x, p_x, 'p_x' )
+  call op_decl_dat ( cells, 4, 'real(8)', q, p_q, 'p_q' )
+  call op_decl_dat ( cells, 4, 'real(8)', qold, p_qold, 'p_qold' )
+  call op_decl_dat ( cells, 1, 'real(8)', adt, p_adt, 'p_adt' )
+  call op_decl_dat ( cells, 4, 'real(8)', res, p_res, 'p_res' )
 
   print *, "Declaring OP2 constants"
        
+  call op_dump_to_hdf5("new_grid_out.h5")
+  !call op_fetch_data_hdf5_file(p_x, "new_grid_out.h5")
+
   ! start timer
   call op_timers ( startTime )
 
