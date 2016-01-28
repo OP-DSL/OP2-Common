@@ -23,6 +23,11 @@ export CUDA_INSTALL_PATH=/usr/local/cuda
 #export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
 #export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
 
+#export PATH=/usr/local/cuda-7.5.7_rc/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-7.5.7_rc/lib64:$LD_LIBRARY_PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda-7.5.7_rc
+
+
 #Intel MPI and Compilers
 export MPI_INSTALL_PATH=/opt/compilers/intel/intelPS-2015/impi_latest/intel64/
 source /opt/compilers/intel/intelPS-2015/composerxe/bin/compilervars.sh intel64

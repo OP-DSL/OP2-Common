@@ -73,4 +73,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
   OP_kernels[2].name      = name;
   OP_kernels[2].count    += 1;
   OP_kernels[2].time     += wall_t2 - wall_t1;
+  OP_kernels[2].transfer += (float)set->size * arg0.size;
+  OP_kernels[2].transfer += (float)set->size * arg2.size;
+  OP_kernels[2].transfer += (float)set->size * arg4.size;
+  OP_kernels[2].transfer += (float)set->size * arg6.size * 2.0f;
+  OP_kernels[2].transfer += (float)set->size * arg0.map->dim * 4.0f;
+  OP_kernels[2].transfer += (float)set->size * arg2.map->dim * 4.0f;
 }
