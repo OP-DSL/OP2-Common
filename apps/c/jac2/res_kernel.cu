@@ -24,7 +24,7 @@ __global__ void op_cuda_res(
   int   *colors,
   int   nblocks,
   int   set_size) {
-  float arg2_l[3];
+  float arg2_l[1];
 
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
@@ -54,15 +54,15 @@ __global__ void op_cuda_res(
     int map2idx;
     if (n<nelem) {
       //initialise local variables
-      for ( int d=0; d<3; d++ ){
+      for ( int d=0; d<1; d++ ){
         arg2_l[d] = ZERO_float;
       }
       map1idx = opDat1Map[n + offset_b + set_size * 1];
       map2idx = opDat1Map[n + offset_b + set_size * 0];
 
       //user-supplied kernel call
-      res_gpu(arg0+(n+offset_b)*3,
-        ind_arg0+map1idx*2,
+      res_gpu(arg0+(n+offset_b)*1,
+        ind_arg0+map1idx*1,
         arg2_l,
         arg3);
       col2 = colors[n+offset_b];
@@ -72,12 +72,8 @@ __global__ void op_cuda_res(
 
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
-        arg2_l[0] += ind_arg1[0+map2idx*3];
-        arg2_l[1] += ind_arg1[1+map2idx*3];
-        arg2_l[2] += ind_arg1[2+map2idx*3];
-        ind_arg1[0+map2idx*3] = arg2_l[0];
-        ind_arg1[1+map2idx*3] = arg2_l[1];
-        ind_arg1[2+map2idx*3] = arg2_l[2];
+        arg2_l[0] += ind_arg1[0+map2idx*1];
+        ind_arg1[0+map2idx*1] = arg2_l[0];
       }
       __syncthreads();
     }

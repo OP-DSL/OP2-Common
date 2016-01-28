@@ -34,9 +34,9 @@ __global__ void op_cuda_update(
   for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n = n+=blockDim.x*gridDim.x ){
 
     //user-supplied kernel call
-    update_gpu(arg0+n*2,
-           arg1+n*3,
-           arg2+n*2,
+    update_gpu(arg0+n*1,
+           arg1+n*1,
+           arg2+n*1,
            arg3_l,
            arg4_l);
   }
