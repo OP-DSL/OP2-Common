@@ -97,7 +97,6 @@ make clean;make
 
 #COMMENT1
 
-#<<COMMENT1
 
 echo " "
 echo " "
@@ -117,7 +116,7 @@ export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec
 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -137,9 +136,9 @@ $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec
 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./numawrap20 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 
 export OMP_NUM_THREADS=20
 ./airfoil_mpi_openmp OP_PART_SIZE=256
@@ -158,12 +157,11 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
-
 
 echo " "
 echo " "
@@ -199,7 +197,6 @@ export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
-
 
 
 echo " "

@@ -497,9 +497,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -541,6 +541,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)],'
+        elif maps[g_m] == OP_GBL:
+          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data,'
         else:
           line = line + indent + 'dat'+str(g_m)+','
       line = line +indent +'i);'
@@ -632,9 +634,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-TYP_INF};')
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')
@@ -726,6 +728,31 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code(line+' ARG.size;')
           else:
             code(line+' ARG.size * 2.0f;')
+    else:
+      names = []
+      for g_m in range(0,ninds):
+        mult=''
+        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+          mult = ' * 2.0f'
+        if not var[invinds[g_m]] in names:
+          code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[g_m])+'.size'+mult+';')
+          names = names + [var[invinds[g_m]]]
+      for g_m in range(0,nargs):
+        mult=''
+        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+          mult = ' * 2.0f'
+        if not var[g_m] in names:
+          names = names + [var[invinds[g_m]]]
+          if maps[g_m] == OP_ID:
+            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
+          elif maps[g_m] == OP_GBL:
+            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[inds[g_m]-1])+'.map->dim * 4.0f;')
 
     depth -= 2
     code('}')

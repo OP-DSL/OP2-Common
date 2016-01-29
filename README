@@ -13,9 +13,9 @@ and the preprocessor, and is structured as follows:
 |  the target code an OP2 preprocessor should produce to correctly
 |  use the OP2 run-time library.
 |
+`- scripts: simple basj scripts for quickly testing OP2 backends and applications
+|
 `- translator: MATLAB and Pyton OP2 preprocessor for C and Fortran
 |
 `- doc: Documentation
 
-This repository should not be confused with the ROSE OP2 preprocessor
-which can be found at: https://github.com/OP2/OP2_ROSE_Fortran

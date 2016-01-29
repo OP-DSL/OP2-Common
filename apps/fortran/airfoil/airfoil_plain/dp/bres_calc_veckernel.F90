@@ -53,11 +53,11 @@ END SUBROUTINE
 SUBROUTINE bres_calc_vec(x1,x2,q1,adt1,res1,bound,idx)
   !dir$ attributes vector :: bres_calc_vec
   IMPLICIT NONE
-  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x1
-  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x2
-  real(8), DIMENSION(SIMD_VEC,4), INTENT(IN) :: q1
-  real(8), DIMENSION(SIMD_VEC,1), INTENT(IN) :: adt1
-  real(8), DIMENSION(SIMD_VEC,4) :: res1
+  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x1
+  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x2
+  real(8), DIMENSION(SIMD_VEC,(4)), INTENT(IN) :: q1
+  real(8), DIMENSION(SIMD_VEC,(1)), INTENT(IN) :: adt1
+  real(8), DIMENSION(SIMD_VEC,(4)) :: res1
   INTEGER(4) :: idx
 
 
@@ -113,11 +113,11 @@ SUBROUTINE op_wrap_bres_calc( &
   INTEGER(kind=4) bottom,top,i1, i2
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
-  real(8) dat1(SIMD_VEC,2)
-  real(8) dat2(SIMD_VEC,2)
-  real(8) dat3(SIMD_VEC,4)
-  real(8) dat4(SIMD_VEC,1)
-  real(8) dat5(SIMD_VEC,4)
+  real(8) dat1(SIMD_VEC,(2))
+  real(8) dat2(SIMD_VEC,(2))
+  real(8) dat3(SIMD_VEC,(4))
+  real(8) dat4(SIMD_VEC,(1))
+  real(8) dat5(SIMD_VEC,(4))
 
   !dir$ attributes align: 64:: dat1
   !dir$ attributes align: 64:: dat2
@@ -216,6 +216,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   type ( op_arg ) , DIMENSION(6) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
+  REAL(kind=4) :: dataTransfer
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
   REAL(kind=8) :: startTime
@@ -304,7 +305,16 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   call op_timers_core(endTime)
 
+  dataTransfer = 0.0
+  dataTransfer = dataTransfer + opArg1%size *n_upper
+  dataTransfer = dataTransfer + opArg3%size *n_upper
+  dataTransfer = dataTransfer + opArg4%size *n_upper
+  dataTransfer = dataTransfer + opArg5%size *n_upper * 2.d0
+  dataTransfer = dataTransfer + opArg6%size *n_upper
+  dataTransfer = dataTransfer + n_upper * opDat1MapDim * 4.d0
+  dataTransfer = dataTransfer + n_upper * opDat3MapDim * 4.d0
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
-  & endTime-startTime,0.00000,0.00000, 1)
+  & endTime-startTime, dataTransfer, 0.00000_4, 1)
+
 END SUBROUTINE
 END MODULE
