@@ -63,9 +63,9 @@ void op_par_loop_res(char const *name, op_set set,
           int map2idx = arg1.map_data[n * arg1.map->dim + 0];
 
           res(
-            &((double*)arg0.data)[1 * n],
-            &((float*)arg1.data)[1 * map1idx],
-            &((float*)arg2.data)[1 * map2idx],
+            &((double*)arg0.data)[3 * n],
+            &((float*)arg1.data)[2 * map1idx],
+            &((float*)arg2.data)[3 * map2idx],
             (float*)arg3.data);
         }
       }

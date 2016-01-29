@@ -185,7 +185,6 @@ SUBROUTINE op_wrap_res_calc( &
       & dat8, &
       & i2)
     END DO
-    !----------- !DIR$ VECTOR works with -xAVX-512
     DO i2 = 1, SIMD_VEC, 1
       map7idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 0) + 1
       map8idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 1) + 1
