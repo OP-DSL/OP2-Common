@@ -114,6 +114,7 @@ clean:
 	rm -f *.mod
 	rm -f $(EXEC)
 	rm -f *~
+	rm -f airfoil_genseq
 	rm -f airfoil_seq
 	rm -f airfoil_vec
 	rm -f airfoil_openmp_*

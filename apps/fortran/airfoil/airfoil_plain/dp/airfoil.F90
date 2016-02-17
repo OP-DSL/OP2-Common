@@ -104,7 +104,7 @@ program AIRFOIL
   call op_decl_const(alpha, 1, 'alpha')
   call op_decl_const(qinf, 4, 'qinf')
 
-  call op_dump_to_hdf5("new_grid_out.h5")
+  !call op_dump_to_hdf5("new_grid_out.h5")
   !call op_fetch_data_hdf5_file(p_x, "new_grid_out.h5")
 
   ! start timer
@@ -175,6 +175,7 @@ program AIRFOIL
 
   end do ! external loop
 
+  call op_print_dat_to_txtfile(p_q, "out_grid_seq.dat") !ASCI
   call op_timers ( endTime )
   call op_timing_output ()
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'

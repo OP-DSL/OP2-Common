@@ -423,6 +423,16 @@ module OP2_Fortran_Declarations
 
     end subroutine op_print_dat_to_binfile_c
 
+    subroutine op_print_dat_to_txtfile_c (dat, fileName) BIND(C,name='op_print_dat_to_txtfile')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_dat_core
+
+      type(op_dat_core) :: dat
+      character(len=1,kind=c_char) :: fileName(*)
+
+    end subroutine op_print_dat_to_txtfile_c
+
     logical(kind=c_bool) function isCNullPointer_c (ptr) BIND(C,name='isCNullPointer')
       use, intrinsic :: ISO_C_BINDING
 
@@ -1111,6 +1121,15 @@ contains
     call op_print_dat_to_binfile_c (dat%dataPtr, fileName)
 
   end subroutine op_print_dat_to_binfile
+
+  subroutine op_print_dat_to_txtfile (dat, fileName)
+
+    type(op_dat) :: dat
+    character(len=*) :: fileName
+
+    call op_print_dat_to_txtfile_c (dat%dataPtr, fileName)
+
+  end subroutine op_print_dat_to_txtfile
 
   subroutine op_mpi_rank (rank)
 
