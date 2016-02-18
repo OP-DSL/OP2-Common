@@ -295,6 +295,16 @@ module OP2_Fortran_Declarations
 
     end subroutine op_fetch_data_f
 
+
+    subroutine op_fetch_data_c ( opdat, data ) BIND(C,name='op_fetch_data_char')
+      use, intrinsic :: ISO_C_BINDING
+      import :: op_dat
+
+      type(op_dat) :: opdat
+      type(c_ptr), value :: data
+
+    end subroutine op_fetch_data_c 
+
     subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
       use, intrinsic :: ISO_C_BINDING
 

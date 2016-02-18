@@ -57,6 +57,7 @@
 
 #include <op_mpi_core.h>
 #include <op_hdf5.h>
+#include <H5FDmpio.h>
 
 //
 //MPI Communicator for parallel I/O
