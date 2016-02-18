@@ -67,4 +67,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   OP_kernels[1].name      = name;
   OP_kernels[1].count    += 1;
   OP_kernels[1].time     += wall_t2 - wall_t1;
+  OP_kernels[1].transfer += (float)set->size * arg0.size;
+  OP_kernels[1].transfer += (float)set->size * arg4.size;
+  OP_kernels[1].transfer += (float)set->size * arg5.size;
+  OP_kernels[1].transfer += (float)set->size * arg0.map->dim * 4.0f;
 }

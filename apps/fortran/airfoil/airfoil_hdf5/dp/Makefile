@@ -134,10 +134,10 @@ airfoil_hdf5_mpi_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_seqkernel.F90 a
 
 airfoil_hdf5_mpi_vec: airfoil_hdf5_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(MPIF90) $(OPT) $(FMPI_MODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_veckernel.F90 update_veckernel.F90 bres_calc_veckernel.F90 \
         res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_hdf5_op.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(PARMETIS_INC) $(PTSCOTCH_INC) input.o constants.o airfoil_seqfun.o \
+	$(MPIF90) $(OPT) $(PARMETIS_INC) $(PTSCOTCH_INC) input.o constants.o airfoil_seqfun.o \
         save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
         bres_calc_veckernel.o update_veckernel.o airfoil_hdf5_op.o -o airfoil_hdf5_mpi_vec \
         $(FLINK) -lop2_for_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)

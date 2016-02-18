@@ -154,22 +154,21 @@ contains
     end if
   end subroutine op_decl_map_hdf5
 
-  subroutine op_decl_dat_hdf5 ( set, datdim, data, type, fileName, datName, status )
+  subroutine op_decl_dat_hdf5 ( set, datdim, data, typ, fileName, datName, status )
     implicit none
 
     type(op_set), intent(in) :: set
     integer, intent(in) :: datdim
     type(op_dat) :: data
-    character(kind=c_char,len=*) :: type
+    character(kind=c_char,len=*) :: typ
     character(kind=c_char,len=*) :: fileName
     character(kind=c_char,len=*) :: datName
     integer (kind=c_int) :: status
 
     status = -1
     data%dataPtr => null()
-
     ! assume names are /0 terminated
-    data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, type//C_NULL_CHAR, fileName//C_NULL_CHAR, datName//C_NULL_CHAR)
+    data%dataCPtr = op_decl_dat_hdf5_c ( set%setCPtr, datdim, typ//C_NULL_CHAR, fileName//C_NULL_CHAR, datName//C_NULL_CHAR)
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_dat variable
     call c_f_pointer ( data%dataCPtr, data%dataPtr )

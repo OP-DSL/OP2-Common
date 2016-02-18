@@ -21,14 +21,12 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-#<<COMMENT1
-
 echo " "
 echo " "
 echo "**********************************************************************"
 echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
-. $CURRENT_DIR/source_intel_16
+. $CURRENT_DIR/source_intel
 make clean; make
 
 #<<COMMENT1
@@ -99,7 +97,6 @@ make clean;make
 
 #COMMENT1
 
-#<<COMMENT1
 
 echo " "
 echo " "
@@ -166,7 +163,6 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
-
 echo " "
 echo " "
 echo "=======================> Running Aero Plain DP built with Intel Compilers"
@@ -178,7 +174,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -196,12 +192,11 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
-
 
 
 echo " "
@@ -235,7 +230,7 @@ export OMP_NUM_THREADS=20
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
-#COMMENT1
+#<<COMMENT1
 ################################################################################
 ################################################################################
 echo " "
@@ -245,7 +240,7 @@ echo "******************* Building Fortan back-end libs with Intel Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
 pwd
-. $CURRENT_DIR/source_intel_16
+. $CURRENT_DIR/source_intel
 make clean; make
 
 echo " "
@@ -313,7 +308,7 @@ echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi
+. $CURRENT_DIR/source_pgi_15.1
 pwd
 make clean; make
 

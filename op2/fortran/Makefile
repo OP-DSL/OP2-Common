@@ -72,7 +72,7 @@ NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fas
 
 # Common definitions
 # Uncomment -g to get debugging info on board
-# DEBUG_FLAGS = -O2
+#DEBUG_FLAGS = -g
 
 #  -Werror
 

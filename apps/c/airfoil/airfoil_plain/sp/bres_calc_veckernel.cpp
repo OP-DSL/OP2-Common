@@ -209,4 +209,11 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   OP_kernels[3].name      = name;
   OP_kernels[3].count    += 1;
   OP_kernels[3].time     += wall_t2 - wall_t1;
+  OP_kernels[3].transfer += (float)set->size * arg0.size;
+  OP_kernels[3].transfer += (float)set->size * arg2.size;
+  OP_kernels[3].transfer += (float)set->size * arg3.size;
+  OP_kernels[3].transfer += (float)set->size * arg4.size * 2.0f;
+  OP_kernels[3].transfer += (float)set->size * arg5.size;
+  OP_kernels[3].transfer += (float)set->size * arg0.map->dim * 4.0f;
+  OP_kernels[3].transfer += (float)set->size * arg2.map->dim * 4.0f;
 }
