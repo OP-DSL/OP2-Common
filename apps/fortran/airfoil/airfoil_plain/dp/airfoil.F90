@@ -176,6 +176,7 @@ program AIRFOIL
   end do ! external loop
 
   call op_print_dat_to_txtfile(p_q, "out_grid_seq.dat") !ASCI
+  call op_fetch_data(p_q, q)
   call op_timers ( endTime )
   call op_timing_output ()
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'

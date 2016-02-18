@@ -287,13 +287,14 @@ module OP2_Fortran_Declarations
 
     end subroutine
 
-    subroutine op_fetch_data_f ( opdat ) BIND(C,name='op_fetch_data')
+    subroutine op_fetch_data_c ( opdat, data ) BIND(C,name='op_fetch_data_char')
+      use, intrinsic :: ISO_C_BINDING
+      import :: op_dat
 
-      import :: op_dat_core
+      type(op_dat) :: opdat
+      type(c_ptr), value :: data
 
-      type(op_dat_core) :: opdat
-
-    end subroutine op_fetch_data_f
+    end subroutine op_fetch_data_c
 
     subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
       use, intrinsic :: ISO_C_BINDING
@@ -477,6 +478,11 @@ module OP2_Fortran_Declarations
   interface op_opt_arg_dat
     module procedure op_opt_arg_dat_python
   end interface op_opt_arg_dat
+
+  interface op_fetch_data
+    module procedure op_fetch_data_real_8, op_fetch_data_real_4, &
+    op_fetch_data_integer_4
+  end interface op_fetch_data
 
 contains
 
@@ -1150,5 +1156,32 @@ contains
     call op_print_c (line//C_NULL_CHAR)
 
   end subroutine
+
+  subroutine op_fetch_data_real_8 ( dat, data )
+
+    real(8), dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat, c_loc (data))
+
+  end subroutine op_fetch_data_real_8
+
+  subroutine op_fetch_data_real_4 ( dat, data )
+
+    real, dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat, c_loc (data))
+
+  end subroutine op_fetch_data_real_4
+
+  subroutine op_fetch_data_integer_4 ( dat, data )
+
+    integer(4), dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat, c_loc (data))
+
+  end subroutine op_fetch_data_integer_4
 
 end module OP2_Fortran_Declarations
