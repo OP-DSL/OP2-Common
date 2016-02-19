@@ -473,6 +473,10 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
     stage_flags=[0]*nargs;
 
+    for g_m in range(0,nargs):
+      if dims[g_m] == 'NPDE':
+        dims[g_m] = '6'
+
     unknown_reduction_size = 0
     needDimList = []
     for g_m in range(0,nargs):
