@@ -120,3 +120,4 @@ clean:
 	rm -f airfoil_openmp_*
 	rm -f airfoil_openmp_$(PART_SIZE_ENV)
 	rm -f airfoil_cuda
+

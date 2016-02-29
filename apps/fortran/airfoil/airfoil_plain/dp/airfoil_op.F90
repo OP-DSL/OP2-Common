@@ -103,6 +103,7 @@ program AIRFOIL
   call op_decl_dat ( cells, 1, 'real(8)', adt, p_adt, 'p_adt' )
   call op_decl_dat ( cells, 4, 'real(8)', res, p_res, 'p_res' )
 
+
   print *, "Declaring OP2 constants"
        
   !call op_dump_to_hdf5("new_grid_out.h5")
@@ -173,6 +174,8 @@ program AIRFOIL
 
 
 
+      call op_fetch_data(p_q,q)
+    
     end do ! internal loop
 
     ncellr = real ( ncell )
@@ -186,8 +189,6 @@ program AIRFOIL
 
   end do ! external loop
 
-  call op_print_dat_to_txtfile(p_q, "out_grid_seq.dat") !ASCI
-  call op_fetch_data(p_q, q)
   call op_timers ( endTime )
   call op_timing_output ()
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
