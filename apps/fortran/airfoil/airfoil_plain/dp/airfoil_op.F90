@@ -25,7 +25,7 @@ program AIRFOIL
   integer(4), parameter :: maxcell = (9702+1)
   integer(4), parameter :: maxedge = 19502
 
-  integer(4), parameter :: iterationNumber = 100
+  integer(4), parameter :: iterationNumber = 1000
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter, qdim
   real(8) :: ncellr
@@ -119,8 +119,7 @@ program AIRFOIL
      call save_soln_host(&
                       & "save_soln",cells,  &
                       & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_READ),  &
-                      & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE),  &
-                      & op_arg_dat(incre_d,-1,OP_ID,1,"real(8)",OP_INC))
+                      & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE))
 
 
     ! predictor/corrector update loop
