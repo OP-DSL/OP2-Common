@@ -323,8 +323,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         j = kernel_text[i:].find('(')
         k = para_parse(kernel_text, i+j, '(', ')')
         l = kernel_text[k:].find('END'+'\\s+\\b'+'SUBROUTINE')
-        para = kernel_text[j+1:k].split(',')
-      
+        para = kernel_text[j+1:k].split(',') 
         #remove direct vars from para
         para_ind = []
         for i in range(0,nargs):

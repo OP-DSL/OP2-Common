@@ -8,4 +8,5 @@ SUBROUTINE save_soln_gpu(q,qold)
   DO i = 1, 4
     qold(i) = q(i)
   END DO
+
 END SUBROUTINE

@@ -254,7 +254,7 @@ void op_timing_output()
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name)
 {
-  //need to get data from GPU
+  //need to get data from GPU 
   op_cuda_get_data(dat);
   op_print_dat_to_binfile_core(dat, file_name);
 }
@@ -295,7 +295,7 @@ void op_upload_all ()
 }
 
 void op_fetch_data_char ( op_dat dat, char * usr_ptr )
-{
+{ 
   op_cuda_get_data(dat);
   //need to copy data into memory pointed to by usr_ptr
   memcpy((void *)usr_ptr, (void *)dat->data, dat->set->size*dat->size);

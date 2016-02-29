@@ -42,8 +42,8 @@ HDF5_LIB =  -L$(HDF5_LIB_PATH) -lhdf5
 
 CUDA_INC = $(CUDA_INSTALL_PATH)/include
 
-MPI_INC = /usr/include/mpich-x86_64
-MPI_LIB = /usr/lib64/mpich/lib
+MPI_INC = $(MPI_INSTALL_PATH)/include
+MPI_LIB = $(MPI_INSTALL_PATH)/lib
 
 #
 # compiler settings
@@ -57,7 +57,7 @@ ifndef NV_ARCH
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
-  PGI_CUDA_FORT_FLAGS=-Mcuda=cc20
+  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc20
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
@@ -116,15 +116,15 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 #-xAVX -vec-report
+  OPT             = -O3 -xAVX -vec-report
   CC              = icc $(OPT)
   CXX             = icpc $(OPT)
-  CFLAGS          = -std=c99 -Wall -v  $(DEBUG_FLAGS) #-wd981
+  CFLAGS          = -std=c99 -Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-	FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
-  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc -cc=icc $(OPT)
-  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx -cc=icpc $(OPT)
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
+  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx $(OPT)
   MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
@@ -413,4 +413,5 @@ clean:
 	-rm -if $(F_INC_MOD)/*.mod
 	-rm -if $(F_MPI_INC_MOD)/*.mod
 	-rm -if $(F_OP2)/*~
+
 

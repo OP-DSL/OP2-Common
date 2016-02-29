@@ -31,9 +31,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  #FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo
-  FC = pgfortran -fast -Mcuda=cc20
-	MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
+  FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
@@ -44,12 +43,6 @@ else
 ifeq ($(OP2_COMPILER),intel)
   IC = icc
   FC = ifort
-<<<<<<< HEAD
-  OPENMP = -openmp
-  OPT = -O3 -parallel -fno-alias -xSSE3
-	#OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2
-  #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
-=======
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -xSSE4.2 -vec-report
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
@@ -57,7 +50,6 @@ ifeq ($(OP2_COMPILER),intel)
   OPENMP = -openmp
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xMIC-AVX512 -parallel -qopt-report=5 -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
->>>>>>> 1b29975e6a14439e05f5c282e210c3ae625e78a2
   CPPLINK = -lstdc++
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp_$(PART_SIZE_ENV)
 else
@@ -128,3 +120,4 @@ clean:
 	rm -f airfoil_openmp_*
 	rm -f airfoil_openmp_$(PART_SIZE_ENV)
 	rm -f airfoil_cuda
+

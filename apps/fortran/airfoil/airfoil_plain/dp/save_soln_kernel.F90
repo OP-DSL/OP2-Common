@@ -22,22 +22,26 @@ CONTAINS
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
+  & opDat3Local, &
   & bottom,top)
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
+  real(8) opDat3Local(1,*)
   INTEGER(kind=4) bottom,top,i1
 
   DO i1 = bottom, top-1, 1
 ! kernel call
   CALL save_soln( &
     & opDat1Local(1,i1+1), &
-    & opDat2Local(1,i1+1) &
+    & opDat2Local(1,i1+1), &
+    & opDat3Local(1,i1+1) &
     & )
   END DO
 END SUBROUTINE
 SUBROUTINE save_soln_host( userSubroutine, set, &
   & opArg1, &
-  & opArg2 )
+  & opArg2, &
+  & opArg3 )
 
   IMPLICIT NONE
   character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
@@ -45,8 +49,9 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   type ( op_arg ) , INTENT(IN) :: opArg1
   type ( op_arg ) , INTENT(IN) :: opArg2
+  type ( op_arg ) , INTENT(IN) :: opArg3
 
-  type ( op_arg ) , DIMENSION(2) :: opArgArray
+  type ( op_arg ) , DIMENSION(3) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
   INTEGER(kind=4) :: n_upper
   type ( op_set_core ) , POINTER :: opSetCore
@@ -56,6 +61,9 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   real(8), POINTER, DIMENSION(:) :: opDat2Local
   INTEGER(kind=4) :: opDat2Cardinality
+
+  real(8), POINTER, DIMENSION(:) :: opDat3Local
+  INTEGER(kind=4) :: opDat3Cardinality
 
   INTEGER(kind=4) :: threadID
   INTEGER(kind=4) :: numberOfThreads
@@ -71,10 +79,11 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   INTEGER(kind=4) :: i1,i2,n
 
-  numberOfOpDats = 2
+  numberOfOpDats = 3
 
   opArgArray(1) = opArg1
   opArgArray(2) = opArg2
+  opArgArray(3) = opArg3
 
   returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000,0.00000, 0)
@@ -93,8 +102,10 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
     opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
     opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
+    opDat3Cardinality = opArg3%dim * getSetSizeFromOpArg(opArg3)
     CALL c_f_pointer(opArg1%data,opDat1Local,(/opDat1Cardinality/))
     CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
+    CALL c_f_pointer(opArg3%data,opDat3Local,(/opDat3Cardinality/))
 
 
     !$OMP PARALLEL DO private (sliceStart,sliceEnd,i1,threadID)
@@ -106,6 +117,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
       CALL op_wrap_save_soln( &
       & opDat1Local, &
       & opDat2Local, &
+      & opDat3Local, &
       & sliceStart, sliceEnd)
     END DO
     !$OMP END PARALLEL DO
@@ -120,6 +132,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
     dataTransfer = 0.0
     dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
     dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2) * 2.d0
+    dataTransfer = dataTransfer + opArg3%size * getSetSizeFromOpArg(opArg3) * 2.d0
     returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
     & endTime-startTime, dataTransfer, 0.00000, 1)
   END SUBROUTINE

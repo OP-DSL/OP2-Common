@@ -289,22 +289,12 @@ module OP2_Fortran_Declarations
 
     subroutine op_fetch_data_c ( opdat, data ) BIND(C,name='op_fetch_data_char')
       use, intrinsic :: ISO_C_BINDING
-      import :: op_dat
+      import :: op_dat_core
 
-      type(op_dat) :: opdat
+      type(op_dat_core) :: opdat
       type(c_ptr), value :: data
 
     end subroutine op_fetch_data_c
-
-
-    subroutine op_fetch_data_c ( opdat, data ) BIND(C,name='op_fetch_data_char')
-      use, intrinsic :: ISO_C_BINDING
-      import :: op_dat
-
-      type(op_dat) :: opdat
-      type(c_ptr), value :: data
-
-    end subroutine op_fetch_data_c 
 
     subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
       use, intrinsic :: ISO_C_BINDING
@@ -1172,7 +1162,7 @@ contains
     real(8), dimension(*), target :: data
     type(op_dat) :: dat
 
-    call op_fetch_data_c ( dat, c_loc (data))
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
 
   end subroutine op_fetch_data_real_8
 
@@ -1181,7 +1171,7 @@ contains
     real, dimension(*), target :: data
     type(op_dat) :: dat
 
-    call op_fetch_data_c ( dat, c_loc (data))
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
 
   end subroutine op_fetch_data_real_4
 
@@ -1190,7 +1180,7 @@ contains
     integer(4), dimension(*), target :: data
     type(op_dat) :: dat
 
-    call op_fetch_data_c ( dat, c_loc (data))
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
 
   end subroutine op_fetch_data_integer_4
 
