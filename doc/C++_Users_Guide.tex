@@ -701,10 +701,10 @@ block.}
 \item[data]          pointer to a block of memory of type T -- allocated by the user
 \end{routine}
 
-\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_hdf5}
-\begin{routine} {void op\_fetch\_data\_hdf5(op\_dat dat, T* data, int low, int high)}
+\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_fetch\_data\_idx}
+\begin{routine} {void op\_fetch\_data\_idx(op\_dat dat, T* data, int low, int high)}
 {Transfers a copy of the op\_dat's data currently held by OP2 to a user allocated block of memory pointed
-to by data pointer of type T. The {\tt low} and {\tt high} integers gives the range of elements to be fetched. Under MPI
+to by data pointer of type T. The {\tt low} and {\tt high} integers gives the range of elements (or indices) to be fetched. Under MPI
 (with hdf5) all the processes will hold the same data block(i.e. after an \texttt{MPI\_Allgather})}
 \item [dat] OP dataset ID -- The op dat whose data is to be fetched from OP2 space to user space
 \item [data] pointer to a block of memory of type T -- allocated by the user

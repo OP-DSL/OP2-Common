@@ -326,7 +326,7 @@ int main(int argc, char **argv)
 
   //gather results from all ranks and check
   double* ug = (double *)malloc(sizeof(double)*op_get_size(nodes));
-  op_fetch_data_hdf5(p_u, ug, 0, op_get_size(nodes)-1);
+  op_fetch_data_idx(p_u, ug, 0, op_get_size(nodes)-1);
   int result = check_result<double>(ug, NN, TOLERANCE);
   free(ug);
 

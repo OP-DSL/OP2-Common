@@ -320,6 +320,12 @@ int main(int argc, char **argv)
   op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); //ASCI
   op_print_dat_to_binfile(p_q, "out_grid_seq.bin"); //Binary
 
+  //write given op_dat's indicated segment of data to a memory block in the order it was originally
+  //arranged (i.e. before partitioning and reordering)
+  double* q_part = (double *)op_malloc(sizeof(double)*op_get_size(cells)*4);
+  op_fetch_data_idx(p_q, q_part, 0, op_get_size(cells)-1);
+  free(q_part);
+
   op_timing_output();
   op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
 
