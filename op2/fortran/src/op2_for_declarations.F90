@@ -296,6 +296,17 @@ module OP2_Fortran_Declarations
 
     end subroutine op_fetch_data_c
 
+    subroutine op_fetch_data_idx_c ( opdat, data, low, high) BIND(C,name='op_fetch_data_idx_char')
+      use, intrinsic :: ISO_C_BINDING
+      import :: op_dat_core
+
+      type(op_dat_core) :: opdat
+      type(c_ptr), value :: data
+      integer(kind=c_int), value :: high
+      integer(kind=c_int), value :: low
+
+    end subroutine op_fetch_data_idx_c
+
     subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
       use, intrinsic :: ISO_C_BINDING
 
@@ -483,6 +494,11 @@ module OP2_Fortran_Declarations
     module procedure op_fetch_data_real_8, op_fetch_data_real_4, &
     op_fetch_data_integer_4
   end interface op_fetch_data
+
+  interface op_fetch_data_idx
+    module procedure op_fetch_data_idx_real_8, op_fetch_data_idx_real_4, &
+    op_fetch_data_idx_integer_4
+  end interface op_fetch_data_idx
 
 contains
 
@@ -1183,5 +1199,38 @@ contains
     call op_fetch_data_c ( dat%dataPtr, c_loc (data))
 
   end subroutine op_fetch_data_integer_4
+
+  subroutine op_fetch_data_idx_real_8 ( dat, data, low, high )
+
+    real(8), dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_real_8
+
+  subroutine op_fetch_data_idx_real_4 ( dat, data, low, high )
+
+    real, dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_real_4
+
+  subroutine op_fetch_data_idx_integer_4 ( dat, data, low, high )
+
+    integer(4), dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_integer_4
 
 end module OP2_Fortran_Declarations
