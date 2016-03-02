@@ -45,7 +45,7 @@ program AIRFOIL
 
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
-  real(8), dimension(:), allocatable, target :: x, q, qold, adt, res
+  real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, q_part
   real(8), dimension(1:2) :: rms
 
   integer(4) :: debugiter, retDebug
@@ -70,6 +70,9 @@ program AIRFOIL
   allocate ( qold ( 4 * ncell ) )
   allocate ( res ( 4 * ncell ) )
   allocate ( adt ( ncell ) )
+
+  !allocated simply to test op_fetch_data_idx()
+  allocate ( q_part ( 4 * ncell ) )
 
   print *, "Getting data"
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
@@ -103,9 +106,10 @@ program AIRFOIL
   call op_decl_dat ( cells, 1, 'real(8)', adt, p_adt, 'p_adt' )
   call op_decl_dat ( cells, 4, 'real(8)', res, p_res, 'p_res' )
 
+
   print *, "Declaring OP2 constants"
        
-  call op_dump_to_hdf5("new_grid_out.h5")
+  !call op_dump_to_hdf5("new_grid_out.h5")
   !call op_fetch_data_hdf5_file(p_x, "new_grid_out.h5")
 
   ! start timer
@@ -172,8 +176,11 @@ program AIRFOIL
                        & op_arg_gbl(rms,2,"real(8)",OP_INC))
 
 
-
     end do ! internal loop
+
+    call op_fetch_data(p_q,q)
+
+    call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
     ncellr = real ( ncell )
     rms(2) = sqrt ( rms(2) / ncellr )

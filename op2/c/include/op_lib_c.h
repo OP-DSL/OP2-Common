@@ -98,7 +98,7 @@ op_dat op_fetch_data_file_char ( op_dat );
 
 void op_upload_all ( );
 
-void op_fetch_data_hdf5_char ( op_dat , char* , int, int);
+void op_fetch_data_idx_char ( op_dat , char* , int, int);
 
 void op_exit (  );
 

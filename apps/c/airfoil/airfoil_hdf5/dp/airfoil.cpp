@@ -218,15 +218,15 @@ int main(int argc, char **argv)
   }
 
   op_timers(&cpu_t2, &wall_t2);
-  
-  //write given op_dat's indicated segment of data to a memory block in the order it was originally 
+
+  //write given op_dat's indicated segment of data to a memory block in the order it was originally
   //arranged (i.e. before partitioning and reordering)
   double* q = (double *)op_malloc(sizeof(double)*op_get_size(cells)*4);
-  op_fetch_data_hdf5(p_q, q, 0, op_get_size(cells)-1);
+  op_fetch_data_idx(p_q, q, 0, op_get_size(cells)-1);
   free(q);
 
   //write given op_dat's data to hdf5 file in the order it was originally arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_q, "file_name.h5"); 
+  op_fetch_data_hdf5_file(p_q, "file_name.h5");
 
   //printf("Root process = %d\n",op_is_root());
 

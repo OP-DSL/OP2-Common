@@ -141,7 +141,7 @@ void op_fetch_data_char(op_dat dat, char* usr_ptr)
   free(temp);
 }
 
-void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
+void op_fetch_data_idx_char(op_dat dat, char * usr_ptr, int low, int high)
 {
   //rearrange data back to original order in mpi
   op_dat temp = op_mpi_get_data(dat);

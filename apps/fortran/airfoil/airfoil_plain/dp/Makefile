@@ -114,8 +114,10 @@ clean:
 	rm -f *.mod
 	rm -f $(EXEC)
 	rm -f *~
+	rm -f airfoil_genseq
 	rm -f airfoil_seq
 	rm -f airfoil_vec
 	rm -f airfoil_openmp_*
 	rm -f airfoil_openmp_$(PART_SIZE_ENV)
 	rm -f airfoil_cuda
+

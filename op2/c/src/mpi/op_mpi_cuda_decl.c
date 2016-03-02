@@ -457,7 +457,7 @@ op_dat op_fetch_data_file_char(op_dat dat)
   return op_mpi_get_data(dat);
 }
 
-void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
+void op_fetch_data_idx_char(op_dat dat, char * usr_ptr, int low, int high)
 {
   //need to get data from GPU
   op_cuda_get_data(dat);

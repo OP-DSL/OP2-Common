@@ -117,7 +117,7 @@ void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
 
   if(low < 0 || high > g_size -1)
   {
-    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+    printf("op_fetch_data: Indices not within range of elements held in %s\n",
       dat->name);
     MPI_Abort(OP_MPI_IO_WORLD, -1);
   }

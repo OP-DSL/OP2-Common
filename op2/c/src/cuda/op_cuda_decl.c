@@ -302,12 +302,12 @@ void op_fetch_data_char ( op_dat dat, char * usr_ptr )
 }
 
 void
-op_fetch_data_hdf5_char ( op_dat dat, char * usr_ptr, int low, int high)
+op_fetch_data_idx_char ( op_dat dat, char * usr_ptr, int low, int high)
 {
   op_cuda_get_data(dat);
   if(low < 0 || high > dat->set->size -1)
   {
-    printf("op_fetch_data_hdf5: Indices not within range of elements held in %s\n",
+    printf("op_fetch_data: Indices not within range of elements held in %s\n",
       dat->name);
     exit(2);
   }

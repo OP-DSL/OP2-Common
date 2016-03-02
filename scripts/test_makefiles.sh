@@ -29,7 +29,7 @@ echo "**********************************************************************"
 . $CURRENT_DIR/source_intel
 make clean; make
 
-#<<COMMENT1
+##<<COMMENT1
 
 echo " "
 echo " "
@@ -230,7 +230,7 @@ export OMP_NUM_THREADS=20
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
-#<<COMMENT1
+##COMMENT1
 ################################################################################
 ################################################################################
 echo " "

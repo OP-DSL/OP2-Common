@@ -191,9 +191,9 @@ void op_fetch_data ( op_dat dat, T* usr_ptr)
 }
 
 template < class T >
-void op_fetch_data_hdf5(op_dat dat, T* usr_ptr, int low, int high)
+void op_fetch_data_idx (op_dat dat, T* usr_ptr, int low, int high)
 {
-  op_fetch_data_hdf5_char(dat, (char* )usr_ptr, low, high);
+  op_fetch_data_idx_char(dat, (char* )usr_ptr, low, high);
 }
 
 //

@@ -850,7 +850,10 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
   {
     for(int j = 0; j < dat->dim; j++ )
     {
-      if( (strcmp(dat->type,"double") == 0) || (strcmp(dat->type,"double:soa") == 0))
+      if( strcmp(dat->type,"double") == 0 ||
+          strcmp(dat->type,"double:soa") == 0 ||
+          strcmp(dat->type,"double precision") == 0 ||
+          strcmp(dat->type,"real(8)") == 0)
       {
         if(fprintf(fp, "%lf ", ((double *)dat->data)[i*dat->dim+j])<0)
         {
@@ -858,7 +861,10 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
           exit(2);
         }
       }
-      else if((strcmp(dat->type,"float") == 0) || (strcmp(dat->type,"float:soa") == 0))
+      else if(strcmp(dat->type,"float")==0 ||
+            strcmp(dat->type,"float:soa") == 0 ||
+            strcmp(dat->type,"real(4)") == 0 ||
+            strcmp(dat->type,"real") == 0 )
       {
         if(fprintf(fp, "%f ", ((float *)dat->data)[i*dat->dim+j])<0)
         {
@@ -866,7 +872,10 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char* file_name)
           exit(2);
         }
       }
-      else if((strcmp(dat->type,"int") == 0) || (strcmp(dat->type,"int:soa") == 0))
+      else if( strcmp(dat->type,"int")==0 || strcmp(dat->type,"int:soa") == 0 ||
+             strcmp(dat->type,"int(4)") == 0 ||
+             strcmp(dat->type,"integer") == 0 ||
+             strcmp(dat->type,"integer(4)") == 0 )
       {
         if(fprintf(fp, "%d ", ((int *)dat->data)[i*dat->dim+j])<0)
         {
