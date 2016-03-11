@@ -306,11 +306,11 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   call op_timers_core(endTime)
 
   dataTransfer = 0.0
-  dataTransfer = dataTransfer + opArg1%size *n_upper
-  dataTransfer = dataTransfer + opArg3%size *n_upper
-  dataTransfer = dataTransfer + opArg4%size *n_upper
-  dataTransfer = dataTransfer + opArg5%size *n_upper * 2.d0
-  dataTransfer = dataTransfer + opArg6%size *n_upper
+  dataTransfer = dataTransfer + opArg1%size * MIN(n_upper,getSetSizeFromOpArg(opArg1))
+  dataTransfer = dataTransfer + opArg3%size * MIN(n_upper,getSetSizeFromOpArg(opArg3))
+  dataTransfer = dataTransfer + opArg4%size * MIN(n_upper,getSetSizeFromOpArg(opArg4))
+  dataTransfer = dataTransfer + opArg5%size * MIN(n_upper,getSetSizeFromOpArg(opArg5)) * 2.d0
+  dataTransfer = dataTransfer + opArg6%size * MIN(n_upper,getSetSizeFromOpArg(opArg6))
   dataTransfer = dataTransfer + n_upper * opDat1MapDim * 4.d0
   dataTransfer = dataTransfer + n_upper * opDat3MapDim * 4.d0
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &

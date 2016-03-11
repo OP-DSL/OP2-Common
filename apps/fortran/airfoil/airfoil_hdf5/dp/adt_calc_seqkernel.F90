@@ -143,9 +143,9 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   call op_timers_core(endTime)
 
   dataTransfer = 0.0
-  dataTransfer = dataTransfer + opArg1%size *n_upper
-  dataTransfer = dataTransfer + opArg5%size *n_upper
-  dataTransfer = dataTransfer + opArg6%size *n_upper
+  dataTransfer = dataTransfer + opArg1%size * MIN(n_upper,getSetSizeFromOpArg(opArg1))
+  dataTransfer = dataTransfer + opArg5%size * MIN(n_upper,getSetSizeFromOpArg(opArg5))
+  dataTransfer = dataTransfer + opArg6%size * MIN(n_upper,getSetSizeFromOpArg(opArg6))
   dataTransfer = dataTransfer + n_upper * opDat1MapDim * 4.d0
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
