@@ -4,6 +4,11 @@
 # CUDA_INSTALL_PATH - CUDA base directory
 # OP2_COMPILER      - Compiler toolchain: gnu (gcc, gfortran) or pgi (icc, pgfortran)
 # OP2_INSTALL_PATH  - OP2 base directory
+# PARMETIS_INSTALL_PATH
+# PTSCOTCH_INSTALL_PATH
+# HDF5_INSTALL_PATH
+# MPI_INSTALL_PATH
+#
 #
 # Note: the CUDA library can only be built with the PGI toolchain
 OP2 = $(OP2_INSTALL_PATH)
@@ -57,12 +62,12 @@ ifndef NV_ARCH
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
-  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc20
+  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda7.5,cc20
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
-   PGI_CUDA_FORT_FLAGS=-Mcuda=cuda6.0,cc35
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cuda7.5,cc35
 endif
 endif
 
@@ -73,7 +78,7 @@ NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fas
 
 # Common definitions
 # Uncomment -g to get debugging info on board
-# DEBUG_FLAGS = -O2
+#DEBUG_FLAGS = -g
 
 #  -Werror
 
@@ -96,9 +101,9 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = pgcc
-  CXX             = pgc++
-  FC              = pgfortran
+  CC              = pgcc -g
+  CXX             = pgc++ -g
+  FC              = pgfortran -g
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc -Xcompiler="-std=c99 -Wall -fPIC -pipe"
@@ -117,7 +122,7 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -xAVX -vec-report
+  OPT             = -O3 -g -xAVX -vec-report
   CC              = icc $(OPT)
   CXX             = icpc $(OPT)
   CFLAGS          = -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
@@ -414,4 +419,5 @@ clean:
 	-rm -if $(F_INC_MOD)/*.mod
 	-rm -if $(F_MPI_INC_MOD)/*.mod
 	-rm -if $(F_OP2)/*~
+
 

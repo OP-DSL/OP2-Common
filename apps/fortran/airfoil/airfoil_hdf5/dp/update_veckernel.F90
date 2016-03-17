@@ -65,7 +65,7 @@ SUBROUTINE op_wrap_update( &
     END DO
 
     DO i2 = 1, SIMD_VEC, 1
-      opDat5Local(1:2) = opDat5Local(1:2) + dat5(2*(i2-1)+1:2*(i2-1)+2)
+      opDat5Local(1:(2)) = opDat5Local(1:(2)) + dat5((2)*(i2-1)+1:(2)*(i2-1)+(2))
     END DO
   END DO
   ! remainder
@@ -102,6 +102,7 @@ SUBROUTINE update_host( userSubroutine, set, &
 
   type ( op_arg ) , DIMENSION(5) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
+  REAL(kind=4) :: dataTransfer
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
   REAL(kind=8) :: startTime
@@ -168,7 +169,14 @@ SUBROUTINE update_host( userSubroutine, set, &
 
   call op_timers_core(endTime)
 
+  dataTransfer = 0.0
+  dataTransfer = dataTransfer + opArg1%size * opSetCore%size
+  dataTransfer = dataTransfer + opArg2%size * opSetCore%size
+  dataTransfer = dataTransfer + opArg3%size * opSetCore%size * 2.d0
+  dataTransfer = dataTransfer + opArg4%size * opSetCore%size
+  dataTransfer = dataTransfer + opArg5%size * 2.d0
   returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-  & endTime-startTime,0.00000,0.00000, 1)
+  & endTime-startTime, dataTransfer, 0.00000_4, 1)
+
 END SUBROUTINE
 END MODULE

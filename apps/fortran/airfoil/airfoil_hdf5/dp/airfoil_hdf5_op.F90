@@ -88,19 +88,19 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 data")
-  call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'int', 'new_grid.h5', 'p_bound', status )
-  call op_decl_dat_hdf5 ( nodes, 2, p_x, 'double', 'new_grid.h5', 'p_x' , status)
-  call op_decl_dat_hdf5 ( cells, 4, p_q, 'double', 'new_grid.h5', 'p_q' , status)
-  call op_decl_dat_hdf5 ( cells, 4, p_qold, 'double', 'new_grid.h5', 'p_qold' , status)
-  call op_decl_dat_hdf5 ( cells, 1, p_adt, 'double', 'new_grid.h5', 'p_adt' , status)
-  call op_decl_dat_hdf5 ( cells, 4, p_res, 'double', 'new_grid.h5', 'p_res' , status)
+  call op_decl_dat_hdf5 ( bedges, 1, p_bound, 'integer', 'new_grid.h5', 'p_bound', status )
+  call op_decl_dat_hdf5 ( nodes, 2, p_x, 'real(8)', 'new_grid.h5', 'p_x' , status)
+  call op_decl_dat_hdf5 ( cells, 4, p_q, 'real(8)', 'new_grid.h5', 'p_q' , status)
+  call op_decl_dat_hdf5 ( cells, 4, p_qold, 'real(8)', 'new_grid.h5', 'p_qold' , status)
+  call op_decl_dat_hdf5 ( cells, 1, p_adt, 'real(8)', 'new_grid.h5', 'p_adt' , status)
+  call op_decl_dat_hdf5 ( cells, 4, p_res, 'real(8)', 'new_grid.h5', 'p_res' , status)
 
   write (*,*) 'size of p_res ', status
   if (status .lt. 0)then
     write (*,*) 'p_res does do not exist', status
   end if
 
-  call op_decl_dat_hdf5 ( cells, 4, p_test, 'double', 'new_grid.h5', 'p_test' , status)
+  call op_decl_dat_hdf5 ( cells, 4, p_test, 'real(8)', 'new_grid.h5', 'p_test' , status)
 
   if (status .lt. 0)then
     write (*,*) 'p_test does do not exist', status
@@ -110,7 +110,7 @@ program AIRFOIL
        
   call op_print ('Initialising constants')
   call initialise_constants ( )
-  !call op_write_hdf5("new_grid_out.h5");
+  call op_dump_to_hdf5("new_grid_out.h5");
 
   call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
   ncellr = real(op_get_size(cells))

@@ -375,13 +375,25 @@ module OP2_Fortran_Declarations
 
     end subroutine
 
-    subroutine op_fetch_data_f ( opdat ) BIND(C,name='op_fetch_data')
-
+    subroutine op_fetch_data_c ( opdat, data ) BIND(C,name='op_fetch_data_char')
+      use, intrinsic :: ISO_C_BINDING
       import :: op_dat_core
 
       type(op_dat_core) :: opdat
+      type(c_ptr), value :: data
 
-    end subroutine op_fetch_data_f
+    end subroutine op_fetch_data_c
+
+    subroutine op_fetch_data_idx_c ( opdat, data, low, high) BIND(C,name='op_fetch_data_idx_char')
+      use, intrinsic :: ISO_C_BINDING
+      import :: op_dat_core
+
+      type(op_dat_core) :: opdat
+      type(c_ptr), value :: data
+      integer(kind=c_int), value :: high
+      integer(kind=c_int), value :: low
+
+    end subroutine op_fetch_data_idx_c
 
     subroutine op_timers_core_f ( cpu, et ) BIND(C,name='op_timers_core')
       use, intrinsic :: ISO_C_BINDING
@@ -510,6 +522,16 @@ module OP2_Fortran_Declarations
       character(len=1,kind=c_char) :: fileName(*)
 
     end subroutine op_print_dat_to_binfile_c
+
+    subroutine op_print_dat_to_txtfile_c (dat, fileName) BIND(C,name='op_print_dat_to_txtfile')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_dat_core
+
+      type(op_dat_core) :: dat
+      character(len=1,kind=c_char) :: fileName(*)
+
+    end subroutine op_print_dat_to_txtfile_c
 
     logical(kind=c_bool) function isCNullPointer_c (ptr) BIND(C,name='isCNullPointer')
       use, intrinsic :: ISO_C_BINDING
@@ -644,6 +666,16 @@ module OP2_Fortran_Declarations
     module procedure op_opt_arg_dat_python
   end interface op_opt_arg_dat
 
+  interface op_fetch_data
+    module procedure op_fetch_data_real_8, op_fetch_data_real_4, &
+    op_fetch_data_integer_4
+  end interface op_fetch_data
+
+  interface op_fetch_data_idx
+    module procedure op_fetch_data_idx_real_8, op_fetch_data_idx_real_4, &
+    op_fetch_data_idx_integer_4
+  end interface op_fetch_data_idx
+
 contains
 
   subroutine op_init ( diags )
@@ -775,13 +807,13 @@ contains
     integer, intent(in) :: datdim
     real(8), dimension(*), intent(in), target :: dat
     type(op_dat) :: data
-    character(kind=c_char,len=*), optional :: opName
+    character(kind=c_char,len=*), optional :: opname
     character(kind=c_char,len=*) :: type
 
     if ( present ( opname ) ) then
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 8, c_loc ( dat ), opName//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, c_loc ( dat ), opName//C_NULL_CHAR )
     else
-      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR, 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
+      data%dataCPtr = op_decl_dat_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, c_loc ( dat ), C_CHAR_'NONAME'//C_NULL_CHAR )
     end if
 
     ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
@@ -1011,6 +1043,7 @@ contains
     else
       if (dat%dataPtr%dim .ne. dim) then
         print *, "Wrong dim",dim,dat%dataPtr%dim
+        stop 1
       endif
       ! warning: access and idx are in FORTRAN style, while the C style is required here
       if ( map%mapPtr%dim .eq. 0 ) then
@@ -1390,6 +1423,15 @@ contains
 
   end subroutine op_print_dat_to_binfile
 
+  subroutine op_print_dat_to_txtfile (dat, fileName)
+
+    type(op_dat) :: dat
+    character(len=*) :: fileName
+
+    call op_print_dat_to_txtfile_c (dat%dataPtr, fileName)
+
+  end subroutine op_print_dat_to_txtfile
+
   subroutine op_mpi_rank (rank)
 
     integer(kind=c_int) :: rank
@@ -1409,6 +1451,66 @@ contains
     call op_print_c (line//C_NULL_CHAR)
 
   end subroutine
+
+  subroutine op_fetch_data_real_8 ( dat, data )
+
+    real(8), dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
+
+  end subroutine op_fetch_data_real_8
+
+  subroutine op_fetch_data_real_4 ( dat, data )
+
+    real, dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
+
+  end subroutine op_fetch_data_real_4
+
+  subroutine op_fetch_data_integer_4 ( dat, data )
+
+    integer(4), dimension(*), target :: data
+    type(op_dat) :: dat
+
+    call op_fetch_data_c ( dat%dataPtr, c_loc (data))
+
+  end subroutine op_fetch_data_integer_4
+
+  subroutine op_fetch_data_idx_real_8 ( dat, data, low, high )
+
+    real(8), dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_real_8
+
+  subroutine op_fetch_data_idx_real_4 ( dat, data, low, high )
+
+    real, dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_real_4
+
+  subroutine op_fetch_data_idx_integer_4 ( dat, data, low, high )
+
+    integer(4), dimension(*), target :: data
+    type(op_dat) :: dat
+    integer(kind=c_int), value :: high
+    integer(kind=c_int), value :: low
+
+    call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
+
+  end subroutine op_fetch_data_idx_integer_4
 
   subroutine op_import_init_size ( nprocs, proclist_ptr, mark, handle )
 
@@ -1532,3 +1634,4 @@ contains
   end subroutine op_theta_init
 
 end module OP2_Fortran_Declarations
+

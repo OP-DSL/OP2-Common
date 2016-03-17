@@ -1524,6 +1524,9 @@ void op_halo_permap_create() {
   }
 
   set_import_buffer_size = (int *)xcalloc(OP_set_index, sizeof(int));
+  for (int i = 0; i < OP_set_index; i++)
+    set_import_buffer_size[i] = 0;
+
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_partial_exchange[i]) continue;
     op_map map = OP_map_list[i];
@@ -1593,7 +1596,7 @@ void op_halo_permap_create() {
           if (target_ori==-1 || !(j>=OP_import_exec_list[map->to->index]->disps[target_ori] && j < OP_import_exec_list[map->to->index]->disps[target_ori] + OP_import_exec_list[map->to->index]->sizes[target_ori])) printf("ERROR: scratch exec position out of range 1\n");
         } else {
           int target_ori = linear_search(OP_import_nonexec_list[map->to->index]->ranks, scratch[j], 0, OP_import_nonexec_list[map->to->index]->ranks_size-1);
-          if (target_ori==-1 || !(j-map->to->exec_size>=OP_import_nonexec_list[map->to->index]->disps[target_ori] && j-map->to->exec_size < OP_import_nonexec_list[map->to->index]->disps[target_ori] + OP_import_nonexec_list[map->to->index]->sizes[target_ori])) 
+          if (target_ori==-1 || !(j-map->to->exec_size>=OP_import_nonexec_list[map->to->index]->disps[target_ori] && j-map->to->exec_size < OP_import_nonexec_list[map->to->index]->disps[target_ori] + OP_import_nonexec_list[map->to->index]->sizes[target_ori]))
 	    {
 	      printf("ERROR %d: scratch exec position out of range 2\n",rank);
 	      printf("ERROR %d: target_ori %d \n",rank,target_ori);
@@ -3092,7 +3095,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
   for (int i = 0; i < cellsToNodes->from->size + cellsToNodes->from->exec_size; ++i) {
     for (int j = 0; j< cellsToNodes->dim; ++j) {
       int k = cellsToNodes->map[j + i*cellsToNodes->dim];
-      if (k<cellsToNodes->to->size) 
+      if (k<cellsToNodes->to->size)
 	node_mark[k] = *((int *)(mark->data + sizeof(int)*i));
     }
   }
@@ -3141,14 +3144,14 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
   }
   MPI_Waitall(nprocs, requests, statuses);
 
-  //step 3: receive back sizes 
+  //step 3: receive back sizes
   int *owned_size=(int *)xmalloc(nprocs*sizeof(int));
-  for (int i = 0; i < nprocs; i++) { 
+  for (int i = 0; i < nprocs; i++) {
     MPI_Recv(&owned_size[i], 1, MPI_INT, proclist[i], 105, OP_MPI_GLOBAL, statuses);
   }
 
   //step 4: receive back coupling proc and local number
-  for (int i = 0; i < nprocs; i++) { 
+  for (int i = 0; i < nprocs; i++) {
     if (owned_size[i]!=0) {
       int *recv_buffer=(int *)xmalloc(2*owned_size[i]*sizeof(int));
 
@@ -3201,10 +3204,10 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
       memcpy(&cpl_proc[j],&sp_coupled_data->data[node[j]*sp_coupled_data->size],4);
       if (cpl_proc[j]!=cpl_proc[0]) local=0;
     }
-    if (local) 
+    if (local)
       local_cell_count[cpl_proc[0]]++;
     else {
-      for (int j=0; j<cellsToNodes->dim; j++) 
+      for (int j=0; j<cellsToNodes->dim; j++)
 	nonlocal_cell_count[cpl_proc[j]]++;
     }
   }
@@ -3259,7 +3262,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
       }
     }
   }
-				
+
   //step 8: send cell maps
   for (int i = 0; i < global_comm_size; i++) {
     bufp1[i]=0;
@@ -3323,7 +3326,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
   int **nodelist_send_size=(int **)xmalloc(num_ifaces*sizeof(int *));
   for (int i=0; i<num_ifaces; i++) {
     nodelist_send_size[i]=(int *)xmalloc(nprocs_per_int[i]*sizeof(int));
-    for (int j=0; j<nprocs_per_int[i]; j++) 
+    for (int j=0; j<nprocs_per_int[i]; j++)
       nodelist_send_size[i][j]=0;
   }
 
@@ -3356,7 +3359,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
     }
   }
 
-  int **disps=(int **)xmalloc(num_ifaces*sizeof(int *));
+  //int **disps=(int **)xmalloc(num_ifaces*sizeof(int *));
   MPI_Request **exp_requests=(MPI_Request **)xmalloc(num_ifaces*sizeof(MPI_Request *));
   MPI_Status **exp_statuses=(MPI_Status **)xmalloc(num_ifaces*sizeof(MPI_Status *));
   char ***send_buf=(char ***)xmalloc(num_ifaces*sizeof(char **));
@@ -3365,7 +3368,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
 
     for (int j=0; j<nprocs_per_int[i]; j++)
       send_buf[i][j]=NULL;
-    
+
     exp_requests[i]=(MPI_Request *)xmalloc(nprocs_per_int[i]*sizeof(MPI_Request));
     exp_statuses[i]=(MPI_Status *)xmalloc(nprocs_per_int[i]*sizeof(MPI_Status));
   }
@@ -3383,19 +3386,19 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
   handle->requests                = exp_requests;
   handle->statuses                = exp_statuses;
 
-  //create global versions for import 
+  //create global versions for import
   int gbl_num_ifaces;
   MPI_Allreduce(&num_ifaces, &gbl_num_ifaces, 1, MPI_INT, MPI_SUM, OP_MPI_WORLD);
 
   int *gbl_iface_list=(int *)xmalloc(gbl_num_ifaces*mpi_comm_size*sizeof(int));
-  for (int i=0; i<num_ifaces; i++) 
+  for (int i=0; i<num_ifaces; i++)
     gbl_iface_list[gbl_num_ifaces*mpi_comm_rank + i] = iface_list[i];
-  for (int i=num_ifaces; i<gbl_num_ifaces; i++) 
+  for (int i=num_ifaces; i<gbl_num_ifaces; i++)
     gbl_iface_list[gbl_num_ifaces*mpi_comm_rank + i] = 32767;
 
-  
+
   MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, gbl_iface_list, gbl_num_ifaces, MPI_INT, OP_MPI_WORLD);
-  
+
   quickSort(gbl_iface_list,0,gbl_num_ifaces*mpi_comm_size-1);
   gbl_num_ifaces = removeDups(gbl_iface_list,gbl_num_ifaces*mpi_comm_size);
   if (gbl_iface_list[gbl_num_ifaces-1]==32767) gbl_num_ifaces--;
@@ -3413,7 +3416,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
 	for (int k = 0; k < nprocs_per_int[i]; k++) proclist_per_gint[j][nprocs*mpi_comm_rank + k] = proclist_per_int[i][k];
       }
     }
-  } 
+  }
 
   for (int i = 0; i < gbl_num_ifaces; i++) {
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, proclist_per_gint[i], nprocs, MPI_INT, OP_MPI_WORLD);
@@ -3445,7 +3448,7 @@ void op_export_data(op_export_handle handle, op_dat dat) {
   if (handle->max_data_size < dat->size) {
 
     for (int i = 0; i < handle->num_ifaces; i++) {
-      for (int j = 0; j < handle->nprocs_per_int[i]; j++) { 
+      for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
 	int bufsize = 3*sizeof(int) + handle->nodelist_send_size[i][j]*dat->size;
 	handle->send_buf[i][j]=(char *)xrealloc(handle->send_buf[i][j],bufsize);
       }
@@ -3468,7 +3471,7 @@ void op_export_data(op_export_handle handle, op_dat dat) {
       for (int k=0; k<handle->nodelist_send_size[i][j]; k++) {
 	int node=handle->nodelist_send[i][j][k];
 
-	if (node<0 || node>=dat->set->size) 
+	if (node<0 || node>=dat->set->size)
 	  printf("Error in OP2 packing export data %i %i\n",node,dat->set->size);
 
 	memcpy(&handle->send_buf[i][j][bufp], &dat->data[node*dat->size], dat->size);
@@ -3486,8 +3489,8 @@ void op_export_data(op_export_handle handle, op_dat dat) {
   }
 
   //TODO: make this non-blocking up to the next export
-  for (int i=0; i<handle->num_ifaces; i++) 
-    MPI_Waitall(handle->nprocs_per_int[i], handle->requests[i], handle->statuses[i]); 
+  for (int i=0; i<handle->num_ifaces; i++)
+    MPI_Waitall(handle->nprocs_per_int[i], handle->requests[i], handle->statuses[i]);
 }
 
 op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark) {
@@ -3532,14 +3535,14 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_d
 
     for (int j = 0; j < exp_handle->nprocs_per_gint[i]; j++) {
       MPI_Isend(&count[i], 1, MPI_INT, exp_handle->proclist_per_gint[i][j], 401, OP_MPI_GLOBAL, &requests[j]);
-    }  
+    }
 
     MPI_Waitall(exp_handle->nprocs_per_gint[i], requests, statuses);
   }
 
   //Count local ifaces
   int num_my_ifaces=0;
-  for (int i = 0; i < exp_handle->gbl_num_ifaces; i++) 
+  for (int i = 0; i < exp_handle->gbl_num_ifaces; i++)
     if (count[i]>0) num_my_ifaces++;
 
   //Copy nprocs and proclist
@@ -3586,7 +3589,7 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_d
     for (int j = 0; j < nprocs_per_int[i]; j++) {
       MPI_Isend(send_buffer, node_size_per_int[i]*coords->size, MPI_BYTE, proclist_per_int[i][j], 402, OP_MPI_GLOBAL, &requests[j]);
       recv_buf[i][j]=NULL;
-      }  
+      }
 
     MPI_Waitall(nprocs_per_int[i], requests, statuses);
 
@@ -3594,8 +3597,8 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_d
   }
 
   int total_recvs=0;
-  for (int i = 0; i < num_my_ifaces; i++) 
-    for (int j = 0; j < nprocs_per_int[i]; j++) 
+  for (int i = 0; i < num_my_ifaces; i++)
+    for (int j = 0; j < nprocs_per_int[i]; j++)
       total_recvs++;
 
   int *recv2int=(int *)xmalloc(total_recvs*sizeof(int));
@@ -3642,7 +3645,7 @@ void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp, doubl
     }
 
     int bufp=0;
-    
+
     memcpy(&handle->OP_global_buffer[bufp], &handle->index,             sizeof(int));
     bufp+=sizeof(int);
 
@@ -3760,7 +3763,7 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp, doub
     }
 
     int bufp=0;
-    
+
     memcpy(&handle->OP_global_buffer[bufp], &handle->index,             sizeof(int));
     bufp+=sizeof(int);
 

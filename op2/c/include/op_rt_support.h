@@ -57,6 +57,7 @@ typedef struct {
   int        *nthrcol;    /* number of thread colors for each block */
   int        *thrcol;     /* thread colors */
   int        *col_reord;  /* permutation of elements by block color */
+  int       **col_offsets; /* offsets to beginning of colors for each block */
   int        *offset;     /* offset for primary set */
   int        *offset_d;   /* offset for primary set on the GPU (Fortran)*/
   int        *ind_map;    /* concatenated pointers for indirect datasets */
@@ -102,6 +103,8 @@ op_plan * op_plan_get ( char const * name, op_set set, int part_size,
 void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
 
 void op_rt_exit ( void );
+
+bool op_type_equivalence(const char *a, const char *b);
 
 #ifdef __cplusplus
 }

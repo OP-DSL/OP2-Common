@@ -88,6 +88,7 @@ op_init ( int argc, char ** argv, int diags)
 // for this file when implementing C OP2.
 //
 
+  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferL1 ) );
 #ifdef SET_CUDA_CACHE_CONFIG
   cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
 #endif
@@ -102,9 +103,11 @@ op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local
   MPI_Initialized(&flag);
   if(!flag)
   {
-      MPI_Init(&argc, &argv);
+      printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
+      exit(-1);
   }
-
+  OP_MPI_WORLD = MPI_Comm_f2c(local);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020
@@ -226,7 +229,6 @@ void op_mv_halo_device(op_set set, op_dat dat)
 {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
-
   if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
@@ -238,7 +240,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
       }
     }
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( dat->data ), dat->size * set_size );
+                        ( void ** ) &( temp_data ), dat->size * set_size );
     free(temp_data);
 
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
@@ -501,7 +503,7 @@ op_dat op_fetch_data_file_char(op_dat dat)
   return op_mpi_get_data(dat);
 }
 
-void op_fetch_data_hdf5_char(op_dat dat, char * usr_ptr, int low, int high)
+void op_fetch_data_idx_char(op_dat dat, char * usr_ptr, int low, int high)
 {
   //need to get data from GPU
   op_cuda_get_data(dat);

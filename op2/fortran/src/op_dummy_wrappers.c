@@ -48,3 +48,13 @@ void op_get_dat_mpi (op_dat dat) {
 void op_put_dat_mpi (op_dat dat) {
   (void) dat;
 }
+ 
+#ifdef __cplusplus
+extern "C" {
+#endif
+void prepareScratch (op_arg *args, int nargs, int nthreads) {
+  (void) args;
+}
+#ifdef __cplusplus
+}
+#endif

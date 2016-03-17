@@ -529,7 +529,7 @@ for a in range(init_ctr,len(sys.argv)):
 
         dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
-        if ((auto_soa==1) and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
+        if ((auto_soa=='1') and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
           soa_loc = len(args['typ'])-1
 
         if soa_loc > 0:
@@ -550,9 +550,9 @@ for a in range(init_ctr,len(sys.argv)):
 
         if arg_type.strip() == 'op_opt_arg_dat':
           optflags[m] = 1
-          if soaflags[m] == 1:
-            print "ERROR: cannot have SoA and optional argument at the same time"
-            sys.exit(-1)
+          # if soaflags[m] == 1:
+          #   print "ERROR: cannot have SoA and optional argument at the same time"
+          #   sys.exit(-1)
         else:
           optflags[m] = 0
 
@@ -580,7 +580,6 @@ for a in range(init_ctr,len(sys.argv)):
          print 'invalid access type for argument '+str(m)
 
     print ' '
-
 #
 # identify indirect datasets
 #
@@ -859,7 +858,8 @@ for a in range(init_ctr,len(sys.argv)):
     text = fid.read()
     fid.close()
     if hydra:
-      replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      #replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      replace = 'use OP2_FORTRAN_DECLARATIONS\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
     if bookleaf:
       text = text.replace('USE OP2_Fortran_Reference\n','')
@@ -908,7 +908,7 @@ if npart==0 and nhdf5>0:
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
 op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
@@ -917,7 +917,7 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 
 #CUDA
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
-op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 

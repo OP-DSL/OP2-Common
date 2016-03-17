@@ -82,9 +82,12 @@ void cutilDeviceInit( int argc, char ** argv )
     exit ( -1 );
   }
   printf("Trying to select a device\n");
+
   int rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &rank);
-  if (getenv("OMPI_COMM_WORLD_LOCAL_RANK")!=NULL) {
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  //no need to ardcode this following, can be done via numawrap scripts
+  /*if (getenv("OMPI_COMM_WORLD_LOCAL_RANK")!=NULL) {
     rank = atoi(getenv("OMPI_COMM_WORLD_LOCAL_RANK"));
   } else if (getenv("MV2_COMM_WORLD_LOCAL_RANK")!=NULL) {
     rank = atoi(getenv("MV2_COMM_WORLD_LOCAL_RANK"));
@@ -92,15 +95,43 @@ void cutilDeviceInit( int argc, char ** argv )
     rank = atoi(getenv("MPI_LOCALRANKID"));
   } else {
     rank = rank%deviceCount;
-  }
+  }*/
 
   // Test we have access to a device
-  float *test;
+
+  //This commented out test does not work with CUDA versions above 6.5
+  /*float *test;
   cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
   if (err != cudaSuccess) {
     OP_hybrid_gpu = 0;
   } else {
     OP_hybrid_gpu = 1;
+  }
+  if (OP_hybrid_gpu) {
+    cudaFree(test);
+
+    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+
+    int deviceId = -1;
+    cudaGetDevice(&deviceId);
+    cudaDeviceProp_t deviceProp;
+    cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
+    printf ( "\n Using CUDA device: %d %s on rank %d\n",deviceId, deviceProp.name,rank );
+  } else {
+    printf ( "\n Using CPU on rank %d\n",rank );
+  }*/
+
+  float *test;
+  OP_hybrid_gpu = 0;
+  for (int i = 0; i < deviceCount; i++) {
+    cudaError_t err = cudaSetDevice(i);
+    if (err == cudaSuccess) {
+      cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+      if (err == cudaSuccess) {
+        OP_hybrid_gpu = 1;
+        break;
+      }
+    }
   }
   if (OP_hybrid_gpu) {
     cudaFree(test);
@@ -121,7 +152,7 @@ void cutilDeviceInit( int argc, char ** argv )
 
 
 void op_upload_dat(op_dat dat) {
-  printf("Uploading %s\n", dat->name);
+//  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -142,7 +173,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
-  printf("Downloading %s\n", dat->name);
+//  printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
   if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {

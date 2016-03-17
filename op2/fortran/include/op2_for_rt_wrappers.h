@@ -29,6 +29,8 @@ op_plan * FortranPlanCaller (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
   int indsNumber, int inds[], int staging);
 
+void prepareScratch (op_arg *args, int nargs, int nthreads);
+
 #ifdef __cplusplus
 }
 #endif

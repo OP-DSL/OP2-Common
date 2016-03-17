@@ -29,7 +29,7 @@ CONTAINS
   REAL(kind=8), DIMENSION(:) :: inputValue
   INTEGER(kind=4), VALUE :: reductionOperation
   INTEGER(kind=4), VALUE :: dim
-  REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8
+  REAL(kind=8), DIMENSION(0:511), SHARED :: sharedDouble8
   INTEGER(kind=4) :: i1
   INTEGER(kind=4) :: d
   INTEGER(kind=4) :: threadID
@@ -201,7 +201,7 @@ attributes (device) &
 
 
     blocksPerGrid = 600
-    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
+    threadsPerBlock = 256 !getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
@@ -229,7 +229,7 @@ attributes (device) &
 
     reductionArrayDevice5update = reductionArrayHost5
 
-    CALL op_cuda_update <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &
+    CALL op_cuda_update <<<blocksPerGrid,threadsPerBlock>>>( &
     & opDat1Deviceupdate, &
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
