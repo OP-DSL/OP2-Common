@@ -386,9 +386,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aread(attr,atype,typ);
   H5Aclose(attr);
   H5Sclose(dataspace);
-  char typ_soa[50];
-  sprintf(typ_soa, "%s:soa", typ);
-  if(strcmp(typ,type) != 0 && strcmp(typ_soa,type) != 0) {
+  if(!op_type_equivalence(typ,type)) {
     op_printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     return NULL;
   }
@@ -547,8 +545,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,type) != 0)
-  {
+  if(!op_type_equivalence(typ,type)) {
       printf("type of constant %s in file %s and requested type %s do not match\n",
         typ,file_name,type);
       exit(2);
@@ -1175,7 +1172,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name)
         H5Sclose(dataspace);
         char typ_soa[50];
         sprintf(typ_soa, "%s:soa", typ);
-        if(strcmp(typ,dat->type) != 0 && strcmp(typ_soa,dat->type) != 0) {
+        if(!op_type_equivalence(typ,dat->type)) {
           printf("dat.type %s in file %s and type %s do not match\n",typ,file_name,dat->type);
           exit(2);
         }

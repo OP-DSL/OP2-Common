@@ -95,13 +95,8 @@ void cutilDeviceInit( int argc, char ** argv )
     rank = atoi(getenv("MPI_LOCALRANKID"));
   } else {
     rank = rank%deviceCount;
-<<<<<<< HEAD
   }*/
 
-=======
-  }
-*/
->>>>>>> 264d0c3... Fixes for Hydra - finding functions called from user kernels
   // Test we have access to a device
 
   //This commented out test does not work with CUDA versions above 6.5

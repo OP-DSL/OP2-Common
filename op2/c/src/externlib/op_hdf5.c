@@ -279,9 +279,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Aclose(attr);
   H5Sclose(dataspace);
 
-  char typ_soa[50];
-  sprintf(typ_soa, "%s:soa", typ);
-  if(strcmp(typ,type) != 0 && strcmp(type, typ_soa) != 0) {
+  if(!op_type_equivalence(typ,type)) {
     printf("dat.type %s in file %s and type %s do not match\n",typ,file,type);
     return NULL;
   }
@@ -521,7 +519,7 @@ void op_dump_to_hdf5(char const * file_name)
     if(strcmp(dat->type,"double") ==0 ||
        strcmp(dat->type,"double:soa") == 0 ||
        strcmp(dat->type,"double precision") == 0 ||
-       strcmp(dat->type,"real(8)") == 0)
+       strcmp(dat->type,"real(8)") == 0) {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
@@ -529,7 +527,7 @@ void op_dump_to_hdf5(char const * file_name)
     else if(strcmp(dat->type,"float")==0 ||
             strcmp(dat->type,"float:soa") == 0 ||
             strcmp(dat->type,"real(4)") == 0 ||
-            strcmp(dat->type,"real") == 0 )
+            strcmp(dat->type,"real") == 0 ) {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
@@ -537,7 +535,7 @@ void op_dump_to_hdf5(char const * file_name)
     else if( strcmp(dat->type,"int")==0 || strcmp(dat->type,"int:soa") == 0 ||
              strcmp(dat->type,"int(4)") == 0 ||
              strcmp(dat->type,"integer") == 0 ||
-             strcmp(dat->type,"integer(4)") == 0 )
+             strcmp(dat->type,"integer(4)") == 0 ) {
       dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT, dat->data);
@@ -661,8 +659,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if(strcmp(typ,type) != 0)
-  {
+  if(!op_type_equivalence(typ,type)) {
       printf("type of constant %s in file %s and requested type %s do not match\n",
         typ,file_name,type);
       exit(2);
@@ -945,7 +942,7 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name)
         H5Sclose(dataspace);
         char typ_soa[50];
         sprintf(typ_soa, "%s:soa", typ);
-        if(strcmp(typ,dat->type) != 0 && strcmp(typ_soa,dat->type) != 0) {
+        if(!op_type_equivalence(typ,dat->type)) {
           printf("dat.type %s in file %s and type %s do not match\n",typ,file_name,dat->type);
           exit(2);
         }

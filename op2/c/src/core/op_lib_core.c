@@ -111,7 +111,7 @@ op_dat search_dat(op_set set, int dim, char const * type, int size, char const *
 void check_map(char const *name, op_set from, op_set to, int dim, int* map) {
 
   //first find global set sizes
-  int g_from = op_get_size(from);
+  //int g_from = op_get_size(from);
   int g_to = op_get_size(to);
   //printf("%s from->size = %d (%d)\n",from->name, from->size, g_from);
   //printf("%s to->size = %d (%d)\n",to->name, to->size, g_to);

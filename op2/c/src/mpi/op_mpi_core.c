@@ -3359,7 +3359,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, 
     }
   }
 
-  int **disps=(int **)xmalloc(num_ifaces*sizeof(int *));
+  //int **disps=(int **)xmalloc(num_ifaces*sizeof(int *));
   MPI_Request **exp_requests=(MPI_Request **)xmalloc(num_ifaces*sizeof(MPI_Request *));
   MPI_Status **exp_statuses=(MPI_Status **)xmalloc(num_ifaces*sizeof(MPI_Status *));
   char ***send_buf=(char ***)xmalloc(num_ifaces*sizeof(char **));

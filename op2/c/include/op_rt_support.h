@@ -104,6 +104,8 @@ void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
 
 void op_rt_exit ( void );
 
+bool op_type_equivalence(const char *a, const char *b);
+
 #ifdef __cplusplus
 }
 #endif
