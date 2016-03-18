@@ -354,6 +354,9 @@ char *doubles[] = {"double","double:soa","real(8)","double precision"};
 char *floats[] = {"float","float:soa","real(4)","real"};
 char *ints[] = {"int","int:soa","integer(4)","integer"};
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 bool op_type_equivalence(const char *a, const char *b) {
   for (int i = 0; i < 4; i++) {
     if (strcmp(a,doubles[i])==0) {      
@@ -384,4 +387,6 @@ bool op_type_equivalence(const char *a, const char *b) {
   }
   return false;
 }
-
+#ifdef __cplusplus
+}
+#endif
