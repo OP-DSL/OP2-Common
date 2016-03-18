@@ -138,7 +138,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
+def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -202,7 +202,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 #
     j = 0
     for i in range(0,nargs):
-      if maps[i] == OP_MAP and accs[i] == OP_INC:
+      if maps[i] == OP_MAP and (accs[i] == OP_INC or accs[i] == OP_RW):
         j = i
     ind_inc = j > 0
 
@@ -219,6 +219,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     file_text = ''
     depth = 0
 
+    needDimList = []
+    for g_m in range(0,nargs):
+      if (not dims[g_m].isdigit()) and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
+        needDimList = needDimList + [g_m]
+
 ##########################################################################
 #  Generate Header
 ##########################################################################
@@ -229,8 +234,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('USE OP2_FORTRAN_DECLARATIONS')
     code('USE OP2_FORTRAN_RT_SUPPORT')
     code('USE ISO_C_BINDING')
-    if hydra == 0:
+    if hydra == 0 and bookleaf == 0:
       code('USE OP2_CONSTANTS')
+    if bookleaf:
+      code('USE kinds_mod,    ONLY: ink,rlk')
+      code('USE parameters_mod,ONLY: LI')
 
     code('')
 
@@ -240,17 +248,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('')
     code('CONTAINS')
     code('')
-    if hydra == 0:
-      comm('user function')
-      code('#include "'+name+'.inc"')
-      code('')
-    else:
+
+    if hydra == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
-      print modfile
       modfile = modfile.replace('INIT_INIT','INIT')
       name2 = name.replace('INIT_INIT','INIT')
-      print modfile
       filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
       if not os.path.isfile(filename):
         filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
@@ -263,8 +266,42 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
       text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
+
+      #
+      # substitute npdes with DNPDE
+      #
+      using_npdes = 0
+      for g_m in range(0,nargs):
+        if var[g_m] == 'npdes':
+          using_npdes = 1
+      if using_npdes:
+        i = re.search('\\bnpdes\\b',text)
+        j = i.start()
+        i = re.search('\\bnpdes\\b',text[j:])
+        j = j + i.start()+5
+        i = re.search('\\bnpdes\\b',text[j:])
+        j = j + i.start()+5
+        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
+
       file_text += text
       #code(kernels[nk]['mod_file'])
+    elif bookleaf == 1:
+      file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
+      modfile = kernels[nk]['mod_file']
+      prefixes=['./','ale/','utils/','io/','eos/','hydro/','mods/']
+      prefix_i=0
+      while (prefix_i<7 and (not os.path.exists(prefixes[prefix_i]+modfile))):
+        prefix_i=prefix_i+1
+      fid = open(prefixes[prefix_i]+modfile, 'r')
+      text = fid.read()
+      i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
+      j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
+      file_text += text[i:j]+'\n\n'
+    else:
+      comm('user function')
+      code('#include "'+name+'.inc"')
+      code('')
+
     code('')
 
 ##########################################################################
@@ -274,11 +311,13 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('SUBROUTINE op_wrap_'+name+'( &')
     depth = depth + 2
     for g_m in range(0,ninds):
+      if invinds[g_m] in needDimList:
+        code('& opDat'+str(invinds[g_m]+1)+'Dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code('& opDat'+str(g_m+1)+'Local, &')
-      elif maps[g_m] == OP_GBL:
+      if maps[g_m] <> OP_MAP:
+        if g_m in needDimList:
+          code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
     if nmaps > 0:
       k = []
@@ -288,14 +327,27 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     code('& bottom,top)')
-
+    code('implicit none')
     for g_m in range(0,ninds):
-      code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+      if invinds[g_m] in needDimList:
+        code('INTEGER(kind=4) opDat'+str(invinds[g_m]+1)+'Dim')
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local(opDat'+str(invinds[g_m]+1)+'Dim,*)')
+      else:
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
     for g_m in range(0,nargs):
+      if maps[g_m] <> OP_MAP:
+        if g_m in needDimList:
+          code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
+        if g_m in needDimList:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim,*)')
+        else:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
       elif maps[g_m] == OP_GBL:
-        code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
+        if g_m in needDimList:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim)')
+        else:
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
@@ -314,6 +366,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
           line += 'map'+str(mapinds[g_m]+1)+'idx, '
       code(line[:-2])
     code('')
+#    if ind_inc == 0 and reduct == 0:
+#      code('!DIR$ simd')
     DO('i1','bottom','top')
     k = []
     for g_m in range(0,nargs):
@@ -364,7 +418,6 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
-    code('REAL(kind=4) :: dataTransfer')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
     code('REAL(kind=8) :: startTime')
@@ -394,6 +447,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
 
     code('')
     code('INTEGER(kind=4) :: i1')
+    code('REAL(kind=4) :: dataTransfer')
 
     code('')
     code('numberOfOpDats = '+str(nargs))
@@ -404,7 +458,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
 
     code('call op_timers_core(startTime)')
     code('')
@@ -432,15 +486,18 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('')
 
     code('')
-    if 0:
+    if 1:
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,ninds):
+        if invinds[g_m] in needDimList:
+          code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
+        if maps[g_m] <> OP_MAP:
+          if g_m in needDimList:
+            code('& opArg'+str(g_m+1)+'%dim, &')
           code('& opDat'+str(g_m+1)+'Local, &')
-        elif maps[g_m] == OP_GBL:
-          code('& opDat'+str(g_m+1)+'Local, &')
+
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -452,12 +509,15 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     code('CALL op_wrap_'+name+'( &')
     for g_m in range(0,ninds):
+      if invinds[g_m] in needDimList:
+          code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
+      if maps[g_m] <> OP_MAP:
+        if g_m in needDimList:
+            code('& opArg'+str(g_m+1)+'%dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
-      elif maps[g_m] == OP_GBL:
-        code('& opDat'+str(g_m+1)+'Local, &')
+
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
@@ -465,14 +525,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
           k = k + [mapnames[g_m]]
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-    code('& 0, n_upper)')
-#    code('& opSetCore%core_size, n_upper)')
+    #code('& 0, n_upper)')
+    code('& opSetCore%core_size, n_upper)')
 
 
-#    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-#    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-#    ENDIF()
-#    code('')
+    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
+    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+    ENDIF()
+    code('')
 
 
 
@@ -549,6 +609,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra):
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_seqkernel.F95','w')
+    elif bookleaf:
+      fid = open(prefixes[prefix_i]+name+'_seqkernel.f90','w')
     else:
       fid = open(name+'_seqkernel.F90','w')
     date = datetime.datetime.now()

@@ -75,6 +75,35 @@ op_init ( int argc, char ** argv, int diags )
   printf ( "\n 16/48 L1/shared \n" );
 }
 
+void
+op_mpi_init ( int argc, char ** argv, int diags, int global, int local )
+{
+  op_init_core ( argc, argv, diags );
+
+#if CUDART_VERSION < 3020
+#error : "must be compiled using CUDA 3.2 or later"
+#endif
+
+#ifdef CUDA_NO_SM_13_DOUBLE_INTRINSICS
+#warning : " *** no support for double precision arithmetic *** "
+#endif
+
+  cutilDeviceInit ( argc, argv );
+
+//
+// The following call is only made in the C version of OP2,
+// as it causes memory trashing when called from Fortran.
+// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
+// for this file when implementing C OP2.
+//
+
+#ifdef SET_CUDA_CACHE_CONFIG
+  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
+#endif
+
+  printf ( "\n 16/48 L1/shared \n" );
+}
+
 op_dat
 op_decl_dat_char ( op_set set, int dim, char const *type, int size,
               char * data, char const * name )
@@ -82,7 +111,7 @@ op_decl_dat_char ( op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_core ( set, dim, type, size, data, name );
 
   //transpose data
-  if (strstr( type, ":soa")!= NULL) {
+  if (strstr( type, ":soa")!= NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -114,7 +143,7 @@ op_decl_dat_temp_char ( op_set set, int dim, char const *type, int size, char co
   dat-> user_managed = 0;
 
   //transpose data
-  if (strstr( type, ":soa")!= NULL) {
+  if (strstr( type, ":soa")!= NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set->size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -273,7 +302,7 @@ void op_upload_all ()
     op_dat dat = item->dat;
     int set_size = dat->set->size;
     if (dat->data_d) {
-      if (strstr( dat->type, ":soa")!= NULL) {
+      if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
         int element_size = dat->size/dat->dim;
         for (int i = 0; i < dat->dim; i++) {
@@ -315,3 +344,54 @@ op_fetch_data_idx_char ( op_dat dat, char * usr_ptr, int low, int high)
   memcpy((void *)usr_ptr, (void *)&dat->data[low*dat->size],
     (high+1)*dat->size);
 }
+
+
+//Dummy for cuda compile
+
+typedef struct {
+} op_export_core;
+
+typedef op_export_core *op_export_handle;
+
+typedef struct {
+} op_import_core;
+
+typedef op_import_core *op_import_handle;
+
+
+op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
+
+  exit(1);
+}
+
+op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark) {
+
+  exit(1);
+}
+
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark) {
+
+  exit(1);
+}
+
+void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp, double *alpha) {
+
+  exit(1);
+}
+
+void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp) {
+
+  exit(1);
+}
+
+
+void op_export_data(op_export_handle handle, op_dat dat) {
+
+  exit(1);
+}
+
+void op_import_data(op_import_handle handle, op_dat dat) {
+
+  exit(1);
+}
+

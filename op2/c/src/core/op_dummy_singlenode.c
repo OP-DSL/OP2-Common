@@ -164,3 +164,51 @@ int op_is_root()
 int getHybridGPU() {
   return OP_hybrid_gpu;
 }
+
+
+typedef struct {
+} op_export_core;
+
+typedef op_export_core *op_export_handle;
+
+typedef struct {
+} op_import_core;
+
+typedef op_import_core *op_import_handle;
+
+void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp, double *alpha) {
+
+  exit(1);
+}
+
+void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp) {
+
+  exit(1);
+}
+
+op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
+  exit(1);
+  return NULL;
+}
+
+op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark) {
+  exit(1);
+  return NULL;
+}
+
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark) {
+
+  exit(1);
+  return NULL;
+}
+
+void op_export_data(op_export_handle handle, op_dat dat) {
+
+  exit(1);
+}
+
+void op_import_data(op_import_handle handle, op_dat dat) {
+
+  exit(1);
+}
+

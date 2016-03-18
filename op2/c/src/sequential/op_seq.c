@@ -43,6 +43,11 @@ void op_init ( int argc, char ** argv, int diags )
   op_init_core ( argc, argv, diags );
 }
 
+void op_mpi_init ( int argc, char ** argv, int diags, int global, int local )
+{
+  op_init_core ( argc, argv, diags );
+}
+
 op_set op_decl_set ( int size, char const * name )
 {
   return op_decl_set_core ( size, name );
@@ -186,3 +191,4 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
 {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
+

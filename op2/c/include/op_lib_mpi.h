@@ -42,6 +42,7 @@
 
 /** extern variables for halo creation and exchange**/
 extern MPI_Comm OP_MPI_WORLD;
+extern MPI_Comm OP_MPI_GLOBAL;
 
 extern halo_list *OP_export_exec_list;//EEH list
 extern halo_list *OP_import_exec_list;//IEH list

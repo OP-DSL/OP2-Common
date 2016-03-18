@@ -40,15 +40,37 @@ CONTAINS
   DO WHILE (i1 > 0 )
     CALL syncthreads()
     IF (threadID < i1) THEN
+      SELECT CASE(reductionOperation)
+      CASE (0)
       DO i2 = 0, dim - 1, 1
         sharedDouble8(threadID*dim + i2) = sharedDouble8(threadID*dim + i2) + sharedDouble8((threadID + i1)*dim + i2)
       END DO
+      CASE (1)
+      DO i2 = 0, dim - 1, 1
+        sharedDouble8(threadID*dim + i2) = MIN(sharedDouble8(threadID*dim + i2), sharedDouble8((threadID + i1)*dim + i2))
+      END DO
+      CASE (2)
+      DO i2 = 0, dim - 1, 1
+        sharedDouble8(threadID*dim + i2) = MAX(sharedDouble8(threadID*dim + i2), sharedDouble8((threadID + i1)*dim + i2))
+      END DO
+      END SELECT
     END IF
     i1 = ishft(i1,-1)
   END DO
   CALL syncthreads()
   IF (threadID .EQ. 0) THEN
+    SELECT CASE(reductionOperation)
+    CASE (0)
     reductionResult(1:dim) = reductionResult(1:dim) + sharedDouble8(0:dim-1)
+    CASE (1)
+    DO i2 = 0, dim - 1, 1
+      reductionResult(1+i2) = MIN(reductionResult(1+i2) , sharedDouble8(i2))
+    END DO
+    CASE (2)
+    DO i2 = 0, dim - 1, 1
+      reductionResult(1+i2) = MAX(reductionResult(1+i2) , sharedDouble8(i2))
+    END DO
+    END SELECT
   END IF
   CALL syncthreads()
   END SUBROUTINE
@@ -81,6 +103,7 @@ attributes (device) &
 
     INTEGER(kind=4), VALUE :: setSize
     INTEGER(kind=4) :: i1
+    INTEGER(kind=4) :: i2
 
     opGblDat5Deviceupdate = 0
 
@@ -97,7 +120,10 @@ attributes (device) &
       & )
     END DO
 
-    CALL ReductionFloat8Mdim(reductionArrayDevice5((blockIdx%x - 1)*(2) + 1:),opGblDat5Deviceupdate,0,2)
+    do i1=0,2-1,8
+    i2 = MIN(i1+8,2)
+      CALL ReductionFloat8Mdim(reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
+    end do
 
   END SUBROUTINE
 
@@ -120,13 +146,6 @@ attributes (device) &
 
     IF (getHybridGPU()) THEN
       CALL update_host_gpu( userSubroutine, set, &
-      & opArg1, &
-      & opArg2, &
-      & opArg3, &
-      & opArg4, &
-      & opArg5 )
-    ELSE
-      CALL update_host_cpu( userSubroutine, set, &
       & opArg1, &
       & opArg2, &
       & opArg3, &
@@ -180,13 +199,13 @@ attributes (device) &
     INTEGER(kind=4) :: threadsPerBlock
     INTEGER(kind=4) :: dynamicSharedMemorySize
     INTEGER(kind=4) :: threadSynchRet
-    INTEGER(kind=4), SAVE :: calledTimes
     INTEGER(kind=4) :: i1
     INTEGER(kind=4) :: i2
     INTEGER(kind=4) :: i10
     INTEGER(kind=4) :: i20
     REAL(kind=4) :: dataTransfer
 
+    INTEGER(kind=4), SAVE :: calledTimes=0
     INTEGER(kind=4) :: istat
     real(8), DIMENSION(:), POINTER :: opDat5Host
     real(8), DIMENSION(:), ALLOCATABLE :: reductionArrayHost5
@@ -201,13 +220,13 @@ attributes (device) &
     opArgArray(5) = opArg5
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & 0.d0, 0.00000,0.00000, 0)
+    & 0.d0, 0.00000_4,0.00000_4, 0)
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
 
 
-    blocksPerGrid = 200
+    blocksPerGrid = 600
     threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
@@ -241,7 +260,7 @@ attributes (device) &
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
     & opDat4Deviceupdate, &
-    reductionArrayDevice5update, &
+    & reductionArrayDevice5update, &
     set%setPtr%size)
 
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
@@ -265,173 +284,13 @@ attributes (device) &
 
     dataTransfer = 0.0
     dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
-    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2) * 2.d0
+    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
     dataTransfer = dataTransfer + opArg3%size * getSetSizeFromOpArg(opArg3) * 2.d0
     dataTransfer = dataTransfer + opArg4%size * getSetSizeFromOpArg(opArg4)
     dataTransfer = dataTransfer + opArg5%size * 2.d0
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & endTime-startTime, dataTransfer, 0.00000, 1)
+    & endTime-startTime, dataTransfer, 0.00000_4, 1)
     calledTimes = calledTimes + 1
   END SUBROUTINE
 
-
-! Stub for CPU execution
-
-  SUBROUTINE op_wrap_update( &
-    & opDat1Local, &
-    & opDat2Local, &
-    & opDat3Local, &
-    & opDat4Local, &
-    & opDat5Local, &
-    & bottom,top)
-    real(8) opDat1Local(4,*)
-    real(8) opDat2Local(4,*)
-    real(8) opDat3Local(4,*)
-    real(8) opDat4Local(1,*)
-    real(8) opDat5Local(2)
-    INTEGER(kind=4) bottom,top,i1
-
-    DO i1 = bottom, top - 1, 1
-! kernel call
-    CALL update( &
-      & opDat1Local(1,i1+1), &
-      & opDat2Local(1,i1+1), &
-      & opDat3Local(1,i1+1), &
-      & opDat4Local(1,i1+1), &
-      & opDat5Local(1) &
-      & )
-    END DO
-  END SUBROUTINE
-  SUBROUTINE update_host_cpu( userSubroutine, set, &
-    & opArg1, &
-    & opArg2, &
-    & opArg3, &
-    & opArg4, &
-    & opArg5 )
-
-    IMPLICIT NONE
-    character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
-    type ( op_set ) , INTENT(IN) :: set
-
-    type ( op_arg ) , INTENT(IN) :: opArg1
-    type ( op_arg ) , INTENT(IN) :: opArg2
-    type ( op_arg ) , INTENT(IN) :: opArg3
-    type ( op_arg ) , INTENT(IN) :: opArg4
-    type ( op_arg ) , INTENT(IN) :: opArg5
-
-    type ( op_arg ) , DIMENSION(5) :: opArgArray
-    INTEGER(kind=4) :: numberOfOpDats
-    INTEGER(kind=4) :: n_upper
-    type ( op_set_core ) , POINTER :: opSetCore
-
-    real(8), POINTER, DIMENSION(:) :: opDat1Local
-    INTEGER(kind=4) :: opDat1Cardinality
-
-    real(8), POINTER, DIMENSION(:) :: opDat2Local
-    INTEGER(kind=4) :: opDat2Cardinality
-
-    real(8), POINTER, DIMENSION(:) :: opDat3Local
-    INTEGER(kind=4) :: opDat3Cardinality
-
-    real(8), POINTER, DIMENSION(:) :: opDat4Local
-    INTEGER(kind=4) :: opDat4Cardinality
-
-    real(8), POINTER, DIMENSION(:) :: opDat5Local
-    INTEGER(kind=4) :: threadID
-    INTEGER(kind=4) :: numberOfThreads
-    INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
-    INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
-    REAL(kind=8) :: startTime
-    REAL(kind=8) :: endTime
-    INTEGER(kind=4) :: returnSetKernelTiming
-    INTEGER(kind=4) :: sliceStart
-    INTEGER(kind=4) :: sliceEnd
-    REAL(kind=4) :: dataTransfer
-
-    real(8), DIMENSION(:), ALLOCATABLE :: reductionArrayHost5
-
-    INTEGER(kind=4) :: i1,i2,n
-
-    numberOfOpDats = 5
-
-    opArgArray(1) = opArg1
-    opArgArray(2) = opArg2
-    opArgArray(3) = opArg3
-    opArgArray(4) = opArg4
-    opArgArray(5) = opArg5
-
-    returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & 0.d0, 0.00000,0.00000, 0)
-    call op_timers_core(startTime)
-
-    n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
-
-
-#ifdef _OPENMP
-  numberOfThreads = omp_get_max_threads()
-#else
-  numberOfThreads = 1
-#endif
-
-      opSetCore => set%setPtr
-
-      opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-      opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
-      opDat3Cardinality = opArg3%dim * getSetSizeFromOpArg(opArg3)
-      opDat4Cardinality = opArg4%dim * getSetSizeFromOpArg(opArg4)
-      CALL c_f_pointer(opArg1%data,opDat1Local,(/opDat1Cardinality/))
-      CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
-      CALL c_f_pointer(opArg3%data,opDat3Local,(/opDat3Cardinality/))
-      CALL c_f_pointer(opArg4%data,opDat4Local,(/opDat4Cardinality/))
-      CALL c_f_pointer(opArg5%data,opDat5Local, (/opArg5%dim/))
-
-      allocate( reductionArrayHost5(numberOfThreads * ((2-1)/64+1)*64) )
-      DO i1 = 1, numberOfThreads+1 - 1, 1
-        DO i2 = 1, 2+1 - 1, 1
-          reductionArrayHost5((i1 - 1) * ((2-1)/64+1)*64 + i2) = 0
-        END DO
-      END DO
-
-      !$OMP PARALLEL DO private (sliceStart,sliceEnd,i1,threadID)
-      DO i1 = 0, numberOfThreads - 1, 1
-        sliceStart = opSetCore%size * i1 / numberOfThreads
-        sliceEnd = opSetCore%size * (i1 + 1) / numberOfThreads
-        threadID = omp_get_thread_num()
-! kernel call
-        CALL op_wrap_update( &
-        & opDat1Local, &
-        & opDat2Local, &
-        & opDat3Local, &
-        & opDat4Local, &
-        & reductionArrayHost5(threadID * ((2-1)/64+1)*64 + 1), &
-        & sliceStart, sliceEnd)
-      END DO
-      !$OMP END PARALLEL DO
-      IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
-        CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
-      END IF
-
-      CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
-
-      DO i1 = 1, numberOfThreads+1 - 1, 1
-        DO i2 = 1, 2+1 - 1, 1
-          opDat5Local(i2) = opDat5Local(i2) + reductionArrayHost5((i1 - 1) * ((2-1)/64+1)*64 + i2)
-        END DO
-      END DO
-
-      deallocate( reductionArrayHost5 )
-
-      CALL op_mpi_reduce_double(opArg5,opArg5%data)
-
-      call op_timers_core(endTime)
-
-      dataTransfer = 0.0
-      dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
-      dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2) * 2.d0
-      dataTransfer = dataTransfer + opArg3%size * getSetSizeFromOpArg(opArg3) * 2.d0
-      dataTransfer = dataTransfer + opArg4%size * getSetSizeFromOpArg(opArg4)
-      dataTransfer = dataTransfer + opArg5%size * 2.d0
-      returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-      & endTime-startTime, dataTransfer, 0.00000, 1)
-    END SUBROUTINE
-    END MODULE
+  END MODULE

@@ -32,6 +32,7 @@
 
 
 #include <op_lib_core.h>
+ #include <op_lib_c.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -40,7 +41,7 @@
 
 void op_put_dat(op_dat dat) {
   int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -59,7 +60,7 @@ void op_put_dat(op_dat dat) {
 
 void op_get_dat(op_dat dat) {
   int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
     int element_size = dat->size/dat->dim;
@@ -87,3 +88,33 @@ op_put_dat_mpi (op_dat dat) {
   if (dat->data_d == NULL) return;
   op_put_dat(dat);
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+char *scratch = NULL;
+long scratch_size = 0;
+void prepareScratch(op_arg *args, int nargs, int nthreads) {
+  long req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+  }
+  if (scratch_size < req_size) {
+    if (!scratch) cudaFree(scratch);
+    cutilSafeCall(cudaMalloc((void**)&scratch, req_size*sizeof(char)));
+    scratch_size = req_size;
+  }
+  req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) {
+      args[i].data_d = scratch + req_size;
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+    }
+  }
+}
+
+#ifdef __cplusplus
+}
+#endif
+

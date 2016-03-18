@@ -36,6 +36,7 @@
  */
 
 #include <sys/time.h>
+#include <string.h>
 #include "op_lib_core.h"
 #include <malloc.h>
 
@@ -51,6 +52,7 @@ int OP_diags = 0,
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
+int OP_auto_soa = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
@@ -109,7 +111,7 @@ op_dat search_dat(op_set set, int dim, char const * type, int size, char const *
 void check_map(char const *name, op_set from, op_set to, int dim, int* map) {
 
   //first find global set sizes
-  int g_from = op_get_size(from);
+  //int g_from = op_get_size(from);
   int g_to = op_get_size(to);
   //printf("%s from->size = %d (%d)\n",from->name, from->size, g_from);
   //printf("%s to->size = %d (%d)\n",to->name, to->size, g_to);
@@ -145,6 +147,12 @@ void
     printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
+  if ( getenv ( "OP_AUTO_SOA" ) )
+  {
+    OP_auto_soa = 1;
+    printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+  }
+
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;
 #endif
@@ -177,6 +185,11 @@ void
     {
       OP_gpu_direct = 1;
       printf ( "\n Enabling GPU Direct \n" );
+    }
+    if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 )
+    {
+      OP_auto_soa = 1;
+      printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
     }
     if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 )
     {
@@ -245,7 +258,7 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
   }
 
   //check if map points to elements within set range
-  check_map(name, from, to, dim, imap);
+//  check_map(name, from, to, dim, imap);
 
   /*This check breaks for MPI - check_map() above does the required check now */
   /*for ( int d = 0; d < dim; d++ )
@@ -537,7 +550,9 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.map_data = NULL;
   }
 
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -579,7 +594,9 @@ op_opt_arg_dat_core ( int opt, op_dat dat, int idx, op_map map, int dim, const c
     arg.map_data = (map == NULL ? NULL : map->map);
   }
 
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -602,7 +619,9 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
   arg.idx = -1;
   arg.size = dim*size;
   arg.data = data;
-  arg.type = typ;
+  // NJH
+  // arg.type = typ;
+  arg.type = copy_str(typ);
   arg.acc = acc;
   arg.map_data_d = NULL;
   arg.map_data = NULL;
@@ -613,6 +632,10 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
 
   /*not used in global args*/
   arg.sent = 0;
+  
+
+  /* TODO: properly??*/
+  if (data==NULL) arg.opt = 0;
 
   return arg;
 }

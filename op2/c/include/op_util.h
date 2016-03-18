@@ -81,6 +81,8 @@ int removeDups(int a[], int array_size);
 
 int file_exist(char const *filename);
 
+bool op_type_equivalence(const char *a, const char *b);
+
 #ifdef __cplusplus
 }
 #endif

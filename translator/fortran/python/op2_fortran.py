@@ -85,7 +85,7 @@ cont = '& '
 comment = '! '
 
 hydra = 0
-
+bookleaf=0
 
 # from http://stackoverflow.com/a/241506/396967
 ##########################################################################
@@ -141,9 +141,9 @@ def op_decl_const_parse(text):
 
         consts.append({
             'loc': m.start(),
-            'dim': args[0].strip(),
+            'dim': args[1].strip(),
             'type': args[1].strip(),
-            'name': args[2].strip(),
+            'name': args[0].strip(),
             'name2': args[2].strip()
             })
 
@@ -190,7 +190,7 @@ def get_arg_dat(arg_string, j):
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
-
+  dat_args_string = dat_args_string.replace('&','')
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 6:
     print 'Error parsing op_arg_dat(%s): must have six arguments' \
@@ -210,6 +210,12 @@ def get_arg_dat(arg_string, j):
 
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+  if 'npdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+  if 'nfcrow' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+  if 'ntqmu' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
   if temp_dat['dim']=='njaca':
     temp_dat['dim']='1*1'
   if 'mpdes' in temp_dat['dim']:
@@ -232,6 +238,7 @@ def get_opt_arg_dat(arg_string, j):
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
+  dat_args_string = dat_args_string.replace('&','')
 
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 7:
@@ -252,6 +259,12 @@ def get_opt_arg_dat(arg_string, j):
 
   if 'DNPDE' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+  if 'npdes' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+  if 'ntqmu' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+  if 'nfcrow' in temp_dat['dim']:
+    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
   if temp_dat['dim']=='njaca':
     temp_dat['dim']='1*1'
   if temp_dat['dim']=='njacs':
@@ -275,6 +288,7 @@ def get_arg_gbl(arg_string, k):
 
   #remove comments
   gbl_args_string = comment_remover(gbl_args_string)
+  gbl_args_string = gbl_args_string.replace('&','')
 
   #check for syntax errors
   if len(gbl_args_string.split(',')) != 4:
@@ -293,6 +307,14 @@ def get_arg_gbl(arg_string, k):
 
   if 'DNPDE' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+  if 'nfcrow' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+  if 'npdes' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+  if 'ntqmu' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+  if 'maxzone' in temp_gbl['dim']:
+    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
   if 'mpdes' in temp_gbl['dim']:
     temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_gbl['dim']:
@@ -375,9 +397,14 @@ def op_par_loop_parse(text):
 
 #####################loop over all input source files#####################
 init_ctr = 1
+auto_soa=os.getenv('OP_AUTO_SOA','0')
+print auto_soa
 if len(sys.argv) > 1:
   if sys.argv[1] == 'hydra':
     hydra = 1
+    init_ctr=2
+  if sys.argv[1] == 'bookleaf':
+    bookleaf = 1
     init_ctr=2
 
 for a in range(init_ctr,len(sys.argv)):
@@ -502,6 +529,8 @@ for a in range(init_ctr,len(sys.argv)):
 
         dims[m] = args['dim']
         soa_loc = args['typ'].find(':soa')
+        if ((auto_soa=='1') and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
+          soa_loc = len(args['typ'])-1
 
         if soa_loc > 0:
           soaflags[m] = 1
@@ -521,9 +550,9 @@ for a in range(init_ctr,len(sys.argv)):
 
         if arg_type.strip() == 'op_opt_arg_dat':
           optflags[m] = 1
-          if soaflags[m] == 1:
-            print "ERROR: cannot have SoA and optional argument at the same time"
-            sys.exit(-1)
+          # if soaflags[m] == 1:
+          #   print "ERROR: cannot have SoA and optional argument at the same time"
+          #   sys.exit(-1)
         else:
           optflags[m] = 0
 
@@ -551,7 +580,6 @@ for a in range(init_ctr,len(sys.argv)):
          print 'invalid access type for argument '+str(m)
 
     print ' '
-
 #
 # identify indirect datasets
 #
@@ -697,21 +725,34 @@ for a in range(init_ctr,len(sys.argv)):
             temp['mod_file'] = search.strip()
           else:
             print'  ERROR: no module file found!  '
+      if bookleaf==1:
+        file_part = src_file.split('/')
+        file_part = file_part[len(file_part)-1]
+        temp['master_file'] = file_part.split('.')[0]
+        if temp['master_file'] in name:
+          temp['mod_file'] = temp['master_file'] + '_kernels.f90'
+        else:
+          temp['mod_file'] = 'common_kernels.f90'
+
       kernels.append(temp)
 
 ########################## output source file  ############################
 
-  if file_format == 90:
-    fid = open(src_file.split('.')[0]+'_op.F90', 'w')
-  elif file_format == 77:
-    fid = open(src_file.split('.')[0]+'_op.F', 'w')
+  fid = open(src_file.replace('.','_op.'), 'w')
+#  if file_format == 90:
+#    fid = open(src_file.split('.')[0]+'_op.F90', 'w')
+#  elif file_format == 77:
+#    fid = open(src_file.split('.')[0]+'_op.F', 'w')
   date = datetime.datetime.now()
   #fid.write('!\n! auto-generated by op2_fortran.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n!\n\n')
   fid.write('!\n! auto-generated by op2_fortran.py\n!\n\n')
 
   loc_old = 0
   #read original file and locate header location
-  loc_header = [text.find('use OP2_Fortran_Reference')]
+  if bookleaf:
+    loc_header = [text.lower().find('use op2_bookleaf')]
+  else:
+    loc_header = [text.find('use OP2_Fortran_Reference')]
 
   #get locations of all op_decl_consts
   n_consts = len(const_args)
@@ -747,13 +788,18 @@ for a in range(init_ctr,len(sys.argv)):
       line = ''
       if hydra==0:
         for nk in range (0,len(kernels)):
-          line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
+          if text.find(kernels[nk]['name']) > -1:
+            line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
+        line = line + '\n'+indent
 
       fid.write(line[2:len(line)]);
-      loc_old = locs[loc]+25
+      if bookleaf:
+        loc_old = locs[loc] # keep the original include
+      else:
+        loc_old = locs[loc]+25
       continue
 
-    if locs[loc] in loc_consts:# stripping the op_decl_consts -- as there is no implentation required
+    if locs[loc] in loc_consts:# stripping the op_decl_consts -- as there is no implementation required
       line = ''
       fid.write(line);
       endofcall = text.find('\n', locs[loc])
@@ -801,35 +847,41 @@ for a in range(init_ctr,len(sys.argv)):
 
   fid.write(text[loc_old:])
   fid.close()
-  if hydra == 1:
-    if file_format == 90:
-      fid = open(src_file.split('.')[0]+'_op.F90', 'r')
-    elif file_format == 77:
-      fid = open(src_file.split('.')[0]+'_op.F', 'r')
+  if hydra == 1 or bookleaf==1:
+    fid = open(src_file.replace('.','_op.'), 'r')
+    #if file_format == 90:
+    #  fid = open(src_file.split('.')[0]+'_op.F90', 'r')
+    #elif file_format == 77:
+    #  fid = open(src_file.split('.')[0]+'_op.F', 'r')
 
 
     text = fid.read()
     fid.close()
     if hydra:
-      replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      #replace = 'use OP2_FORTRAN_DECLARATIONS\n#ifdef OP2_ENABLE_CUDA\n       use HYDRA_CUDA_MODULE\n#endif\n'
+      replace = 'use OP2_FORTRAN_DECLARATIONS\n'
       text = text.replace('use OP2_FORTRAN_DECLARATIONS\n',replace)
+    if bookleaf:
+      text = text.replace('USE OP2_Fortran_Reference\n','')
+      text = text.replace('USE common_kernels','! USE common_kernels')
+      file_part = src_file.split('/')
+      file_part = file_part[len(file_part)-1]
+      master_file = file_part.split('.')[0]
+      text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
-#      if hydra:
-#        replace = '\n'
-#      else:
       replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
-    if file_format == 90:
-      fid = open(src_file.split('.')[0]+'_op.F90', 'w')
-    elif file_format == 77:
-      fid = open(src_file.split('.')[0]+'_op.F', 'w')
+    fid = open(src_file.replace('.','_op.'), 'w')
+    #if file_format == 90:
+    #  fid = open(src_file.split('.')[0]+'_op.F90', 'w')
+    #elif file_format == 77:
+    #  fid = open(src_file.split('.')[0]+'_op.F', 'w')
     fid.write(text)
     fid.close()
 
   f.close()
 #end of loop over input source files
-
 
 ########################## errors and warnings ############################
 
@@ -855,17 +907,17 @@ if npart==0 and nhdf5>0:
 
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # optimised by removing the overhead due to fortran c to f pointer setups
+op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 
 #CUDA
-op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra)
-#op2_gen_cuda_permute(str(sys.argv[1]), date, consts, kernels, hydra) # permute does a different coloring (permute execution within blocks by color)
+#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
+op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 

@@ -43,6 +43,14 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+//
+//MPI Communicator for halo creation and exchange
+//
+
+MPI_Comm OP_MPI_WORLD;
+MPI_Comm OP_MPI_GLOBAL;
+
+
 /*
  * Routines called by user code and kernels
  * these wrappers are used by non-CUDA versions
@@ -57,8 +65,27 @@ void op_init ( int argc, char ** argv, int diags )
   {
     MPI_Init(&argc, &argv);
   }
+  OP_MPI_WORLD = MPI_COMM_WORLD;
+  OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core ( argc, argv, diags );
 }
+
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )
+{
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+    printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
+    exit(-1);
+  }
+  OP_MPI_WORLD = MPI_Comm_f2c(local);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
+
+  op_init_core ( argc, argv, diags );
+}
+
+
 
 op_dat op_decl_dat_char( op_set set, int dim, char const * type, int size, char * data, char const *name )
 {
@@ -192,7 +219,7 @@ op_plan_get_stage ( char const * name, op_set set, int part_size,
 void op_printf(const char* format, ...)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     va_list argptr;
@@ -205,7 +232,7 @@ void op_printf(const char* format, ...)
 void op_print(const char* line)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     printf("%s\n",line);
@@ -214,6 +241,7 @@ void op_print(const char* line)
 
 void op_exit()
 {
+
   op_mpi_exit();
   op_rt_exit();
   op_exit_core();
@@ -223,6 +251,12 @@ void op_exit()
   if(!flag)
     MPI_Finalize();
 }
+
+void op_rank(int* rank)
+{
+  MPI_Comm_rank(OP_MPI_WORLD,rank);
+}
+
 
 /*
  * Wrappers of core lib
@@ -262,7 +296,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 
 void op_timers(double * cpu, double * et)
 {
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu,et);
 }
 
@@ -270,7 +304,7 @@ void op_timers(double * cpu, double * et)
 void op_timing_output()
 {
    double max_plan_time = 0.0;
-   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, OP_MPI_WORLD);
    op_timing_output_core();
    if (op_is_root()) printf("Total plan time: %8.4f\n", OP_plan_time);
    mpi_timing_output();
@@ -298,3 +332,27 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   free(temp->set);
   free(temp);
 }
+
+void op_debug_arg(int n, op_arg arg)
+{
+  op_dat dat;
+
+  dat = arg.dat;
+
+  int my_rank;
+  op_rank(&my_rank);
+
+  if (arg.argtype == OP_ARG_DAT) {
+    printf("NJH %i debug %s\n",my_rank,dat->name);
+    printf("NJH %i debug %p\n",my_rank,((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+
+    if (n==3 && (strcmp(dat->name,"dist")==0)) {
+      printf("NJH %i trying free here...\n",my_rank);
+      free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+      printf("NJH %i succeeded free here...\n",my_rank);
+
+    };
+
+  }
+}
+

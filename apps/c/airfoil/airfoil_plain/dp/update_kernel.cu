@@ -33,7 +33,7 @@ __global__ void op_cuda_update(
   }
 
   //process set elements
-  for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n = n+=blockDim.x*gridDim.x ){
+  for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n+=blockDim.x*gridDim.x ){
 
     //user-supplied kernel call
     update_gpu(arg0+n*4,

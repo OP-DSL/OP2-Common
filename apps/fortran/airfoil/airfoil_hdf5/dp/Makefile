@@ -20,7 +20,9 @@ endif
 
 PTSCOTCH_INC    = -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr \
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lscotch \
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lscotcherr
 
 
 ifeq ($(OP2_COMPILER),gnu)
@@ -39,7 +41,7 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgc++
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
-  FC = pgfortran -fast -Mcuda=cuda5.5,cc35,fastmath,ptxinfo -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
+  FC = pgfortran -fast -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)

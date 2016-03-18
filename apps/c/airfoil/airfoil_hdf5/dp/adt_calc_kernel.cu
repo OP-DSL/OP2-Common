@@ -66,7 +66,7 @@ __global__ void op_cuda_adt_calc(
 
   }
   __syncthreads(); // make sure all of above completed
-  for ( int n=threadIdx.x; n<nelem; n = n+=blockDim.x ){
+  for ( int n=threadIdx.x; n<nelem; n+=blockDim.x ){
     int map0idx;
     int map1idx;
     int map2idx;

@@ -48,6 +48,13 @@
 #include <op_lib_mpi.h>
 
 //
+//MPI Communicator for halo creation and exchange
+//
+
+MPI_Comm OP_MPI_WORLD;
+MPI_Comm OP_MPI_GLOBAL;
+
+//
 // CUDA-specific OP2 functions
 //
 
@@ -60,7 +67,46 @@ op_init ( int argc, char ** argv, int diags)
   {
       MPI_Init(&argc, &argv);
   }
+  OP_MPI_WORLD = MPI_COMM_WORLD;
+  OP_MPI_GLOBAL = MPI_COMM_WORLD;
+  op_init_core ( argc, argv, diags );
 
+#if CUDART_VERSION < 3020
+#error : "must be compiled using CUDA 3.2 or later"
+#endif
+
+#ifdef CUDA_NO_SM_13_DOUBLE_INTRINSICS
+#warning : " *** no support for double precision arithmetic *** "
+#endif
+
+  cutilDeviceInit( argc, argv);
+
+//
+// The following call is only made in the C version of OP2,
+// as it causes memory trashing when called from Fortran.
+// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
+// for this file when implementing C OP2.
+//
+
+#ifdef SET_CUDA_CACHE_CONFIG
+  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
+#endif
+
+  printf ( "\n 16/48 L1/shared \n" );
+}
+
+void
+op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )
+{
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if(!flag)
+  {
+      printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
+      exit(-1);
+  }
+  OP_MPI_WORLD = MPI_Comm_f2c(local);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
   op_init_core ( argc, argv, diags );
 
 #if CUDART_VERSION < 3020
@@ -116,7 +162,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
   dat-> user_managed = 0;
 
   //transpose
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
       dat->size * (OP_import_exec_list[set->index]->size +
       OP_import_nonexec_list[set->index]->size) ));
@@ -169,7 +215,7 @@ int op_free_dat_temp_char ( op_dat dat )
   //need to free device buffers used in mpi comms
   cutilSafeCall (cudaFree(dat->buffer_d));
 
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall (cudaFree(dat->buffer_d_r));
   }
 
@@ -182,9 +228,8 @@ void op_mv_halo_device(op_set set, op_dat dat)
 {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
   OP_import_nonexec_list[set->index]->size;
-
-  if (strstr( dat->type, ":soa")!= NULL) {
-    char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
+    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -194,7 +239,7 @@ void op_mv_halo_device(op_set set, op_dat dat)
       }
     }
     op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( dat->data ), dat->size * set_size );
+                        ( void ** ) &( temp_data ), dat->size * set_size );
     free(temp_data);
 
     cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
@@ -292,7 +337,7 @@ op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access ac
 void op_printf(const char* format, ...)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     va_list argptr;
@@ -305,7 +350,7 @@ void op_printf(const char* format, ...)
 void op_print(const char* line)
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   if(my_rank==MPI_ROOT)
   {
     printf("%s\n",line);
@@ -315,7 +360,7 @@ void op_print(const char* line)
 
 void op_timers(double * cpu, double * et)
 {
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu,et);
 }
 
@@ -343,7 +388,7 @@ op_exit (  )
     op_dat_entry *item;
     TAILQ_FOREACH(item, &OP_dat_list, entries)
     {
-      if (strstr( item->dat->type, ":soa")!= NULL) {
+      if (strstr( item->dat->type, ":soa")!= NULL || (OP_auto_soa && item->dat->dim > 1)) {
         cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
       }
       cutilSafeCall (cudaFree((item->dat)->buffer_d));
@@ -413,8 +458,8 @@ void op_upload_all ()
     int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
-      if (strstr( dat->type, ":soa")!= NULL) {
-        char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
+      if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
+        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
         int element_size = dat->size/dat->dim;
         for (int i = 0; i < dat->dim; i++) {
           for (int j = 0; j < set_size; j++) {

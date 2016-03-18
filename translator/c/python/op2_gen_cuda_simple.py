@@ -62,7 +62,7 @@ def FOR_INC(i,start,finish,inc):
   if FORTRAN:
     code('do '+i+' = '+start+', '+finish+'-1')
   elif CPP:
-    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+' = '+i+'+='+inc+' ){')
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'+='+inc+' ){')
   depth += 2
 
 def ENDFOR():
@@ -291,7 +291,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     for files in glob.glob( "*.h" ):
       f = open( files, 'r' )
       for line in f:
-        match = re.search(r''+name+'\\b', line)
+        match = re.search(r''+'\\b'+name+'\\b', line)
         if match :
           file_name = f.name
           found = 1;
@@ -346,6 +346,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('const INDTYP *__restrict INDARG,')
       else:
         code('INDTYP *__restrict INDARG,')
+        code('int ind'+str(g_m)+'_stride,')
 
     if nmaps > 0:
       k = []
@@ -549,11 +550,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
-              code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
+              if soaflags[g_m]:
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx];')
+              else:
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
-              code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
+              if soaflags[g_m]:
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
+              else:
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
         ENDFOR()
         code('__syncthreads();')
@@ -642,7 +649,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('if (OP_kernels[' +str(nk)+ '].count==1) op_register_strides();')
+    if any_soa:
+      code('if (OP_kernels[' +str(nk)+ '].count==1) op_register_strides();')
 
     code('')
 
@@ -810,6 +818,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
         code('(TYP *)ARG.data_d,')
+        if accs[g_m] <> OP_READ:
+          code('ARG.map->to->size + ARG.map->to->exec_size + ARG.map->to->nonexec_size,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -943,9 +953,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   code('#endif')
   code('')
 
-  code('#define STRIDE(x,y) x*y')
-  for ns in range (0,len(sets)):
-    code('__constant__ int '+sets[ns]['name'].replace('"','')+'_stride;')
+  if any_soa:
+    code('#define STRIDE(x,y) x*y')
+    for ns in range (0,len(sets)):
+      code('__constant__ int '+sets[ns]['name'].replace('"','')+'_stride;')
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
@@ -962,16 +973,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     code('__constant__ int op2_stride;')
     code('')
     code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
-
-  code('')
-  code('void op_register_strides() {')
-  depth = depth + 2
-  code('int size;')
-  for ns in range (0,len(sets)):
-    code('size = op_size_of_set("'+sets[ns]['name'].replace('"','')+'");')
-    code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name'].replace('"','')+'_stride, &size, sizeof(int)));')
-  depth = depth - 2
-  code('}')
+  
+  if any_soa:
+    code('')
+    code('void op_register_strides() {')
+    depth = depth + 2
+    code('int size;')
+    for ns in range (0,len(sets)):
+      code('size = op_size_of_set("'+sets[ns]['name'].replace('"','')+'");')
+      code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name'].replace('"','')+'_stride, &size, sizeof(int)));')
+    depth = depth - 2
+    code('}')
   code('')
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')

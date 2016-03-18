@@ -277,7 +277,7 @@ void op_cuda_get_data ( op_dat dat )
   if (dat->dirty_hd == 2) dat->dirty_hd = 0;
   else return;
   //transpose data
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*dat->set->size*sizeof(char));
     cutilSafeCall ( cudaMemcpy ( temp_data, dat->data_d,
                                  dat->size * dat->set->size,
@@ -340,7 +340,7 @@ void cutilDeviceInit( int argc, char ** argv )
 void op_upload_dat(op_dat dat) {
   if (!OP_hybrid_gpu) return;
   int set_size = dat->set->size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -360,7 +360,7 @@ void op_upload_dat(op_dat dat) {
 void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu) return;
   int set_size = dat->set->size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
     cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
     int element_size = dat->size/dat->dim;

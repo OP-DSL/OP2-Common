@@ -296,7 +296,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for files in glob.glob( "*.h" ):
       f = open( files, 'r' )
       for line in f:
-        match = re.search(r''+name+'\\b', line)
+        match = re.search(r''+'\\b'+name+'\\b', line)
         if match :
           file_name = f.name
           found = 1;
@@ -363,7 +363,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
-          print var2
+          #print var2
 
           body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r'('+var2+'\[[A-Za-z0-9]*\]'+')', r'\1'+'[idx]', body_text)
@@ -595,11 +595,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
       if nmaps > 0:
         k = []
-        print name
-        print maps
-        print mapinds
+        #print name
+        #print maps
+        #print mapinds
         for g_m in range(0,nargs):
-          print g_m
+          #print g_m
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')

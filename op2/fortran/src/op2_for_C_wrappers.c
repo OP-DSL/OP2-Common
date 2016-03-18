@@ -76,6 +76,7 @@
 #else
 #include <mpi.h>
 #include <op_mpi_core.h>
+#include <op_lib_mpi.h>
 #endif
 
 #include "../include/op2_for_C_wrappers.h"
@@ -266,6 +267,11 @@ void dumpOpGbl (op_dat_core * data)
     }
 }
 
+int getMapDimFromOpArg (op_arg * arg)
+{
+  return (arg->map!=NULL) ? arg->map->dim : 0;
+}
+
 void dumpOpMap (op_map_core * map, const char * fileName)
 {
   int i, j;
@@ -290,7 +296,7 @@ op_arg
 op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access acc ) {
 
   int len = strlen (typ);
-  char * heapType = (char *) calloc (len, sizeof (char));
+  char * heapType = (char *) calloc (len + 1, sizeof (char));
 
   strncpy (heapType, typ, len);
 
@@ -343,11 +349,11 @@ void print_type (op_arg * arg)
 #ifdef NO_MPI
 
 int op_mpi_size () {
-  return -1;
+  return 1;
 }
 
 void op_mpi_rank (int * rank) {
-  (void) rank;
+  *rank = 0;
 }
 
 void op_barrier () {
@@ -357,16 +363,16 @@ void op_barrier () {
 #else
 int op_mpi_size () {
   int size;
-  MPI_Comm_size (MPI_COMM_WORLD, &size);
+  MPI_Comm_size (OP_MPI_WORLD, &size);
   return size;
 }
 
 void op_mpi_rank (int * rank) {
-  MPI_Comm_rank (MPI_COMM_WORLD, rank);
+  MPI_Comm_rank (OP_MPI_WORLD, rank);
 }
 
 void op_barrier () {
-  MPI_Barrier (MPI_COMM_WORLD);
+  MPI_Barrier (OP_MPI_WORLD);
 }
 
 void printDat_noGather (op_dat dat) {

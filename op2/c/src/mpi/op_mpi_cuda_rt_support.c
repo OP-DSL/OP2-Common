@@ -82,6 +82,7 @@ void cutilDeviceInit( int argc, char ** argv )
     exit ( -1 );
   }
   printf("Trying to select a device\n");
+
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -151,10 +152,10 @@ void cutilDeviceInit( int argc, char ** argv )
 
 
 void op_upload_dat(op_dat dat) {
-  printf("Uploading %s\n", dat->name);
+//  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
     int element_size = dat->size/dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -172,10 +173,10 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
-  printf("Downloading %s\n", dat->name);
+//  printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
     OP_import_nonexec_list[dat->set->index]->size;
-  if (strstr( dat->type, ":soa")!= NULL) {
+  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc(dat->size*set_size*sizeof(char));
     cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
     int element_size = dat->size/dat->dim;
@@ -268,7 +269,7 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
     for(int i=0; i < imp_exec_list->ranks_size; i++) {
       ptr = OP_gpu_direct ? &(dat->data_d[init+imp_exec_list->disps[i]*dat->size]) :
       &(dat->data[init+imp_exec_list->disps[i]*dat->size]);
-      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
+      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL  || (OP_auto_soa && arg->dat->dim > 1)))
         ptr = dat->buffer_d_r + imp_exec_list->disps[i]*dat->size;
       MPI_Irecv(ptr, dat->size*imp_exec_list->sizes[i],
           MPI_CHAR, imp_exec_list->ranks[i],
@@ -302,7 +303,7 @@ void op_exchange_halo_cuda(op_arg* arg, int exec_flag)
     for(int i=0; i<imp_nonexec_list->ranks_size; i++) {
       ptr = OP_gpu_direct ? &(dat->data_d[nonexec_init+imp_nonexec_list->disps[i]*dat->size]) :
       &(dat->data[nonexec_init+imp_nonexec_list->disps[i]*dat->size]);
-      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL))
+      if (OP_gpu_direct && (strstr( arg->dat->type, ":soa")!= NULL || (OP_auto_soa && arg->dat->dim > 1)))
         ptr = dat->buffer_d_r + (imp_exec_list->size+imp_exec_list->disps[i])*dat->size;
       MPI_Irecv(ptr, dat->size*imp_nonexec_list->sizes[i],
           MPI_CHAR, imp_nonexec_list->ranks[i],
@@ -538,7 +539,7 @@ void op_exchange_halo_partial(op_arg* arg, int exec_flag)
      (dat->dirtybit == 1))
   {
     int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
     halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
     halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
     //-------exchange nonexec elements related to this data array and map--------
@@ -612,7 +613,7 @@ void op_wait_all_cuda(op_arg* arg)
       scatter_data_from_buffer_partial(*arg);
     } else {
       if (OP_gpu_direct == 0) {
-        if (strstr( arg->dat->type, ":soa")!= NULL)
+        if (strstr( arg->dat->type, ":soa")!= NULL || (OP_auto_soa && arg->dat->dim > 1))
         {
           int init = dat->set->size*dat->size;
           int size = (dat->set->exec_size+dat->set->nonexec_size)*dat->size;
@@ -627,7 +628,7 @@ void op_wait_all_cuda(op_arg* arg)
             OP_import_nonexec_list[dat->set->index]->size)*arg->dat->size,
             cudaMemcpyHostToDevice, 0 ) );
         }
-        } else if (strstr( arg->dat->type, ":soa")!= NULL)
+        } else if (strstr( arg->dat->type, ":soa")!= NULL || (OP_auto_soa && arg->dat->dim > 1))
           scatter_data_from_buffer(*arg);
       }
     arg->sent = 2; //set flag to indicate completed comm
@@ -702,6 +703,6 @@ void op_partition(const char* lib_name, const char* lib_routine,
 int op_is_root()
 {
   int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
   return (my_rank==MPI_ROOT);
 }

@@ -134,9 +134,10 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
   /* copy the name because FORTRAN doesn't allow allocating
      strings */
-  int nameLen = strlen (name);
+  int nameLen = strlen (name)+1;
   char * heapName = (char *) calloc (nameLen, sizeof(char));
-  strncpy (heapName, name, nameLen);
+  strncpy (heapName, name, nameLen-1);
+  heapName[nameLen-1] = '\0';
 
   /* call the C OP2 function */
   generatedPlan = op_plan_get_stage (heapName, set, partitionSize,
@@ -146,18 +147,23 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 }
 
 
-
+/*
 int getMapDimFromOpArg (op_arg * arg)
 {
   return (arg->map!=NULL) ? arg->map->dim : 0;
-}
+}*/
 
 int reductionSize (op_arg *args, int nargs)
 {
   int max_size = 0;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
-      max_size = max_size > args[i].size ? max_size : args[i].size;
+    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) {
+      if (args[i].dim > 8)
+        max_size = max_size > (args[i].size/args[i].dim)*8 ? max_size : (args[i].size/args[i].dim)*8;
+      else
+        max_size = max_size > args[i].size ? max_size : args[i].size;
+    }
   }
+  if (max_size > 64000) printf("Error, too much shared memory requested\n");
   return max_size;
 }

@@ -22,6 +22,7 @@ SUBROUTINE op_wrap_update( &
   & opDat4Local, &
   & opDat5Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   real(8) opDat3Local(4,*)
@@ -59,7 +60,6 @@ SUBROUTINE update_host( userSubroutine, set, &
 
   type ( op_arg ) , DIMENSION(5) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
-  REAL(kind=4) :: dataTransfer
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
   REAL(kind=8) :: startTime
@@ -83,6 +83,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   real(8), POINTER, DIMENSION(:) :: opDat5Local
 
   INTEGER(kind=4) :: i1
+  REAL(kind=4) :: dataTransfer
 
   numberOfOpDats = 5
 
@@ -93,7 +94,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   opArgArray(5) = opArg5
 
   returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000,0.00000, 0)
+  & 0.d0, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
@@ -111,6 +112,13 @@ SUBROUTINE update_host( userSubroutine, set, &
   CALL c_f_pointer(opArg5%data,opDat5Local, (/opArg5%dim/))
 
 
+  CALL op_wrap_update( &
+  & opDat1Local, &
+  & opDat2Local, &
+  & opDat3Local, &
+  & opDat4Local, &
+  & opDat5Local, &
+  & 0, opSetCore%core_size)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_update( &
   & opDat1Local, &
@@ -118,7 +126,11 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opDat3Local, &
   & opDat4Local, &
   & opDat5Local, &
-  & 0, n_upper)
+  & opSetCore%core_size, n_upper)
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+  END IF
+
 
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 

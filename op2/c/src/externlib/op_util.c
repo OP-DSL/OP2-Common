@@ -136,6 +136,17 @@ int binary_search(int a[], int value, int low, int high)
 {
   if (high < low)
     return -1; // not found
+  else if (high == low)
+    {
+      if (a[low] == value) return low;
+      else return -1;
+    }
+  else if (high == (low+1))
+    {
+      if (a[low] == value) return low;
+      else if (a[high] == value) return high;
+      else return -1;
+    }
 
   int mid = low + (high - low) / 2;
   if (a[mid] > value)
@@ -238,7 +249,8 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
   while (i <= j) {
     while (arr[i] < pivot)i++;
     while (arr[j] > pivot)j--;
-    if (i <= j) {
+    //    if (i <= j) {
+    if (i < j) {
       tmp = arr[i];
       arr[i] = arr[j];
       arr[j] = tmp;
@@ -249,6 +261,9 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size)
       memcpy(&dat[i*elem_size],(void *)&dat[j*elem_size],elem_size);
       //dat[j] = tmp_dat;
       memcpy(&dat[j*elem_size],(void *)tmp_dat,elem_size);
+      i++; j--;
+    }
+    else if (i==j) {
       i++; j--;
     }
   };
@@ -276,7 +291,8 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
   while (i <= j) {
     while (arr[i] < pivot)i++;
     while (arr[j] > pivot)j--;
-    if (i <= j) {
+    //    if (i <= j) {
+    if (i < j) {
       tmp = arr[i];
       arr[i] = arr[j];
       arr[j] = tmp;
@@ -289,6 +305,10 @@ void quickSort_map(int arr[], int map[], int left, int right, int dim)
       memcpy(&map[j*dim],(void *)tmp_map,dim*sizeof(int));
       i++; j--;
     }
+    else if (i==j) {
+      i++; j--;
+    }
+
   };
 
   // recursion
@@ -329,3 +349,44 @@ int file_exist (char const *filename)
   struct stat   buffer;
   return (stat (filename, &buffer) == 0);
 }
+
+char *doubles[] = {"double","double:soa","real(8)","double precision"};
+char *floats[] = {"float","float:soa","real(4)","real"};
+char *ints[] = {"int","int:soa","integer(4)","integer"};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool op_type_equivalence(const char *a, const char *b) {
+  for (int i = 0; i < 4; i++) {
+    if (strcmp(a,doubles[i])==0) {      
+      for (int j = 0; j < 4; j++) {
+        if (strcmp(b,doubles[j])==0) {
+          return true;
+        }
+      }
+    }
+  }
+  for (int i = 0; i < 4; i++) {
+    if (strcmp(a,floats[i])==0) {      
+      for (int j = 0; j < 4; j++) {
+        if (strcmp(b,floats[j])==0) {
+          return true;
+        }
+      }
+    }
+  }
+  for (int i = 0; i < 4; i++) {
+    if (strcmp(a,ints[i])==0) {      
+      for (int j = 0; j < 4; j++) {
+        if (strcmp(b,ints[j])==0) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+#ifdef __cplusplus
+}
+#endif
