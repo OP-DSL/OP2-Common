@@ -23,6 +23,7 @@ SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   INTEGER(kind=4) bottom,top,i1
@@ -77,7 +78,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   opArgArray(2) = opArg2
 
   returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000,0.00000, 0)
+  & 0.d0, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
@@ -121,6 +122,6 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
     dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
     dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
     returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
-    & endTime-startTime, dataTransfer, 0.00000, 1)
+    & endTime-startTime, dataTransfer, 0.00000_4, 1)
   END SUBROUTINE
   END MODULE

@@ -60,12 +60,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include  "op_lib_cpp.h"
 
-
-#define STRIDE(x,y) x
-int nodes_stride = 1;
-int edges_stride = 1;
-int bedges_stride = 1;
-int cells_stride = 1;
 //
 // op_par_loop declarations
 //

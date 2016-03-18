@@ -26,6 +26,7 @@ SUBROUTINE op_wrap_update( &
   & opDat4Local, &
   & opDat5Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   real(8) opDat3Local(4,*)
@@ -103,7 +104,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   opArgArray(5) = opArg5
 
   returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000,0.00000, 0)
+  & 0.d0, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
@@ -174,6 +175,6 @@ SUBROUTINE update_host( userSubroutine, set, &
     dataTransfer = dataTransfer + opArg4%size * getSetSizeFromOpArg(opArg4)
     dataTransfer = dataTransfer + opArg5%size * 2.d0
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & endTime-startTime, dataTransfer, 0.00000, 1)
+    & endTime-startTime, dataTransfer, 0.00000_4, 1)
   END SUBROUTINE
   END MODULE

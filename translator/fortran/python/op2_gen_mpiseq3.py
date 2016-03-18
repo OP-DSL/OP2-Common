@@ -418,7 +418,6 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: opArgArray')
     code('INTEGER(kind=4) :: numberOfOpDats')
-    code('REAL(kind=4) :: dataTransfer')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart')
     code('INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd')
     code('REAL(kind=8) :: startTime')

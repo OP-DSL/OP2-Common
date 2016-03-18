@@ -232,7 +232,6 @@ export OMP_NUM_THREADS=20
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
-##COMMENT1
 
 ################################################################################
 ################################################################################
@@ -311,7 +310,7 @@ echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_15.1
+. $CURRENT_DIR/source_pgi_15.10
 pwd
 make clean; make
 

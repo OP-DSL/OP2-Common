@@ -26,6 +26,7 @@ SUBROUTINE op_wrap_bres_calc( &
   & opDat3Map, &
   & opDat3MapDim, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
@@ -74,7 +75,6 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   type ( op_arg ) , DIMENSION(6) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
-  REAL(kind=4) :: dataTransfer
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
   REAL(kind=8) :: startTime
@@ -108,6 +108,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
 
   INTEGER(kind=4) :: i1
+  REAL(kind=4) :: dataTransfer
 
   numberOfOpDats = 6
 
@@ -119,7 +120,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   opArgArray(6) = opArg6
 
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000,0.00000, 0)
+  & 0.d0, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
@@ -146,6 +147,17 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   CALL c_f_pointer(opArg6%data,opDat6Local,(/opDat6Cardinality/))
 
 
+  CALL op_wrap_bres_calc( &
+  & opDat1Local, &
+  & opDat3Local, &
+  & opDat4Local, &
+  & opDat5Local, &
+  & opDat6Local, &
+  & opDat1Map, &
+  & opDat1MapDim, &
+  & opDat3Map, &
+  & opDat3MapDim, &
+  & 0, opSetCore%core_size)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_bres_calc( &
   & opDat1Local, &
@@ -157,7 +169,11 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   & opDat1MapDim, &
   & opDat3Map, &
   & opDat3MapDim, &
-  & 0, n_upper)
+  & opSetCore%core_size, n_upper)
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+  END IF
+
 
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 

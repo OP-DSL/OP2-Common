@@ -61,10 +61,6 @@ double alpha;
 
 #include  "op_lib_cpp.h"
 
-
-#define STRIDE(x,y) x
-int nodes_stride = 1;
-int edges_stride = 1;
 //
 // op_par_loop declarations
 //

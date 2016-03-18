@@ -77,7 +77,7 @@ __global__ void op_cuda_res_calc(
 
   }
   __syncthreads(); // make sure all of above completed
-  for ( int n=threadIdx.x; n<nelems2; n = n+=blockDim.x ){
+  for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
     int col2 = -1;
     int map0idx;
     int map1idx;
