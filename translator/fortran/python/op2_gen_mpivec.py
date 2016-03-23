@@ -264,10 +264,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 ##########################################################################
     if hydra :
       if indirect_kernel:
-        if name <> 'VFLUX_EDGEF': #'ACCUMEDGES':
-          print "skipping indirect kernel :", name
+        #if name <> 'VFLUX_EDGEF': #'ACCUMEDGES':
+          #print "skipping indirect kernel :", name
           continue
-      elif name <> 'xxxx': #UPDATEK - problems with op_wirtes, SRCSA_NODE
+      elif name <> 'GRAD_VOLAPF': #UPDATEK - problems with op_wirtes, SRCSA_NODE
         print "skipping unspecified kernel :", name
         continue
 
@@ -323,7 +323,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         j = kernel_text[i:].find('(')
         k = para_parse(kernel_text, i+j, '(', ')')
         l = kernel_text[k:].find('END'+'\\s+\\b'+'SUBROUTINE')
-        para = kernel_text[j+1:k].split(',') 
+        para = kernel_text[j+1:k].split(',')
         #remove direct vars from para
         para_ind = []
         for i in range(0,nargs):
@@ -846,6 +846,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
     code('dataTransfer = 0.0')
     if ninds == 0:
       for g_m in range(0,nargs):
+        if optflags[g_m] == 1:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
         if accs[g_m] == OP_READ or accs[g_m] == OP_WRITE:
           if maps[g_m] == OP_GBL:
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
@@ -856,6 +858,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * 2.d0')
           else:
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * opSetCore%size * 2.d0')
+        if optflags[g_m] == 1:
+          ENDIF()
     else:
       names = []
       for g_m in range(0,ninds):
@@ -863,18 +867,26 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
           mult = ' * 2.d0'
         if not var[invinds[g_m]] in names:
-          code('dataTransfer = dataTransfer + opArg'+str(invinds[g_m]+1)+'%size *n_upper'+mult)
+          if optflags[invinds[g_m]] == 1:
+            IF('opArg'+str(g_m+1)+'%opt == 1')
+          code('dataTransfer = dataTransfer + opArg'+str(invinds[g_m]+1)+'%size * MIN(n_upper,getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+'))'+mult)
           names = names + [var[invinds[g_m]]]
+          if optflags[invinds[g_m]] == 1:
+            ENDIF()
       for g_m in range(0,nargs):
         mult=''
         if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
           mult = ' * 2.d0'
         if not var[g_m] in names:
+          if optflags[g_m] == 1:
+            IF('opArg'+str(g_m+1)+'%opt == 1')
           names = names + [var[invinds[g_m]]]
           if maps[g_m] == OP_ID:
-            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size *n_upper'+mult)
+            code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * MIN(n_upper,getSetSizeFromOpArg(opArg'+str(g_m+1)+'))'+mult)
           elif maps[g_m] == OP_GBL:
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size'+mult)
+          if optflags[g_m] == 1:
+            ENDIF()
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
