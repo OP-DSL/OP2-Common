@@ -19,3 +19,5 @@ and the preprocessor, and is structured as follows:
 |
 `- doc: Documentation
 
+For build instructions see README files located under op2/c (for C/C++ backend libs), 
+op2/fortran (for Fortran backend libs) and apps/c (for C/C++ API based examples).
