@@ -246,6 +246,12 @@ module OP2_Fortran_Declarations
 
     end subroutine op_init_c
 
+    subroutine op_set_args_c ( argc, argv ) BIND(C,name='op_set_args')
+      use, intrinsic :: ISO_C_BINDING
+      integer(kind=c_int), intent(in), value :: argc
+      character(len=1, kind=C_CHAR) :: argv
+    end subroutine op_set_args_c
+
     subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
 
       use, intrinsic :: ISO_C_BINDING
@@ -685,6 +691,8 @@ contains
 
     ! local variables
     integer(4) :: argc = 0
+    integer :: i
+    character(kind=c_char,len=64)           :: temp
 
 #ifdef OP2_WITH_CUDAFOR
     integer(4) :: setDevReturnVal = -1
@@ -709,7 +717,14 @@ contains
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
 
-    call op_init_c ( argc, C_NULL_PTR, diags )
+    !Get the command line arguments - needs to be handled using Fortrn
+    argc = command_argument_count()
+    do i = 1, argc
+      call get_command_argument(i, temp)
+      call op_set_args_c (argc, temp) !special function to set args
+    end do
+
+    call op_init_c ( 0, C_NULL_PTR, diags )
 
   end subroutine op_init
 

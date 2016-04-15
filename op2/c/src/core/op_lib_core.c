@@ -130,6 +130,49 @@ void check_map(char const *name, op_set from, op_set to, int dim, int* map) {
   }
 }
 
+/* Special function only called by fortran backend to get
+commandline arguments as argv is not easy to pass through from
+frotran to C
+*/
+void op_set_args(int argc, char *argv) {
+
+  char temp[64];
+  char* pch;
+  pch = strstr(argv, "OP_BLOCK_SIZE=");
+  if(pch != NULL) {
+    strncpy (temp,pch,20);
+    OP_block_size = atoi ( temp + 14 );
+    op_printf ( "\n OP_block_size = %d \n", OP_block_size );
+  }
+  pch = strstr(argv, "OP_PART_SIZE=");
+  if(pch != NULL) {
+    strncpy (temp,pch,20);
+    OP_part_size = atoi ( temp + 13 );
+    op_printf ( "\n OP_part_size = %d \n", OP_part_size );
+  }
+  pch = strstr(argv, "OP_CACHE_LINE_SIZE=");
+  if(pch != NULL) {
+    strncpy (temp,pch,25);
+    OP_cache_line_size = atoi ( temp + 19 );
+    op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
+  }
+  pch = strstr(argv, "-gpudirect");
+  if(pch != NULL) {
+    OP_gpu_direct = 1;
+    op_printf ( "\n Enabling GPU Direct\n" );
+  }
+  pch = strstr(argv, "OP_AUTO_SOA");
+  if(pch != NULL) {
+    OP_auto_soa = 1;
+    printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+  }
+  pch = strstr(argv, "OP_HYBRID_BALANCE=");
+  if(pch != NULL) {
+    strncpy (temp,pch,25);
+    OP_hybrid_balance = atof ( temp + 18 );
+    op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+  }
+}
 
 /*
  * OP core functions: these must be called by back-end specific functions
@@ -163,7 +206,9 @@ void
   for ( int n = 1; n < argc; n++ )
   {
 
-    if ( strncmp ( argv[n], "OP_BLOCK_SIZE=", 14 ) == 0 )
+    op_set_args(argc, argv[n]);
+
+    /*if ( strncmp ( argv[n], "OP_BLOCK_SIZE=", 14 ) == 0 )
     {
       OP_block_size = atoi ( argv[n] + 14 );
       printf ( "\n OP_block_size = %d \n", OP_block_size );
@@ -195,7 +240,8 @@ void
     {
       OP_hybrid_balance = atof ( argv[n] + 18 );;
       printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
-    }
+    }*/
+
   }
 
   /*Initialize the double linked list to hold op_dats*/
@@ -632,7 +678,7 @@ op_arg_gbl_core ( char * data, int dim, const char * typ, int size, op_access ac
 
   /*not used in global args*/
   arg.sent = 0;
-  
+
 
   /* TODO: properly??*/
   if (data==NULL) arg.opt = 0;
