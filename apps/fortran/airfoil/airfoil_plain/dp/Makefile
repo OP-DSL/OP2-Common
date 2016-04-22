@@ -27,7 +27,7 @@ ifeq ($(OP2_COMPILER),gnu)
   OPT = -O2 -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
   OPENMP = -fopenmp
   CPPLINK = -lstdc++
-  ALL_TARGET = airfoil_seq airfoil_openmp_$(PART_SIZE_ENV)
+  ALL_TARGET = airfoil_seq airfoil_openmp
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
@@ -38,7 +38,7 @@ ifeq ($(OP2_COMPILER),pgi)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
   OPENMP = -mp
   CPPLINK = -pgcpplibs
-  ALL_TARGET = airfoil_seq airfoil_openmp_$(PART_SIZE_ENV) airfoil_cuda
+  ALL_TARGET = airfoil_seq airfoil_openmp airfoil_cuda
 else
 ifeq ($(OP2_COMPILER),intel)
   IC = icc
@@ -51,7 +51,7 @@ ifeq ($(OP2_COMPILER),intel)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xMIC-AVX512 -parallel -qopt-report=5 -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
-  ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp_$(PART_SIZE_ENV)
+  ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp
 else
 print:
 	echo "unrecognised value for OP2_COMPILER"
@@ -88,14 +88,14 @@ airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel
         bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
 
 
-airfoil_openmp_$(PART_SIZE_ENV): airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
+airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 constants.F90 input.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_kernel.F90 update_kernel.F90 bres_calc_kernel.F90 \
 	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) constants.o input.o airfoil_seqfun.o \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
-	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp_$(PART_SIZE_ENV) -lop2_for_openmp -lop2_hdf5 $(HDF5_LIB)
+	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp -lop2_hdf5 $(HDF5_LIB)
 
 airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
@@ -118,7 +118,6 @@ clean:
 	rm -f airfoil_seq
 	rm -f airfoil_vec
 	rm -f airfoil_openmp_*
-	rm -f airfoil_openmp_$(PART_SIZE_ENV)
 	rm -f airfoil_cuda
 	rm -f airfoil_vec
 	rm -f airfoil_genseq

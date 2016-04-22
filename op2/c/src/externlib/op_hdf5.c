@@ -335,23 +335,25 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     else
       dat_size = sizeof(int);
   }
-  else if((strcmp(type,"long") == 0) || (strcmp(type,"long:soa") == 0)) {
+  else if(strcmp(type,"long") == 0 ||
+          strcmp(type,"long:soa") == 0) {
     data = (char *)xmalloc(set->size*dim*sizeof(long));
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if(dat_size != dim*sizeof(long)) {
-      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(long) do not match\n",dat_size,file,dim);
       return NULL;
     }
     else
       dat_size = sizeof(long);
   }
-  else if((strcmp(type,"long long") == 0) || (strcmp(type,"long long:soa") == 0)) {
+  else if(strcmp(type,"long long") == 0 ||
+          strcmp(type,"long long:soa") == 0) {
     data = (char *)xmalloc(set->size*dim*sizeof(long long));
     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if(dat_size != dim*sizeof(long long)) {
-      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",dat_size,file,dim);
+      printf("dat.size %lu in file %s and %d*sizeof(long long) do not match\n",dat_size,file,dim);
       return NULL;
     }
     else
