@@ -142,24 +142,24 @@ void op_set_args(int argc, char *argv) {
   if(pch != NULL) {
     strncpy (temp,pch,20);
     OP_block_size = atoi ( temp + 14 );
-    op_printf ( "\n OP_block_size = %d \n", OP_block_size );
+    printf ( "\n OP_block_size = %d \n", OP_block_size );
   }
   pch = strstr(argv, "OP_PART_SIZE=");
   if(pch != NULL) {
     strncpy (temp,pch,20);
     OP_part_size = atoi ( temp + 13 );
-    op_printf ( "\n OP_part_size = %d \n", OP_part_size );
+    printf ( "\n OP_part_size = %d \n", OP_part_size );
   }
   pch = strstr(argv, "OP_CACHE_LINE_SIZE=");
   if(pch != NULL) {
     strncpy (temp,pch,25);
     OP_cache_line_size = atoi ( temp + 19 );
-    op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
+    printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
   }
   pch = strstr(argv, "-gpudirect");
   if(pch != NULL) {
     OP_gpu_direct = 1;
-    op_printf ( "\n Enabling GPU Direct\n" );
+    printf ( "\n Enabling GPU Direct\n" );
   }
   pch = strstr(argv, "OP_AUTO_SOA");
   if(pch != NULL) {
@@ -170,7 +170,7 @@ void op_set_args(int argc, char *argv) {
   if(pch != NULL) {
     strncpy (temp,pch,25);
     OP_hybrid_balance = atof ( temp + 18 );
-    op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+    printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 }
 

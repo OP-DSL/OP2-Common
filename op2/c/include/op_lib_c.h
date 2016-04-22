@@ -109,7 +109,7 @@ void op_printf(const char* format, ...);
 
 void op_print(const char* line);
 
-  void op_rank(int* rank);
+void op_rank(int* rank);
 
 void op_timers( double *cpu, double *et );
 

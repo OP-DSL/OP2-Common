@@ -279,7 +279,7 @@ export PART_SIZE_ENV=128
 ./airfoil_seq
 ./airfoil_vec
 export OMP_NUM_THREADS=20
-./airfoil_openmp_$PART_SIZE_ENV
+./airfoil_openmp #_$PART_SIZE_ENV
 
 
 
@@ -291,15 +291,15 @@ pwd
 export PART_SIZE_ENV=128
 ./airfoil_hdf5_seq
 #./airfoil_hdf5_vec
-./airfoil_hdf5_openmp_$PART_SIZE_ENV
+./airfoil_hdf5_openmp #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_vec
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_genseq
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
+./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi #_openmp_$PART_SIZE_ENV
 
 #COMMENT1
 ###################################################################################
@@ -348,7 +348,7 @@ export PART_SIZE_ENV=128
 ./airfoil_seq
 ./airfoil_cuda
 export OMP_NUM_THREADS=20
-./airfoil_openmp_$PART_SIZE_ENV
+./airfoil_openmp #_$PART_SIZE_ENV
 
 echo " "
 echo " "
@@ -359,14 +359,14 @@ export PART_SIZE_ENV=128
 ./airfoil_hdf5_seq
 ./airfoil_hdf5_cuda
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_openmp_$PART_SIZE_ENV
+./airfoil_hdf5_openmp #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi
 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 $MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
+./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp_$PART_SIZE_ENV
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
 
 
