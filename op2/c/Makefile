@@ -45,6 +45,18 @@ endif
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),xl)
+  CC       := xlc
+ifdef DEBUG
+  CCFLAGS  := -O0 -g
+else
+  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O5 -qhot 
+endif
+  CXX      := xlc++
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS := $(CXXFLAGS)
+else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
   CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
@@ -68,6 +80,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif

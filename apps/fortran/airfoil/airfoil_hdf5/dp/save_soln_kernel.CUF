@@ -25,8 +25,6 @@ INTEGER(kind=4) :: direct_stride_OP2HOST
 
 CONTAINS
 
-attributes (host) &
-#include "save_soln.inc"
 attributes (device) &
 SUBROUTINE save_soln_gpu(q,qold)
   IMPLICIT NONE
@@ -84,7 +82,7 @@ attributes (host) SUBROUTINE save_soln_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
   TYPE ( op_arg ) , INTENT(IN) :: opArg2
 
-  IF (getHybridGPU()) THEN
+  IF (getHybridGPU().EQ.1) THEN
     CALL save_soln_host_gpu( userSubroutine, set, &
     & opArg1, &
     & opArg2 )

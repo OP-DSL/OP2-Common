@@ -28,8 +28,6 @@ TYPE ( c_ptr )  :: planRet_bres_calc
 
 CONTAINS
 
-attributes (host) &
-#include "bres_calc.inc"
 attributes (device) &
 SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   IMPLICIT NONE
@@ -48,7 +46,7 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
 
   IF (bound .EQ. 1) THEN
     res1(2) = res1(2) + p1 * dy
-    res1(3) = res1(3) + -(p1 * dx)
+    res1(3) = res1(3) -(p1 * dx)
   ELSE
     vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
     ri = 1.0 / qinf_OP2(1)
@@ -195,7 +193,7 @@ attributes (host) SUBROUTINE bres_calc_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg5
   TYPE ( op_arg ) , INTENT(IN) :: opArg6
 
-  IF (getHybridGPU()) THEN
+  IF (getHybridGPU().EQ.1) THEN
     CALL bres_calc_host_gpu( userSubroutine, set, &
     & opArg1, &
     & opArg2, &

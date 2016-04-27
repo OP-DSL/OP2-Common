@@ -153,7 +153,7 @@ subroutine initialise_constants ( )
   qinf(3) = 0.0
   qinf(4) = r * e
 #ifdef OP2_WITH_CUDAFOR
-  if (getHybridGPU()) then
+  if (getHybridGPU().EQ.1) then
   gam_OP2 = gam
   gm1_OP2 = gm1
   eps_OP2 = eps
