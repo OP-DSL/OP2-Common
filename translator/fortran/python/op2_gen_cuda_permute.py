@@ -201,16 +201,7 @@ funlist = []
 
 def get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
-  if hydra:
-    if maps[g_m] == OP_ID:
-      return 'direct_stride_OP2CONSTANT'
-    if maps[g_m] == OP_GBL:
-      return '(gridDim%x*blockDim%x)'
-    else:
-      idx = mapnames.index(mapnames[g_m])
-      return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
-     # return set_name.split('%')[-1].strip()+'_stride_OP2CONSTANT'
-  elif bookleaf:
+  if bookleaf:
     if maps[g_m] == OP_MAP:
       if 'el2node' in mapnames[g_m]:
         return 'nodes_stride_OP2'
@@ -221,8 +212,13 @@ def get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf):
     else:
       return set_name.strip()[2:]+'_stride_OP2'
   else:
-    print 'ERROR, no stride definition'
-    return ''
+    if maps[g_m] == OP_ID:
+      return 'direct_stride_OP2CONSTANT'
+    if maps[g_m] == OP_GBL:
+      return '(gridDim%x*blockDim%x)'
+    else:
+      idx = mapnames.index(mapnames[g_m])
+      return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
 def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,hydra,bookleaf):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
@@ -901,7 +897,10 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('attributes (host) &')
       code('#include "'+name+'.inc"')
       code('attributes (device) &')
-      code('#include "'+name+'.inc2"')
+      fid = open(name+'.inc2', 'r')
+      text = fid.read()
+      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,hydra,bookleaf)
+      code(text)
       depth += 2
       code('')
 
