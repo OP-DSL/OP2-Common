@@ -1439,7 +1439,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       code('TYPE ( op_arg ) , INTENT(IN) :: opArg'+str(g_m+1))
     code('')
-    IF('getHybridGPU()')
+    IF('getHybridGPU().EQ.1')
     code('CALL '+name+'_host_gpu( userSubroutine, set, &');
     for g_m in range(0,nargs):
       if g_m == nargs-1:

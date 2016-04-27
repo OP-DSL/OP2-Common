@@ -78,8 +78,6 @@ CONTAINS
   CALL syncthreads()
   END SUBROUTINE
 
-attributes (host) &
-#include "update.inc"
 attributes (device) &
 SUBROUTINE update_gpu(qold,q,res,adt,rms)
   IMPLICIT NONE
@@ -165,7 +163,7 @@ END SUBROUTINE
     TYPE ( op_arg ) , INTENT(IN) :: opArg4
     TYPE ( op_arg ) , INTENT(IN) :: opArg5
 
-    IF (getHybridGPU()) THEN
+    IF (getHybridGPU().EQ.1) THEN
       CALL update_host_gpu( userSubroutine, set, &
       & opArg1, &
       & opArg2, &

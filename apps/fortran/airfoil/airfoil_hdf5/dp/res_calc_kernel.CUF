@@ -28,8 +28,6 @@ TYPE ( c_ptr )  :: planRet_res_calc
 
 CONTAINS
 
-attributes (host) &
-#include "res_calc.inc"
 attributes (device) &
 SUBROUTINE res_calc_gpu(x1,x2,q1,q2,adt1,adt2,res1,res2)
   IMPLICIT NONE
@@ -209,7 +207,7 @@ attributes (host) SUBROUTINE res_calc_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg7
   TYPE ( op_arg ) , INTENT(IN) :: opArg8
 
-  IF (getHybridGPU()) THEN
+  IF (getHybridGPU().EQ.1) THEN
     CALL res_calc_host_gpu( userSubroutine, set, &
     & opArg1, &
     & opArg2, &

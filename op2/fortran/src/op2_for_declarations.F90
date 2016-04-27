@@ -1047,11 +1047,11 @@ contains
 
     ! first check if the op_dat is actually declared (HYDRA feature)
     ! If is NULL, then return an empty op_arg
-#ifdef OP2_WITH_CUDAFOR
-    if (dat%dataCPtr .eq. C_NULL_PTR) then
-#else
+!#ifdef OP2_WITH_CUDAFOR
+!    if (dat%dataCPtr .eq. C_NULL_PTR) then
+!#else
     if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
-#endif
+!#endif
 !      op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
       print *, "Error, NULL pointer for op_dat"
       op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
