@@ -80,6 +80,7 @@ extern int OP_diags;
 extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
+extern int OP_maps_base_index;
 
 /*
  * enum list for op_par_loop
@@ -242,6 +243,10 @@ op_dat op_decl_dat_temp_core ( op_set, int, char const*, int, char *, char const
 int op_free_dat_temp_core ( op_dat );
 
 void op_decl_const_core ( int dim, char const * type, int typeSize, char * data, char const * name );
+
+void op_printf(const char* format, ...);
+
+void op_print(const char* line);
 
 void op_err_print ( const char * error_string, int m, const char * name );
 

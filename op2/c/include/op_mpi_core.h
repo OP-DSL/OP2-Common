@@ -214,7 +214,7 @@ typedef struct {
   int nprocs;
   int *proclist;
   int gbl_offset;
-  op_dat coords; 
+  op_dat coords;
   op_dat mark;
   int max_dat_size;
   int num_my_ifaces;

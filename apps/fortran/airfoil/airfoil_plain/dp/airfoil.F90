@@ -70,7 +70,6 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  print *, "Initialising OP2"
   call op_init (0)
 
   print *, "Initialising constants"

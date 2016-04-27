@@ -232,6 +232,7 @@ export OMP_NUM_THREADS=20
 ./jac_openmp
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
 
+#COMMENT1
 
 ################################################################################
 ################################################################################
@@ -276,10 +277,11 @@ echo "=======================> Running Airfoil Fortran Plain DP built with Intel
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 pwd
 export PART_SIZE_ENV=128
-./airfoil_seq
-./airfoil_vec
+./airfoil_seq OP_MAPS_BASE_INDEX=0
+./airfoil_vec OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_openmp #_$PART_SIZE_ENV
+./airfoil_openmp  OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 
 
 
@@ -289,17 +291,20 @@ echo "=======================> Running Airfoil Fortran HDF5 DP built with Intel 
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
 export PART_SIZE_ENV=128
-./airfoil_hdf5_seq
-#./airfoil_hdf5_vec
-./airfoil_hdf5_openmp #_$PART_SIZE_ENV
+./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0
+#./airfoil_hdf5_vec OP_MAPS_BASE_INDEX=0
+./airfoil_hdf5_openmp OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_vec
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_genseq
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_vec OP_MAPS_BASE_INDEX=0
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_genseq OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
+./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi #_openmp_$PART_SIZE_ENV
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0
+#_openmp_$PART_SIZE_ENV
 
 #COMMENT1
 ###################################################################################
@@ -345,10 +350,11 @@ echo "=======================> Running Airfoil Fortran Plain DP built with PGI C
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 pwd
 export PART_SIZE_ENV=128
-./airfoil_seq
-./airfoil_cuda
+./airfoil_seq OP_MAPS_BASE_INDEX=0
+./airfoil_cuda OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_openmp #_$PART_SIZE_ENV
+./airfoil_openmp OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 
 echo " "
 echo " "
@@ -356,17 +362,20 @@ echo "=======================> Running Airfoil Fortran HDF5 DP built with PGI Co
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
 export PART_SIZE_ENV=128
-./airfoil_hdf5_seq
-./airfoil_hdf5_cuda
+./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0
+./airfoil_hdf5_cuda OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_openmp #_$PART_SIZE_ENV
+./airfoil_hdf5_openmp OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi
-./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0
+./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
+./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0 
+#_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp #_$PART_SIZE_ENV
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0
+#_$PART_SIZE_ENV
 
 
