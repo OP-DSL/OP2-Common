@@ -28,6 +28,8 @@ TYPE ( c_ptr )  :: planRet_res_calc
 
 CONTAINS
 
+attributes (host) &
+#include "res_calc.inc"
 attributes (device) &
 SUBROUTINE res_calc_gpu(x1,x2,q1,q2,adt1,adt2,res1,res2)
   IMPLICIT NONE
@@ -162,15 +164,23 @@ attributes (global) SUBROUTINE op_cuda_res_calc( &
     END IF
     DO colour1 = 0, numOfColours - 1, 1
       IF (colour2 .EQ. colour1) THEN
-        DO i2 = 0, 4 - 1, 1
-          opDat7Deviceres_calc(1 + i2*opDat3_stride_OP2CONSTANT + map3idx) = &
-          & opDat7Deviceres_calc(1 + i2*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(i2)
-        END DO
+        opDat7Local(0) = opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(0)
+        opDat7Local(1) = opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(1)
+        opDat7Local(2) = opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(2)
+        opDat7Local(3) = opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(3)
+        opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(0)
+        opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(1)
+        opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(2)
+        opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(3)
 
-        DO i2 = 0, 4 - 1, 1
-          opDat7Deviceres_calc(1 + i2*opDat3_stride_OP2CONSTANT + map4idx) = &
-          & opDat7Deviceres_calc(1 + i2*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(i2)
-        END DO
+        opDat8Local(0) = opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(0)
+        opDat8Local(1) = opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(1)
+        opDat8Local(2) = opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(2)
+        opDat8Local(3) = opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(3)
+        opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(0)
+        opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(1)
+        opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(2)
+        opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(3)
 
       END IF
       IF (colour1 .NE. numOfColours-1) THEN

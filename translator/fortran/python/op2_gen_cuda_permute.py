@@ -1300,7 +1300,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
             else:
               if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
-                if dims[g_m].isdigit() and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
+                if dims[g_m].isdigit(): # and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
                     for i in range(0,int(dims[g_m])):
                       code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
                       '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local('+str(i)+')')

@@ -119,6 +119,8 @@ ifeq ($(OP2_COMPILER),pgi)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
   MPIF90          = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   NO_MPI_MACRO    = -DNO_MPI
+  CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
+  CUDA_INC = $(CUDA_INSTALL_PATH)/include $(CUDA_ALIGN_FLAG)
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq f_cuda f_mpi_cuda f_mpi_cuda
 else
 ifeq ($(OP2_COMPILER),xl)
