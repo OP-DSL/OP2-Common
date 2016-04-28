@@ -106,6 +106,8 @@ void op_rt_exit ( void );
 
 bool op_type_equivalence(const char *a, const char *b);
 
+int getSetSizeFromOpArg (op_arg * arg);
+
 #ifdef __cplusplus
 }
 #endif

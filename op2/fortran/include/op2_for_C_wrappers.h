@@ -54,7 +54,6 @@ void op_put_dat (op_dat dat);
 void op_get_dat_mpi (op_dat dat);
 void op_put_dat_mpi (op_dat dat);
 
-int getSetSizeFromOpArg (op_arg * arg);
 int getMapDimFromOpArg (op_arg * arg);
 int reductionSize (op_arg * arg, int nargs);
 int getHybridGPU();

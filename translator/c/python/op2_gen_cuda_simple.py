@@ -143,15 +143,15 @@ def para_parse(text, j, op_b, cl_b):
       loc2 = loc2 + 1
 
 
-def get_stride_string(g_m,maps,mapnames):
+def get_stride_string(g_m,maps,mapnames,name):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   if maps[g_m] == OP_ID:
-    return 'direct_stride_OP2CONSTANT'
+    return 'direct_'+name+'_stride_OP2CONSTANT'
   if maps[g_m] == OP_GBL:
     return '(gridDim%x*blockDim%x)'
   else:
     idx = mapnames.index(mapnames[g_m])
-    return 'opDat'+str(idx)+'_stride_OP2CONSTANT'
+    return 'opDat'+str(idx)+'_'+name+'_stride_OP2CONSTANT'
 
 
 def op2_gen_cuda_simple(master, date, consts, kernels,sets):
@@ -305,13 +305,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2CONSTANT;')
-            code('int opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST=-1;')
+            code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT;')
+            code('int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST=-1;')
       dir_soa = -1
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
-          code('__constant__ int direct_stride_OP2CONSTANT;')
-          code('int direct_stride_OP2HOST=-1;')
+          code('__constant__ int direct_'+name+'_stride_OP2CONSTANT;')
+          code('int direct_'+name+'_stride_OP2HOST=-1;')
           dir_soa = g_m
           break
 
@@ -365,14 +365,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
     for i in range(0,nargs):
         var = signature_text.split(',')[i].strip()
-        if soaflags[i]:
+        if soaflags[i] and not (maps[i] == OP_MAP and accs[i] == OP_INC):
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+get_stride_string(i,maps,mapnames)+']', body_text)
+          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+get_stride_string(i,maps,mapnames,name)+']', body_text)
 
     signature_text = '__device__ '+head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
@@ -596,14 +596,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
               if soaflags[g_m]:
-                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames)+'+map'+str(mapinds[g_m])+'idx];')
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx];')
               else:
                 code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
               if soaflags[g_m]:
-                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
               else:
                 code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
@@ -778,14 +778,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST != getSetSizeFromOpArg(opArg'+str(g_m)+'))')
-            code('opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(g_m)+');')
-            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST,sizeof(int));')
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
+            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
       if dir_soa<>-1:
-          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
-          code('direct_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(dir_soa)+');')
-          code('cudaMemcpyToSymbol(direct_stride_OP2CONSTANT,&direct_stride_OP2HOST,sizeof(int));')
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
+          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
+          code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
           ENDIF()
 
 #
