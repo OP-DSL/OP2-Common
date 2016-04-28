@@ -744,6 +744,8 @@ contains
     integer(c_int) :: argc = 0
 
     integer(4) :: rank2, ierr
+    integer :: i
+    character(kind=c_char,len=64)           :: temp
 
 #ifdef OP2_WITH_CUDAFOR
     integer(4) :: setDevReturnVal = -1
@@ -770,6 +772,13 @@ contains
     OP_GBL%mapPtr => gblPtr
 
     call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
+
+    !Get the command line arguments - needs to be handled using Fortrn
+    argc = command_argument_count()
+    do i = 1, argc
+      call get_command_argument(i, temp)
+      call op_set_args_c (argc, temp) !special function to set args
+    end do
 
   end subroutine op_mpi_init
 
