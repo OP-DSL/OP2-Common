@@ -11,14 +11,14 @@ PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_VER?=4
 ifeq ($(PARMETIS_VER),4)
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include #-DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
 else
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ #-DHAVE_PARMETIS
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/ -lparmetis -lmetis
 endif
 
-PTSCOTCH_INC    = -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
+PTSCOTCH_INC    = -I$(PTSCOTCH_INSTALL_PATH)/include #-DHAVE_PTSCOTCH
 PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lscotch \
@@ -42,7 +42,7 @@ ifeq ($(OP2_COMPILER),pgi)
   CC = pgc++
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
   FC = pgfortran # -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
-  MPI_LIB = $(MPI_INSTALL_PATH)/lib -lmpi
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
@@ -64,7 +64,7 @@ ifeq ($(OP2_COMPILER),xl)
   OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O5 -qarch=pwr8 -qtune=pwr8 -qhot 
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
   OPENMP = -qsmp=omp -qthreaded
-  CPPLINK = -lstdc++
+  CPPLINK = -lstdc++ -lmpi_cxx -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
