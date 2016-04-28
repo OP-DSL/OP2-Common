@@ -142,6 +142,18 @@ def para_parse(text, j, op_b, cl_b):
                 return loc2
       loc2 = loc2 + 1
 
+
+def get_stride_string(g_m,maps,mapnames):
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  if maps[g_m] == OP_ID:
+    return 'direct_stride_OP2CONSTANT'
+  if maps[g_m] == OP_GBL:
+    return '(gridDim%x*blockDim%x)'
+  else:
+    idx = mapnames.index(mapnames[g_m])
+    return 'opDat'+str(idx)+'_stride_OP2CONSTANT'
+
+
 def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   global dims, idxs, typs, indtyps, inddims
@@ -153,10 +165,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
-
-  any_soa = 0
-  for nk in range (0,len(kernels)):
-    any_soa = any_soa or sum(kernels[nk]['soaflags'])
 
 ##########################################################################
 #  create new kernel file
@@ -261,6 +269,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       if maps[i] == OP_MAP:
         cumulative_indirect_index[i] = j
         j = j + 1
+
+    any_soa = 0
+    any_soa = any_soa or sum(soaflags)
 #
 # set two logicals
 #
@@ -285,6 +296,24 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     g_m = 0;
     file_text = ''
     depth = 0
+
+
+    #strides for SoA
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2CONSTANT;')
+            code('int opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST=-1;')
+      dir_soa = -1
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
+          code('__constant__ int direct_stride_OP2CONSTANT;')
+          code('int direct_stride_OP2HOST=-1;')
+          dir_soa = g_m
+          break
 
     comm('user function')
     found = 0
@@ -328,6 +357,23 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     signature_text = signature_text[l+1:m]
     body_text = kernel_text[i+j+1:k]
 
+    # check for number of arguments
+    if len(signature_text.split(',')) != nargs:
+        print 'Error parsing user kernel(%s): must have %d arguments' \
+              % name, nargs
+        return
+
+    for i in range(0,nargs):
+        var = signature_text.split(',')[i].strip()
+        if soaflags[i]:
+          var = var.replace('*','')
+          #locate var in body and replace by adding [idx]
+          length = len(re.compile('\\s+\\b').split(var))
+          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
+
+          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
+          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+get_stride_string(i,maps,mapnames)+']', body_text)
+
     signature_text = '__device__ '+head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
@@ -346,7 +392,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('const INDTYP *__restrict INDARG,')
       else:
         code('INDTYP *__restrict INDARG,')
-        code('int ind'+str(g_m)+'_stride,')
 
     if nmaps > 0:
       k = []
@@ -551,14 +596,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
               if soaflags[g_m]:
-                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx];')
+                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames)+'+map'+str(mapinds[g_m])+'idx];')
               else:
                 code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
             for d in range(0,int(dims[g_m])):
               if soaflags[g_m]:
-                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*ind'+str(inds[g_m]-1)+'_stride+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
+                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+get_stride_string(g_m,maps,mapnames)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
               else:
                 code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
@@ -649,9 +694,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    if any_soa:
-      code('if (OP_kernels[' +str(nk)+ '].count==1) op_register_strides();')
-
     code('')
 
 #
@@ -693,11 +735,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
     IF('set->size > 0')
     code('')
-#    if any_soa:
-#      code('int op2_stride_internal = set->size + set->exec_size + set->nonexec_size;')
-#      #code('op_decl_const_char(1, "int", sizeof(int), (char *)&op2_stride, "op2_stride");')
-#      code('cutilSafeCall(cudaMemcpyToSymbol(op2_stride , &op2_stride_internal, sizeof(int)));');
-#      code('')
 
 #
 # kernel call for indirect version
@@ -734,6 +771,22 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('mvConstArraysToDevice(consts_bytes);')
       code('')
 
+      #managing constants
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST != getSetSizeFromOpArg(opArg'+str(g_m)+'))')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(g_m)+');')
+            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_stride_OP2HOST,sizeof(int));')
+            ENDIF()
+      if dir_soa<>-1:
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
+          code('direct_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(dir_soa)+');')
+          code('cudaMemcpyToSymbol(direct_stride_OP2CONSTANT,&direct_stride_OP2HOST,sizeof(int));')
+          ENDIF()
 
 #
 # transfer global reduction initial data
@@ -818,14 +871,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
         code('(TYP *)ARG.data_d,')
-        if accs[g_m] <> OP_READ:
-          code('ARG.map->to->size + ARG.map->to->exec_size + ARG.map->to->nonexec_size,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            #code('arg'+str(invinds[inds[g_m]-1])+'.map_data_d, ')
             code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
         if inds[g_m]==0:
@@ -953,11 +1003,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   code('#endif')
   code('')
 
-  if any_soa:
-    code('#define STRIDE(x,y) x*y')
-    for ns in range (0,len(sets)):
-      code('__constant__ int '+sets[ns]['name'].replace('"','')+'_stride;')
-
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
@@ -969,21 +1014,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
 
-  if any_soa:
-    code('__constant__ int op2_stride;')
-    code('')
-    code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
-  
-  if any_soa:
-    code('')
-    code('void op_register_strides() {')
-    depth = depth + 2
-    code('int size;')
-    for ns in range (0,len(sets)):
-      code('size = op_size_of_set("'+sets[ns]['name'].replace('"','')+'");')
-      code('cutilSafeCall(cudaMemcpyToSymbol('+sets[ns]['name'].replace('"','')+'_stride, &size, sizeof(int)));')
-    depth = depth - 2
-    code('}')
   code('')
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')

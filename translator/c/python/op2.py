@@ -34,6 +34,7 @@ file1_kernels.cu   -- for CUDA execution
 import sys
 import re
 import datetime
+import os
 
 # Import MPI+SEQ and MPI+autovectorised SEQ
 from op2_gen_seq import op2_gen_seq
@@ -286,7 +287,7 @@ def main():
     OP_MAX = 5
     OP_MIN = 6
 
-    auto_soa = 0
+    auto_soa=os.getenv('OP_AUTO_SOA','0')
 
     OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
                       'OP_MAX', 'OP_MIN']
@@ -400,7 +401,7 @@ def main():
 
                     dims[m] = args['dim']
                     soa_loc = args['typ'].find(':soa')
-                    if auto_soa == 1 and int(args['dim'])>1 and soa_loc < 0:
+                    if ((auto_soa=='1') and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
                         soa_loc = len(args['typ'])-1
 
                     if soa_loc > 0:
@@ -735,7 +736,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
