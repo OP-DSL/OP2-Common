@@ -78,6 +78,8 @@ CONTAINS
   CALL syncthreads()
   END SUBROUTINE
 
+attributes (host) &
+#include "update.inc"
 attributes (device) &
 SUBROUTINE update_gpu(qold,q,res,adt,rms)
   IMPLICIT NONE

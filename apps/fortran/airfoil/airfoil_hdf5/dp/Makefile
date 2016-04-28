@@ -45,8 +45,8 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
-  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 -fast -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR 
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 -g 
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 -g -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR 
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \

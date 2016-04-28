@@ -583,8 +583,8 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    arg.map_data_d = (map == NULL ? NULL : map->map_d);
-    arg.map_data = (map == NULL ? NULL : map->map);
+    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+    arg.map_data = (idx == -1 ? NULL : map->map);
   }
   else
   {
