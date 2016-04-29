@@ -770,6 +770,7 @@ contains
 
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
+    call set_maps_base_c(1)
 
     call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
 
