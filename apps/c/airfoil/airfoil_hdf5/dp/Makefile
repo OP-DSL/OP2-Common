@@ -36,6 +36,16 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),xl)
+  CPP		= xlc++
+  CCFLAGS	= -O5 -qarch=pwr8 -qtune=pwr8 -qhot
+#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS	= -qsmp=omp -qthreaded
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS	= $(CPPFLAGS)
+else
+
 ifeq ($(OP2_COMPILER),pgi)
   CPP       	= pgCC
   CCFLAGS  	= -O3
@@ -55,6 +65,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
