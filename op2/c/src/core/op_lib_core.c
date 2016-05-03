@@ -53,6 +53,7 @@ int OP_diags = 0,
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
 int OP_auto_soa = 0;
+int OP_maps_base_index = 0;
 
 int OP_set_index = 0, OP_set_max = 0,
     OP_map_index = 0, OP_map_max = 0,
@@ -130,9 +131,8 @@ void check_map(char const *name, op_set from, op_set to, int dim, int* map) {
   }
 }
 
-/* Special function only called by fortran backend to get
-commandline arguments as argv is not easy to pass through from
-frotran to C
+/* Special function to get commandline arguments, articularly useful as argv
+*  is not easy to pass through from frotran to C
 */
 void op_set_args(int argc, char *argv) {
 
@@ -142,35 +142,50 @@ void op_set_args(int argc, char *argv) {
   if(pch != NULL) {
     strncpy (temp,pch,20);
     OP_block_size = atoi ( temp + 14 );
-    printf ( "\n OP_block_size = %d \n", OP_block_size );
+    op_printf ( "\n OP_block_size = %d \n", OP_block_size );
   }
   pch = strstr(argv, "OP_PART_SIZE=");
   if(pch != NULL) {
     strncpy (temp,pch,20);
     OP_part_size = atoi ( temp + 13 );
-    printf ( "\n OP_part_size = %d \n", OP_part_size );
+    op_printf ( "\n OP_part_size = %d \n", OP_part_size );
   }
   pch = strstr(argv, "OP_CACHE_LINE_SIZE=");
   if(pch != NULL) {
     strncpy (temp,pch,25);
     OP_cache_line_size = atoi ( temp + 19 );
-    printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
+    op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
   }
   pch = strstr(argv, "-gpudirect");
   if(pch != NULL) {
     OP_gpu_direct = 1;
-    printf ( "\n Enabling GPU Direct\n" );
+    op_printf ( "\n Enabling GPU Direct\n" );
   }
   pch = strstr(argv, "OP_AUTO_SOA");
   if(pch != NULL) {
     OP_auto_soa = 1;
-    printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+    op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
   }
   pch = strstr(argv, "OP_HYBRID_BALANCE=");
   if(pch != NULL) {
     strncpy (temp,pch,25);
     OP_hybrid_balance = atof ( temp + 18 );
-    printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+    op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+  }
+
+  pch = strstr(argv, "OP_MAPS_BASE_INDEX=");
+  if(pch != NULL) {
+    strncpy (temp,pch,25);
+    int prev = OP_maps_base_index;
+    OP_maps_base_index = atoi ( temp + 19 );
+    if(OP_maps_base_index == 0 || OP_maps_base_index == 1){
+    if(prev != OP_maps_base_index)
+      op_printf ( "\n OP_maps_base_index  = %d (Default value %d overridden)\n", OP_maps_base_index, prev );
+    }
+    else {
+      op_printf ( "\n Unsupported OP_maps_base_index : %d -- \
+      reverting to C/C++ style (i.e. 0 besed) indexing \n", OP_maps_base_index );
+    }
   }
 }
 
@@ -179,21 +194,20 @@ void op_set_args(int argc, char *argv) {
  */
 
 void
-  op_init_core ( int argc, char ** argv, int diags )
+op_init_core ( int argc, char ** argv, int diags )
 {
+  op_printf("\n Initializing OP2\n");
   OP_diags = diags;
 
-  if ( getenv ( "OP_HYBRID_BALANCE" ) )
-  {
+  if ( getenv ( "OP_HYBRID_BALANCE" ) ) {
     char* val = getenv ( "OP_HYBRID_BALANCE" );
     OP_hybrid_balance = atof ( val );
-    printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+    op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
-  if ( getenv ( "OP_AUTO_SOA" ) )
-  {
+  if ( getenv ( "OP_AUTO_SOA" ) ) {
     OP_auto_soa = 1;
-    printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+    op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
   }
 
 #ifdef OP_BLOCK_SIZE
@@ -203,43 +217,41 @@ void
   OP_part_size = OP_PART_SIZE;
 #endif
 
-  for ( int n = 1; n < argc; n++ )
-  {
+  //if OP_maps_base_index has been set to 1 by Fortran backend
+  if(OP_maps_base_index)
+    op_printf("\n Application written using Fortran API: \
+    \n Default OP_maps_base_index = %d assumed\n", OP_maps_base_index);
+
+  for ( int n = 1; n < argc; n++ ) {
 
     op_set_args(argc, argv[n]);
 
-    /*if ( strncmp ( argv[n], "OP_BLOCK_SIZE=", 14 ) == 0 )
-    {
+    /*if ( strncmp ( argv[n], "OP_BLOCK_SIZE=", 14 ) == 0 ) {
       OP_block_size = atoi ( argv[n] + 14 );
-      printf ( "\n OP_block_size = %d \n", OP_block_size );
+      op_printf ( "\n OP_block_size = %d \n", OP_block_size );
     }
 
-    if ( strncmp ( argv[n], "OP_PART_SIZE=", 13 ) == 0 )
-    {
+    if ( strncmp ( argv[n], "OP_PART_SIZE=", 13 ) == 0 ) {
       OP_part_size = atoi ( argv[n] + 13 );
-      printf ( "\n OP_part_size  = %d \n", OP_part_size );
+      op_printf ( "\n OP_part_size  = %d \n", OP_part_size );
     }
 
-    if ( strncmp ( argv[n], "OP_CACHE_LINE_SIZE=", 19 ) == 0 )
-    {
+    if ( strncmp ( argv[n], "OP_CACHE_LINE_SIZE=", 19 ) == 0 ) {
       OP_cache_line_size = atoi ( argv[n] + 19 );
-      printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
+      op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
     }
 
-    if ( strncmp ( argv[n], "-gpudirect", 10 ) == 0 )
-    {
+    if ( strncmp ( argv[n], "-gpudirect", 10 ) == 0 ) {
       OP_gpu_direct = 1;
-      printf ( "\n Enabling GPU Direct \n" );
+      op_printf ( "\n Enabling GPU Direct \n" );
     }
-    if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 )
-    {
+    if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 ) {
       OP_auto_soa = 1;
-      printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
+      op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
     }
-    if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 )
-    {
+    if ( strncmp ( argv[n], "OP_HYBRID_BALANCE=", 18 ) == 0 ) {
       OP_hybrid_balance = atof ( argv[n] + 18 );;
-      printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
+      op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
     }*/
 
   }
@@ -303,16 +315,13 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
     exit ( -1 );
   }
 
-  //check if map points to elements within set range
-//  check_map(name, from, to, dim, imap);
+  // check if map points to elements within set range
+  // check_map(name, from, to, dim, imap);
 
   /*This check breaks for MPI - check_map() above does the required check now */
-  /*for ( int d = 0; d < dim; d++ )
-  {
-    for ( int n = 0; n < from->size; n++ )
-    {
-      if ( imap[d + n * dim] < 0 || imap[d + n * dim] >= to->size )
-      {
+  /*for ( int d = 0; d < dim; d++ ) {
+    for ( int n = 0; n < from->size; n++ ) {
+      if ( imap[d + n * dim] < 0 || imap[d + n * dim] >= to->size ) {
         printf ( "op_decl_map error -- invalid data for map %s\n", name );
         printf ( "element = %d, dimension = %d, map = %d\n", n, d, imap[d + n * dim] );
         exit ( -1 );
@@ -331,6 +340,15 @@ op_decl_map_core ( op_set from, op_set to, int dim, int * imap, char const * nam
       exit ( -1 );
     }
   }
+
+  if (OP_maps_base_index == 1) {
+    //convert imap to 0 based indexing -- i.e. reduce each imap value by 1
+    for(int i = 0; i< from->size * dim; i++) imap[i]--;
+  }
+  // else OP_maps_base_index == 0
+  //do nothing -- aready in C style indexing
+
+
 
   op_map map = ( op_map ) op_malloc ( sizeof ( op_map_core ) );
   map->index = OP_map_index;
@@ -980,6 +998,12 @@ int op_size_of_set(const char * name) {
   printf("Error: set %s not found\n", name);
   exit(-1);
   return -1;
+}
+
+void set_maps_base(int base){
+  if (base == 1 || base == 0) {
+    OP_maps_base_index = base;
+  }
 }
 
 

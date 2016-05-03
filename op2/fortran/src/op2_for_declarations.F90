@@ -252,16 +252,13 @@ module OP2_Fortran_Declarations
       character(len=1, kind=C_CHAR) :: argv
     end subroutine op_set_args_c
 
-    subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
-
+     subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
       use, intrinsic :: ISO_C_BINDING
-
       integer(kind=c_int), intent(in), value :: argc
       type(c_ptr), intent(in)                :: argv
       integer(kind=c_int), intent(in), value :: diags
       integer(kind=c_int), intent(in), value :: global
       integer(kind=c_int), intent(in), value :: local
-
     end subroutine op_mpi_init_c
 
     subroutine op_exit_c (  ) BIND(C,name='op_exit')
@@ -641,6 +638,12 @@ module OP2_Fortran_Declarations
 
     end subroutine op_theta_init_c
 
+    subroutine set_maps_base_c (base) BIND(C,name='set_maps_base')
+      use ISO_C_BINDING
+      integer(c_int), value :: base
+    end subroutine set_maps_base_c
+
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -716,6 +719,9 @@ contains
 
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
+    call set_maps_base_c(1)
+
+    call op_init_c ( 0, C_NULL_PTR, diags )
 
     !Get the command line arguments - needs to be handled using Fortrn
     argc = command_argument_count()
@@ -724,7 +730,6 @@ contains
       call op_set_args_c (argc, temp) !special function to set args
     end do
 
-    call op_init_c ( 0, C_NULL_PTR, diags )
 
   end subroutine op_init
 
@@ -739,6 +744,8 @@ contains
     integer(c_int) :: argc = 0
 
     integer(4) :: rank2, ierr
+    integer :: i
+    character(kind=c_char,len=64)           :: temp
 
 #ifdef OP2_WITH_CUDAFOR
     integer(4) :: setDevReturnVal = -1
@@ -763,8 +770,16 @@ contains
 
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
+    call set_maps_base_c(1)
 
     call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
+
+    !Get the command line arguments - needs to be handled using Fortrn
+    argc = command_argument_count()
+    do i = 1, argc
+      call get_command_argument(i, temp)
+      call op_set_args_c (argc, temp) !special function to set args
+    end do
 
   end subroutine op_mpi_init
 
