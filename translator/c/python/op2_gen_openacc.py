@@ -334,6 +334,8 @@ def op2_gen_openacc(master, date, consts, kernels):
         code('TYP ARG_l = ARGh[0];')
 
     code('')
+    code('int ncolors = 0;')
+    code('')
     IF('set->size >0')
     code('')
     comm('Set up typed device pointers for OpenACC')
@@ -359,6 +361,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     if ninds>0:
       code('')
       code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
+      code('ncolors = Plan->ncolors;')
       code('int *col_reord = Plan->col_reord;')
       code('int set_size1 = set->size + set->exec_size;')
       code('')
@@ -487,7 +490,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     #zero set size issues
     if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size')
+      IF('set_size == 0 || set_size == set->core_size || ncolors == 1')
       code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
 

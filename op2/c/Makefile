@@ -48,11 +48,14 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
   CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
-#  CCFLAGS  := -O3
-  CCFLAGS  := -g
-  CXX	   := pgCC
+ifdef DEBUG
+  CCFLAGS  := -g -O0
+else
+  CCFLAGS  := -O3
+endif
+  CXX	   := pgc++
   CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),cray)
