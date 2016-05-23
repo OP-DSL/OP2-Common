@@ -1,4 +1,4 @@
-module cudaConfigurationParams
+module cabudaConfigurationParams
 
   integer(4) :: OP_Warpsize = 32
 

@@ -28,8 +28,6 @@ TYPE ( c_ptr )  :: planRet_bres_calc
 
 CONTAINS
 
-attributes (host) &
-#include "bres_calc.inc"
 attributes (device) &
 SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   IMPLICIT NONE

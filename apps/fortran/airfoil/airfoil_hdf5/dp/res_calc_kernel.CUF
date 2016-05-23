@@ -28,8 +28,6 @@ TYPE ( c_ptr )  :: planRet_res_calc
 
 CONTAINS
 
-attributes (host) &
-#include "res_calc.inc"
 attributes (device) &
 SUBROUTINE res_calc_gpu(x1,x2,q1,q2,adt1,adt2,res1,res2)
   IMPLICIT NONE
