@@ -52,7 +52,7 @@
 
 // global constants
 
-double gam, gm1, cfl, eps, mach, alpha, qinf[4];
+float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 //
 // OP header file
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
   op_init(argc,argv,2);
 
   int    niter;
-  double  rms;
+  float  rms;
 
   //timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -153,49 +153,30 @@ int main(int argc, char **argv)
   op_map pbecell = op_decl_map_hdf5(bedges,cells,1, file, "pbecell");
   op_map pcell   = op_decl_map_hdf5(cells, nodes,4, file, "pcell");
 
-  op_map m_test  = op_decl_map_hdf5(cells, nodes,4, file, "m_test");
-  if (m_test == NULL) printf("m_test not found\n");
-
   op_dat p_bound = op_decl_dat_hdf5(bedges,1,"int"  ,file,"p_bound");
-  op_dat p_x     = op_decl_dat_hdf5(nodes ,2,"double",file,"p_x");
-  op_dat p_q     = op_decl_dat_hdf5(cells ,4,"double",file,"p_q");
-  op_dat p_qold  = op_decl_dat_hdf5(cells ,4,"double",file,"p_qold");
-  op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"double",file,"p_adt");
-  op_dat p_res   = op_decl_dat_hdf5(cells ,4,"double",file,"p_res");
+  op_dat p_x     = op_decl_dat_hdf5(nodes ,2,"float",file,"p_x");
+  op_dat p_q     = op_decl_dat_hdf5(cells ,4,"float",file,"p_q");
+  op_dat p_qold  = op_decl_dat_hdf5(cells ,4,"float",file,"p_qold");
+  op_dat p_adt   = op_decl_dat_hdf5(cells ,1,"float",file,"p_adt");
+  op_dat p_res   = op_decl_dat_hdf5(cells ,4,"float",file,"p_res");
 
-  op_dat p_test  = op_decl_dat_hdf5(cells ,4,"double",file,"p_test");
-  if (p_test == NULL) printf("p_test not found\n");
+  op_get_const_hdf5("gam", 1, "float", (char *)&gam, "new_grid.h5");
+  op_get_const_hdf5("gm1", 1, "float", (char *)&gm1, "new_grid.h5");
+  op_get_const_hdf5("cfl", 1, "float", (char *)&cfl, "new_grid.h5");
+  op_get_const_hdf5("eps", 1, "float", (char *)&eps, "new_grid.h5");
+  op_get_const_hdf5("mach", 1, "float", (char *)&mach, "new_grid.h5");
+  op_get_const_hdf5("alpha", 1, "float", (char *)&alpha, "new_grid.h5");
+  op_get_const_hdf5("qinf", 4, "float", (char *)&qinf, "new_grid.h5");
 
-  op_get_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid.h5");
-  op_get_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid.h5");
-  op_get_const_hdf5("cfl", 1, "double", (char *)&cfl, "new_grid.h5");
-  op_get_const_hdf5("eps", 1, "double", (char *)&eps, "new_grid.h5");
-  op_get_const_hdf5("mach", 1, "double", (char *)&mach, "new_grid.h5");
-  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid.h5");
-  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
+  op_decl_const2("gam",1,"float",&gam);
+  op_decl_const2("gm1",1,"float",&gm1);
+  op_decl_const2("cfl",1,"float",&cfl);
+  op_decl_const2("eps",1,"float",&eps);
+  op_decl_const2("mach",1,"float",&mach);
+  op_decl_const2("alpha",1,"float",&alpha);
+  op_decl_const2("qinf",4,"float",qinf);
 
-  op_decl_const2("gam",1,"double",&gam);
-  op_decl_const2("gm1",1,"double",&gm1);
-  op_decl_const2("cfl",1,"double",&cfl);
-  op_decl_const2("eps",1,"double",&eps);
-  op_decl_const2("mach",1,"double",&mach);
-  op_decl_const2("alpha",1,"double",&alpha);
-  op_decl_const2("qinf",4,"double",qinf);
-
-  op_diagnostic_output();
-
-  //write back original data just to compare you read the file correctly
-  //do an h5diff between new_grid_out.h5 and new_grid.h5 to
-  //compare two hdf5 files
-  op_dump_to_hdf5("new_grid_out.h5");
-
-  op_write_const_hdf5("gam",1,"double",(char *)&gam,  "new_grid_out.h5");
-  op_write_const_hdf5("gm1",1,"double",(char *)&gm1,  "new_grid_out.h5");
-  op_write_const_hdf5("cfl",1,"double",(char *)&cfl,  "new_grid_out.h5");
-  op_write_const_hdf5("eps",1,"double",(char *)&eps,  "new_grid_out.h5");
-  op_write_const_hdf5("mach",1,"double",(char *)&mach,  "new_grid_out.h5");
-  op_write_const_hdf5("alpha",1,"double",(char *)&alpha,  "new_grid_out.h5");
-  op_write_const_hdf5("qinf",4,"double",(char *)qinf,  "new_grid_out.h5");
+  if (op_is_root()) op_diagnostic_output();
 
   //trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
@@ -216,8 +197,8 @@ int main(int argc, char **argv)
     //  save old flow solution
 
     op_par_loop_save_soln("save_soln",cells,
-                op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
-                op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
+                op_arg_dat(p_q,-1,OP_ID,4,"float",OP_READ),
+                op_arg_dat(p_qold,-1,OP_ID,4,"float",OP_WRITE));
 
     //  predictor/corrector update loop
 
@@ -226,31 +207,31 @@ int main(int argc, char **argv)
       //    calculate area/timstep
 
       op_par_loop_adt_calc("adt_calc",cells,
-                  op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,2,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,3,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
+                  op_arg_dat(p_x,0,pcell,2,"float",OP_READ),
+                  op_arg_dat(p_x,1,pcell,2,"float",OP_READ),
+                  op_arg_dat(p_x,2,pcell,2,"float",OP_READ),
+                  op_arg_dat(p_x,3,pcell,2,"float",OP_READ),
+                  op_arg_dat(p_q,-1,OP_ID,4,"float",OP_READ),
+                  op_arg_dat(p_adt,-1,OP_ID,1,"float",OP_WRITE));
 
       //    calculate flux residual
 
       op_par_loop_res_calc("res_calc",edges,
-                  op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pedge,2,"double",OP_READ),
-                  op_arg_dat(p_q,0,pecell,4,"double",OP_READ),
-                  op_arg_dat(p_q,1,pecell,4,"double",OP_READ),
-                  op_arg_dat(p_adt,0,pecell,1,"double",OP_READ),
-                  op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
-                  op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
+                  op_arg_dat(p_x,0,pedge,2,"float",OP_READ),
+                  op_arg_dat(p_x,1,pedge,2,"float",OP_READ),
+                  op_arg_dat(p_q,0,pecell,4,"float",OP_READ),
+                  op_arg_dat(p_q,1,pecell,4,"float",OP_READ),
+                  op_arg_dat(p_adt,0,pecell,1,"float",OP_READ),
+                  op_arg_dat(p_adt,1,pecell,1,"float",OP_READ),
+                  op_arg_dat(p_res,0,pecell,4,"float",OP_INC),
+                  op_arg_dat(p_res,1,pecell,4,"float",OP_INC));
 
       op_par_loop_bres_calc("bres_calc",bedges,
-                  op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pbedge,2,"double",OP_READ),
-                  op_arg_dat(p_q,0,pbecell,4,"double",OP_READ),
-                  op_arg_dat(p_adt,0,pbecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pbecell,4,"double",OP_INC),
+                  op_arg_dat(p_x,0,pbedge,2,"float",OP_READ),
+                  op_arg_dat(p_x,1,pbedge,2,"float",OP_READ),
+                  op_arg_dat(p_q,0,pbecell,4,"float",OP_READ),
+                  op_arg_dat(p_adt,0,pbecell,1,"float",OP_READ),
+                  op_arg_dat(p_res,0,pbecell,4,"float",OP_INC),
                   op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
 
       //    update flow field
@@ -258,16 +239,16 @@ int main(int argc, char **argv)
       rms = 0.0;
 
       op_par_loop_update("update",cells,
-                  op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
-                  op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
-                  op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_gbl(&rms,1,"double",OP_INC));
+                  op_arg_dat(p_qold,-1,OP_ID,4,"float",OP_READ),
+                  op_arg_dat(p_q,-1,OP_ID,4,"float",OP_WRITE),
+                  op_arg_dat(p_res,-1,OP_ID,4,"float",OP_RW),
+                  op_arg_dat(p_adt,-1,OP_ID,1,"float",OP_READ),
+                  op_arg_gbl(&rms,1,"float",OP_INC));
     }
 
     //  print iteration history
 
-    rms = sqrt(rms/(double)g_ncell);
+    rms = sqrt(rms/(float)g_ncell);
 
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
@@ -275,24 +256,8 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //write given op_dat's indicated segment of data to a memory block in the order it was originally
-  //arranged (i.e. before partitioning and reordering)
-  double* q = (double *)op_malloc(sizeof(double)*op_get_size(cells)*4);
-  op_fetch_data_idx(p_q, q, 0, op_get_size(cells)-1);
-  free(q);
-
-  //write given op_dat's data to hdf5 file in the order it was originally arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_q, "file_name.h5");
-
-  //printf("Root process = %d\n",op_is_root());
-
-  //output the result dat array to files
-  //op_dump_to_hdf5("new_grid_out.h5"); //writes data as it is held on each process (under MPI)
-
-  //compress using
-  // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
-
   op_timing_output();
-  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
   op_exit();
 }
+

@@ -10,7 +10,9 @@
 ##########################################################################
 
 import re
+import glob
 import datetime
+import op2_gen_common
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -81,7 +83,6 @@ def ENDIF():
     code('endif')
   elif CPP:
     code('}')
-
 
 def op2_gen_openacc(master, date, consts, kernels):
 
@@ -228,10 +229,84 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     comm('user function')
 
-    if FORTRAN:
-      code('include '+name+'.inc')
-    elif CPP:
-      code('#include "'+name+'.h"')
+    #strides for SoA
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT;')
+            code('int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST=-1;')
+      dir_soa = -1
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
+          code('int direct_'+name+'_stride_OP2CONSTANT;')
+          code('int direct_'+name+'_stride_OP2HOST=-1;')
+          dir_soa = g_m
+          break
+
+    comm('user function')
+    found = 0
+    for files in glob.glob( "*.h" ):
+      f = open( files, 'r' )
+      for line in f:
+        match = re.search(r''+'\\b'+name+'\\b', line)
+        if match :
+          file_name = f.name
+          found = 1;
+          break
+      if found == 1:
+        break;
+
+    if found == 0:
+      print "COUND NOT FIND KERNEL", name
+
+    f = open(file_name, 'r')
+    kernel_text = f.read()
+    f.close()
+
+    kernel_text = op2_gen_common.comment_remover(kernel_text)
+    kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
+
+    p = re.compile('void\\s+\\b'+name+'\\b')
+    i = p.search(kernel_text).start()
+
+    if(i < 0):
+      print "\n********"
+      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+      exit(2)
+    i2 = i
+
+    #i = kernel_text[0:i].rfind('\n') #reverse find
+    j = kernel_text[i:].find('{')
+    k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
+    signature_text = kernel_text[i:i+j]
+    l = signature_text[0:].find('(')
+    head_text = signature_text[0:l] #save function name
+    m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
+    signature_text = signature_text[l+1:m]
+    body_text = kernel_text[i+j+1:k]
+
+    # check for number of arguments
+    if len(signature_text.split(',')) != nargs:
+        print 'Error parsing user kernel(%s): must have %d arguments' \
+              % name, nargs
+        return
+
+    for i in range(0,nargs):
+        var = signature_text.split(',')[i].strip()
+        if soaflags[i]:
+          var = var.replace('*','')
+          #locate var in body and replace by adding [idx]
+          length = len(re.compile('\\s+\\b').split(var))
+          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
+
+          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
+          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+
+    signature_text = '#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
+    file_text += signature_text + body_text + '}\n'
 
 ##########################################################################
 # then C++ stub function
@@ -331,12 +406,31 @@ def op2_gen_openacc(master, date, consts, kernels):
       if maps[g_m]==OP_GBL: #and accs[g_m]<>OP_READ:
         if not dims[g_m].isdigit() or int(dims[g_m]) > 1:
           print 'ERROR: OpenACC does not support multi-dimensional variables'
+          exit(-1)
         code('TYP ARG_l = ARGh[0];')
-
-    code('')
-    code('int ncolors = 0;')
+  
+    if ninds > 0:
+      code('')
+      code('int ncolors = 0;')
     code('')
     IF('set->size >0')
+    code('')
+    #managing constants
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT = opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST;')
+            ENDIF()
+      if dir_soa<>-1:
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
+          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
+          code('direct_'+name+'_stride_OP2CONSTANT = direct_'+name+'_stride_OP2HOST;')
+          ENDIF()
     code('')
     comm('Set up typed device pointers for OpenACC')
     if nmaps > 0:
@@ -415,9 +509,15 @@ def op2_gen_openacc(master, date, consts, kernels):
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+' * n]'
+          if soaflags[g_m]:
+            line = line + indent + '&data'+str(g_m)+'[n]'
+          else:
+            line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+' * n]'
         if maps[g_m] == OP_MAP:
-          line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+          if soaflags[g_m]:
+            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
+          else:
+            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&arg'+str(g_m)+'_l'
         if g_m < nargs-1:
@@ -471,7 +571,10 @@ def op2_gen_openacc(master, date, consts, kernels):
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
-          line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+'*n]'
+          if soaflags[g_m]:
+            line = line + indent + '&data'+str(g_m)+'[n]'
+          else:
+            line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&arg'+str(g_m)+'_l'
         if g_m < nargs-1:
@@ -508,7 +611,16 @@ def op2_gen_openacc(master, date, consts, kernels):
           code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
         else:
           print 'internal error: invalid reduction option'
-        code('op_mpi_reduce(&ARG,ARGh);')
+        if typs[g_m] == 'double':
+          code('op_mpi_reduce_double(&ARG,ARGh);')
+        elif typs[g_m] == 'float':
+          code('op_mpi_reduce_float(&ARG,ARGh);')
+        elif typs[g_m] == 'int':
+          code('op_mpi_reduce_int(&ARG,ARGh);')
+        else:
+          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
+          exit(-1)
+
 
     code('op_mpi_set_dirtybit_cuda(nargs, args);')
     code('')
@@ -538,7 +650,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    fid = open(name+'_acckernel.cpp','w')
+    fid = open(name+'_acckernel.c','w')
     date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
     fid.write(file_text)
@@ -553,7 +665,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
   file_text =''
   comm(' header                 ')
-  code('#include "op_lib_cpp.h"       ')
+  code('#include "op_lib_c.h"       ')
   code('')
   comm(' global constants       ')
 
@@ -570,18 +682,13 @@ def op2_gen_openacc(master, date, consts, kernels):
 
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){}')
-  if any_soa:
-    code('')
-    code('extern int op2_stride;')
-    code('#define OP2_STRIDE(arr, idx) arr[idx]')
-    code('')
 
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
-    code('#include "'+kernels[nk]['name']+'_acckernel.cpp"')
+    code('#include "'+kernels[nk]['name']+'_acckernel.c"')
   master = master.split('.')[0]
-  fid = open(master.split('.')[0]+'_acckernels.cpp','w')
+  fid = open(master.split('.')[0]+'_acckernels.c','w')
   fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()

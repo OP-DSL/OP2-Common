@@ -633,15 +633,8 @@ def main():
 
             if (locs[loc] in loc_header) and (locs[loc] != -1):
                 fid.write(' "op_lib_cpp.h"\n\n')
-                if any_soa:
-                  line = '\n#define STRIDE(x,y) x\n'
-                  for ns in range (0,len(sets)):
-                    if a == 1:
-                      line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
-                    else:
-                      line += 'extern int '+sets[ns]['name'].replace('"','')+'_stride;\n'
-                      fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
+                fid.write('#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
                     line = '\nvoid op_par_loop_' + \
@@ -651,6 +644,7 @@ def main():
                     line = line + '  op_arg );\n'
                     fid.write(line)
 
+                fid.write('#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n')
                 fid.write('\n')
                 loc_old = locs[loc] + header_len-1
                 continue

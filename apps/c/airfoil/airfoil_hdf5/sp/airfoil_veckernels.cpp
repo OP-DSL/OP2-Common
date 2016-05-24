@@ -19,13 +19,13 @@
 #endif
 
 // global constants
-extern double gam;
-extern double gm1;
-extern double cfl;
-extern double eps;
-extern double mach;
-extern double alpha;
-extern double qinf[4];
+extern float gam;
+extern float gm1;
+extern float cfl;
+extern float eps;
+extern float mach;
+extern float alpha;
+extern float qinf[4];
 
 extern int op2_stride;
 #define OP2_STRIDE(arr, idx) arr[idx]

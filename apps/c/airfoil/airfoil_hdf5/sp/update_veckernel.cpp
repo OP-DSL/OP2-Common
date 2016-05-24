@@ -3,10 +3,9 @@
 //
 
 //user function
-inline void update(const double *qold, double *q, double *res, const double *adt, double *rms){
-  double del, adti,rmsl;
-
-  rmsl = 0.0f;
+inline void update(const float *qold, float *q, float *res, const float *adt, float *rms){
+  float del, adti;
+  float rmsl = 0.0f;
   adti = 1.0f/(*adt);
 
   for (int n=0; n<4; n++) {
@@ -36,14 +35,14 @@ void op_par_loop_update(char const *name, op_set set,
   args[3] = arg3;
   args[4] = arg4;
   //create aligned pointers for dats
-  ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  __assume_aligned(ptr0,double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr1 = (double *) arg1.data;
-  __assume_aligned(ptr1,double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr2 = (double *) arg2.data;
-  __assume_aligned(ptr2,double_ALIGN);
-  ALIGNED_double const double * __restrict__ ptr3 = (double *) arg3.data;
-  __assume_aligned(ptr3,double_ALIGN);
+  ALIGNED_float const float * __restrict__ ptr0 = (float *) arg0.data;
+  __assume_aligned(ptr0,float_ALIGN);
+  ALIGNED_float       float * __restrict__ ptr1 = (float *) arg1.data;
+  __assume_aligned(ptr1,float_ALIGN);
+  ALIGNED_float       float * __restrict__ ptr2 = (float *) arg2.data;
+  __assume_aligned(ptr2,float_ALIGN);
+  ALIGNED_float const float * __restrict__ ptr3 = (float *) arg3.data;
+  __assume_aligned(ptr3,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -62,7 +61,7 @@ void op_par_loop_update(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      double dat4[SIMD_VEC] = {0.0};
+      float dat4[SIMD_VEC] = {0.0};
       #pragma simd
       for ( int i=0; i<SIMD_VEC; i++ ){
         update(
@@ -73,7 +72,7 @@ void op_par_loop_update(char const *name, op_set set,
           &dat4[i]);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
-        *(double*)arg4.data += dat4[i];
+        *(float*)arg4.data += dat4[i];
       }
     }
     //remainder
@@ -86,12 +85,12 @@ void op_par_loop_update(char const *name, op_set set,
         &(ptr1)[4*n],
         &(ptr2)[4*n],
         &(ptr3)[1*n],
-        (double*)arg4.data);
+        (float*)arg4.data);
     }
   }
 
   // combine reduction data
-  op_mpi_reduce(&arg4,(double*)arg4.data);
+  op_mpi_reduce(&arg4,(float*)arg4.data);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record

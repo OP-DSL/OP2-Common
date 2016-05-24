@@ -5,10 +5,9 @@
 __constant__ int direct_update_stride_OP2CONSTANT;
 int direct_update_stride_OP2HOST=-1;
 //user function
-__device__ void update( const double *qold, double *q, double *res, const double *adt, double *rms) {
-  double del, adti,rmsl;
-
-  rmsl = 0.0f;
+__device__ void update( const float *qold, float *q, float *res, const float *adt, float *rms) {
+  float del, adti;
+  float rmsl = 0.0f;
   adti = 1.0f/(*adt);
 
   for (int n=0; n<4; n++) {
@@ -22,16 +21,16 @@ __device__ void update( const double *qold, double *q, double *res, const double
 
 // CUDA kernel function
 __global__ void op_cuda_update(
-  const double *__restrict arg0,
-  double *arg1,
-  double *arg2,
-  const double *__restrict arg3,
-  double *arg4,
+  const float *__restrict arg0,
+  float *arg1,
+  float *arg2,
+  const float *__restrict arg3,
+  float *arg4,
   int   set_size ) {
 
-  double arg4_l[1];
+  float arg4_l[1];
   for ( int d=0; d<1; d++ ){
-    arg4_l[d]=ZERO_double;
+    arg4_l[d]=ZERO_float;
   }
 
   //process set elements
@@ -61,7 +60,7 @@ void op_par_loop_update(char const *name, op_set set,
   op_arg arg3,
   op_arg arg4){
 
-  double*arg4h = (double *)arg4.data;
+  float*arg4h = (float *)arg4.data;
   int nargs = 5;
   op_arg args[5];
 
@@ -104,33 +103,33 @@ void op_par_loop_update(char const *name, op_set set,
     int maxblocks = nblocks;
     int reduct_bytes = 0;
     int reduct_size  = 0;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
-    reduct_size   = MAX(reduct_size,sizeof(double));
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));
+    reduct_size   = MAX(reduct_size,sizeof(float));
     reallocReductArrays(reduct_bytes);
     reduct_bytes = 0;
     arg4.data   = OP_reduct_h + reduct_bytes;
     arg4.data_d = OP_reduct_d + reduct_bytes;
     for ( int b=0; b<maxblocks; b++ ){
       for ( int d=0; d<1; d++ ){
-        ((double *)arg4.data)[d+b*1] = ZERO_double;
+        ((float *)arg4.data)[d+b*1] = ZERO_float;
       }
     }
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(float));
     mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
     op_cuda_update<<<nblocks,nthread,nshared>>>(
-      (double *) arg0.data_d,
-      (double *) arg1.data_d,
-      (double *) arg2.data_d,
-      (double *) arg3.data_d,
-      (double *) arg4.data_d,
+      (float *) arg0.data_d,
+      (float *) arg1.data_d,
+      (float *) arg2.data_d,
+      (float *) arg3.data_d,
+      (float *) arg4.data_d,
       set->size );
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     for ( int b=0; b<maxblocks; b++ ){
       for ( int d=0; d<1; d++ ){
-        arg4h[d] = arg4h[d] + ((double *)arg4.data)[d+b*1];
+        arg4h[d] = arg4h[d] + ((float *)arg4.data)[d+b*1];
       }
     }
     arg4.data = (char *)arg4h;

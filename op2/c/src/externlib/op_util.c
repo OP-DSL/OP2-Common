@@ -350,9 +350,9 @@ int file_exist (char const *filename)
   return (stat (filename, &buffer) == 0);
 }
 
-char *doubles[] = {"double","double:soa","real(8)","double precision"};
-char *floats[] = {"float","float:soa","real(4)","real"};
-char *ints[] = {"int","int:soa","integer(4)","integer"};
+const char *doubles[] = {"double","double:soa","real(8)","double precision"};
+const char *floats[] = {"float","float:soa","real(4)","real"};
+const char *ints[] = {"int","int:soa","integer(4)","integer"};
 
 #ifdef __cplusplus
 extern "C" {
