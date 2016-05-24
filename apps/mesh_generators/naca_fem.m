@@ -1,6 +1,9 @@
 
+
+
 close all;
 clear all;
+
 
 %
 % use NACA0012 definition to construct aero upper surface
@@ -64,8 +67,8 @@ end
 z = complex(xg,yg).^2;
 x = real(z); y = imag(z);
 
-figure
-plot(x,y,'k-',x',y','k-'); axis equal
+%figure
+%plot(x,y,'k-',x',y','k-'); axis equal
 
 %
 % construct output file
@@ -152,3 +155,4 @@ for n=1:nffnodes
 end
 
 fclose(fid);
+

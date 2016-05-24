@@ -47,15 +47,13 @@ ifeq ($(OP2_COMPILER),xl)
 else
 
 ifeq ($(OP2_COMPILER),pgi)
-  CPP       	= pgCC
-  CC       	= pgcc
+  CPP       	= pgc++
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
-  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpiCC
-  MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
-	ACCFLAGS	=	-acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
+  ACCFLAGS	= -acc -ta=tesla:cc35
 else
 ifeq ($(OP2_COMPILER),cray)
   CPP           = CC
