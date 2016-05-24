@@ -459,12 +459,6 @@ def op2_gen_seq(master, date, consts, kernels):
 
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
 
-  if any_soa:
-    code('')
-    code('extern int op2_stride;')
-    code('#define OP2_STRIDE(arr, idx) arr[idx]')
-    code('')
-
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):

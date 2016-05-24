@@ -1011,10 +1011,10 @@ def op2_gen_cuda(master, date, consts, kernels):
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
 
-  if any_soa:
-    code('__constant__ int op2_stride;')
-    code('')
-    code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
+  # if any_soa:
+  #   code('__constant__ int op2_stride;')
+  #   code('')
+  #   code('#define OP2_STRIDE(arr, idx) arr[op2_stride*(idx)]')
 
   code('')
   code('void op_decl_const_char(int dim, char const *type,')

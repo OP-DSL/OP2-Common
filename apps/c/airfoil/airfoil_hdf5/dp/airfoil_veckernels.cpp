@@ -26,10 +26,6 @@ extern double eps;
 extern double mach;
 extern double alpha;
 extern double qinf[4];
-
-extern int op2_stride;
-#define OP2_STRIDE(arr, idx) arr[idx]
-
 // user kernel files
 #include "save_soln_veckernel.cpp"
 #include "adt_calc_veckernel.cpp"
