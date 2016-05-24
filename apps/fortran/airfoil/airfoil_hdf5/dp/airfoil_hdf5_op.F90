@@ -163,7 +163,7 @@ program AIRFOIL
                        & op_arg_dat(p_q,1,pbecell,4,"real(8)",OP_READ),  &
                        & op_arg_dat(p_adt,1,pbecell,1,"real(8)",OP_READ),  &
                        & op_arg_dat(p_res,1,pbecell,4,"real(8)",OP_INC),  &
-                       & op_arg_dat(p_bound,-1,OP_ID,1,"integer(4)",OP_READ))
+                       & op_arg_dat(p_bound,-1,OP_ID,1,"integer",OP_READ))
 
 
       ! update flow field

@@ -102,17 +102,17 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = gcc -std=c99 -g
-  CXX             = g++ -g
+  CC              = pgcc -g
+  CXX             = pgc++ -g
   FC              = pgfortran -g
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  FMPI_FLAGS	    = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc -Xcompiler="-std=c99 -Wall -fPIC -pipe"
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = $(FFLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
-  PGMPI_FFLAGS    = $(FMPI_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
+  PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
+  PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   CFLAGS_SLOW     = -O1 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -193,6 +193,7 @@ all: $(ALLTARGETS)
 directories:
 	mkdir -p $(F_OP2_LIB)
 	mkdir -p $(F_OP2_MOD) $(F_INC_MOD) $(F_INC_MOD)/mpi
+	mkdir -p $(F_INC_MOD)/cuda $(F_INC_MOD)/mpi/cuda
 	mkdir -p $(F_OP2_OBJ)
 
 core: 	directories $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c
