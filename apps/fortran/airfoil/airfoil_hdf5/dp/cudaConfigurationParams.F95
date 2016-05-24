@@ -1,4 +1,4 @@
-module cudaConfigurationParams
+module cabudaConfigurationParams
 
   integer(4) :: OP_Warpsize = 32
 
@@ -11,7 +11,7 @@ integer(4) function getPartitionSize (name, size)
   character(len=*) :: name
   integer(4) :: size
 
-  getPartitionSize = 256
+  getPartitionSize = 128
 
 end function
 
@@ -22,7 +22,7 @@ integer(4) function getBlockSize (name, size)
   character(len=*) :: name
   integer(4) :: size
 
-  getBlockSize = 256
+  getBlockSize = 128
 
 end function
 

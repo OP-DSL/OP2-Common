@@ -710,7 +710,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('mvConstArraysToDevice(consts_bytes);')
       code('')
 
-    #managing constants
+      #managing constants
     if any_soa:
       if nmaps > 0:
         k = []
