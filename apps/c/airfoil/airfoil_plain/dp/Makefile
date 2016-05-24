@@ -36,11 +36,11 @@ ifeq ($(OP2_COMPILER),intel)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CPP       	= pgCC
+  CPP       	= pgc++
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
-  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),cray)
