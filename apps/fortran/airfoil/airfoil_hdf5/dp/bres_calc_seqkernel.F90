@@ -31,7 +31,7 @@ SUBROUTINE op_wrap_bres_calc( &
   real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
   real(8) opDat5Local(4,*)
-  integer(4) opDat6Local(1,*)
+  integer opDat6Local(1,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) opDat3Map(*)
@@ -103,7 +103,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   real(8), POINTER, DIMENSION(:) :: opDat5Local
   INTEGER(kind=4) :: opDat5Cardinality
 
-  integer(4), POINTER, DIMENSION(:) :: opDat6Local
+  integer, POINTER, DIMENSION(:) :: opDat6Local
   INTEGER(kind=4) :: opDat6Cardinality
 
 
