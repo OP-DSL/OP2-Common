@@ -687,10 +687,11 @@ module OP2_Fortran_Declarations
 
 contains
 
-  subroutine op_init ( diags )
+  subroutine op_init_base ( diags, base_idx )
 
     ! formal parameter
     integer(4) :: diags
+    integer(4) :: base_idx
 
     ! local variables
     integer(4) :: argc = 0
@@ -719,7 +720,7 @@ contains
 
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
-    call set_maps_base_c(1)
+    call set_maps_base_c(base_idx)
 
     call op_init_c ( 0, C_NULL_PTR, diags )
 
@@ -731,7 +732,12 @@ contains
     end do
 
 
-  end subroutine op_init
+  end subroutine op_init_base
+
+  subroutine op_init(diags)
+    integer(4) :: diags
+    call op_init_base(diags,1)
+  end subroutine
 
   subroutine op_mpi_init ( diags, global, local )
 

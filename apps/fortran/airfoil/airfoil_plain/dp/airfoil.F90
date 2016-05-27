@@ -166,9 +166,6 @@ program AIRFOIL
 
     end do ! internal loop
 
-    call op_fetch_data(p_q,q)
-
-    call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
     ncellr = real ( ncell )
     rms(2) = sqrt ( rms(2) / ncellr )
@@ -180,6 +177,10 @@ program AIRFOIL
     end if
 
   end do ! external loop
+  
+  call op_fetch_data(p_q,q)
+
+  call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
   call op_timers ( endTime )
   call op_timing_output ()
