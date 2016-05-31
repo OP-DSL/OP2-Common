@@ -506,14 +506,7 @@ false or not set
 
 \subsubsection{SoA data layout}
 
-The objective of OP2 is hide all of the complexities involved in
-achieving high performance on a wide variety of hardware platforms.
-Unfortunately, there are limits to the extent to which this is possible,
-and so we have added the capability for expert users to achieve higher
-performance by providing extra directions to OP2.  This is very similar
-to the use of pragmas in C/C++.
-
-At present we have just one qualifier option, which is to force OP2 to
+At present we have an option to force OP2 to
 use SoA (struct of arrays) storage internally on GPUs.  As illustrated in
 Figure \ref{fig:SoA_AoS} the user always supplies data in AoS (array of
 structs) layout, with all of the items associated with one set element
@@ -523,22 +516,11 @@ and reuse of data.   However, when doing vector computing (either on GPUs
 or in the AVX vector units of CPUs) with no indirect addressing, then the
 SoA format is more efficient.
 
-OP2 can be directed to use the SoA format by adding the qualifier
-{\tt ':soa'} to the datatype, as in {\tt 'float:soa'}.  Note that the
+OP2 can be directed to use the SoA format by setting the environment variable
+OP\_AUTO\_SOA=1 before the Python code generator is used.  Note that the
 data should still be supplied by the user in the standard AoS layout;
-the transposition to SoA format is handled internally by OP2.  Also,
-this qualifier must be used every time the data is accessed, as well as
-when it is first defined.  If it is not, or if it is accessed indirectly,
-it will generate a run-time error.
-
-If the data is held in an SoA layout, then there is a non-unit ``stride''
-in accessing the data associated with one set element; this is illustrated
-in the figure.  When executing a parallel loop, this stride is held
-in a global variable {\tt op2\_stride} which must be used by the user's
-kernel, so instead of a data reference {\tt data[m]} it should be
-{\tt data[m*op2\_stride]}.   The sequential implementation defines
-{\tt op2\_stride = 1} so that the user's code works with both SoA and AoS
-layouts.
+the transposition to SoA format is handled internally by OP2. No changes need
+to be made to any other user code.
 
 \begin{figure}[h]
 {\begin{center}\setlength{\unitlength}{1.2cm}
@@ -894,7 +876,7 @@ the form {\tt xxx\_kernel.cpp} containing the OpenMP implementations of the user
 
 \item
 For the CUDA executable, {\tt main\_kernels.cu} is a new CUDA file which includes one or more files of the form {\tt
-xxx\_kernel.cu} containing the CUDA implementations of the user's kernel functions;
+xxx\_kernel.cu} containing the CUDA implementations of the user's kernel functions. If the OP\_AUTO\_SOA environmental variable is set, it will generate code that transposes multi-dimensional datasets for faster execution on the GPU.
 
 \end{itemize}
 
