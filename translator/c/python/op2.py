@@ -316,7 +316,7 @@ def main():
             print ' '
         if inits > 0:
             print'contains op_init call'
-            if auto_soa:
+            if auto_soa<>'0':
               text = append_init_soa(text)
         if exits > 0:
             print'contains op_exit call'
