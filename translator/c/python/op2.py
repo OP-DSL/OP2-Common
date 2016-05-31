@@ -198,6 +198,10 @@ def get_arg_gbl(arg_string, k):
 
     return temp_gbl
 
+def append_init_soa(text):
+  text = re.sub('\\bop_init\\b\\s*\((.*)\)','op_init_soa(\\1,1)', text)
+  text = re.sub('\\bop_mpi_init\\b\\s*\((.*)\)','op_mpi_init_soa(\\1,1)', text)
+  return text
 
 def op_par_loop_parse(text):
     """Parsing for op_par_loop calls"""
@@ -312,6 +316,8 @@ def main():
             print ' '
         if inits > 0:
             print'contains op_init call'
+            if auto_soa:
+              text = append_init_soa(text)
         if exits > 0:
             print'contains op_exit call'
         if parts > 0:
@@ -697,7 +703,9 @@ def main():
     if ninit == 0:
         print' '
         print'-----------------------------'
-        print'  ERROR: no call to op_init  '
+        print'  WARNING: no call to op_init'
+        if auto_soa==1:
+          print'  WARNING: code generated with OP_AUTO_SOA,\n but couldn\'t modify op_init to pass\n an additional parameter of 1.\n Please make sure OP_AUTO_SOA is set when executing'
         print'-----------------------------'
 
     if nexit == 0:
@@ -730,7 +738,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    # op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

@@ -205,7 +205,7 @@ op_init_core ( int argc, char ** argv, int diags )
     op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
-  if ( getenv ( "OP_AUTO_SOA" ) ) {
+  if ( getenv ( "OP_AUTO_SOA" ) || OP_auto_soa == 1 ) {
     OP_auto_soa = 1;
     op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
   }

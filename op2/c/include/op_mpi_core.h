@@ -314,6 +314,7 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 void op_mpi_put_data(op_dat dat);
 
 void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local );
+void op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local, int soa );
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_device(op_set set, op_dat dat);

@@ -75,6 +75,7 @@ extern "C" {
 #endif
 
 void op_init ( int, char **, int);
+void op_init_soa ( int, char **, int, int);
 
 op_set op_decl_set ( int, char const * );
 

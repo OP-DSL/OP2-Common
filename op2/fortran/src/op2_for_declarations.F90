@@ -246,13 +246,24 @@ module OP2_Fortran_Declarations
 
     end subroutine op_init_c
 
+    subroutine op_init_soa_c ( argc, argv, diags, soa ) BIND(C,name='op_init_soa')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      integer(kind=c_int), intent(in), value :: argc
+      type(c_ptr), intent(in)                :: argv
+      integer(kind=c_int), intent(in), value :: diags
+      integer(kind=c_int), intent(in), value :: soa
+
+    end subroutine op_init_soa_c
+
     subroutine op_set_args_c ( argc, argv ) BIND(C,name='op_set_args')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: argc
       character(len=1, kind=C_CHAR) :: argv
     end subroutine op_set_args_c
 
-     subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
+    subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: argc
       type(c_ptr), intent(in)                :: argv
@@ -260,6 +271,16 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), intent(in), value :: global
       integer(kind=c_int), intent(in), value :: local
     end subroutine op_mpi_init_c
+
+    subroutine op_mpi_init_soa_c ( argc, argv, diags, global, local, soa ) BIND(C,name='op_mpi_init_soa')
+      use, intrinsic :: ISO_C_BINDING
+      integer(kind=c_int), intent(in), value :: argc
+      type(c_ptr), intent(in)                :: argv
+      integer(kind=c_int), intent(in), value :: diags
+      integer(kind=c_int), intent(in), value :: global
+      integer(kind=c_int), intent(in), value :: local
+      integer(kind=c_int), intent(in), value :: soa
+    end subroutine op_mpi_init_soa_c
 
     subroutine op_exit_c (  ) BIND(C,name='op_exit')
 
@@ -687,11 +708,12 @@ module OP2_Fortran_Declarations
 
 contains
 
-  subroutine op_init_base ( diags, base_idx )
+  subroutine op_init_base_soa ( diags, base_idx, soa )
 
     ! formal parameter
     integer(4) :: diags
     integer(4) :: base_idx
+    integer(4) :: soa
 
     ! local variables
     integer(4) :: argc = 0
@@ -722,7 +744,7 @@ contains
     OP_GBL%mapPtr => gblPtr
     call set_maps_base_c(base_idx)
 
-    call op_init_c ( 0, C_NULL_PTR, diags )
+    call op_init_soa_c ( 0, C_NULL_PTR, diags, soa )
 
     !Get the command line arguments - needs to be handled using Fortrn
     argc = command_argument_count()
@@ -732,12 +754,26 @@ contains
     end do
 
 
+  end subroutine op_init_base_soa
+
+  subroutine op_init_base ( diags, base_idx )
+
+    ! formal parameter
+    integer(4) :: diags
+    integer(4) :: base_idx
+    call op_init_base_soa(diags,base_idx,0)
   end subroutine op_init_base
 
   subroutine op_init(diags)
     integer(4) :: diags
-    call op_init_base(diags,1)
-  end subroutine
+    call op_init_base_soa(diags,1,0)
+  end subroutine op_init
+  
+  subroutine op_init_soa(diags,soa)
+    integer(4) :: diags
+    integer(4) :: soa
+    call op_init_base_soa(diags,1,soa)
+  end subroutine op_init_soa
 
   subroutine op_mpi_init ( diags, global, local )
 

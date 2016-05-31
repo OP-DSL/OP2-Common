@@ -59,8 +59,7 @@ program AIRFOIL
   integer(4) :: status
 
   ! OP initialisation
-  call op_init_base (1,0)
-  call op_print ("Initialising OP2")
+  call op_init_base_soa(0,0,1)
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   call op_print ("Declaring OP2 sets")
