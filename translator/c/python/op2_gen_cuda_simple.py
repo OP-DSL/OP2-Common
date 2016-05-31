@@ -310,7 +310,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
-          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
+          body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
 
     signature_text = '__device__ '+head_text + '( '+signature_text + ') {'
