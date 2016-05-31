@@ -28,6 +28,7 @@ echo "In directory $PWD"
 # test Arifoil DP- with plain text file I/O
 #-------------------------------------------------------------------------------
 
+#<<COMMENT
 echo " "
 echo "----------------Testing airfoil_dp_seq ----------------------------------"
 echo " "
@@ -137,7 +138,6 @@ export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_sp_mpi_openmp OP_PART_SIZE=256 > perf_out
 grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
-
 #-------------------------------------------------------------------------------
 # test Arifoil DP- with hdf5 file I/O
 #-------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 #-------------------------------------------------------------------------------
 
 echo " "
-echo "-----------------Testing Sairfoil_tempdats_seq---------------------------"
+echo "-----------------Testing airfoil_tempdats_seq---------------------------"
 echo " "
 ./airfoil_tempdats_seq > perf_out
 grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
@@ -339,6 +339,7 @@ echo " "
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac2_mpi > perf_out
 grep "Results check" perf_out
 
+#COMMENT
 
 
 #-------------------------------------------------------------------------------
@@ -380,7 +381,7 @@ grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-------------------Testing aero_dp_mpi_cuda 2 mpi procs------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 echo " "
@@ -404,7 +405,7 @@ grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 #-------------------------------------------------------------------------------
 
 echo " "
-echo "-------------------Testing Saero_hdf5_dp_seq-----------------------------"
+echo "-------------------Testing aero_hdf5_dp_seq-----------------------------"
 echo " "
 ./aero_hdf5_dp_seq > perf_out
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
@@ -438,7 +439,7 @@ grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-------------------Testing aero_hdf5_dp_mpi_cuda 2 mpi procs-------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 echo " "
