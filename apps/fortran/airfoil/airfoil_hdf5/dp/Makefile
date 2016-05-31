@@ -11,14 +11,14 @@ PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
 PARMETIS_VER?=4
 ifeq ($(PARMETIS_VER),4)
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include #-DHAVE_PARMETIS -DPARMETIS_VER_4
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
 else
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
+  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ #-DHAVE_PARMETIS
   PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/ -lparmetis -lmetis
 endif
 
-PTSCOTCH_INC    = -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
+PTSCOTCH_INC    = -I$(PTSCOTCH_INSTALL_PATH)/include #-DHAVE_PTSCOTCH
 PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lscotch \
@@ -41,13 +41,30 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgc++
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
-  FC = pgfortran -fast -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
+  FC = pgfortran # -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEEK
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g 
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR 
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
+  ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
+                airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
+                airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
+                airfoil_hdf5_mpi_cuda
+else
+ifeq ($(OP2_COMPILER),xl)
+  CC = xlc++_r
+  #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
+  FC = xlf_r 
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPI_INC = #$(MPI_INSTALL_PATH)/include
+  MPIF90 = mpif90 #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
+  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O5 -qarch=pwr8 -qtune=pwr8 -qhot 
+  OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
+  OPENMP = -qsmp=omp -qthreaded
+  CPPLINK = -lstdc++ -lmpi_cxx -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
@@ -86,6 +103,7 @@ endif
 endif
 endif
 endif
+endif
 
 FLINK = -L$(F_OP2_LIB)
 FMODS = -I$(F_OP2_MOD)
@@ -110,14 +128,10 @@ airfoil_hdf5_openmp: airfoil_hdf5_op.F90 save_soln_kernel.F90 adt_calc_kernel.F9
 
 airfoil_hdf5_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
         res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-ifeq ($(OP2_COMPILER),pgi)
-	$(MPIF90) $(OPT) $(OPENMP) $(FMODS) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
 		save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
 		res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_hdf5_op.F90 -o airfoil_hdf5_cuda \
 		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)
-else
-	@echo "airfoil_hdf5_cuda cannot be built with $(OP2_COMPILER) compilers .. requires PGI CUDA FORTRAN compiler"
-endif
 
 airfoil_hdf5_mpi: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(MPIF90) $(OPT) $(FMPI_MODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil_hdf5.F90
@@ -156,15 +170,11 @@ airfoil_hdf5_mpi_openmp: airfoil_hdf5_op.F90 input.F90 save_soln_kernel.F90 adt_
 
 airfoil_hdf5_mpi_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-ifeq ($(OP2_COMPILER),pgi)
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) $(PARMETIS_INC) $(PTSCOTCH_INC) -DOP2_WITH_CUDAFOR \
+	$(MPIF90) $(OPT_CUDA) $(FMPI_MODS)/cuda $(FMPI_MODS) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 		cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 save_soln_kernel.CUF \
 		update_kernel.CUF bres_calc_kernel.CUF res_calc_kernel.CUF adt_calc_kernel.CUF \
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_mpi_cuda $(FLINK) -lop2_for_mpi_cuda \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
-else
-	@echo "airfoil_hdf5_mpi_cuda cannot be built with $(OP2_COMPILER) compilers .. requires PGI CUDA FORTRAN compiler"
-endif
 
 clean:
 	rm -f *.o

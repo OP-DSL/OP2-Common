@@ -70,6 +70,11 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 // op_par_loop declarations
 //
+#ifdef OPENACC
+#ifdef __cplusplus
+extern "C" {
+#endif
+#endif
 
 void op_par_loop_save_soln(char const *, op_set,
   op_arg,
@@ -107,6 +112,11 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+#ifdef OPENACC
+#ifdef __cplusplus
+}
+#endif
+#endif
 
 #include "op_lib_mpi.h"
 

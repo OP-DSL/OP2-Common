@@ -31,13 +31,36 @@
 !
 
 ! This file defines the configuration variables used by the Fortran CUDA OP2 back-end
-
 module cudaConfigurationParams
 
+  ! fixed for architecture kind (compute capability?)
+  integer(4) :: OP_Warpsize = 32
   ! Default block size = number of threads in a single block
   integer(4) :: FOP_BLOCK_SIZE = 512
 
-  ! fixed for architecture kind (compute capability?)
-  integer(4) :: OP_WARP_SIZE = 32
+contains
 
-end module cudaConfigurationParams
+integer(4) function getPartitionSize (name, size)
+
+  implicit none
+
+  character(len=*) :: name
+  integer(4) :: size
+
+  getPartitionSize = 128
+
+end function
+
+integer(4) function getBlockSize (name, size)
+
+  implicit none
+
+  character(len=*) :: name
+  integer(4) :: size
+
+  getBlockSize = 128
+
+end function
+
+
+end module

@@ -57,6 +57,10 @@ MPI_Comm OP_MPI_GLOBAL;
  * op_lib.cu provides wrappers for CUDA version
  */
 
+void op_init_soa ( int argc, char ** argv, int diags, int soa ) {
+  OP_auto_soa = soa;
+  op_init(argc,argv,diags);
+}
 void op_init ( int argc, char ** argv, int diags )
 {
   int flag = 0;
@@ -68,6 +72,11 @@ void op_init ( int argc, char ** argv, int diags )
   OP_MPI_WORLD = MPI_COMM_WORLD;
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core ( argc, argv, diags );
+}
+
+void op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local, int soa ) {
+  OP_auto_soa = soa;
+  op_mpi_init(argc,argv,diags, global, local);
 }
 
 void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )

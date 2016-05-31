@@ -25,7 +25,19 @@ CONTAINS
 attributes (host) &
 #include "save_soln.inc"
 attributes (device) &
-#include "save_soln.inc2"
+SUBROUTINE save_soln_gpu(q,qold)
+  IMPLICIT NONE
+
+  REAL(kind=8), INTENT(IN) :: q(4)
+  REAL(kind=8) :: qold(4)
+  INTEGER(kind=4) :: i
+
+  DO i = 1, 4
+    qold(i) = q(i)
+  END DO
+
+END SUBROUTINE
+
 
 
 ! CUDA kernel function
@@ -70,7 +82,7 @@ attributes (host) SUBROUTINE save_soln_host( userSubroutine, set, &
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
   TYPE ( op_arg ) , INTENT(IN) :: opArg2
 
-  IF (getHybridGPU()) THEN
+  IF (getHybridGPU().EQ.1) THEN
     CALL save_soln_host_gpu( userSubroutine, set, &
     & opArg1, &
     & opArg2 )

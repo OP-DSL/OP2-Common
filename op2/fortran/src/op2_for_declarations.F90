@@ -246,13 +246,24 @@ module OP2_Fortran_Declarations
 
     end subroutine op_init_c
 
+    subroutine op_init_soa_c ( argc, argv, diags, soa ) BIND(C,name='op_init_soa')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      integer(kind=c_int), intent(in), value :: argc
+      type(c_ptr), intent(in)                :: argv
+      integer(kind=c_int), intent(in), value :: diags
+      integer(kind=c_int), intent(in), value :: soa
+
+    end subroutine op_init_soa_c
+
     subroutine op_set_args_c ( argc, argv ) BIND(C,name='op_set_args')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: argc
       character(len=1, kind=C_CHAR) :: argv
     end subroutine op_set_args_c
 
-     subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
+    subroutine op_mpi_init_c ( argc, argv, diags, global, local ) BIND(C,name='op_mpi_init')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: argc
       type(c_ptr), intent(in)                :: argv
@@ -260,6 +271,16 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), intent(in), value :: global
       integer(kind=c_int), intent(in), value :: local
     end subroutine op_mpi_init_c
+
+    subroutine op_mpi_init_soa_c ( argc, argv, diags, global, local, soa ) BIND(C,name='op_mpi_init_soa')
+      use, intrinsic :: ISO_C_BINDING
+      integer(kind=c_int), intent(in), value :: argc
+      type(c_ptr), intent(in)                :: argv
+      integer(kind=c_int), intent(in), value :: diags
+      integer(kind=c_int), intent(in), value :: global
+      integer(kind=c_int), intent(in), value :: local
+      integer(kind=c_int), intent(in), value :: soa
+    end subroutine op_mpi_init_soa_c
 
     subroutine op_exit_c (  ) BIND(C,name='op_exit')
 
@@ -687,10 +708,12 @@ module OP2_Fortran_Declarations
 
 contains
 
-  subroutine op_init ( diags )
+  subroutine op_init_base_soa ( diags, base_idx, soa )
 
     ! formal parameter
     integer(4) :: diags
+    integer(4) :: base_idx
+    integer(4) :: soa
 
     ! local variables
     integer(4) :: argc = 0
@@ -719,9 +742,9 @@ contains
 
     OP_ID%mapPtr => idPtr
     OP_GBL%mapPtr => gblPtr
-    call set_maps_base_c(1)
+    call set_maps_base_c(base_idx)
 
-    call op_init_c ( 0, C_NULL_PTR, diags )
+    call op_init_soa_c ( 0, C_NULL_PTR, diags, soa )
 
     !Get the command line arguments - needs to be handled using Fortrn
     argc = command_argument_count()
@@ -731,7 +754,26 @@ contains
     end do
 
 
+  end subroutine op_init_base_soa
+
+  subroutine op_init_base ( diags, base_idx )
+
+    ! formal parameter
+    integer(4) :: diags
+    integer(4) :: base_idx
+    call op_init_base_soa(diags,base_idx,0)
+  end subroutine op_init_base
+
+  subroutine op_init(diags)
+    integer(4) :: diags
+    call op_init_base_soa(diags,1,0)
   end subroutine op_init
+  
+  subroutine op_init_soa(diags,soa)
+    integer(4) :: diags
+    integer(4) :: soa
+    call op_init_base_soa(diags,1,soa)
+  end subroutine op_init_soa
 
   subroutine op_mpi_init ( diags, global, local )
 
@@ -1062,11 +1104,11 @@ contains
 
     ! first check if the op_dat is actually declared (HYDRA feature)
     ! If is NULL, then return an empty op_arg
-#ifdef OP2_WITH_CUDAFOR
-    if (dat%dataCPtr .eq. C_NULL_PTR) then
-#else
+!#ifdef OP2_WITH_CUDAFOR
+!    if (dat%dataCPtr .eq. C_NULL_PTR) then
+!#else
     if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
-#endif
+!#endif
 !      op_arg_dat_python = op_arg_dat_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1)
       print *, "Error, NULL pointer for op_dat"
       op_arg_dat_python = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )

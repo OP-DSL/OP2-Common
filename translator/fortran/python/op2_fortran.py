@@ -328,6 +328,10 @@ def get_arg_gbl(arg_string, k):
 
   return temp_gbl
 
+def append_init_soa(text):
+  text = re.sub('\\bop_init(\\w*)\\b\\s*\((.*)\)','op_init\\1_soa(\\2,1)', text)
+  text = re.sub('\\bop_mpi_init(\\w*)\\b\\s*\((.*)\)','op_mpi_init\\1_soa(\\2,1)', text)
+  return text
 ##########################################################################
 # parsing for op_par_loop calls
 ##########################################################################
@@ -398,7 +402,6 @@ def op_par_loop_parse(text):
 #####################loop over all input source files#####################
 init_ctr = 1
 auto_soa=os.getenv('OP_AUTO_SOA','0')
-print auto_soa
 if len(sys.argv) > 1:
   if sys.argv[1] == 'hydra':
     hydra = 1
@@ -436,6 +439,8 @@ for a in range(init_ctr,len(sys.argv)):
     print ' '
   if inits > 0:
     print'contains op_init call'
+    if auto_soa:
+      text = append_init_soa(text)
   if exits > 0:
     print'contains op_exit call'
   if parts > 0:

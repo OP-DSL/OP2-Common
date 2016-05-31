@@ -207,7 +207,7 @@ void op_cuda_exit ( )
     OP_plans[ip].nelems = NULL;
     OP_plans[ip].blkmap = NULL;
   }
-  cudaDeviceReset ( );
+  //cudaDeviceReset ( );
 }
 
 //

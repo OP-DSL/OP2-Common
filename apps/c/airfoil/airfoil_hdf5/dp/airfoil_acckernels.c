@@ -3,7 +3,7 @@
 //
 
 // header
-#include "op_lib_cpp.h"
+#include "op_lib_c.h"
 
 // global constants
 extern double gam;
@@ -16,8 +16,8 @@ extern double qinf[4];
 void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){}
 // user kernel files
-#include "save_soln_acckernel.cpp"
-#include "adt_calc_acckernel.cpp"
-#include "res_calc_acckernel.cpp"
-#include "bres_calc_acckernel.cpp"
-#include "update_acckernel.cpp"
+#include "save_soln_acckernel.c"
+#include "adt_calc_acckernel.c"
+#include "res_calc_acckernel.c"
+#include "bres_calc_acckernel.c"
+#include "update_acckernel.c"

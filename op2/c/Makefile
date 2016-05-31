@@ -38,9 +38,21 @@ ifeq ($(OP2_COMPILER),intel)
 ifdef DEBUG
   CCFLAGS  := -O0 -g
 else
-  CCFLAGS  := -O3 -xAVX #-DCOMM_PERF #-DDEBUG -g
+  CCFLAGS  := -O3 -xHost #-DCOMM_PERF #-DDEBUG -g
 endif
   CXX      := icpc
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS := $(CXXFLAGS)
+else
+ifeq ($(OP2_COMPILER),xl)
+  CC       := xlc
+ifdef DEBUG
+  CCFLAGS  := -O0 -g
+else
+  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O5 -qhot 
+endif
+  CXX      := xlc++
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
@@ -68,6 +80,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif

@@ -201,16 +201,7 @@ funlist = []
 
 def get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
-  if hydra:
-    if maps[g_m] == OP_ID:
-      return 'direct_stride_OP2CONSTANT'
-    if maps[g_m] == OP_GBL:
-      return '(gridDim%x*blockDim%x)'
-    else:
-      idx = mapnames.index(mapnames[g_m])
-      return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
-     # return set_name.split('%')[-1].strip()+'_stride_OP2CONSTANT'
-  elif bookleaf:
+  if bookleaf:
     if maps[g_m] == OP_MAP:
       if 'el2node' in mapnames[g_m]:
         return 'nodes_stride_OP2'
@@ -221,8 +212,13 @@ def get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf):
     else:
       return set_name.strip()[2:]+'_stride_OP2'
   else:
-    print 'ERROR, no stride definition'
-    return ''
+    if maps[g_m] == OP_ID:
+      return 'direct_stride_OP2CONSTANT'
+    if maps[g_m] == OP_GBL:
+      return '(gridDim%x*blockDim%x)'
+    else:
+      idx = mapnames.index(mapnames[g_m])
+      return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
 def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,hydra,bookleaf):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
@@ -901,7 +897,10 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('attributes (host) &')
       code('#include "'+name+'.inc"')
       code('attributes (device) &')
-      code('#include "'+name+'.inc2"')
+      fid = open(name+'.inc2', 'r')
+      text = fid.read()
+      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,hydra,bookleaf)
+      code(text)
       depth += 2
       code('')
 
@@ -1301,7 +1300,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
             else:
               if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
-                if dims[g_m].isdigit() and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
+                if dims[g_m].isdigit(): # and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
                     for i in range(0,int(dims[g_m])):
                       code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
                       '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local('+str(i)+')')
@@ -1440,7 +1439,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       code('TYPE ( op_arg ) , INTENT(IN) :: opArg'+str(g_m+1))
     code('')
-    IF('getHybridGPU()')
+    IF('getHybridGPU().EQ.1')
     code('CALL '+name+'_host_gpu( userSubroutine, set, &');
     for g_m in range(0,nargs):
       if g_m == nargs-1:

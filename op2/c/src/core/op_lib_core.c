@@ -205,7 +205,7 @@ op_init_core ( int argc, char ** argv, int diags )
     op_printf ( "\n OP_hybrid_balance  = %g \n", OP_hybrid_balance );
   }
 
-  if ( getenv ( "OP_AUTO_SOA" ) ) {
+  if ( getenv ( "OP_AUTO_SOA" ) || OP_auto_soa == 1 ) {
     OP_auto_soa = 1;
     op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
   }
@@ -601,8 +601,8 @@ op_arg_dat_core ( op_dat dat, int idx, op_map map, int dim, const char * typ, op
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    arg.map_data_d = (map == NULL ? NULL : map->map_d);
-    arg.map_data = (map == NULL ? NULL : map->map);
+    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+    arg.map_data = (idx == -1 ? NULL : map->map);
   }
   else
   {

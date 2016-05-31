@@ -45,6 +45,13 @@
  */
 
 void
+op_init_soa ( int argc, char ** argv, int diags, int soa )
+{
+  OP_auto_soa = soa;
+  op_init(argc,argv,diags);
+}
+
+void
 op_init ( int argc, char ** argv, int diags )
 {
   op_init_core ( argc, argv, diags );
@@ -54,6 +61,13 @@ void
 op_mpi_init ( int argc, char ** argv, int diags, int global, int local )
 {
   op_init_core ( argc, argv, diags );
+}
+
+void
+op_mpi_init_soa ( int argc, char ** argv, int diags, int global, int local, int soa )
+{
+  OP_auto_soa = soa;
+  op_mpi_init(argc,argv,diags,global,local);
 }
 
 op_dat

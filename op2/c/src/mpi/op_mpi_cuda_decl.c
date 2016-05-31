@@ -59,9 +59,15 @@ MPI_Comm OP_MPI_GLOBAL;
 //
 
 void
-op_init ( int argc, char ** argv, int diags)
+op_init ( int argc, char ** argv, int diags) {
+  op_init_soa(argc,argv,diags,0);
+}
+
+void
+op_init_soa ( int argc, char ** argv, int diags, int soa)
 {
   int flag = 0;
+  OP_auto_soa = soa;
   MPI_Initialized(&flag);
   if(!flag)
   {
@@ -96,8 +102,15 @@ op_init ( int argc, char ** argv, int diags)
 }
 
 void
-op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local )
+op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local)
 {
+  op_mpi_init_soa(argc,argv,diags,global,local,0);
+}
+
+void
+op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local, int soa )
+{
+  OP_auto_soa = soa;
   int flag = 0;
   MPI_Initialized(&flag);
   if(!flag)

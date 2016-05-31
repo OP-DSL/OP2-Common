@@ -34,6 +34,7 @@ file1_kernels.cu   -- for CUDA execution
 import sys
 import re
 import datetime
+import os
 
 # Import MPI+SEQ and MPI+autovectorised SEQ
 from op2_gen_seq import op2_gen_seq
@@ -197,6 +198,10 @@ def get_arg_gbl(arg_string, k):
 
     return temp_gbl
 
+def append_init_soa(text):
+  text = re.sub('\\bop_init\\b\\s*\((.*)\)','op_init_soa(\\1,1)', text)
+  text = re.sub('\\bop_mpi_init\\b\\s*\((.*)\)','op_mpi_init_soa(\\1,1)', text)
+  return text
 
 def op_par_loop_parse(text):
     """Parsing for op_par_loop calls"""
@@ -286,7 +291,7 @@ def main():
     OP_MAX = 5
     OP_MIN = 6
 
-    auto_soa = 0
+    auto_soa=os.getenv('OP_AUTO_SOA','0')
 
     OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
                       'OP_MAX', 'OP_MIN']
@@ -311,6 +316,8 @@ def main():
             print ' '
         if inits > 0:
             print'contains op_init call'
+            if auto_soa:
+              text = append_init_soa(text)
         if exits > 0:
             print'contains op_exit call'
         if parts > 0:
@@ -400,7 +407,7 @@ def main():
 
                     dims[m] = args['dim']
                     soa_loc = args['typ'].find(':soa')
-                    if auto_soa == 1 and int(args['dim'])>1 and soa_loc < 0:
+                    if ((auto_soa=='1') and (((not dims[m].isdigit()) or int(dims[m])>1)) and (soa_loc < 0)):
                         soa_loc = len(args['typ'])-1
 
                     if soa_loc > 0:
@@ -632,15 +639,8 @@ def main():
 
             if (locs[loc] in loc_header) and (locs[loc] != -1):
                 fid.write(' "op_lib_cpp.h"\n\n')
-                if any_soa:
-                  line = '\n#define STRIDE(x,y) x\n'
-                  for ns in range (0,len(sets)):
-                    if a == 1:
-                      line += 'int '+sets[ns]['name'].replace('"','')+'_stride = 1;\n'
-                    else:
-                      line += 'extern int '+sets[ns]['name'].replace('"','')+'_stride;\n'
-                      fid.write(line)
                 fid.write('//\n// op_par_loop declarations\n//\n')
+                fid.write('#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
                 for k_iter in range(0, len(kernels_in_files[a - 1])):
                     k = kernels_in_files[a - 1][k_iter]
                     line = '\nvoid op_par_loop_' + \
@@ -650,6 +650,7 @@ def main():
                     line = line + '  op_arg );\n'
                     fid.write(line)
 
+                fid.write('#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n')
                 fid.write('\n')
                 loc_old = locs[loc] + header_len-1
                 continue
@@ -702,7 +703,9 @@ def main():
     if ninit == 0:
         print' '
         print'-----------------------------'
-        print'  ERROR: no call to op_init  '
+        print'  WARNING: no call to op_init'
+        if auto_soa==1:
+          print'  WARNING: code generated with OP_AUTO_SOA,\n but couldn\'t modify op_init to pass\n an additional parameter of 1.\n Please make sure OP_AUTO_SOA is set when executing'
         print'-----------------------------'
 
     if nexit == 0:
@@ -735,7 +738,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    # op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
