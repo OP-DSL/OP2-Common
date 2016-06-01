@@ -198,6 +198,8 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
+  double g_ncell = op_get_size(cells);
+
   //initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
@@ -265,9 +267,21 @@ int main(int argc, char **argv)
     }
 
     // print iteration history
-    rms = sqrt(rms/(double) op_get_size(cells));
+    rms = sqrt(rms/(double)g_ncell );
     if (iter%100 == 0)
       op_printf(" %d  %10.5e \n",iter,rms);
+
+    if (iter%1000 == 0 && g_ncell == 720000){ //defailt mesh -- for validation testing
+      //op_printf(" %d  %3.16f \n",iter,rms);
+      double diff=fabs((100.0*(rms/0.0001060114637578))-100.0);
+      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the expected solution\n",720000, diff);
+      if(diff < 0.000001) {
+        op_printf("This test is considered PASSED\n");
+      }
+      else {
+        op_printf("This test is considered FAILED\n");
+      }
+    }
 
     if (op_free_dat_temp(p_res) < 0)
       op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);
@@ -279,7 +293,7 @@ int main(int argc, char **argv)
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-  op_printf("Max total runtime = \n%f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
 
   op_exit();
 

@@ -111,7 +111,7 @@ void op_par_loop_update(char const *, op_set,
 int main(int argc, char **argv)
 {
   // OP initialisation
-  op_init(argc,argv,5);
+  op_init_soa(argc,argv,5,1);
 
   int   nnode, nedge, n, e;
   float dx;

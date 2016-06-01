@@ -6,7 +6,8 @@
 
 #exit script if any error is encountered during the build or
 #application executions.
-set -e
+#set -e
+
 
 export CURRENT_DIR=$PWD
 cd ../op2
@@ -21,7 +22,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-#<<COMMENT1
+<<COMMENT1
 
 echo " "
 echo " "
@@ -31,7 +32,7 @@ echo "**********************************************************************"
 . $CURRENT_DIR/source_intel
 make clean; make
 
-##<<COMMENT1
+#<<COMMENT1
 
 echo " "
 echo " "
@@ -94,10 +95,18 @@ echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 
-#COMMENT1
+COMMENT1
+
+function validate {
+  $1 > perf_out
+  echo
+  echo $1
+  grep "Max total runtime" perf_out;grep "PASSED" perf_out
+  rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
+}
 
 
 echo " "
@@ -110,60 +119,60 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
-./airfoil_seq
-./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+#validate "./airfoil_seq"
+validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./airfoil_openmp OP_PART_SIZE=256
+validate "./airfoil_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec
-./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
+validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
 #<<COMMENT1
 echo " "
 echo " "
 echo "=======================> Running Airfoil HDF5 DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
-./airfoil_seq
-./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./airfoil_seq"
+validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./airfoil_openmp OP_PART_SIZE=256
+validate "./airfoil_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec
-./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
+validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 export OMP_NUM_THREADS=20
-./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
 
 echo " "
 echo " "
 echo "=======================> Running Airfoil Tempdats DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp
-./airfoil_seq
-./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./airfoil_seq"
+validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./airfoil_openmp OP_PART_SIZE=256
+validate "./airfoil_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi
-./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
+validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
 echo " "
 echo " "
@@ -372,7 +381,7 @@ $MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0
 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0
 $MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0 
+./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0
 #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0
