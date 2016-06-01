@@ -79,7 +79,7 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  call op_init (0)
+  call op_init_soa(0,1)
 
   print *, "Initialising constants"
   call initialise_flow_field ( ncell, q, res )
@@ -178,6 +178,7 @@ program AIRFOIL
 
     end do ! internal loop
 
+
     ncellr = real ( ncell )
     rms(2) = sqrt ( rms(2) / ncellr )
 
@@ -188,10 +189,11 @@ program AIRFOIL
     end if
 
   end do ! external loop
-
+  
   call op_fetch_data(p_q,q)
 
   call op_fetch_data_idx(p_q,q_part, 1, ncell)
+
   call op_timers ( endTime )
   call op_timing_output ()
   write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
