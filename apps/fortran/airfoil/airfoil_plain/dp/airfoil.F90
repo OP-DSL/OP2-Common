@@ -189,7 +189,7 @@ program AIRFOIL
         if(diff.LT.0.00001) THEN
           WRITE(*,*)"This test is considered PASSED"
         else
-          WRITE(*,*)"This test is considered NOT PASSED"
+          WRITE(*,*)"This test is considered FAILED"
         endif
       end if
     end if
