@@ -43,6 +43,10 @@ program AIRFOIL
   integer(4) :: debugiter, retDebug
   real(8) :: datad
 
+  ! for validation
+  REAL(KIND=8) :: diff
+  integer(4):: ncelli
+
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
   print *, "Getting set sizes"
@@ -110,6 +114,11 @@ program AIRFOIL
   !call op_dump_to_hdf5("new_grid_out.h5")
   !call op_fetch_data_hdf5_file(p_x, "new_grid_out.h5")
 
+  call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
+
+  ncelli  = op_get_size(cells)
+  ncellr = real(ncelli)
+
   ! start timer
   call op_timers ( startTime )
 
@@ -166,18 +175,27 @@ program AIRFOIL
 
     end do ! internal loop
 
-
-    ncellr = real ( ncell )
     rms(2) = sqrt ( rms(2) / ncellr )
 
-    if (mod(niter,100) .eq. 0) then
-      if (op_is_root() .eq. 1) then
+    if (op_is_root() .eq. 1) then
+      if (mod(niter,100) .eq. 0) then
         write (*,*) niter,"  ",rms(2)
+      end if
+      if ((mod(niter,1000) .eq. 0) .AND. (ncelli == 720000) ) then
+        diff=ABS((100.0_8*(rms(2)/0.0001060114637578_8))-100.0_8)
+        !write (*,*) niter,"  ",rms(2)
+        WRITE(*,'(a,i,a,e16.7,a)')"Test problem with ", ncelli , &
+        & " cells is within ",diff,"% of the expected solution"
+        if(diff.LT.0.00001) THEN
+          WRITE(*,*)"This test is considered PASSED"
+        else
+          WRITE(*,*)"This test is considered NOT PASSED"
+        endif
       end if
     end if
 
   end do ! external loop
-  
+
   call op_fetch_data(p_q,q)
 
   call op_fetch_data_idx(p_q,q_part, 1, ncell)
