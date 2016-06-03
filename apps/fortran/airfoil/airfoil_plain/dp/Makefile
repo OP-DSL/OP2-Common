@@ -117,6 +117,7 @@ clean:
 	rm -f airfoil_genseq
 	rm -f airfoil_seq
 	rm -f airfoil_vec
+	rm -f airfoil_openmp
 	rm -f airfoil_openmp_*
 	rm -f airfoil_cuda
 	rm -f airfoil_vec

@@ -80,6 +80,9 @@ int main(int argc, char **argv)
   // OP initialisation
   op_init(argc,argv,5);
 
+  //timer
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+
   int   nnode, nedge, n, e;
 
   nnode = (NN-1)*(NN-1);
@@ -146,6 +149,9 @@ int main(int argc, char **argv)
 
   op_diagnostic_output();
 
+  //initialise timers for total execution wall time
+  op_timers(&cpu_t1, &wall_t1);
+
   // main iteration loop
 
   double u_sum, u_max, beta = 1.0f;
@@ -168,8 +174,9 @@ int main(int argc, char **argv)
     op_printf("\n u max/rms = %f %f \n\n",u_max, sqrt(u_sum/nnode));
   }
 
-  // print out results
+  op_timers(&cpu_t2, &wall_t2);
 
+  // print out results
   op_printf("\n  Results after %d iterations:\n\n",NITER);
 
   op_fetch_data(p_u, u);
@@ -190,6 +197,10 @@ int main(int argc, char **argv)
   }
 
   op_timing_output();
+
+  //print total time for niter interations
+  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+
   int result = check_result<double>(u, NN, TOLERANCE);
   op_exit();
 

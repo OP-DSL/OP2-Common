@@ -1,6 +1,15 @@
 #!/bin/bash
 #set -e
 
+function validate {
+  $1 > perf_out
+  echo
+  echo $1
+  grep "Max total runtime" perf_out;grep "PASSED" perf_out
+  rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
+}
+
+
 #
 #Set up directory vars and Build OP2 C libs and apps with cmake
 #
@@ -32,54 +41,46 @@ echo "In directory $PWD"
 echo " "
 echo "----------------Testing airfoil_dp_seq ----------------------------------"
 echo " "
-./airfoil_dp_seq > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_dp_seq"
 
 echo " "
 echo "----------------Testing airfoil_dp_cuda ---------------------------------"
 echo " "
-./airfoil_dp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_dp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "----------------Testing airfoil_dp_openmp--------------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_dp_openmp OP_PART_SIZE=256  > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_dp_openmp OP_PART_SIZE=256"
 
 echo " "
 echo "----------------Testing airfoil_dp_mpi ----------------------------------"
 echo " "
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_dp_mpi > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_dp_mpi"
 
 echo " "
 echo "----------------Testing airfoil_dp_mpi_cuda 1 mpi proc ------------------"
 echo " "
-./airfoil_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "----------------Testing airfoil_dp_mpi_cuda 2 mpi procs------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "----------------Testing airfoil_dp_mpi_openmp 1 mpi proc ----------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_dp_mpi_openmp OP_PART_SIZE=256"
 
 echo " "
-echo "----------------Testing airfoil_dp_mpi_openmp 11 mpi procs---------------"
+echo "----------------Testing airfoil_dp_mpi_openmp 10 mpi procs---------------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_dp_mpi_openmp OP_PART_SIZE=256"
 
 
 
@@ -90,53 +91,45 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-----------------Testing airfoil_sp_seq----------------------------------"
 echo " "
-./airfoil_sp_seq > perf_out;
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_sp_seq ;"
 
 echo " "
 echo "-----------------Testing airfoil_sp_cuda---------------------------------"
 echo " "
-./airfoil_sp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_sp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_sp_openmp-------------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_sp_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_sp_openmp OP_PART_SIZE=256"
 
 echo " "
 echo "-----------------Testing airfoil_sp_mpi----------------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_sp_mpi > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_sp_mpi"
 
 echo " "
 echo "-----------------Testing airfoil_sp_mpi_cuda 1 mpi proc -----------------"
 echo " "
-./airfoil_sp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_sp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_sp_mpi_cuda 2 mpi procs-----------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_sp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_sp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_sp_mpi_openmp 1 mpi proc ---------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_sp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_sp_mpi_openmp OP_PART_SIZE=256"
 
 echo " "
-echo "-----------------Testing airfoil_sp_mpi_openmp 11 mpi procs--------------"
+echo "-----------------Testing airfoil_sp_mpi_openmp 10 mpi procs--------------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_sp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_sp_mpi_openmp OP_PART_SIZE=256"
 
 #-------------------------------------------------------------------------------
 # test Arifoil DP- with hdf5 file I/O
@@ -145,53 +138,45 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_seq-----------------------------"
 echo " "
-./airfoil_hdf5_dp_seq > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_hdf5_dp_seq"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_cuda ---------------------------"
 echo " "
-./airfoil_hdf5_dp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_hdf5_dp_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_openmp -------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_dp_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_hdf5_dp_openmp OP_PART_SIZE=256"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_mpi-----------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_dp_mpi > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_dp_mpi"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_mpi_cuda 1 mpi proc ------------"
 echo " "
-./airfoil_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_mpi_cuda 2 mpi procs------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_dp_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_hdf5_dp_mpi_openmp 1 mpi proc ----------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_hdf5_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_hdf5_dp_mpi_openmp OP_PART_SIZE=256"
 
 echo " "
-echo "-----------------Testing airfoil_hdf5_dp_mpi_openmp 11 mpi procs---------"
+echo "-----------------Testing airfoil_hdf5_dp_mpi_openmp 10 mpi procs---------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_hdf5_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_dp_mpi_openmp OP_PART_SIZE=256"
 
 
 #-------------------------------------------------------------------------------
@@ -201,53 +186,45 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "-----------------Testing airfoil_tempdats_seq---------------------------"
 echo " "
-./airfoil_tempdats_seq > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_tempdats_seq"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_cuda---------------------------"
 echo " "
-./airfoil_tempdats_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_tempdats_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_openmp-------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_tempdats_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_tempdats_openmp OP_PART_SIZE=256"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_mpi ---------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_tempdats_mpi > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_tempdats_mpi"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_mpi_cuda 1 mpi proc -----------"
 echo " "
-./airfoil_tempdats_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_tempdats_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_mpi_cuda 2 mpi procs-----------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_tempdats_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_tempdats_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_mpi_openmp 1 mpi proc----------"
 echo " "
 export OMP_NUM_THREADS=20
-./airfoil_tempdats_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "./airfoil_tempdats_mpi_openmp OP_PART_SIZE=256"
 
 echo " "
 echo "-----------------Testing airfoil_tempdats_mpi_openmp 1 mpi procs---------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./airfoil_tempdats_mpi_openmp OP_PART_SIZE=256 > perf_out
-grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_tempdats_mpi_openmp OP_PART_SIZE=256"
 
 
 
@@ -258,27 +235,23 @@ grep "1.060" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 echo " "
 echo "------------------Testing jac1_dp_seq------------------------------------"
 echo " "
-./jac1_dp_seq > perf_out
-grep "Results check" perf_out
+validate "./jac1_dp_seq"
 
 echo " "
 echo "------------------Testing jac1_dp_cuda ----------------------------------"
 echo " "
-./jac1_dp_cuda > perf_out
-grep "Results check" perf_out
+validate "./jac1_dp_cuda"
 
 echo " "
 echo "------------------Testing jac1_dp_openmp --------------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./jac1_dp_openmp > perf_out
-grep "Results check" perf_out
+validate "./jac1_dp_openmp"
 
 echo " "
 echo "------------------Testing jac1_dp_mpi------------------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac1_dp_mpi > perf_out
-grep "Results check" perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac1_dp_mpi"
 
 #-------------------------------------------------------------------------------
 # test Jac SP - with plain text file I/O
@@ -287,27 +260,23 @@ grep "Results check" perf_out
 echo " "
 echo "------------------Testing jac1_sp_seq------------------------------------"
 echo " "
-./jac1_sp_seq > perf_out
-grep "Results check" perf_out
+validate "./jac1_sp_seq"
 
 echo " "
 echo "------------------Testing jac1_sp_cuda-----------------------------------"
 echo " "
-./jac1_sp_cuda  > perf_out
-grep "Results check" perf_out
+validate "./jac1_sp_cuda"
 
 echo " "
 echo "------------------Testing jac1_sp_openmp---------------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./jac1_sp_openmp  > perf_out
-grep "Results check" perf_out
+validate "./jac1_sp_openmp"
 
 echo " "
 echo "------------------Testing jac1_sp_mpi------------------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac1_sp_mpi > perf_out
-grep "Results check" perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac1_sp_mpi"
 
 
 #-------------------------------------------------------------------------------
@@ -317,29 +286,25 @@ grep "Results check" perf_out
 echo " "
 echo "------------------Testing jac2_seq --------------------------------------"
 echo " "
-./jac2_seq > perf_out
-grep "Results check" perf_out
+validate "./jac2_seq"
 
 echo " "
 echo "------------------Testing jac2_cuda--------------------------------------"
 echo " "
-./jac2_cuda  > perf_out
-grep "Results check" perf_out
+validate "./jac2_cuda"
 
 echo " "
 echo "------------------Testing jac2_openmp------------------------------------"
 echo " "
 export OMP_NUM_THREADS=20
-./jac2_openmp  > perf_out
-grep "Results check" perf_out
+validate "./jac2_openmp"
 
 echo " "
 echo "------------------Testing jac2_mpi---------------------------------------"
 echo " "
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac2_mpi > perf_out
-grep "Results check" perf_out
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac2_mpi"
 
-#COMMENT
+<<COMMENT
 
 
 #-------------------------------------------------------------------------------
@@ -391,10 +356,10 @@ echo " "
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 echo " "
-echo "-------------------Testing aero_dp_mpi_openmp 11 mpi procs---------------"
+echo "-------------------Testing aero_dp_mpi_openmp 10 mpi procs---------------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./aero_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 
@@ -449,8 +414,10 @@ echo " "
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
 
 echo " "
-echo "-------------------Testing aero_hdf5_dp_mpi_openmp 11 mpi procs----------"
+echo "-------------------Testing aero_hdf5_dp_mpi_openmp 10 mpi procs----------"
 echo " "
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 11 ./aero_hdf5_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
+$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_hdf5_dp_mpi_openmp OP_PART_SIZE=256 > perf_out
 grep "iter: 200" perf_out;grep "Max total runtime" perf_out;tail -n 1  perf_out
+
+COMMENT

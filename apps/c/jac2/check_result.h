@@ -60,7 +60,7 @@ int check_result(T* u, int nn, T tol)
   }
 
   if (!failed)
-    op_printf("\nResults check passed!\n");
+    op_printf("\nResults check PASSED!\n");
 
   return failed;
 }

@@ -47,7 +47,7 @@
 
 // global constants
 
-double gam, gm1, cfl, eps, mach, alpha, qinf[4];
+float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 //
 // OP header file
@@ -79,7 +79,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_seq.h"
 
-static void scatter_double_array(double* g_array, double* l_array, int comm_size, int g_size,
+static void scatter_float_array(float* g_array, float* l_array, int comm_size, int g_size,
                                  int l_size, int elem_size)
 {
   int* sendcnts = (int *) malloc(comm_size*sizeof(int));
@@ -96,8 +96,8 @@ static void scatter_double_array(double* g_array, double* l_array, int comm_size
     disp = disp + sendcnts[i];
   }
 
-  MPI_Scatterv(g_array, sendcnts, displs, MPI_DOUBLE, l_array,
-      l_size*elem_size, MPI_DOUBLE, MPI_ROOT,  MPI_COMM_WORLD );
+  MPI_Scatterv(g_array, sendcnts, displs, MPI_FLOAT, l_array,
+      l_size*elem_size, MPI_FLOAT, MPI_ROOT,  MPI_COMM_WORLD );
 
   free(sendcnts);
   free(displs);
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
+  float  *x, *q, *qold, *adt, *res;
 
   int    nnode,ncell,nedge,nbedge;
 
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
   check_scan(fscanf(fp,"%d %d %d %d \n",&g_nnode, &g_ncell, &g_nedge, &g_nbedge), 4);
 
   int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0, *g_cell = 0;
-  double *g_x = 0,*g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
+  float *g_x = 0,*g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
 
   // set constants
 
@@ -183,12 +183,12 @@ int main(int argc, char **argv)
   cfl = 0.9f;
   eps = 0.05f;
 
-  double mach  = 0.4f;
-  double alpha = 3.0f*atan(1.0f)/45.0f;
-  double p     = 1.0f;
-  double r     = 1.0f;
-  double u     = sqrt(gam*p/r)*mach;
-  double e     = p/(r*gm1) + 0.5f*u*u;
+  float mach  = 0.4f;
+  float alpha = 3.0f*atan(1.0f)/45.0f;
+  float p     = 1.0f;
+  float r     = 1.0f;
+  float u     = sqrt(gam*p/r)*mach;
+  float e     = p/(r*gm1) + 0.5f*u*u;
 
   qinf[0] = r;
   qinf[1] = r*u;
@@ -207,14 +207,14 @@ int main(int argc, char **argv)
     g_becell = (int *) malloc(  g_nbedge*sizeof(int));
     g_bound  = (int *) malloc(  g_nbedge*sizeof(int));
 
-    g_x      = (double *) malloc(2*g_nnode*sizeof(double));
-    g_q      = (double *) malloc(4*g_ncell*sizeof(double));
-    g_qold   = (double *) malloc(4*g_ncell*sizeof(double));
-    g_res    = (double *) malloc(4*g_ncell*sizeof(double));
-    g_adt    = (double *) malloc(  g_ncell*sizeof(double));
+    g_x      = (float *) malloc(2*g_nnode*sizeof(float));
+    g_q      = (float *) malloc(4*g_ncell*sizeof(float));
+    g_qold   = (float *) malloc(4*g_ncell*sizeof(float));
+    g_res    = (float *) malloc(4*g_ncell*sizeof(float));
+    g_adt    = (float *) malloc(  g_ncell*sizeof(float));
 
     for (int n=0; n<g_nnode; n++){
-      check_scan(fscanf(fp,"%lf %lf \n",&g_x[2*n], &g_x[2*n+1]), 2);
+      check_scan(fscanf(fp,"%f %f \n",&g_x[2*n], &g_x[2*n+1]), 2);
     }
 
     for (int n=0; n<g_ncell; n++) {
@@ -260,11 +260,11 @@ int main(int argc, char **argv)
   becell = (int *) malloc(  nbedge*sizeof(int));
   bound  = (int *) malloc(  nbedge*sizeof(int));
 
-  x      = (double *) malloc(2*nnode*sizeof(double));
-  q      = (double *) malloc(4*ncell*sizeof(double));
-  qold   = (double *) malloc(4*ncell*sizeof(double));
-  res    = (double *) malloc(4*ncell*sizeof(double));
-  adt    = (double *) malloc(  ncell*sizeof(double));
+  x      = (float *) malloc(2*nnode*sizeof(float));
+  q      = (float *) malloc(4*ncell*sizeof(float));
+  qold   = (float *) malloc(4*ncell*sizeof(float));
+  res    = (float *) malloc(4*ncell*sizeof(float));
+  adt    = (float *) malloc(  ncell*sizeof(float));
 
   /* scatter sets, mappings and data on sets*/
   scatter_int_array(g_cell, cell, comm_size, g_ncell,ncell, 4);
@@ -274,11 +274,11 @@ int main(int argc, char **argv)
   scatter_int_array(g_becell, becell, comm_size, g_nbedge,nbedge, 1);
   scatter_int_array(g_bound, bound, comm_size, g_nbedge,nbedge, 1);
 
-  scatter_double_array(g_x, x, comm_size, g_nnode,nnode, 2);
-  scatter_double_array(g_q, q, comm_size, g_ncell,ncell, 4);
-  scatter_double_array(g_qold, qold, comm_size, g_ncell,ncell, 4);
-  scatter_double_array(g_res, res, comm_size, g_ncell,ncell, 4);
-  scatter_double_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
+  scatter_float_array(g_x, x, comm_size, g_nnode,nnode, 2);
+  scatter_float_array(g_q, q, comm_size, g_ncell,ncell, 4);
+  scatter_float_array(g_qold, qold, comm_size, g_ncell,ncell, 4);
+  scatter_float_array(g_res, res, comm_size, g_ncell,ncell, 4);
+  scatter_float_array(g_adt, adt, comm_size, g_ncell,ncell, 1);
 
   /*Freeing memory allocated to gloabal arrays on rank 0
     after scattering to all processes*/
@@ -313,28 +313,28 @@ int main(int argc, char **argv)
   op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
 
   op_dat p_bound = op_decl_dat(bedges,1,"int"  ,bound,"p_bound");
-  op_dat p_x     = op_decl_dat(nodes ,2,"double",x    ,"p_x");
-  op_dat p_q     = op_decl_dat(cells ,4,"double",q    ,"p_q");
-  op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
-  op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
-  op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
+  op_dat p_x     = op_decl_dat(nodes ,2,"float",x    ,"p_x");
+  op_dat p_q     = op_decl_dat(cells ,4,"float",q    ,"p_q");
+  op_dat p_qold  = op_decl_dat(cells ,4,"float",qold ,"p_qold");
+  op_dat p_adt   = op_decl_dat(cells ,1,"float",adt  ,"p_adt");
+  op_dat p_res   = op_decl_dat(cells ,4,"float",res  ,"p_res");
 
-  op_decl_const(1,"double",&gam  );
-  op_decl_const(1,"double",&gm1  );
-  op_decl_const(1,"double",&cfl  );
-  op_decl_const(1,"double",&eps  );
-  op_decl_const(1,"double",&mach );
-  op_decl_const(1,"double",&alpha);
-  op_decl_const(4,"double",qinf  );
+  op_decl_const(1,"float",&gam  );
+  op_decl_const(1,"float",&gm1  );
+  op_decl_const(1,"float",&cfl  );
+  op_decl_const(1,"float",&eps  );
+  op_decl_const(1,"float",&mach );
+  op_decl_const(1,"float",&alpha);
+  op_decl_const(4,"float",qinf  );
 
   op_dump_to_hdf5(file_out);
-  op_write_const_hdf5("gam",  1,"double",(char *)&gam,  "new_grid_out.h5");
-  op_write_const_hdf5("gm1",  1,"double",(char *)&gm1,  "new_grid_out.h5");
-  op_write_const_hdf5("cfl",  1,"double",(char *)&cfl,  "new_grid_out.h5");
-  op_write_const_hdf5("eps",  1,"double",(char *)&eps,  "new_grid_out.h5");
-  op_write_const_hdf5("mach", 1,"double",(char *)&mach, "new_grid_out.h5");
-  op_write_const_hdf5("alpha",1,"double",(char *)&alpha,"new_grid_out.h5");
-  op_write_const_hdf5("qinf", 4,"double",(char *)qinf,  "new_grid_out.h5");
+  op_write_const_hdf5("gam",  1,"float",(char *)&gam,  "new_grid_out.h5");
+  op_write_const_hdf5("gm1",  1,"float",(char *)&gm1,  "new_grid_out.h5");
+  op_write_const_hdf5("cfl",  1,"float",(char *)&cfl,  "new_grid_out.h5");
+  op_write_const_hdf5("eps",  1,"float",(char *)&eps,  "new_grid_out.h5");
+  op_write_const_hdf5("mach", 1,"float",(char *)&mach, "new_grid_out.h5");
+  op_write_const_hdf5("alpha",1,"float",(char *)&alpha,"new_grid_out.h5");
+  op_write_const_hdf5("qinf", 4,"float",(char *)qinf,  "new_grid_out.h5");
 
   //create halos - for sanity check
   op_halo_create();

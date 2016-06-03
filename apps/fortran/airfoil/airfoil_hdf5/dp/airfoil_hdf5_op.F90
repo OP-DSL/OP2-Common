@@ -58,8 +58,12 @@ program AIRFOIL
 
   integer(4) :: status
 
+  ! for validation
+  REAL(KIND=8) :: diff
+  integer(4):: ncelli
+
   ! OP initialisation
-  call op_init_base_soa(0,0,1)
+  call op_init_base (0,0)
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   call op_print ("Declaring OP2 sets")
@@ -112,7 +116,9 @@ program AIRFOIL
   call op_dump_to_hdf5("new_grid_out.h5");
 
   call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
-  ncellr = real(op_get_size(cells))
+
+  ncelli  = op_get_size(cells)
+  ncellr = real(ncelli)
 
   ! start timer
   call op_timers ( startTime )
@@ -183,11 +189,24 @@ program AIRFOIL
 
     rms(2) = sqrt ( rms(2) / ncellr )
 
-    if (mod(niter,100) .eq. 0) then
-      if (op_is_root() .eq. 1) then
+    if (op_is_root() .eq. 1) then
+      if (mod(niter,100) .eq. 0) then
         write (*,*) niter,"  ",rms(2)
       end if
+      if ((mod(niter,1000) .eq. 0) .AND. (ncelli == 720000) ) then
+        diff=ABS((100.0_8*(rms(2)/0.0001060114637578_8))-100.0_8)
+        !write (*,*) niter,"  ",rms(2)
+        WRITE(*,'(a,i,a,e16.7,a)')"Test problem with ", ncelli , &
+        & " cells is within ",diff,"% of the expected solution"
+        if(diff.LT.0.00001) THEN
+          WRITE(*,*)"This test is considered PASSED"
+        else
+          WRITE(*,*)"This test is considered FAILED"
+        endif
+      end if
     end if
+
+
 
   end do ! external loop
 

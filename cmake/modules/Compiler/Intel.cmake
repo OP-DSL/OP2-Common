@@ -9,10 +9,10 @@ macro(__compiler_intel lang)
   set(CMAKE_${lang}_VERBOSE_FLAG "-v")
 
   # Initial configuration flags.
-  set(CMAKE_${lang}_FLAGS_INIT "-vec-report")
+  set(CMAKE_${lang}_FLAGS_INIT "")
   set(CMAKE_${lang}_FLAGS_DEBUG_INIT "-g -DDEBUG")
   set(CMAKE_${lang}_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG")
-  set(CMAKE_${lang}_FLAGS_RELEASE_INIT "-O3 -xSSE4.2 -DNDEBUG")
+  set(CMAKE_${lang}_FLAGS_RELEASE_INIT "-O3 -xHOST -DNDEBUG")
   set(CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT "-O2 -g")
 
   # Custom Developer build type, need to create cache variable for that
