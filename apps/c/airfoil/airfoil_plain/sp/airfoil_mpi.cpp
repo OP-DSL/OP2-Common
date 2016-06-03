@@ -406,6 +406,17 @@ int main(int argc, char **argv)
     rms = sqrt(rms/(float) g_ncell);
     if (iter%100 == 0)
       op_printf("%d  %10.5e \n",iter,rms);
+    if (iter%1000 == 0 && g_ncell == 720000){ //defailt mesh -- for validation testing
+      op_printf(" %d  %3.16f \n",iter,rms);
+      float diff=fabsf((100.0*(rms/0.000105987))-100.0);
+      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the expected solution\n",720000, diff);
+      if(diff < 0.1) {
+        op_printf("This test is considered PASSED\n");
+      }
+      else {
+        op_printf("This test is considered FAILED\n");
+      }
+    }
   }
 
   op_timers(&cpu_t2, &wall_t2);
