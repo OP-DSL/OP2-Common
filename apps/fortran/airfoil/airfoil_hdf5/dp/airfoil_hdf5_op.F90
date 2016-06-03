@@ -63,7 +63,7 @@ program AIRFOIL
   integer(4):: ncelli
 
   ! OP initialisation
-  call op_init_base_soa(0,0,1)
+  call op_init_base (0,0)
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   call op_print ("Declaring OP2 sets")
@@ -201,7 +201,7 @@ program AIRFOIL
         if(diff.LT.0.00001) THEN
           WRITE(*,*)"This test is considered PASSED"
         else
-          WRITE(*,*)"This test is considered NOT PASSED"
+          WRITE(*,*)"This test is considered FAILED"
         endif
       end if
     end if

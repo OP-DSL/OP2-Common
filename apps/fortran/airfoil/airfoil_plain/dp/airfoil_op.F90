@@ -83,7 +83,7 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  call op_init_soa(0,1)
+  call op_init (0)
 
   print *, "Initialising constants"
   call initialise_flow_field ( ncell, q, res )
@@ -201,7 +201,7 @@ program AIRFOIL
         if(diff.LT.0.00001) THEN
           WRITE(*,*)"This test is considered PASSED"
         else
-          WRITE(*,*)"This test is considered NOT PASSED"
+          WRITE(*,*)"This test is considered FAILED"
         endif
       end if
     end if

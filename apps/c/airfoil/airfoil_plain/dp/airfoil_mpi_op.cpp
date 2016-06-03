@@ -468,7 +468,7 @@ int main(int argc, char **argv)
       //op_printf(" %d  %3.16f \n",iter,rms);
       double diff=fabs((100.0*(rms/0.0001060114637578))-100.0);
       op_printf("\n\nTest problem with %d cells is within %3.15E %% of the expected solution\n",720000, diff);
-      if(diff < 0.000001) {
+      if(diff < 0.00001) {
         op_printf("This test is considered PASSED\n");
       }
       else {

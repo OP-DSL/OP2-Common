@@ -3,11 +3,12 @@
 //
 
 //user function
-__device__ void update( const float *r, float *du, float *u, float *u_sum, float *u_max) {
-  u[0*direct_update_stride_OP2CONSTANT]+= du[0*direct_update_stride_OP2CONSTANT]+ alpha * (r[0*direct_update_stride_OP2CONSTANT]);
-  du[0*direct_update_stride_OP2CONSTANT]= 0.0f;
-  *u_sum += (u[0*direct_update_stride_OP2CONSTANT])*(u[0*direct_update_stride_OP2CONSTANT]);
-  *u_max = MAX(*u_max,u[0*direct_update_stride_OP2CONSTANT]);
+__device__
+inline void update_gpu(const float *r, float *du, float *u, float *u_sum, float *u_max){
+  *u += *du + alpha * (*r);
+  *du = 0.0f;
+  *u_sum += (*u)*(*u);
+  *u_max = MAX(*u_max,*u);
 }
 
 
