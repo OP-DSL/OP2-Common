@@ -67,15 +67,14 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include  "op_lib_cpp.h"
 
-
-#define STRIDE(x,y) x
-int nodes_stride = 1;
-int edges_stride = 1;
-int bedges_stride = 1;
-int cells_stride = 1;
 //
 // op_par_loop declarations
 //
+#ifdef OPENACC
+#ifdef __cplusplus
+extern "C" {
+#endif
+#endif
 
 void op_par_loop_save_soln(char const *, op_set,
   op_arg,
@@ -113,6 +112,11 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+#ifdef OPENACC
+#ifdef __cplusplus
+}
+#endif
+#endif
 
 #include "op_lib_mpi.h"
 
@@ -467,6 +471,18 @@ int main(int argc, char **argv)
     rms = sqrt(rms/(double) g_ncell);
     if (iter%100 == 0)
       op_printf("%d  %10.5e \n",iter,rms);
+    
+    if (iter%1000 == 0 && g_ncell == 720000){ //defailt mesh -- for validation testing
+      //op_printf(" %d  %3.16f \n",iter,rms);
+      double diff=fabs((100.0*(rms/0.0001060114637578))-100.0);
+      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the expected solution\n",720000, diff);
+      if(diff < 0.000001) {
+        op_printf("This test is considered PASSED\n");
+      }
+      else {
+        op_printf("This test is considered FAILED\n");
+      }
+    }
 
     if (op_free_dat_temp(p_res) < 0)
       op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);

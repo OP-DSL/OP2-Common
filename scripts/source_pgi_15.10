@@ -8,6 +8,8 @@ unset LD_LIBRARY_PATH
 #OP2 specifics
 export OP2_COMPILER=pgi
 export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+unset OP_AUTO_SOA
+#export OP_AUTO_SOA=1
 
 #External libraries
 export PARMETIS_INSTALL_PATH=/home/mgiles/mudalige/parmetis-pgi-mpich

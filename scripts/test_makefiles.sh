@@ -8,6 +8,14 @@
 #application executions.
 #set -e
 
+function validate {
+  $1 > perf_out
+  echo
+  echo $1
+  grep "Max total runtime" perf_out;grep "PASSED" perf_out
+  rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
+}
+
 
 export CURRENT_DIR=$PWD
 cd ../op2
@@ -22,7 +30,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-<<COMMENT1
+#<<COMMENT1
 
 echo " "
 echo " "
@@ -95,19 +103,12 @@ echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
-#$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
 
-COMMENT1
+#COMMENT1
 
-function validate {
-  $1 > perf_out
-  echo
-  echo $1
-  grep "Max total runtime" perf_out;grep "PASSED" perf_out
-  rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
-}
-
+#<<COMMENT1
 
 echo " "
 echo " "
@@ -133,12 +134,12 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-#<<COMMENT1
+
 echo " "
 echo " "
 echo "=======================> Running Airfoil HDF5 DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
-validate "./airfoil_seq"
+#validate "./airfoil_seq"
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
@@ -161,7 +162,7 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Tempdats DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp
-validate "./airfoil_seq"
+#validate "./airfoil_seq"
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
@@ -173,6 +174,7 @@ export OMP_NUM_THREADS=20
 validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256"
+
 
 echo " "
 echo " "
@@ -209,37 +211,38 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 
+#COMMENT1
 
 echo " "
 echo " "
 echo "=======================> Running Jac1 Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
-./jac_seq
-./jac_cuda
+validate "./jac_seq"
+validate "./jac_cuda"
 export OMP_NUM_THREADS=20
-./jac_openmp
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
+validate "./jac_openmp"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi"
 
 
 echo " "
 echo " "
 echo "=======================> Running Jac1 Plain SP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
-./jac_seq
-./jac_cuda
+validate "./jac_seq"
+validate "./jac_cuda"
 export OMP_NUM_THREADS=20
-./jac_openmp
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
+validate "./jac_openmp"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi"
 
 echo " "
 echo " "
 echo "=======================> Running Jac2 Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2/
-./jac_seq
-./jac_cuda
+validate "./jac_seq"
+validate "./jac_cuda"
 export OMP_NUM_THREADS=20
-./jac_openmp
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi
+validate "./jac_openmp"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./jac_mpi"
 
 #COMMENT1
 
