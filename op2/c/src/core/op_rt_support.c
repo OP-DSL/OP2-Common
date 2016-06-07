@@ -981,7 +981,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           if ( inds[m] < 0 ) //if it is directly addressed
           {
             float fac = 2.0f;
-            if ( accs[m] == OP_READ ) //if you only read it - only write???
+            if ( accs[m] == OP_READ || accs[m] == OP_WRITE ) //if you only read or write it
               fac = 1.0f;
             if ( dats[m] != NULL )
             {
@@ -1005,8 +1005,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
           m2++;
         if ( args[m2].opt == 0 ) continue;
         float fac = 2.0f;
-        if ( accs[m2] == OP_READ ) //only read it (write??)
+        if ( accs[m2] == OP_READ || accs[m2] == OP_WRITE) //only read it
           fac = 1.0f;
+        if (staging == OP_STAGE_INC && accs[m2] != OP_INC){
+          OP_plans[ip].transfer += 1;
+          OP_plans[ip].transfer2 += 1;
+          continue;  
+        }
         OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * dats[m2]->size; //simply read all data one by one
   
         /* work out how many cache lines are used by indirect addressing */
