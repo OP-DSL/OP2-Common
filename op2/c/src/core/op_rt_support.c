@@ -418,7 +418,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
 
   int bsize = part_size;        // blocksize
   if ( bsize == 0 && maxbytes > 0 )
-    bsize = MAX(( 48 * 1024 / ( 64 * maxbytes ) ) * 64, 256);
+    bsize = MAX(( 24 * 1024 / ( 64 * maxbytes ) ) * 64, 256); //48kB exactly is too much, make it 24
   else if (bsize == 0 && maxbytes == 0)
     bsize = 256;
 
@@ -972,7 +972,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size,
   OP_plans[ip].transfer2 = 0;
   float transfer3 = 0;
 
-  if (staging != OP_COLOR2) {
+  if (staging != OP_COLOR2 && staging != OP_STAGE_INC) {
     for ( int b = 0; b < nblocks; b++ )
     {
       for ( int m = 0; m < nargs; m++ ) //for each argument

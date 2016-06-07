@@ -87,7 +87,7 @@ def ENDIF():
   elif CPP:
     code('}')
 
-def op2_gen_cuda(master, date, consts, kernels):
+def op2_gen_cuda(master, date, consts, kernels, sets):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -374,7 +374,7 @@ def op2_gen_cuda(master, date, consts, kernels):
         code('ind_ARG_size = ind_arg_sizes['+str(g_m)+'+blockId*'+ str(ninds)+'];')
 
       code('')
-
+      
       for m in range (1,ninds+1):
         g_m = m - 1
         c = [i for i in range(len(inds)) if inds[i]==m]

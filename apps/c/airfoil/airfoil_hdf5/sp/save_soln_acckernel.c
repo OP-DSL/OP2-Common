@@ -3,10 +3,12 @@
 //
 
 //user function
+int direct_save_soln_stride_OP2CONSTANT;
+int direct_save_soln_stride_OP2HOST=-1;
 //user function
 #pragma acc routine
 inline void save_soln( const float *q, float *qold) {
-  for (int n=0; n<4; n++) qold[n] = q[n];
+  for (int n=0; n<4; n++) qold[n*direct_save_soln_stride_OP2CONSTANT] = q[n*direct_save_soln_stride_OP2CONSTANT];
 }
 
 // host stub function
@@ -37,6 +39,10 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[0].count==1) || (direct_save_soln_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_save_soln_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_save_soln_stride_OP2CONSTANT = direct_save_soln_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
 
@@ -45,8 +51,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
     #pragma acc parallel loop independent deviceptr(data0,data1)
     for ( int n=0; n<set->size; n++ ){
       save_soln(
-        &data0[4*n],
-        &data1[4*n]);
+        &data0[n],
+        &data1[n]);
     }
   }
 

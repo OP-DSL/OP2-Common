@@ -45,7 +45,7 @@ from op2_gen_openmp_simple import op2_gen_openmp_simple
 
 from op2_gen_openacc import op2_gen_openacc
 
-#from op2_gen_cuda import op2_gen_cuda
+from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 
