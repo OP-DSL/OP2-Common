@@ -260,23 +260,23 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
 # set three logicals
 #
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_GBL and accs[i] <> OP_READ:
         j = i
-    reduct = j > 0
+    reduct = j >= 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP :
         j = i
-    indirect_kernel = j > 0
+    indirect_kernel = j >= 0
 
 ####################################################################################
 #  generate the user kernel function - creating versions for vectorisation as needed
