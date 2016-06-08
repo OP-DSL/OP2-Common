@@ -3,8 +3,7 @@
 //
 
 //user function
-__device__
-inline void res_calc_gpu(const double *x1, const double *x2, const double *q1, const double *q2,
+__device__ void res_calc_gpu( const double *x1, const double *x2, const double *q1, const double *q2,
                      const double *adt1, const double *adt2, double *res1, double *res2) {
   double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
 
@@ -43,6 +42,10 @@ __global__ void op_cuda_res_calc(
   double *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
+  int   *ind_map,
+  short *arg_map,
+  int   *ind_arg_sizes,
+  int   *ind_arg_offs,
   int    block_offset,
   int   *blkmap,
   int   *offset,
@@ -53,6 +56,9 @@ __global__ void op_cuda_res_calc(
   int   set_size) {
   double arg6_l[4];
   double arg7_l[4];
+
+  __shared__  int  *ind_arg3_map, ind_arg3_size;
+  __shared__  double *ind_arg3_s;
 
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
@@ -74,8 +80,22 @@ __global__ void op_cuda_res_calc(
     nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
     ncolor   = ncolors[blockId];
 
+    ind_arg3_size = ind_arg_sizes[0+blockId*1];
+
+    ind_arg3_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*1];
+
+    //set shared memory pointers
+    int nbytes = 0;
+    ind_arg3_s = (double *) &shared[nbytes];
   }
   __syncthreads(); // make sure all of above completed
+
+  for ( int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x ){
+    ind_arg3_s[n] = ZERO_double;
+  }
+
+  __syncthreads();
+
   for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
     int col2 = -1;
     int map0idx;
@@ -109,33 +129,43 @@ __global__ void op_cuda_res_calc(
 
     //store local variables
 
+    int arg6_map;
+    int arg7_map;
+    if (col2>=0) {
+      arg6_map = arg_map[0*set_size+n+offset_b];
+      arg7_map = arg_map[1*set_size+n+offset_b];
+    }
+
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
-        arg6_l[0] += ind_arg3[0+map2idx*4];
-        arg6_l[1] += ind_arg3[1+map2idx*4];
-        arg6_l[2] += ind_arg3[2+map2idx*4];
-        arg6_l[3] += ind_arg3[3+map2idx*4];
-        arg7_l[0] += ind_arg3[0+map3idx*4];
-        arg7_l[1] += ind_arg3[1+map3idx*4];
-        arg7_l[2] += ind_arg3[2+map3idx*4];
-        arg7_l[3] += ind_arg3[3+map3idx*4];
-        ind_arg3[0+map2idx*4] = arg6_l[0];
-        ind_arg3[1+map2idx*4] = arg6_l[1];
-        ind_arg3[2+map2idx*4] = arg6_l[2];
-        ind_arg3[3+map2idx*4] = arg6_l[3];
-        ind_arg3[0+map3idx*4] = arg7_l[0];
-        ind_arg3[1+map3idx*4] = arg7_l[1];
-        ind_arg3[2+map3idx*4] = arg7_l[2];
-        ind_arg3[3+map3idx*4] = arg7_l[3];
+        arg6_l[0] += ind_arg3_s[0+arg6_map*4];
+        arg6_l[1] += ind_arg3_s[1+arg6_map*4];
+        arg6_l[2] += ind_arg3_s[2+arg6_map*4];
+        arg6_l[3] += ind_arg3_s[3+arg6_map*4];
+        arg7_l[0] += ind_arg3_s[0+arg7_map*4];
+        arg7_l[1] += ind_arg3_s[1+arg7_map*4];
+        arg7_l[2] += ind_arg3_s[2+arg7_map*4];
+        arg7_l[3] += ind_arg3_s[3+arg7_map*4];
+        ind_arg3_s[0+arg6_map*4] = arg6_l[0];
+        ind_arg3_s[1+arg6_map*4] = arg6_l[1];
+        ind_arg3_s[2+arg6_map*4] = arg6_l[2];
+        ind_arg3_s[3+arg6_map*4] = arg6_l[3];
+        ind_arg3_s[0+arg7_map*4] = arg7_l[0];
+        ind_arg3_s[1+arg7_map*4] = arg7_l[1];
+        ind_arg3_s[2+arg7_map*4] = arg7_l[2];
+        ind_arg3_s[3+arg7_map*4] = arg7_l[3];
       }
       __syncthreads();
     }
   }
+  for ( int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x ){
+    ind_arg3[n%4+ind_arg3_map[n/4]*4] += ind_arg3_s[n];
+  }
 }
 
 
-//GPU host stub function
-void op_par_loop_res_calc_gpu(char const *name, op_set set,
+//host stub function
+void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
@@ -163,7 +193,6 @@ void op_par_loop_res_calc_gpu(char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
   OP_kernels[2].name      = name;
   OP_kernels[2].count    += 1;
-  if (OP_kernels[2].count==1) op_register_strides();
 
 
   int    ninds   = 4;
@@ -183,7 +212,7 @@ void op_par_loop_res_calc_gpu(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
 
     //execute plan
 
@@ -201,13 +230,18 @@ void op_par_loop_res_calc_gpu(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-        op_cuda_res_calc<<<nblocks,nthread>>>(
+        int nshared = Plan->nsharedCol[col];
+        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
         (double *)arg0.data_d,
         (double *)arg2.data_d,
         (double *)arg4.data_d,
         (double *)arg6.data_d,
         arg0.map_data_d,
         arg2.map_data_d,
+        Plan->ind_map,
+        Plan->loc_map,
+        Plan->ind_sizes,
+        Plan->ind_offs,
         block_offset,
         Plan->blkmap,
         Plan->offset,
@@ -229,74 +263,3 @@ void op_par_loop_res_calc_gpu(char const *name, op_set set,
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[2].time     += wall_t2 - wall_t1;
 }
-
-void op_par_loop_res_calc_cpu(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1,
-  op_arg arg2,
-  op_arg arg3,
-  op_arg arg4,
-  op_arg arg5,
-  op_arg arg6,
-  op_arg arg7);
-
-
-//GPU host stub function
-#if OP_HYBRID_GPU
-void op_par_loop_res_calc(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1,
-  op_arg arg2,
-  op_arg arg3,
-  op_arg arg4,
-  op_arg arg5,
-  op_arg arg6,
-  op_arg arg7){
-
-  if (OP_hybrid_gpu) {
-    op_par_loop_res_calc_gpu(name, set,
-      arg0,
-      arg1,
-      arg2,
-      arg3,
-      arg4,
-      arg5,
-      arg6,
-      arg7);
-
-    }else{
-    op_par_loop_res_calc_cpu(name, set,
-      arg0,
-      arg1,
-      arg2,
-      arg3,
-      arg4,
-      arg5,
-      arg6,
-      arg7);
-
-  }
-}
-#else
-void op_par_loop_res_calc(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1,
-  op_arg arg2,
-  op_arg arg3,
-  op_arg arg4,
-  op_arg arg5,
-  op_arg arg6,
-  op_arg arg7){
-
-  op_par_loop_res_calc_gpu(name, set,
-    arg0,
-    arg1,
-    arg2,
-    arg3,
-    arg4,
-    arg5,
-    arg6,
-    arg7);
-
-  }
-#endif //OP_HYBRID_GPU
