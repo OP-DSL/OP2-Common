@@ -204,17 +204,17 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
 # set two logicals
 #
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_GBL and accs[i] <> OP_READ:
         j = i
-    reduct = j > 0
+    reduct = j >= 0
 
 ##########################################################################
 #  start with the user kernel function

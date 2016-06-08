@@ -20,7 +20,7 @@
 *.bin
 #fortran
 *.mod
-
+numawrap*
 
 #python
 *.pyc

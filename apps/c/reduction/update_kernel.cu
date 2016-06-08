@@ -3,8 +3,7 @@
 //
 
 //user function
-__device__
-inline void update_gpu(double *data, int *count){
+__device__ void update_gpu( double *data, int *count) {
   data[0] = 0.0;
   (*count)++;
 }
@@ -36,8 +35,8 @@ __global__ void op_cuda_update(
 }
 
 
-//GPU host stub function
-void op_par_loop_update_gpu(char const *name, op_set set,
+//host stub function
+void op_par_loop_update(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1){
 
@@ -54,7 +53,6 @@ void op_par_loop_update_gpu(char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
   OP_kernels[1].name      = name;
   OP_kernels[1].count    += 1;
-  if (OP_kernels[1].count==1) op_register_strides();
 
 
   if (OP_diags>2) {
@@ -114,38 +112,3 @@ void op_par_loop_update_gpu(char const *name, op_set set,
   OP_kernels[1].time     += wall_t2 - wall_t1;
   OP_kernels[1].transfer += (float)set->size * arg0.size * 2.0f;
 }
-
-void op_par_loop_update_cpu(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1);
-
-
-//GPU host stub function
-#if OP_HYBRID_GPU
-void op_par_loop_update(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1){
-
-  if (OP_hybrid_gpu) {
-    op_par_loop_update_gpu(name, set,
-      arg0,
-      arg1);
-
-    }else{
-    op_par_loop_update_cpu(name, set,
-      arg0,
-      arg1);
-
-  }
-}
-#else
-void op_par_loop_update(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1){
-
-  op_par_loop_update_gpu(name, set,
-    arg0,
-    arg1);
-
-  }
-#endif //OP_HYBRID_GPU

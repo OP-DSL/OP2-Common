@@ -438,16 +438,16 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 #
 # set two logicals
 #
-    j = 0
+    j = -1
     ind_rw = 0
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
       if maps[i] == OP_MAP and accs[i] == OP_RW:
         ind_rw = 1
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     reduct_mdim = 0
     reduct_1dim = 0
     for i in range(0,nargs):

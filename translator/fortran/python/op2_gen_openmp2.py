@@ -194,17 +194,17 @@ def op2_gen_openmp2(master, date, consts, kernels, hydra):
 #
 # set two logicals
 #
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_GBL and accs[i] <> OP_READ:
         j = i
-    reduct = j > 0
+    reduct = j >= 0
 
 
     FORTRAN = 1;

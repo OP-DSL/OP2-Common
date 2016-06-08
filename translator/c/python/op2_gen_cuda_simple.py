@@ -105,6 +105,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  inc_stage=1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -205,7 +206,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
-      if maps[i] == OP_MAP:
+      if maps[i] == OP_MAP and ((not inc_stage) or accs[i] == OP_INC):
         cumulative_indirect_index[i] = j
         j = j + 1
 
@@ -214,17 +215,39 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 #
 # set two logicals
 #
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     for i in range(0,nargs):
       if maps[i] == OP_GBL and accs[i] <> OP_READ:
         j = i
-    reduct = j > 0
+    reduct = j >= 0
+
+    if inc_stage:
+      ninds_staged = 0
+      inds_staged = [-1]*nargs
+      for i in range(0,nargs):
+        if maps[i]==OP_MAP and accs[i]==OP_INC:
+          if inds_staged[invinds[inds[i]-1]] == -1:
+            inds_staged[i] = ninds_staged
+            ninds_staged = ninds_staged + 1
+          else:
+            inds_staged[i] = inds_staged[invinds[inds[i]-1]]
+      invinds_staged = [-1]*ninds_staged
+      inddims_staged = [-1]*ninds_staged
+      indopts_staged = [-1]*ninds_staged
+      for i in range(0,nargs):
+        if inds_staged[i] >= 0 and invinds_staged[inds_staged[i]] == -1:
+          invinds_staged[inds_staged[i]] = i
+          inddims_staged[inds_staged[i]] = dims[i]
+#          if optflags[i] == 1:
+#            indopts_staged[inds_staged[i]] = i
+      for i in range(0,nargs):
+        inds_staged[i] = inds_staged[i] + 1
 
 ##########################################################################
 #  start with CUDA kernel function
@@ -313,7 +336,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
 
-    signature_text = '__device__ '+head_text + '( '+signature_text + ') {'
+    signature_text = '__device__ '+head_text + '_gpu( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
     comm('')
@@ -347,23 +370,27 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           code('const TYP *__restrict ARG,')
         else:
           code('TYP *ARG,')
-    #for g_m in range(0,nargs):
       elif maps[g_m] == OP_GBL:
         if accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
           code('TYP *ARG,')
         elif accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
           code('const TYP *ARG,')
 
+    if ind_inc and inc_stage==1:
+      code('int   *ind_map,')
+      code('short *arg_map,')
+      code('int   *ind_arg_sizes,')
+      code('int   *ind_arg_offs, ')
+
     if ninds>0:
-      if CPP:
-        code('int    block_offset, ')
-        code('int   *blkmap,       ')
-        code('int   *offset,       ')
-        code('int   *nelems,       ')
-        code('int   *ncolors,      ')
-        code('int   *colors,       ')
-        code('int   nblocks,       ')
-        code('int   set_size) {    ')
+      code('int    block_offset, ')
+      code('int   *blkmap,       ')
+      code('int   *offset,       ')
+      code('int   *nelems,       ')
+      code('int   *ncolors,      ')
+      code('int   *colors,       ')
+      code('int   nblocks,       ')
+      code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
       code('')
@@ -404,6 +431,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 #
     if ninds>0:
       code('')
+      if inc_stage==1:
+        for g_m in range (0,ninds):
+          if indaccs[g_m] == OP_INC:
+            code('__shared__  int  *INDARG_map, INDARG_size;')
+            code('__shared__  INDTYP *INDARG_s;')
+        code('')
       if ind_inc:
         code('__shared__ int    nelems2, ncolor;')
 
@@ -429,8 +462,41 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('ncolor   = ncolors[blockId];')
         code('')
 
+      if inc_stage==1 and ind_inc:
+        for g_m in range (0,ninds_staged):
+          code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_size = ind_arg_sizes['+str(g_m)+'+blockId*'+ str(ninds_staged)+'];')
+
+        code('')
+        for m in range (1,ninds_staged+1):
+          g_m = m - 1
+          c = [i for i in range(nargs) if inds_staged[i]==m]
+          code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_map = &ind_map['+str(cumulative_indirect_index[c[0]])+\
+          '*set_size] + ind_arg_offs['+str(m-1)+'+blockId*'+str(ninds_staged)+'];')
+
+        code('')
+        comm('set shared memory pointers')
+        code('int nbytes = 0;')
+
+        for g_m in range(0,ninds_staged):
+          code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_s = ('+typs[invinds_staged[g_m]]+' *) &shared[nbytes];')
+          if g_m < ninds_staged-1:
+            code('nbytes    += ROUND_UP(ind_ARG_size*sizeof('+typs[invinds_staged[g_m]]+')*'+dims[invinds_staged[g_m]]+');')
+
+
       ENDIF()
       code('__syncthreads(); // make sure all of above completed')
+      code('')
+
+      if inc_stage==1:
+        for g_m in range(0,ninds):
+          if indaccs[g_m] == OP_INC:
+            FOR_INC('n','threadIdx.x','ind_ARG_size*INDDIM','blockDim.x')
+            code('ind_ARG_s[n] = ZERO_INDTYP;')
+            ENDFOR()
+        if ind_inc:
+          code('')
+          code('__syncthreads();')
+          code('')
 
       if ind_inc:
         FOR_INC('n','threadIdx.x','nelems2','blockDim.x')
@@ -477,7 +543,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 #
     code('')
     comm('user-supplied kernel call')
-    line = name+'('
+    line = name+'_gpu('
     prefix = ' '*len(name)
     a = 0 #only apply indentation if its not the 0th argument
     indent =''
@@ -528,28 +594,71 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('')
         comm('store local variables')
         code('')
+        if inc_stage==1:
+          for g_m in range(0,nargs):
+            if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+              code('int ARG_map;')
+          IF('col2>=0')
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              code('ARG_map = arg_map['+str(cumulative_indirect_index[g_m])+'*set_size+n+offset_b];')
+          ENDIF()
+          code('')
+
         FOR('col','0','ncolor')
         IF('col2==col')
 
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            for d in range(0,int(dims[g_m])):
-              if soaflags[g_m]:
-                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx];')
-              else:
-                code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
-            for d in range(0,int(dims[g_m])):
-              if soaflags[g_m]:
-                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
-              else:
-                code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
+        if inc_stage==1:
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              for d in range(0,int(dims[g_m])):
+                if soaflags[invinds[g_m]]:
+                  code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size];')
+                else:
+                  code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM];')
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              for d in range(0,int(dims[g_m])):
+                if soaflags[invinds[g_m]]:
+                  code('ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size] = ARG_l['+str(d)+'];')
+                else:
+                  code('ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM] = ARG_l['+str(d)+'];')
+                
+        else:
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              for d in range(0,int(dims[g_m])):
+                if soaflags[g_m]:
+                  code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx];')
+                else:
+                  code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              for d in range(0,int(dims[g_m])):
+                if soaflags[g_m]:
+                  code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
+                else:
+                  code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
 
         ENDFOR()
         code('__syncthreads();')
         ENDFOR()
     ENDFOR()
+
+    if inc_stage:
+      for g_m in range(0,ninds):
+        if indaccs[g_m]==OP_INC:
+          if soaflags[invinds[g_m]]:
+            FOR_INC('n','threadIdx.x','INDARG_size','blockDim.x')
+            for d in range(0,int(dims[invinds[g_m]])):
+              code('arg'+str(invinds[g_m])+'_l['+str(d)+'] = INDARG_s[n+'+str(d)+'*INDARG_size] + INDARG[INDARG_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'];')
+            for d in range(0,int(dims[invinds[g_m]])):
+              code('INDARG[INDARG_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'] = arg'+str(invinds[g_m])+'_l['+str(d)+'];')
+            ENDFOR()
+          else:
+            FOR_INC('n','threadIdx.x','INDARG_size*INDDIM','blockDim.x')
+            code('INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM] += INDARG_s[n];')
+            ENDFOR()
 
 #
 # global reduction
@@ -679,7 +788,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 # kernel call for indirect version
 #
     if ninds>0:
-      code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
+      if inc_stage==1 and ind_inc:
+        code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);')
+      else:
+        code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
       code('')
 
 
@@ -801,8 +913,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
       IF('Plan->ncolblk[col] > 0')
 
-      if reduct:
-        code('int nshared = reduct_size*nthread;')
+      if reduct or (inc_stage==1 and ind_inc):
+        if reduct and inc_stage==1:
+          code('int nshared = MAX(Plan->nshared,reduct_size*nthread);')
+        elif reduct:
+          code('int nshared = reduct_size*nthread;')
+        else:
+          code('int nshared = Plan->nsharedCol[col];')
         code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
       else:
         code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
@@ -820,6 +937,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         if inds[g_m]==0:
           code('(TYP*)ARG.data_d,')
 
+      if inc_stage==1 and ind_inc:
+        code('Plan->ind_map,')
+        code('Plan->loc_map,')
+        code('Plan->ind_sizes,')
+        code('Plan->ind_offs,')
 
       code('block_offset,')
       code('Plan->blkmap,')
@@ -958,6 +1080,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   code('int size, char *dat, char const *name){')
   depth = depth + 2
 
+  code('if (!OP_hybrid_gpu) return;')
   for nc in range(0,len(consts)):
     IF('!strcmp(name,"'+consts[nc]['name']+'")')
     if consts[nc]['dim'] < 0:

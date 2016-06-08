@@ -12,24 +12,12 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-#define STRIDE(x,y) x*y
-__constant__ int edges_stride;
-__constant__ int cells_stride;
-
-void op_register_strides() {
-  int size;
-  size = op_size_of_set("edges");
-  cutilSafeCall(cudaMemcpyToSymbol(edges_stride, &size, sizeof(int)));
-  size = op_size_of_set("cells");
-  cutilSafeCall(cudaMemcpyToSymbol(cells_stride, &size, sizeof(int)));
-}
 
 void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
-  if (OP_hybrid_gpu) {
-    {
-      printf("error: unknown const name\n"); exit(1);
-    }
+  if (!OP_hybrid_gpu) return;
+  {
+    printf("error: unknown const name\n"); exit(1);
   }
 }
 

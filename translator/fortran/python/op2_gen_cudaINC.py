@@ -235,16 +235,16 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
 #
 # set two logicals
 #
-    j = 0
+    j = -1
     ind_rw = 0
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
       if maps[i] == OP_MAP and accs[i] == OP_RW:
         ind_rw = 1
-    ind_inc = j > 0
+    ind_inc = j >= 0
 
-    j = 0
+    j = -1
     reduct_mdim = 0
     reduct_1dim = 0
     for i in range(0,nargs):
@@ -258,7 +258,7 @@ def op2_gen_cudaINC(master, date, consts, kernels, hydra):
           reduct_1dim = 1
       if maps[i] == OP_GBL and accs[i] == OP_WRITE:
         j = i
-    reduct = j > 0
+    reduct = j >= 0
 
     is_soa = -1
     for i in range(0,nargs):
