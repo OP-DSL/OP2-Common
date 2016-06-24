@@ -44,7 +44,6 @@
 extern "C" {
 #endif
 
-
 /*
  * Plan interface for generated code: the implementation changes depending
  * on the actual back-end libraries (e.g. cuda or openmp) and it is
@@ -55,14 +54,14 @@ extern "C" {
  * (e.g. op_plan_core)
  */
 
-op_plan *op_plan_get ( char const *name, op_set set, int part_size,
-                       int nargs, op_arg *args, int ninds, int *inds );
+op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
+                     op_arg *args, int ninds, int *inds);
 
-op_plan *op_plan_get_stage ( char const * name, op_set set, int part_size,
-                       int nargs, op_arg * args, int ninds, int * inds, int staging );
+op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
+                           int nargs, op_arg *args, int ninds, int *inds,
+                           int staging);
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __OP_OPENMP_RT_SUPPPORT_H */
-

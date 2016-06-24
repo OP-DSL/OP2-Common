@@ -34,21 +34,21 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <mpi.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <mpi.h>
 
-#include <op_lib_core.h>
 #include <op_cuda_rt_support.h>
+#include <op_lib_core.h>
 #include <op_rt_support.h>
 
 #include <op_lib_c.h>
-#include <op_util.h>
 #include <op_lib_mpi.h>
+#include <op_util.h>
 
 //
-//MPI Communicator for halo creation and exchange
+// MPI Communicator for halo creation and exchange
 //
 
 MPI_Comm OP_MPI_WORLD;
@@ -58,24 +58,20 @@ MPI_Comm OP_MPI_GLOBAL;
 // CUDA-specific OP2 functions
 //
 
-void
-op_init ( int argc, char ** argv, int diags) {
-  op_init_soa(argc,argv,diags,0);
+void op_init(int argc, char **argv, int diags) {
+  op_init_soa(argc, argv, diags, 0);
 }
 
-void
-op_init_soa ( int argc, char ** argv, int diags, int soa)
-{
+void op_init_soa(int argc, char **argv, int diags, int soa) {
   int flag = 0;
   OP_auto_soa = soa;
   MPI_Initialized(&flag);
-  if(!flag)
-  {
-      MPI_Init(&argc, &argv);
+  if (!flag) {
+    MPI_Init(&argc, &argv);
   }
   OP_MPI_WORLD = MPI_COMM_WORLD;
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
-  op_init_core ( argc, argv, diags );
+  op_init_core(argc, argv, diags);
 
 #if CUDART_VERSION < 3020
 #error : "must be compiled using CUDA 3.2 or later"
@@ -85,7 +81,7 @@ op_init_soa ( int argc, char ** argv, int diags, int soa)
 #warning : " *** no support for double precision arithmetic *** "
 #endif
 
-  cutilDeviceInit( argc, argv);
+  cutilDeviceInit(argc, argv);
 
 //
 // The following call is only made in the C version of OP2,
@@ -95,32 +91,30 @@ op_init_soa ( int argc, char ** argv, int diags, int soa)
 //
 
 #ifdef SET_CUDA_CACHE_CONFIG
-  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
+  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
-  printf ( "\n 16/48 L1/shared \n" );
+  printf("\n 16/48 L1/shared \n");
 }
 
-void
-op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local)
-{
-  op_mpi_init_soa(argc,argv,diags,global,local,0);
+void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
+                 MPI_Fint local) {
+  op_mpi_init_soa(argc, argv, diags, global, local, 0);
 }
 
-void
-op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local, int soa )
-{
+void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
+                     MPI_Fint local, int soa) {
   OP_auto_soa = soa;
   int flag = 0;
   MPI_Initialized(&flag);
-  if(!flag)
-  {
-      printf("Error: MPI has to be initialized when calling op_mpi_init with communicators\n");
-      exit(-1);
+  if (!flag) {
+    printf("Error: MPI has to be initialized when calling op_mpi_init with "
+           "communicators\n");
+    exit(-1);
   }
   OP_MPI_WORLD = MPI_Comm_f2c(local);
   OP_MPI_GLOBAL = MPI_Comm_f2c(global);
-  op_init_core ( argc, argv, diags );
+  op_init_core(argc, argv, diags);
 
 #if CUDART_VERSION < 3020
 #error : "must be compiled using CUDA 3.2 or later"
@@ -130,7 +124,7 @@ op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint l
 #warning : " *** no support for double precision arithmetic *** "
 #endif
 
-  cutilDeviceInit( argc, argv);
+  cutilDeviceInit(argc, argv);
 
 //
 // The following call is only made in the C version of OP2,
@@ -140,66 +134,68 @@ op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint l
 //
 
 #ifdef SET_CUDA_CACHE_CONFIG
-  cutilSafeCall ( cudaDeviceSetCacheConfig ( cudaFuncCachePreferShared ) );
+  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
-  printf ( "\n 16/48 L1/shared \n" );
+  printf("\n 16/48 L1/shared \n");
 }
 
-op_dat op_decl_dat_char ( op_set set, int dim, char const *type, int size,
-              char * data, char const * name )
-{
-  char* d = (char*) xmalloc(set->size*dim*size);
+op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
+                        char *data, char const *name) {
+  char *d = (char *)xmalloc(set->size * dim * size);
   if (d == NULL) {
-    printf ( " op_decl_dat_char error -- error allocating memory to dat\n" );
-    exit ( -1 );
+    printf(" op_decl_dat_char error -- error allocating memory to dat\n");
+    exit(-1);
   }
 
-  memcpy(d, data, set->size*dim*size*sizeof(char));
-  op_dat out_dat = op_decl_dat_core ( set, dim, type, size, d, name );
-  out_dat-> user_managed = 0;
+  memcpy(d, data, set->size * dim * size * sizeof(char));
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  out_dat->user_managed = 0;
   return out_dat;
 }
 
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
+                             char const *name) {
+  char *data = NULL;
+  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, data, name);
 
-op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, char const *name )
-{
-  char* data = NULL;
-  op_dat dat = op_decl_dat_temp_core ( set, dim, type, size, data, name );
-
-  //create empty data block to assign to this temporary dat (including the halos)
+  // create empty data block to assign to this temporary dat (including the
+  // halos)
   int set_size = set->size + OP_import_exec_list[set->index]->size +
-  OP_import_nonexec_list[set->index]->size;
+                 OP_import_nonexec_list[set->index]->size;
 
-  dat->data = (char*) xcalloc(set_size*dim*size, 1); //initialize data bits to 0
-  dat-> user_managed = 0;
+  dat->data =
+      (char *)xcalloc(set_size * dim * size, 1); // initialize data bits to 0
+  dat->user_managed = 0;
 
-  //transpose
-  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
-      dat->size * (OP_import_exec_list[set->index]->size +
-      OP_import_nonexec_list[set->index]->size) ));
+  // transpose
+  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    cutilSafeCall(
+        cudaMalloc((void **)&(dat->buffer_d_r),
+                   dat->size * (OP_import_exec_list[set->index]->size +
+                                OP_import_nonexec_list[set->index]->size)));
   }
 
-  op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                    ( void ** ) &( dat->data ), dat->size * set_size );
+  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                    dat->size * set_size);
 
-
-  //need to allocate mpi_buffers for this new temp_dat
-  op_mpi_buffer mpi_buf= (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+  // need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
   halo_list exec_e_list = OP_export_exec_list[set->index];
   halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
 
-  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size)*dat->size);
-  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size)*dat->size);
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
   halo_list exec_i_list = OP_import_exec_list[set->index];
   halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
-  mpi_buf->s_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+  mpi_buf->s_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
       (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(sizeof(MPI_Request)*
+  mpi_buf->r_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
       (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
 
   mpi_buf->s_num_req = 0;
@@ -207,152 +203,147 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const * type, int size, c
 
   dat->mpi_buffer = mpi_buf;
 
-  //need to allocate device buffers for mpi comms for this new temp_dat
-  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
-      dat->size * (OP_export_exec_list[set->index]->size +
-      OP_export_nonexec_list[set->index]->size) ));
+  // need to allocate device buffers for mpi comms for this new temp_dat
+  cutilSafeCall(
+      cudaMalloc((void **)&(dat->buffer_d),
+                 dat->size * (OP_export_exec_list[set->index]->size +
+                              OP_export_nonexec_list[set->index]->size)));
 
   return dat;
-
 }
 
-int op_free_dat_temp_char ( op_dat dat )
-{
-  //need to free mpi_buffers use in this op_dat
+int op_free_dat_temp_char(op_dat dat) {
+  // need to free mpi_buffers use in this op_dat
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
   free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
   free(dat->mpi_buffer);
 
-  //need to free device buffers used in mpi comms
-  cutilSafeCall (cudaFree(dat->buffer_d));
+  // need to free device buffers used in mpi comms
+  cutilSafeCall(cudaFree(dat->buffer_d));
 
-  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall (cudaFree(dat->buffer_d_r));
+  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    cutilSafeCall(cudaFree(dat->buffer_d_r));
   }
 
-  //free data on device
-  cutilSafeCall (cudaFree(dat->data_d));
-  return op_free_dat_temp_core (dat);
+  // free data on device
+  cutilSafeCall(cudaFree(dat->data_d));
+  return op_free_dat_temp_core(dat);
 }
 
-void op_mv_halo_device(op_set set, op_dat dat)
-{
+void op_mv_halo_device(op_set set, op_dat dat) {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
-  OP_import_nonexec_list[set->index]->size;
-  if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
-    int element_size = dat->size/dat->dim;
+                 OP_import_nonexec_list[set->index]->size;
+  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+          temp_data[element_size * i * set_size + element_size * j + c] =
+              dat->data[dat->size * j + element_size * i + c];
         }
       }
     }
-    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( temp_data ), dat->size * set_size );
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
+                      dat->size * set_size);
     free(temp_data);
 
-    cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d_r ),
-      dat->size * (OP_import_exec_list[set->index]->size +
-      OP_import_nonexec_list[set->index]->size) ));
+    cutilSafeCall(
+        cudaMalloc((void **)&(dat->buffer_d_r),
+                   dat->size * (OP_import_exec_list[set->index]->size +
+                                OP_import_nonexec_list[set->index]->size)));
 
   } else {
-    op_cpHostToDevice ( ( void ** ) &( dat->data_d ),
-                        ( void ** ) &( dat->data ), dat->size * set_size );
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                      dat->size * set_size);
   }
   dat->dirty_hd = 0;
-  cutilSafeCall ( cudaMalloc ( ( void ** ) &( dat->buffer_d ),
-      dat->size * (OP_export_exec_list[set->index]->size +
-      OP_export_nonexec_list[set->index]->size + set_import_buffer_size[set->index]) ));
+  cutilSafeCall(
+      cudaMalloc((void **)&(dat->buffer_d),
+                 dat->size * (OP_export_exec_list[set->index]->size +
+                              OP_export_nonexec_list[set->index]->size +
+                              set_import_buffer_size[set->index])));
 }
 
-void op_mv_halo_list_device()
-{
-  export_exec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+void op_mv_halo_list_device() {
+  export_exec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
-  for(int s=0; s<OP_set_index; s++) { //for each set
-      op_set set=OP_set_list[s];
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( export_exec_list_d[set->index] ),
-                          ( void ** ) &(OP_export_exec_list[set->index]->list),
-                          OP_export_exec_list[set->index]->size * sizeof(int) );
+    op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
+                      (void **)&(OP_export_exec_list[set->index]->list),
+                      OP_export_exec_list[set->index]->size * sizeof(int));
   }
 
-  export_nonexec_list_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+  export_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
-  for(int s=0; s<OP_set_index; s++) { //for each set
-      op_set set=OP_set_list[s];
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_d[set->index] ),
-                      ( void ** ) &(OP_export_nonexec_list[set->index]->list),
-                      OP_export_nonexec_list[set->index]->size * sizeof(int) );
+    op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
+                      (void **)&(OP_export_nonexec_list[set->index]->list),
+                      OP_export_nonexec_list[set->index]->size * sizeof(int));
   }
 
-  export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+  export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
-  for(int s=0; s<OP_map_index; s++) { //for each set
-      if (!OP_map_partial_exchange[s]) continue;
-      op_map map=OP_map_list[s];
+  for (int s = 0; s < OP_map_index; s++) { // for each set
+    if (!OP_map_partial_exchange[s])
+      continue;
+    op_map map = OP_map_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( export_nonexec_list_partial_d[map->index] ),
-                      ( void ** ) &(OP_export_nonexec_permap[map->index]->list),
-                      OP_export_nonexec_permap[map->index]->size * sizeof(int) );
+    op_cpHostToDevice((void **)&(export_nonexec_list_partial_d[map->index]),
+                      (void **)&(OP_export_nonexec_permap[map->index]->list),
+                      OP_export_nonexec_permap[map->index]->size * sizeof(int));
   }
 
-  import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int*)*OP_set_index);
+  import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
-  for(int s=0; s<OP_map_index; s++) { //for each set
-      if (!OP_map_partial_exchange[s]) continue;
-      op_map map=OP_map_list[s];
+  for (int s = 0; s < OP_map_index; s++) { // for each set
+    if (!OP_map_partial_exchange[s])
+      continue;
+    op_map map = OP_map_list[s];
 
-      op_cpHostToDevice ( ( void ** ) &( import_nonexec_list_partial_d[map->index] ),
-                      ( void ** ) &(OP_import_nonexec_permap[map->index]->list),
-                      OP_import_nonexec_permap[map->index]->size * sizeof(int) );
+    op_cpHostToDevice((void **)&(import_nonexec_list_partial_d[map->index]),
+                      (void **)&(OP_import_nonexec_permap[map->index]->list),
+                      OP_import_nonexec_permap[map->index]->size * sizeof(int));
   }
 }
 
-op_set op_decl_set(int size, char const * name )
-{
-  return op_decl_set_core ( size, name );
+op_set op_decl_set(int size, char const *name) {
+  return op_decl_set_core(size, name);
 }
 
-op_map op_decl_map(op_set from, op_set to, int dim, int * imap, char const * name )
-{
-  int* m = (int*) xmalloc(from->size*dim*sizeof(int));
-  memcpy(m, imap, from->size*dim*sizeof(int));
-  return op_decl_map_core ( from, to, dim, m, name );
-  //return op_decl_map_core ( from, to, dim, imap, name );
+op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
+                   char const *name) {
+  int *m = (int *)xmalloc(from->size * dim * sizeof(int));
+  memcpy(m, imap, from->size * dim * sizeof(int));
+  return op_decl_map_core(from, to, dim, m, name);
+  // return op_decl_map_core ( from, to, dim, imap, name );
 }
 
-op_arg
-op_arg_dat ( op_dat dat, int idx, op_map map, int dim, char const * type,
-             op_access acc )
-{
-  return op_arg_dat_core ( dat, idx, map, dim, type, acc );
+op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
+                  op_access acc) {
+  return op_arg_dat_core(dat, idx, map, dim, type, acc);
 }
 
-op_arg
-op_opt_arg_dat ( int opt, op_dat dat, int idx, op_map map, int dim, char const * type,
-             op_access acc )
-{
-  return op_opt_arg_dat_core ( opt, dat, idx, map, dim, type, acc );
+op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
+                      char const *type, op_access acc) {
+  return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
 }
 
-op_arg
-op_arg_gbl_char ( char * data, int dim, const char *type, int size, op_access acc )
-{
-  return op_arg_gbl_core ( data, dim, type, size, acc );
+op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
+                       op_access acc) {
+  return op_arg_gbl_core(data, dim, type, size, acc);
 }
 
-void op_printf(const char* format, ...)
-{
+void op_printf(const char *format, ...) {
   int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
-  if(my_rank==MPI_ROOT)
-  {
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  if (my_rank == MPI_ROOT) {
     va_list argptr;
     va_start(argptr, format);
     vprintf(format, argptr);
@@ -360,21 +351,17 @@ void op_printf(const char* format, ...)
   }
 }
 
-void op_print(const char* line)
-{
+void op_print(const char *line) {
   int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD,&my_rank);
-  if(my_rank==MPI_ROOT)
-  {
-    printf("%s\n",line);
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  if (my_rank == MPI_ROOT) {
+    printf("%s\n", line);
   }
 }
 
-
-void op_timers(double * cpu, double * et)
-{
+void op_timers(double *cpu, double *et) {
   MPI_Barrier(OP_MPI_WORLD);
-  op_timers_core(cpu,et);
+  op_timers_core(cpu, et);
 }
 
 //
@@ -393,54 +380,53 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
-void
-op_exit (  )
-{
-  //need to free buffer_d used for mpi comms in each op_dat
+void op_exit() {
+  // need to free buffer_d used for mpi comms in each op_dat
   if (OP_hybrid_gpu) {
     op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries)
-    {
-      if (strstr( item->dat->type, ":soa")!= NULL || (OP_auto_soa && item->dat->dim > 1)) {
-        cutilSafeCall (cudaFree((item->dat)->buffer_d_r));
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      if (strstr(item->dat->type, ":soa") != NULL ||
+          (OP_auto_soa && item->dat->dim > 1)) {
+        cutilSafeCall(cudaFree((item->dat)->buffer_d_r));
       }
-      cutilSafeCall (cudaFree((item->dat)->buffer_d));
+      cutilSafeCall(cudaFree((item->dat)->buffer_d));
     }
 
     for (int i = 0; i < OP_set_index; i++) {
-      if (export_exec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_exec_list_d[i]));
-      if (export_nonexec_list_d[i] != NULL) cutilSafeCall (cudaFree(export_nonexec_list_d[i]));
+      if (export_exec_list_d[i] != NULL)
+        cutilSafeCall(cudaFree(export_exec_list_d[i]));
+      if (export_nonexec_list_d[i] != NULL)
+        cutilSafeCall(cudaFree(export_nonexec_list_d[i]));
     }
     for (int i = 0; i < OP_map_index; i++) {
-      if (!OP_map_partial_exchange[i]) continue;
-      cutilSafeCall (cudaFree(export_nonexec_list_partial_d[i]));
-      cutilSafeCall (cudaFree(import_nonexec_list_partial_d[i]));
+      if (!OP_map_partial_exchange[i])
+        continue;
+      cutilSafeCall(cudaFree(export_nonexec_list_partial_d[i]));
+      cutilSafeCall(cudaFree(import_nonexec_list_partial_d[i]));
     }
   }
 
   op_mpi_exit();
-  op_cuda_exit();            // frees dat_d memory
-  op_rt_exit();              // frees plan memory
-  op_exit_core();            // frees lib core variables
+  op_cuda_exit(); // frees dat_d memory
+  op_rt_exit();   // frees plan memory
+  op_exit_core(); // frees lib core variables
 
   int flag = 0;
   MPI_Finalized(&flag);
-  if(!flag)
+  if (!flag)
     MPI_Finalize();
 }
 
-void op_timing_output()
-{
+void op_timing_output() {
   op_timing_output_core();
   printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
-void op_print_dat_to_binfile(op_dat dat, const char *file_name)
-{
-  //need to get data from GPU
+void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
+  // need to get data from GPU
   op_cuda_get_data(dat);
 
-  //rearrange data backe to original order in mpi
+  // rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
   print_dat_to_binfile_mpi(temp, file_name);
 
@@ -449,12 +435,11 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name)
   free(temp);
 }
 
-void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
-{
-  //need to get data from GPU
+void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
+  // need to get data from GPU
   op_cuda_get_data(dat);
 
-  //rearrange data backe to original order in mpi
+  // rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
   print_dat_to_txtfile_mpi(temp, file_name);
 
@@ -463,67 +448,67 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
   free(temp);
 }
 
-void op_upload_all ()
-{
+void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
-      if (strstr( dat->type, ":soa")!= NULL || (OP_auto_soa && dat->dim > 1)) {
-        char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
-        int element_size = dat->size/dat->dim;
+      if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+        char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+        int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
           for (int j = 0; j < set_size; j++) {
             for (int c = 0; c < element_size; c++) {
-              temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
+              temp_data[element_size * i * set_size + element_size * j + c] =
+                  dat->data[dat->size * j + element_size * i + c];
             }
           }
         }
-        cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, dat->size * set_size,
+                                 cudaMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
-        cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, dat->size * set_size, cudaMemcpyHostToDevice ));
+        cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, dat->size * set_size,
+                                 cudaMemcpyHostToDevice));
         dat->dirty_hd = 0;
       }
     }
   }
 }
 
-void op_fetch_data_char ( op_dat dat, char * usr_ptr )
-{
-  //need to get data from GPU
+void op_fetch_data_char(op_dat dat, char *usr_ptr) {
+  // need to get data from GPU
   op_cuda_get_data(dat);
 
-  //rearrange data backe to original order in mpi
+  // rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
 
-  //copy data into usr_ptr
-  memcpy((void *)usr_ptr, (void *)temp->data, temp->set->size*temp->size);
+  // copy data into usr_ptr
+  memcpy((void *)usr_ptr, (void *)temp->data, temp->set->size * temp->size);
   free(temp->data);
   free(temp->set);
   free(temp);
 }
 
-op_dat op_fetch_data_file_char(op_dat dat)
-{
-  //need to get data from GPU
+op_dat op_fetch_data_file_char(op_dat dat) {
+  // need to get data from GPU
   op_cuda_get_data(dat);
-  //rearrange data backe to original order in mpi
+  // rearrange data backe to original order in mpi
   return op_mpi_get_data(dat);
 }
 
-void op_fetch_data_idx_char(op_dat dat, char * usr_ptr, int low, int high)
-{
-  //need to get data from GPU
+void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
+  // need to get data from GPU
   op_cuda_get_data(dat);
 
-  //rearrange data backe to original order in mpi
+  // rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
 
-  //do allgather on temp->data and copy it to memory block pointed to by use_ptr
+  // do allgather on temp->data and copy it to memory block pointed to by
+  // use_ptr
   fetch_data_hdf5(temp, usr_ptr, low, high);
 
   free(temp->data);

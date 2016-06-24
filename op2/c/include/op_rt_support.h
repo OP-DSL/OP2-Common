@@ -34,8 +34,10 @@
 #define __OP_RT_SUPPORT_H
 
 /*
- * This header file defines the data structures required in the OP2 run-time support,
- * i.e. those related to OP2 plans, and it declares the low-level routines used to
+ * This header file defines the data structures required in the OP2 run-time
+ * support,
+ * i.e. those related to OP2 plans, and it declares the low-level routines used
+ * to
  * build OP2 plans
  */
 
@@ -43,70 +45,74 @@
 
 typedef struct {
   /* input arguments */
-  char const  *name;
-  op_set       set;
-  int          nargs, ninds, ninds_staged, part_size;
-  op_map      *maps;
-  op_dat      *dats;
-  int         *idxs;
-  int         *optflags;
-  op_access   *accs;
-  int         *inds_staged;
+  char const *name;
+  op_set set;
+  int nargs, ninds, ninds_staged, part_size;
+  op_map *maps;
+  op_dat *dats;
+  int *idxs;
+  int *optflags;
+  op_access *accs;
+  int *inds_staged;
 
   /* execution plan */
-  int        *nthrcol;    /* number of thread colors for each block */
-  int        *thrcol;     /* thread colors */
-  int        *col_reord;  /* permutation of elements by block color */
-  int       **col_offsets; /* offsets to beginning of colors for each block */
-  int        *offset;     /* offset for primary set */
-  int        *offset_d;   /* offset for primary set on the GPU (Fortran)*/
-  int        *ind_map;    /* concatenated pointers for indirect datasets */
-  int       **ind_maps;   /* pointers for indirect datasets */
-  int        *ind_offs;   /* block offsets for indirect datasets */
-  int        *ind_sizes;  /* block sizes for indirect datasets */
-  int        *nindirect;  /* total sizes for indirect datasets */
-  short      *loc_map;    /* concatenated maps to local indices, renumbered as needed */
-  short     **loc_maps;   /* maps to local indices, renumbered as needed */
-  int         nblocks;    /* number of blocks */
-  int        *nelems;     /* number of elements in each block */
-  int        *nelems_d;   /* number of elements in each block on the GPU (Fortran) */
-  int         ncolors_core; /* mumber of core colors in MPI */
-  int         ncolors_owned; /* mumber of colors in MPI for blocks that only have owned elements*/
-  int         ncolors;    /* number of block colors */
-  int        *ncolblk;    /* number of blocks for each color */
-  int        *blkmap;     /* block mapping */
-  int        *blkmap_d;   /* block mapping on the GPU (Fortran) */
-  int        *nsharedCol; /* bytes of shared memory required per block colour */
-  int         nshared;    /* bytes of shared memory required */
-  float       transfer;   /* bytes of data transfer per kernel call */
-  float       transfer2;  /* bytes of cache line per kernel call */
-  int         count;      /* number of times called */
+  int *nthrcol;      /* number of thread colors for each block */
+  int *thrcol;       /* thread colors */
+  int *col_reord;    /* permutation of elements by block color */
+  int **col_offsets; /* offsets to beginning of colors for each block */
+  int *offset;       /* offset for primary set */
+  int *offset_d;     /* offset for primary set on the GPU (Fortran)*/
+  int *ind_map;      /* concatenated pointers for indirect datasets */
+  int **ind_maps;    /* pointers for indirect datasets */
+  int *ind_offs;     /* block offsets for indirect datasets */
+  int *ind_sizes;    /* block sizes for indirect datasets */
+  int *nindirect;    /* total sizes for indirect datasets */
+  short *loc_map; /* concatenated maps to local indices, renumbered as needed */
+  short **loc_maps;  /* maps to local indices, renumbered as needed */
+  int nblocks;       /* number of blocks */
+  int *nelems;       /* number of elements in each block */
+  int *nelems_d;     /* number of elements in each block on the GPU (Fortran) */
+  int ncolors_core;  /* mumber of core colors in MPI */
+  int ncolors_owned; /* mumber of colors in MPI for blocks that only have owned
+                        elements*/
+  int ncolors;       /* number of block colors */
+  int *ncolblk;      /* number of blocks for each color */
+  int *blkmap;       /* block mapping */
+  int *blkmap_d;     /* block mapping on the GPU (Fortran) */
+  int *nsharedCol;   /* bytes of shared memory required per block colour */
+  int nshared;       /* bytes of shared memory required */
+  float transfer;    /* bytes of data transfer per kernel call */
+  float transfer2;   /* bytes of cache line per kernel call */
+  int count;         /* number of times called */
 } op_plan;
 
-extern op_plan * OP_plans;
+extern op_plan *OP_plans;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-op_plan * op_plan_old_core ( char const *, op_set, int, int, op_dat *,
-                             int *, op_map *, int *, char const **, op_access *, int, int * );
+op_plan *op_plan_old_core(char const *, op_set, int, int, op_dat *, int *,
+                          op_map *, int *, char const **, op_access *, int,
+                          int *);
 
-op_plan * op_plan_core ( char const *, op_set, int, int, op_arg *, int, int *, int );
+op_plan *op_plan_core(char const *, op_set, int, int, op_arg *, int, int *,
+                      int);
 
-op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
-                        int nargs, op_arg * args, int ninds, int * inds, int staging );
+op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
+                           int nargs, op_arg *args, int ninds, int *inds,
+                           int staging);
 
-op_plan * op_plan_get ( char const * name, op_set set, int part_size,
-                        int nargs, op_arg * args, int ninds, int * inds );
+op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
+                     op_arg *args, int ninds, int *inds);
 
-void op_plan_check ( op_plan OP_plan, int ninds, int * inds );
+void op_plan_check(op_plan OP_plan, int ninds, int *inds);
 
-void op_rt_exit ( void );
+void op_rt_exit(void);
 
 bool op_type_equivalence(const char *a, const char *b);
 
-int getSetSizeFromOpArg (op_arg * arg);
+int getSetSizeFromOpArg(op_arg *arg);
 
 #ifdef __cplusplus
 }
