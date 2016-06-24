@@ -3,10 +3,10 @@
 //
 
 //user function
-inline void save_soln(const float *q, float *qold){
-  for (int n=0; n<4; n++) qold[n] = q[n];
+inline void save_soln(const float *q, float *qold) {
+  for (int n = 0; n < 4; n++)
+    qold[n] = q[n];
 }
-
 
 // host stub function
 void op_par_loop_save_soln(char const *name, op_set set,

@@ -14,8 +14,8 @@ extern float mach;
 extern float alpha;
 extern float qinf[4];
 // user kernel files
-#include "save_soln_seqkernel.cpp"
 #include "adt_calc_seqkernel.cpp"
-#include "res_calc_seqkernel.cpp"
 #include "bres_calc_seqkernel.cpp"
+#include "res_calc_seqkernel.cpp"
+#include "save_soln_seqkernel.cpp"
 #include "update_seqkernel.cpp"

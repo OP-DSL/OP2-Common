@@ -3,14 +3,14 @@
 //
 
 //user function
-inline void res(const double *A, const double *u, double *du, const double *beta){
-  *du += (*beta)*(*A)*(*u);
+inline void res(const double *A, const double *u, double *du,
+                const double *beta) {
+  *du += (*beta) * (*A) * (*u);
 }
-
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
 void res_vec( const double *A, const double u[*][SIMD_VEC], double du[*][SIMD_VEC], const double *beta, int idx ) {
-  du[0][idx]+= (*beta)*(*A)*(u[0][idx]);
+  du[0][idx]+= (*beta) * (*A) * (u[0][idx]);
 }
 #endif
 

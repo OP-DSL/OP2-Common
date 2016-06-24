@@ -6,44 +6,33 @@
 
 #include "dotR.h"
 
-
 // x86 kernel function
 
-void op_x86_dotR(
-  double *arg0,
-  double *arg1,
-  int   start,
-  int   finish ) {
-
+void op_x86_dotR(double *arg0, double *arg1, int start, int finish) {
 
   // process set elements
 
-  for (int n=start; n<finish; n++) {
+  for (int n = start; n < finish; n++) {
 
     // user-supplied kernel call
 
-
-    dotR(  arg0+n*1,
-           arg1 );
+    dotR(arg0 + n * 1, arg1);
   }
 }
 
-
 // host stub function
 
-void op_par_loop_dotR(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1 ){
+void op_par_loop_dotR(char const *name, op_set set, op_arg arg0, op_arg arg1) {
 
   double *arg1h = (double *)arg1.data;
 
-  int    nargs   = 2;
+  int nargs = 2;
   op_arg args[2];
 
   args[0] = arg0;
   args[1] = arg1;
 
-  if (OP_diags>2) {
+  if (OP_diags > 2) {
     printf(" kernel routine w/o indirection:  dotR\n");
   }
 
@@ -51,56 +40,53 @@ void op_par_loop_dotR(char const *name, op_set set,
 
   // initialise timers
 
-  double cpu_t1, cpu_t2, wall_t1=0, wall_t2=0;
+  double cpu_t1, cpu_t2, wall_t1 = 0, wall_t2 = 0;
   op_timing_realloc(6);
-  OP_kernels[6].name      = name;
-  OP_kernels[6].count    += 1;
+  OP_kernels[6].name = name;
+  OP_kernels[6].count += 1;
 
-  // set number of threads
+// set number of threads
 
 #ifdef _OPENMP
-  int nthreads = omp_get_max_threads( );
+  int nthreads = omp_get_max_threads();
 #else
   int nthreads = 1;
 #endif
 
   // allocate and initialise arrays for global reduction
 
-  double arg1_l[1+64*64];
-  for (int thr=0; thr<nthreads; thr++)
-    for (int d=0; d<1; d++) arg1_l[d+thr*64]=ZERO_double;
+  double arg1_l[1 + 64 * 64];
+  for (int thr = 0; thr < nthreads; thr++)
+    for (int d = 0; d < 1; d++)
+      arg1_l[d + thr * 64] = ZERO_double;
 
-  if (set->size >0) {
+  if (set->size > 0) {
 
     op_timers_core(&cpu_t1, &wall_t1);
 
-  // execute plan
+// execute plan
 
 #pragma omp parallel for
-  for (int thr=0; thr<nthreads; thr++) {
-    int start  = (set->size* thr   )/nthreads;
-    int finish = (set->size*(thr+1))/nthreads;
-    op_x86_dotR( (double *) arg0.data,
-                 arg1_l + thr*64,
-                 start, finish );
+    for (int thr = 0; thr < nthreads; thr++) {
+      int start = (set->size * thr) / nthreads;
+      int finish = (set->size * (thr + 1)) / nthreads;
+      op_x86_dotR((double *)arg0.data, arg1_l + thr * 64, start, finish);
+    }
   }
-
-  }
-
 
   // combine reduction data
 
-  for (int thr=0; thr<nthreads; thr++)
-    for(int d=0; d<1; d++) arg1h[d] += arg1_l[d+thr*64];
+  for (int thr = 0; thr < nthreads; thr++)
+    for (int d = 0; d < 1; d++)
+      arg1h[d] += arg1_l[d + thr * 64];
 
-  op_mpi_reduce(&arg1,arg1h);
+  op_mpi_reduce(&arg1, arg1h);
 
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
 
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[6].time     += wall_t2 - wall_t1;
+  OP_kernels[6].time += wall_t2 - wall_t1;
   OP_kernels[6].transfer += (float)set->size * arg0.size;
 }
-

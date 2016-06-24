@@ -3,8 +3,9 @@
 //
 
 //user function
-__device__ void res_gpu( const double *A, const double *u, double *du, const double *beta) {
-  *du += (*beta)*(*A)*(*u);
+__device__ void res_gpu( const double *A, const double *u, double *du,
+                const double *beta) {
+  *du += (*beta) * (*A) * (*u);
 }
 
 // CUDA kernel function

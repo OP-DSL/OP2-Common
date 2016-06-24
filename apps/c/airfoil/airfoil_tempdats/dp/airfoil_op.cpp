@@ -45,10 +45,10 @@
 // standard headers
 //
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // global constants
 
@@ -116,26 +116,25 @@ void op_par_loop_update(char const *, op_set,
 // kernel routines for parallel loops
 //
 
-#include "save_soln.h"
 #include "adt_calc.h"
-#include "res_calc.h"
 #include "bres_calc.h"
+#include "res_calc.h"
+#include "save_soln.h"
 #include "update.h"
 
 // main program
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc,argv,2);
+  op_init(argc, argv, 2);
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
+  int *becell, *ecell, *bound, *bedge, *edge, *cell;
+  double *x, *q, *qold, *adt, *res;
 
-  int    nnode,ncell,nedge,nbedge,niter;
-  double  rms;
+  int nnode, ncell, nedge, nbedge, niter;
+  double rms;
 
-  //timer
+  // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in grid
@@ -143,51 +142,57 @@ int main(int argc, char **argv)
   op_printf("reading in grid \n");
 
   FILE *fp;
-  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
-    op_printf("can't open file new_grid.dat\n"); exit(-1);
+  if ((fp = fopen("./new_grid.dat", "r")) == NULL) {
+    op_printf("can't open file new_grid.dat\n");
+    exit(-1);
   }
 
-  if (fscanf(fp,"%d %d %d %d \n",&nnode, &ncell, &nedge, &nbedge) != 4) {
-    op_printf("error reading from new_grid.dat\n"); exit(-1);
+  if (fscanf(fp, "%d %d %d %d \n", &nnode, &ncell, &nedge, &nbedge) != 4) {
+    op_printf("error reading from new_grid.dat\n");
+    exit(-1);
   }
 
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-  edge   = (int *) malloc(2*nedge*sizeof(int));
-  ecell  = (int *) malloc(2*nedge*sizeof(int));
-  bedge  = (int *) malloc(2*nbedge*sizeof(int));
-  becell = (int *) malloc(  nbedge*sizeof(int));
-  bound  = (int *) malloc(  nbedge*sizeof(int));
+  cell = (int *)malloc(4 * ncell * sizeof(int));
+  edge = (int *)malloc(2 * nedge * sizeof(int));
+  ecell = (int *)malloc(2 * nedge * sizeof(int));
+  bedge = (int *)malloc(2 * nbedge * sizeof(int));
+  becell = (int *)malloc(nbedge * sizeof(int));
+  bound = (int *)malloc(nbedge * sizeof(int));
 
-  x      = (double *) malloc(2*nnode*sizeof(double));
-  q      = (double *) malloc(4*ncell*sizeof(double));
-  qold   = (double *) malloc(4*ncell*sizeof(double));
-  res    = (double *) malloc(4*ncell*sizeof(double));
-  adt    = (double *) malloc(  ncell*sizeof(double));
+  x = (double *)malloc(2 * nnode * sizeof(double));
+  q = (double *)malloc(4 * ncell * sizeof(double));
+  qold = (double *)malloc(4 * ncell * sizeof(double));
+  res = (double *)malloc(4 * ncell * sizeof(double));
+  adt = (double *)malloc(ncell * sizeof(double));
 
-  for (int n=0; n<nnode; n++) {
-    if (fscanf(fp,"%lf %lf \n",&x[2*n], &x[2*n+1]) != 2) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nnode; n++) {
+    if (fscanf(fp, "%lf %lf \n", &x[2 * n], &x[2 * n + 1]) != 2) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<ncell; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-                                   &cell[4*n+2], &cell[4*n+3]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < ncell; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &cell[4 * n], &cell[4 * n + 1],
+               &cell[4 * n + 2], &cell[4 * n + 3]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<nedge; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&edge[2*n], &edge[2*n+1],
-                                   &ecell[2*n],&ecell[2*n+1]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nedge; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &edge[2 * n], &edge[2 * n + 1],
+               &ecell[2 * n], &ecell[2 * n + 1]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<nbedge; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&bedge[2*n],&bedge[2*n+1],
-                                   &becell[n], &bound[n]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nbedge; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &bedge[2 * n], &bedge[2 * n + 1],
+               &becell[n], &bound[n]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
@@ -202,44 +207,44 @@ int main(int argc, char **argv)
   cfl = 0.9f;
   eps = 0.05f;
 
-  double mach  = 0.4f;
-  double alpha = 3.0f*atan(1.0f)/45.0f;
-  double p     = 1.0f;
-  double r     = 1.0f;
-  double u     = sqrt(gam*p/r)*mach;
-  double e     = p/(r*gm1) + 0.5f*u*u;
+  double mach = 0.4f;
+  double alpha = 3.0f * atan(1.0f) / 45.0f;
+  double p = 1.0f;
+  double r = 1.0f;
+  double u = sqrt(gam * p / r) * mach;
+  double e = p / (r * gm1) + 0.5f * u * u;
 
   qinf[0] = r;
-  qinf[1] = r*u;
+  qinf[1] = r * u;
   qinf[2] = 0.0f;
-  qinf[3] = r*e;
+  qinf[3] = r * e;
 
-  for (int n=0; n<ncell; n++) {
-    for (int m=0; m<4; m++) {
-        q[4*n+m] = qinf[m];
-      res[4*n+m] = 0.0f;
+  for (int n = 0; n < ncell; n++) {
+    for (int m = 0; m < 4; m++) {
+      q[4 * n + m] = qinf[m];
+      res[4 * n + m] = 0.0f;
     }
   }
 
   // declare sets, pointers, datasets and global constants
 
-  op_set nodes  = op_decl_set(nnode,  "nodes");
-  op_set edges  = op_decl_set(nedge,  "edges");
+  op_set nodes = op_decl_set(nnode, "nodes");
+  op_set edges = op_decl_set(nedge, "edges");
   op_set bedges = op_decl_set(nbedge, "bedges");
-  op_set cells  = op_decl_set(ncell,  "cells");
+  op_set cells = op_decl_set(ncell, "cells");
 
-  op_map pedge   = op_decl_map(edges, nodes,2,edge,  "pedge");
-  op_map pecell  = op_decl_map(edges, cells,2,ecell, "pecell");
-  op_map pbedge  = op_decl_map(bedges,nodes,2,bedge, "pbedge");
-  op_map pbecell = op_decl_map(bedges,cells,1,becell,"pbecell");
-  op_map pcell   = op_decl_map(cells, nodes,4,cell,  "pcell");
+  op_map pedge = op_decl_map(edges, nodes, 2, edge, "pedge");
+  op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
+  op_map pbedge = op_decl_map(bedges, nodes, 2, bedge, "pbedge");
+  op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
+  op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
 
-  op_dat p_bound = op_decl_dat(bedges,1,"int"  ,bound,"p_bound");
-  op_dat p_x     = op_decl_dat(nodes ,2,"double",x    ,"p_x");
-  op_dat p_q     = op_decl_dat(cells ,4,"double",q    ,"p_q");
-  //op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
-  //op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
-  //op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
+  op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
+  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
+  op_dat p_q = op_decl_dat(cells, 4, "double", q, "p_q");
+  // op_dat p_qold  = op_decl_dat(cells ,4,"double",qold ,"p_qold");
+  // op_dat p_adt   = op_decl_dat(cells ,1,"double",adt  ,"p_adt");
+  // op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
 
   // p_res, p_adt and p_qold  now declared as a temp op_dats during
   // the execution of the time-marching loop
@@ -256,19 +261,19 @@ int main(int argc, char **argv)
 
   double g_ncell = op_get_size(cells);
 
-  //initialise timers for total execution wall time
+  // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
 
   niter = 1000;
 
-  for(int iter=1; iter<=niter; iter++) {
+  for (int iter = 1; iter <= niter; iter++) {
 
-    double* tmp_elem = NULL;
-    op_dat p_res   = op_decl_dat_temp(cells ,4,"double",tmp_elem,"p_res");
-    op_dat p_adt   = op_decl_dat_temp(cells ,1,"double",tmp_elem,"p_adt");
-    op_dat p_qold  = op_decl_dat_temp(cells ,4,"double",qold ,"p_qold");
+    double *tmp_elem = NULL;
+    op_dat p_res = op_decl_dat_temp(cells, 4, "double", tmp_elem, "p_res");
+    op_dat p_adt = op_decl_dat_temp(cells, 1, "double", tmp_elem, "p_adt");
+    op_dat p_qold = op_decl_dat_temp(cells, 4, "double", qold, "p_qold");
 
     // save old flow solution
 
@@ -278,7 +283,7 @@ int main(int argc, char **argv)
 
     // predictor/corrector update loop
 
-    for(int k=0; k<2; k++) {
+    for (int k = 0; k < 2; k++) {
 
       // calculate area/timstep
 
@@ -323,33 +328,35 @@ int main(int argc, char **argv)
     }
 
     // print iteration history
-    rms = sqrt(rms/(double)g_ncell );
-    if (iter%100 == 0)
-      op_printf(" %d  %10.5e \n",iter,rms);
+    rms = sqrt(rms / (double)g_ncell);
+    if (iter % 100 == 0)
+      op_printf(" %d  %10.5e \n", iter, rms);
 
-    if (iter%1000 == 0 && g_ncell == 720000){ //defailt mesh -- for validation testing
-      //op_printf(" %d  %3.16f \n",iter,rms);
-      double diff=fabs((100.0*(rms/0.0001060114637578))-100.0);
-      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the expected solution\n",720000, diff);
-      if(diff < 0.00001) {
+    if (iter % 1000 == 0 &&
+        g_ncell == 720000) { // defailt mesh -- for validation testing
+      // op_printf(" %d  %3.16f \n",iter,rms);
+      double diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);
+      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
+                "expected solution\n",
+                720000, diff);
+      if (diff < 0.00001) {
         op_printf("This test is considered PASSED\n");
-      }
-      else {
+      } else {
         op_printf("This test is considered FAILED\n");
       }
     }
 
     if (op_free_dat_temp(p_res) < 0)
-      op_printf("Error: temporary op_dat %s cannot be removed\n",p_res->name);
+      op_printf("Error: temporary op_dat %s cannot be removed\n", p_res->name);
     if (op_free_dat_temp(p_adt) < 0)
-      op_printf("Error: temporary op_dat %s cannot be removed\n",p_adt->name);
+      op_printf("Error: temporary op_dat %s cannot be removed\n", p_adt->name);
     if (op_free_dat_temp(p_qold) < 0)
-      op_printf("Error: temporary op_dat %s cannot be removed\n",p_qold->name);
+      op_printf("Error: temporary op_dat %s cannot be removed\n", p_qold->name);
   }
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();
-  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
 
   op_exit();
 

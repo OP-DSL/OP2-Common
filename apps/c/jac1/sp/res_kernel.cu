@@ -4,7 +4,7 @@
 
 //user function
 __device__ void res_gpu( const float *A, const float *u, float *du, const float *beta) {
-  *du += (*beta)*(*A)*(*u);
+  *du += (*beta) * (*A) * (*u);
 }
 
 // CUDA kernel function

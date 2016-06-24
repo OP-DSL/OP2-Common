@@ -3,11 +3,12 @@
 //
 
 //user function
-__device__ void update_gpu( const double *r, double *du, double *u, double *u_sum, double *u_max) {
+__device__ void update_gpu( const double *r, double *du, double *u, double *u_sum,
+                   double *u_max) {
   *u += *du + alpha * (*r);
   *du = 0.0f;
-  *u_sum += (*u)*(*u);
-  *u_max = MAX(*u_max,*u);
+  *u_sum += (*u) * (*u);
+  *u_max = MAX(*u_max, *u);
 }
 
 // CUDA kernel function

@@ -5,68 +5,72 @@
 //user function
 inline void bres_calc(const double *x1, const double *x2, const double *q1,
                       const double *adt1, double *res1, const int *bound) {
-  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+  double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
   dy = x1[1] - x2[1];
 
-  ri = 1.0f/q1[0];
-  p1 = gm1*(q1[3]-0.5f*ri*(q1[1]*q1[1]+q1[2]*q1[2]));
+  ri = 1.0f / q1[0];
+  p1 = gm1 * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
 
-  if (*bound==1) {
-    res1[1] += + p1*dy;
-    res1[2] += - p1*dx;
-  }
-  else {
-    vol1 =  ri*(q1[1]*dy - q1[2]*dx);
+  if (*bound == 1) {
+    res1[1] += +p1 * dy;
+    res1[2] += -p1 * dx;
+  } else {
+    vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-    ri   = 1.0f/qinf[0];
-    p2   = gm1*(qinf[3]-0.5f*ri*(qinf[1]*qinf[1]+qinf[2]*qinf[2]));
-    vol2 =  ri*(qinf[1]*dy - qinf[2]*dx);
+    ri = 1.0f / qinf[0];
+    p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
+    vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
 
-    mu = (*adt1)*eps;
+    mu = (*adt1) * eps;
 
-    f = 0.5f*(vol1* q1[0]         + vol2* qinf[0]        ) + mu*(q1[0]-qinf[0]);
+    f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
     res1[0] += f;
-    f = 0.5f*(vol1* q1[1] + p1*dy + vol2* qinf[1] + p2*dy) + mu*(q1[1]-qinf[1]);
+    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
+        mu * (q1[1] - qinf[1]);
     res1[1] += f;
-    f = 0.5f*(vol1* q1[2] - p1*dx + vol2* qinf[2] - p2*dx) + mu*(q1[2]-qinf[2]);
+    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
+        mu * (q1[2] - qinf[2]);
     res1[2] += f;
-    f = 0.5f*(vol1*(q1[3]+p1)     + vol2*(qinf[3]+p2)    ) + mu*(q1[3]-qinf[3]);
+    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
+        mu * (q1[3] - qinf[3]);
     res1[3] += f;
   }
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
 void bres_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC], const int *bound, int idx ) {
-  double dx,dy,mu, ri, p1,vol1, p2,vol2, f;
+  double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
   dy = x1[1][idx] - x2[1][idx];
 
-  ri = 1.0f/q1[0][idx];
-  p1 = gm1*(q1[3][idx]-0.5f*ri*(q1[1][idx]*q1[1][idx]+q1[2][idx]*q1[2][idx]));
+  ri = 1.0f / q1[0][idx];
+  p1 = gm1 * (q1[3][idx] - 0.5f * ri * (q1[1][idx] * q1[1][idx] + q1[2][idx] * q1[2][idx]));
 
-  if (*bound==1) {
-    res1[1][idx] += + p1*dy;
-    res1[2][idx] += - p1*dx;
-  }
-  else {
-    vol1 =  ri*(q1[1][idx]*dy - q1[2][idx]*dx);
+  if (*bound == 1) {
+    res1[1][idx] += +p1 * dy;
+    res1[2][idx] += -p1 * dx;
+  } else {
+    vol1 = ri * (q1[1][idx] * dy - q1[2][idx] * dx);
 
-    ri   = 1.0f/qinf[0];
-    p2   = gm1*(qinf[3]-0.5f*ri*(qinf[1]*qinf[1]+qinf[2]*qinf[2]));
-    vol2 =  ri*(qinf[1]*dy - qinf[2]*dx);
+    ri = 1.0f / qinf[0];
+    p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
+    vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
 
-    mu = (adt1[0][idx])*eps;
+    mu = (adt1[0][idx]) * eps;
 
-    f = 0.5f*(vol1* q1[0][idx]         + vol2* qinf[0]        ) + mu*(q1[0][idx]-qinf[0]);
+    f = 0.5f * (vol1 * q1[0][idx] + vol2 * qinf[0]) + mu * (q1[0][idx] - qinf[0]);
     res1[0][idx] += f;
-    f = 0.5f*(vol1* q1[1][idx] + p1*dy + vol2* qinf[1] + p2*dy) + mu*(q1[1][idx]-qinf[1]);
+    f = 0.5f * (vol1 * q1[1][idx] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
+        mu * (q1[1][idx] - qinf[1]);
     res1[1][idx] += f;
-    f = 0.5f*(vol1* q1[2][idx] - p1*dx + vol2* qinf[2] - p2*dx) + mu*(q1[2][idx]-qinf[2]);
+    f = 0.5f * (vol1 * q1[2][idx] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
+        mu * (q1[2][idx] - qinf[2]);
     res1[2][idx] += f;
-    f = 0.5f*(vol1*(q1[3][idx]+p1)     + vol2*(qinf[3]+p2)    ) + mu*(q1[3][idx]-qinf[3]);
+    f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (qinf[3] + p2)) +
+        mu * (q1[3][idx] - qinf[3]);
     res1[3][idx] += f;
   }
 }

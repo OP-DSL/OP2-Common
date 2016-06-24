@@ -42,10 +42,10 @@
 // standard headers
 //
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 //
 // OP header file
@@ -85,17 +85,16 @@ void op_par_loop_update(char const *, op_set,
 
 // main program
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc,argv,2);
+  op_init(argc, argv, 2);
 
-  int    *becell, *ecell,  *bound, *bedge, *edge, *cell;
-  double  *x, *q, *qold, *adt, *res;
+  int *becell, *ecell, *bound, *bedge, *edge, *cell;
+  double *x, *q, *qold, *adt, *res;
 
-  int    nnode,ncell,nedge,nbedge;
+  int nnode, ncell, nedge, nbedge;
 
-  //timer
+  // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in airfoil grid
@@ -103,51 +102,57 @@ int main(int argc, char **argv)
   op_printf("reading in data \n");
 
   FILE *fp;
-  if ( (fp = fopen("./new_grid.dat","r")) == NULL) {
-    op_printf("can't open file new_grid.dat\n"); exit(-1);
+  if ((fp = fopen("./new_grid.dat", "r")) == NULL) {
+    op_printf("can't open file new_grid.dat\n");
+    exit(-1);
   }
 
-  if (fscanf(fp,"%d %d %d %d \n",&nnode, &ncell, &nedge, &nbedge) != 4) {
-    op_printf("error reading from new_grid.dat\n"); exit(-1);
+  if (fscanf(fp, "%d %d %d %d \n", &nnode, &ncell, &nedge, &nbedge) != 4) {
+    op_printf("error reading from new_grid.dat\n");
+    exit(-1);
   }
 
-  cell   = (int *) malloc(4*ncell*sizeof(int));
-  edge   = (int *) malloc(2*nedge*sizeof(int));
-  ecell  = (int *) malloc(2*nedge*sizeof(int));
-  bedge  = (int *) malloc(2*nbedge*sizeof(int));
-  becell = (int *) malloc(  nbedge*sizeof(int));
-  bound  = (int *) malloc(  nbedge*sizeof(int));
+  cell = (int *)malloc(4 * ncell * sizeof(int));
+  edge = (int *)malloc(2 * nedge * sizeof(int));
+  ecell = (int *)malloc(2 * nedge * sizeof(int));
+  bedge = (int *)malloc(2 * nbedge * sizeof(int));
+  becell = (int *)malloc(nbedge * sizeof(int));
+  bound = (int *)malloc(nbedge * sizeof(int));
 
-  x      = (double *) malloc(2*nnode*sizeof(double));
-  q      = (double *) malloc(4*ncell*sizeof(double));
-  qold   = (double *) malloc(4*ncell*sizeof(double));
-  res    = (double *) malloc(4*ncell*sizeof(double));
-  adt    = (double *) malloc(  ncell*sizeof(double));
+  x = (double *)malloc(2 * nnode * sizeof(double));
+  q = (double *)malloc(4 * ncell * sizeof(double));
+  qold = (double *)malloc(4 * ncell * sizeof(double));
+  res = (double *)malloc(4 * ncell * sizeof(double));
+  adt = (double *)malloc(ncell * sizeof(double));
 
-  for (int n=0; n<nnode; n++) {
-    if (fscanf(fp,"%lf %lf \n",&x[2*n], &x[2*n+1]) != 2) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nnode; n++) {
+    if (fscanf(fp, "%lf %lf \n", &x[2 * n], &x[2 * n + 1]) != 2) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<ncell; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&cell[4*n  ], &cell[4*n+1],
-        &cell[4*n+2], &cell[4*n+3]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < ncell; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &cell[4 * n], &cell[4 * n + 1],
+               &cell[4 * n + 2], &cell[4 * n + 3]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<nedge; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&edge[2*n], &edge[2*n+1],
-        &ecell[2*n],&ecell[2*n+1]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nedge; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &edge[2 * n], &edge[2 * n + 1],
+               &ecell[2 * n], &ecell[2 * n + 1]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
-  for (int n=0; n<nbedge; n++) {
-    if (fscanf(fp,"%d %d %d %d \n",&bedge[2*n],&bedge[2*n+1],
-        &becell[n], &bound[n]) != 4) {
-      op_printf("error reading from new_grid.dat\n"); exit(-1);
+  for (int n = 0; n < nbedge; n++) {
+    if (fscanf(fp, "%d %d %d %d \n", &bedge[2 * n], &bedge[2 * n + 1],
+               &becell[n], &bound[n]) != 4) {
+      op_printf("error reading from new_grid.dat\n");
+      exit(-1);
     }
   }
 
@@ -155,35 +160,39 @@ int main(int argc, char **argv)
 
   // declare sets, pointers, datasets
 
-  op_set edges  = op_decl_set(nedge,  "edges");
-  op_set cells  = op_decl_set(ncell,  "cells");
+  op_set edges = op_decl_set(nedge, "edges");
+  op_set cells = op_decl_set(ncell, "cells");
 
-  op_map pecell  = op_decl_map(edges, cells,2,ecell, "pecell");
-  op_dat p_res   = op_decl_dat(cells ,4,"double",res  ,"p_res");
+  op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
+  op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
 
   int count;
 
   op_diagnostic_output();
 
-  //initialise timers for total execution wall time
+  // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
-  //indirect reduction
+  // indirect reduction
   count = 0;
   op_par_loop_res_calc("res_calc",edges,
               op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
               op_arg_gbl(&count,1,"int",OP_INC));
-  op_printf("number of edges:: %d should be: %d \n",count,nedge);
-  if (count != nedge) op_printf("indirect reduction FAILED\n");
-  else op_printf("indirect reduction PASSED\n");
-  //direct reduction
+  op_printf("number of edges:: %d should be: %d \n", count, nedge);
+  if (count != nedge)
+    op_printf("indirect reduction FAILED\n");
+  else
+    op_printf("indirect reduction PASSED\n");
+  // direct reduction
   count = 0;
   op_par_loop_update("update",cells,
               op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
               op_arg_gbl(&count,1,"int",OP_INC));
-  op_printf("number of cells: %d should be: %d \n",count,ncell);
-  if (count != ncell) op_printf("direct reduction FAILED\n");
-  else op_printf("direct reduction PASSED\n");
+  op_printf("number of cells: %d should be: %d \n", count, ncell);
+  if (count != ncell)
+    op_printf("direct reduction FAILED\n");
+  else
+    op_printf("direct reduction PASSED\n");
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();

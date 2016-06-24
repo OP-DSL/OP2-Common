@@ -4,20 +4,35 @@
 
 //header
 #include "op_lib_cpp.h"
+<<<<<<< HEAD
 #include "op_cuda_rt_support.h"
 #include "op_cuda_reduction.h"
+=======
+
+#include "op_cuda_reduction.h"
+#include "op_cuda_rt_support.h"
+// global constants
+>>>>>>> 18d1e1e... Formatting example applications
 
 //global constants
 #ifndef MAX_CONST_SIZE
 #define MAX_CONST_SIZE 128
 #endif
 
+<<<<<<< HEAD
 
 void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;
   {
     printf("error: unknown const name\n"); exit(1);
+=======
+void op_decl_const_char(int dim, char const *type, int size, char *dat,
+                        char const *name) {
+  {
+    printf("error: unknown const name\n");
+    exit(1);
+>>>>>>> 18d1e1e... Formatting example applications
   }
 }
 
