@@ -38,164 +38,171 @@
 MPI_Comm OP_MPI_IO_WORLD;
 
 void _mpi_allgather(int *l, int *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
+    MPI_Comm comm)
+{
   MPI_Allgatherv(l, size, MPI_INT, g, recevcnts, displs, MPI_INT, comm);
 }
 
 void _mpi_allgather(float *l, float *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
+    MPI_Comm comm)
+{
   MPI_Allgatherv(l, size, MPI_FLOAT, g, recevcnts, displs, MPI_FLOAT, comm);
 }
 
 void _mpi_allgather(double *l, double *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
+    MPI_Comm comm)
+{
   MPI_Allgatherv(l, size, MPI_DOUBLE, g, recevcnts, displs, MPI_DOUBLE, comm);
 }
 
 void _mpi_gather(int *l, int *g, int size, int *recevcnts, int *displs,
-                 MPI_Comm comm) {
+    MPI_Comm comm)
+{
   MPI_Gatherv(l, size, MPI_INT, g, recevcnts, displs, MPI_INT, MPI_ROOT, comm);
 }
 
 void _mpi_gather(float *l, float *g, int size, int *recevcnts, int *displs,
-                 MPI_Comm comm) {
-  MPI_Gatherv(l, size, MPI_FLOAT, g, recevcnts, displs, MPI_FLOAT, MPI_ROOT,
-              comm);
+    MPI_Comm comm)
+{
+  MPI_Gatherv(l, size, MPI_FLOAT, g, recevcnts, displs, MPI_FLOAT, MPI_ROOT, comm);
 }
 
 void _mpi_gather(double *l, double *g, int size, int *recevcnts, int *displs,
-                 MPI_Comm comm) {
-  MPI_Gatherv(l, size, MPI_DOUBLE, g, recevcnts, displs, MPI_DOUBLE, MPI_ROOT,
-              comm);
+    MPI_Comm comm)
+{
+  MPI_Gatherv(l, size, MPI_DOUBLE, g, recevcnts, displs, MPI_DOUBLE, MPI_ROOT, comm);
 }
 
-template <typename T>
-void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
-  // create new communicator
+template < typename T >
+void gather_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
+{
+  //create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
-  // compute local number of elements in dat
+  //compute local number of elements in dat
   int count = dat->set->size;
 
-  T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  T *l_array  = (T *) xmalloc(dat->dim*(count)*sizeof(T));
+  memcpy(l_array, (void *)&(dat->data[0]),
+      dat->size*count);
   int l_size = count;
   size_t elem_size = dat->dim;
-  int *recevcnts = (int *)xmalloc(comm_size * sizeof(int));
-  int *displs = (int *)xmalloc(comm_size * sizeof(int));
+  int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+  int* displs = (int *) xmalloc(comm_size*sizeof(int));
   int disp = 0;
   T *g_array = 0;
 
   MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
   int g_size = 0;
-  for (int i = 0; i < comm_size; i++) {
+  for(int i = 0; i<comm_size; i++)
+  {
     g_size += recevcnts[i];
-    recevcnts[i] = elem_size * recevcnts[i];
+    recevcnts[i] =   elem_size*recevcnts[i];
   }
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
+  for(int i = 0; i<comm_size; i++)
+  {
+    displs[i] =   disp;
     disp = disp + recevcnts[i];
   }
 
-  g_array = (T *)xmalloc(elem_size * g_size * sizeof(T));
+  g_array  = (T *) xmalloc(elem_size*g_size*sizeof(T));
 
-  // need to all-gather dat->data and copy this to the memory block pointed by
-  // usr_ptr
-  _mpi_allgather(l_array, g_array, l_size * elem_size, recevcnts, displs,
-                 OP_MPI_IO_WORLD);
+  //need to all-gather dat->data and copy this to the memory block pointed by usr_ptr
+  _mpi_allgather(l_array, g_array, l_size*elem_size, recevcnts, displs, OP_MPI_IO_WORLD);
 
-  if (low < 0 || high > g_size - 1) {
+  if(low < 0 || high > g_size -1)
+  {
     printf("op_fetch_data: Indices not within range of elements held in %s\n",
-           dat->name);
+      dat->name);
     MPI_Abort(OP_MPI_IO_WORLD, -1);
   }
-  memcpy((void *)usr_ptr, (void *)&g_array[low * dat->size],
-         (high + 1) * dat->size);
+  memcpy((void *)usr_ptr, (void *)&g_array[low*dat->size],
+  (high+1)*dat->size);
 
-  free(l_array);
-  free(recevcnts);
-  free(displs);
-  free(g_array);
+  free(l_array);free(recevcnts);free(displs);free(g_array);
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
-void checked_write(int v, const char *file_name) {
+void checked_write(int v, const char *file_name)
+{
   if (v) {
-    printf("error writing to %s\n", file_name);
+    printf("error writing to %s\n",file_name);
     MPI_Abort(OP_MPI_IO_WORLD, -1);
   }
 }
 
-template <typename T>
-void write_bin(FILE *fp, int g_size, int elem_size, T *g_array,
-               const char *file_name) {
-  checked_write(fwrite(&g_size, sizeof(int), 1, fp) < 1, file_name);
-  checked_write(fwrite(&elem_size, sizeof(int), 1, fp) < 1, file_name);
+template < typename T >
+void write_bin(FILE* fp, int g_size, int elem_size, T *g_array, const char *file_name)
+{
+  checked_write (fwrite(&g_size, sizeof(int),1, fp)<1, file_name);
+  checked_write (fwrite(&elem_size, sizeof(int),1, fp)<1, file_name);
 
-  for (int i = 0; i < g_size; i++)
-    checked_write(fwrite(&g_array[i * elem_size], sizeof(T), elem_size, fp) <
-                      (size_t)elem_size,
-                  file_name);
+  for(int i = 0; i< g_size; i++)
+    checked_write (fwrite( &g_array[i*elem_size], sizeof(T), elem_size, fp )
+      < (size_t)elem_size, file_name);
 }
 
-template <typename T, const char *fmt>
-void write_txt(FILE *fp, int g_size, int elem_size, T *g_array,
-               const char *file_name) {
-  checked_write(fprintf(fp, "%d %d\n", g_size, elem_size) < 0, file_name);
+template < typename T, const char *fmt >
+void write_txt(FILE* fp, int g_size, int elem_size, T *g_array, const char *file_name)
+{
+  checked_write (fprintf(fp,"%d %d\n",g_size, elem_size)<0, file_name);
 
-  for (int i = 0; i < g_size; i++) {
-    for (int j = 0; j < elem_size; j++)
-      checked_write(fprintf(fp, fmt, g_array[i * elem_size + j]) < 0,
-                    file_name);
-    fprintf(fp, "\n");
+  for(int i = 0; i< g_size; i++)
+  {
+    for(int j = 0; j < elem_size; j++ )
+      checked_write (fprintf(fp,fmt,g_array[i*elem_size+j])<0, file_name);
+    fprintf(fp,"\n");
   }
 }
 
-template <typename T, void (*F)(FILE *, int, int, T *, const char *)>
-void write_file(op_dat dat, const char *file_name) {
-  // create new communicator for output
+template < typename T, void (*F)(FILE*, int, int, T*, const char*) >
+void write_file(op_dat dat, const char* file_name)
+{
+  //create new communicator for output
   int rank, comm_size;
   MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
   MPI_Comm_rank(OP_MPI_IO_WORLD, &rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
-  // compute local number of elements in dat
+  //compute local number of elements in dat
   int count = dat->set->size;
 
-  T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  T *l_array = (T *) xmalloc(dat->dim*(count)*sizeof(T));
+  memcpy(l_array, (void *)&(dat->data[0]),
+      dat->size*count);
 
   int l_size = count;
   int elem_size = dat->dim;
-  int *recevcnts = (int *)xmalloc(comm_size * sizeof(int));
-  int *displs = (int *)xmalloc(comm_size * sizeof(int));
+  int* recevcnts = (int *) xmalloc(comm_size*sizeof(int));
+  int* displs = (int *) xmalloc(comm_size*sizeof(int));
   int disp = 0;
   T *g_array = 0;
 
   MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
 
   int g_size = 0;
-  for (int i = 0; i < comm_size; i++) {
+  for(int i = 0; i<comm_size; i++)
+  {
     g_size += recevcnts[i];
-    recevcnts[i] = elem_size * recevcnts[i];
+    recevcnts[i] = elem_size*recevcnts[i];
   }
-  for (int i = 0; i < comm_size; i++) {
+  for(int i = 0; i<comm_size; i++)
+  {
     displs[i] = disp;
     disp = disp + recevcnts[i];
   }
-  if (rank == MPI_ROOT)
-    g_array = (T *)xmalloc(elem_size * g_size * sizeof(T));
-  _mpi_gather(l_array, g_array, l_size * elem_size, recevcnts, displs,
-              OP_MPI_IO_WORLD);
+  if(rank==MPI_ROOT) g_array = (T *) xmalloc(elem_size*g_size*sizeof(T));
+  _mpi_gather(l_array, g_array, l_size*elem_size, recevcnts, displs, OP_MPI_IO_WORLD);
 
-  if (rank == MPI_ROOT) {
+  if(rank==MPI_ROOT)
+  {
     FILE *fp;
-    if ((fp = fopen(file_name, "w")) == NULL) {
-      printf("can't open file %s\n", file_name);
+    if ( (fp = fopen(file_name,"w")) == NULL) {
+      printf("can't open file %s\n",file_name);
       MPI_Abort(OP_MPI_IO_WORLD, -1);
     }
 
@@ -206,9 +213,7 @@ void write_file(op_dat dat, const char *file_name) {
     free(g_array);
   }
 
-  free(l_array);
-  free(recevcnts);
-  free(displs);
+  free(l_array);free(recevcnts);free(displs);
   MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
@@ -217,15 +222,16 @@ void write_file(op_dat dat, const char *file_name) {
 * -- placed in op_mpi_core.c as this routine does not use any hdf5 functions
 *******************************************************************************/
 
-void fetch_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
-  if (strcmp(dat->type, "double") == 0)
+void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high)
+{
+  if(strcmp(dat->type,"double") == 0)
     gather_data_hdf5<double>(dat, usr_ptr, low, high);
-  else if (strcmp(dat->type, "float") == 0)
+  else if(strcmp(dat->type,"float") == 0)
     gather_data_hdf5<float>(dat, usr_ptr, low, high);
-  else if (strcmp(dat->type, "int") == 0)
+  else if(strcmp(dat->type,"int") == 0)
     gather_data_hdf5<int>(dat, usr_ptr, low, high);
   else
-    printf("Unknown type %s, cannot error in fetch_data_hdf5() \n", dat->type);
+    printf("Unknown type %s, cannot error in fetch_data_hdf5() \n",dat->type);
 }
 
 /*******************************************************************************
@@ -236,30 +242,30 @@ extern const char fmt_double[] = "%f ";
 extern const char fmt_float[] = "%f ";
 extern const char fmt_int[] = "%d ";
 
-void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name) {
-  if (strcmp(dat->type, "double") == 0)
-    write_file<double, write_txt<double, fmt_double> >(dat, file_name);
-  else if (strcmp(dat->type, "float") == 0)
-    write_file<float, write_txt<float, fmt_float> >(dat, file_name);
-  else if (strcmp(dat->type, "int") == 0)
-    write_file<int, write_txt<int, fmt_int> >(dat, file_name);
+void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name)
+{
+  if(strcmp(dat->type,"double") == 0)
+    write_file< double, write_txt<double, fmt_double> >(dat, file_name);
+  else if(strcmp(dat->type,"float") == 0)
+    write_file< float, write_txt<float, fmt_float> >(dat, file_name);
+  else if(strcmp(dat->type,"int") == 0)
+    write_file< int, write_txt<int, fmt_int> >(dat, file_name);
   else
-    printf("Unknown type %s, cannot be written to file %s\n", dat->type,
-           file_name);
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
 }
 
 /*******************************************************************************
  * Write a op_dat to a named Binary file
  *******************************************************************************/
 
-void print_dat_to_binfile_mpi(op_dat dat, const char *file_name) {
-  if (strcmp(dat->type, "double") == 0)
+void print_dat_to_binfile_mpi(op_dat dat, const char *file_name)
+{
+  if(strcmp(dat->type,"double") == 0)
     write_file<double, write_bin<double> >(dat, file_name);
-  else if (strcmp(dat->type, "float") == 0)
+  else if(strcmp(dat->type,"float") == 0)
     write_file<float, write_bin<float> >(dat, file_name);
-  else if (strcmp(dat->type, "int") == 0)
+  else if(strcmp(dat->type,"int") == 0)
     write_file<int, write_bin<int> >(dat, file_name);
   else
-    printf("Unknown type %s, cannot be written to file %s\n", dat->type,
-           file_name);
+    printf("Unknown type %s, cannot be written to file %s\n",dat->type,file_name);
 }

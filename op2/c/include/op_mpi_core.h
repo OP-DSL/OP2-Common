@@ -44,7 +44,7 @@
 
 #include <mpi.h>
 
-// use uthash from - http://troydhanson.github.com/uthash/
+//use uthash from - http://troydhanson.github.com/uthash/
 #include <uthash.h>
 
 /** Define the root MPI process **/
@@ -58,37 +58,37 @@
 *******************************************************************************/
 
 typedef struct {
-  // set related to this list
+  //set related to this list
   op_set set;
-  // number of elements in this list
-  int size;
-  // MPI ranks to be exported to or imported from
-  int *ranks;
-  // number of MPI neighbors to be exported to or imported from
-  int ranks_size;
-  // displacements for the starting point of each rank's element list
-  int *disps;
-  // number of elements exported to or imported from each ranks
-  int *sizes;
-  // the list of all elements
-  int *list;
+  //number of elements in this list
+  int    size;
+  //MPI ranks to be exported to or imported from
+  int    *ranks;
+  //number of MPI neighbors to be exported to or imported from
+  int    ranks_size;
+  //displacements for the starting point of each rank's element list
+  int    *disps;
+  //number of elements exported to or imported from each ranks
+  int    *sizes;
+  //the list of all elements
+  int    *list;
 } halo_list_core;
 
-typedef halo_list_core *halo_list;
+typedef halo_list_core * halo_list;
 
 /*******************************************************************************
 * Data structures related to MPI level partitioning
 *******************************************************************************/
 
-// struct to hold the partition information for each set
+//struct to hold the partition information for each set
 typedef struct {
-  // set to which this partition info blongs to
+  //set to which this partition info blongs to
   op_set set;
-  // global index of each element held in this MPI process
+  //global index of each element held in this MPI process
   int *g_index;
-  // partition to which each element belongs
+  //partition to which each element belongs
   int *elem_part;
-  // indicates if this set is partitioned 1 if partitioned 0 if not
+  //indicates if this set is partitioned 1 if partitioned 0 if not
   int is_partitioned;
 } part_core;
 
@@ -98,17 +98,17 @@ typedef part_core *part;
 * Data structure to hold mpi communications of an op_dat
 *******************************************************************************/
 #define NAMESIZE 20
-typedef struct {
-  // name of this op_dat
-  char name[NAMESIZE];
-  // size of this op_dat
-  int size;
-  // index of this op_dat
-  int index;
-  // total number of times this op_dat was halo exported
-  int count;
-  // total number of bytes halo exported for this op_dat in this kernel
-  int bytes;
+typedef struct{
+  //name of this op_dat
+  char  name[NAMESIZE];
+  //size of this op_dat
+  int         size;
+  //index of this op_dat
+  int         index;
+  //total number of times this op_dat was halo exported
+  int         count;
+  //total number of bytes halo exported for this op_dat in this kernel
+  int         bytes;
 } op_dat_mpi_comm_info_core;
 
 typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
@@ -119,39 +119,40 @@ typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 
 typedef struct {
 
-  UT_hash_handle hh; // with this variable uthash makes this structure hashable
+  UT_hash_handle hh;   //with this variable uthash makes this structure hashable
 
   // name of kernel
-  char name[NAMESIZE];
-  // total time spent in this kernel (compute + comm - overlap)
-  double time;
-  // number of times this kernel is called
-  int count;
-  // number of op_dat indices in this kernel
-  int num_indices;
+  char  name[NAMESIZE];
+  //total time spent in this kernel (compute + comm - overlap)
+  double      time;
+  //number of times this kernel is called
+  int         count;
+  //number of op_dat indices in this kernel
+  int         num_indices;
   // array to hold all the op_dat_mpi_comm_info structs for this kernel
-  op_dat_mpi_comm_info *comm_info;
+  op_dat_mpi_comm_info* comm_info;
   // capacity of comm_info array
   int cap;
 } op_mpi_kernel;
+
 
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
 *******************************************************************************/
 
 typedef struct {
-  // buffer holding exec halo to be exported;
-  char *buf_exec;
-  // buffer holding nonexec halo to be exported;
-  char *buf_nonexec;
-  // pointed to hold the MPI_Reqest for sends
+  //buffer holding exec halo to be exported;
+  char        *buf_exec;
+  //buffer holding nonexec halo to be exported;
+  char        *buf_nonexec;
+  //pointed to hold the MPI_Reqest for sends
   MPI_Request *s_req;
-  // pointed to hold the MPI_Reqest for receives
+  //pointed to hold the MPI_Reqest for receives
   MPI_Request *r_req;
-  // number of send MPI_Reqests in flight at a given time for this op_dat
-  int s_num_req;
-  // number of receive MPI_Reqests in flight at a given time for this op_dat
-  int r_num_req;
+  //number of send MPI_Reqests in flight at a given time for this op_dat
+  int         s_num_req;
+  //number of receive MPI_Reqests in flight at a given time for this op_dat
+  int         r_num_req;
 } op_mpi_buffer_core;
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
@@ -160,14 +161,14 @@ typedef op_mpi_buffer_core *op_mpi_buffer;
 
 extern int OP_part_index;
 extern part *OP_part_list;
-extern int **orig_part_range;
+extern int** orig_part_range;
 
 /** export list on the device **/
 
-extern int **export_exec_list_d;
-extern int **export_nonexec_list_d;
-extern int **export_nonexec_list_partial_d;
-extern int **import_nonexec_list_partial_d;
+extern int** export_exec_list_d;
+extern int** export_nonexec_list_d;
+extern int** export_nonexec_list_partial_d;
+extern int** import_nonexec_list_partial_d;
 extern int *set_import_buffer_size;
 
 /*******************************************************************************
@@ -195,7 +196,7 @@ typedef struct {
   char *OP_global_buffer;
   int OP_global_buffer_size;
 
-  int gbl_num_ifaces;
+  int gbl_num_ifaces ;
   int *gbl_iface_list;
   int *nprocs_per_gint;
   int **proclist_per_gint;
@@ -233,6 +234,7 @@ typedef struct {
 
 typedef op_import_core *op_import_handle;
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -241,31 +243,49 @@ extern "C" {
 * Utility function prototypes
 *******************************************************************************/
 
-void decl_partition(op_set set, int *g_index, int *partition);
+void decl_partition(op_set set, int* g_index, int* partition);
 
-void get_part_range(int **part_range, int my_rank, int comm_size,
-                    MPI_Comm Comm);
+void get_part_range(int** part_range, int my_rank, int comm_size, MPI_Comm Comm);
 
-int get_partition(int global_index, int *part_range, int *local_index,
-                  int comm_size);
+int get_partition(int global_index, int* part_range, int* local_index, int comm_size);
 
-int get_global_index(int local_index, int partition, int *part_range,
-                     int comm_size);
+int get_global_index(int local_index, int partition, int* part_range, int comm_size);
 
-void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
-                        int *ranks_size, int my_rank, int comm_size,
+void find_neighbors_set(halo_list List,
+                        int* neighbors,
+                        int* sizes,
+                        int* ranks_size,
+                        int my_rank,
+                        int comm_size,
                         MPI_Comm Comm);
 
-void create_list(int *list, int *ranks, int *disps, int *sizes, int *ranks_size,
-                 int *total, int *temp_list, int size, int comm_size,
-                 int my_rank);
+void create_list( int* list,
+                  int* ranks,
+                  int* disps,
+                  int* sizes,
+                  int* ranks_size,
+                  int* total,
+                  int* temp_list,
+                  int size,
+                  int comm_size,
+                  int my_rank );
 
-void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
-                        int comm_size, int my_rank);
+void create_export_list(op_set set,
+                        int* temp_list,
+                        halo_list h_list,
+                        int size,
+                        int comm_size,
+                        int my_rank);
 
-void create_import_list(op_set set, int *temp_list, halo_list h_list,
-                        int total_size, int *ranks, int *sizes, int ranks_size,
-                        int comm_size, int my_rank);
+void create_import_list(op_set set,
+                        int* temp_list,
+                        halo_list h_list,
+                        int total_size,
+                        int* ranks,
+                        int* sizes,
+                        int ranks_size,
+                        int comm_size,
+                        int my_rank);
 
 int is_onto_map(op_map map);
 
@@ -281,7 +301,7 @@ void op_halo_destroy();
 
 op_dat op_mpi_get_data(op_dat dat);
 
-void fetch_data_hdf5(op_dat dat, char *usr_ptr, int low, int high);
+void fetch_data_hdf5(op_dat dat, char* usr_ptr, int low, int high);
 
 void mpi_timing_output();
 
@@ -293,10 +313,8 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
-void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
-                 MPI_Fint local);
-void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
-                     MPI_Fint local, int soa);
+void op_mpi_init ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local );
+void op_mpi_init_soa ( int argc, char ** argv, int diags, MPI_Fint global, MPI_Fint local, int soa );
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_device(op_set set, op_dat dat);
@@ -304,8 +322,8 @@ void op_mv_halo_device(op_set set, op_dat dat);
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 void op_mv_halo_list_device();
 
-void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
-               op_map prime_map, op_dat coords);
+void partition(const char* lib_name, const char* lib_routine,
+  op_set prime_set, op_map prime_map, op_dat coords );
 
 /******************************************************************************
 * Custom partitioning wrapper prototypes
@@ -328,7 +346,7 @@ void op_partition_kway(op_map primary_map);
 
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
-void op_partition_meshkway(op_map primary_map); // does not work
+void op_partition_meshkway(op_map primary_map); //does not work
 #endif
 
 #ifdef HAVE_PTSCOTCH
@@ -339,19 +357,16 @@ void op_partition_meshkway(op_map primary_map); // does not work
 void op_partition_ptscotch(op_map primary_map);
 #endif
 
+
 /*******************************************************************************
 * Sliding planes functionality
 *******************************************************************************/
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
-                                op_set sp_nodes, op_dat coords, op_dat mark);
-void op_export_data(op_export_handle handle, op_dat dat);
-op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
-                                op_dat mark);
-void op_inc_theta(op_export_handle handle, int *sp_id, double *dtheta1,
-                  double *dtheta2);
-void op_import_data(op_import_handle handle, op_dat dat);
-void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1,
-                   double *dtheta2, double *alpha);
+  op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark);
+  void op_export_data(op_export_handle handle, op_dat dat);
+  op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark);
+  void op_inc_theta(op_export_handle handle, int *sp_id, double *dtheta1, double *dtheta2);
+  void op_import_data(op_import_handle handle, op_dat dat);
+  void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1, double *dtheta2, double *alpha);
 
 #ifdef __cplusplus
 }
@@ -361,13 +376,14 @@ void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1,
 * External functions defined in op_mpi_(cuda)_rt_support.c
 *******************************************************************************/
 
-void op_exchange_halo(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial(op_arg *arg, int exec_flag);
-void op_wait_all(op_arg *arg);
-void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
-void op_wait_all_cuda(op_arg *arg);
+void op_exchange_halo(op_arg* arg, int exec_flag);
+void op_exchange_halo_partial(op_arg* arg, int exec_flag);
+void op_wait_all(op_arg* arg);
+void op_exchange_halo_cuda(op_arg* arg, int exec_flag);
+void op_exchange_halo_partial_cuda(op_arg* arg, int exec_flag);
+void op_wait_all_cuda(op_arg* arg);
 void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
 
 #endif /* __OP_MPI_CORE_H */
+

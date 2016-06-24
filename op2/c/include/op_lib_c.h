@@ -44,7 +44,7 @@
 
 /* identity mapping and global identifier */
 
-#define OP_ID (op_map) NULL
+#define OP_ID  (op_map) NULL
 #define OP_GBL (op_map) NULL
 
 /*
@@ -53,60 +53,62 @@
 
 extern int OP_diags, OP_part_size, OP_block_size, OP_gpu_direct;
 
-extern int OP_set_index, OP_set_max, OP_map_index, OP_map_max, OP_dat_index,
-    OP_plan_index, OP_plan_max, OP_kern_max, OP_kern_curr;
+extern int OP_set_index, OP_set_max,
+           OP_map_index, OP_map_max,
+           OP_dat_index,
+           OP_plan_index, OP_plan_max,
+           OP_kern_max, OP_kern_curr;
 
-extern op_set *OP_set_list;
-extern op_map *OP_map_list;
+extern op_set * OP_set_list;
+extern op_map * OP_map_list;
 extern Double_linked_list OP_dat_list;
-extern op_kernel *OP_kernels;
+extern op_kernel * OP_kernels;
 extern double OP_plan_time;
 extern int OP_auto_soa;
 
 /*
- * declaration of C routines wrapping lower layer implementations (e.g. CUDA,
- * reference, etc..)
+ * declaration of C routines wrapping lower layer implementations (e.g. CUDA, reference, etc..)
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void op_init(int, char **, int);
-void op_init_soa(int, char **, int, int);
+void op_init ( int, char **, int);
+void op_init_soa ( int, char **, int, int);
 
-op_set op_decl_set(int, char const *);
+op_set op_decl_set ( int, char const * );
 
-op_map op_decl_map(op_set, op_set, int, int *, char const *);
+op_map op_decl_map ( op_set, op_set, int, int *, char const * );
 
-op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
+op_dat op_decl_dat_char ( op_set, int, char const *, int, char *, char const * );
 
-op_dat op_decl_dat_temp_char(op_set, int, char const *, int, char const *);
+op_dat op_decl_dat_temp_char ( op_set, int, char const *, int, char const * );
 
-int op_free_dat_temp_char(op_dat dat);
+int op_free_dat_temp_char ( op_dat dat );
 
-void op_decl_const_char(int, char const *, int, char *, char const *);
+void op_decl_const_char ( int, char const *, int, char *, char const * );
 
-op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
+op_arg op_arg_dat ( op_dat, int, op_map, int, char const *, op_access );
 
-op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
+op_arg op_opt_arg_dat ( int, op_dat, int, op_map, int, char const *, op_access );
 
-op_arg op_arg_gbl_char(char *, int, const char *, int, op_access);
+op_arg op_arg_gbl_char ( char * , int, const char*, int, op_access);
 
-void op_fetch_data_char(op_dat, char *);
-op_dat op_fetch_data_file_char(op_dat);
+void op_fetch_data_char ( op_dat , char* );
+op_dat op_fetch_data_file_char ( op_dat );
 
-void op_upload_all();
+void op_upload_all ( );
 
-void op_fetch_data_idx_char(op_dat, char *, int, int);
+void op_fetch_data_idx_char ( op_dat , char* , int, int);
 
-void op_exit();
+void op_exit (  );
 
 void op_timing_output();
 
-void op_rank(int *rank);
+void op_rank(int* rank);
 
-void op_timers(double *cpu, double *et);
+void op_timers( double *cpu, double *et );
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name);
 

@@ -41,8 +41,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#include <device_functions.h>
 #include <device_launch_parameters.h>
+#include <device_functions.h>
 
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -58,35 +58,37 @@ extern "C" {
 /*
  * Global variables actually defined in the corresponding c file
  */
-extern char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+extern char * OP_consts_h,
+            * OP_consts_d,
+            * OP_reduct_h,
+            * OP_reduct_d;
 
-extern void __syncthreads();
+extern void __syncthreads (  );
 
 /*
  * personal stripped-down version of cutil_inline.h
  */
 
-#define cutilSafeCall(err) __cudaSafeCall(err, __FILE__, __LINE__)
-#define cutilCheckMsg(msg) __cutilCheckMsg(msg, __FILE__, __LINE__)
+#define cutilSafeCall(err) __cudaSafeCall(err,__FILE__,__LINE__)
+#define cutilCheckMsg(msg) __cutilCheckMsg(msg,__FILE__,__LINE__)
 
-void __cudaSafeCall(cudaError_t err, const char *file, const int line);
+void __cudaSafeCall( cudaError_t err, const char * file, const int line );
 
-void __cutilCheckMsg(const char *errorMessage, const char *file,
-                     const int line);
+void __cutilCheckMsg( const char * errorMessage, const char * file, const int line );
 
-void cutilDeviceInit(int argc, char **argv);
+void cutilDeviceInit( int argc, char ** argv);
 
-void cutilDeviceInit_mpi(int argc, char **argv, int mpi_rank);
+void cutilDeviceInit_mpi( int argc, char ** argv, int mpi_rank);
 
 /*
  * routines to move arrays to/from GPU device
  */
 
-void op_mvHostToDevice(void **map, int size);
+void op_mvHostToDevice ( void ** map, int size );
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size);
+void op_cpHostToDevice ( void ** data_d, void ** data_h, int size );
 
-void op_cuda_get_data(op_dat dat);
+void op_cuda_get_data ( op_dat dat );
 
 /*
  * Plan interface for generated code: the implementation changes depending
@@ -97,35 +99,35 @@ void op_cuda_get_data(op_dat dat);
  * op_rt_support.h header file only declares the low-level functions
  * (e.g. op_plan_core)
  */
-op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
-                     op_arg *args, int ninds, int *inds);
+op_plan * op_plan_get ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int * inds );
 
-op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
-                           int nargs, op_arg *args, int ninds, int *inds,
-                           int staging);
+op_plan * op_plan_get_stage ( char const * name, op_set set, int part_size,
+                        int nargs, op_arg * args, int ninds, int * inds, int staging );
 
-void op_cuda_exit();
+void op_cuda_exit (  );
 
 /*
  * routines to resize constant/reduct arrays, if necessary
  */
 
-void reallocConstArrays(int consts_bytes);
+void reallocConstArrays ( int consts_bytes );
 
-void reallocReductArrays(int reduct_bytes);
+void reallocReductArrays ( int reduct_bytes );
 
 /*
  * routines to move constant/reduct arrays
  */
 
-void mvConstArraysToDevice(int consts_bytes);
+void mvConstArraysToDevice ( int consts_bytes );
 
-void mvReductArraysToDevice(int reduct_bytes);
+void mvReductArraysToDevice ( int reduct_bytes );
 
-void mvReductArraysToHost(int reduct_bytes);
+void mvReductArraysToHost ( int reduct_bytes );
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __OP_CUDA_RT_SUPPORT_H */
+

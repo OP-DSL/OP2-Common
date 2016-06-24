@@ -41,6 +41,8 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -49,13 +51,13 @@ extern "C" {
 * MPI utility function prototypes
 *******************************************************************************/
 
-int compute_local_size(int global_size, int mpi_comm_size, int mpi_rank);
+int compute_local_size (int global_size, int mpi_comm_size, int mpi_rank );
 
-void *xmalloc(size_t size);
+void* xmalloc(size_t size);
 
-void *xcalloc(size_t number, size_t size);
+void* xcalloc(size_t number, size_t size);
 
-void *xrealloc(void *ptr, size_t size);
+void* xrealloc(void *ptr, size_t size);
 
 int compare_sets(op_set set1, op_set set2);
 
@@ -86,3 +88,4 @@ bool op_type_equivalence(const char *a, const char *b);
 #endif
 
 #endif /* __OP_UTIL_H */
+
