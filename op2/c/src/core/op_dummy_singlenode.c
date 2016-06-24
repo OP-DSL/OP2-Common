@@ -36,102 +36,86 @@
 
 #include "op_lib_core.h"
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args)
-{
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
   return set->size;
 }
 
-void op_mpi_set_dirtybit(int nargs, op_arg *args)
-{
+void op_mpi_set_dirtybit(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-void op_mpi_wait_all(int nargs, op_arg *args)
-{
+void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args)
-{
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
   return set->size;
 }
 
-void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args)
-{
+void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-void op_mpi_wait_all_cuda(int nargs, op_arg *args)
-{
+void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-
-void op_mpi_reset_halos(int nargs, op_arg *args)
-{
+void op_mpi_reset_halos(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-void op_mpi_barrier()
-{
-}
+void op_mpi_barrier() {}
 
-void *op_mpi_perf_time(const char* name, double time)
-{
+void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;
   return (void *)name;
 }
 
 #ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args)
-{
+void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
   (void)k_i;
   (void)nargs;
   (void)args;
 }
 #endif
 
-void op_mpi_reduce_combined(op_arg* args, int nargs) {
+void op_mpi_reduce_combined(op_arg *args, int nargs) {
   (void)args;
   (void)nargs;
 }
 
-void op_mpi_reduce_float(op_arg* args, float* data)
-{
+void op_mpi_reduce_float(op_arg *args, float *data) {
   (void)args;
   (void)data;
 }
 
-void op_mpi_reduce_double(op_arg* args, double* data)
-{
+void op_mpi_reduce_double(op_arg *args, double *data) {
   (void)args;
   (void)data;
 }
 
-void op_mpi_reduce_int(op_arg* args, int* data)
-{
+void op_mpi_reduce_int(op_arg *args, int *data) {
   (void)args;
   (void)data;
 }
 
-void op_mpi_reduce_bool(op_arg* args, bool* data)
-{
+void op_mpi_reduce_bool(op_arg *args, bool *data) {
   (void)args;
   (void)data;
 }
 
-void op_partition(const char* lib_name, const char* lib_routine,
-  op_set prime_set, op_map prime_map, op_dat coords ) {
+void op_partition(const char *lib_name, const char *lib_routine,
+                  op_set prime_set, op_map prime_map, op_dat coords) {
   (void)lib_name;
   (void)lib_routine;
   (void)prime_set;
@@ -139,32 +123,22 @@ void op_partition(const char* lib_name, const char* lib_routine,
   (void)coords;
 }
 
-void op_renumber(op_map base) {
-  (void)base;
-}
+void op_renumber(op_map base) { (void)base; }
 
 void op_compute_moment(double t, double *first, double *second) {
   *first = t;
-  *second = t*t;
+  *second = t * t;
 }
 
-void op_partition_reverse() {
-}
+void op_partition_reverse() {}
 
-int getSetSizeFromOpArg (op_arg * arg)
-{
+int getSetSizeFromOpArg(op_arg *arg) {
   return arg->opt ? arg->dat->set->size : 0;
 }
 
-int op_is_root()
-{
-  return 1;
-}
+int op_is_root() { return 1; }
 
-int getHybridGPU() {
-  return OP_hybrid_gpu;
-}
-
+int getHybridGPU() { return OP_hybrid_gpu; }
 
 typedef struct {
 } op_export_core;
@@ -176,12 +150,14 @@ typedef struct {
 
 typedef op_import_core *op_import_handle;
 
-void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp, double *alpha) {
+void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
+                   double *dtheta_imp, double *alpha) {
 
   exit(1);
 }
 
-void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp, double *dtheta_imp) {
+void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
+                  double *dtheta_imp) {
 
   exit(1);
 }
@@ -191,24 +167,19 @@ op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
   return NULL;
 }
 
-op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords, op_dat mark) {
+op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
+                                op_dat mark) {
   exit(1);
   return NULL;
 }
 
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes, op_set sp_nodes, op_dat coords, op_dat mark) {
+op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
+                                op_set sp_nodes, op_dat coords, op_dat mark) {
 
   exit(1);
   return NULL;
 }
 
-void op_export_data(op_export_handle handle, op_dat dat) {
+void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 
-  exit(1);
-}
-
-void op_import_data(op_import_handle handle, op_dat dat) {
-
-  exit(1);
-}
-
+void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
