@@ -65,8 +65,8 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
+#include "op_lib_cpp.h"
 #include "op_lib_mpi.h"
-#include  "op_lib_cpp.h"
 
 //
 // op_par_loop declarations
@@ -77,48 +77,24 @@ extern "C" {
 #endif
 #endif
 
-void op_par_loop_save_soln(char const *, op_set,
-  op_arg,
-  op_arg );
+void op_par_loop_save_soln(char const *, op_set, op_arg, op_arg);
 
-void op_par_loop_adt_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+void op_par_loop_adt_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
+                          op_arg, op_arg);
 
-void op_par_loop_res_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+void op_par_loop_res_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
+                          op_arg, op_arg, op_arg, op_arg);
 
-void op_par_loop_bres_calc(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+void op_par_loop_bres_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
+                           op_arg, op_arg);
 
-void op_par_loop_update(char const *, op_set,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg,
-  op_arg );
+void op_par_loop_update(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
+                        op_arg);
 #ifdef OPENACC
 #ifdef __cplusplus
 }
 #endif
 #endif
-
 
 //
 // kernel routines for parallel loops
@@ -391,13 +367,13 @@ int main(int argc, char **argv) {
   op_dat p_adt = op_decl_dat(cells, 1, "double", adt, "p_adt");
   op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
 
-  op_decl_const2("gam",1,"double",&gam);
-  op_decl_const2("gm1",1,"double",&gm1);
-  op_decl_const2("cfl",1,"double",&cfl);
-  op_decl_const2("eps",1,"double",&eps);
-  op_decl_const2("mach",1,"double",&mach);
-  op_decl_const2("alpha",1,"double",&alpha);
-  op_decl_const2("qinf",4,"double",qinf);
+  op_decl_const2("gam", 1, "double", &gam);
+  op_decl_const2("gm1", 1, "double", &gm1);
+  op_decl_const2("cfl", 1, "double", &cfl);
+  op_decl_const2("eps", 1, "double", &eps);
+  op_decl_const2("mach", 1, "double", &mach);
+  op_decl_const2("alpha", 1, "double", &alpha);
+  op_decl_const2("qinf", 4, "double", qinf);
 
   op_diagnostic_output();
 
@@ -412,52 +388,52 @@ int main(int argc, char **argv) {
   for (int iter = 1; iter <= niter; iter++) {
 
     // save old flow solution
-    op_par_loop_save_soln("save_soln",cells,
-                op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
-                op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
+    op_par_loop_save_soln("save_soln", cells,
+                          op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
+                          op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
 
     //  predictor/corrector update loop
 
     for (int k = 0; k < 2; k++) {
 
       //    calculate area/timstep
-      op_par_loop_adt_calc("adt_calc",cells,
-                  op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,2,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_x,3,pcell,2,"double",OP_READ),
-                  op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
+      op_par_loop_adt_calc("adt_calc", cells,
+                           op_arg_dat(p_x, 0, pcell, 2, "double", OP_READ),
+                           op_arg_dat(p_x, 1, pcell, 2, "double", OP_READ),
+                           op_arg_dat(p_x, 2, pcell, 2, "double", OP_READ),
+                           op_arg_dat(p_x, 3, pcell, 2, "double", OP_READ),
+                           op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
+                           op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_WRITE));
 
       //    calculate flux residual
-      op_par_loop_res_calc("res_calc",edges,
-                  op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pedge,2,"double",OP_READ),
-                  op_arg_dat(p_q,0,pecell,4,"double",OP_READ),
-                  op_arg_dat(p_q,1,pecell,4,"double",OP_READ),
-                  op_arg_dat(p_adt,0,pecell,1,"double",OP_READ),
-                  op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
-                  op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
+      op_par_loop_res_calc("res_calc", edges,
+                           op_arg_dat(p_x, 0, pedge, 2, "double", OP_READ),
+                           op_arg_dat(p_x, 1, pedge, 2, "double", OP_READ),
+                           op_arg_dat(p_q, 0, pecell, 4, "double", OP_READ),
+                           op_arg_dat(p_q, 1, pecell, 4, "double", OP_READ),
+                           op_arg_dat(p_adt, 0, pecell, 1, "double", OP_READ),
+                           op_arg_dat(p_adt, 1, pecell, 1, "double", OP_READ),
+                           op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
+                           op_arg_dat(p_res, 1, pecell, 4, "double", OP_INC));
 
-      op_par_loop_bres_calc("bres_calc",bedges,
-                  op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
-                  op_arg_dat(p_x,1,pbedge,2,"double",OP_READ),
-                  op_arg_dat(p_q,0,pbecell,4,"double",OP_READ),
-                  op_arg_dat(p_adt,0,pbecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pbecell,4,"double",OP_INC),
-                  op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
+      op_par_loop_bres_calc("bres_calc", bedges,
+                            op_arg_dat(p_x, 0, pbedge, 2, "double", OP_READ),
+                            op_arg_dat(p_x, 1, pbedge, 2, "double", OP_READ),
+                            op_arg_dat(p_q, 0, pbecell, 4, "double", OP_READ),
+                            op_arg_dat(p_adt, 0, pbecell, 1, "double", OP_READ),
+                            op_arg_dat(p_res, 0, pbecell, 4, "double", OP_INC),
+                            op_arg_dat(p_bound, -1, OP_ID, 1, "int", OP_READ));
 
       //    update flow field
 
       rms = 0.0;
 
-      op_par_loop_update("update",cells,
-                  op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
-                  op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
-                  op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_gbl(&rms,1,"double",OP_INC));
+      op_par_loop_update("update", cells,
+                         op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_READ),
+                         op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_WRITE),
+                         op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),
+                         op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_READ),
+                         op_arg_gbl(&rms, 1, "double", OP_INC));
     }
 
     // print iteration history

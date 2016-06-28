@@ -3,9 +3,9 @@
 //
 
 // header
-#include "op_lib_cpp.h"
 #include "op_cuda_reduction.h"
 #include "op_cuda_rt_support.h"
+#include "op_lib_cpp.h"
 
 // global constants
 #ifndef MAX_CONST_SIZE

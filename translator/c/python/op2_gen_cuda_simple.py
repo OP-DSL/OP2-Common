@@ -1055,6 +1055,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   file_text = ''
   comm('header')
   code('#include "op_lib_cpp.h"')
+  code('')
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
   code('')

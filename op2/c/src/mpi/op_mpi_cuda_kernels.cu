@@ -31,8 +31,8 @@
  */
 
 #define MPICH_IGNORE_CXX_SEEK
-#include <op_lib_c.h>
 #include <op_lib_mpi.h>
+#include <op_lib_c.h>
 
 __global__ void export_halo_gather(int *list, char *dat, int copy_size,
                                    int elem_size, char *export_buffer) {

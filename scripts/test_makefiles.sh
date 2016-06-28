@@ -30,7 +30,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-#<<COMMENT1
+<<COMMENT0
 
 echo " "
 echo " "
@@ -40,7 +40,6 @@ echo "**********************************************************************"
 . $CURRENT_DIR/source_intel
 make clean; make
 
-#<<COMMENT1
 
 echo " "
 echo " "
@@ -48,6 +47,7 @@ echo "=======================> Building Airfoil Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 $OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 
 
@@ -58,18 +58,21 @@ echo "=======================> Building Airfoil Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 $OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Airfoil HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 
 echo " "
@@ -92,18 +95,21 @@ echo " "
 echo "=======================> Building Jac1 Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
 $OP2_C_CODEGEN_DIR/op2.py jac.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
 $OP2_C_CODEGEN_DIR/op2.py jac.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
 $OP2_C_CODEGEN_DIR/op2.py jac.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 
 
@@ -112,6 +118,7 @@ echo " "
 echo "=======================> Building Reduction with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction
 $OP2_C_CODEGEN_DIR/op2.py reduction.cpp
+for file in ./*.cu ./*.cpp ./*.h; do clang-format "$file" > "$file"_temp; mv "$file"_temp "$file"; done
 make clean;make
 
 #COMMENT1
@@ -183,6 +190,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
+COMMENT0
 
 <<COMMENT1
 echo " "
@@ -221,7 +229,7 @@ export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 
 COMMENT1
-
+<<COMMENT2
 echo " "
 echo " "
 echo "=======================> Running Jac1 Plain DP built with Intel Compilers"
@@ -340,16 +348,21 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
-#COMMENT1
+COMMENT2
+
 ###################################################################################
 ###################################################################################
+
+#TOBE REMOVED
+export LD_LIBRARY_PATH+=:/opt/compilers/intel/intelPS-2015/composer_xe_2015.2.164/compiler/lib/intel64/
+
 echo " "
 echo " "
 echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_15.10
+. $CURRENT_DIR/source_pgi_16.4
 pwd
 make clean; make
 
