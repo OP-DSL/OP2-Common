@@ -256,4 +256,5 @@ airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 #
 
 clean:
-		rm -f airfoil_seq airfoil_vec airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_vec airfoil_mpi_cuda airfoil_mpi_openmp *.o
+		rm -f airfoil_seq airfoil_vec airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_vec \
+		airfoil_mpi_cuda airfoil_mpi_openmp airfoil_genseq airfoil_mpi_genseq *.o
