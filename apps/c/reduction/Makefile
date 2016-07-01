@@ -35,8 +35,20 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+  CPP           = pgc++
+  CCFLAGS       = -O3
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -mp
+  MPICC         = $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICPP        = $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS      = $(CPPFLAGS)
+  NVCCFLAGS     = -ccbin=$(MPICPP)
+  ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -55,7 +67,7 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
@@ -79,8 +91,16 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 #
 # master to make all versions
 #
+ALL_TARGETS: clean reduction_seq reduction_genseq reduction_openmp reduction_cuda reduction_mpi reduction_mpi_cuda reduction_mpi_openmp
 
-all: clean reduction_seq reduction_genseq reduction_vec reduction_openmp reduction_cuda reduction_mpi reduction_mpi_cuda reduction_mpi_openmp
+ifeq ($(OP2_COMPILER),pgi)
+        ALL_TARGETS += #reduction_openacc
+endif
+ifeq ($(OP2_COMPILER),intel)
+        ALL_TARGETS += reduction_vec
+endif
+
+all: $(ALL_TARGETS)
 
 #
 # simple sequential version

@@ -161,7 +161,8 @@ int main(int argc, char **argv) {
   op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
   op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
 
-  int count;
+  int count1;
+  int count2;
 
   op_diagnostic_output();
 
@@ -169,25 +170,30 @@ int main(int argc, char **argv) {
   op_timers(&cpu_t1, &wall_t1);
 
   // indirect reduction
-  count = 0;
+  count1 = 0;
   op_par_loop_res_calc("res_calc", edges,
                        op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
-                       op_arg_gbl(&count, 1, "int", OP_INC));
-  op_printf("number of edges:: %d should be: %d \n", count, nedge);
-  if (count != nedge)
-    op_printf("indirect reduction FAILED\n");
+                       op_arg_gbl(&count1, 1, "int", OP_INC));
+  op_printf("number of edges:: %d should be: %d \n", count1, nedge);
+  if (count1 != nedge)
+    op_printf("indirect reduction Failed\n");
   else
-    op_printf("indirect reduction PASSED\n");
+    op_printf("indirect reduction Passed\n");
   // direct reduction
-  count = 0;
+  count2 = 0;
   op_par_loop_update("update", cells,
                      op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),
-                     op_arg_gbl(&count, 1, "int", OP_INC));
-  op_printf("number of cells: %d should be: %d \n", count, ncell);
-  if (count != ncell)
-    op_printf("direct reduction FAILED\n");
+                     op_arg_gbl(&count2, 1, "int", OP_INC));
+  op_printf("number of cells: %d should be: %d \n", count2, ncell);
+  if (count2 != ncell)
+    op_printf("direct reduction Failed\n");
   else
-    op_printf("direct reduction PASSED\n");
+    op_printf("direct reduction Passed\n");
+
+  if (count1 == nedge && count2 == ncell)
+    op_printf("Reduction application PASSED\n");
+  else
+    op_printf("Reduction application FAILED\n");
 
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();

@@ -259,6 +259,7 @@ echo "=======================> Running Reduction built with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction/
 validate "./reduction_seq"
 validate "./reduction_cuda"
+validate "./reduction_vec"
 export OMP_NUM_THREADS=20
 validate "./reduction_openmp"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./reduction_mpi"
@@ -344,16 +345,13 @@ COMMENT2
 ###################################################################################
 ###################################################################################
 
-#TOBE REMOVED
-export LD_LIBRARY_PATH+=:/opt/compilers/intel/intelPS-2015/composer_xe_2015.2.164/compiler/lib/intel64/
-
 echo " "
 echo " "
 echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_16.4
+. $CURRENT_DIR/source_pgi_15.10
 pwd
 make clean; make
 

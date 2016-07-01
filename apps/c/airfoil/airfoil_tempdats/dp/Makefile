@@ -35,8 +35,18 @@ ifeq ($(OP2_COMPILER),intel)
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),pgi)
+  CPP           = pgc++
+  CCFLAGS       = -O3
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -mp
+  MPICPP        = $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS      = $(CPPFLAGS)
+  NVCCFLAGS     = -ccbin=$(MPICPP)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -55,7 +65,7 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
@@ -80,8 +90,17 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 #
 # master to make all versions
 #
+ALL_TARGETS = clean airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp airfoil_mpi_genseq
+ifeq ($(OP2_COMPILER),pgi)
+        ALL_TARGETS += #airfoil_openacc airfoil_mpi_openacc
+endif
+ifeq ($(OP2_COMPILER),intel)
+        ALL_TARGETS += airfoil_mpi_vec
+endif
 
-all: clean airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_cuda airfoil_mpi_openmp airfoil_mpi_vec airfoil_mpi_genseq
+
+
+all: $(ALL_TARGETS)
 
 #
 # simple sequential version
