@@ -56,10 +56,17 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
         dat0[1][i] = 0.0;
         dat0[2][i] = 0.0;
         dat0[3][i] = 0.0;
+
+        dat1[0] = 0.0;
+        dat1[1] = 0.0;
+        dat1[2] = 0.0;
+        dat1[3] = 0.0;
+
       }
 #pragma simd
       for (int i = 0; i < SIMD_VEC; i++) {
-        res_calc_vec(dat0, (int *)arg1.data, i);
+        //res_calc_vec(dat0, (int *)arg1.data, i);
+        res_calc_vec(dat0, &dat1[i], i);
       }
       for (int i = 0; i < SIMD_VEC; i++) {
         int idx0_4 = 4 * arg0.map_data[(n + i) * arg0.map->dim + 0];
@@ -68,10 +75,9 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
         (ptr0)[idx0_4 + 1] += dat0[1][i];
         (ptr0)[idx0_4 + 2] += dat0[2][i];
         (ptr0)[idx0_4 + 3] += dat0[3][i];
-
-        for (int i = 0; i < SIMD_VEC; i++) {
-          *(int *)arg1.data += dat1[i];
-        }
+      }
+      for (int i = 0; i < SIMD_VEC; i++) {
+        *(int *)arg1.data += dat1[i];
       }
     }
 
