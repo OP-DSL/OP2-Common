@@ -53,6 +53,7 @@ ifeq ($(OP2_COMPILER),pgi)
   OMPFLAGS 	= -mp
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
+  NVCCFLAGS	= -ccbin=$(MPICPP)
   ACCFLAGS	= -acc -ta=tesla:cc35
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -88,7 +89,7 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS       =  $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math -O3 #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math -O3 #-g -G -O0
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -158,7 +159,7 @@ airfoil_openacc:	airfoil_op.cpp airfoil_acckernels.c \
 		bres_calc_acckernel.c  \
 		update_acckernel.c   \
                 Makefile
-		$(MPICC) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) \
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) \
 		airfoil_acckernels.c -c -o airfoil_acckernels.o
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) \
 		airfoil_op.cpp -lm airfoil_acckernels.o -lm $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_openacc
@@ -286,16 +287,14 @@ airfoil_mpi_cuda_hyb: airfoil_op.cpp airfoil_hybkernels.o Makefile
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda_hyb
 
-airfoil_hybkernels.o: airfoil_cpu_kernels.cpp \
-                save_soln_cpu_kernel.cpp  save_soln.h \
-                adt_calc_cpu_kernel.cpp   adt_calc.h  \
-                res_calc_cpu_kernel.cpp   res_calc.h  \
-                bres_calc_cpu_kernel.cpp  bres_calc.h \
-                update_cpu_kernel.cpp     update.h    \
+airfoil_hybkernels.o: airfoil_hybkernels.cu \
+                airfoil_kernels.cu airfoil_kernels.cpp save_soln.h \
+                adt_calc.h  res_calc.h  \
+                bres_calc.h update.h    \
                 Makefile
 		nvcc -DOP_HYBRID_GPU -DGPUPASS $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_hybkernels.o airfoil_hybkernels.cu
-		nvcc -DOP_HYBRID_GPU -Xcompiler=-fopenmp $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		nvcc -DOP_HYBRID_GPU -Xcompiler="$(OMPFLAGS)" $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_hybkernels2.o airfoil_hybkernels.cu
 #
 # convert ASCI new_gird.dat to HDF5 new_grid.h5

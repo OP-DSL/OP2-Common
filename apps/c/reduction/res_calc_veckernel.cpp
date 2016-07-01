@@ -57,15 +57,10 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
         dat0[2][i] = 0.0;
         dat0[3][i] = 0.0;
 
-        dat1[0] = 0.0;
-        dat1[1] = 0.0;
-        dat1[2] = 0.0;
-        dat1[3] = 0.0;
-
+        dat1[i] = 0.0;
       }
 #pragma simd
       for (int i = 0; i < SIMD_VEC; i++) {
-        //res_calc_vec(dat0, (int *)arg1.data, i);
         res_calc_vec(dat0, &dat1[i], i);
       }
       for (int i = 0; i < SIMD_VEC; i++) {

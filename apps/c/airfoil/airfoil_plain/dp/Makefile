@@ -94,11 +94,25 @@ PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                 -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
+
+#
+# master to make all versions
+#
+ALL_TARGETS = clean airfoil_seq airfoil_genseq airfoil_openmp airfoil_mpi airfoil_mpi_genseq airfoil_mpi_openmp airfoil_cuda airfoil_mpi_cuda
+ifeq ($(OP2_COMPILER),pgi)
+        ALL_TARGETS += #airfoil_openacc airfoil_mpi_openacc
+endif
+ifeq ($(OP2_COMPILER),intel)
+        ALL_TARGETS += airfoil_vec airfoil_mpi_vec
+endif
+
+all: $(ALL_TARGETS)
+
+
 #
 # master to make all versions
 #
 
-all: clean airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp airfoil_mpi airfoil_mpi_vec airfoil_mpi_genseq airfoil_mpi_openmp airfoil_cuda airfoil_mpi_cuda
 
 #
 # simple header file sequential version
@@ -239,7 +253,7 @@ airfoil_mpi_cuda:	airfoil_mpi_op.cpp airfoil_kernels_mpi_cu.o Makefile
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
 
-airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
+airfoil_kernels_mpi_cu.o:	airfoil_mpi_kernels.cu      \
 		  save_soln_kernel.cu  save_soln.h \
 		  adt_calc_kernel.cu   adt_calc.h  \
 		  res_calc_kernel.cu   res_calc.h  \
@@ -247,7 +261,7 @@ airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 		  update_kernel.cu     update.h    \
 		  Makefile
 		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
-		  -c -o airfoil_kernels_mpi_cu.o airfoil_kernels.cu
+		  -c -o airfoil_kernels_mpi_cu.o airfoil_mpi_kernels.cu
 
 
 
@@ -257,4 +271,4 @@ airfoil_kernels_mpi_cu.o:	airfoil_kernels.cu      \
 
 clean:
 		rm -f airfoil_seq airfoil_vec airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_vec \
-		airfoil_mpi_cuda airfoil_mpi_openmp airfoil_genseq airfoil_mpi_genseq *.o
+		airfoil_mpi_cuda airfoil_mpi_openmp airfoil_genseq airfoil_mpi_genseq airfoil_mpi_cuda_hyb *.o

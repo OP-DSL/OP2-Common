@@ -71,9 +71,8 @@ void op_par_loop_res(char const *name, op_set set, op_arg arg0, op_arg arg1,
         int idx2_1 = 1 * arg1.map_data[(n + i) * arg1.map->dim + 0];
 
         (ptr2)[idx2_1 + 0] += dat2[0][i];
-
-        for (int i = 0; i < SIMD_VEC; i++) {
-        }
+      }
+      for (int i = 0; i < SIMD_VEC; i++) {
       }
     }
 

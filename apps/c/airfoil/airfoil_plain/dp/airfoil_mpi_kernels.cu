@@ -13,13 +13,13 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ float gam;
-__constant__ float gm1;
-__constant__ float cfl;
-__constant__ float eps;
-__constant__ float mach;
-__constant__ float alpha;
-__constant__ float qinf[4];
+__constant__ double gam;
+__constant__ double gm1;
+__constant__ double cfl;
+__constant__ double eps;
+__constant__ double mach;
+__constant__ double alpha;
+__constant__ double qinf[4];
 
 void op_decl_const_char(int dim, char const *type, int size, char *dat,
                         char const *name) {

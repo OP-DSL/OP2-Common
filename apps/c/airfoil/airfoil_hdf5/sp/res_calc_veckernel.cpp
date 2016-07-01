@@ -36,7 +36,6 @@ inline void res_calc(const float *x1, const float *x2, const float *q1,
   res1[3] += f;
   res2[3] -= f;
 }
-
 #ifdef VECTORIZE
 // user function -- modified for vectorisation
 void res_calc_vec(const float x1[*][SIMD_VEC], const float x2[*][SIMD_VEC],

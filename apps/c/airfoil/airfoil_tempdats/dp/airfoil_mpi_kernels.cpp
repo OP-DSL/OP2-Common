@@ -14,8 +14,8 @@ extern double mach;
 extern double alpha;
 extern double qinf[4];
 // user kernel files
-#include "adt_calc_cpu_kernel.cpp"
-#include "bres_calc_cpu_kernel.cpp"
-#include "res_calc_cpu_kernel.cpp"
-#include "save_soln_cpu_kernel.cpp"
-#include "update_cpu_kernel.cpp"
+#include "adt_calc_kernel.cpp"
+#include "bres_calc_kernel.cpp"
+#include "res_calc_kernel.cpp"
+#include "save_soln_kernel.cpp"
+#include "update_kernel.cpp"

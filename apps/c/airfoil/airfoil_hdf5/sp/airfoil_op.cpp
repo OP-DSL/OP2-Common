@@ -102,7 +102,7 @@ void op_par_loop_update(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2, 1);
+  op_init(argc, argv, 2);
 
   int niter;
   float rms;

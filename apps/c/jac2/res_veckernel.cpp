@@ -75,9 +75,8 @@ void op_par_loop_res(char const *name, op_set set, op_arg arg0, op_arg arg1,
         (ptr2)[idx2_3 + 0] += dat2[0][i];
         (ptr2)[idx2_3 + 1] += dat2[1][i];
         (ptr2)[idx2_3 + 2] += dat2[2][i];
-
-        for (int i = 0; i < SIMD_VEC; i++) {
-        }
+      }
+      for (int i = 0; i < SIMD_VEC; i++) {
       }
     }
 

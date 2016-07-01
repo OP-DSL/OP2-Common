@@ -30,7 +30,6 @@ inline void adt_calc(const float *x1, const float *x2, const float *x3,
 
   *adt = (*adt) / cfl;
 }
-
 #ifdef VECTORIZE
 // user function -- modified for vectorisation
 void adt_calc_vec(const float x1[*][SIMD_VEC], const float x2[*][SIMD_VEC],
