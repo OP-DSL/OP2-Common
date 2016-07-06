@@ -34,6 +34,7 @@ ifeq ($(OP2_COMPILER),intel)
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  NVCCFLAGS	= -ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)

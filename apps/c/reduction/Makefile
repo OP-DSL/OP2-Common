@@ -33,6 +33,7 @@ ifeq ($(OP2_COMPILER),intel)
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= mpicxx
+  NVCCFLAGS	= -ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -91,7 +92,7 @@ PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 #
 # master to make all versions
 #
-ALL_TARGETS: clean reduction_seq reduction_genseq reduction_openmp reduction_cuda reduction_mpi reduction_mpi_cuda reduction_mpi_openmp
+ALL_TARGETS = clean reduction_seq reduction_genseq reduction_openmp reduction_cuda reduction_mpi reduction_mpi_cuda reduction_mpi_openmp
 
 ifeq ($(OP2_COMPILER),pgi)
         ALL_TARGETS += #reduction_openacc
