@@ -96,11 +96,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
     op_mpi_wait_all(nargs, args);
   }
   // combine reduction data
-  for ( int thr=0; thr<nthreads; thr++ ){
-    for ( int d=0; d<1; d++ ){
-      arg1h[d] += arg1_l[d+thr*64];
-    }
-  }
   op_mpi_reduce(&arg1,arg1h);
   op_mpi_set_dirtybit(nargs, args);
 

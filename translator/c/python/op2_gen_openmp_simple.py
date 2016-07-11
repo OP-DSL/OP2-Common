@@ -474,11 +474,11 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
 
 #
-# combine reduction data from multiple OpenMP threads
+# combine reduction data from multiple OpenMP threads, direct version
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
           FOR('d','0','DIM')
@@ -495,6 +495,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         else:
           print 'internal error: invalid reduction option'
         ENDFOR()
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
         code('op_mpi_reduce(&ARG,ARGh);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
