@@ -603,15 +603,16 @@ def op2_gen_openacc(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        if accs[g_m]==OP_INC:
-          code('ARGh[0] = ARG_l;')
-        elif accs[g_m]==OP_MIN:
-          code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
-        elif accs[g_m]==OP_MAX:
-          code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
-        else:
-          print 'internal error: invalid reduction option'
-        if typs[g_m] == 'double':
+        if ninds==0: #direct version only
+          if accs[g_m]==OP_INC:
+            code('ARGh[0] = ARG_l;')
+          elif accs[g_m]==OP_MIN:
+            code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
+          elif accs[g_m]==OP_MAX:
+            code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
+          else:
+            print 'internal error: invalid reduction option'
+        if typs[g_m] == 'double': #need for both direct and indirect
           code('op_mpi_reduce_double(&ARG,ARGh);')
         elif typs[g_m] == 'float':
           code('op_mpi_reduce_float(&ARG,ARGh);')
