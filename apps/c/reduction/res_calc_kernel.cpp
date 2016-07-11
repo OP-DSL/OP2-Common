@@ -95,6 +95,7 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
   }
   // combine reduction data
 <<<<<<< HEAD
+<<<<<<< HEAD
   op_mpi_reduce(&arg1,arg1h);
 =======
   for (int thr = 0; thr < nthreads; thr++) {
@@ -102,6 +103,8 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
       arg1h[d] += arg1_l[d + thr * 64];
     }
   }
+=======
+>>>>>>> 63fe3e9... Fix reduction application
   op_mpi_reduce(&arg1, arg1h);
 >>>>>>> ef5bf03... Formatting applications
   op_mpi_set_dirtybit(nargs, args);
