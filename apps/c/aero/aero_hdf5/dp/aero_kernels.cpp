@@ -28,15 +28,14 @@ extern double mfan;
 extern int op2_stride;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
-
 // user kernel files
 
-#include "res_calc_kernel.cpp"
 #include "dirichlet_kernel.cpp"
-#include "init_cg_kernel.cpp"
-#include "spMV_kernel.cpp"
 #include "dotPV_kernel.cpp"
-#include "updateUR_kernel.cpp"
 #include "dotR_kernel.cpp"
+#include "init_cg_kernel.cpp"
+#include "res_calc_kernel.cpp"
+#include "spMV_kernel.cpp"
 #include "updateP_kernel.cpp"
+#include "updateUR_kernel.cpp"
 #include "update_kernel.cpp"

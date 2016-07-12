@@ -13,11 +13,11 @@ extern float eps;
 extern float mach;
 extern float alpha;
 extern float qinf[4];
-void op_decl_const_char(int dim, char const *type,
-int size, char *dat, char const *name){}
+void op_decl_const_char(int dim, char const *type, int size, char *dat,
+                        char const *name) {}
 // user kernel files
-#include "save_soln_acckernel.c"
 #include "adt_calc_acckernel.c"
-#include "res_calc_acckernel.c"
 #include "bres_calc_acckernel.c"
+#include "res_calc_acckernel.c"
+#include "save_soln_acckernel.c"
 #include "update_acckernel.c"

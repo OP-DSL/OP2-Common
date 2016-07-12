@@ -27,8 +27,8 @@ extern float mach;
 extern float alpha;
 extern float qinf[4];
 // user kernel files
-#include "save_soln_veckernel.cpp"
 #include "adt_calc_veckernel.cpp"
-#include "res_calc_veckernel.cpp"
 #include "bres_calc_veckernel.cpp"
+#include "res_calc_veckernel.cpp"
+#include "save_soln_veckernel.cpp"
 #include "update_veckernel.cpp"

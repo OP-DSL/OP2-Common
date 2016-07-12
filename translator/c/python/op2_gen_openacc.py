@@ -408,7 +408,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           print 'ERROR: OpenACC does not support multi-dimensional variables'
           exit(-1)
         code('TYP ARG_l = ARGh[0];')
-  
+
     if ninds > 0:
       code('')
       code('int ncolors = 0;')

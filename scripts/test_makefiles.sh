@@ -30,7 +30,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-#<<COMMENT1
+#<<COMMENT0
 
 echo " "
 echo " "
@@ -40,7 +40,6 @@ echo "**********************************************************************"
 . $CURRENT_DIR/source_intel
 make clean; make
 
-#<<COMMENT1
 
 echo " "
 echo " "
@@ -112,6 +111,7 @@ echo " "
 echo "=======================> Building Reduction with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction
 $OP2_C_CODEGEN_DIR/op2.py reduction.cpp
+$OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
 make clean;make
 
 #COMMENT1
@@ -260,6 +260,7 @@ echo "=======================> Running Reduction built with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction/
 validate "./reduction_seq"
 validate "./reduction_cuda"
+validate "./reduction_vec"
 export OMP_NUM_THREADS=20
 validate "./reduction_openmp"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./reduction_mpi"
@@ -340,9 +341,12 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
-#COMMENT1
+#COMMENT0
+
 ###################################################################################
 ###################################################################################
+
+
 echo " "
 echo " "
 echo "**********************************************************************"
@@ -351,6 +355,10 @@ echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
 . $CURRENT_DIR/source_pgi_15.10
 pwd
+
+#Should be removed -- in here due to issue with octon's gcc linking with libimf for some reason that needs to be fixed
+export LD_LIBRARY_PATH+=:/opt/compilers/intel/intelPS-2015/composer_xe_2015.2.164/compiler/lib/intel64/
+
 make clean; make
 
 echo " "

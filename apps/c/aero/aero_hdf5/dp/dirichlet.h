@@ -1,3 +1,1 @@
-inline void dirichlet(double *res){
-    *res = 0.0;
-}
+inline void dirichlet(double *res) { *res = 0.0; }

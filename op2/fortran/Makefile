@@ -71,7 +71,6 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 # Default to PGI compiler
 #OP2_COMPILER ?= pgi
@@ -106,8 +105,8 @@ ifeq ($(OP2_COMPILER),pgi)
   CXX             = pgc++ -g
   FC              = pgfortran -g
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  FMPI_FLAGS	    = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
-  NVCC            = nvcc -Xcompiler="-std=c99 -Wall -fPIC -pipe"
+  FMPI_FLAGS      = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  NVCC            = nvcc -Xcompiler=""
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
   PGFC            = pgfortran
@@ -122,6 +121,7 @@ ifeq ($(OP2_COMPILER),pgi)
   CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
   CUDA_INC = $(CUDA_INSTALL_PATH)/include $(CUDA_ALIGN_FLAG)
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq f_cuda f_mpi_cuda f_mpi_cuda
+  NVCCFLAGS	  = -ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),xl)
   F_INC_MOD       = $(F_OP2_MOD)/xl
@@ -133,7 +133,7 @@ ifeq ($(OP2_COMPILER),xl)
   CFLAGS          = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O3 -qarch=pwr8 -qtune=pwr8
   CFLAGS_SLOW     = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O0 -qarch=pwr8 -qtune=pwr8
   FFLAGS          = -qmoddir=$(F_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
-  FMPI_FLAGS	    = -qmoddir=$(F_MPI_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
+  FMPI_FLAGS      = -qmoddir=$(F_MPI_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
   PGCFLAGS        = $(CFLAGS)
   PGFFLAGS        = $(FFLAGS)
   PGMPI_FFLAGS    = $(FMPI_FLAGS)
@@ -185,6 +185,7 @@ endif
 endif
 endif
 
+NVCCFLAGS       := $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 .PHONY: clean directories
 

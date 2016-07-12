@@ -9,9 +9,6 @@
 #ifndef op2_mf_dotR_h
 #define op2_mf_dotR_h
 
-inline void dotR(double *r, double *c){
-    *c += (*r)*(*r);
-}
-
+inline void dotR(double *r, double *c) { *c += (*r) * (*r); }
 
 #endif

@@ -531,6 +531,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               for d in range(0,int(dims[g_m])):
                 code('dat'+str(g_m)+'['+str(d)+'][i] = 0.0;')
               code('')
+          else: #globals
+            if (accs[g_m] == OP_INC):
+              for d in range(0,int(dims[g_m])):
+                code('dat'+str(g_m)+'[i] = 0.0;')
+              code('')
 
       ENDFOR()
       #kernel call
@@ -541,8 +546,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)],'
-        elif maps[g_m] == OP_GBL:
+        elif maps[g_m] == OP_GBL and accs[g_m] == OP_READ:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data,'
+        elif maps[g_m] == OP_GBL and accs[g_m] == OP_INC:
+          line = line + indent +'&dat'+str(g_m)+'[i],'
         else:
           line = line + indent + 'dat'+str(g_m)+','
       line = line +indent +'i);'
@@ -566,6 +573,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               for d in range(0,int(dims[g_m])):
                 code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
+      ENDFOR()
 
       #do reductions
       for g_m in range(0,nargs):
@@ -579,7 +587,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           ENDFOR()
 
-      ENDFOR()
+
       ENDFOR()
       code('')
       comm('remainder')

@@ -31,22 +31,22 @@ http://www.opensource.org/licenses/bsd-license.php
 // standard headers
 //
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // global constants
 
-double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
+double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
+    Ng2_xi[32], minf, m2, freq, kappa, nmode, mfan;
 
 //
 // OP header file
 //
 
-#include "op_seq.h"
 #include "op_lib_mpi.h"
-
+#include "op_seq.h"
 
 //
 // kernel routines for parallel loops
@@ -55,26 +55,25 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16], Ng2_xi[3
 #include "dirichlet.h"
 #include "dotPV.h"
 #include "dotR.h"
-#include "res_calc.h"
-#include "updateP.h"
-#include "updateUR.h"
 #include "init_cg.h"
+#include "res_calc.h"
 #include "spMV.h"
 #include "update.h"
+#include "updateP.h"
+#include "updateUR.h"
 
 // main program
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   // OP initialisation
 
-  op_init(argc,argv,2);
+  op_init(argc, argv, 2);
 
-  int    *bnode, *cell;
-  double  *xm;//, *q;
+  int *bnode, *cell;
+  double *xm; //, *q;
 
-  int    nnode,ncell,nbnodes,niter;
-  double  rms = 1;
+  int nnode, ncell, nbnodes, niter;
+  double rms = 1;
 
   // set constants and initialise flow field and residual
 
@@ -82,7 +81,7 @@ int main(int argc, char **argv)
 
   double gam = 1.4;
   gm1 = gam - 1.0;
-  gm1i = 1.0/gm1;
+  gm1i = 1.0 / gm1;
 
   wtg1[0] = 0.5;
   wtg1[1] = 0.5;
@@ -100,21 +99,57 @@ int main(int argc, char **argv)
   wtg2[1] = 0.25;
   wtg2[2] = 0.25;
   wtg2[3] = 0.25;
-  Ng2[0] = 0.622008467928146; Ng2[1] = 0.166666666666667; Ng2[2] = 0.166666666666667; Ng2[3] = 0.044658198738520;
-  Ng2[4] = 0.166666666666667; Ng2[5] = 0.622008467928146; Ng2[6] = 0.044658198738520; Ng2[7] = 0.166666666666667;
-  Ng2[8] = 0.166666666666667; Ng2[9] = 0.044658198738520; Ng2[10] = 0.622008467928146; Ng2[11] = 0.166666666666667;
-  Ng2[12] = 0.044658198738520; Ng2[13] = 0.166666666666667; Ng2[14] = 0.166666666666667; Ng2[15] = 0.622008467928146;
-  Ng2_xi[0] = -0.788675134594813;  Ng2_xi[1] = 0.788675134594813;  Ng2_xi[2] = -0.211324865405187;Ng2_xi[3] = 0.211324865405187;
-  Ng2_xi[4] = -0.788675134594813;  Ng2_xi[5] = 0.788675134594813;  Ng2_xi[6] = -0.211324865405187; Ng2_xi[7] = 0.211324865405187;
-  Ng2_xi[8] = -0.211324865405187;  Ng2_xi[9] = 0.211324865405187;  Ng2_xi[10] = -0.788675134594813; Ng2_xi[11] = 0.788675134594813;
-  Ng2_xi[12] = -0.211324865405187;  Ng2_xi[13] = 0.211324865405187;  Ng2_xi[14] = -0.788675134594813; Ng2_xi[15] = 0.788675134594813;
-  Ng2_xi[16] = -0.788675134594813;  Ng2_xi[17] = -0.211324865405187;  Ng2_xi[18] = 0.788675134594813; Ng2_xi[19] = 0.211324865405187;
-  Ng2_xi[20] = -0.211324865405187;  Ng2_xi[21] = -0.788675134594813;  Ng2_xi[22] = 0.211324865405187; Ng2_xi[23] = 0.788675134594813;
-  Ng2_xi[24] = -0.788675134594813;  Ng2_xi[25] = -0.211324865405187;  Ng2_xi[26] = 0.788675134594813; Ng2_xi[27] = 0.211324865405187;
-  Ng2_xi[28] = -0.211324865405187;  Ng2_xi[29] = -0.788675134594813;  Ng2_xi[30] = 0.211324865405187; Ng2_xi[31] = 0.788675134594813;
+  Ng2[0] = 0.622008467928146;
+  Ng2[1] = 0.166666666666667;
+  Ng2[2] = 0.166666666666667;
+  Ng2[3] = 0.044658198738520;
+  Ng2[4] = 0.166666666666667;
+  Ng2[5] = 0.622008467928146;
+  Ng2[6] = 0.044658198738520;
+  Ng2[7] = 0.166666666666667;
+  Ng2[8] = 0.166666666666667;
+  Ng2[9] = 0.044658198738520;
+  Ng2[10] = 0.622008467928146;
+  Ng2[11] = 0.166666666666667;
+  Ng2[12] = 0.044658198738520;
+  Ng2[13] = 0.166666666666667;
+  Ng2[14] = 0.166666666666667;
+  Ng2[15] = 0.622008467928146;
+  Ng2_xi[0] = -0.788675134594813;
+  Ng2_xi[1] = 0.788675134594813;
+  Ng2_xi[2] = -0.211324865405187;
+  Ng2_xi[3] = 0.211324865405187;
+  Ng2_xi[4] = -0.788675134594813;
+  Ng2_xi[5] = 0.788675134594813;
+  Ng2_xi[6] = -0.211324865405187;
+  Ng2_xi[7] = 0.211324865405187;
+  Ng2_xi[8] = -0.211324865405187;
+  Ng2_xi[9] = 0.211324865405187;
+  Ng2_xi[10] = -0.788675134594813;
+  Ng2_xi[11] = 0.788675134594813;
+  Ng2_xi[12] = -0.211324865405187;
+  Ng2_xi[13] = 0.211324865405187;
+  Ng2_xi[14] = -0.788675134594813;
+  Ng2_xi[15] = 0.788675134594813;
+  Ng2_xi[16] = -0.788675134594813;
+  Ng2_xi[17] = -0.211324865405187;
+  Ng2_xi[18] = 0.788675134594813;
+  Ng2_xi[19] = 0.211324865405187;
+  Ng2_xi[20] = -0.211324865405187;
+  Ng2_xi[21] = -0.788675134594813;
+  Ng2_xi[22] = 0.211324865405187;
+  Ng2_xi[23] = 0.788675134594813;
+  Ng2_xi[24] = -0.788675134594813;
+  Ng2_xi[25] = -0.211324865405187;
+  Ng2_xi[26] = 0.788675134594813;
+  Ng2_xi[27] = 0.211324865405187;
+  Ng2_xi[28] = -0.211324865405187;
+  Ng2_xi[29] = -0.788675134594813;
+  Ng2_xi[30] = 0.211324865405187;
+  Ng2_xi[31] = 0.788675134594813;
 
   minf = 0.1;
-  m2 = minf*minf;
+  m2 = minf * minf;
   freq = 1;
   kappa = 1;
   nmode = 0;
@@ -123,46 +158,46 @@ int main(int argc, char **argv)
 
   char file[] = "FE_grid.h5";
 
-
   // declare sets, pointers, datasets and global constants
 
-  op_set nodes  = op_decl_set_hdf5(file,  "nodes");
+  op_set nodes = op_decl_set_hdf5(file, "nodes");
   op_set bnodes = op_decl_set_hdf5(file, "bedges");
-  op_set cells  = op_decl_set_hdf5(file,  "cells");
+  op_set cells = op_decl_set_hdf5(file, "cells");
 
-  op_map pbnodes = op_decl_map_hdf5(bnodes,nodes,1,file, "pbedge");
-  op_map pcell   = op_decl_map_hdf5(cells, nodes,4,file,  "pcell");
+  op_map pbnodes = op_decl_map_hdf5(bnodes, nodes, 1, file, "pbedge");
+  op_map pcell = op_decl_map_hdf5(cells, nodes, 4, file, "pcell");
 
-  op_dat p_xm    = op_decl_dat_hdf5(nodes ,2,"double",  file, "p_x");
-  op_dat p_phim  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
-  op_dat p_resm  = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
-  op_dat p_K     = op_decl_dat_hdf5(cells, 16, "double:soa",file, "p_K");
-  op_dat p_V     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
-  op_dat p_P     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
-  op_dat p_U     = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
+  op_dat p_xm = op_decl_dat_hdf5(nodes, 2, "double", file, "p_x");
+  op_dat p_phim = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
+  op_dat p_resm = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
+  op_dat p_K = op_decl_dat_hdf5(cells, 16, "double:soa", file, "p_K");
+  op_dat p_V = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
+  op_dat p_P = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
+  op_dat p_U = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
 
-  op_decl_const(1,"double",&gam  );
-  op_decl_const(1,"double",&gm1  );
-  op_decl_const(1,"double",&gm1i  );
-  op_decl_const(1,"double",&m2  );
-  op_decl_const(2,"double",wtg1  );
-  op_decl_const(2,"double",xi1  );
-  op_decl_const(4,"double",Ng1  );
-  op_decl_const(4,"double",Ng1_xi  );
-  op_decl_const(4,"double",wtg2  );
-  op_decl_const(16,"double",Ng2  );
-  op_decl_const(32,"double",Ng2_xi  );
-  op_decl_const(1,"double",&minf  );
-  op_decl_const(1,"double",&freq  );
-  op_decl_const(1,"double",&kappa  );
-  op_decl_const(1,"double",&nmode  );
-  op_decl_const(1,"double",&mfan  );
+  op_decl_const(1, "double", &gam);
+  op_decl_const(1, "double", &gm1);
+  op_decl_const(1, "double", &gm1i);
+  op_decl_const(1, "double", &m2);
+  op_decl_const(2, "double", wtg1);
+  op_decl_const(2, "double", xi1);
+  op_decl_const(4, "double", Ng1);
+  op_decl_const(4, "double", Ng1_xi);
+  op_decl_const(4, "double", wtg2);
+  op_decl_const(16, "double", Ng2);
+  op_decl_const(32, "double", Ng2_xi);
+  op_decl_const(1, "double", &minf);
+  op_decl_const(1, "double", &freq);
+  op_decl_const(1, "double", &kappa);
+  op_decl_const(1, "double", &nmode);
+  op_decl_const(1, "double", &mfan);
 
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
 
-  op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size, bnodes->size);
+  op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size,
+            bnodes->size);
   nnode = op_get_size(nodes);
   ncell = op_get_size(cells);
   nbnodes = op_get_size(bnodes);
@@ -174,17 +209,16 @@ int main(int argc, char **argv)
 
   niter = 20;
 
-  for(int iter=1; iter<=niter; iter++) {
+  for (int iter = 1; iter <= niter; iter++) {
 
-    op_par_loop(res_calc,"res_calc",cells,
-                op_arg_dat(p_xm,    -4, pcell, 2,"double",OP_READ),
-                op_arg_dat(p_phim,  -4, pcell, 1,"double",OP_READ),
-                op_arg_dat(p_K,     -1, OP_ID, 16,"double:soa",OP_WRITE),
-                op_arg_dat(p_resm,  -4, pcell, 1,"double",OP_INC)
-                );
+    op_par_loop(res_calc, "res_calc", cells,
+                op_arg_dat(p_xm, -4, pcell, 2, "double", OP_READ),
+                op_arg_dat(p_phim, -4, pcell, 1, "double", OP_READ),
+                op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_WRITE),
+                op_arg_dat(p_resm, -4, pcell, 1, "double", OP_INC));
 
-    op_par_loop(dirichlet,"dirichlet",bnodes,
-                op_arg_dat(p_resm,  0, pbnodes, 1,"double",OP_WRITE));
+    op_par_loop(dirichlet, "dirichlet", bnodes,
+                op_arg_dat(p_resm, 0, pbnodes, 1, "double", OP_WRITE));
 
     double c1 = 0;
     double c2 = 0;
@@ -192,7 +226,7 @@ int main(int argc, char **argv)
     double alpha = 0;
     double beta = 0;
 
-    //c1 = R'*R;
+    // c1 = R'*R;
     op_par_loop(init_cg, "init_cg", nodes,
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&c1, 1, "double", OP_INC),
@@ -200,33 +234,33 @@ int main(int argc, char **argv)
                 op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_WRITE));
 
-    //set up stopping conditions
+    // set up stopping conditions
     double res0 = sqrt(c1);
     double res = res0;
     int inner_iter = 0;
     int maxiter = 200;
-    while (res > 0.1*res0 && inner_iter < maxiter) {
-      //V = Stiffness*P
+    while (res > 0.1 * res0 && inner_iter < maxiter) {
+      // V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
                   op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
-      op_par_loop(dirichlet,"dirichlet",bnodes,
-                  op_arg_dat(p_V,  0, pbnodes, 1,"double",OP_WRITE));
+      op_par_loop(dirichlet, "dirichlet", bnodes,
+                  op_arg_dat(p_V, 0, pbnodes, 1, "double", OP_WRITE));
 
       c2 = 0;
 
-      //c2 = P'*V;
+      // c2 = P'*V;
       op_par_loop(dotPV, "dotPV", nodes,
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_dat(p_V, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_gbl(&c2, 1, "double", OP_INC));
 
-      alpha = c1/c2;
+      alpha = c1 / c2;
 
-      //U = U + alpha*P;
-      //resm = resm-alpha*V;
+      // U = U + alpha*P;
+      // resm = resm-alpha*V;
       op_par_loop(updateUR, "updateUR", nodes,
                   op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_INC),
                   op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_INC),
@@ -236,12 +270,12 @@ int main(int argc, char **argv)
 
       c3 = 0;
 
-      //c3 = resm'*resm;
+      // c3 = resm'*resm;
       op_par_loop(dotR, "dotR", nodes,
                   op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_gbl(&c3, 1, "double", OP_INC));
-      beta = c3/c1;
-      //P = beta*P+resm;
+      beta = c3 / c1;
+      // P = beta*P+resm;
       op_par_loop(updateP, "updateP", nodes,
                   op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_dat(p_P, -1, OP_ID, 1, "double", OP_RW),
@@ -251,18 +285,17 @@ int main(int argc, char **argv)
       inner_iter++;
     }
     rms = 0;
-    //phim = phim - Stiffness\Load;
+    // phim = phim - Stiffness\Load;
     op_par_loop(update, "update", nodes,
-        op_arg_dat(p_phim, -1, OP_ID, 1, "double", OP_RW),
-        op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
-        op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
-        op_arg_gbl(&rms, 1, "double", OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms)/sqrt(nnode), iter);
+                op_arg_dat(p_phim, -1, OP_ID, 1, "double", OP_RW),
+                op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
+                op_arg_gbl(&rms, 1, "double", OP_INC));
+    op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
   }
 
   op_timing_output();
   op_timers(&cpu_t2, &wall_t2);
-  op_printf("Max total runtime = %f\n",wall_t2-wall_t1);
+  op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
   op_exit();
 }
-
