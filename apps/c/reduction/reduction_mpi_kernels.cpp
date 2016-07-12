@@ -6,10 +6,6 @@
 #include "op_lib_cpp.h"
 
 // global constants
-<<<<<<< HEAD
-=======
-
->>>>>>> 18d1e1e... Formatting example applications
 // user kernel files
 #include "res_calc_kernel.cpp"
 #include "update_kernel.cpp"

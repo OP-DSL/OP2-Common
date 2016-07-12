@@ -111,6 +111,7 @@ echo " "
 echo "=======================> Building Reduction with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction
 $OP2_C_CODEGEN_DIR/op2.py reduction.cpp
+$OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
 make clean;make
 
 #COMMENT1
