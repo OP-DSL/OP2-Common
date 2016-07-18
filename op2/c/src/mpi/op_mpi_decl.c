@@ -117,8 +117,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int halo_size = OP_import_exec_list[set->index]->size +
                   OP_import_nonexec_list[set->index]->size;
 
-  dat->data = (char *)calloc((set->size + halo_size) * dim * size,
-                             1); // initialize data bits to 0
+  // initialize data bits to 0
+  dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
   dat->user_managed = 0;
 
   // need to allocate mpi_buffers for this new temp_dat

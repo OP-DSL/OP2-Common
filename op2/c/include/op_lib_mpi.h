@@ -44,46 +44,47 @@
 extern MPI_Comm OP_MPI_WORLD;
 extern MPI_Comm OP_MPI_GLOBAL;
 
-extern halo_list *OP_export_exec_list;//EEH list
-extern halo_list *OP_import_exec_list;//IEH list
+extern halo_list *OP_export_exec_list; // EEH list
+extern halo_list *OP_import_exec_list; // IEH list
 
-extern halo_list *OP_import_nonexec_list;//INH list
-extern halo_list *OP_export_nonexec_list;//ENH list
+extern halo_list *OP_import_nonexec_list; // INH list
+extern halo_list *OP_export_nonexec_list; // ENH list
 
 extern int OP_part_index;
 extern part *OP_part_list;
-extern int** orig_part_range;
+extern int **orig_part_range;
 
 /** variables for partial halo exchanges **/
 extern int *OP_map_partial_exchange;
 extern halo_list *OP_import_nonexec_permap;
 extern halo_list *OP_export_nonexec_permap;
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /** Gather halo data in buffer on the device **/
-void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list, halo_list exp_nonexec_list);
+void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
+                           halo_list exp_nonexec_list);
 void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list);
 void scatter_data_from_buffer(op_arg arg);
 void scatter_data_from_buffer_partial(op_arg arg);
 
 op_set op_decl_set_hdf5(char const *file, char const *name);
-op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file, char const *name);
-op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file, char const *name);
+op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
+                        char const *name);
+op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
+                        char const *name);
 
-void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_data,
-  char const *file_name);
+void op_get_const_hdf5(char const *name, int dim, char const *type,
+                       char *const_data, char const *file_name);
 
-void op_dump_to_hdf5(char const * file_name);
-void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
-  char const *file_name);
+void op_dump_to_hdf5(char const *file_name);
+void op_write_const_hdf5(char const *name, int dim, char const *type,
+                         char *const_data, char const *file_name);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __OP_LIB_MPI_H */
-

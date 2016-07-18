@@ -553,12 +553,11 @@ void op_halo_create() {
       for (int m = 0; m < OP_map_index; m++) { // for each maping table
         op_map map = OP_map_list[m];
 
-        if (compare_sets(map->from, set) == 1) // need to select mappings
-        // FROM this set
-        {
+        if (compare_sets(map->from, set) == 1) { // need to select mappings
+                                                 // FROM this set
           int part, local_index;
           for (int j = 0; j < map->dim; j++) { // for each element
-            // pointed at by this entry
+                                               // pointed at by this entry
             part = get_partition(map->map[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
                                  comm_size);
@@ -679,7 +678,7 @@ void op_halo_create() {
     for (int i = 0; i < i_list->ranks_size; i++) {
       // printf("\n imported on to %d map %10s, number of elements of size %d |
       // recieving: ",
-      //    my_rank, map->name, i_list->size);
+      // my_rank, map->name, i_list->size);
       MPI_Recv(
           &(OP_map_list[map->index]->map[init + i_list->disps[i] * map->dim]),
           map->dim * i_list->sizes[i], MPI_INT, i_list->ranks[i], m,
@@ -717,16 +716,16 @@ void op_halo_create() {
       op_map map = OP_map_list[m];
       halo_list exec_map_list = OP_import_exec_list[map->from->index];
 
-      if (compare_sets(map->to, set) ==
-          1) // need to select mappings TO this set
-      {
+      if (compare_sets(map->to, set) == 1) { // need to select
+                                             // mappings TO this set
+
         // for each entry in this mapping table: original+execlist
         int len = map->from->size + exec_map_list->size;
         for (int e = 0; e < len; e++) {
           int part;
           int local_index;
           for (int j = 0; j < map->dim; j++) { // for each element pointed
-            // at by this entry
+                                               // at by this entry
             part = get_partition(map->map[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
                                  comm_size);
@@ -838,9 +837,9 @@ void op_halo_create() {
       d++; // increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
-      if (compare_sets(set, dat->set) ==
-          1) // if this data array is defined on this set
-      {
+      if (compare_sets(set, dat->set) == 1) { // if this data array
+                                              // is defined on this set
+
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
         MPI_Request request_send[e_list->ranks_size];
 
@@ -899,9 +898,9 @@ void op_halo_create() {
       d++; // increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
-      if (compare_sets(set, dat->set) == 1) // if this data array is
-      // defined on this set
-      {
+      if (compare_sets(set, dat->set) == 1) { // if this data array is
+                                              // defined on this set
+
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
         MPI_Request request_send[e_list->ranks_size];
 
@@ -950,9 +949,9 @@ void op_halo_create() {
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
       op_map map = OP_map_list[m];
 
-      if (compare_sets(map->to, set) ==
-          1) // need to select mappings TO this set
-      {
+      if (compare_sets(map->to, set) == 1) { // need to select
+                                             // mappings TO this set
+
         halo_list exec_set_list = OP_import_exec_list[set->index];
         halo_list nonexec_set_list = OP_import_nonexec_list[set->index];
 
@@ -962,7 +961,7 @@ void op_halo_create() {
         int len = map->from->size + exec_map_list->size;
         for (int e = 0; e < len; e++) {
           for (int j = 0; j < map->dim; j++) { // for each element
-            // pointed at by this entry
+                                               // pointed at by this entry
             int part;
             int local_index = 0;
             part = get_partition(map->map[e * map->dim + j],
@@ -1109,9 +1108,8 @@ void op_halo_create() {
       for (int m = 0; m < OP_map_index; m++) { // for each set
         op_map map = OP_map_list[m];
 
-        if (compare_sets(map->from, set) == 1) // if this mapping is
-        // defined from this set
-        {
+        if (compare_sets(map->from, set) == 1) { // if this mapping is
+                                                 // defined from this set
           int *new_map = (int *)xmalloc(set->size * map->dim * sizeof(int));
           for (int i = 0; i < count; i++) {
             memcpy(&new_map[i * map->dim],
@@ -1169,7 +1167,7 @@ void op_halo_create() {
     int len = map->from->size + exec_map_list->size;
     for (int e = 0; e < len; e++) {
       for (int j = 0; j < map->dim; j++) { // for each element pointed
-        // at by this entry
+                                           // at by this entry
         if (map->map[e * map->dim + j] < map->to->size) {
           int index = binary_search(core_elems[map->to->index],
                                     map->map[e * map->dim + j], 0,
@@ -1226,9 +1224,9 @@ void op_halo_create() {
       op_free(OP_part_list[set->index]->g_index);
       OP_part_list[set->index]->g_index = temp;
     }
-  } else // OP_part_list exists (i.e. a partitioning has been done)
-  // update the seperation of elements
-  {
+  } else { // OP_part_list exists (i.e. a partitioning has been done)
+           // update the seperation of elements
+
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
 
@@ -1960,9 +1958,9 @@ void op_halo_permap_create() {
     TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
       // NJH
-      if (compare_sets(set, dat->set) ==
-          1) // if this data array is defined on this set
-      {
+      if (compare_sets(set, dat->set) == 1) { // if this data array
+                                              // is defined on this set
+
         halo_list nonexec_e_list = OP_export_nonexec_list[i];
         ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec = (char *)xrealloc(
             ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec,
@@ -2656,9 +2654,8 @@ op_dat op_mpi_get_data(op_dat dat) {
       (int *)xmalloc(sizeof(int) * (dat->set->size + pi_list->size));
 
   count = 0;
-  for (int i = 0; i < dat->set->size;
-       i++) // iterate over old size of the g_index array
-  {
+  for (int i = 0; i < dat->set->size; i++) { // iterate over old
+                                             // size of the g_index array
     if (OP_part_list[dat->set->index]->elem_part[i] == my_rank) {
       new_g_index[count] = OP_part_list[dat->set->index]->g_index[i];
       count++;

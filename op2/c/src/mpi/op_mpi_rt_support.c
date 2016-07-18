@@ -209,7 +209,7 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
     halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
     halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
     //-------exchange nonexec elements related to this data array and
-    //map--------
+    // map--------
 
     // sanity checks
     if (compare_sets(imp_nonexec_list->set, dat->set) == 0) {

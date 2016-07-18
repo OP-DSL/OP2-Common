@@ -1046,9 +1046,8 @@ static void migrate_all(int my_rank, int comm_size) {
       d++; // increase tag to do mpi comm for the next op_dat
       op_dat dat = item->dat;
 
-      if (compare_sets(dat->set, set) ==
-          1) // this data array is defines on this set
-      {
+      if (compare_sets(dat->set, set) == 1) { // this data array
+                                              // is defined on this set
 
         // prepare bits of the data array to be exported
         char **sbuf = (char **)xmalloc(exp->ranks_size * sizeof(char *));
@@ -1125,9 +1124,9 @@ static void migrate_all(int my_rank, int comm_size) {
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
       op_map map = OP_map_list[m];
 
-      if (compare_sets(map->from, set) ==
-          1) // need to select mappings FROM this set
-      {
+      if (compare_sets(map->from, set) == 1) { // need to select
+                                               // mappings FROM this set
+
         // prepare bits of the mapping tables to be exported
         int **sbuf = (int **)xmalloc(exp->ranks_size * sizeof(int *));
 
@@ -1169,9 +1168,8 @@ static void migrate_all(int my_rank, int comm_size) {
             (int *)xmalloc(sizeof(int) * (set->size + imp->size) * map->dim);
 
         count = 0;
-        for (int i = 0; i < map->from->size;
-             i++) // iterate over old size of the maping table
-        {
+        for (int i = 0; i < map->from->size; i++) { // iterate over old size
+                                                    // of the maping table
           if (OP_part_list[map->from->index]->elem_part[i] == my_rank) {
             memcpy(&new_map[count * map->dim],
                    (void *)&OP_map_list[map->index]->map[map->dim * i],
@@ -1239,9 +1237,8 @@ static void migrate_all(int my_rank, int comm_size) {
     int *new_g_index = (int *)xmalloc(sizeof(int) * (set->size + imp->size));
 
     count = 0;
-    for (int i = 0; i < set->size;
-         i++) // iterate over old size of the g_index array
-    {
+    for (int i = 0; i < set->size; i++) { // iterate over old
+                                          // size of the g_index array
       if (OP_part_list[set->index]->elem_part[i] == my_rank) {
         new_g_index[count] = OP_part_list[set->index]->g_index[i];
         count++;
@@ -1509,6 +1506,7 @@ void op_partition_random(op_set primary_set) {
   renumber_maps(my_rank, comm_size);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
+
   // printf time for partitioning
   time = wall_t2 - wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
@@ -1660,6 +1658,7 @@ void op_partition_geom(op_dat coords) {
   renumber_maps(my_rank, comm_size);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
+
   // printf time for partitioning
   time = wall_t2 - wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
@@ -1737,11 +1736,11 @@ void op_partition_kway(op_map primary_map) {
   int cap = 1000;
   int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
 
-  for (int e = 0; e < primary_map->from->size;
-       e++) { // for each maping table entry
+  for (int e = 0; e < primary_map->from->size; e++) { // for each
+                                                      // maping table entry
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -1859,8 +1858,8 @@ void op_partition_kway(op_map primary_map) {
   // list
   for (int i = 0; i < primary_map->from->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -1882,8 +1881,8 @@ void op_partition_kway(op_map primary_map) {
   // list
   for (int i = 0; i < imp_list->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(foreign_maps[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2158,11 +2157,11 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   int cap = 1000;
   int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
 
-  for (int e = 0; e < primary_map->from->size;
-       e++) { // for each maping table entry
+  for (int e = 0; e < primary_map->from->size; e++) { // for each
+                                                      // maping table entry
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2280,8 +2279,8 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   // list
   for (int i = 0; i < primary_map->from->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2303,8 +2302,8 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   // list
   for (int i = 0; i < imp_list->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(foreign_maps[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2721,11 +2720,11 @@ void op_partition_ptscotch(op_map primary_map) {
   int cap = 1000;
   int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
 
-  for (int e = 0; e < primary_map->from->size;
-       e++) { // for each maping table entry
+  for (int e = 0; e < primary_map->from->size; e++) { // for each
+                                                      // maping table entry
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2847,8 +2846,8 @@ void op_partition_ptscotch(op_map primary_map) {
   // list
   for (int i = 0; i < primary_map->from->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(primary_map->map[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
@@ -2870,8 +2869,8 @@ void op_partition_ptscotch(op_map primary_map) {
   // list
   for (int i = 0; i < imp_list->size; i++) {
     int part, local_index;
-    for (int j = 0; j < primary_map->dim;
-         j++) { // for each element pointed at by this entry
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
       part = get_partition(foreign_maps[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
