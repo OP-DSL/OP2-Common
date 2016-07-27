@@ -356,9 +356,6 @@ cd $OP2_INSTALL_PATH/fortran
 . $CURRENT_DIR/source_pgi_15.10
 pwd
 
-#Should be removed -- in here due to issue with octon's gcc linking with libimf for some reason that needs to be fixed
-export LD_LIBRARY_PATH+=:/opt/compilers/intel/intelPS-2015/composer_xe_2015.2.164/compiler/lib/intel64/
-
 make clean; make
 
 echo " "
