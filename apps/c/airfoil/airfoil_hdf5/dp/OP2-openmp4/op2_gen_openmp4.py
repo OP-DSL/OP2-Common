@@ -320,8 +320,12 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
     kernel_params = [ var.strip() for var in signature_text.split(',')]
     signature_text = '#pragma omp declare target\ninline ' + head_text + '( '+signature_text + ') {'
-    omp4_kernel_file_text += signature_text + body_text + '}\n#pragma omp end declare target\n'
-    
+    # omp4_kernel_file_text += signature_text + body_text + '}\n#pragma omp end declare target\n'
+    # collect constants used by kernel
+    kernel_consts = []
+    for nc in range(0,len(consts)):
+      if body_text.find(consts[nc]['name']+'_ompkernel') != -1:
+        kernel_consts.append(nc)
 
 ##########################################################################
 # then C++ stub function
@@ -394,15 +398,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
       IF('OP_diags>2')
       code('printf(" kernel routine with indirection: '+name+'\\n");')
       ENDIF()
-
       code('')
       comm(' get plan')
-      code('#ifdef OP_PART_SIZE_'+ str(nk))
-      code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
-      code('#else')
-      code('  int part_size = OP_part_size;')
-      code('#endif')
-      code('')
       code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
@@ -415,6 +412,21 @@ def op2_gen_openmp4(master, date, consts, kernels):
       ENDIF()
       code('')
       code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+
+#
+# get part and block size
+#
+    code('')
+    code('#ifdef OP_PART_SIZE_'+ str(nk))
+    code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
+    code('#else')
+    code('  int part_size = OP_part_size;')
+    code('#endif')
+    code('#ifdef OP_BLOCK_SIZE_'+ str(nk))
+    code('  int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
+    code('#else')
+    code('  int nthread = OP_block_size;')
+    code('#endif')
 
     code('')
     for g_m in range(0,nargs):
@@ -447,7 +459,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
           code('direct_'+name+'_stride_OP2CONSTANT = direct_'+name+'_stride_OP2HOST;')
           ENDIF()
     code('')
-    comm('Set up typed device pointers for OpenACC')
+    comm('Set up typed device pointers for OpenMP')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
@@ -489,7 +501,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
 #
     if ninds>0:
       # add indirect kernel specific params to kernel func call 
-      params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end'
+      params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
+      params += indent + 'int num_teams,' + indent + 'int nthread';
       file_text = re.sub('// host stub function', func_call_signaure_text+params+');\n\n// host stub function', file_text)
       # kernel fun call params ready
       code('')
@@ -510,6 +523,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       indent = '\n' + ' ' * (depth+2)
       call_params = ','.join([ indent + re.sub(r'\*arg(\d+)',r'&arg\1_l',param.strip().split(' ')[-1]) for param in params.split(',')])
       call_params = call_params.replace('*','')
+      call_params = call_params.replace('num_teams','part_size != 0?(end-start-1)/part_size+1:nthread')
       code(func_call_signaure_text.split(' ')[-1]+call_params+');')
       code('')
       # kernel function call ready
@@ -521,12 +535,13 @@ def op2_gen_openmp4(master, date, consts, kernels):
       # start write the function:
       code('')
       code(func_call_signaure_text+params+'){')
+      code('')
       depth += 2
       for g_m in range(0, nargs):
         if maps[g_m] == OP_GBL:
           code('TYP ARG_l = *ARG;')
       # write kernel
-      line = '#pragma omp target teams map(to:col_reord,'
+      line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:col_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -541,10 +556,23 @@ def op2_gen_openmp4(master, date, consts, kernels):
         g_m = invinds[m-1]
         line = line + 'data'+str(g_m)+','
       line = line[:-1]+')'
+      # mapping global consts
+      if len(kernel_consts) != 0:
+        line += '\\\n' + (depth+2)*' ' + 'map(to:'
+        for nc in kernel_consts:
+          line += ' ' + consts[nc]['name']+'_ompkernel,'
+          if consts[nc]['dim'] != 1:
+            if consts[nc]['dim'] > 0:
+              num = str(consts[nc]['dim'])
+            else:
+              num = 'MAX_CONST_SIZE'
+            line = line[:-1] + '[:'+ num +'],'
+        line = line[:-1]+')'
+      # prepare reduction
       reduction_string = ''
       reduction_mapping = ''
       if reduct:
-        reduction_mapping = ' map(tofrom:'
+        reduction_mapping = '\\\n' + (depth+2)*' ' + 'map(tofrom:'
         for g_m in range(0,nargs):
           if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
             if accs[g_m] == OP_INC:
@@ -573,47 +601,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
               '[n + set_size1 * '+str(idxs[g_m])+'];')
 
       code('')
-      line = name+'('
-      indent = '\n'+' '*(depth+2)
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            line = line + indent + '&data'+str(g_m)+'[n]'
-          else:
-            line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+' * n]'
-        if maps[g_m] == OP_MAP:
-          if soaflags[g_m]:
-            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
-          else:
-            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
-        if maps[g_m] == OP_GBL:
-          line = line + indent +'&arg'+str(g_m)+'_l'
-        if g_m < nargs-1:
-          line = line +','
-        else:
-           line = line +');'
-      code('/*')
-      code(line)
-      code('*/')
-      comm('variable mapping')
-      code('/*')
-      for g_m in range(0,nargs):
-        line = kernel_params[g_m] + ' = '
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            line += '&data%d[n]' % g_m
-          else:
-            line += '&data'+str(g_m)+'['+str(dims[g_m])+'*n]'
-        if maps[g_m] == OP_MAP:
-          if soaflags[g_m]:
-            line += '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
-          else:
-            line += '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
-        if maps[g_m] == OP_GBL:
-          line += '&arg%d_l' % g_m
-        line += ';'
-        code(line)
-      code('*/')
       comm('inline function')
       for g_m in range(0,nargs):
         var = kernel_params[g_m].split(' ')[-1]
@@ -679,7 +666,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 #
     else:
       # add direct kernel specific params to kernel func call 
-      params += indent + 'int count'
+      params += indent + 'int count,' + indent + 'int num_teams,' + indent + 'int nthread'
       file_text = re.sub('// host stub function', func_call_signaure_text+params+');\n\n// host stub function', file_text)
       # kernel fun call params ready
       # kernel function call:
@@ -687,6 +674,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       call_params = ','.join([ indent + re.sub(r'\*arg(\d+)',r'&arg\1_l',param.strip().split(' ')[-1]) for param in params.split(',')])
       call_params = re.sub('count','set->size',call_params);
       call_params = call_params.replace('*','')
+      call_params = call_params.replace('num_teams','part_size!=0?(set->size-1)/part_size+1:nthread')
       code(func_call_signaure_text.split(' ')[-1]+call_params+');')
       code('')
       # kernel function call ready
@@ -698,21 +686,34 @@ def op2_gen_openmp4(master, date, consts, kernels):
       # start write the function:
       code('')
       code(func_call_signaure_text+params+'){')
+      code('')
       depth += 2
       for g_m in range(0, nargs):
         if maps[g_m] == OP_GBL:
           code('TYP ARG_l = *ARG;')
       # write kernel
-      line = '#pragma omp target teams map(to:'
+      line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:'
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line+'data'+str(g_m)+','
       line = line[:-1]+')'
-
+      # mapp global consts
+      if len(kernel_consts) != 0:
+        line += '\\\n' + (depth+2)*' ' + 'map(to:'
+        for nc in kernel_consts:
+          line += ' ' + consts[nc]['name']+'_ompkernel,'
+          if consts[nc]['dim'] != 1:
+            if consts[nc]['dim'] > 0:
+              num = str(consts[nc]['dim'])
+            else:
+              num = 'MAX_CONST_SIZE'
+            line = line[:-1] + '[:'+ num +'],'
+        line = line[:-1]+')'
+      # prepare reduction
       reduction_string = ''
       reduction_mapping = ''
       if reduct:
-        reduction_mapping = ' map(tofrom:'
+        reduction_mapping ='\\\n'+(depth+2)*' '+ 'map(tofrom:'
         for g_m in range(0,nargs):
           if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
             if accs[g_m] == OP_INC:
@@ -731,37 +732,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code(line + reduction_string)
 
       FOR('n_op','0','count')
-      line = name+'('
-      indent = '\n'+' '*(depth+2)
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            line = line + indent + '&data'+str(g_m)+'[n_op]'
-          else:
-            line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+'*n_op]'
-        if maps[g_m] == OP_GBL:
-          line = line + indent +'&arg'+str(g_m)+'_l'
-        if g_m < nargs-1:
-          line = line +','
-        else:
-           line = line +');'
-      code('/*')
-      code(line)
-      code('*/')
-      comm('variable mapping')
-      code('/*')
-      for g_m in range(0,nargs):
-        line = kernel_params[g_m] + ' = '
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            line += '&data%d[n_op]' % g_m
-          else:
-            line += '&data' + str(g_m) + '[' + str(dims[g_m]) + '*n_op]'
-        if maps[g_m] == OP_GBL:
-          line += '&arg%d_l' % g_m
-        line += ';'
-        code(line)
-      code('*/')
       comm('inline function')
       for g_m in range(0,nargs):
         var = kernel_params[g_m].split(' ')[-1]
@@ -834,7 +804,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
         elif typs[g_m] == 'int':
           code('op_mpi_reduce_int(&ARG,ARGh);')
         else:
-          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
+          print 'Type '+typs[g_m]+' not supported in OpenMP4 code generator, please add it'
           exit(-1)
 
 
@@ -896,30 +866,29 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      # code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
-
-      # code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
       code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
 
   code('void op_decl_const_char(int dim, char const *type,')
-  code('int size, char *dat, char const *name){')
+  code('  int size, char *dat, char const *name){')
   indent = ' ' * ( 2+ depth)
-  line = '' 
+  line = '  ' 
   for nc in range (0,len(consts)):
     varname = consts[nc]['name']
     if nc > 0:
         line += ' else '
-    line += 'if(!strcmp(name, "%s"))' % varname;
-    line += '{\n' + indent + 2*' ' + 'memcpy('
+    line += 'if(!strcmp(name, "%s")) {\n' %varname + indent + 2*' ' + 'memcpy('
     if consts[nc]['dim']==1:
       line += '&'
-    line += varname+ '_ompkernel, dat, dim*size);\n' + indent + '}'
+    line += varname+ '_ompkernel, dat, dim*size);\n' + indent + '#pragma omp target enter data map(to:'+varname+'_ompkernel'
+    if consts[nc]['dim'] !=1:
+      line += '[:%s]' % str(consts[nc]['dim']) if consts[nc]['dim'] > 0 else 'MAX_CONST_SIZE'
+    line += ')\n'+indent + '}'
   code(line)
   code('}')
 
@@ -946,15 +915,12 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      # code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
-
-      # code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
 
   comm(' user kernel files')
