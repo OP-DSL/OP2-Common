@@ -15,7 +15,9 @@ void res_calc_omp4_kernel(
   int *col_reord,
   int set_size1,
   int start,
-  int end);
+  int end,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
@@ -55,13 +57,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
   }
 
   // get plan
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
+
   #ifdef OP_PART_SIZE_2
     int part_size = OP_PART_SIZE_2;
   #else
     int part_size = OP_part_size;
   #endif
-
-  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
+  #ifdef OP_BLOCK_SIZE_2
+    int nthread = OP_BLOCK_SIZE_2;
+  #else
+    int nthread = OP_block_size;
+  #endif
 
 
   int ncolors = 0;
@@ -69,7 +76,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   if (set->size >0) {
 
 
-    //Set up typed device pointers for OpenACC
+    //Set up typed device pointers for OpenMP
     int *map0 = arg0.map_data_d;
     int *map2 = arg2.map_data_d;
 
@@ -101,7 +108,9 @@ void op_par_loop_res_calc(char const *name, op_set set,
         col_reord,
         set_size1,
         start,
-        end);
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread);
 
     }
     OP_kernels[2].transfer  += Plan->transfer;

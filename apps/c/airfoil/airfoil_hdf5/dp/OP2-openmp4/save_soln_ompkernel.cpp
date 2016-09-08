@@ -8,7 +8,9 @@
 void save_soln_omp4_kernel(
   double *data0,
   double *data1,
-  int count);
+  int count,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_save_soln(char const *name, op_set set,
@@ -35,18 +37,31 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
   op_mpi_halo_exchanges_cuda(set, nargs, args);
 
+  #ifdef OP_PART_SIZE_0
+    int part_size = OP_PART_SIZE_0;
+  #else
+    int part_size = OP_part_size;
+  #endif
+  #ifdef OP_BLOCK_SIZE_0
+    int nthread = OP_BLOCK_SIZE_0;
+  #else
+    int nthread = OP_block_size;
+  #endif
+
 
   if (set->size >0) {
 
 
-    //Set up typed device pointers for OpenACC
+    //Set up typed device pointers for OpenMP
 
     double* data0 = (double*)arg0.data_d;
     double* data1 = (double*)arg1.data_d;
     save_soln_omp4_kernel(
       data0,
       data1,
-      set->size);
+      set->size,
+      part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
+      nthread);
 
   }
 
