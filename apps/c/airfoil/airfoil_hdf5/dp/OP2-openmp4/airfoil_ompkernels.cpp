@@ -14,21 +14,28 @@ double mach_ompkernel;
 double alpha_ompkernel;
 double qinf_ompkernel[4];
 void op_decl_const_char(int dim, char const *type,
-int size, char *dat, char const *name){
-if(!strcmp(name, "gam")){
+  int size, char *dat, char const *name){
+  if(!strcmp(name, "gam")) {
     memcpy(&gam_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "gm1")){
+  #pragma omp target enter data map(to:gam_ompkernel)
+  } else if(!strcmp(name, "gm1")) {
     memcpy(&gm1_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "cfl")){
+  #pragma omp target enter data map(to:gm1_ompkernel)
+  } else if(!strcmp(name, "cfl")) {
     memcpy(&cfl_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "eps")){
+  #pragma omp target enter data map(to:cfl_ompkernel)
+  } else if(!strcmp(name, "eps")) {
     memcpy(&eps_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "mach")){
+  #pragma omp target enter data map(to:eps_ompkernel)
+  } else if(!strcmp(name, "mach")) {
     memcpy(&mach_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "alpha")){
+  #pragma omp target enter data map(to:mach_ompkernel)
+  } else if(!strcmp(name, "alpha")) {
     memcpy(&alpha_ompkernel, dat, dim*size);
-  } else if(!strcmp(name, "qinf")){
+  #pragma omp target enter data map(to:alpha_ompkernel)
+  } else if(!strcmp(name, "qinf")) {
     memcpy(qinf_ompkernel, dat, dim*size);
+  #pragma omp target enter data map(to:qinf_ompkernel[:4])
   }
 }
 // user kernel files
