@@ -226,12 +226,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
     g_m = 0;
     file_text = ''
     depth = 0
-    # file_texts and depths for generating _ompkernel.cpp and _omp4kernel.cpp
-    omp4_kernel_file_text = ''
-    omp4_depth = 0
-    op2_kernel_file_text = ''
-    op2_depth = 0
-
 
     comm('user function')
 
@@ -319,13 +313,39 @@ def op2_gen_openmp4(master, date, consts, kernels):
           body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
 
     kernel_params = [ var.strip() for var in signature_text.split(',')]
-    signature_text = '#pragma omp declare target\ninline ' + head_text + '( '+signature_text + ') {'
-    # omp4_kernel_file_text += signature_text + body_text + '}\n#pragma omp end declare target\n'
     # collect constants used by kernel
     kernel_consts = []
     for nc in range(0,len(consts)):
       if body_text.find(consts[nc]['name']+'_ompkernel') != -1:
         kernel_consts.append(nc)
+
+############################################################
+#  omp4 function call definition
+############################################################
+    code('')
+    func_call_signaure_text = 'void ' + name + '_omp4_kernel('
+    params = ''
+    indent = '\n' + '  '
+    k = []
+    for g_m in range(0, nargs):
+      if maps[g_m] == OP_GBL:
+        params += indent + rep('TYP *ARG,',g_m)
+      if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
+        k = k + [invmapinds[inds[g_m]-1]]
+        params += indent +  'int *map'+str(mapinds[g_m])+','
+      if maps[g_m] == OP_ID:
+        params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+    for m in range(1,ninds+1):
+      g_m = invinds[m-1]
+      params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+    if ninds>0:
+      # add indirect kernel specific params to kernel func call 
+      params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
+    else:
+      # add direct kernel specific params to kernel func call 
+      params += indent + 'int count,'
+    params += indent + 'int num_teams,' + indent + 'int nthread'
+    code(func_call_signaure_text+params+');')
 
 ##########################################################################
 # then C++ stub function
@@ -441,9 +461,9 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('int ncolors = 0;')
     code('')
     IF('set->size >0')
-    code('')
     #managing constants
     if any_soa:
+      code('')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -475,36 +495,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
       code('TYP *data'+str(g_m)+' = (TYP *)ARG.data_d;')
-#
-# prepare function call for kernel function 
-#
-    
-    func_call_signaure_text = 'void ' + name + '_omp4_kernel('
-    params = ''
-    indent = '\n' + '  '
-    k = []
-    for g_m in range(0, nargs):
-      if maps[g_m] == OP_GBL:
-        params += indent + rep('TYP *ARG,',g_m)
-      if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
-        k = k + [invmapinds[inds[g_m]-1]]
-        params += indent +  'int *map'+str(mapinds[g_m])+','
-      if maps[g_m] == OP_ID:
-        params += indent + rep('TYP *data'+str(g_m)+',', g_m)
-    for m in range(1,ninds+1):
-      g_m = invinds[m-1]
-      params += indent + rep('TYP *data'+str(g_m)+',', g_m)
-    
     
 #
-# kernel call for indirect version
+# prepare kernel params for indirect version
 #
     if ninds>0:
-      # add indirect kernel specific params to kernel func call 
-      params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
-      params += indent + 'int num_teams,' + indent + 'int nthread';
-      file_text = re.sub('// host stub function', func_call_signaure_text+params+');\n\n// host stub function', file_text)
-      # kernel fun call params ready
       code('')
       code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
       code('ncolors = Plan->ncolors;')
@@ -519,130 +514,23 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('int start = Plan->col_offsets[0][col];')
       code('int end = Plan->col_offsets[0][col+1];')
       code('')
-      # kernel function call:
-      indent = '\n' + ' ' * (depth+2)
-      call_params = ','.join([ indent + re.sub(r'\*arg(\d+)',r'&arg\1_l',param.strip().split(' ')[-1]) for param in params.split(',')])
-      call_params = call_params.replace('*','')
-      call_params = call_params.replace('num_teams','part_size != 0?(end-start-1)/part_size+1:nthread')
-      code(func_call_signaure_text.split(' ')[-1]+call_params+');')
-      code('')
-      # kernel function call ready
-      # change file_text to write the kernel func to omp4kernel.cpp
-      op2_kernel_file_text = file_text
-      file_text = omp4_kernel_file_text
-      op2_depth = depth
-      depth = omp4_depth
-      # start write the function:
-      code('')
-      code(func_call_signaure_text+params+'){')
-      code('')
-      depth += 2
-      for g_m in range(0, nargs):
-        if maps[g_m] == OP_GBL:
-          code('TYP ARG_l = *ARG;')
-      # write kernel
-      line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:col_reord,'
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
-            k = k + [invmapinds[inds[g_m]-1]]
-            line = line + 'map'+str(mapinds[g_m])+','
+#
+# kernel function call
+#
+    indent = '\n' + ' ' * (depth+2)
+    call_params = ','.join([ indent + re.sub(r'\*arg(\d+)',r'&arg\1_l',param.strip().split(' ')[-1]) for param in params.split(',')])
+    call_params = call_params.replace('*','')
+    # set params for indirect version
+    if ninds>0:
+      call_params = call_params.replace('num_teams','part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread')
+    # set params for direct version
+    else:
+      call_params = re.sub('count','set->size',call_params);
+      call_params = call_params.replace('num_teams','part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread') 
+    code(func_call_signaure_text.split(' ')[-1]+call_params+');')
+    code('')
 
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          line = line+'data'+str(g_m)+','
-      for m in range(1,ninds+1):
-        g_m = invinds[m-1]
-        line = line + 'data'+str(g_m)+','
-      line = line[:-1]+')'
-      # mapping global consts
-      if len(kernel_consts) != 0:
-        line += '\\\n' + (depth+2)*' ' + 'map(to:'
-        for nc in kernel_consts:
-          line += ' ' + consts[nc]['name']+'_ompkernel,'
-          if consts[nc]['dim'] != 1:
-            if consts[nc]['dim'] > 0:
-              num = str(consts[nc]['dim'])
-            else:
-              num = 'MAX_CONST_SIZE'
-            line = line[:-1] + '[:'+ num +'],'
-        line = line[:-1]+')'
-      # prepare reduction
-      reduction_string = ''
-      reduction_mapping = ''
-      if reduct:
-        reduction_mapping = '\\\n' + (depth+2)*' ' + 'map(tofrom:'
-        for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-            if accs[g_m] == OP_INC:
-              reduction_string += ' reduction(+:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-            if accs[g_m] == OP_MIN:
-              reduction_string += ' reduction(min:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-            if accs[g_m] == OP_MAX:
-              reduction_string += ' reduction(max:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-        reduction_mapping = reduction_mapping[0:-1]+')' 
-      
-      code(line + reduction_mapping + reduction_string)
-      line = '#pragma omp distribute parallel for schedule(static,1)'
-      code(line + reduction_string)
-
-      FOR('e','start','end')
-      code('int n = col_reord[e];')
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-            k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
-              '[n + set_size1 * '+str(idxs[g_m])+'];')
-
-      code('')
-      comm('inline function')
-      for g_m in range(0,nargs):
-        var = kernel_params[g_m].split(' ')[-1]
-        var = var.replace('*','')
-        body_text = re.sub('\*'+var+'(?!\[)',var+'[0]', body_text)
-        repl_string = ''
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            repl_string += 'data%d[n + ' % g_m
-          else:
-            repl_string += 'data' + str(g_m) + '[' + str(dims[g_m]) + '*n + '
-          body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string+r'\1]', body_text)
-        if maps[g_m] == OP_MAP:
-          if soaflags[g_m]:
-            repl_string += 'data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx + '
-          else:
-            repl_string += 'data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx + '
-          body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string+r'\1]', body_text)
-        if maps[g_m] == OP_GBL:
-          repl_string += 'arg%d_l' % g_m
-          body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string, body_text) 
-
-      indent = ' ' * (depth-2)
-      inline_body_text = ''
-      for line in body_text.split('\n'):
-        inline_body_text += indent+line+'\n'
-      code(inline_body_text)
-      comm('end inline func')
-
-      ENDFOR()
-      code('')
-      # end kernel function. Switch back to _ompkernel.cpp
-      for g_m in range(0, nargs):
-        if maps[g_m] == OP_GBL:
-          code('*ARG = ARG_l;')
-      depth -= 2;
-      code('}')
-      omp4_kernel_file_text = file_text
-      file_text = op2_kernel_file_text
-      omp4_depth = depth
-      depth = op2_depth
-      # switch done
+    if ninds>0:
       if reduct:
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
@@ -660,116 +548,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
             ENDFOR()
         ENDIF()
       ENDFOR()
-
-#
-# kernel call for direct version
-#
-    else:
-      # add direct kernel specific params to kernel func call 
-      params += indent + 'int count,' + indent + 'int num_teams,' + indent + 'int nthread'
-      file_text = re.sub('// host stub function', func_call_signaure_text+params+');\n\n// host stub function', file_text)
-      # kernel fun call params ready
-      # kernel function call:
-      indent = '\n' + ' ' * (depth+2)
-      call_params = ','.join([ indent + re.sub(r'\*arg(\d+)',r'&arg\1_l',param.strip().split(' ')[-1]) for param in params.split(',')])
-      call_params = re.sub('count','set->size',call_params);
-      call_params = call_params.replace('*','')
-      call_params = call_params.replace('num_teams','part_size!=0?(set->size-1)/part_size+1:nthread')
-      code(func_call_signaure_text.split(' ')[-1]+call_params+');')
-      code('')
-      # kernel function call ready
-      # change file_text to write the kernel func to omp4kernel.cpp
-      op2_kernel_file_text = file_text
-      file_text = omp4_kernel_file_text
-      op2_depth = depth
-      depth = omp4_depth
-      # start write the function:
-      code('')
-      code(func_call_signaure_text+params+'){')
-      code('')
-      depth += 2
-      for g_m in range(0, nargs):
-        if maps[g_m] == OP_GBL:
-          code('TYP ARG_l = *ARG;')
-      # write kernel
-      line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:'
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          line = line+'data'+str(g_m)+','
-      line = line[:-1]+')'
-      # mapp global consts
-      if len(kernel_consts) != 0:
-        line += '\\\n' + (depth+2)*' ' + 'map(to:'
-        for nc in kernel_consts:
-          line += ' ' + consts[nc]['name']+'_ompkernel,'
-          if consts[nc]['dim'] != 1:
-            if consts[nc]['dim'] > 0:
-              num = str(consts[nc]['dim'])
-            else:
-              num = 'MAX_CONST_SIZE'
-            line = line[:-1] + '[:'+ num +'],'
-        line = line[:-1]+')'
-      # prepare reduction
-      reduction_string = ''
-      reduction_mapping = ''
-      if reduct:
-        reduction_mapping ='\\\n'+(depth+2)*' '+ 'map(tofrom:'
-        for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-            if accs[g_m] == OP_INC:
-              reduction_string += ' reduction(+:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-            if accs[g_m] == OP_MIN:
-              reduction_string += ' reduction(min:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-            if accs[g_m] == OP_MAX:
-              reduction_string += ' reduction(max:arg%d_l)' % g_m
-              reduction_mapping += ' arg%d_l,' % g_m
-        reduction_mapping = reduction_mapping[0:-1]+')' 
- 
-      code(line + reduction_mapping + reduction_string)
-      line = '#pragma omp distribute parallel for schedule(static,1)'
-      code(line + reduction_string)
-
-      FOR('n_op','0','count')
-      comm('inline function')
-      for g_m in range(0,nargs):
-        var = kernel_params[g_m].split(' ')[-1]
-        var = var.replace('*','')
-        body_text = re.sub('\*'+var+'(?!\[)',var+'[0]', body_text)
-        repl_string = ''
-        if maps[g_m] == OP_ID:
-          if soaflags[g_m]:
-            repl_string += 'data%d[n_op + ' % g_m
-          else:
-            repl_string += 'data' + str(g_m) + '[' + str(dims[g_m]) + '*n_op + '
-          body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string+r'\1]', body_text)
-        if maps[g_m] == OP_GBL:
-          repl_string += 'arg%d_l' % g_m
-          body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string, body_text) 
-
-      indent = ' ' * (depth-2)
-      inline_body_text = ''
-      for line in body_text.split('\n'):
-        inline_body_text += indent+line+'\n'
-      code(inline_body_text)
-      comm('end inline func')
-
-
-      ENDFOR()
-      # end kernel function. Switch back to _ompkernel.cpp
-      for g_m in range(0, nargs):
-        if maps[g_m] == OP_GBL:
-          code('*ARG = ARG_l;')
-      depth -= 2;
-      code('}')
-      omp4_kernel_file_text = file_text
-      file_text = op2_kernel_file_text
-      omp4_depth = depth
-      depth = op2_depth
-      # switch done
-
-    if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
@@ -832,7 +610,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
     depth -= 2
     code('}')
 
-
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
@@ -842,13 +619,140 @@ def op2_gen_openmp4(master, date, consts, kernels):
     fid.write(file_text)
     fid.close()
 
+##############################################################
+# generate ****_omp4kernel.cpp
+##############################################################
+    file_text = ''
+
+    code(func_call_signaure_text+params+'){')
+    code('')
+    depth += 2
+    for g_m in range(0, nargs):
+      if maps[g_m] == OP_GBL:
+        code('TYP ARG_l = *ARG;')
+    line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:'
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        line = line+'data'+str(g_m)+','
+    line = line[:-1]+')'
+    # mapping global consts
+    if len(kernel_consts) != 0:
+      line += '\\\n' + (depth+2)*' ' + 'map(to:'
+      for nc in kernel_consts:
+        line += ' ' + consts[nc]['name']+'_ompkernel,'
+        if consts[nc]['dim'] != 1:
+          if consts[nc]['dim'] > 0:
+            num = str(consts[nc]['dim'])
+          else:
+            num = 'MAX_CONST_SIZE'
+          line = line[:-1] + '[:'+ num +'],'
+      line = line[:-1]+')'
+    # prepare reduction
+    reduction_string = ''
+    reduction_mapping = ''
+    if reduct:
+      reduction_mapping ='\\\n'+(depth+2)*' '+ 'map(tofrom:'
+      for g_m in range(0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+          if accs[g_m] == OP_INC:
+            reduction_string += ' reduction(+:arg%d_l)' % g_m
+            reduction_mapping += ' arg%d_l,' % g_m
+          if accs[g_m] == OP_MIN:
+            reduction_string += ' reduction(min:arg%d_l)' % g_m
+            reduction_mapping += ' arg%d_l,' % g_m
+          if accs[g_m] == OP_MAX:
+            reduction_string += ' reduction(max:arg%d_l)' % g_m
+            reduction_mapping += ' arg%d_l,' % g_m
+      reduction_mapping = reduction_mapping[0:-1]+')' 
+#
+# map extra pointers for indirect version
+#
+    if ninds>0:
+      line += '\\\n'+(depth+2)*' '+'map(to:col_reord,'
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
+            k = k + [invmapinds[inds[g_m]-1]]
+            line = line + 'map'+str(mapinds[g_m])+','
+      for m in range(1,ninds+1):
+        g_m = invinds[m-1]
+        line = line + 'data'+str(g_m)+','
+      line = line[:-1]+')'
+#
+# write omp pragma
+#
+    code(line + reduction_mapping + reduction_string)
+    line = '#pragma omp distribute parallel for schedule(static,1)'
+    code(line + reduction_string)
+#
+# start for loop indirect version
+#
+    if ninds>0:
+      FOR('e','start','end')
+      code('int n = col_reord[e];')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('int map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
+              '[n + set_size1 * '+str(idxs[g_m])+'];')
+#
+# direct version
+#
+    else:
+      FOR('n_op','0','count')
+#
+# write inlined kernel function
+#
+    code('')
+    comm('inline function')
+    for g_m in range(0,nargs):
+      var = kernel_params[g_m].split(' ')[-1]
+      var = var.replace('*','')
+      body_text = re.sub('\*'+var+'(?!\[)',var+'[0]', body_text)
+      repl_string = ''
+      if maps[g_m] == OP_ID:
+        if soaflags[g_m]:
+          repl_string += 'data%d[n + ' % g_m
+        else:
+          repl_string += 'data' + str(g_m) + '[' + str(dims[g_m]) + '*n + '
+        body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string+r'\1]', body_text)
+      if maps[g_m] == OP_MAP:
+        if soaflags[g_m]:
+          repl_string += 'data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx + '
+        else:
+          repl_string += 'data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx + '
+        body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string+r'\1]', body_text)
+      if maps[g_m] == OP_GBL:
+        repl_string += 'arg%d_l' % g_m
+        body_text = re.sub(r''+var+'\[([A-Za-z0-9]*)\]',repl_string, body_text) 
+
+    indent = ' ' * (depth-2)
+    inline_body_text = ''
+    for line in body_text.split('\n'):
+      inline_body_text += indent+line+'\n'
+    code(inline_body_text)
+    comm('end inline func')
+
+    ENDFOR()
+    code('')
+    # end kernel function
+    for g_m in range(0, nargs):
+      if maps[g_m] == OP_GBL:
+        code('*ARG = ARG_l;')
+    depth -= 2;
+    code('}')
+
+
 ##########################################################################
 #  output individual omp4kernel file
 ##########################################################################
     fid = open(name+'_omp4kernel.cpp','w')
     date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(omp4_kernel_file_text)
+    fid.write(file_text)
     fid.close()
 
 # end of main kernel call loop
@@ -932,6 +836,5 @@ def op2_gen_openmp4(master, date, consts, kernels):
   fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()
-
 
 
