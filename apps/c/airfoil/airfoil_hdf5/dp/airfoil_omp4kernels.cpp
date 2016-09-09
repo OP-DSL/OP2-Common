@@ -39,8 +39,8 @@ void op_decl_const_char(int dim, char const *type,
   }
 }
 // user kernel files
-#include "save_soln_ompkernel.cpp"
-#include "adt_calc_ompkernel.cpp"
-#include "res_calc_ompkernel.cpp"
-#include "bres_calc_ompkernel.cpp"
-#include "update_ompkernel.cpp"
+#include "save_soln_omp4kernel.cpp"
+#include "adt_calc_omp4kernel.cpp"
+#include "res_calc_omp4kernel.cpp"
+#include "bres_calc_omp4kernel.cpp"
+#include "update_omp4kernel.cpp"
