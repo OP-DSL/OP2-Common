@@ -17,21 +17,27 @@ void update_omp4_kernel(
     map(tofrom: arg4_l) reduction(+:arg4_l)
   #pragma omp distribute parallel for schedule(static,1) reduction(+:arg4_l)
   for ( int n_op=0; n_op<count; n_op++ ){
+    //variable mapping
+    const double *qold = &data0[4*n_op];
+    double *q = &data1[4*n_op];
+    double *res = &data2[4*n_op];
+    const double *adt = &data3[1*n_op];
+    double *rms = &arg4_l;
 
     //inline function
       
     double del, adti, rmsl;
   
     rmsl = 0.0f;
-    adti = 1.0f / (data3[1*n + 0]);
+    adti = 1.0f / (*adt);
   
     for (int n = 0; n < 4; n++) {
-      del = adti * data2[4*n + n];
-      data1[4*n + n] = data0[4*n + n] - del;
-      data2[4*n + n] = 0.0f;
+      del = adti * res[n];
+      q[n] = qold[n] - del;
+      res[n] = 0.0f;
       rmsl += del * del;
     }
-    arg4_l += rmsl;
+    *rms += rmsl;
     //end inline func
   }
 
