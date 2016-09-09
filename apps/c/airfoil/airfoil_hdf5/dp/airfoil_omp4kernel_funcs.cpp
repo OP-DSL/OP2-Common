@@ -14,8 +14,8 @@ extern double mach_ompkernel;
 extern double alpha_ompkernel;
 extern double qinf_ompkernel[4];
 // user kernel files
-#include "save_soln_omp4kernel.cpp"
-#include "adt_calc_omp4kernel.cpp"
-#include "res_calc_omp4kernel.cpp"
-#include "bres_calc_omp4kernel.cpp"
-#include "update_omp4kernel.cpp"
+#include "save_soln_omp4kernel_func.cpp"
+#include "adt_calc_omp4kernel_func.cpp"
+#include "res_calc_omp4kernel_func.cpp"
+#include "bres_calc_omp4kernel_func.cpp"
+#include "update_omp4kernel_func.cpp"
