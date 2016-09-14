@@ -309,8 +309,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if consts[nc]['dim'] == 1:
         body_text = re.sub(varname+'(?!\w)', varname+'_ompkernel', body_text)
       else:
-          body_text = re.sub('\*'+varname+'(?!\[)', varname+'[0]', body_text)
-          body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
+        body_text = re.sub('\*'+varname+'(?!\[)', varname+'[0]', body_text)
+        body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
 
     kernel_params = [ var.strip() for var in signature_text.split(',')]
     # collect constants used by kernel
@@ -345,6 +345,18 @@ def op2_gen_openmp4(master, date, consts, kernels):
       # add direct kernel specific params to kernel func call 
       params += indent + 'int count,'
     params += indent + 'int num_teams,' + indent + 'int nthread'
+    #add strides for SoA to params
+    if any_soa:
+      indent = ','+indent
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            params += indent + 'int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT'
+      
+      if dir_soa<>-1:
+        params += indent + 'int direct_'+name+'_stride_OP2CONSTANT'
     code(func_call_signaure_text+params+');')
 
 ##########################################################################
