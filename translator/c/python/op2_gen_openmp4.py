@@ -643,7 +643,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if maps[g_m] == OP_GBL:
         code('TYP ARG_l = *ARG;')
     line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) '
-    map_clause = 'map(to:'
+    map_clause = 'is_device_ptr('
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         map_clause += 'data'+str(g_m)+','
@@ -683,7 +683,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # map extra pointers for indirect version
 #
     if ninds>0:
-      line += '\\\n'+(depth+2)*' '+'map(to:col_reord,'
+      line += '\\\n'+(depth+2)*' '+'is_device_ptrcol_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
