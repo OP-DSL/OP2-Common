@@ -648,7 +648,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if maps[g_m] == OP_ID:
         map_clause += 'data'+str(g_m)+','
     map_clause = map_clause[:-1]+')'
-    if len(map_clause)>7:
+    if map_clause != 'is_device_ptr)':
         line += map_clause
     # mapping global consts
     if len(kernel_consts) != 0:
