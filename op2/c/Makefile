@@ -50,7 +50,7 @@ ifeq ($(OP2_COMPILER),xl)
 ifdef DEBUG
   CCFLAGS  := -O0 -g
 else
-  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O5 -qhot 
+  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O3 -qhot 
 endif
   CXX      := xlc++
   CXXFLAGS := $(CCFLAGS)
