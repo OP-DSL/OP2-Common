@@ -79,8 +79,22 @@ ifeq ($(OP2_COMPILER),cray)
   MPICXX   := CC
   MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),clang)
+  CC	   := clang
+ifdef DEBUG
+  CCFLAGS  := -g -O0
+else
+  CCFLAGS  := -O3
+endif
+  CXX	   := clang++
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
+  MPICC   := $(MPI_INSTALL_PATH)/bin/mpicc
+  MPIFLAGS := $(CXXFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
