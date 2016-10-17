@@ -66,8 +66,19 @@ ifeq ($(OP2_COMPILER),cray)
   MPICPP        = CC
   MPIFLAGS      = $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),clang)
+  CPP       	= clang++ 
+  CCFLAGS  	= -O3
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/ -fopenmp=libomp
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps
+  MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS 	= $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -95,7 +106,7 @@ endif
 endif
 endif
 
-NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math -O3 #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=cg -Xptxas=-v -use_fast_math -O3 #-g -G -O0
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -264,7 +275,7 @@ airfoil_openmp4: airfoil_op.cpp airfoil_omp4kernels.cpp airfoil_omp4kernel_funcs
 		-c airfoil_omp4kernels.cpp -o airfoil_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		airfoil_op.cpp airfoil_omp4kernels.o airfoil_omp4kernel_funcs.o -o airfoil_openmp4 \
-	   	-lop2_cuda -lop2_hdf5 $(HDF5_LIB)
+	   	-lop2_cuda -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
 
 
 airfoil_mpi_openmp4: airfoil_op.cpp airfoil_omp4kernels.cpp airfoil_omp4kernel_funcs.cpp \

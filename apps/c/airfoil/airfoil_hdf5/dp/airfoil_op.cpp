@@ -125,8 +125,8 @@ void op_par_loop_update(char const *, op_set,
 // main program
 
 int main(int argc, char **argv) {
-  int a = 1;
-  #pragma omp target enter data map(to:a)
+	int a = 0;
+#pragma omp target enter data map(to:a)
   // OP initialisation
   op_init_soa(argc, argv, 2,1);
 

@@ -16,10 +16,9 @@ void adt_calc_omp4_kernel(
   int opDat0_adt_calc_stride_OP2CONSTANT,
   int direct_adt_calc_stride_OP2CONSTANT){
 
-  #pragma omp target teams num_teams(num_teams) thread_limit(nthread) is_device_ptr(data4,data5) \
+  #pragma omp target teams distribute parallel for num_teams(num_teams) thread_limit(nthread) map(to:data4,data5) \
     map(to: gam_ompkernel, gm1_ompkernel, cfl_ompkernel)\
-    is_device_ptr(col_reord,map0,data0)
-  #pragma omp distribute parallel for schedule(static,1)
+    map(to:col_reord,map0,data0)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
     int map0idx = map0[n_op + set_size1 * 0];
