@@ -546,18 +546,16 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if reduct:
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
-        for m in range(0,nargs):
-          if maps[m] == OP_GBL and accs[m] <> OP_READ:
-            if accs[m]==OP_INC:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+            if accs[g_m]==OP_INC:
               code('ARGh[0] = ARG_l;')
-            elif accs[m]==OP_MIN:
+            elif accs[g_m]==OP_MIN:
               code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
-              ENDFOR()
-            elif  accs(m)==OP_MAX:
+            elif  accs[g_m]==OP_MAX:
               code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
             else:
               error('internal error: invalid reduction option')
-            ENDFOR()
         ENDIF()
       ENDFOR()
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
