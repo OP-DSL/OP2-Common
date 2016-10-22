@@ -13,6 +13,7 @@ import re
 import glob
 import datetime
 import op2_gen_common
+import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -95,7 +96,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
-
+  op2_compiler = os.getenv('OP2_COMPILER','0');
   any_soa = 0
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
@@ -640,14 +641,17 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for g_m in range(0, nargs):
       if maps[g_m] == OP_GBL:
         code('TYP ARG_l = *ARG;')
-    line = '#pragma omp target teams num_teams(num_teams) thread_limit(nthread) '
-    map_clause = 'is_device_ptr('
+    line = '#pragma omp target teams'
+    if op2_compiler == 'clang':
+      line +=' distribute parallel for schedule(static,1)\\\n' + (depth+2)*' '
+    line +=' num_teams(num_teams) thread_limit(nthread) '
+    map_clause = 'is_device_ptr(' if op2_compiler != 'clang' else 'map(to:'
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         map_clause += 'data'+str(g_m)+','
-    map_clause = map_clause[:-1]+')'
-    if map_clause != 'is_device_ptr)':
-        line += map_clause
+    if map_clause != 'is_device_ptr(' and map_clause != 'map(to:':
+      map_clause = map_clause[:-1]+')'
+      line += map_clause
     # mapping global consts
     if len(kernel_consts) != 0:
       line += ' \\\n' + (depth+2)*' ' + 'map(to:'
@@ -681,7 +685,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # map extra pointers for indirect version
 #
     if ninds>0:
-      line += '\\\n'+(depth+2)*' '+'is_device_ptr(col_reord,'
+      line += '\\\n'+(depth+2)*' '+('is_device_ptr('if op2_compiler != 'clang' else 'map(to:')+'col_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -696,8 +700,9 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # write omp pragma
 #
     code(line + reduction_mapping + reduction_string)
-    line = '#pragma omp distribute parallel for schedule(static,1)'
-    code(line + reduction_string)
+    if op2_compiler != 'clang':
+      line = '#pragma omp distribute parallel for schedule(static,1)'
+      code(line + reduction_string)
 #
 # start for loop indirect version
 #
