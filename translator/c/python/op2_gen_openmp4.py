@@ -645,7 +645,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     if op2_compiler == 'clang':
       line +=' distribute parallel for schedule(static,1)\\\n' + (depth+2)*' '
     line +=' num_teams(num_teams) thread_limit(nthread) '
-    map_clause = 'is_device_ptr(' if op2_compiler != 'clang' else 'map(to:'
+    map_clause = 'is_device_ptr('
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         map_clause += 'data'+str(g_m)+','
@@ -685,7 +685,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # map extra pointers for indirect version
 #
     if ninds>0:
-      line += '\\\n'+(depth+2)*' '+('is_device_ptr('if op2_compiler != 'clang' else 'map(to:')+'col_reord,'
+      line += '\\\n'+(depth+2)*' '+'is_device_ptr(col_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
