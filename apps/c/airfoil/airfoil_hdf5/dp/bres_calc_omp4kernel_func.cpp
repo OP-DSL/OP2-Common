@@ -19,9 +19,10 @@ void bres_calc_omp4_kernel(
   int opDat0_bres_calc_stride_OP2CONSTANT,
   int opDat2_bres_calc_stride_OP2CONSTANT){
 
-  #pragma omp target teams distribute parallel for num_teams(num_teams) thread_limit(nthread) map(to:data5) \
+  #pragma omp target teams distribute parallel for schedule(static,1)\
+     num_teams(num_teams) thread_limit(nthread) is_device_ptr(data5) \
     map(to: gm1_ompkernel, eps_ompkernel, qinf_ompkernel[:4])\
-    map(to:col_reord,map0,map2,data0,data2,data3,data4)
+    is_device_ptr(col_reord,map0,map2,data0,data2,data3,data4)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
     int map0idx = map0[n_op + set_size1 * 0];
