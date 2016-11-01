@@ -781,36 +781,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
   comm(' header                 ')
   code('#include "op_lib_cpp.h"       ')
   code('')
-  comm(' global constants       ')
-
-  for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
-      code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel;')
-    else:
-      if consts[nc]['dim'] > 0:
-        num = str(consts[nc]['dim'])
-      else:
-        num = 'MAX_CONST_SIZE'
-      code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
-
-  code('void op_decl_const_char(int dim, char const *type,')
-  code('  int size, char *dat, char const *name){')
-  indent = ' ' * ( 2+ depth)
-  line = '  ' 
-  for nc in range (0,len(consts)):
-    varname = consts[nc]['name']
-    if nc > 0:
-        line += ' else '
-    line += 'if(!strcmp(name, "%s")) {\n' %varname + indent + 2*' ' + 'memcpy('
-    if consts[nc]['dim']==1:
-      line += '&'
-    line += varname+ '_ompkernel, dat, dim*size);\n' + indent + '#pragma omp target enter data map(to:'+varname+'_ompkernel'
-    if consts[nc]['dim'] !=1:
-      line += '[:%s]' % str(consts[nc]['dim']) if consts[nc]['dim'] > 0 else 'MAX_CONST_SIZE'
-    line += ')\n'+indent + '}'
-  code(line)
-  code('}')
-
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
@@ -834,13 +804,31 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel;')
+      code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
+      code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
+  code('')
+  code('void op_decl_const_char(int dim, char const *type,')
+  code('  int size, char *dat, char const *name){')
+  indent = ' ' * ( 2+ depth)
+  line = '  ' 
+  for nc in range (0,len(consts)):
+    varname = consts[nc]['name']
+    if nc > 0:
+        line += ' else '
+    line += 'if(!strcmp(name, "%s")) {\n' %varname + indent + 2*' ' + 'memcpy('
+    if consts[nc]['dim']==1:
+      line += '&'
+    line += varname+ '_ompkernel, dat, dim*size);\n' + indent + '#pragma omp target enter data map(to:'+varname+'_ompkernel'
+    if consts[nc]['dim'] !=1:
+      line += '[:%s]' % str(consts[nc]['dim']) if consts[nc]['dim'] > 0 else 'MAX_CONST_SIZE'
+    line += ')\n'+indent + '}'
+  code(line)
+  code('}')
 
   comm(' user kernel files')
 
