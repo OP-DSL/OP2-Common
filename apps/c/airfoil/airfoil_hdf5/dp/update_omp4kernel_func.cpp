@@ -14,7 +14,8 @@ void update_omp4_kernel(
   int direct_update_stride_OP2CONSTANT){
 
   double arg4_l = *arg4;
-  #pragma omp target teams distribute parallel for num_teams(num_teams) thread_limit(nthread) map(to:data0,data1,data2,data3)\
+  #pragma omp target teams distribute parallel for schedule(static,1)\
+     num_teams(num_teams) thread_limit(nthread) is_device_ptr(data0,data1,data2,data3)\
     map(tofrom: arg4_l) reduction(+:arg4_l)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
