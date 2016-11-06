@@ -54,7 +54,6 @@ SUBROUTINE op_wrap_update( &
   real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
   real(8) opDat5Local(2)
-
   real(8) opDat5Local_1
   real(8) opDat5Local_2
   real(8) opDat5LocalArr(2)
