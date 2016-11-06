@@ -233,15 +233,15 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: returnSetKernelTiming
 
 
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat1Devicebres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap1Devicebres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat3Devicebres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap3Devicebres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat4Devicebres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap4Devicebres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat5Devicebres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap5Devicebres_calc
-  integer, DIMENSION(:), DEVICE, ALLOCATABLE :: opDat6Devicebres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat1Devicebres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap1Devicebres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat3Devicebres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap3Devicebres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat4Devicebres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap4Devicebres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat5Devicebres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap5Devicebres_calc
+  integer, DIMENSION(:), DEVICE, POINTER :: opDat6Devicebres_calc
 
   INTEGER(kind=4) :: opDat1Cardinality
   INTEGER(kind=4) :: opMap1Cardinality
@@ -278,11 +278,11 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: pnthrcolSize
   INTEGER(kind=4) :: pthrcolSize
   INTEGER(kind=4), POINTER, DIMENSION(:) :: ncolblk
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pblkMap
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: poffset
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnelems
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnthrcol
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pthrcol
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pblkMap
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: poffset
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnelems
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnthrcol
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pthrcol
   INTEGER(kind=4) :: partitionSize
   INTEGER(kind=4) :: blockSize
   INTEGER(kind=4) :: i1

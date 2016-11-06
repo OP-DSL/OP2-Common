@@ -47,12 +47,13 @@ ifeq ($(OP2_COMPILER),pgi)
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g 
   OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR 
+  OPT_ACC = -O3 -acc -ta=nvidia,cc35 -Mcuda -Minfo=accel 
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
-                airfoil_hdf5_mpi_cuda
+                airfoil_hdf5_mpi_cuda airfoil_hdf5_openacc
 else
 ifeq ($(OP2_COMPILER),xl)
   CC = xlc++_r
@@ -187,6 +188,25 @@ airfoil_hdf5_mpi_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_mpi_cuda $(FLINK) -lop2_for_mpi_cuda \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
 
+airfoil_hdf5_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_acckernel.F90 input.F90 airfoil_seqfun.F90 \
+	res_calc_acckernel.F90 bres_calc_acckernel.F90 update_acckernel.F90 constants.F90 input.F90
+	$(MPIF90) $(OPT_ACC) $(FMPI_MODS)/cuda $(FMPI_MODS) \
+		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
+		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
+		airfoil_hdf5_op.F90 -o airfoil_hdf5_openacc $(FLINK) -lop2_for_cuda -lop2_hdf5 \
+		$(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+
+airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_acckernel.F90 input.F90 airfoil_seqfun.F90 \
+	res_calc_acckernel.F90 bres_calc_acckernel.F90 update_acckernel.F90 constants.F90 input.F90
+	$(MPIF90) $(OPT_ACC) $(FMPI_MODS)/cuda $(FMPI_MODS) \
+		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
+		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
+		airfoil_hdf5_op.F90 -o airfoil_hdf5_mpi_openacc $(FLINK) -lop2_for_mpi_cuda  \
+		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+
+
+
+
 clean:
 	rm -f *.o
 	rm -f *.mod
@@ -194,6 +214,7 @@ clean:
 	rm -f *~
 	rm -f airfoil_hdf5_seq
 	rm -f airfoil_hdf5_mpi
+	rm -f airfoil_hdf5_openacc
 	rm -f airfoil_hdf5_openmp airfoil_hdf5_mpi_openmp airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
 	rm -f airfoil_hdf5_mpi_vec
