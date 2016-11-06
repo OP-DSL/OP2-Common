@@ -17,9 +17,14 @@ USE CUDACONFIGURATIONPARAMS
 
 ! adt_calcvariable declarations
 
+INTEGER(kind=4), CONSTANT :: opDat1_stride_OP2CONSTANT
+INTEGER(kind=4) :: opDat1_stride_OP2HOST
+INTEGER(kind=4), CONSTANT :: direct_stride_OP2CONSTANT
+INTEGER(kind=4) :: direct_stride_OP2HOST
 
 TYPE ( c_ptr )  :: planRet_adt_calc
 
+#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -36,21 +41,21 @@ SUBROUTINE adt_calc_gpu(x1,x2,x3,x4,q,adt)
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
-  ri = 1.0 / q(1)
-  u = ri * q(2)
-  v = ri * q(3)
-  c = sqrt(1.4 * 0.4 * (ri * q(4) - 0.5 * (u * u + v * v)))
-  dx = x2(1) - x1(1)
-  dy = x2(2) - x1(2)
+  ri = 1.0 / OP2_SOA(q,1, direct_stride_OP2CONSTANT)
+  u = ri * OP2_SOA(q,2, direct_stride_OP2CONSTANT)
+  v = ri * OP2_SOA(q,3, direct_stride_OP2CONSTANT)
+  c = sqrt(1.4 * 0.4 * (ri * OP2_SOA(q,4, direct_stride_OP2CONSTANT) - 0.5 * (u * u + v * v)))
+  dx = OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x3(1) - x2(1)
-  dy = x3(2) - x2(2)
+  dx = OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x4(1) - x3(1)
-  dy = x4(2) - x3(2)
+  dx = OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x1(1) - x4(1)
-  dy = x1(2) - x4(2)
+  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
   adt = adt / 0.9
 END SUBROUTINE
@@ -127,11 +132,11 @@ attributes (global) SUBROUTINE op_cuda_adt_calc( &
 
 ! kernel call
       CALL adt_calc_gpu( &
-      & opDat1Deviceadt_calc(1 + map1idx * (2):     map1idx * (2) + 2), &
-      & opDat1Deviceadt_calc(1 + map2idx * (2):     map2idx * (2) + 2), &
-      & opDat1Deviceadt_calc(1 + map3idx * (2):     map3idx * (2) + 2), &
-      & opDat1Deviceadt_calc(1 + map4idx * (2):     map4idx * (2) + 2), &
-      & opDat5Deviceadt_calc((i3 + threadBlockOffset) * (4) +1:(i3 + threadBlockOffset) * (4) + (4)), &
+      & opDat1Deviceadt_calc(1 + map1idx), &
+      & opDat1Deviceadt_calc(1 + map2idx), &
+      & opDat1Deviceadt_calc(1 + map3idx), &
+      & opDat1Deviceadt_calc(1 + map4idx), &
+      & opDat5Deviceadt_calc(1 + (i3 + threadBlockOffset)), &
       & opDat6Deviceadt_calc((i3 + threadBlockOffset) * (1) +1) &
       & )
 
@@ -261,6 +266,14 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
+  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
+    opDat1_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
+    opDat1_stride_OP2CONSTANT = opDat1_stride_OP2HOST
+  END IF
+  IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg5))) THEN
+    direct_stride_OP2HOST = getSetSizeFromOpArg(opArg5)
+    direct_stride_OP2CONSTANT = direct_stride_OP2HOST
+  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
