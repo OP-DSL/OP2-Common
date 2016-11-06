@@ -13,6 +13,13 @@ USE OP2_CONSTANTS
 #endif
 
 
+! save_solnvariable declarations
+
+INTEGER(kind=4) :: direct_stride_OP2CONSTANT
+!$acc declare create(direct_stride_OP2CONSTANT)
+
+#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
+
 CONTAINS
 
 ! user function
@@ -25,7 +32,7 @@ SUBROUTINE save_soln(q,qold)
   INTEGER(kind=4) :: i
 
   DO i = 1, 4
-    qold(i) = q(i)
+    OP2_SOA(qold,i, direct_stride_OP2CONSTANT) = OP2_SOA(q,i, direct_stride_OP2CONSTANT)
   END DO
 END SUBROUTINE
 
@@ -35,8 +42,8 @@ SUBROUTINE op_wrap_save_soln( &
   & opDat2Local, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(4,*)
-  real(8) opDat2Local(4,*)
+  real(8) opDat1Local(*)
+  real(8) opDat2Local(*)
   INTEGER(kind=4) bottom,top,i1,i2
 
   !$acc routine(save_soln)
@@ -46,8 +53,8 @@ SUBROUTINE op_wrap_save_soln( &
   DO i1 = bottom, top-1, 1
 ! kernel call
     CALL save_soln( &
-    & opDat1Local(1,i1+1), &
-    & opDat2Local(1,i1+1) &
+    & opDat1Local(i1+1), &
+    & opDat2Local(i1+1) &
     & )
   END DO
 
@@ -81,6 +88,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   REAL(kind=8) :: startTime
   REAL(kind=8) :: endTime
   INTEGER(kind=4) :: returnSetKernelTiming
+  INTEGER(kind=4), SAVE :: calledTimes=0
   INTEGER(kind=4) :: sliceStart
   INTEGER(kind=4) :: sliceEnd
   REAL(kind=4) :: dataTransfer
@@ -95,43 +103,41 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
+  IF ((calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
+    direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
+    !$acc update device(direct_stride_OP2CONSTANT)
+  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
 
+  opSetCore => set%setPtr
 
-#ifdef _OPENMP
-  numberOfThreads = omp_get_max_threads()
-#else
-  numberOfThreads = 1
-#endif
-
-    opSetCore => set%setPtr
-
-    opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-    opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
-    CALL c_f_pointer(opArg1%data_d,opDat1Local,(/opDat1Cardinality/))
-    CALL c_f_pointer(opArg2%data_d,opDat2Local,(/opDat2Cardinality/))
+  opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+  opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
+  CALL c_f_pointer(opArg1%data_d,opDat1Local,(/opDat1Cardinality/))
+  CALL c_f_pointer(opArg2%data_d,opDat2Local,(/opDat2Cardinality/))
 
 
-    sliceStart = 0
-    sliceEnd = opSetCore%size
-    CALL op_wrap_save_soln( &
-    & opDat1Local, &
-    & opDat2Local, &
-    & sliceStart, sliceEnd)
-    IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
-      CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
-    END IF
+  sliceStart = 0
+  sliceEnd = opSetCore%size
+  CALL op_wrap_save_soln( &
+  & opDat1Local, &
+  & opDat2Local, &
+  & sliceStart, sliceEnd)
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+  END IF
 
-    CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
+  CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
 
-    call op_timers_core(endTime)
+  call op_timers_core(endTime)
 
-    dataTransfer = 0.0
-    dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
-    dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
-    returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
-    & endTime-startTime, dataTransfer, 0.00000_4, 1)
-  END SUBROUTINE
-  END MODULE
+  dataTransfer = 0.0
+  dataTransfer = dataTransfer + opArg1%size * getSetSizeFromOpArg(opArg1)
+  dataTransfer = dataTransfer + opArg2%size * getSetSizeFromOpArg(opArg2)
+  returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
+  & endTime-startTime, dataTransfer, 0.00000_4, 1)
+  calledTimes = calledTimes + 1
+END SUBROUTINE
+END MODULE

@@ -13,6 +13,15 @@ USE OP2_CONSTANTS
 #endif
 
 
+! adt_calcvariable declarations
+
+INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
+!$acc declare create(opDat1_stride_OP2CONSTANT)
+INTEGER(kind=4) :: direct_stride_OP2CONSTANT
+!$acc declare create(direct_stride_OP2CONSTANT)
+
+#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
+
 CONTAINS
 
 ! user function
@@ -27,21 +36,21 @@ SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
-  ri = 1.0 / q(1)
-  u = ri * q(2)
-  v = ri * q(3)
-  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
-  dx = x2(1) - x1(1)
-  dy = x2(2) - x1(2)
+  ri = 1.0 / OP2_SOA(q,1, direct_stride_OP2CONSTANT)
+  u = ri * OP2_SOA(q,2, direct_stride_OP2CONSTANT)
+  v = ri * OP2_SOA(q,3, direct_stride_OP2CONSTANT)
+  c = sqrt(gam * gm1 * (ri * OP2_SOA(q,4, direct_stride_OP2CONSTANT) - 0.5 * (u * u + v * v)))
+  dx = OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x3(1) - x2(1)
-  dy = x3(2) - x2(2)
+  dx = OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x4(1) - x3(1)
-  dy = x4(2) - x3(2)
+  dx = OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = x1(1) - x4(1)
-  dy = x1(2) - x4(2)
+  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT)
+  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
   adt = adt / cfl
 END SUBROUTINE
@@ -56,8 +65,8 @@ SUBROUTINE op_wrap_adt_calc( &
   & col_reord, set_size, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(2,*)
-  real(8) opDat5Local(4,*)
+  real(8) opDat1Local(*)
+  real(8) opDat5Local(*)
   real(8) opDat6Local(1,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
@@ -78,11 +87,11 @@ SUBROUTINE op_wrap_adt_calc( &
     map4idx = opDat1Map(1 + i1 + set_size * 3)+1
 ! kernel call
     CALL adt_calc( &
-    & opDat1Local(1,map1idx), &
-    & opDat1Local(1,map2idx), &
-    & opDat1Local(1,map3idx), &
-    & opDat1Local(1,map4idx), &
-    & opDat5Local(1,i1+1), &
+    & opDat1Local(map1idx), &
+    & opDat1Local(map2idx), &
+    & opDat1Local(map3idx), &
+    & opDat1Local(map4idx), &
+    & opDat5Local(i1+1), &
     & opDat6Local(1,i1+1) &
     & )
   END DO
@@ -130,6 +139,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   REAL(kind=8) :: startTime
   REAL(kind=8) :: endTime
   INTEGER(kind=4) :: returnSetKernelTiming
+  INTEGER(kind=4), SAVE :: calledTimes=0
   INTEGER(kind=4) :: exec_size
   LOGICAL :: firstTime_adt_calc = .TRUE.
   type ( c_ptr )  :: planRet_adt_calc
@@ -158,83 +168,80 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
+  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
+    opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
+    !$acc update device(opDat1_stride_OP2CONSTANT)
+  END IF
+  IF ((calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg5))) THEN
+    direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg5)
+    !$acc update device(direct_stride_OP2CONSTANT)
+  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
 
-#ifdef OP_PART_SIZE_1
-  partitionSize = OP_PART_SIZE_1
-#else
-  partitionSize = 0
-#endif
+  opSetCore => set%setPtr
 
-#ifdef _OPENMP
-  numberOfThreads = omp_get_max_threads()
-#else
-  numberOfThreads = 1
-#endif
+  indirectionDescriptorArray(1) = 0
+  indirectionDescriptorArray(2) = 0
+  indirectionDescriptorArray(3) = 0
+  indirectionDescriptorArray(4) = 0
+  indirectionDescriptorArray(5) = -1
+  indirectionDescriptorArray(6) = -1
 
-    opSetCore => set%setPtr
+  exec_size = opSetCore%size + opSetCore%exec_size
+  numberOfIndirectOpDats = 1
 
-    indirectionDescriptorArray(1) = 0
-    indirectionDescriptorArray(2) = 0
-    indirectionDescriptorArray(3) = 0
-    indirectionDescriptorArray(4) = 0
-    indirectionDescriptorArray(5) = -1
-    indirectionDescriptorArray(6) = -1
+  planRet_adt_calc = FortranPlanCaller( &
+  & userSubroutine//C_NULL_CHAR, &
+  & set%setCPtr, &
+  & partitionSize, &
+  & numberOfOpDats, &
+  & opArgArray, &
+  & numberOfIndirectOpDats, &
+  & indirectionDescriptorArray,4)
 
-    exec_size = opSetCore%size + opSetCore%exec_size
-    numberOfIndirectOpDats = 1
-
-    planRet_adt_calc = FortranPlanCaller( &
-    & userSubroutine//C_NULL_CHAR, &
-    & set%setCPtr, &
-    & partitionSize, &
-    & numberOfOpDats, &
-    & opArgArray, &
-    & numberOfIndirectOpDats, &
-    & indirectionDescriptorArray,4)
-
-    CALL c_f_pointer(planRet_adt_calc,actualPlan_adt_calc)
-    CALL c_f_pointer(actualPlan_adt_calc%col_reord,col_reord_adt_calc,(/exec_size/))
-    CALL c_f_pointer(actualPlan_adt_calc%color2_offsets,offset_adt_calc,(/actualPlan_adt_calc%ncolors+1/))
-    opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-    opDat1MapDim = getMapDimFromOpArg(opArg1)
-    opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)
-    opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
-    CALL c_f_pointer(opArg1%data_d,opDat1Local,(/opDat1Cardinality/))
-    CALL c_f_pointer(opArg1%map_data_d,opDat1Map,(/exec_size*opDat1MapDim/))
-    CALL c_f_pointer(opArg5%data_d,opDat5Local,(/opDat5Cardinality/))
-    CALL c_f_pointer(opArg6%data_d,opDat6Local,(/opDat6Cardinality/))
+  CALL c_f_pointer(planRet_adt_calc,actualPlan_adt_calc)
+  CALL c_f_pointer(actualPlan_adt_calc%col_reord,col_reord_adt_calc,(/exec_size/))
+  CALL c_f_pointer(actualPlan_adt_calc%color2_offsets,offset_adt_calc,(/actualPlan_adt_calc%ncolors+1/))
+  opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+  opDat1MapDim = getMapDimFromOpArg(opArg1)
+  opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)
+  opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
+  CALL c_f_pointer(opArg1%data_d,opDat1Local,(/opDat1Cardinality/))
+  CALL c_f_pointer(opArg1%map_data_d,opDat1Map,(/exec_size*opDat1MapDim/))
+  CALL c_f_pointer(opArg5%data_d,opDat5Local,(/opDat5Cardinality/))
+  CALL c_f_pointer(opArg6%data_d,opDat6Local,(/opDat6Cardinality/))
 
 
 
-    DO i1 = 0, actualPlan_adt_calc%ncolors-1, 1
-      IF (i1 .EQ. 1) THEN
-        CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
-      END IF
-
-      offset_b = offset_adt_calc(i1 + 1)
-      nelem = offset_adt_calc(i1 + 1 + 1)
-      CALL op_wrap_adt_calc( &
-      & opDat1Local, &
-      & opDat5Local, &
-      & opDat6Local, &
-      & opDat1Map, &
-      & opDat1MapDim, &
-      & col_reord_adt_calc, exec_size, offset_b, nelem )
-      IF (i1 .EQ. actualPlan_adt_calc%ncolors_owned -1) THEN
-      END IF
-    END DO
-    IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+  DO i1 = 0, actualPlan_adt_calc%ncolors-1, 1
+    IF (i1 .EQ. 1) THEN
       CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
     END IF
 
-    CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
+    offset_b = offset_adt_calc(i1 + 1)
+    nelem = offset_adt_calc(i1 + 1 + 1)
+    CALL op_wrap_adt_calc( &
+    & opDat1Local, &
+    & opDat5Local, &
+    & opDat6Local, &
+    & opDat1Map, &
+    & opDat1MapDim, &
+    & col_reord_adt_calc, exec_size, offset_b, nelem )
+    IF (i1 .EQ. actualPlan_adt_calc%ncolors_owned -1) THEN
+    END IF
+  END DO
+  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
+    CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+  END IF
 
-    call op_timers_core(endTime)
+  CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
 
-    returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
-    & endTime-startTime, actualPlan_adt_calc%transfer,actualPlan_adt_calc%transfer2, 1)
-  END SUBROUTINE
-  END MODULE
+  call op_timers_core(endTime)
+
+  returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
+  & endTime-startTime, actualPlan_adt_calc%transfer,actualPlan_adt_calc%transfer2, 1)
+  calledTimes = calledTimes + 1
+END SUBROUTINE
+END MODULE
