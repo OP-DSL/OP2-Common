@@ -1491,11 +1491,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     code('')
 
     for g_m in range(0,ninds):
-      code(typs[invinds[g_m]]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(invinds[g_m]+1)+'Device'+name)
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap'+str(invinds[g_m]+1)+'Device'+name)
+      code(typs[invinds[g_m]]+', DIMENSION(:), DEVICE, POINTER :: opDat'+str(invinds[g_m]+1)+'Device'+name)
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap'+str(invinds[g_m]+1)+'Device'+name)
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
-        code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: opDat'+str(g_m+1)+'Device'+name)
+        code(typs[g_m]+', DIMENSION(:), DEVICE, POINTER :: opDat'+str(g_m+1)+'Device'+name)
     code('')
 
     for g_m in range(0,ninds):
@@ -1533,13 +1533,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('INTEGER(kind=4) :: pnthrcolSize')
       code('INTEGER(kind=4) :: pthrcolSize')
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: ncolblk')
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pblkMap')
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: poffset')
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnelems')
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnthrcol')
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pthrcol')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pblkMap')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: poffset')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnelems')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnthrcol')
+      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pthrcol')
       if permute:
-        code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pcol_reord')
+        code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pcol_reord')
       code('INTEGER(kind=4) :: partitionSize')
       code('INTEGER(kind=4) :: blockSize')
       code('INTEGER(kind=4) :: i1')
@@ -1570,7 +1570,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         if (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
           code(typs[g_m]+', DIMENSION(:), ALLOCATABLE :: reductionArrayHost'+str(g_m+1))
           if g_m in needDimList:
-            code(typs[g_m]+', DIMENSION(:), DEVICE, ALLOCATABLE :: scratchDevice'+str(g_m+1))
+            code(typs[g_m]+', DIMENSION(:), DEVICE, POINTER :: scratchDevice'+str(g_m+1))
             code('INTEGER(kind=4) :: scratchDevice'+str(g_m+1)+'Size')
           code('INTEGER(kind=4) :: reductionCardinality'+str(g_m+1))
 

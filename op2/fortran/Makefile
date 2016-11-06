@@ -101,8 +101,8 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = pgcc -g
-  CXX             = pgc++ -g
+  CC              = nvcc -g -Xcompiler=-std=c99
+  CXX             = nvcc -g -Xcompiler=-std=c99
   FC              = pgfortran -g
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS      = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
@@ -110,8 +110,8 @@ ifeq ($(OP2_COMPILER),pgi)
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
   PGFC            = pgfortran
-  PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
-  PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) -DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
+  PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
+  PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   CFLAGS_SLOW     = -O1 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -121,7 +121,7 @@ ifeq ($(OP2_COMPILER),pgi)
   CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
   CUDA_INC = $(CUDA_INSTALL_PATH)/include $(CUDA_ALIGN_FLAG)
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq f_cuda f_mpi_cuda f_mpi_cuda
-  NVCCFLAGS	  = -ccbin=$(MPICXX)
+  NVCCFLAGS	  = #-ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),xl)
   F_INC_MOD       = $(F_OP2_MOD)/xl

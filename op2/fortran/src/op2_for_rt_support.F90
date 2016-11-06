@@ -63,6 +63,7 @@ module OP2_Fortran_RT_Support
     type(c_devptr) ::      thrcol  ! thread colors
     type(c_devptr) ::      col_reord ! element permutation by color for the block
     type(c_devptr) ::      col_offsets ! offsets to element permutation by color for the block
+    type(c_devptr) ::      color2_offsets ! offsets to element permutation by color for flat coloring
     type(c_ptr) ::         offset  ! offset for primary set
     type(c_devptr) ::      offset_d  ! offset for primary set
 #else
@@ -70,6 +71,7 @@ module OP2_Fortran_RT_Support
     type(c_ptr) ::         thrcol  ! thread colors
     type(c_ptr) ::         col_reord ! element permutation by color for the block
     type(c_ptr) ::         col_offsets ! offsets to element permutation by color for the block
+    type(c_ptr) ::         color2_offsets ! offsets to element permutation by color for flat coloring
     type(c_ptr) ::         offset  ! offset for primary set
     type(c_ptr) ::         offset_d  ! offset for primary set
 #endif
