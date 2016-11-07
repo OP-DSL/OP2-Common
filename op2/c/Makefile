@@ -82,9 +82,9 @@ else
 ifeq ($(OP2_COMPILER),clang)
   CC	   := clang
 ifdef DEBUG
-  CCFLAGS  := -g -O0
+  CCFLAGS  := -g -O0 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
 else
-  CCFLAGS  := -O3
+  CCFLAGS  := -O3 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
 endif
   CXX	   := clang++
   CXXFLAGS := $(CCFLAGS)
@@ -174,6 +174,18 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
+
+openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
+	$(SRC)/openmp4/op_openmp4_rt_support.c $(OBJ)/op_lib_core.o
+
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_ALIGNE_FLAG) $(CUDA_INC) -I$(INC) \
+	-c $(SRC)/openmp4/op_openmp4_decl.c -o $(OBJ)/op_openmp4_decl.o
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/openmp4/op_openmp4_rt_support.c \
+	-o $(OBJ)/op_openmp4_rt_support.o
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+
+	ar -r $(LIB)/libop2_openmp4.a $(OBJ)/op_openmp4_rt_support.o \
+	$(OBJ)/op_openmp4_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
