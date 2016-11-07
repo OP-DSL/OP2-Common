@@ -122,9 +122,9 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   op_map map = op_decl_map_core(from, to, dim, imap, name);
 
   //OpenMP specidic part
-  if(mat->map_d == NULL)//In theory alwazs true TODO remove
+  if(map->map_d == NULL)//In theory alwazs true TODO remove
   {
-    map->map_d = (char *) malloc(map->dim * map->from->size * sizeof(int));
+    map->map_d = (int *) malloc(map->dim * map->from->size * sizeof(int));
   }
 
   int set_size = map->from->size;
@@ -211,13 +211,13 @@ void op_upload_all() {
         for (int i = 0; i < dat->dim; i++) {
           for (int j = 0; j < set_size; j++) {
             for (int c = 0; c < element_size; c++) {
-              data_d[element_size * i * set_size + element_size * j + c] =
+              dat->data_d[element_size * i * set_size + element_size * j + c] =
                   dat->data[dat->size * j + element_size * i + c];
             }
           }
         }
       } else {
-        memcpy(dat->data_d,dat->data,set_size * dat->size * sizeof(char))
+        memcpy(dat->data_d,dat->data,set_size * dat->size * sizeof(char));
       }
       #pragma omp target update to(dat->data_d[:set_size * dat->size * sizeof(char)])
       dat->dirty_hd = 0;
