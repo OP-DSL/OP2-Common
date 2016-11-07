@@ -934,7 +934,7 @@ op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookl
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
 #OpenACC
-op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features
