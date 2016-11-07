@@ -46,7 +46,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g 
-  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR 
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=cuda7.5,cc35,fastmath,ptxinfo -DOP2_WITH_CUDAFOR -Minline,reshape 
   OPT_ACC = -O3 -acc -ta=nvidia,cc35 -Mcuda -Minfo=accel 
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++

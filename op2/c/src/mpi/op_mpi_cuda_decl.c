@@ -94,6 +94,8 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
+//  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+  cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
   printf("\n 16/48 L1/shared \n");
 }
 
@@ -137,6 +139,8 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
+  //cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+  cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
   printf("\n 16/48 L1/shared \n");
 }
 

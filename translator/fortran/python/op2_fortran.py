@@ -222,13 +222,13 @@ def get_arg_dat(arg_string, j):
   if 'ntqmu' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if 'mpdes' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
@@ -271,9 +271,9 @@ def get_opt_arg_dat(arg_string, j):
   if 'nfcrow' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if 'mpdes' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_dat['dim']:
@@ -932,7 +932,7 @@ op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookl
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
 #OpenACC
-op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features

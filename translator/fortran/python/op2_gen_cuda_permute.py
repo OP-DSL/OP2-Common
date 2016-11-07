@@ -270,6 +270,18 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       if dims[g_m] == 'NPDE':
         dims[g_m] = '6'
 
+#    if ('GRADL_EDGECON' in name):
+    for g_m in range(0,nargs):
+      if 'NPDE' in dims[g_m]:
+        dims[g_m] = dims[g_m].replace('NPDE','6')
+        try:
+          newdim = str(eval(dims[g_m]))
+          dims[g_m]  = newdim
+        except NameError as inst:
+          dims[g_m]
+          #do nothing
+
+
     unknown_reduction_size = 0
     needDimList = []
     for g_m in range(0,nargs):
@@ -294,6 +306,38 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     file_text = ''
     depth = 0
     permute = 0
+    if ('ACCUMEDGES' in name) or ('GRADL_EDGECON' in name):
+    #if ('ACCUMEDGES' in name) or ('IFLUX_EDGEF' in name):
+        permute = 1
+
+    stage_inc = 0
+    if ('IFLUX_EDGE' in name) or ('VFLUX_EDGE' in name):
+      stage_inc = 1
+
+    #figure out which maps to stage
+    ninds_staged = 0
+    inds_staged = [-1]*nargs
+    if stage_inc:
+      for i in range(0,nargs):
+        if maps[i]==OP_MAP and accs[i]==OP_INC:
+          if inds_staged[invinds[inds[i]-1]] == -1:
+            inds_staged[i] = ninds_staged
+            ninds_staged = ninds_staged + 1
+          else:
+            inds_staged[i] = inds_staged[invinds[inds[i]-1]]
+    invinds_staged = [-1]*ninds_staged
+    inddims_staged = [-1]*ninds_staged
+    indopts_staged = [-1]*ninds_staged
+    if stage_inc:
+      for i in range(0,nargs):
+        if inds_staged[i] >= 0 and invinds_staged[inds_staged[i]] == -1:
+          invinds_staged[inds_staged[i]] = i
+          inddims_staged[inds_staged[i]] = dims[i]
+          if optflags[i] == 1:
+            indopts_staged[inds_staged[i]] = i
+      for i in range(0,nargs):
+        inds_staged[i] = inds_staged[i] + 1
+
 ##########################################################################
 #  Generate Header
 ##########################################################################
@@ -307,8 +351,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
-      if ('ACCUMEDGES' in name) or ('IFLUX_EDGEF' in name) or ('GRAD_EDGECON' in name):
-        permute = 1
     else:
       code('MODULE '+name.upper()+'_MODULE')
       code('USE OP2_CONSTANTS')
@@ -737,6 +779,15 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           code('& opGblDat'+str(g_m+1)+'Device'+name+',   &')
 
     if ninds > 0: #indirect loop
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('& ind_maps'+str(invinds_staged[g_m]+1)+', &')
+        for g_m in range(0,nargs):
+          if inds_staged[g_m] > 0:
+            code('& mappingArray'+str(g_m+1)+', &')
+        code('& ind_sizes, &')
+        code('& ind_offs, &')
+
       code('& pblkMap, &')
       code('& poffset, &')
       code('& pnelems, &')
@@ -813,6 +864,17 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     code('')
 
     if ninds > 0: #indirect loop
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_maps'+str(invinds_staged[g_m]+1))
+        code('')
+        for g_m in range(0,nargs):
+          if inds_staged[g_m] > 0:
+            code('INTEGER(kind=2), DIMENSION(0:*), DEVICE :: mappingArray'+str(g_m+1))
+        code('')
+        code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_sizes')
+        code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_offs')
+
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset')
       code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnelems')
@@ -825,6 +887,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+          if inds_staged[g_m] > 0:
+            code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'SharedMap')
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             code(typs[g_m]+' :: opDat'+str(g_m+1)+'Local')
           else:
@@ -835,6 +899,26 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
       code('')
 
+      if stage_inc:
+        add_real = 0
+        add_int = 0
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP:
+            if 'real' in typs[g_m].lower():
+              add_real = 1
+            elif 'integer' in typs[g_m].lower():
+              add_int = 1
+        if add_real:
+          code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedFloat8')
+        if add_int:
+          code('INTEGER(kind=4), DIMENSION(0:*), SHARED :: sharedInt8')
+        code('')
+
+        for g_m in range(0,ninds_staged):
+            code('INTEGER(kind=4), SHARED :: ind_maps'+str(invinds_staged[g_m]+1)+'offset')
+            code('INTEGER(kind=4), SHARED :: ind_maps'+str(invinds_staged[g_m]+1)+'size')
+
+
       code('INTEGER(kind=4), SHARED :: numOfColours')
       code('INTEGER(kind=4), SHARED :: numberOfActiveThreadsCeiling')
       code('INTEGER(kind=4), SHARED :: blockID')
@@ -844,6 +928,14 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('INTEGER(kind=4) :: colour2')
       code('INTEGER(kind=4) :: n1')
       code('INTEGER(kind=4) :: i3')
+
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('INTEGER(kind=4) :: opDat'+str(invinds_staged[g_m]+1)+'nBytes')
+        for g_m in range(0,ninds_staged):
+          code('INTEGER(kind=4), SHARED :: opDat'+str(invinds_staged[g_m]+1)+'RoundUp')
+        if ninds_staged > 0:
+          code('INTEGER(kind=4) moduloResult')
 
     else: #direct loop
       code('INTEGER(kind=4), VALUE :: setSize')
@@ -893,11 +985,79 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('numberOfActiveThreadsCeiling = blockDim%x * (1 + (numberOfActiveThreads - 1) / blockDim%x)')
       code('numOfColours = pnthrcol(blockID)')
       code('threadBlockOffset = poffset(blockID)')
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('ind_maps'+str(invinds_staged[g_m]+1)+'offset = ind_offs ('+str(g_m)+' + blockID * '+str(ninds_staged)+')')
+          code('ind_maps'+str(invinds_staged[g_m]+1)+'size   = ind_sizes('+str(g_m)+' + blockID * '+str(ninds_staged)+')')
+        for g_m in range(0,ninds_staged):
+          code('opDat'+str(invinds_staged[g_m]+1)+'RoundUp = ind_maps'+str(invinds_staged[g_m]+1)+'size * ('+inddims_staged[g_m]+')')
+          code('opDat'+str(invinds_staged[g_m]+1)+'RoundUp = opDat'+str(invinds_staged[g_m]+1)+'RoundUp + MOD(opDat'+str(invinds_staged[g_m]+1)+'RoundUp,2)')
       code('')
       ENDIF()
 
       code('')
       code('CALL syncthreads()')
+      code('')
+
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          if g_m>0 and indopts_staged[g_m-1] > 0:
+            IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m-1]])+')')
+          if g_m == 0:
+            code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = 0')
+          else:
+            prev_size = 0
+            if 'real' in typs[invinds_staged[g_m-1]].lower():
+              prev_size = 8
+            elif 'integer' in typs[invinds_staged[g_m-1]].lower():
+              prev_size = 4
+            this_size = 0
+            if 'real' in typs[invinds_staged[g_m]].lower():
+              this_size = 8
+            elif 'integer' in typs[invinds_staged[g_m]].lower():
+              this_size = 4
+            if this_size == 0 or prev_size == 0:
+              print "ERROR: Unrecognized type"
+            code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = opDat'+str(invinds_staged[g_m-1]+1)+'nBytes * '+str(prev_size)+\
+            ' / '+str(this_size)+' + opDat'+str(invinds_staged[g_m-1]+1)+'RoundUp * '+str(prev_size)+' / '+str(this_size))
+          if g_m>0 and indopts_staged[g_m-1] > 0:
+            ELSE()
+            if g_m==0:
+              code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = 0')
+            else:
+              code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = opDat'+str(invinds_staged[g_m-1]+1)+'nBytes * '+str(prev_size)+\
+              ' / '+str(this_size))
+            ENDIF()
+
+        code('')
+        for g_m in range(0,ninds_staged):
+          code('')
+          code('i1 = threadIdx%x - 1')
+          if indopts_staged[g_m] > 0:
+            IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m]])+')')
+          DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size')
+          DO('i2','0', inddims_staged[g_m])
+          if accs[invinds_staged[g_m]] == OP_READ or accs[invinds_staged[g_m]] == OP_RW or accs[invinds_staged[g_m]] == OP_WRITE:
+            if soaflags[invinds_staged[g_m]] == 1:
+              code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+              ')) = opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * soa_stride + ind_maps'+str(invinds_staged[g_m]+1)+\
+              '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1))')
+            else:
+              code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+              ')) = opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 + ind_maps'+str(invinds_staged[g_m]+1)+\
+              '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1) * ('+inddims_staged[g_m]+'))')
+          elif accs[invinds_staged[g_m]] == OP_INC:
+            code('sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+            ')) = 0')
+          ENDDO()
+          code('i1 = i1 + blockDim%x')
+          ENDDO()
+          if indopts_staged[g_m] > 0:
+            ENDIF()
+          code('')
+        code('')
+        code('CALL syncthreads()')
+
       code('')
       code('i1 = threadIdx%x - 1')
       code('')
@@ -1084,39 +1244,63 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
       if ind_inc or ind_rw:
         if ind_inc and not ind_rw:
+          if stage_inc:
+            code('')
+            if ninds_staged > 0:
+              IF('colour2 .GE. 0')
+            for g_m in range(0,nargs):
+              if inds_staged[g_m] > 0 and accs[g_m] == OP_INC:
+                code('opDat'+str(g_m+1)+'SharedMap = mappingArray'+str(g_m+1)+'(i1 + threadBlockOffset)')
+            if ninds_staged > 0:
+              ENDIF()
+            code('')
+
           DO('colour1','0','numOfColours')
           IF('colour2 .EQ. colour1')
         for g_m in range(0,nargs):
           if optflags[g_m]==1 and maps[g_m]==OP_MAP and accs[g_m] == OP_INC:
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
-            if dims[g_m].isdigit() and int(dims[g_m])==1:
-              code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = &')
-              code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-              '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
-            else:
-              if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
-                if dims[g_m].isdigit(): # and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
-                    for i in range(0,int(dims[g_m])):
-                      code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                      '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local('+str(i)+')')
-                    for i in range(0,int(dims[g_m])):
-                      code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                      '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = opDat'+str(g_m+1)+'Local('+str(i)+')')
+            if (not stage_inc) or inds_staged[g_m] == 0:
+              if dims[g_m].isdigit() and int(dims[g_m])==1:
+                code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) = &')
+                code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                '(1 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local')
+              else:
+                if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
+                  if dims[g_m].isdigit(): # and ('IFLUX_EDGE' in name or 'VFLUX_INCREMENT' in name):
+                      for i in range(0,int(dims[g_m])):
+                        code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                        '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local('+str(i)+')')
+                      for i in range(0,int(dims[g_m])):
+                        code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                        '(1 + '+str(i)+'*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = opDat'+str(g_m+1)+'Local('+str(i)+')')
+                  else:
+                    DO('i2','0', dims[g_m])
+                    code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                    '(1 + i2*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
+                    code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
+                    '(1 + i2*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local(i2)')
+                    ENDDO()
                 else:
                   DO('i2','0', dims[g_m])
                   code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                  '(1 + i2*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
+                  '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx* ('+dims[g_m]+')) = &')
                   code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                  '(1 + i2*'+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) + opDat'+str(g_m+1)+'Local(i2)')
+                  '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
                   ENDDO()
+            else:
+              if dims[g_m].isdigit():
+                for i in range(0,int(dims[g_m])):
+                  code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(g_m+1)+'Local('+str(i)+')'+ \
+                  '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
+                for i in range(0,int(dims[g_m])):
+                  code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local('+str(i)+')')
               else:
                 DO('i2','0', dims[g_m])
-                code('opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx* ('+dims[g_m]+')) = &')
-                code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ \
-                '(1 + i2 + map'+str(mapinds[g_m]+1)+'idx * ('+dims[g_m]+')) + opDat'+str(g_m+1)+'Local(i2)')
+                code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + (i2 + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = &')
+                code('& sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + (i2 + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) + opDat'+str(g_m+1)+'Local(i2)')
                 ENDDO()
             if optflags[g_m]<>1:
               code('')
@@ -1126,13 +1310,55 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
         ENDIF()
         if ind_rw:
           ENDIF()
-        IF('colour1 .NE. numOfColours-1')
+        if not stage_inc:
+          IF('colour1 .NE. numOfColours-1')
         code('CALL syncthreads()')
-        ENDIF()
+        if not stage_inc:
+          ENDIF()
         ENDDO()
       code('i1 = i1 + blockDim%x')
       ENDDO()
       code('')
+
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          if accs[invinds_staged[g_m]] == OP_INC:
+            if indopts_staged[g_m] > 0:
+              IF('BTEST(optflags,'+str(optidxs[indopts_staged[g_m-1]])+')')
+            code('i1 = threadIdx%x - 1')
+            if soaflags[invinds_staged[g_m]] == 1:
+              DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size')
+              if inddims_staged[g_m].isdigit():
+                for i in range(0,int(inddims_staged[g_m])):
+                  code('opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+') = &')
+                  code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name,hydra,bookleaf)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                  '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
+                  code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + '+str(i)+' + i1 * ('+inddims_staged[g_m]+\
+                  '))')
+                for i in range(0,int(inddims_staged[g_m])):
+                  code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name,hydra,bookleaf)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                  '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+')')
+              else:
+                DO('i2','0', inddims_staged[g_m])
+                code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name,hydra,bookleaf)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = &')
+                code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name,hydra,bookleaf)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
+                code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i2 + i1 * ('+inddims_staged[g_m]+\
+                '))')
+                ENDDO()
+            else:
+              DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size * ('+inddims_staged[g_m]+')')
+              code('moduloResult = mod(i1,'+inddims_staged[g_m]+')')
+              code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(moduloResult + ind_maps'+str(invinds_staged[g_m]+1)+' &')
+              code('& (ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1 / ('+inddims_staged[g_m]+')) * ('+inddims_staged[g_m]+') + 1) = &')
+              code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(moduloResult + ind_maps'+str(invinds_staged[g_m]+1)+' &')
+              code('& (ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1 / ('+inddims_staged[g_m]+')) * ('+inddims_staged[g_m]+') + 1) + &')
+              code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + i1)')
+            code('i1 = i1 + blockDim%x')
+            ENDDO()
+            if indopts_staged[g_m] > 0:
+              ENDIF()
 
     else: #direct kernel call
       line = '  CALL '+name+'_gpu( &'
@@ -1314,7 +1540,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('INTEGER(kind=4) :: threadSynchRet')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: opDatArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: mappingIndicesArray')
-      code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: mappingArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: accessDescriptorArray')
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: indirectionDescriptorArray')
       code('')
@@ -1324,6 +1549,20 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
       code('INTEGER(kind=4) :: numberOfIndirectOpDats')
       code('INTEGER(kind=4) :: blockOffset')
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('INTEGER(kind=4), DEVICE, POINTER, DIMENSION(:) :: ind_maps'+str(invinds_staged[g_m]+1))
+        code('')
+        for g_m in range(0,nargs):
+          if inds_staged[g_m] > 0:
+            code('INTEGER(kind=2), DEVICE, POINTER, DIMENSION(:) :: mappingArray'+str(g_m+1))
+        code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_offs')
+        code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_sizes')
+        code('INTEGER(kind=4), POINTER, DIMENSION(:) :: pnindirect')
+        code('INTEGER(kind=4), POINTER, DIMENSION(:) :: nsharedCol')
+        code('TYPE ( c_ptr ), POINTER, DIMENSION(:) :: mappingArray')
+        code('TYPE ( c_ptr ), POINTER, DIMENSION(:) :: ind_maps')
+
       code('INTEGER(kind=4) :: pblkMapSize')
       code('INTEGER(kind=4) :: poffsetSize')
       code('INTEGER(kind=4) :: pnelemsSize')
@@ -1438,6 +1677,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('& numberOfIndirectOpDats, &')
       if permute:
         code('& indirectionDescriptorArray,3)')
+      elif stage_inc:
+        code('& indirectionDescriptorArray,1)')
       else:
         code('& indirectionDescriptorArray,2)')
       code('')
@@ -1491,6 +1732,21 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('CALL c_f_pointer(actualPlan_'+name+'%thrcol,pthrcol,(/pthrcolSize/))')
       if permute:
         code('CALL c_f_pointer(actualPlan_'+name+'%col_reord,pcol_reord,(/pthrcolSize/))')
+      if stage_inc:
+        code('CALL c_f_pointer(actualPlan_'+name+'%nsharedCol,nsharedCol,(/actualPlan_'+name+'%ncolors_core/))')
+        code('CALL c_f_pointer(actualPlan_'+name+'%nindirect,pnindirect,(/actualPlan_'+name+'%ninds_staged/))')
+        code('CALL c_f_pointer(actualPlan_'+name+'%ind_maps,ind_maps,(/actualPlan_'+name+'%ninds_staged/))')
+        code('CALL c_f_pointer(actualPlan_'+name+'%maps,mappingArray,(/numberOfOpDats/))')
+        code('CALL c_f_pointer(actualPlan_'+name+'%ind_sizes,ind_sizes,(/actualPlan_'+name+'%nblocks * actualPlan_'+name+'%ninds_staged/))')
+        code('CALL c_f_pointer(actualPlan_'+name+'%ind_offs,ind_offs,(/actualPlan_'+name+'%nblocks * actualPlan_'+name+'%ninds_staged/))')
+        code('')
+        for g_m in range(0,ninds_staged):
+          code('CALL c_f_pointer(ind_maps('+str(g_m+1)+'),ind_maps'+str(invinds_staged[g_m]+1)+',(/pnindirect('+str(g_m+1)+')/))')
+        for g_m in range(0,nargs):
+          if inds_staged[g_m] > 0:
+            code('CALL c_f_pointer(mappingArray('+str(g_m+1)+'),mappingArray'+str(g_m+1)+',(/set%setPtr%size/))')
+        code('')
+      
       code('')
 
     for g_m in range(0,nargs):
@@ -1559,7 +1815,10 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       ENDIF()
       code('')
       code('blocksPerGrid = ncolblk(i2 + 1)')
-      code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
+      if stage_inc:
+        code('dynamicSharedMemorySize = MAX(reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock, nsharedCol(1+i2))')
+      else:
+        code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
       code('')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
       if nopts>0:
@@ -1589,6 +1848,16 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
             code('& opDat'+str(g_m+1)+'Host, &')
+
+      if stage_inc:
+        for g_m in range(0,ninds_staged):
+          code('& ind_maps'+str(invinds_staged[g_m]+1)+', &')
+        for g_m in range(0,nargs):
+          if inds_staged[g_m] > 0:
+            code('& mappingArray'+str(g_m+1)+', &')
+
+        code('& ind_sizes, &')
+        code('& ind_offs, &')
       code('& pblkMap, &')
       code('& poffset,pnelems,pnthrcol,pthrcol, &')
       if permute:
