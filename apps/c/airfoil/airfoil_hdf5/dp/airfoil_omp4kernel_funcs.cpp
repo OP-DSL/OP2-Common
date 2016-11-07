@@ -13,6 +13,7 @@ double eps_ompkernel;
 double mach_ompkernel;
 double alpha_ompkernel;
 double qinf_ompkernel[4];
+
 void op_decl_const_char(int dim, char const *type,
   int size, char *dat, char const *name){
   if(!strcmp(name, "gam")) {

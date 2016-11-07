@@ -71,7 +71,7 @@ ifeq ($(OP2_COMPILER),clang)
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/ -fopenmp=libomp
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
@@ -275,7 +275,7 @@ airfoil_openmp4: airfoil_op.cpp airfoil_omp4kernels.cpp airfoil_omp4kernel_funcs
 		-c airfoil_omp4kernels.cpp -o airfoil_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		airfoil_op.cpp airfoil_omp4kernels.o airfoil_omp4kernel_funcs.o -o airfoil_openmp4 \
-	   	-lop2_openmp4 -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
+	   	-lop2_cuda -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
 
 
 airfoil_mpi_openmp4: airfoil_op.cpp airfoil_omp4kernels.cpp airfoil_omp4kernel_funcs.cpp \

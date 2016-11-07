@@ -346,6 +346,8 @@ void *op_realloc(void *ptr, size_t size);
 void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
+void deviceSync();
+
 #ifdef __cplusplus
 }
 #endif

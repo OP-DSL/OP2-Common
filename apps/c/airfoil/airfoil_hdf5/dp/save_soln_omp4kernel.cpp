@@ -76,6 +76,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
   // combine reduction data
   op_mpi_set_dirtybit_cuda(nargs, args);
 
+  if (OP_diags>1) deviceSync();
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[0].time     += wall_t2 - wall_t1;
