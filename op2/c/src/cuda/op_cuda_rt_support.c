@@ -285,6 +285,11 @@ void op_cuda_get_data(op_dat dat) {
     cutilSafeCall(cudaDeviceSynchronize());
   }
 }
+
+void deviceSync() {
+  cutilSafeCall(cudaDeviceSynchronize());
+}
+
 #ifndef OPMPI
 
 void cutilDeviceInit(int argc, char **argv) {
