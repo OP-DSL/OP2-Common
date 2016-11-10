@@ -1651,8 +1651,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           ENDIF()
 
     #TODO: this is terrible
-    for const in util.const_list:
-      code(const+'_OP2CONSTANT = '+const)
+    # for const in util.const_list:
+    #   code(const+'_OP2CONSTANT = '+const)
 
     code('call op_timers_core(startTime)')
     code('')
