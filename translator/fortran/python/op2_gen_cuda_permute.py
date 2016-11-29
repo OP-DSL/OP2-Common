@@ -615,7 +615,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
       #find subroutine calls
       util.funlist = [name.lower()]
-      plus_kernels = find_function_calls(text)
+      plus_kernels = find_function_calls(text,'attributes(device) ')
       if plus_kernels == '':
         text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
       text = text + '\n' + plus_kernels
