@@ -702,7 +702,3 @@ int op_is_root() {
   return (my_rank == MPI_ROOT);
 }
 
-void deviceSync() {
-  cutilSafeCall(cudaDeviceSynchronize());
-}
-
