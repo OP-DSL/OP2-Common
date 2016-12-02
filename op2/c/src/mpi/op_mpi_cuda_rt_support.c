@@ -122,7 +122,9 @@ void cutilDeviceInit(int argc, char **argv) {
   }*/
 
   float *test;
-  OP_hybrid_gpu = 0;
+  OP_hybrid_gpu = 1;
+  cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+/*
   for (int i = 0; i < deviceCount; i++) {
     cudaError_t err = cudaSetDevice(i);
     if (err == cudaSuccess) {
@@ -132,7 +134,7 @@ void cutilDeviceInit(int argc, char **argv) {
         break;
       }
     }
-  }
+  }*/
   if (OP_hybrid_gpu) {
     cudaFree(test);
 
