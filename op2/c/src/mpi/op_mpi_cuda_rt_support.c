@@ -120,7 +120,8 @@ void cutilDeviceInit(int argc, char **argv) {
   } else {
     printf ( "\n Using CPU on rank %d\n",rank );
   }*/
-
+  //omp_set_default_device(rank);
+//  cudaError_t err = cudaSetDevice(rank);
   float *test;
   OP_hybrid_gpu = 0;
   //cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
