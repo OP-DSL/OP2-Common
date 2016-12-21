@@ -381,7 +381,12 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   item->dat = dat;
 
   // add item to the end of the list
-  TAILQ_INSERT_TAIL(&OP_dat_list, item, entries);
+  if (TAILQ_EMPTY(&OP_dat_list)) {
+    TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);
+  } else {
+    TAILQ_INSERT_TAIL(&OP_dat_list, item, entries);
+  }
+
   OP_dat_index++;
 
   return dat;
