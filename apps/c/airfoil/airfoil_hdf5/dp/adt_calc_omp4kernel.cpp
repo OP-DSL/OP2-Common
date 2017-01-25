@@ -11,9 +11,13 @@ int direct_adt_calc_stride_OP2HOST=-1;
 
 void adt_calc_omp4_kernel(
   int *map0,
+  int map0size,
   double *data4,
+  int dat4size,
   double *data5,
+  int dat5size,
   double *data0,
+  int dat0size,
   int *col_reord,
   int set_size1,
   int start,
@@ -72,6 +76,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
 
   int ncolors = 0;
+  int set_size1 = set->size + set->exec_size;
 
   if (set->size >0) {
 
@@ -86,15 +91,18 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
     //Set up typed device pointers for OpenMP
     int *map0 = arg0.map_data_d;
+     int map0size = arg0.map->dim * set_size1;
 
     double* data4 = (double*)arg4.data_d;
+    int dat4size = getSetSizeFromOpArg(&arg4) * arg4.dat->dim;
     double* data5 = (double*)arg5.data_d;
+    int dat5size = getSetSizeFromOpArg(&arg5) * arg5.dat->dim;
     double *data0 = (double *)arg0.data_d;
+    int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
     ncolors = Plan->ncolors;
     int *col_reord = Plan->col_reord;
-    int set_size1 = set->size + set->exec_size;
 
     // execute plan
     for ( int col=0; col<Plan->ncolors; col++ ){
@@ -106,9 +114,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
       adt_calc_omp4_kernel(
         map0,
+        map0size,
         data4,
+        dat4size,
         data5,
+        dat5size,
         data0,
+        dat0size,
         col_reord,
         set_size1,
         start,

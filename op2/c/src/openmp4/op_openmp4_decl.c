@@ -4,10 +4,18 @@
 
 #include <omp.h>
 
-#include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
+void cutilDeviceInit(int argc, char **argv);
+
+void op_mvHostToDevice(void **map, int size);
+
+void op_cpHostToDevice(void **data_d, void **data_h, int size);
+
+void op_cuda_exit();
+
+void op_cuda_get_data(op_dat dat);
 //
 // OpenMP-specific OP2 functions
 //
@@ -38,13 +46,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
-
-  //OpenMP specidic part
-  if(dat->data_d == NULL)//In theory always true TODO remove
-  {
-    dat->data_d = (char *) malloc(dat->size * set->size * sizeof(char));
-  }
-
+  
   // transpose data
   if (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * set->size * sizeof(char));
@@ -78,12 +80,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
       (char *)calloc(set->size * dim * size, 1); // initialize data bits to 0
   dat->user_managed = 0;
   
-  //OpenMP specidic part
-  if(dat->data_d == NULL)//In theory alwazs true TODO remove
-  {
-    dat->data_d = (char *) malloc(dat->size * set->size * sizeof(char));
-  }
-
   // transpose data
   if (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * set->size * sizeof(char));
@@ -109,7 +105,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
 int op_free_dat_temp_char(op_dat dat) {
   // free data on device
- #pragma omp target exit data map(delete:dat->data_d[:dat->size * dat->set->size]);
+ #pragma omp target exit data map(delete:dat->data_d[:dat->size * dat->set->size])
   return op_free_dat_temp_core(dat);
 }
 
@@ -120,12 +116,6 @@ op_set op_decl_set(int size, char const *name) {
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
   op_map map = op_decl_map_core(from, to, dim, imap, name);
-
-  //OpenMP specidic part
-  if(map->map_d == NULL)//In theory alwazs true TODO remove
-  {
-    map->map_d = (int *) malloc(map->dim * map->from->size * sizeof(int));
-  }
 
   int set_size = map->from->size;
   int *temp_map = (int *)malloc(map->dim * set_size * sizeof(int));
