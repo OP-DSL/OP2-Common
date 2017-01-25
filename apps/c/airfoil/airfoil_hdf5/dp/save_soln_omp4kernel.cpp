@@ -9,7 +9,9 @@ int direct_save_soln_stride_OP2HOST=-1;
 
 void save_soln_omp4_kernel(
   double *data0,
+  int dat0size,
   double *data1,
+  int dat1size,
   int count,
   int num_teams,
   int nthread,
@@ -62,10 +64,14 @@ void op_par_loop_save_soln(char const *name, op_set set,
     //Set up typed device pointers for OpenMP
 
     double* data0 = (double*)arg0.data_d;
+    int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
     double* data1 = (double*)arg1.data_d;
+    int dat1size = getSetSizeFromOpArg(&arg1) * arg1.dat->dim;
     save_soln_omp4_kernel(
       data0,
+      dat0size,
       data1,
+      dat1size,
       set->size,
       part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
       nthread,

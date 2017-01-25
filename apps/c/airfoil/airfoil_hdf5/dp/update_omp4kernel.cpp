@@ -9,9 +9,13 @@ int direct_update_stride_OP2HOST=-1;
 
 void update_omp4_kernel(
   double *data0,
+  int dat0size,
   double *data1,
+  int dat1size,
   double *data2,
+  int dat2size,
   double *data3,
+  int dat3size,
   double *arg4,
   int count,
   int num_teams,
@@ -73,14 +77,22 @@ void op_par_loop_update(char const *name, op_set set,
     //Set up typed device pointers for OpenMP
 
     double* data0 = (double*)arg0.data_d;
+    int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
     double* data1 = (double*)arg1.data_d;
+    int dat1size = getSetSizeFromOpArg(&arg1) * arg1.dat->dim;
     double* data2 = (double*)arg2.data_d;
+    int dat2size = getSetSizeFromOpArg(&arg2) * arg2.dat->dim;
     double* data3 = (double*)arg3.data_d;
+    int dat3size = getSetSizeFromOpArg(&arg3) * arg3.dat->dim;
     update_omp4_kernel(
       data0,
+      dat0size,
       data1,
+      dat1size,
       data2,
+      dat2size,
       data3,
+      dat3size,
       &arg4_l,
       set->size,
       part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,

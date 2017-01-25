@@ -8,11 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <math_constants.h>//TODO ?
 
 #include <omp.h>
 
-#include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -24,18 +22,21 @@
 void op_mvHostToDevice(void **map, int size) {
   if (!OP_hybrid_gpu)
     return;
-  #pragma omp target enter data map(alloc: *map[:size])
-  #pragma omp target update to(*map[:size])
+  char *temp = (char*)*map;
+  #pragma omp target enter data map(to: temp[:size])
+  #pragma omp target update to(temp[:size])
   //TODO test
 }
 
 void op_cpHostToDevice(void **data_d, void **data_h, int size) {
   if (!OP_hybrid_gpu)
     return;
+  *data_d = (char*)op_malloc(size);
+  memcpy(*data_d, *data_h, size);
+  char *tmp = (char *)*data_d;
   //TODO jo igy? decl miatt kell az enter data elm.
-  #pragma omp target enter data map(alloc: *data_d[:size])
-  memcpy(*data_d,*data_h, size);
-  #pragma omp target update to(*data_d[:size])
+  #pragma omp target enter data map(to: tmp[:size])
+  #pragma omp target update to(tmp[:size])
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
@@ -113,7 +114,7 @@ void op_cuda_exit() {
     return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    #pragma omp target exit data map(delete: (item->dat)->data_d)
+    #pragma omp target exit data map(from: (item->dat)->data_d)
     free((item->dat)->data_d);
   }
   /*
@@ -195,6 +196,9 @@ void op_cuda_get_data(op_dat dat) {
 
 }
 
+void deviceSync() {
+//  cutilSafeCall(cudaDeviceSynchronize());
+}
 #ifndef OPMPI
 
 void cutilDeviceInit(int argc, char **argv) {
@@ -204,6 +208,8 @@ void cutilDeviceInit(int argc, char **argv) {
   // Improvement: later we can set default device.
   int tmp=0;
   #pragma omp target enter data map(to:tmp)
+
+  OP_hybrid_gpu = 1;
 }
 
 

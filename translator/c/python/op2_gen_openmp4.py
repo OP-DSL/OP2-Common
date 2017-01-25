@@ -98,6 +98,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
   op2_compiler = os.getenv('OP2_COMPILER','0');
   any_soa = 0
+  maptype = 'map'
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
 
@@ -334,11 +335,17 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
         k = k + [invmapinds[inds[g_m]-1]]
         params += indent +  'int *map'+str(mapinds[g_m])+','
+        if maptype == 'map':
+          params += indent +  'int map'+str(mapinds[g_m])+'size,'
       if maps[g_m] == OP_ID:
         params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+        if maptype == 'map':
+          params += indent +  'int dat'+str(g_m)+'size,'
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
       params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+      if maptype == 'map':
+        params += indent +  'int dat'+str(g_m)+'size,'
     if ninds>0:
       # add indirect kernel specific params to kernel func call 
       params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
@@ -472,6 +479,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     if ninds > 0:
       code('')
       code('int ncolors = 0;')
+      code('int set_size1 = set->size + set->exec_size;')
     code('')
     IF('set->size >0')
     #managing constants
@@ -499,15 +507,21 @@ def op2_gen_openmp4(master, date, consts, kernels):
         if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
           k = k + [invmapinds[inds[g_m]-1]]
           code('int *map'+str(mapinds[g_m])+' = arg'+str(invmapinds[inds[g_m]-1])+'.map_data_d;')
+          if maptype == 'map':
+            code(' int map'+str(mapinds[g_m])+'size = arg'+str(invmapinds[inds[g_m]-1])+'.map->dim * set_size1;') 
 
     code('')
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         code(typs[g_m]+'* data'+str(g_m)+' = ('+typs[g_m]+'*)arg'+str(g_m)+'.data_d;')
+        if maptype == 'map':
+          code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
 
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
       code('TYP *data'+str(g_m)+' = (TYP *)ARG.data_d;')
+      if maptype == 'map':
+        code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
     
 #
 # prepare kernel params for indirect version
@@ -517,7 +531,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
       code('ncolors = Plan->ncolors;')
       code('int *col_reord = Plan->col_reord;')
-      code('int set_size1 = set->size + set->exec_size;')
       code('')
       comm(' execute plan')
       FOR('col','0','Plan->ncolors')
@@ -646,10 +659,18 @@ def op2_gen_openmp4(master, date, consts, kernels):
     if op2_compiler == 'clang':
       line +=' distribute parallel for schedule(static,1)\\\n' + (depth+2)*' '
     line +=' num_teams(num_teams) thread_limit(nthread) '
-    map_clause = 'is_device_ptr('
+    map_clause = ''
+    if maptype == 'map':
+      map_clause = 'map(to:'
+    elif maptype == 'is_device_ptr':
+      map_clause = 'is_device_ptr('
+       
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
-        map_clause += 'data'+str(g_m)+','
+        if maptype == 'map':
+          map_clause += 'data'+str(g_m)+'[0:dat'+str(g_m)+'size],'
+        else:
+          map_clause += 'data'+str(g_m)+','
     if map_clause != 'is_device_ptr(' and map_clause != 'map(to:':
       map_clause = map_clause[:-1]+')'
       line += map_clause
@@ -686,16 +707,25 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # map extra pointers for indirect version
 #
     if ninds>0:
-      line += '\\\n'+(depth+2)*' '+'is_device_ptr(col_reord,'
+      if maptype == 'map':
+        line += '\\\n'+(depth+2)*' '+'map(to:col_reord[0:set_size1],'
+      else:
+        line += '\\\n'+(depth+2)*' '+'map(to:col_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
             k = k + [invmapinds[inds[g_m]-1]]
-            line = line + 'map'+str(mapinds[g_m])+','
+            if maptype == 'map':
+              line = line + 'map'+str(mapinds[g_m])+'[0:map'+str(mapinds[g_m])+'size],'
+            else:
+              line = line + 'map'+str(mapinds[g_m])+','
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
-        line = line + 'data'+str(g_m)+','
+        if maptype == 'map':
+          line = line + 'data'+str(g_m)+'[0:dat'+str(g_m)+'size],'
+        else:
+          line = line + 'data'+str(g_m)+','
       line = line[:-1]+')'
 #
 # write omp pragma
