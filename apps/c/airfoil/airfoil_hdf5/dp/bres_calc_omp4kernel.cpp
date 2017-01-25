@@ -11,12 +11,19 @@ int opDat2_bres_calc_stride_OP2HOST=-1;
 
 void bres_calc_omp4_kernel(
   int *map0,
+  int map0size,
   int *map2,
+  int map2size,
   int *data5,
+  int dat5size,
   double *data0,
+  int dat0size,
   double *data2,
+  int dat2size,
   double *data3,
+  int dat3size,
   double *data4,
+  int dat4size,
   int *col_reord,
   int set_size1,
   int start,
@@ -75,6 +82,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
 
   int ncolors = 0;
+  int set_size1 = set->size + set->exec_size;
 
   if (set->size >0) {
 
@@ -89,18 +97,24 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
     //Set up typed device pointers for OpenMP
     int *map0 = arg0.map_data_d;
+     int map0size = arg0.map->dim * set_size1;
     int *map2 = arg2.map_data_d;
+     int map2size = arg2.map->dim * set_size1;
 
     int* data5 = (int*)arg5.data_d;
+    int dat5size = getSetSizeFromOpArg(&arg5) * arg5.dat->dim;
     double *data0 = (double *)arg0.data_d;
+    int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
     double *data2 = (double *)arg2.data_d;
+    int dat2size = getSetSizeFromOpArg(&arg2) * arg2.dat->dim;
     double *data3 = (double *)arg3.data_d;
+    int dat3size = getSetSizeFromOpArg(&arg3) * arg3.dat->dim;
     double *data4 = (double *)arg4.data_d;
+    int dat4size = getSetSizeFromOpArg(&arg4) * arg4.dat->dim;
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
     ncolors = Plan->ncolors;
     int *col_reord = Plan->col_reord;
-    int set_size1 = set->size + set->exec_size;
 
     // execute plan
     for ( int col=0; col<Plan->ncolors; col++ ){
@@ -112,12 +126,19 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
       bres_calc_omp4_kernel(
         map0,
+        map0size,
         map2,
+        map2size,
         data5,
+        dat5size,
         data0,
+        dat0size,
         data2,
+        dat2size,
         data3,
+        dat3size,
         data4,
+        dat4size,
         col_reord,
         set_size1,
         start,

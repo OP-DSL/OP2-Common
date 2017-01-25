@@ -4,9 +4,13 @@
 
 void update_omp4_kernel(
   double *data0,
+  int dat0size,
   double *data1,
+  int dat1size,
   double *data2,
+  int dat2size,
   double *data3,
+  int dat3size,
   double *arg4,
   int count,
   int num_teams,
@@ -15,7 +19,7 @@ void update_omp4_kernel(
 
   double arg4_l = *arg4;
   #pragma omp target teams distribute parallel for schedule(static,1)\
-     num_teams(num_teams) thread_limit(nthread) is_device_ptr(data0,data1,data2,data3)\
+     num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size],data2[0:dat2size],data3[0:dat3size])\
     map(tofrom: arg4_l) reduction(+:arg4_l)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
