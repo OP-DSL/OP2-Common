@@ -3,10 +3,10 @@
 !
 
 MODULE ADT_CALC_MODULE
+USE OP2_CONSTANTS
 USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
-USE OP2_CONSTANTS
 
 #ifdef _OPENMP
   USE OMP_LIB
@@ -15,12 +15,7 @@ USE OP2_CONSTANTS
 
 ! adt_calcvariable declarations
 
-INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
-!$acc declare create(opDat1_stride_OP2CONSTANT)
-INTEGER(kind=4) :: direct_stride_OP2CONSTANT
-!$acc declare create(direct_stride_OP2CONSTANT)
 
-#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -36,21 +31,21 @@ SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx,dy,ri,u,v,c
 
-  ri = 1.0 / OP2_SOA(q,1, direct_stride_OP2CONSTANT)
-  u = ri * OP2_SOA(q,2, direct_stride_OP2CONSTANT)
-  v = ri * OP2_SOA(q,3, direct_stride_OP2CONSTANT)
-  c = sqrt(gam * gm1 * (ri * OP2_SOA(q,4, direct_stride_OP2CONSTANT) - 0.5 * (u * u + v * v)))
-  dx = OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT)
+  ri = 1.0 / q(1)
+  u = ri * q(2)
+  v = ri * q(3)
+  c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+  dx = x2(1) - x1(1)
+  dy = x2(2) - x1(2)
   adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
+  dx = x3(1) - x2(1)
+  dy = x3(2) - x2(2)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x3,2, opDat1_stride_OP2CONSTANT)
+  dx = x4(1) - x3(1)
+  dy = x4(2) - x3(2)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
-  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x4,2, opDat1_stride_OP2CONSTANT)
+  dx = x1(1) - x4(1)
+  dy = x1(2) - x4(2)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
   adt = adt / cfl
 END SUBROUTINE
@@ -65,20 +60,28 @@ SUBROUTINE op_wrap_adt_calc( &
   & col_reord, set_size, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(*)
-  real(8) opDat5Local(*)
+  real(8) opDat1Local(2,*)
+  real(8) opDat5Local(4,*)
   real(8) opDat6Local(1,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) col_reord(*)
   INTEGER(kind=4) set_size
+
   INTEGER(kind=4) bottom,top,i1,i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
-  !$acc routine(adt_calc)
 
-
-  !$acc parallel loop independent gang vector deviceptr( opDat1Local, opDat5Local, opDat6Local, opDat1Map, col_reord) private(i1, map1idx, map2idx, map3idx, map4idx)
+  !$acc parallel loop independent gang vector &
+!$acc& deviceptr(opDat1Local) &
+!$acc& deviceptr(opDat5Local) &
+!$acc& deviceptr(opDat6Local) &
+!$acc& deviceptr(opDat1Map) &
+!$acc& deviceptr(col_reord) private(i1) &
+!$acc& private(map1idx) &
+!$acc& private(map2idx) &
+!$acc& private(map3idx) &
+!$acc& private(map4idx) 
   DO i2 = bottom, top-1, 1
     i1 = col_reord(i2+1)
     map1idx = opDat1Map(1 + i1 + set_size * 0)+1
@@ -86,12 +89,12 @@ SUBROUTINE op_wrap_adt_calc( &
     map3idx = opDat1Map(1 + i1 + set_size * 2)+1
     map4idx = opDat1Map(1 + i1 + set_size * 3)+1
 ! kernel call
-    CALL adt_calc( &
-    & opDat1Local(map1idx), &
-    & opDat1Local(map2idx), &
-    & opDat1Local(map3idx), &
-    & opDat1Local(map4idx), &
-    & opDat5Local(i1+1), &
+    CALL adt_calc_gpu( &
+    & opDat1Local(1,map1idx), &
+    & opDat1Local(1,map2idx), &
+    & opDat1Local(1,map3idx), &
+    & opDat1Local(1,map4idx), &
+    & opDat5Local(1,i1+1), &
     & opDat6Local(1,i1+1) &
     & )
   END DO
@@ -168,14 +171,6 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
-  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
-    opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
-    !$acc update device(opDat1_stride_OP2CONSTANT)
-  END IF
-  IF ((calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg5))) THEN
-    direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg5)
-    !$acc update device(direct_stride_OP2CONSTANT)
-  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
@@ -229,8 +224,6 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
     & opDat1Map, &
     & opDat1MapDim, &
     & col_reord_adt_calc, exec_size, offset_b, nelem )
-    IF (i1 .EQ. actualPlan_adt_calc%ncolors_owned -1) THEN
-    END IF
   END DO
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)

@@ -152,6 +152,7 @@ subroutine initialise_constants ( )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
+!$omp target enter data map(to:gam, gm1, cfl, eps, mach, alpha, qinf(4))
 !$acc update device(gam, gm1, cfl, eps, mach, alpha, qinf(4))
 #ifdef OP2_WITH_CUDAFOR
   if (getHybridGPU().EQ.1) then

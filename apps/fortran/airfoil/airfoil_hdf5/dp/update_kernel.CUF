@@ -17,12 +17,9 @@ USE CUDACONFIGURATIONPARAMS
 
 ! updatevariable declarations
 
-INTEGER(kind=4), CONSTANT :: direct_stride_OP2CONSTANT
-INTEGER(kind=4) :: direct_stride_OP2HOST
 real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice5update
 
 
-#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -93,9 +90,9 @@ SUBROUTINE update_gpu(qold,q,res,adt,rms)
   adti = 1.0 / adt
 
   DO i = 1, 4
-    del = adti * OP2_SOA(res,i, direct_stride_OP2CONSTANT)
-    OP2_SOA(q,i, direct_stride_OP2CONSTANT) = OP2_SOA(qold,i, direct_stride_OP2CONSTANT) - del
-    OP2_SOA(res,i, direct_stride_OP2CONSTANT) = 0.0
+    del = adti * res(i)
+    q(i) = qold(i) - del
+    res(i) = 0.0
     rms(2) = rms(2) + del * del
   END DO
 END SUBROUTINE
@@ -133,9 +130,9 @@ END SUBROUTINE
 ! kernel call
 
       CALL update_gpu( &
-      & opDat1Deviceupdate(1 + i1), &
-      & opDat2Deviceupdate(1 + i1), &
-      & opDat3Deviceupdate(1 + i1), &
+      & opDat1Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
+      & opDat2Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
+      & opDat3Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
       & opDat4Deviceupdate(i1 + 1), &
       & opGblDat5Deviceupdate &
       & )
@@ -242,10 +239,6 @@ END SUBROUTINE
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
     & 0.d0, 0.00000_4,0.00000_4, 0)
-    IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
-      direct_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
-      direct_stride_OP2CONSTANT = direct_stride_OP2HOST
-    END IF
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)

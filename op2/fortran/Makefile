@@ -129,7 +129,7 @@ ifeq ($(OP2_COMPILER),xl)
   CC              = xlc_r
   CXX             = xlC_r
   FC              = xlf90_r
-  PGFC            = xlf90_r -WF,-DOP2_WITH_CUDAFOR
+  PGFC            = xlf90_r #-WF,-DOP2_WITH_CUDAFOR
   CFLAGS          = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O3 -qarch=pwr8 -qtune=pwr8
   CFLAGS_SLOW     = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O0 -qarch=pwr8 -qtune=pwr8
   FFLAGS          = -qmoddir=$(F_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc

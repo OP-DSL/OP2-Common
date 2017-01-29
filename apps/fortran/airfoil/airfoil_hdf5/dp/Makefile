@@ -62,10 +62,11 @@ ifeq ($(OP2_COMPILER),xl)
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = #$(MPI_INSTALL_PATH)/include
   MPIF90 = mpif90 #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O5 -qarch=pwr8 -qtune=pwr8 -qhot 
+  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot 
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
+  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload
   OPENMP = -qsmp=omp -qthreaded
-  CPPLINK = -lstdc++ -lmpi_cxx -libmc++
+  CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
@@ -192,7 +193,7 @@ airfoil_hdf5_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_accke
 	res_calc_acckernel.F90 bres_calc_acckernel.F90 update_acckernel.F90 constants.F90 input.F90
 	$(MPIF90) $(OPT_ACC) $(FMPI_MODS)/cuda $(FMPI_MODS) \
 		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
-		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
+		update_seqkernel.F90 bres_calc_seqkernel.F90 res_calc_seqkernel.F90 adt_calc_acckernel.F90 \
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_openacc $(FLINK) -lop2_for_cuda -lop2_hdf5 \
 		$(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
 
