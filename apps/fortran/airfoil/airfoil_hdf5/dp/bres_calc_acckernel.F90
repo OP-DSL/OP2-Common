@@ -15,12 +15,7 @@ USE ISO_C_BINDING
 
 ! bres_calcvariable declarations
 
-INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
-!$acc declare create(opDat1_stride_OP2CONSTANT)
-INTEGER(kind=4) :: opDat3_stride_OP2CONSTANT
-!$acc declare create(opDat3_stride_OP2CONSTANT)
 
-#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -36,28 +31,28 @@ subroutine bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   INTEGER(kind=4) :: bound
   REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
 
-  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
-  ri = 1.0 / OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT)
-  p1 = gm1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT)))
+  dx = x1(1) - x2(1)
+  dy = x1(2) - x2(2)
+  ri = 1.0 / q1(1)
+  p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
 
   IF (bound .EQ. 1) THEN
-    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + p1 * dy
-    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) -(p1 * dx)
+    res1(2) = res1(2) + p1 * dy
+    res1(3) = res1(3) -(p1 * dx)
   ELSE
-    vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
+    vol1 = ri * (q1(2) * dy - q1(3) * dx)
     ri = 1.0 / qinf(1)
     p2 = gm1 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
     vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
     mu = adt1 * eps
-    f = 0.5 * (vol1 * OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) + vol2 * qinf(1)) + mu * (OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) - qinf(1))
-    OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) + f
-    f = 0.5 * (vol1 * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) - qinf(2))
-    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + f
-    f = 0.5 * (vol1 * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - qinf(3))
-    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) + f
-    f = 0.5 * (vol1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) + p1) + vol2 * (qinf(4) + p2)) + mu * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - qinf(4))
-    OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) + f
+    f = 0.5 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
+    res1(1) = res1(1) + f
+    f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2) - qinf(2))
+    res1(2) = res1(2) + f
+    f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3) - qinf(3))
+    res1(3) = res1(3) + f
+    f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4) - qinf(4))
+    res1(4) = res1(4) + f
   END IF
 END SUBROUTINE
 
@@ -75,10 +70,10 @@ SUBROUTINE op_wrap_bres_calc( &
   & col_reord, set_size, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(*)
-  real(8) opDat3Local(*)
+  real(8) opDat1Local(2,*)
+  real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
-  real(8) opDat5Local(*)
+  real(8) opDat5Local(4,*)
   integer opDat6Local(1,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
@@ -114,7 +109,7 @@ SUBROUTINE op_wrap_bres_calc( &
     & opDat1Local(1,map2idx), &
     & opDat3Local(1,map3idx), &
     & opDat4Local(1,map3idx), &
-    & opDat5Local(map3idx), &
+    & opDat5Local(1,map3idx), &
     & opDat6Local(1,i1+1) &
     & )
   END DO
@@ -203,14 +198,6 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
-  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
-    opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
-    !$acc update device(opDat1_stride_OP2CONSTANT)
-  END IF
-  IF ((calledTimes.EQ.0).OR.(opDat3_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg3))) THEN
-    opDat3_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg3)
-    !$acc update device(opDat3_stride_OP2CONSTANT)
-  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
