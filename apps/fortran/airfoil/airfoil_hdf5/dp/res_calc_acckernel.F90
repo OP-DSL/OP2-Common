@@ -15,12 +15,7 @@ USE ISO_C_BINDING
 
 ! res_calcvariable declarations
 
-INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
-!$acc declare create(opDat1_stride_OP2CONSTANT)
-INTEGER(kind=4) :: opDat3_stride_OP2CONSTANT
-!$acc declare create(opDat3_stride_OP2CONSTANT)
 
-#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -38,27 +33,27 @@ subroutine res_calc_gpu(x1,x2,q1,q2,adt1,adt2,res1,res2)
   REAL(kind=8), DIMENSION(4) :: res2
   REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
 
-  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
-  ri = 1.0 / OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT)
-  p1 = gm1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT)))
-  vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
-  ri = 1.0 / OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT)
-  p2 = gm1 * (OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT)))
-  vol2 = ri * (OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) * dx)
+  dx = x1(1) - x2(1)
+  dy = x1(2) - x2(2)
+  ri = 1.0 / q1(1)
+  p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+  vol1 = ri * (q1(2) * dy - q1(3) * dx)
+  ri = 1.0 / q2(1)
+  p2 = gm1 * (q2(4) - 0.5 * ri * (q2(2) * q2(2) + q2(3) * q2(3)))
+  vol2 = ri * (q2(2) * dy - q2(3) * dx)
   mu = 0.5 * (adt1 + adt2) * eps
-  f = 0.5 * (vol1 * OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) + vol2 * OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT)) + mu * (OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT))
-  OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) + f
-  OP2_SOA(res2,1, opDat3_stride_OP2CONSTANT) = OP2_SOA(res2,1, opDat3_stride_OP2CONSTANT) - f
-  f = 0.5 * (vol1 * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + p1 * dy + vol2 * OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) + p2 * dy) + mu * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT))
-  OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + f
-  OP2_SOA(res2,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res2,2, opDat3_stride_OP2CONSTANT) - f
-  f = 0.5 * (vol1 * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - p1 * dx + vol2 * OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) - p2 * dx) + mu * (OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT))
-  OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) + f
-  OP2_SOA(res2,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res2,3, opDat3_stride_OP2CONSTANT) - f
-  f = 0.5 * (vol1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) + p1) + vol2 * (OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT) + p2)) + mu * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT))
-  OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) + f
-  OP2_SOA(res2,4, opDat3_stride_OP2CONSTANT) = OP2_SOA(res2,4, opDat3_stride_OP2CONSTANT) - f
+  f = 0.5 * (vol1 * q1(1) + vol2 * q2(1)) + mu * (q1(1) - q2(1))
+  res1(1) = res1(1) + f
+  res2(1) = res2(1) - f
+  f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * q2(2) + p2 * dy) + mu * (q1(2) - q2(2))
+  res1(2) = res1(2) + f
+  res2(2) = res2(2) - f
+  f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * q2(3) - p2 * dx) + mu * (q1(3) - q2(3))
+  res1(3) = res1(3) + f
+  res2(3) = res2(3) - f
+  f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (q2(4) + p2)) + mu * (q1(4) - q2(4))
+  res1(4) = res1(4) + f
+  res2(4) = res2(4) - f
 END SUBROUTINE
 
 
@@ -74,10 +69,10 @@ SUBROUTINE op_wrap_res_calc( &
   & col_reord, set_size, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(*)
-  real(8) opDat3Local(*)
+  real(8) opDat1Local(2,*)
+  real(8) opDat3Local(4,*)
   real(8) opDat5Local(1,*)
-  real(8) opDat7Local(*)
+  real(8) opDat7Local(4,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) opDat3Map(*)
@@ -115,8 +110,8 @@ SUBROUTINE op_wrap_res_calc( &
     & opDat3Local(1,map4idx), &
     & opDat5Local(1,map3idx), &
     & opDat5Local(1,map4idx), &
-    & opDat7Local(map3idx), &
-    & opDat7Local(map4idx) &
+    & opDat7Local(1,map3idx), &
+    & opDat7Local(1,map4idx) &
     & )
   END DO
 
@@ -207,14 +202,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
-  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
-    opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
-    !$acc update device(opDat1_stride_OP2CONSTANT)
-  END IF
-  IF ((calledTimes.EQ.0).OR.(opDat3_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg3))) THEN
-    opDat3_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg3)
-    !$acc update device(opDat3_stride_OP2CONSTANT)
-  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
