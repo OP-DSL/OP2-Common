@@ -211,7 +211,7 @@ airfoil_hdf5_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_accke
 	res_calc_acckernel.F90 bres_calc_acckernel.F90 update_acckernel.F90 constants.F90 input.F90
 	$(MPIF90) $(OPT_ACC) $(FMPI_MODS)/cuda $(FMPI_MODS) \
 		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
-		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
+		update_seqkernel.F90 bres_calc_seqkernel.F90 res_calc_seqkernel.F90 adt_calc_acckernel.F90 \
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_openacc $(FLINK) -lop2_for_cuda -lop2_hdf5 \
 		$(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
 
