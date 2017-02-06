@@ -144,7 +144,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda openmp4
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)

@@ -12,8 +12,10 @@ MODULE OP2_CONSTANTS
   real(8), constant :: qinf_OP2(4)
   real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
 #else
+!$omp declare target(gam, gm1, cfl, eps, mach, alpha, qinf)
 real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
 !$acc declare create(gam, gm1, cfl, eps, mach, alpha, qinf(4))
+
 #endif
 
 END MODULE OP2_CONSTANTS

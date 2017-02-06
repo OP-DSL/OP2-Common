@@ -20,8 +20,7 @@ USE ISO_C_BINDING
 CONTAINS
 
 ! user function
-subroutine adt_calc_gpu(x1,x2,x3,x4,q,adt)
-!$acc routine seq
+SUBROUTINE adt_calc_gpu(x1,x2,x3,x4,q,adt)
 ! adt_calc
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
@@ -54,35 +53,38 @@ END SUBROUTINE
 
 SUBROUTINE op_wrap_adt_calc( &
   & opDat1Local, &
+  & opDat1Size, &
   & opDat5Local, &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
   & col_reord, set_size, &
-  & bottom,top)
+  & bottom,top,set_size_full)
   implicit none
-  real(8) opDat1Local(2,*)
-  real(8) opDat5Local(4,*)
-  real(8) opDat6Local(1,*)
-  INTEGER(kind=4) opDat1Map(*)
-  INTEGER(kind=4) opDat1MapDim
-  INTEGER(kind=4) col_reord(*)
   INTEGER(kind=4) set_size
+  INTEGER(kind=4) col_reord(set_size)
+  INTEGER(kind=4) set_size_full
+  INTEGER(kind=4) opDat1Size
+  real(8) opDat1Local(2,opDat1Size)
+  real(8) opDat5Local(4,set_size_full)
+  real(8) opDat6Local(1,set_size_full)
+  INTEGER(kind=4) opDat1MapDim
+  INTEGER(kind=4) opDat1Map(opDat1MapDim*set_size)
 
   INTEGER(kind=4) bottom,top,i1,i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
 
-  !$acc parallel loop independent gang vector &
-!$acc& deviceptr(opDat1Local) &
-!$acc& deviceptr(opDat5Local) &
-!$acc& deviceptr(opDat6Local) &
-!$acc& deviceptr(opDat1Map) &
-!$acc& deviceptr(col_reord) private(i1) &
-!$acc& private(map1idx) &
-!$acc& private(map2idx) &
-!$acc& private(map3idx) &
-!$acc& private(map4idx) 
+  !$omp target teams distribute parallel do &
+!$omp& map(to:opDat1Local) &
+!$omp& map(to:opDat5Local) &
+!$omp& map(to:opDat6Local) &
+!$omp& map(to:opDat1Map) &
+!$omp& map(to:col_reord) private(i1) &
+!$omp& private(map1idx) &
+!$omp& private(map2idx) &
+!$omp& private(map3idx) &
+!$omp& private(map4idx) 
   DO i2 = bottom, top-1, 1
     i1 = col_reord(i2+1)
     map1idx = opDat1Map(1 + i1 + set_size * 0)+1
@@ -220,11 +222,12 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
     nelem = offset_adt_calc(i1 + 1 + 1)
     CALL op_wrap_adt_calc( &
     & opDat1Local, &
+    & getSetSizeFromOpArg(opArg1), &
     & opDat5Local, &
     & opDat6Local, &
     & opDat1Map, &
     & opDat1MapDim, &
-    & col_reord_adt_calc, exec_size, offset_b, nelem )
+    & col_reord_adt_calc, exec_size, offset_b, nelem, exec_size+opSetCore%nonexec_size )
   END DO
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
