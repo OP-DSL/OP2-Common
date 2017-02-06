@@ -14,18 +14,17 @@ void update_omp4_kernel(
   double *arg4,
   int count,
   int num_teams,
-  int nthread,
-  int direct_update_stride_OP2CONSTANT){
+  int nthread){
 
   double arg4_l = *arg4;
-  #pragma omp target teams distribute parallel for schedule(static,1)\
-     num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size],data2[0:dat2size],data3[0:dat3size])\
+  #pragma omp target teams distribute parallel for schedule(static,1) num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size],data2[0:dat2size],data3[0:dat3size])\
     map(tofrom: arg4_l) reduction(+:arg4_l)
+//  #pragma omp distribute parallel for schedule(static,1) reduction(+:arg4_l)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
-    const double *qold = &data0[n_op];
-    double *q = &data1[n_op];
-    double *res = &data2[n_op];
+    const double *qold = &data0[4*n_op];
+    double *q = &data1[4*n_op];
+    double *res = &data2[4*n_op];
     const double *adt = &data3[1*n_op];
     double *rms = &arg4_l;
 
@@ -37,9 +36,9 @@ void update_omp4_kernel(
     adti = 1.0f / (*adt);
   
     for (int n = 0; n < 4; n++) {
-      del = adti * res[n*direct_update_stride_OP2CONSTANT];
-      q[n*direct_update_stride_OP2CONSTANT] = qold[n*direct_update_stride_OP2CONSTANT] - del;
-      res[n*direct_update_stride_OP2CONSTANT] = 0.0f;
+      del = adti * res[n];
+      q[n] = qold[n] - del;
+      res[n] = 0.0f;
       rmsl += del * del;
     }
     *rms += rmsl;

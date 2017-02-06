@@ -126,7 +126,7 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2,1);
+  op_init(argc, argv, 2);
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)

@@ -84,6 +84,7 @@ ifeq ($(OP2_COMPILER),xl)
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
   OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,OP2_WITH_OMP4
   OPENMP = -qsmp=omp -qthreaded
+  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport
   CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
@@ -156,6 +157,16 @@ airfoil_hdf5_openmp: airfoil_hdf5_op.F90 save_soln_kernel.F90 adt_calc_kernel.F9
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
 	bres_calc_kernel.o update_kernel.o airfoil_hdf5_op.o -o airfoil_hdf5_openmp \
 		$(FLINK) -lop2_for_openmp -lop2_hdf5 $(HDF5_LIB) -lz $(MPI_LIB)
+
+airfoil_hdf5_openmp4: airfoil_hdf5_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4kernel.F90 input.F90 \
+	res_calc_omp4kernel.F90 bres_calc_omp4kernel.F90 update_omp4kernel.F90 constants.F90 airfoil_seqfun.F90
+	$(MPIF90) $(OPT) $(OMP_OFFLOAD) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	save_soln_omp4kernel.F90 update_omp4kernel.F90 bres_calc_omp4kernel.F90 \
+	res_calc_omp4kernel.F90 adt_calc_omp4kernel.F90 airfoil_hdf5_op.F90
+	$(MPIF90) $(OPT) $(OMP_OFFLOAD) constants.o input.o airfoil_seqfun.o \
+	save_soln_omp4kernel.o adt_calc_omp4kernel.o res_calc_omp4kernel.o \
+	bres_calc_omp4kernel.o update_omp4kernel.o airfoil_hdf5_op.o -o airfoil_hdf5_openmp4 \
+		$(FLINK) -lop2_for_openmp4 -lop2_hdf5 $(HDF5_LIB) -lz $(MPI_LIB)
 
 airfoil_hdf5_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
         res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95

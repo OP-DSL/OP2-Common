@@ -3,10 +3,6 @@
 //
 
 //user function
-int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST=-1;
-int opDat2_res_calc_stride_OP2CONSTANT;
-int opDat2_res_calc_stride_OP2HOST=-1;
 //user function
 #pragma acc routine
 inline void res_calc( const double *x1, const double *x2, const double *q1,
@@ -14,33 +10,33 @@ inline void res_calc( const double *x1, const double *x2, const double *q1,
                      double *res1, double *res2) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
-  dx = x1[0*opDat0_res_calc_stride_OP2CONSTANT] - x2[0*opDat0_res_calc_stride_OP2CONSTANT];
-  dy = x1[1*opDat0_res_calc_stride_OP2CONSTANT] - x2[1*opDat0_res_calc_stride_OP2CONSTANT];
+  dx = x1[0] - x2[0];
+  dy = x1[1] - x2[1];
 
-  ri = 1.0f / q1[0*opDat2_res_calc_stride_OP2CONSTANT];
-  p1 = gm1 * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] * q1[1*opDat2_res_calc_stride_OP2CONSTANT] + q1[2*opDat2_res_calc_stride_OP2CONSTANT] * q1[2*opDat2_res_calc_stride_OP2CONSTANT]));
-  vol1 = ri * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] * dy - q1[2*opDat2_res_calc_stride_OP2CONSTANT] * dx);
+  ri = 1.0f / q1[0];
+  p1 = gm1 * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
+  vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-  ri = 1.0f / q2[0*opDat2_res_calc_stride_OP2CONSTANT];
-  p2 = gm1 * (q2[3*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q2[1*opDat2_res_calc_stride_OP2CONSTANT] * q2[1*opDat2_res_calc_stride_OP2CONSTANT] + q2[2*opDat2_res_calc_stride_OP2CONSTANT] * q2[2*opDat2_res_calc_stride_OP2CONSTANT]));
-  vol2 = ri * (q2[1*opDat2_res_calc_stride_OP2CONSTANT] * dy - q2[2*opDat2_res_calc_stride_OP2CONSTANT] * dx);
+  ri = 1.0f / q2[0];
+  p2 = gm1 * (q2[3] - 0.5f * ri * (q2[1] * q2[1] + q2[2] * q2[2]));
+  vol2 = ri * (q2[1] * dy - q2[2] * dx);
 
   mu = 0.5f * ((*adt1) + (*adt2)) * eps;
 
-  f = 0.5f * (vol1 * q1[0*opDat2_res_calc_stride_OP2CONSTANT] + vol2 * q2[0*opDat2_res_calc_stride_OP2CONSTANT]) + mu * (q1[0*opDat2_res_calc_stride_OP2CONSTANT] - q2[0*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[0*opDat2_res_calc_stride_OP2CONSTANT] += f;
-  res2[0*opDat2_res_calc_stride_OP2CONSTANT] -= f;
-  f = 0.5f * (vol1 * q1[1*opDat2_res_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * q2[1*opDat2_res_calc_stride_OP2CONSTANT] + p2 * dy) +
-      mu * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] - q2[1*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[1*opDat2_res_calc_stride_OP2CONSTANT] += f;
-  res2[1*opDat2_res_calc_stride_OP2CONSTANT] -= f;
-  f = 0.5f * (vol1 * q1[2*opDat2_res_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * q2[2*opDat2_res_calc_stride_OP2CONSTANT] - p2 * dx) +
-      mu * (q1[2*opDat2_res_calc_stride_OP2CONSTANT] - q2[2*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[2*opDat2_res_calc_stride_OP2CONSTANT] += f;
-  res2[2*opDat2_res_calc_stride_OP2CONSTANT] -= f;
-  f = 0.5f * (vol1 * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] + p1) + vol2 * (q2[3*opDat2_res_calc_stride_OP2CONSTANT] + p2)) + mu * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] - q2[3*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[3*opDat2_res_calc_stride_OP2CONSTANT] += f;
-  res2[3*opDat2_res_calc_stride_OP2CONSTANT] -= f;
+  f = 0.5f * (vol1 * q1[0] + vol2 * q2[0]) + mu * (q1[0] - q2[0]);
+  res1[0] += f;
+  res2[0] -= f;
+  f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * q2[1] + p2 * dy) +
+      mu * (q1[1] - q2[1]);
+  res1[1] += f;
+  res2[1] -= f;
+  f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * q2[2] - p2 * dx) +
+      mu * (q1[2] - q2[2]);
+  res1[2] += f;
+  res2[2] -= f;
+  f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (q2[3] + p2)) + mu * (q1[3] - q2[3]);
+  res1[3] += f;
+  res2[3] -= f;
 }
 
 // host stub function
@@ -94,14 +90,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
-    if ((OP_kernels[2].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
-      opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      opDat0_res_calc_stride_OP2CONSTANT = opDat0_res_calc_stride_OP2HOST;
-    }
-    if ((OP_kernels[2].count==1) || (opDat2_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg2))) {
-      opDat2_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg2);
-      opDat2_res_calc_stride_OP2CONSTANT = opDat2_res_calc_stride_OP2HOST;
-    }
 
     //Set up typed device pointers for OpenACC
     int *map0 = arg0.map_data_d;
@@ -134,14 +122,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int map3idx = map2[n + set_size1 * 1];
 
         res_calc(
-          &data0[map0idx],
-          &data0[map1idx],
-          &data2[map2idx],
-          &data2[map3idx],
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data2[4 * map2idx],
+          &data2[4 * map3idx],
           &data4[1 * map2idx],
           &data4[1 * map3idx],
-          &data6[map2idx],
-          &data6[map3idx]);
+          &data6[4 * map2idx],
+          &data6[4 * map3idx]);
       }
 
     }
