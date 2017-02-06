@@ -153,7 +153,7 @@ subroutine initialise_constants ( )
   qinf(3) = 0.0
   qinf(4) = r * e
 #ifdef OP2_WITH_OMP4
-!$omp target enter data map(to:gam, gm1, cfl, eps, mach, alpha, qinf(4))
+!$omp target update to(gam, gm1, cfl, eps, mach, alpha, qinf)
 #endif
 !$acc update device(gam, gm1, cfl, eps, mach, alpha, qinf(4))
 #ifdef OP2_WITH_CUDAFOR
