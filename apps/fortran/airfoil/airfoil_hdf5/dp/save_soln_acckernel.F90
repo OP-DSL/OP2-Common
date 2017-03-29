@@ -15,12 +15,15 @@ USE ISO_C_BINDING
 
 ! save_solnvariable declarations
 
+INTEGER(kind=4) :: direct_stride_OP2CONSTANT
+!$acc declare create(direct_stride_OP2CONSTANT)
 
+#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
 ! user function
-SUBROUTINE save_soln(q,qold)
+subroutine save_soln_gpu(q,qold)
 !$acc routine seq
   IMPLICIT NONE
 
@@ -29,7 +32,7 @@ SUBROUTINE save_soln(q,qold)
   INTEGER(kind=4) :: i
 
   DO i = 1, 4
-    qold(i) = q(i)
+    OP2_SOA(qold,i, direct_stride_OP2CONSTANT) = OP2_SOA(q,i, direct_stride_OP2CONSTANT)
   END DO
 END SUBROUTINE
 
@@ -39,8 +42,8 @@ SUBROUTINE op_wrap_save_soln( &
   & opDat2Local, &
   & bottom,top)
   implicit none
-  real(8) opDat1Local(4,*)
-  real(8) opDat2Local(4,*)
+  real(8) opDat1Local(*)
+  real(8) opDat2Local(*)
 
   INTEGER(kind=4) bottom,top,i1,i2
 
@@ -51,8 +54,8 @@ SUBROUTINE op_wrap_save_soln( &
   DO i1 = bottom, top-1, 1
 ! kernel call
     CALL save_soln_gpu( &
-    & opDat1Local(1,i1+1), &
-    & opDat2Local(1,i1+1) &
+    & opDat1Local(i1+1), &
+    & opDat2Local(i1+1) &
     & )
   END DO
 
@@ -101,6 +104,10 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
+  IF ((calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
+    direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
+    !$acc update device(direct_stride_OP2CONSTANT)
+  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)

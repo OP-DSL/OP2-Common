@@ -425,11 +425,14 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       text = fid.read()
       i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
-      file_text += text[i:j]+'\n\n'
+      text = text[i:j]+'\n\n'
+      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,1,re.IGNORECASE)
+      file_text += text
     else:
       comm('user function')
       fid = open(name+'.inc', 'r')
       text = fid.read()
+      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,1,re.IGNORECASE)
       text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
       text = text.replace(')\n',')\n!$acc routine seq\n',1)
       code(text)
