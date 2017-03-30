@@ -71,7 +71,7 @@ ifeq ($(OP2_COMPILER),pgi)
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
-                airfoil_hdf5_mpi_cuda airfoil_hdf5_openacc
+                airfoil_hdf5_mpi_cuda airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc
 else
 ifeq ($(OP2_COMPILER),xl)
   CC = xlc++_r
