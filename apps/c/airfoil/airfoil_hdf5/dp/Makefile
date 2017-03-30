@@ -34,7 +34,7 @@ ifeq ($(OP2_COMPILER),intel)
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
-  NVCCFLAGS	= -ccbin=$(MPICPP)
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
@@ -54,7 +54,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
-  NVCCFLAGS	= -ccbin=$(MPICPP)
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -87,6 +87,10 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+endif
 endif
 endif
 

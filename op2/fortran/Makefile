@@ -68,6 +68,12 @@ ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
    PGI_CUDA_FORT_FLAGS=-Mcuda=cc35,fastmath
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+#  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cc60,fastmath
+endif
 endif
 endif
 
