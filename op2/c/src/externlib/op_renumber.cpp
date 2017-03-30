@@ -147,7 +147,7 @@ void op_renumber(op_map base) {
     exit(-1);
   }
   int generated_partvec = 0;
-
+/*
   if (FILE *file = fopen("partvec0001_0001", "r")) {
     fclose(file);
     int possible[] = {1,  2,  4,   6,   8,   12,  16,   22,   24,
@@ -186,6 +186,7 @@ void op_renumber(op_map base) {
       generated_partvec = 1;
     }
   }
+*/
   //-----------------------------------------------------------------------------------------
   // Build adjacency list
   //-----------------------------------------------------------------------------------------
@@ -251,7 +252,7 @@ void op_renumber(op_map base) {
            base->to->name, base->to->name, (int)col_indices.size(),
            base->from->name, base->from->size);
   }
-
+/*
   if (generated_partvec == 0) {
 #ifdef PARMETIS_VER_4
     int possible[] = {2,  4,   6,   8,   12,  16,   22,   24,  32,
@@ -281,7 +282,7 @@ void op_renumber(op_map base) {
     }
 #endif
   }
-
+*/
   //
   // Using SCOTCH for reordering
   //

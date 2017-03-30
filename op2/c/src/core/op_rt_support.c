@@ -779,6 +779,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     }
     for (int i = exec_length; i < exec_length + 16; i++)
       OP_plans[ip].col_reord[i] = 0;
+		if (staging == OP_COLOR2)
+      OP_plans[ip].color2_offsets = OP_plans[ip].col_offsets[0];
   }
 
   /* color the blocks, after initialising colors to 0 */

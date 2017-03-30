@@ -89,12 +89,13 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 // \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
 // for this file when implementing C OP2.
 //
-
+  if (OP_hybrid_gpu) {
 #ifdef SET_CUDA_CACHE_CONFIG
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
-
-  printf("\n 16/48 L1/shared \n");
+    cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
+    printf("\n 16/48 L1/shared \n");
+  }
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -137,6 +138,8 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 #endif
 
+  //cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+  cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
   printf("\n 16/48 L1/shared \n");
 }
 

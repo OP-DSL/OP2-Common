@@ -32,9 +32,9 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS	= -openmp -openmp-report2
+  OMPFLAGS	= -openmp 
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
-  NVCCFLAGS	= -ccbin=$(MPICPP)
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
@@ -54,7 +54,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
-  NVCCFLAGS	= -ccbin=$(MPICPP)
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -87,6 +87,10 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+endif
 endif
 endif
 
@@ -296,7 +300,7 @@ airfoil_hybkernels.o: airfoil_hybkernels.cu \
                 Makefile
 		nvcc -DOP_HYBRID_GPU -DGPUPASS $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_hybkernels.o airfoil_hybkernels.cu
-		nvcc -DOP_HYBRID_GPU -Xcompiler="$(OMPFLAGS)" $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		nvcc -DOP_HYBRID_GPU -Xcompiler="-fopenmp" $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_hybkernels2.o airfoil_hybkernels.cu
 #
 # convert ASCI new_gird.dat to HDF5 new_grid.h5

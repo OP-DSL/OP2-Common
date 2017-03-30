@@ -202,10 +202,10 @@ END SUBROUTINE
     INTEGER(kind=4) :: returnSetKernelTiming
 
 
-    real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat1Deviceupdate
-    real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat2Deviceupdate
-    real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat3Deviceupdate
-    real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat4Deviceupdate
+    real(8), DIMENSION(:), DEVICE, POINTER :: opDat1Deviceupdate
+    real(8), DIMENSION(:), DEVICE, POINTER :: opDat2Deviceupdate
+    real(8), DIMENSION(:), DEVICE, POINTER :: opDat3Deviceupdate
+    real(8), DIMENSION(:), DEVICE, POINTER :: opDat4Deviceupdate
 
     INTEGER(kind=4) :: opDat1Cardinality
     INTEGER(kind=4) :: opDat2Cardinality

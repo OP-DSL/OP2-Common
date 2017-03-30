@@ -126,6 +126,7 @@ attributes (global) SUBROUTINE op_cuda_res_calc( &
 
   CALL syncthreads()
 
+
   i1 = threadIdx%x - 1
 
   DO WHILE (i1 < numberOfActiveThreadsCeiling )
@@ -253,14 +254,14 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: returnSetKernelTiming
 
 
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat1Deviceres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap1Deviceres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat3Deviceres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap3Deviceres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat5Deviceres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap5Deviceres_calc
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat7Deviceres_calc
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: opMap7Deviceres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat1Deviceres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap1Deviceres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat3Deviceres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap3Deviceres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat5Deviceres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap5Deviceres_calc
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat7Deviceres_calc
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap7Deviceres_calc
 
   INTEGER(kind=4) :: opDat1Cardinality
   INTEGER(kind=4) :: opMap1Cardinality
@@ -279,7 +280,6 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: threadSynchRet
   INTEGER(kind=4), DIMENSION(1:8) :: opDatArray
   INTEGER(kind=4), DIMENSION(1:8) :: mappingIndicesArray
-  INTEGER(kind=4), DIMENSION(1:8) :: mappingArray
   INTEGER(kind=4), DIMENSION(1:8) :: accessDescriptorArray
   INTEGER(kind=4), DIMENSION(1:8) :: indirectionDescriptorArray
 
@@ -296,11 +296,11 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: pnthrcolSize
   INTEGER(kind=4) :: pthrcolSize
   INTEGER(kind=4), POINTER, DIMENSION(:) :: ncolblk
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pblkMap
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: poffset
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnelems
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pnthrcol
-  INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: pthrcol
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pblkMap
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: poffset
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnelems
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnthrcol
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pthrcol
   INTEGER(kind=4) :: partitionSize
   INTEGER(kind=4) :: blockSize
   INTEGER(kind=4) :: i1

@@ -123,8 +123,10 @@ void cutilDeviceInit(int argc, char **argv) {
 
   float *test;
   OP_hybrid_gpu = 0;
+  //cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+
   for (int i = 0; i < deviceCount; i++) {
-    cudaError_t err = cudaSetDevice(i);
+    cudaError_t err = cudaSetDevice((i+rank)%deviceCount);
     if (err == cudaSuccess) {
       cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
       if (err == cudaSuccess) {
@@ -134,7 +136,7 @@ void cutilDeviceInit(int argc, char **argv) {
     }
   }
   if (OP_hybrid_gpu) {
-    cudaFree(test);
+    cutilSafeCall(cudaFree(test));
 
     cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 

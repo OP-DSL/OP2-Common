@@ -41,6 +41,11 @@ from op2_gen_openmp2 import *
 import op2_gen_openmp3
 from op2_gen_openmp3 import *
 
+import op2_gen_openacc
+from op2_gen_openacc import *
+
+
+
 #import mpiseq code generation function
 import op2_gen_mpiseq
 from op2_gen_mpiseq import *
@@ -217,13 +222,13 @@ def get_arg_dat(arg_string, j):
   if 'ntqmu' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if 'mpdes' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
@@ -266,9 +271,9 @@ def get_opt_arg_dat(arg_string, j):
   if 'nfcrow' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
   if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1*1'
+    temp_dat['dim']='1'#'1*1'
   if 'mpdes' in temp_dat['dim']:
     temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
   if 'maxgrp' in temp_dat['dim']:
@@ -455,7 +460,9 @@ for a in range(init_ctr,len(sys.argv)):
 
 ########################## parse and process constants ###################
 
-  const_args = op_decl_const_parse(text)
+  const_args = []
+  if not hydra:
+    op_decl_const_parse(text)
 
   #cleanup '&' symbols from name and convert dim to integer
   for i  in range(0,len(const_args)):
@@ -718,7 +725,7 @@ for a in range(init_ctr,len(sys.argv)):
               'invmapinds' : invmapinds }
 
       if hydra==1:
-        temp['master_file'] = src_file.split('.')[0]
+        temp['master_file'] = src_file.split('.')[0].replace('mod_','')
         search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name+'\n'
         i = text.rfind(search)
         if i > -1:
@@ -925,6 +932,9 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
+
+#OpenACC
+op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features

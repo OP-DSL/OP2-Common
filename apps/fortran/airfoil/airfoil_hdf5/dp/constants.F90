@@ -13,6 +13,7 @@ MODULE OP2_CONSTANTS
   real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
 #else
 real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
+!$acc declare create(gam, gm1, cfl, eps, mach, alpha, qinf(4))
 #endif
 
 END MODULE OP2_CONSTANTS

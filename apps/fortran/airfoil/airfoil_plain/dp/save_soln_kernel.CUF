@@ -113,8 +113,8 @@ attributes (host) SUBROUTINE save_soln_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: returnSetKernelTiming
 
 
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat1Devicesave_soln
-  real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: opDat2Devicesave_soln
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat1Devicesave_soln
+  real(8), DIMENSION(:), DEVICE, POINTER :: opDat2Devicesave_soln
 
   INTEGER(kind=4) :: opDat1Cardinality
   INTEGER(kind=4) :: opDat2Cardinality

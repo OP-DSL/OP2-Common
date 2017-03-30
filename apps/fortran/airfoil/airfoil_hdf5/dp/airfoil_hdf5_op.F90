@@ -110,7 +110,14 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 constants")
-       
+  call op_decl_const(gam, 1, 'gam')
+  call op_decl_const(gm1, 1, 'gm1')
+  call op_decl_const(cfl, 1, 'cfl')
+  call op_decl_const(eps, 1, 'eps')
+  call op_decl_const(mach, 1, 'mach')
+  call op_decl_const(alpha, 1, 'alpha')
+  call op_decl_const(qinf, 4, 'qinf')
+
   call op_print ('Initialising constants')
   call initialise_constants ( )
   call op_dump_to_hdf5("new_grid_out.h5");
