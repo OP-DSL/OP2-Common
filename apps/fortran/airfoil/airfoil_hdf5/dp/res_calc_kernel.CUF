@@ -17,14 +17,9 @@ USE CUDACONFIGURATIONPARAMS
 
 ! res_calcvariable declarations
 
-INTEGER(kind=4), CONSTANT :: opDat1_stride_OP2CONSTANT
-INTEGER(kind=4) :: opDat1_stride_OP2HOST
-INTEGER(kind=4), CONSTANT :: opDat3_stride_OP2CONSTANT
-INTEGER(kind=4) :: opDat3_stride_OP2HOST
 
 TYPE ( c_ptr )  :: planRet_res_calc
 
-#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -43,25 +38,25 @@ SUBROUTINE res_calc_gpu(x1,x2,q1,q2,adt1,adt2,res1,res2)
   REAL(kind=8) :: res2(4)
   REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
 
-  dx = OP2_SOA(x1,1, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,1, opDat1_stride_OP2CONSTANT)
-  dy = OP2_SOA(x1,2, opDat1_stride_OP2CONSTANT) - OP2_SOA(x2,2, opDat1_stride_OP2CONSTANT)
-  ri = 1.0 / OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT)
-  p1 = 0.4 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT)))
-  vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
-  ri = 1.0 / OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT)
-  p2 = 0.4 * (OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT)))
-  vol2 = ri * (OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) * dx)
+  dx = x1(1) - x2(1)
+  dy = x1(2) - x2(2)
+  ri = 1.0 / q1(1)
+  p1 = 0.4 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+  vol1 = ri * (q1(2) * dy - q1(3) * dx)
+  ri = 1.0 / q2(1)
+  p2 = 0.4 * (q2(4) - 0.5 * ri * (q2(2) * q2(2) + q2(3) * q2(3)))
+  vol2 = ri * (q2(2) * dy - q2(3) * dx)
   mu = 0.5 * (adt1 + adt2) * 0.05
-  f = 0.5 * (vol1 * OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) + vol2 * OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT)) + mu * (OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,1, opDat3_stride_OP2CONSTANT))
+  f = 0.5 * (vol1 * q1(1) + vol2 * q2(1)) + mu * (q1(1) - q2(1))
   res1(1) = res1(1) + f
   res2(1) = res2(1) - f
-  f = 0.5 * (vol1 * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + p1 * dy + vol2 * OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT) + p2 * dy) + mu * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,2, opDat3_stride_OP2CONSTANT))
+  f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * q2(2) + p2 * dy) + mu * (q1(2) - q2(2))
   res1(2) = res1(2) + f
   res2(2) = res2(2) - f
-  f = 0.5 * (vol1 * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - p1 * dx + vol2 * OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT) - p2 * dx) + mu * (OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,3, opDat3_stride_OP2CONSTANT))
+  f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * q2(3) - p2 * dx) + mu * (q1(3) - q2(3))
   res1(3) = res1(3) + f
   res2(3) = res2(3) - f
-  f = 0.5 * (vol1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) + p1) + vol2 * (OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT) + p2)) + mu * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - OP2_SOA(q2,4, opDat3_stride_OP2CONSTANT))
+  f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (q2(4) + p2)) + mu * (q1(4) - q2(4))
   res1(4) = res1(4) + f
   res2(4) = res2(4) - f
 END SUBROUTINE
@@ -151,10 +146,10 @@ attributes (global) SUBROUTINE op_cuda_res_calc( &
 
 ! kernel call
       CALL res_calc_gpu( &
-      & opDat1Deviceres_calc(1 + map1idx), &
-      & opDat1Deviceres_calc(1 + map2idx), &
-      & opDat3Deviceres_calc(1 + map3idx), &
-      & opDat3Deviceres_calc(1 + map4idx), &
+      & opDat1Deviceres_calc(1 + map1idx * (2):     map1idx * (2) + 2), &
+      & opDat1Deviceres_calc(1 + map2idx * (2):     map2idx * (2) + 2), &
+      & opDat3Deviceres_calc(1 + map3idx * (4):     map3idx * (4) + 4), &
+      & opDat3Deviceres_calc(1 + map4idx * (4):     map4idx * (4) + 4), &
       & opDat5Deviceres_calc(1 + map3idx), &
       & opDat5Deviceres_calc(1 + map4idx), &
       & opDat7Local, &
@@ -165,23 +160,15 @@ attributes (global) SUBROUTINE op_cuda_res_calc( &
     END IF
     DO colour1 = 0, numOfColours - 1, 1
       IF (colour2 .EQ. colour1) THEN
-        opDat7Local(0) = opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(0)
-        opDat7Local(1) = opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(1)
-        opDat7Local(2) = opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(2)
-        opDat7Local(3) = opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map3idx) + opDat7Local(3)
-        opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(0)
-        opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(1)
-        opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(2)
-        opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map3idx) = opDat7Local(3)
+        DO i2 = 0, 4 - 1, 1
+          opDat7Deviceres_calc(1 + i2 + map3idx* (4)) = &
+          & opDat7Deviceres_calc(1 + i2 + map3idx * (4)) + opDat7Local(i2)
+        END DO
 
-        opDat8Local(0) = opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(0)
-        opDat8Local(1) = opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(1)
-        opDat8Local(2) = opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(2)
-        opDat8Local(3) = opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map4idx) + opDat8Local(3)
-        opDat7Deviceres_calc(1 + 0*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(0)
-        opDat7Deviceres_calc(1 + 1*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(1)
-        opDat7Deviceres_calc(1 + 2*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(2)
-        opDat7Deviceres_calc(1 + 3*opDat3_stride_OP2CONSTANT + map4idx) = opDat8Local(3)
+        DO i2 = 0, 4 - 1, 1
+          opDat7Deviceres_calc(1 + i2 + map4idx* (4)) = &
+          & opDat7Deviceres_calc(1 + i2 + map4idx * (4)) + opDat8Local(i2)
+        END DO
 
       END IF
       IF (colour1 .NE. numOfColours-1) THEN
@@ -336,14 +323,6 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
   & 0.d0, 0.00000_4,0.00000_4, 0)
-  IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
-    opDat1_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
-    opDat1_stride_OP2CONSTANT = opDat1_stride_OP2HOST
-  END IF
-  IF ((calledTimes.EQ.0).OR.(opDat3_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg3))) THEN
-    opDat3_stride_OP2HOST = getSetSizeFromOpArg(opArg3)
-    opDat3_stride_OP2CONSTANT = opDat3_stride_OP2HOST
-  END IF
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
