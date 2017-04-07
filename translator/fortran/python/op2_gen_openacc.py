@@ -426,7 +426,9 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       text = text[i:j]+'\n\n'
-      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,1,re.IGNORECASE)
+      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,2,re.IGNORECASE)
+      if not host_exec:
+        text = text.replace(')\n',')\n!$acc routine seq\n',1)
       file_text += text
     else:
       comm('user function')
