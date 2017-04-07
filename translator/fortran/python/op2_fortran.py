@@ -465,7 +465,7 @@ for a in range(init_ctr,len(sys.argv)):
 
   const_args = []
   if not hydra:
-    op_decl_const_parse(text)
+    const_args = op_decl_const_parse(text)
 
   #cleanup '&' symbols from name and convert dim to integer
   for i  in range(0,len(const_args)):
