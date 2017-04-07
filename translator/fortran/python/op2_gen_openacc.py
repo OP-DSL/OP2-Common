@@ -812,7 +812,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
+    code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
 
     #managing constants
     if any_soa and not host_exec:

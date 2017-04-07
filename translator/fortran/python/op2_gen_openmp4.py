@@ -333,10 +333,12 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
             code('INTEGER(kind=4) :: opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT')
+            code('!$omp declare target(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)')
       dir_soa = -1
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
           code('INTEGER(kind=4) :: direct_stride_OP2CONSTANT')
+          code('!$omp declare target(direct_stride_OP2CONSTANT)')
           dir_soa = g_m
           break
 
@@ -818,12 +820,12 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
             k = k + [mapnames[g_m]]
             IF('(calledTimes.EQ.0).OR.(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg'+str(g_m+1)+'))')
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
-            code('!$omp target enter data map(to:opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)') 
+            code('!$omp target update to(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)') 
             ENDIF()
       if dir_soa<>-1:
           IF('(calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
           code('direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(dir_soa+1)+')')
-          code('!$omp target enter data map(to:direct_stride_OP2CONSTANT)')
+          code('!$omp target update to(direct_stride_OP2CONSTANT)')
           ENDIF()
 
 
