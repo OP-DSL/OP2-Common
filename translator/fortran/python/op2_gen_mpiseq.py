@@ -330,7 +330,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000,0.00000, 0)')
+    code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
 
     code('call op_timers_core(startTime)')
     code('')
@@ -442,7 +442,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
     code('call op_timers_core(endTime)')
     code('')
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& endTime-startTime,0.00000,0.00000, 1)')
+    code('& endTime-startTime,0.00000_4,0.00000_4, 1)')
     depth = depth - 2
     code('END SUBROUTINE')
     code('END MODULE')

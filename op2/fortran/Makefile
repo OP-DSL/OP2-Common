@@ -136,10 +136,17 @@ ifeq ($(OP2_COMPILER),xl)
   CXX             = xlC_r
   FC              = xlf90_r
   PGFC            = xlf90_r #-WF,-DOP2_WITH_CUDAFOR
+ifdef DEBUG
+  CFLAGS          = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O0 -g -qarch=pwr8 -qtune=pwr8
+  CFLAGS_SLOW     = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O0 -g -qarch=pwr8 -qtune=pwr8
+  FFLAGS          = -qmoddir=$(F_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O0 -g -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
+  FMPI_FLAGS      = -qmoddir=$(F_MPI_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O0 -g -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
+else
   CFLAGS          = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O3 -qarch=pwr8 -qtune=pwr8
   CFLAGS_SLOW     = -qpic -Wall -pedantic $(DEBUG_FLAGS) -O0 -qarch=pwr8 -qtune=pwr8
   FFLAGS          = -qmoddir=$(F_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
   FMPI_FLAGS      = -qmoddir=$(F_MPI_INC_MOD) -qpic $(DEBUG_FLAGS) -I$(F_INC_MOD) -O3 -qarch=pwr8 -qtune=pwr8 -d -qdebug=nchkbindc
+endif
   PGCFLAGS        = $(CFLAGS)
   PGFFLAGS        = $(FFLAGS)
   PGMPI_FFLAGS    = $(FMPI_FLAGS)
