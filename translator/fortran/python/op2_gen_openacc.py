@@ -854,6 +854,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       code('exec_size = opSetCore%size + opSetCore%exec_size')
       code('numberOfIndirectOpDats = '+str(ninds))
       code('')
+      code('partitionSize=0')
       code('planRet_'+name+' = FortranPlanCaller( &')
       code('& userSubroutine//C_NULL_CHAR, &')
       code('& set%setCPtr, &')
