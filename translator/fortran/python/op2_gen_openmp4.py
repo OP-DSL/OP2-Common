@@ -424,7 +424,8 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       text = text[i:j]+'\n\n'
       text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,2,re.IGNORECASE)
-      file_text += text+'\n\n'
+      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
+      file_text += text
     else:
       comm('user function')
       fid = open(name+'.inc', 'r')
@@ -629,7 +630,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           if maps[g_m] == OP_MAP:
             DO('i3','0', dims[g_m])
             code('opDat'+str(g_m+1)+'Staged(i3+1) = opDat'+str(invinds[inds[g_m]-1]+1)+'Local &')
-            code('  & (i3 * '+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx)')
+            code('  & (i3 * '+get_stride_string(g_m,maps,mapnames,set_name)+' + map'+str(mapinds[g_m]+1)+'idx)')
             ENDDO()
           else:
             DO('i3','0', dims[g_m])
@@ -688,7 +689,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if maps[g_m] == OP_MAP:
             DO('i3','0', dims[g_m])
-            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local(i3 * '+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
+            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local(i3 * '+get_stride_string(g_m,maps,mapnames,set_name)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
             code('  & opDat'+str(g_m+1)+'Staged(i3+1)')
             ENDDO()
           else:
