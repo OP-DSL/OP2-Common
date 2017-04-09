@@ -422,7 +422,9 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       text = fid.read()
       i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
-      file_text += text[i:j]+'\n\n'
+      text = text[i:j]+'\n\n'
+      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,2,re.IGNORECASE)
+      file_text += text+'\n\n'
     else:
       comm('user function')
       fid = open(name+'.inc', 'r')
@@ -809,7 +811,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
+    code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
 
     #managing constants
     if any_soa and not host_exec:
@@ -849,6 +851,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       code('exec_size = opSetCore%size + opSetCore%exec_size')
       code('numberOfIndirectOpDats = '+str(ninds))
       code('')
+      code('partitionSize=0')
       code('planRet_'+name+' = FortranPlanCaller( &')
       code('& userSubroutine//C_NULL_CHAR, &')
       code('& set%setCPtr, &')
@@ -921,7 +924,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
-            code('& opDat'+str(g_m+1)+'Local(1), &')
+            code('& opDat'+str(g_m+1)+'Local, &')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -959,7 +962,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
-            code('& opDat'+str(g_m+1)+'Local(1), &')
+            code('& opDat'+str(g_m+1)+'Local, &')
       code('& sliceStart, sliceEnd, opSetCore%size+opSetCore%exec_size+opSetCore%nonexec_size)')
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
@@ -1031,7 +1034,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       fid = open(name+'_omp4kernel.F95','w')
     elif bookleaf:
-      fid = open(prefixes[prefix_i]+name+'_omp4kernel.f90','w')
+      fid = open(prefixes[prefix_i]+name+'_omp4kernel.F90','w')
     else:
       fid = open(name+'_omp4kernel.F90','w')
     date = datetime.datetime.now()
