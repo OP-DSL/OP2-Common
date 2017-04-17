@@ -47,12 +47,14 @@ SUBROUTINE res_calc(x1,x2,q1,q2,adt1,adt2,res1,res2)
   res2(4) = res2(4) - f
 END SUBROUTINE
 
-#define SIMD_VEC 4
+#define SIMD_VEC 8
 #ifdef VECTORIZE
 ! user function -- modified for vectorisation
 SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
   !dir$ attributes vector :: res_calc_vec
+
   IMPLICIT NONE
+  INTEGER(KIND=4) :: idx
   real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x1
   real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x2
   real(8), DIMENSION(SIMD_VEC,(4)), INTENT(IN) :: q1
@@ -61,10 +63,15 @@ SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
   real(8), DIMENSION(SIMD_VEC,(1)), INTENT(IN) :: adt2
   real(8), DIMENSION(SIMD_VEC,(4)) :: res1
   real(8), DIMENSION(SIMD_VEC,(4)) :: res2
-  INTEGER(4) :: idx
-
-
-  REAL(kind=8) :: dx,dy,mu,ri,p1,vol1,p2,vol2,f
+  REAL(kind=8) :: dx
+  REAL(kind=8) :: dy
+  REAL(kind=8) :: mu
+  REAL(kind=8) :: ri
+  REAL(kind=8) :: p1
+  REAL(kind=8) :: vol1
+  REAL(kind=8) :: p2
+  REAL(kind=8) :: vol2
+  REAL(kind=8) :: f
 
   dx = x1(idx,1) - x2(idx,1)
   dy = x1(idx,2) - x2(idx,2)
@@ -87,7 +94,7 @@ SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
   f = 0.5 * (vol1 * (q1(idx,4) + p1) + vol2 * (q2(idx,4) + p2)) + mu * (q1(idx,4) - q2(idx,4))
   res1(idx,4) = res1(idx,4) + f
   res2(idx,4) = res2(idx,4) - f
-END SUBROUTINE
+end subroutine
 #endif
 
 SUBROUTINE op_wrap_res_calc( &
@@ -129,6 +136,12 @@ SUBROUTINE op_wrap_res_calc( &
   !dir$ attributes align: 64:: dat7
   !dir$ attributes align: 64:: dat8
 
+  !DIR$ ASSUME_ALIGNED opDat1Local : 64
+  !DIR$ ASSUME_ALIGNED opDat3Local : 64
+  !DIR$ ASSUME_ALIGNED opDat5Local : 64
+  !DIR$ ASSUME_ALIGNED opDat7Local : 64
+  !DIR$ ASSUME_ALIGNED opDat1Map : 64
+  !DIR$ ASSUME_ALIGNED opDat3Map : 64
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     !DIR$ SIMD
@@ -173,7 +186,7 @@ SUBROUTINE op_wrap_res_calc( &
     !DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC, 1
-      ! vecotorized kernel call
+      ! vectorized kernel call
       CALL res_calc_vec( &
       & dat1, &
       & dat2, &
@@ -204,6 +217,7 @@ SUBROUTINE op_wrap_res_calc( &
   ! remainder
   DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
+  !DIR$ FORCEINLINE
   DO i1 = bottom, top-1, 1
 #endif
     map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1

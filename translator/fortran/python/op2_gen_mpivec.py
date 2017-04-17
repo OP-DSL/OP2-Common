@@ -13,6 +13,7 @@ import re
 import datetime
 import os
 import glob
+import util
 
 def comm(line):
   global file_text, FORTRAN
@@ -172,7 +173,9 @@ def para_parse(text, j, op_b, cl_b):
                 return loc2
       loc2 = loc2 + 1
 
-def op2_gen_mpivec(master, date, consts, kernels, hydra):
+arg_parse=util.arg_parse
+
+def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -253,6 +256,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         j = i
     indirect_kernel = j > -1
 
+    if bookleaf:
+      for i in range(0,nargs):
+        if 'LI' in dims[i]:
+          dims[i] = dims[i].replace('LI','100')
     FORTRAN = 1;
     CPP     = 0;
     g_m = 0;
@@ -280,7 +287,9 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
     code('USE ISO_C_BINDING')
     if hydra == 0:
       code('USE OP2_CONSTANTS')
-
+    if bookleaf:
+      code('USE kinds_mod,    ONLY: ink,rlk')
+      code('USE parameters_mod,ONLY: LI')
     code('')
 
 ####################################################################################
@@ -294,13 +303,25 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
 # First original version
 #
       comm('user function')
-      file_name = name+'.inc'
-      f = open(file_name, 'r')
-      kernel_text = f.read()
+      if bookleaf:
+        modfile = kernels[nk]['mod_file']
+        prefixes=['./','ale/','utils/','io/','eos/','hydro/','mods/']
+        prefix_i=0
+        while (prefix_i<7 and (not os.path.exists(prefixes[prefix_i]+modfile))):
+          prefix_i=prefix_i+1
+        fid = open(prefixes[prefix_i]+modfile, 'r')
+        text = fid.read()
+        i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
+        j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 12 + len(name)
+        kernel_text = text[i:j]
+      else:
+        file_name = name+'.inc'
+        f = open(file_name, 'r')
+        kernel_text = f.read()
+        f.close()
       file_text += kernel_text
-      f.close()
       code('')
-      code('#define SIMD_VEC 4')
+      code('#define SIMD_VEC 8')
 #
 # Modified vectorisable version if its an indirect kernel
 # - direct kernels can be vectorised without modification
@@ -308,9 +329,6 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       if indirect_kernel:
         code('#ifdef VECTORIZE')
         comm('user function -- modified for vectorisation')
-        f = open(file_name, 'r')
-        kernel_text = f.read()
-        f.close()
 
         p = re.compile('SUBROUTINE\\s+\\b'+name+'\\b')
         i = p.search(kernel_text).start()
@@ -323,46 +341,125 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         j = kernel_text[i:].find('(')
         k = para_parse(kernel_text, i+j, '(', ')')
         l = kernel_text[k:].find('END'+'\\s+\\b'+'SUBROUTINE')
-        para = kernel_text[j+1:k].split(',')
+        paramlist = kernel_text[j+1:k]
+        paramlist = paramlist.replace('&','')
+        paramlist = paramlist.replace('\n','')
+        paramlist = paramlist.replace(' ','')
+        para = paramlist.split(',')
         #remove direct vars from para
         para_ind = []
         for i in range(0,nargs):
-          if maps[i] == OP_ID:
+          if maps[i] == OP_ID or (maps[i]==OP_GBL and accs[i]==OP_READ) :
             para[i] = 'DIRECT'
-
-
+          else:
+            para[i] = para[i].strip()
 
         code('SUBROUTINE '+name+'_vec('+kernel_text[j+1:k]+',idx)')
         depth = depth + 2
         code('!dir$ attributes vector :: '+name+'_vec')
-        code('IMPLICIT NONE')
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP:
-            if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-              code('TYP, DIMENSION(SIMD_VEC,(DIMS)) :: '+para[g_m])
-            if (accs[g_m] == OP_READ):
-              code('TYP, DIMENSION(SIMD_VEC,(DIMS)), INTENT(IN) :: '+para[g_m])
-          elif maps[g_m] == OP_GBL:
-              code('TYP DIMENSION((DIMS)) :: '+para[g_m])
-        code('INTEGER(4) :: idx')
 
         #locate and remove non-indirection parameters and global parameters
-        body_line = kernel_text[k+1:l].split('\n')
+        body_lines = kernel_text[k+1:l].split('\n')
+        typestr_list = ['r\*8','r\*4','i\*4','real','integer','logical']
+        current_type = ''
+        typelist = []
+        varlist = []
+        typelist.append('INTEGER(KIND=4) ::')
+        varlist.append('idx')
+        last_bl_idx=0
+        bl_idx = 0
+        while bl_idx < len(body_lines):
+          bl = body_lines[bl_idx].strip()
+          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) <> None and \
+                  re.search(r'\b'+typestr+r'\b',bl.lower()).start()==0) for typestr in typestr_list):
+            #concatenate lines
+            while bl.find('&') <> -1: #TODO: commented out &?
+              bl_idx = bl_idx + 1
+              bl = bl[:bl.find('&')] + body_lines[bl_idx].strip()[1:]
+
+            colons = bl.find('::') 
+            if colons > -1:
+              current_type = bl[:colons+2]
+            else:
+              idx=0
+              while not bl[idx].isspace() and not bl[idx]=='(':
+                idx = idx+1
+              if bl[idx] == '(':
+                idx = arg_parse(bl,idx)
+              current_type = bl[:idx+1] 
+          else:
+            current_type = ''
+
+          if current_type <> '':
+            last_bl_idx=bl_idx
+            idx = len(current_type)
+            prev_idx = len(current_type)
+            while idx < len(bl):
+              if bl[idx].isspace():
+                idx = idx+1
+                if len(bl[prev_idx:idx].strip())==0:
+                  prev_idx = idx
+              elif bl[idx] == '(':
+                idx = arg_parse(bl,idx)+1
+                typelist.append(current_type)
+                varlist.append(bl[prev_idx:idx])
+                prev_idx = idx
+              elif bl[idx] == ',':
+                if len(bl[prev_idx:idx].strip()):
+                  typelist.append(current_type)
+                  varlist.append(bl[prev_idx:idx].strip())
+                idx = idx + 1
+                prev_idx = idx
+              elif idx == len(bl)-1:
+                idx = idx + 1
+                typelist.append(current_type)
+                varlist.append(bl[prev_idx:idx].strip())
+              else:
+                idx = idx+1
+          bl_idx = bl_idx + 1
+                
         depth = depth - 2
-        kernel_line = ''
-        for bl in range(0,len(body_line)-1):
-          if not(any(word in body_line[bl] for word in para) and \
-            any(word in body_line[bl].upper() for word in typestrigs)):
-              if not('IMPLICIT' in body_line[bl]):
-                temp = body_line[bl]
-                for p in range(0,len(para)):
-                  temp = re.sub(r'('+para[p]+'\s*'+'\('+')', r'\1'+'idx,', temp)
-                  temp = re.sub(para[p]+r'(\s+|\)|\+|\-|\\|\*)', para[p]+'(idx,1)'+r'\1', temp)
+        for i in range(0,len(varlist)):
+          for j in range(0,len(para)):
+            if (not para[j] == 'DIRECT') and (not re.search(r'\b'+para[j]+r'\b', varlist[i]) == None):
+              if maps[j] == OP_MAP:
+                if (accs[j] == OP_INC or accs[j] == OP_RW or accs[j] == OP_WRITE):
+                  typelist[i] = typs[j]+', DIMENSION(SIMD_VEC,('+dims[j]+')) ::'
+                  varlist[i] = para[j]
+                if (accs[j] == OP_READ):
+                  typelist[i] = typs[j]+', DIMENSION(SIMD_VEC,('+dims[j]+')), INTENT(IN) ::'
+                  varlist[i] = para[j]
+              elif maps[j] == OP_GBL:
+                typelist[i] = typs[j]+', DIMENSION(('+dims[j]+')) ::'
+                varlist[i] = para[j]
 
-                kernel_line = temp
-              code(kernel_line)
+        types_inserted = 0
+        bl_idx = 0
+        while bl_idx < len(body_lines):
+          bl = body_lines[bl_idx].strip()
+          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) <> None and \
+                  re.search(r'\b'+typestr+r'\b',bl.lower()).start()==0) for typestr in typestr_list):
+            while bl.find('&') <> -1: #TODO: commented out &?
+              bl_idx = bl_idx + 1
+              bl = bl[:bl.find('&')] + body_lines[bl_idx].strip()[1:]
+            if types_inserted == 0:
+              for i in range(0,len(varlist)):
+                code('  '+typelist[i]+' '+varlist[i])
+              types_inserted = 1
+            bl_idx = bl_idx + 1
+            continue
+          temp = body_lines[bl_idx]
+          for p in range(0,len(para)):
+            temp = re.sub(r'(\b'+para[p]+r'\b\s*'+'\('+')', r'\1'+'idx,', temp)
+            #TODO: only if dim is 1, otherwise vector op - fail?
+            temp = re.sub(r'\b'+para[p]+r'\b(\s*\n|[^\(])', para[p]+'(idx,1)'+r'\1', temp+'\n')[:-1]
+          kernel_line = temp
+          if bl_idx == len(body_lines)-1:
+            kernel_line = kernel_line.lower().replace(name.lower(),name+'_vec')
+          code(kernel_line)
+          bl_idx = bl_idx + 1
+          
 
-        code('END SUBROUTINE')
         code('#endif')
 
     ###  Hydra specific user kernel #### should not be in code generator .. to be fixed
@@ -391,7 +488,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
       file_text += text
-      code('#define SIMD_VEC 4')
+      code('#define SIMD_VEC 8')
 
       #
       # Modified vectorisable version if its an indirect kernel
@@ -490,6 +587,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
         code('TYP dat'+str(g_m+1)+'(SIMD_VEC*'+str(eval(dims[g_m]))+')')
     code('')
+
 #
 # kernel call for indirect version
 #
@@ -511,6 +609,19 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           or accs[g_m] == OP_INC):
           code('!dir$ attributes align: 64:: dat'+str(g_m+1))
       code('')
+
+    for g_m in range(0,ninds):
+      code('!DIR$ ASSUME_ALIGNED opDat'+str(invinds[g_m]+1)+'Local : 64')
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_ID:
+        code('!DIR$ ASSUME_ALIGNED opDat'+str(g_m+1)+'Local : 64')
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('!DIR$ ASSUME_ALIGNED opDat'+str(invinds[inds[g_m]-1]+1)+'Map : 64')
+
 
       code_pre('#ifdef VECTORIZE')
       DO2('i1','bottom','((top-1)/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -544,7 +655,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
       DO3('i2','1','SIMD_VEC')
-      comm('vecotorized kernel call')
+      comm('vectorized kernel call')
       line = 'CALL '+name+'_vec( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
@@ -553,8 +664,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
         if maps[g_m] == OP_MAP:
           line = line +indent + '& dat'+str(g_m+1)+', &'
         if maps[g_m] == OP_GBL:
-          if eval(dims[g_m]) == 1:
-            line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+          if accs[g_m] == OP_READ:
+            line = line + indent +'& opDat'+str(g_m+1)+'Local(1), &'
+          elif eval(dims[g_m]) == 1:
+            line = line + indent +'& dat'+str(g_m+1)+'(i2), &'
           else:
             line = line + indent +'& dat'+str(g_m+1)+'((DIMS)*(i2-1)+1:(DIMS)*(i2-1)+(DIMS)), &'
       line = line + indent +'& i2)'
@@ -603,22 +716,24 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
           if accs[g_m] == OP_INC:
             code('dat'+str(g_m+1)+' = 0.0_8')
           elif accs[g_m] == OP_MAX:
-            code('dat'+str(g_m+1)+' = TYP_INF')
+            code('dat'+str(g_m+1)+' = -HUGE(dat'+str(g_m+1)+')')
           elif accs[g_m] == OP_MIN:
-            code('dat'+str(g_m+1)+' = -TYP_INF')
+            code('dat'+str(g_m+1)+' = HUGE(dat'+str(g_m+1)+')')
       #vectorized kernel call
       code('!DIR$ SIMD')
       code('!DIR$ FORCEINLINE')
       DO3('i2','1','SIMD_VEC')
-      comm('vecotorized kernel call')
+      comm('vectorized kernel call')
       line = '  CALL '+name+'( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '& opDat'+str(g_m+1)+'Local(1,(i1+i2-1)+1)'
         if maps[g_m] == OP_GBL:
-          if eval(dims[g_m]) == 1:#accs[g_m] == OP_READ:
+          if accs[g_m] == OP_READ:
             line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+          elif eval(dims[g_m]) == 1:
+            line = line + indent +'& dat'+str(g_m+1)+'(i2)'
           elif accs[g_m] <> OP_READ:
             line = line + indent +'& dat'+str(g_m+1)+'('+str(eval(dims[g_m]))+\
             '*(i2-1)+1:'+str(eval(dims[g_m]))+'*(i2-1)+'+str(eval(dims[g_m]))+')'
@@ -658,6 +773,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
     DO('i1','((top-1)/SIMD_VEC)*SIMD_VEC','top')
     depth = depth - 2
     code_pre('#else')
+    code('!DIR$ FORCEINLINE')
     DO('i1','bottom','top')
     depth = depth - 2
     code_pre('#endif')
@@ -911,6 +1027,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra):
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
       #fid = open(name+'_seqkernel.F95','w')
       fid = open(name+'_veckernel.F95','w')
+    elif bookleaf:
+      fid = open(prefixes[prefix_i]+name+'_veckernel.F90','w')
     else:
       #fid = open(name+'_seqkernel.F90','w')
       fid = open(name+'_veckernel.F90','w')

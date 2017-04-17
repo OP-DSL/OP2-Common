@@ -31,7 +31,7 @@ SUBROUTINE update(qold,q,res,adt,rms)
   END DO
 END SUBROUTINE
 
-#define SIMD_VEC 4
+#define SIMD_VEC 8
 
 SUBROUTINE op_wrap_update( &
   & opDat1Local, &
@@ -48,13 +48,17 @@ SUBROUTINE op_wrap_update( &
   INTEGER(kind=4) bottom,top,i1, i2
   real(8) dat5(SIMD_VEC*2)
 
+  !DIR$ ASSUME_ALIGNED opDat1Local : 64
+  !DIR$ ASSUME_ALIGNED opDat2Local : 64
+  !DIR$ ASSUME_ALIGNED opDat3Local : 64
+  !DIR$ ASSUME_ALIGNED opDat4Local : 64
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     dat5 = 0.0_8
     !DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC, 1
-      ! vecotorized kernel call
+      ! vectorized kernel call
       CALL update( &
       & opDat1Local(1,(i1+i2-1)+1), &
       & opDat2Local(1,(i1+i2-1)+1), &
@@ -71,6 +75,7 @@ SUBROUTINE op_wrap_update( &
   ! remainder
   DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
+  !DIR$ FORCEINLINE
   DO i1 = bottom, top-1, 1
 #endif
     ! kernel call
