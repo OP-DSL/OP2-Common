@@ -55,14 +55,14 @@ SUBROUTINE res_calc_vec(x1,x2,q1,q2,adt1,adt2,res1,res2,idx)
 
   IMPLICIT NONE
   INTEGER(KIND=4) :: idx
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x1
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x2
-  real(8), DIMENSION(SIMD_VEC,(4)), INTENT(IN) :: q1
-  real(8), DIMENSION(SIMD_VEC,(4)), INTENT(IN) :: q2
-  real(8), DIMENSION(SIMD_VEC,(1)), INTENT(IN) :: adt1
-  real(8), DIMENSION(SIMD_VEC,(1)), INTENT(IN) :: adt2
-  real(8), DIMENSION(SIMD_VEC,(4)) :: res1
-  real(8), DIMENSION(SIMD_VEC,(4)) :: res2
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x1
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x2
+  real(8), DIMENSION(SIMD_VEC,4), INTENT(IN) :: q1
+  real(8), DIMENSION(SIMD_VEC,4), INTENT(IN) :: q2
+  real(8), DIMENSION(SIMD_VEC,1), INTENT(IN) :: adt1
+  real(8), DIMENSION(SIMD_VEC,1), INTENT(IN) :: adt2
+  real(8), DIMENSION(SIMD_VEC,4) :: res1
+  real(8), DIMENSION(SIMD_VEC,4) :: res2
   REAL(kind=8) :: dx
   REAL(kind=8) :: dy
   REAL(kind=8) :: mu
@@ -107,6 +107,7 @@ SUBROUTINE op_wrap_res_calc( &
   & opDat3Map, &
   & opDat3MapDim, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat3Local(4,*)
   real(8) opDat5Local(1,*)
@@ -172,16 +173,8 @@ SUBROUTINE op_wrap_res_calc( &
 
       dat6(i2,1) = opDat5Local(1,map4idx)
 
-      dat7(i2,1) = 0.0
-      dat7(i2,2) = 0.0
-      dat7(i2,3) = 0.0
-      dat7(i2,4) = 0.0
-
-      dat8(i2,1) = 0.0
-      dat8(i2,2) = 0.0
-      dat8(i2,3) = 0.0
-      dat8(i2,4) = 0.0
-
+      dat7(i2,:) = 0.0
+      dat8(i2,:) = 0.0
     END DO
     !DIR$ SIMD
     !DIR$ FORCEINLINE
@@ -199,18 +192,18 @@ SUBROUTINE op_wrap_res_calc( &
       & i2)
     END DO
     DO i2 = 1, SIMD_VEC, 1
-      map7idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 0) + 1
-      map8idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 1) + 1
+      map3idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 0) + 1
+      map4idx = opDat3Map(1 + (i1+i2-1) * opDat3MapDim + 1) + 1
 
-      opDat7Local(1,map7idx) = opDat7Local(1,map7idx) + dat7(i2,1)
-      opDat7Local(2,map7idx) = opDat7Local(2,map7idx) + dat7(i2,2)
-      opDat7Local(3,map7idx) = opDat7Local(3,map7idx) + dat7(i2,3)
-      opDat7Local(4,map7idx) = opDat7Local(4,map7idx) + dat7(i2,4)
+      opDat7Local(1,map3idx) = opDat7Local(1,map3idx) + dat7(i2,1)
+      opDat7Local(2,map3idx) = opDat7Local(2,map3idx) + dat7(i2,2)
+      opDat7Local(3,map3idx) = opDat7Local(3,map3idx) + dat7(i2,3)
+      opDat7Local(4,map3idx) = opDat7Local(4,map3idx) + dat7(i2,4)
 
-      opDat7Local(1,map8idx) = opDat7Local(1,map8idx) + dat8(i2,1)
-      opDat7Local(2,map8idx) = opDat7Local(2,map8idx) + dat8(i2,2)
-      opDat7Local(3,map8idx) = opDat7Local(3,map8idx) + dat8(i2,3)
-      opDat7Local(4,map8idx) = opDat7Local(4,map8idx) + dat8(i2,4)
+      opDat7Local(1,map4idx) = opDat7Local(1,map4idx) + dat8(i2,1)
+      opDat7Local(2,map4idx) = opDat7Local(2,map4idx) + dat8(i2,2)
+      opDat7Local(3,map4idx) = opDat7Local(3,map4idx) + dat8(i2,3)
+      opDat7Local(4,map4idx) = opDat7Local(4,map4idx) + dat8(i2,4)
 
     END DO
   END DO

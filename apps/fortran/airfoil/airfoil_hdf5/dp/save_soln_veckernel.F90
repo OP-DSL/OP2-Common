@@ -30,6 +30,7 @@ SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   INTEGER(kind=4) bottom,top,i1, i2

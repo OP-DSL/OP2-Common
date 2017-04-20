@@ -51,10 +51,10 @@ SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
 ! adt_calc
   IMPLICIT NONE
   INTEGER(KIND=4) :: idx
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x1
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x2
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x3
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x4
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x1
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x2
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x3
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x4
   REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
   REAL(kind=8) :: adt
   REAL(kind=8) :: dx
@@ -91,6 +91,7 @@ SUBROUTINE op_wrap_adt_calc( &
   & opDat1Map, &
   & opDat1MapDim, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat5Local(4,*)
   real(8) opDat6Local(1,*)

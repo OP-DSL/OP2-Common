@@ -40,6 +40,7 @@ SUBROUTINE op_wrap_update( &
   & opDat4Local, &
   & opDat5Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   real(8) opDat3Local(4,*)
