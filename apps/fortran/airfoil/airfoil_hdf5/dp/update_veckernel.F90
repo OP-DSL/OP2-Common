@@ -31,7 +31,8 @@ SUBROUTINE update(qold,q,res,adt,rms)
   END DO
 END SUBROUTINE
 
-#define SIMD_VEC 8
+#define SIMD_VEC 4
+#define VECTORIZE
 
 SUBROUTINE op_wrap_update( &
   & opDat1Local, &
@@ -48,6 +49,7 @@ SUBROUTINE op_wrap_update( &
   real(8) opDat5Local(2)
   INTEGER(kind=4) bottom,top,i1, i2
   real(8) dat5(SIMD_VEC*2)
+  !dir$ attributes align: 64:: dat5
 
   !DIR$ ASSUME_ALIGNED opDat1Local : 64
   !DIR$ ASSUME_ALIGNED opDat2Local : 64

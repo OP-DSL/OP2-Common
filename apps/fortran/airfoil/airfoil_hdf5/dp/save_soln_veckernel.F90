@@ -24,7 +24,8 @@ SUBROUTINE save_soln(q,qold)
   END DO
 END SUBROUTINE
 
-#define SIMD_VEC 8
+#define SIMD_VEC 4
+#define VECTORIZE
 
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &

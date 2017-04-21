@@ -42,7 +42,8 @@ SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
   adt = adt / cfl
 END SUBROUTINE
 
-#define SIMD_VEC 8
+#define SIMD_VEC 4
+#define VECTORIZE
 #ifdef VECTORIZE
 ! user function -- modified for vectorisation
 SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
@@ -100,10 +101,10 @@ SUBROUTINE op_wrap_adt_calc( &
   INTEGER(kind=4) bottom,top,i1, i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
-  real(8) dat1(SIMD_VEC,(2))
-  real(8) dat2(SIMD_VEC,(2))
-  real(8) dat3(SIMD_VEC,(2))
-  real(8) dat4(SIMD_VEC,(2))
+  real(8) dat1(SIMD_VEC,2)
+  real(8) dat2(SIMD_VEC,2)
+  real(8) dat3(SIMD_VEC,2)
+  real(8) dat4(SIMD_VEC,2)
 
   !dir$ attributes align: 64:: dat1
   !dir$ attributes align: 64:: dat2

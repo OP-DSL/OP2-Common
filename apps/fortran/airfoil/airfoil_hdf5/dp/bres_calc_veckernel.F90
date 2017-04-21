@@ -47,7 +47,8 @@ SUBROUTINE bres_calc(x1,x2,q1,adt1,res1,bound)
   END IF
 END SUBROUTINE
 
-#define SIMD_VEC 8
+#define SIMD_VEC 4
+#define VECTORIZE
 #ifdef VECTORIZE
 ! user function -- modified for vectorisation
 SUBROUTINE bres_calc_vec(x1,x2,q1,adt1,res1,bound,idx)
@@ -121,11 +122,11 @@ SUBROUTINE op_wrap_bres_calc( &
   INTEGER(kind=4) bottom,top,i1, i2
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
-  real(8) dat1(SIMD_VEC,(2))
-  real(8) dat2(SIMD_VEC,(2))
-  real(8) dat3(SIMD_VEC,(4))
-  real(8) dat4(SIMD_VEC,(1))
-  real(8) dat5(SIMD_VEC,(4))
+  real(8) dat1(SIMD_VEC,2)
+  real(8) dat2(SIMD_VEC,2)
+  real(8) dat3(SIMD_VEC,4)
+  real(8) dat4(SIMD_VEC,1)
+  real(8) dat5(SIMD_VEC,4)
 
   !dir$ attributes align: 64:: dat1
   !dir$ attributes align: 64:: dat2
