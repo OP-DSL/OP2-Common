@@ -1,5 +1,5 @@
-#!/opt/intel/intelpython27/bin/python
-#/usr/bin/env python
+#!/usr/bin/env python
+#/opt/intel/intelpython27/bin/python
 
 """
  OP2 source code transformation tool
