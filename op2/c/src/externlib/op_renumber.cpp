@@ -97,16 +97,55 @@ void propagate_reordering(op_set from, op_set to,
       }
     }
   }
+  // find a map that is (from)->(to), reorder (to), if it's an onto map
   if (set_permutations[to->index].size() == 0) {
-    printf("Could not find suitable mapping to renumber %s based on %s\n",
-           to->name, from->name);
+    for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
+      op_map map = OP_map_list[mapidx];
+      if (map->to == to && map->from == from) {
+        int counter = 0;
+        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size,-1);
+        for (int i = 0; i < from->size; i++) {
+          for (int d = 0; d < map->dim; d++) {
+            int idx = map->map[set_ipermutations[from->index][i]*map->dim + d];
+            if (idx < to->core_size && set_permutations[to->index][idx]==-1)
+              set_permutations[to->index][idx]=counter++;
+          }
+        }
+        int onto = 1;
+        for (int i = 0; i < to->core_size; i++) if (set_permutations[to->index][i]==-1) {onto = 0; break;}
+        if (!onto) {
+          set_permutations[to->index].resize(0);
+          continue;
+        }
+        for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
+          set_permutations[to->index][i] = i;
+        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        break;
+      }
+    }
+  }
+  if (set_permutations[to->index].size() == 0) {
     return;
   }
+  else {
+    set_ipermutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
+    for (int i = 0; i < to->size+to->exec_size+to->nonexec_size; i++) {
+      set_ipermutations[to->index][set_permutations[to->index][i]] = i;
+    }
+  }
+
   // find any maps that is (*)->to, propagate reordering
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->to == to && set_permutations[map->from->index].size() == 0) {
       propagate_reordering(to, map->from, set_permutations, set_ipermutations);
+    }
+  }
+  // find any maps that is to->(*), propagate reordering
+  for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
+    op_map map = OP_map_list[mapidx];
+    if (map->from == to && set_permutations[map->to->index].size() == 0) {
+      propagate_reordering(to, map->to, set_permutations, set_ipermutations);
     }
   }
 }
@@ -304,7 +343,7 @@ void op_renumber(op_map base) {
       return;
     }
     col_indices.resize(row_offsets[base->to->core_size]);
-    op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
+    if (OP_diags>2) op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
            base->to->name, base->to->name, (int)col_indices.size(),
            base->from->name, base->from->size);
   }
