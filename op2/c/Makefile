@@ -50,12 +50,13 @@ ifeq ($(OP2_COMPILER),xl)
 ifdef DEBUG
   CCFLAGS  := -O0 -g
 else
-  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O5 -qhot 
+  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O3 -qhot 
 endif
   CXX      := xlc++
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
+  OMP4FLAGS := -qsmp=omp -qoffload
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
@@ -79,8 +80,23 @@ ifeq ($(OP2_COMPILER),cray)
   MPICXX   := CC
   MPIFLAGS := $(CXXFLAGS)
 else
+ifeq ($(OP2_COMPILER),clang)
+  CC	   := clang
+ifdef DEBUG
+  CCFLAGS  := -g -O0 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
+else
+  CCFLAGS  := -O3 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
+endif
+  CXX	   := clang++
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
+  MPICC   := $(MPI_INSTALL_PATH)/bin/mpicc
+  MPIFLAGS := $(CXXFLAGS)
+  OMP4FLAGS := -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -128,7 +144,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda
+all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda openmp4
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
@@ -160,6 +176,18 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
+
+openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
+	$(SRC)/openmp4/op_openmp4_rt_support.c $(OBJ)/op_lib_core.o
+
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(OMP4FLAGS) -I$(INC) \
+	-c $(SRC)/openmp4/op_openmp4_decl.c -o $(OBJ)/op_openmp4_decl.o
+	$(CXX) $(CXXFLAGS) $(OMP4FLAGS) -I$(INC) -c $(SRC)/openmp4/op_openmp4_rt_support.c \
+	-o $(OBJ)/op_openmp4_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+
+	ar -r $(LIB)/libop2_openmp4.a $(OBJ)/op_openmp4_rt_support.o \
+	$(OBJ)/op_openmp4_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o

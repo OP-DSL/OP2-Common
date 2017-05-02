@@ -48,6 +48,7 @@ from op2_gen_openacc import op2_gen_openacc
 from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
+from op2_gen_openmp4 import op2_gen_openmp4
 
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
@@ -740,13 +741,16 @@ def main():
     # generates openmp code as well as cuda code into the same file
     #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
-    import subprocess
-    retcode = subprocess.call("which clang-format > /dev/null", shell=True)
-    if retcode == 0:
-      retcode = subprocess.call("$OP2_INSTALL_PATH/../translator/c/python/format.sh", shell=True)
-    else:
-      print 'Cannot find clang-format in PATH'
-      print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
+    #code generator for GPUs with OpenMP4.5
+    op2_gen_openmp4(str(sys.argv[1]), date, consts, kernels)
+
+#    import subprocess
+#    retcode = subprocess.call("which clang-format > /dev/null", shell=True)
+#    if retcode == 0:
+#      retcode = subprocess.call("$OP2_INSTALL_PATH/../translator/c/python/format.sh", shell=True)
+#    else:
+#      print 'Cannot find clang-format in PATH'
+#      print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

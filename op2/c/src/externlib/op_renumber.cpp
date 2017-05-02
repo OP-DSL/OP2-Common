@@ -34,6 +34,10 @@
 #include <op_lib_cpp.h>
 #include <op_util.h>
 #include <vector>
+#include <algorithm>
+#include <iterator>
+#include <op_lib_mpi.h>
+#include <op_mpi_core.h>
 
 #ifdef HAVE_PTSCOTCH
 #include <scotch.h>
@@ -43,6 +47,7 @@
 #include <metis.h>
 typedef idx_t idxtype;
 #endif
+extern part *OP_part_list;
 
 typedef struct {
   int a;
@@ -51,6 +56,16 @@ typedef struct {
 
 int compare(const void *a, const void *b) {
   return ((*(map2 *)a).a - (*(map2 *)b).a);
+}
+
+void check_permutation(int *perm, int size) {
+  std::vector<int> flags(size,0);
+  for (int i = 0; i < size; i++)
+    flags[perm[i]] = 1;
+  int acc = 0;
+  for (int i = 0; i < size; i++)
+    acc += flags[i];
+  if (acc != size) printf("Permutation map error\n");
 }
 
 // propage renumbering based on a map that points to an already reordered set
@@ -66,29 +81,71 @@ void propagate_reordering(op_set from, op_set to,
     for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
       op_map map = OP_map_list[mapidx];
       if (map->to == from && map->from == to) {
-        std::vector<map2> renum(to->size);
-        for (int i = 0; i < to->size; i++) {
+        std::vector<map2> renum(to->core_size);
+        for (int i = 0; i < to->core_size; i++) {
           renum[i].a = set_permutations[from->index][map->map[map->dim * i]];
           renum[i].b = i;
         }
         qsort(&renum[0], renum.size(), sizeof(map2), compare);
-        set_permutations[to->index].resize(to->size);
-        for (int i = 0; i < to->size; i++)
+        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
+        for (int i = 0; i < to->core_size; i++)
           set_permutations[to->index][renum[i].b] = i;
+        for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
+          set_permutations[to->index][i] = i;
+        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        break;
+      }
+    }
+  }
+  // find a map that is (from)->(to), reorder (to), if it's an onto map
+  if (set_permutations[to->index].size() == 0) {
+    for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
+      op_map map = OP_map_list[mapidx];
+      if (map->to == to && map->from == from) {
+        int counter = 0;
+        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size,-1);
+        for (int i = 0; i < from->size; i++) {
+          for (int d = 0; d < map->dim; d++) {
+            int idx = map->map[set_ipermutations[from->index][i]*map->dim + d];
+            if (idx < to->core_size && set_permutations[to->index][idx]==-1)
+              set_permutations[to->index][idx]=counter++;
+          }
+        }
+        int onto = 1;
+        for (int i = 0; i < to->core_size; i++) if (set_permutations[to->index][i]==-1) {onto = 0; break;}
+        if (!onto) {
+          set_permutations[to->index].resize(0);
+          continue;
+        }
+        for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
+          set_permutations[to->index][i] = i;
+        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
         break;
       }
     }
   }
   if (set_permutations[to->index].size() == 0) {
-    printf("Could not find suitable mapping to renumber %s based on %s\n",
-           to->name, from->name);
     return;
   }
+  else {
+    set_ipermutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
+    for (int i = 0; i < to->size+to->exec_size+to->nonexec_size; i++) {
+      set_ipermutations[to->index][set_permutations[to->index][i]] = i;
+    }
+  }
+
   // find any maps that is (*)->to, propagate reordering
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->to == to && set_permutations[map->from->index].size() == 0) {
       propagate_reordering(to, map->from, set_permutations, set_ipermutations);
+    }
+  }
+  // find any maps that is to->(*), propagate reordering
+  for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
+    op_map map = OP_map_list[mapidx];
+    if (map->from == to && set_permutations[map->to->index].size() == 0) {
+      propagate_reordering(to, map->to, set_permutations, set_ipermutations);
     }
   }
 }
@@ -104,28 +161,31 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   if (set->size == 0)
     return;
 
+  //Reorder maps
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == set) {
-      int *tempmap = (int *)malloc(set->size * sizeof(int) * map->dim);
+      int *tempmap = (int *)malloc((set->size+set->exec_size) * sizeof(int) * map->dim);
 
-      for (int i = 0; i < set->size; i++)
+      for (int i = 0; i < set->size+set->exec_size; i++)
         std::copy(map->map + map->dim * i, map->map + map->dim * (i + 1),
                   tempmap + map->dim * set_permutations[set->index][i]);
       free(map->map);
       map->map = tempmap;
 
     } else if (map->to == set) {
-      for (int i = 0; i < map->from->size * map->dim; i++)
+      for (int i = 0; i < (map->from->size+map->from->exec_size) * map->dim; i++)
         map->map[i] = set_permutations[set->index][map->map[i]];
     }
   }
+
+  //Reorder datasets
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     if (dat->set == set && dat->data != NULL) {
-      char *tempdata = (char *)malloc((size_t)set->size * (size_t)dat->size);
-      for (unsigned long int i = 0; i < (unsigned long int)set->size; i++)
+      char *tempdata = (char *)malloc((size_t)(set->size+set->exec_size+set->nonexec_size) * (size_t)dat->size);
+      for (unsigned long int i = 0; i < (unsigned long int)(set->size+set->exec_size+set->nonexec_size); i++)
         std::copy(dat->data + (unsigned long int)dat->size * i,
                   dat->data + (unsigned long int)dat->size * (i + 1),
                   tempdata +
@@ -135,17 +195,36 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
       dat->data = tempdata;
     }
   }
+
+  //Renumber halos
+  halo_list exp_exec_list = OP_export_exec_list[set->index];
+  halo_list exp_nonexec_list = OP_export_nonexec_list[set->index];
+  if (exp_exec_list->ranks_size > 0) {
+    int halolen = exp_exec_list->disps[exp_exec_list->ranks_size-1] + exp_exec_list->sizes[exp_exec_list->ranks_size-1];
+    for (int i = 0; i < halolen; i++) {
+      exp_exec_list->list[i] = set_permutations[set->index][exp_exec_list->list[i]];
+    }
+  }
+  if (exp_nonexec_list->ranks_size > 0) {
+    int halolen = exp_nonexec_list->disps[exp_nonexec_list->ranks_size-1] + exp_nonexec_list->sizes[exp_nonexec_list->ranks_size-1];
+    for (int i = 0; i < halolen; i++) {
+      exp_nonexec_list->list[i] = set_permutations[set->index][exp_nonexec_list->list[i]];
+    }
+  }
+
+  //Reorder mapping back to original (unpartitioned indexing)
+  int *new_g_index = (int*)malloc(set->size*sizeof(int));
+  for (int i = 0; i < set->size; i++)
+    new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
+  free(OP_part_list[set->index]->g_index);
+  OP_part_list[set->index]->g_index = new_g_index; 
 }
 
 void op_renumber(op_map base) {
 #ifndef HAVE_PTSCOTCH
-  printf("OP2 was not compiled with Scotch, no reordering.\n");
+  op_printf("OP2 was not compiled with Scotch, no reordering.\n");
 #else
-  printf("Renumbering using base map %s\n", base->name);
-  if (op_is_root() == 0) {
-    printf("Renumbering only works with 1 rank\n");
-    exit(-1);
-  }
+  op_printf("Renumbering using base map %s\n", base->name);
   int generated_partvec = 0;
 /*
   if (FILE *file = fopen("partvec0001_0001", "r")) {
@@ -190,40 +269,56 @@ void op_renumber(op_map base) {
   //-----------------------------------------------------------------------------------------
   // Build adjacency list
   //-----------------------------------------------------------------------------------------
-  std::vector<int> row_offsets(base->to->size + 1);
+  //base->to->size does not include exec halo
+  std::vector<int> row_offsets(base->to->core_size + 1);
   std::vector<int> col_indices;
   if (base->to == base->from) {
     col_indices.resize(base->dim * base->from->size);
-    // if map is self-referencing, just create row_offsets with dim stride, and
-    // copy over col_indices
-    std::copy(base->map, base->map + base->dim * base->from->size,
-              col_indices.begin());
+    // if map is self-referencing, mapping is the same, except we have to remove references 
+    // the halo
     row_offsets[0] = 0;
-    for (int i = 1; i < base->from->size + 1; i++)
-      row_offsets[i] = i * base->dim;
+    for (int i = 0; i < base->from->size; i++) {
+      int rowlen = 0;
+      for (int j = 0; j < base->dim; j++)
+        if (base->map[i*base->dim+j] < base->to->core_size)
+          col_indices[row_offsets[i]+rowlen++] = base->map[i*base->dim+j];
+      row_offsets[i+1] = row_offsets[i] + rowlen;
+    }
+    //reduce size to actual size
+    col_indices.resize(row_offsets[base->to->core_size]);
   } else {
     // otherwise, construct self-referencing map
     col_indices.resize(base->from->size * (base->dim - 1) *
                        (base->dim)); // Worst case memory requirement
 
-    // construct map pointing back
+    // construct map pointing back, dropping indices referring to the halo
     std::vector<map2> loopback(base->from->size * base->dim);
-    for (int i = 0; i < base->from->size * base->dim; i++) {
-      loopback[i].a = base->map[i];
-      loopback[i].b = i / base->dim;
+    int sizectr = 0;
+    for (int i = 0; i < base->from->size ; i++) {
+      for (int j = 0; j < base->dim; j++) {
+        if (base->map[i*base->dim+j] < base->to->core_size) {
+          loopback[sizectr].a = base->map[i*base->dim+j];
+          loopback[sizectr].b = i;
+          sizectr++;
+        }
+      }
     }
-    qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
 
+    loopback.resize(sizectr);
+    qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
+    
     row_offsets[0] = 0;
     row_offsets[1] = 0;
-    row_offsets[base->to->size] = 0;
+    row_offsets[base->to->core_size] = 0;
     for (int i = 0; i < base->dim; i++) {
-      if (base->map[base->dim * loopback[0].b + i] != 0)
+      //Drop self-references
+      if (base->map[base->dim * loopback[0].b + i] != 0 &&
+          base->map[base->dim * loopback[0].b + i] < base->to->core_size)
         col_indices[row_offsets[1]++] =
             base->map[base->dim * loopback[0].b + i];
     }
     int nodectr = 0;
-    for (int i = 1; i < base->from->size * base->dim; i++) {
+    for (int i = 1; i < loopback.size(); i++) {
       if (loopback[i].a != loopback[i - 1].a) {
         nodectr++;
         row_offsets[nodectr + 1] = row_offsets[nodectr];
@@ -231,7 +326,7 @@ void op_renumber(op_map base) {
 
       for (int d1 = 0; d1 < base->dim; d1++) {
         int id = base->map[base->dim * loopback[i].b + d1];
-        int add = (id != nodectr);
+        int add = (id != nodectr && id < base->to->core_size);
         for (int d2 = row_offsets[nodectr];
              (d2 < row_offsets[nodectr + 1]) && add; d2++) {
           if (col_indices[d2] == id)
@@ -241,16 +336,32 @@ void op_renumber(op_map base) {
           col_indices[row_offsets[nodectr + 1]++] = id;
       }
     }
-    if (row_offsets[base->to->size] == 0) {
+    if (row_offsets[base->to->core_size] == 0) {
       printf(
-          "Map %s is not an onto map from %s to %s, aborting renumbering...\n",
+          "Map %s is not an onto map from %s to %s, or bad partitioning, aborting renumbering...\n",
           base->name, base->from->name, base->to->name);
       return;
     }
-    col_indices.resize(row_offsets[base->to->size]);
-    printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
+    col_indices.resize(row_offsets[base->to->core_size]);
+    if (OP_diags>2) op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
            base->to->name, base->to->name, (int)col_indices.size(),
            base->from->name, base->from->size);
+  }
+  //sanity check
+  for (int row = 0; row < row_offsets.size()-1; row++) {
+    if (row_offsets[row] == row_offsets[row+1]) printf("Zero length row\n");
+    for (int col = row_offsets[row]; col < row_offsets[row+1]; col++) {
+      if (col_indices[col]<0 || col_indices[col]>=row_offsets.size()-1)
+        printf("Error col idx %d, but num rows is %d\n",col_indices[col], row_offsets.size()-1);
+      else {
+        //Symmetry
+        int found = 0;
+        for (int c2 = row_offsets[col_indices[col]]; c2 < row_offsets[col_indices[col]+1]; c2++) {
+          if (col_indices[c2] == row) found = 1;
+        }
+        if (!found) printf("Error, symmetry broken at row %d col %d\n",row,col_indices[col]);
+      }
+    }
   }
 /*
   if (generated_partvec == 0) {
@@ -288,8 +399,8 @@ void op_renumber(op_map base) {
   //
   SCOTCH_Num baseval = 0; // start numbering from 0
   SCOTCH_Num vertnbr =
-      base->to->size; // number of vertices in graph = number of cells in mesh
-  SCOTCH_Num edgenbr = row_offsets[base->to->size];
+      base->to->core_size; // number of vertices in graph = number of cells in mesh
+  SCOTCH_Num edgenbr = row_offsets[base->to->core_size];
 
   SCOTCH_Graph *graphptr = SCOTCH_graphAlloc();
   SCOTCH_graphInit(graphptr);
@@ -304,11 +415,11 @@ void op_renumber(op_map base) {
 
   SCOTCH_Num *edlotab = NULL; // Edge load = edge weight
   SCOTCH_Num *permutation =
-      (SCOTCH_Num *)malloc(base->to->size * sizeof(SCOTCH_Num));
+      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
   SCOTCH_Num *ipermutation =
-      (SCOTCH_Num *)malloc(base->to->size * sizeof(SCOTCH_Num));
+      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
   SCOTCH_Num *cblkptr =
-      (SCOTCH_Num *)malloc(base->to->size * sizeof(SCOTCH_Num));
+      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
   SCOTCH_Num *rangtab =
       NULL; //(SCOTCH_Num*) malloc(1 + ncell*sizeof(SCOTCH_Num));
   SCOTCH_Num *treetab = NULL; //(SCOTCH_Num*) malloc(ncell*sizeof(SCOTCH_Num));
@@ -343,12 +454,17 @@ void op_renumber(op_map base) {
 
   std::vector<std::vector<int> > set_permutations(OP_set_index);
   std::vector<std::vector<int> > set_ipermutations(OP_set_index);
-  set_permutations[base->to->index].resize(base->to->size);
+  set_permutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
   std::copy(permutation, permutation + base->to->size,
             set_permutations[base->to->index].begin());
-  set_ipermutations[base->to->index].resize(base->to->size);
+  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
+    set_permutations[base->to->index][i] = i;
+  check_permutation(&set_permutations[base->to->index][0],base->to->size + base->to->exec_size + base->to->nonexec_size);
+  set_ipermutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
   std::copy(ipermutation, ipermutation + base->to->size,
             set_ipermutations[base->to->index].begin());
+  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
+    set_permutations[base->to->index][i] = i;
   propagate_reordering(base->to, base->to, set_permutations, set_ipermutations);
   for (int i = 0; i < OP_set_index; i++) {
     reorder_set(OP_set_list[i], set_permutations, set_ipermutations);

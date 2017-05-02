@@ -458,7 +458,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
+    code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
 
     code('call op_timers_core(startTime)')
     code('')
