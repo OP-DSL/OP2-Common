@@ -153,7 +153,7 @@ void propagate_reordering(op_set from, op_set to,
 void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
                  std::vector<std::vector<int> > &set_ipermutations) {
 
-  if (set_permutations[set->index].size() == 0) {
+  if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
     printf("No reordering for set %s, skipping...\n", set->name);
     return;
   }
@@ -363,6 +363,18 @@ void op_renumber(op_map base) {
       }
     }
   }
+  //Statistics
+  int max_dist = 0;
+  long avg_dist = 0;
+  for (int i = 0; i < base->from->size; i++) {
+    int dist = 0;
+    for (int d1 = 0; d1 < base->dim; d1++)
+      for (int d2 = 0; d2 < base->dim; d2++)
+        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
+    max_dist = std::max(max_dist,dist);
+    avg_dist += dist;
+  }
+  avg_dist /= base->from->size;
 /*
   if (generated_partvec == 0) {
 #ifdef PARMETIS_VER_4
@@ -469,5 +481,21 @@ void op_renumber(op_map base) {
   for (int i = 0; i < OP_set_index; i++) {
     reorder_set(OP_set_list[i], set_permutations, set_ipermutations);
   }
+
+  op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
+  //Statistics
+  max_dist = 0;
+  avg_dist = 0;
+  for (int i = 0; i < base->from->size; i++) {
+    int dist = 0;
+    for (int d1 = 0; d1 < base->dim; d1++)
+      for (int d2 = 0; d2 < base->dim; d2++)
+        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
+    max_dist = std::max(max_dist,dist);
+    avg_dist += dist;
+  }
+  avg_dist /= base->from->size;
+  op_printf("After renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
+
 #endif
 }

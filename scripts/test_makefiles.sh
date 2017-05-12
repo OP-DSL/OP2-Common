@@ -151,9 +151,11 @@ cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
+validate "./airfoil_openmp OP_PART_SIZE=256 -renumber"
 export OMP_NUM_THREADS=1
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq -renumber"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
 validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
