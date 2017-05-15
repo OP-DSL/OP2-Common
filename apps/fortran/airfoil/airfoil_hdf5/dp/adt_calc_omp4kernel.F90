@@ -101,6 +101,7 @@ SUBROUTINE op_wrap_adt_calc( &
     & opDat6Local(1,i1+1) &
     & )
   END DO
+  !$omp end target teams distribute parallel do
 
 END SUBROUTINE
 SUBROUTINE adt_calc_host( userSubroutine, set, &
@@ -173,7 +174,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   opArgArray(6) = opArg6
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000_4,0.00000_4, 0)
+  & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
@@ -190,6 +191,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   exec_size = opSetCore%size + opSetCore%exec_size
   numberOfIndirectOpDats = 1
 
+  partitionSize=0
   planRet_adt_calc = FortranPlanCaller( &
   & userSubroutine//C_NULL_CHAR, &
   & set%setCPtr, &

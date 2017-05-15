@@ -82,9 +82,9 @@ ifeq ($(OP2_COMPILER),xl)
   MPIF90 = mpif90 #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot 
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
-  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,OP2_WITH_OMP4
+  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,DOP2_WITH_OPENACC
   OPENMP = -qsmp=omp -qthreaded
-  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport
+  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport -WF,-DOP2_WITH_OMP4
   CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \

@@ -703,6 +703,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     depth = depth - 2
     ENDDO()
+    code('!$omp end target teams distribute parallel do')
     if not host_exec:
       code('')
       for g_m in range(0,nargs):
