@@ -83,9 +83,9 @@ else
 ifeq ($(OP2_COMPILER),clang)
   CC	   := clang
 ifdef DEBUG
-  CCFLAGS  := -g -O0 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
+  CCFLAGS  := -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
 else
-  CCFLAGS  := -O3 -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/
+  CCFLAGS  := -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
 endif
   CXX	   := clang++
   CXXFLAGS := $(CCFLAGS)
