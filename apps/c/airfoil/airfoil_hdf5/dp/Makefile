@@ -70,7 +70,7 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++ 
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
   OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
