@@ -662,6 +662,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           kern_text = kern_text[0:j+1] + re.sub('\\b'+consts[const]['name']+'\\b',consts[const]['name']+'_OP2',kern_text[j+1:])
 
       text = replace_soa(kern_text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
+      if any_soa:
+        text = re.sub('\\bDIMENSION\([A-Za-z0-9_]*\)','DIMENSION(*)',text)
       file_text += text
 
     else:
@@ -1536,6 +1538,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           code(typs[g_m]+', DIMENSION(:), POINTER :: opDat'+str(g_m+1)+'Host')
         else:
           code(typs[g_m]+', POINTER :: opDat'+str(g_m+1)+'Host')
+          if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+            code(typs[g_m]+' :: opDat'+str(g_m+1)+'Host_tmp') #XLF workaround
         if (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
           code(typs[g_m]+', DIMENSION(:), ALLOCATABLE :: reductionArrayHost'+str(g_m+1))
           if g_m in needDimList:
@@ -1648,6 +1652,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Host,(/opDat'+str(g_m+1)+'Cardinality/))')
         else:
           code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Host)')
+          if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
+            code('opDat'+str(g_m+1)+'Host_tmp = opDat'+str(g_m+1)+'Host') #XLF workaround
     code('')
 
     if ninds > 0:
@@ -1780,7 +1786,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             if g_m in needDimList:
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
-            code('& opDat'+str(g_m+1)+'Host, &')
+            code('& opDat'+str(g_m+1)+'Host_tmp, &') #XLF workaround
 
       if stage_inc:
         for g_m in range(0,ninds_staged):
@@ -1821,7 +1827,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             if g_m in needDimList:
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
-            code('& opDat'+str(g_m+1)+'Host, &')
+            code('& opDat'+str(g_m+1)+'Host_tmp, &') #XLF workaround
       code('set%setPtr%size)')
 
     code('')

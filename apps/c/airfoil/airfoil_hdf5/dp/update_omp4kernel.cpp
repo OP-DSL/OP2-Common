@@ -3,6 +3,8 @@
 //
 
 //user function
+int direct_update_stride_OP2CONSTANT;
+int direct_update_stride_OP2HOST=-1;
 //user function
 
 void update_omp4_kernel(
@@ -17,7 +19,8 @@ void update_omp4_kernel(
   double *arg4,
   int count,
   int num_teams,
-  int nthread);
+  int nthread,
+  int direct_update_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_update(char const *name, op_set set,
@@ -66,6 +69,11 @@ void op_par_loop_update(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[4].count==1) || (direct_update_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_update_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_update_stride_OP2CONSTANT = direct_update_stride_OP2HOST;
+    }
+
     //Set up typed device pointers for OpenMP
 
     double* data0 = (double*)arg0.data_d;
@@ -88,7 +96,8 @@ void op_par_loop_update(char const *name, op_set set,
       &arg4_l,
       set->size,
       part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
-      nthread);
+      nthread,
+      direct_update_stride_OP2CONSTANT);
 
   }
 
