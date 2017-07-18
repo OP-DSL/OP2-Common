@@ -305,7 +305,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
 
-    signature_text = '#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
+    signature_text = '//#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
 ##########################################################################

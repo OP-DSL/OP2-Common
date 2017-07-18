@@ -56,7 +56,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
   NVCCFLAGS	= #-ccbin=$(MPICPP)
-  ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
+  ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC -fast
 else
 ifeq ($(OP2_COMPILER),cray)
   CPP           = CC
@@ -70,7 +70,7 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++ 
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I/home/ireguly/forge/clang_4/llvm/build/projects/openmp/runtime/src/ -fopenmp=libomp
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp
   OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
