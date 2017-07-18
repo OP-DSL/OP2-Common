@@ -62,6 +62,8 @@
 #include <parmetis.h>
 #ifdef PARMETIS_VER_4
 typedef idx_t idxtype;
+#else
+typedef int idx_t;
 #endif
 #endif
 
