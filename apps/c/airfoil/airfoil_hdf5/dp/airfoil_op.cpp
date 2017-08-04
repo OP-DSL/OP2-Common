@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
-    if (strcmp(argv[i],"-renumber")==0) {
+    if (strcmp(argv[i], "-renumber") == 0) {
       op_printf("Enabling renumbering\n");
       renumber = 1;
     }
@@ -184,8 +184,9 @@ int main(int argc, char **argv) {
   // trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
-  if (renumber) op_renumber(pecell);
- 
+  if (renumber)
+    op_renumber(pecell);
+
   int g_ncell = op_get_size(cells);
 
   // initialise timers for total execution wall time
