@@ -118,6 +118,7 @@ herr_t get_dataset_properties(hid_t dset_id, op_hdf5_dataset_properties *dset_pr
   if (ndims == 0) {
     dset_props->size = 0;
     dset_props->dim = 0;
+    H5Sclose(dataspace);
   } else {
     hsize_t dims[ndims];
     hsize_t maxdims[ndims];
@@ -154,7 +155,7 @@ herr_t get_dataset_properties(hid_t dset_id, op_hdf5_dataset_properties *dset_pr
     size_t name_len = H5Iget_name(dset_id,NULL,0);
     char name[name_len];
     H5Iget_name(dset_id,name,name_len+1);
-    op_printf("Error: Do not recognise type of dataset, contact OP2 developers '%s'\n", name);
+    op_printf("Error: Do not recognise type of dataset '%s'\n", name);
     exit(2);
   }
   dset_props->elem_bytes *= dset_props->dim;
