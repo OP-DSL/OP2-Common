@@ -106,6 +106,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
   inc_stage=1
+  op_color2=1
+  if op_color2:
+      inc_stage=0
+
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -315,7 +319,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
     for i in range(0,nargs):
         var = signature_text.split(',')[i].strip()
-        if soaflags[i] and not (maps[i] == OP_MAP and accs[i] == OP_INC):
+        if soaflags[i] and (op_color2 or not (maps[i] == OP_MAP and accs[i] == OP_INC)):
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
@@ -371,53 +375,59 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('int   *ind_arg_offs, ')
 
     if ninds>0:
-      code('int    block_offset, ')
-      code('int   *blkmap,       ')
-      code('int   *offset,       ')
-      code('int   *nelems,       ')
-      code('int   *ncolors,      ')
-      code('int   *colors,       ')
-      code('int   nblocks,       ')
+      if not op_color2:
+        code('int    block_offset, ')
+        code('int   *blkmap,       ')
+        code('int   *offset,       ')
+        code('int   *nelems,       ')
+        code('int   *ncolors,      ')
+        code('int   *colors,       ')
+        code('int   nblocks,       ')
+      else:
+        code('int start,           ')
+        code('int end,             ')
+        code('int *col_reord,      ')
       code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
       code('')
 
-    for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('TYP ARG_l[DIM];')
-        if accs[g_m] == OP_INC:
-          FOR('d','0','DIM')
-          code('ARG_l[d]=ZERO_TYP;')
-          ENDFOR()
-        else:
-          FOR('d','0','DIM')
-          code('ARG_l[d]=ARG[d+blockIdx.x*DIM];')
-          ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-        code('TYP ARG_l[DIM];')
-
-    for m in range (1,ninds+1):
-      g_m = m -1
-      v = [int(inds[i]==m) for i in range(len(inds))]
-      v_i = [vectorised[i] for i in range(len(inds)) if inds[i] == m]
-      if sum(v)>1 and sum(v_i)>0: #check this sum(v_i)
-        if indaccs[m-1] == OP_INC:
-          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'] = {'); depth += 2;
-          for n in range(0,nargs):
-            if inds[n] == m:
-              g_m = n
-              code('ARG_l,')
-          depth -= 2
-          code('};')
-        else:
-          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'];')
+    if ninds==0 or not op_color2:
+      for g_m in range(0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+          code('TYP ARG_l[DIM];')
+          if accs[g_m] == OP_INC:
+            FOR('d','0','DIM')
+            code('ARG_l[d]=ZERO_TYP;')
+            ENDFOR()
+          else:
+            FOR('d','0','DIM')
+            code('ARG_l[d]=ARG[d+blockIdx.x*DIM];')
+            ENDFOR()
+        elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+          code('TYP ARG_l[DIM];')
+ 
+      for m in range (1,ninds+1):
+        g_m = m -1
+        v = [int(inds[i]==m) for i in range(len(inds))]
+        v_i = [vectorised[i] for i in range(len(inds)) if inds[i] == m]
+        if sum(v)>1 and sum(v_i)>0: #check this sum(v_i)
+          if indaccs[m-1] == OP_INC:
+            ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
+            code('INDTYP *ARG_vec['+str(ind)+'] = {'); depth += 2;
+            for n in range(0,nargs):
+              if inds[n] == m:
+                g_m = n
+                code('ARG_l,')
+            depth -= 2
+            code('};')
+          else:
+            ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
+            code('INDTYP *ARG_vec['+str(ind)+'];')
 #
 # lengthy code for general case with indirection
 #
-    if ninds>0:
+    if ninds>0 and not op_color2:
       code('')
       if inc_stage==1:
         for g_m in range (0,ninds):
@@ -515,6 +525,19 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+#
+# simple version for global coloring
+#
+    elif ninds>0:
+      code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
+      code('if(tid + start >= end) return;')
+      code('int n = col_reord[tid + start];')
+      comm('initialise local variables')
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
 
 
 
@@ -545,7 +568,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         else:
           line += rep(indent+'ARG_l,\n',m);
         a =a+1
-      elif maps[m]==OP_MAP and  accs[m]==OP_INC:
+      elif maps[m]==OP_MAP and  accs[m]==OP_INC and not op_color2:
         line += rep(indent+'ARG_l,\n',m)
         a =a+1
       elif maps[m]==OP_MAP:
@@ -555,7 +578,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*DIM,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0:
+        if ninds>0 and not op_color2:
           if soaflags[m]:
             line += rep(indent+'ARG+(n+offset_b),\n',m)
           else:
@@ -575,7 +598,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 #
 # updating for indirect kernels ...
 #
-    if ninds>0:
+    if ninds>0 and not op_color2:
       if ind_inc:
         code('col2 = colors[n+offset_b];')
         ENDIF()
@@ -631,7 +654,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         ENDFOR()
         code('__syncthreads();')
         ENDFOR()
-    ENDFOR()
+    if ninds == 0 or not op_color2:
+      ENDFOR()
 
     if inc_stage:
       for g_m in range(0,ninds):
@@ -778,6 +802,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     if ninds>0:
       if inc_stage==1 and ind_inc:
         code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);')
+      elif op_color2:
+        code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
       else:
         code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
       code('')
@@ -885,8 +911,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 #
     if ninds>0:
       comm('execute plan')
-      code('')
-      code('int block_offset = 0;')
+      if not op_color2:
+        code('')
+        code('int block_offset = 0;')
       FOR('col','0','Plan->ncolors')
       IF('col==Plan->ncolors_core')
       code('op_mpi_wait_all_cuda(nargs, args);')
@@ -897,9 +924,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('int nthread = OP_block_size;')
       code('#endif')
       code('')
-      code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
-      code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
-      IF('Plan->ncolblk[col] > 0')
+      if op_color2:
+        code('int start = Plan->col_offsets[0][col];')
+        code('int end = Plan->col_offsets[0][col+1];')
+        code('int nblocks = (end - start - 1)/nthread + 1;')
+      else:
+        code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
+        code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
+        IF('Plan->ncolblk[col] > 0')
 
       if reduct or (inc_stage==1 and ind_inc):
         if reduct and inc_stage==1:
@@ -930,14 +962,18 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         code('Plan->loc_map,')
         code('Plan->ind_sizes,')
         code('Plan->ind_offs,')
-
-      code('block_offset,')
-      code('Plan->blkmap,')
-      code('Plan->offset,')
-      code('Plan->nelems,')
-      code('Plan->nthrcol,')
-      code('Plan->thrcol,')
-      code('Plan->ncolblk[col],')
+      if op_color2:
+        code('start,')
+        code('end,')
+        code('Plan->col_reord,')
+      else:
+        code('block_offset,')
+        code('Plan->blkmap,')
+        code('Plan->offset,')
+        code('Plan->nelems,')
+        code('Plan->nthrcol,')
+        code('Plan->thrcol,')
+        code('Plan->ncolblk[col],')
       code('set->size+set->exec_size);')
       code('')
       if reduct:
@@ -945,9 +981,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         IF('col == Plan->ncolors_owned-1')
         code('mvReductArraysToHost(reduct_bytes);')
         ENDIF()
-
-      ENDFOR()
-      code('block_offset += Plan->ncolblk[col];')
+      if not op_color2:
+        ENDFOR() #TODO sztem ez forditva van...
+        code('block_offset += Plan->ncolblk[col];')
       ENDIF()
 #
 # kernel call for direct version
