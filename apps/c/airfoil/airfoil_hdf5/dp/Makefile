@@ -68,7 +68,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++ 
-  CCFLAGS  	= -O3
+  CCFLAGS  	= -O3 -ffast-math
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
   OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast #-Xclang -target-feature -Xclang +ptx35
