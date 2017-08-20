@@ -708,13 +708,13 @@ def main():
 
         for nk in xrange(0,len(kernels)):
             name = kernels[nk]["name"]
-            inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\([ \n]'
+            inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
             matches = re.findall(inline_impl_pattern, text)
             if len(matches) == 1:
                 kernels[nk]["decl_filepath"] = src_file
                 kernels[nk]["decl_filename"] = os.path.basename(src_file)
                 continue
-            decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]'+'[ \nA-Za-z0-9\*\_,]+\);)'
+            decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
             matches = re.findall(decl_pattern, text)
             if len(matches) == 1:
                 kernels[nk]["decl_filepath"] = src_file
