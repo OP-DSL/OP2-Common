@@ -116,6 +116,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
+    decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
     inddims = kernels[nk]['inddims']
@@ -247,20 +248,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           break
 
     comm('user function')
-    found = 0
-    for files in glob.glob( "*.h" ):
-      f = open( files, 'r' )
-      for line in f:
-        match = re.search(r''+'\\b'+name+'\\b', line)
-        if match :
-          file_name = f.name
-          found = 1;
-          break
-      if found == 1:
-        break;
-
-    if found == 0:
-      print "COUND NOT FIND KERNEL", name
+    file_name = decl_filepath
 
     f = open(file_name, 'r')
     kernel_text = f.read()
