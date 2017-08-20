@@ -746,7 +746,7 @@ def main():
     for nk in xrange(0,len(kernels)):
         if not "decl_filepath" in kernels[nk].keys():
             fail = True
-            print("Delcaration not found for kernel " + kernels[nk]["name"])
+            print("Declaration not found for kernel " + kernels[nk]["name"])
     if fail:
         exit(2)
 
