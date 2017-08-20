@@ -6,7 +6,7 @@
 
 #exit script if any error is encountered during the build or
 #application executions.
-#set -e
+set -e
 
 function validate {
   $1 > perf_out
