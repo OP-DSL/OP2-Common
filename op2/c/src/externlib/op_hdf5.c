@@ -53,6 +53,104 @@
 
 #include <op_util.h> //just to include xmalloc routine
 
+typedef struct {
+  const char* type_str; // dataset type as string
+  hsize_t size;         // dataset size (first dimension)
+  hsize_t dim;          // element size (second dimension)
+  size_t elem_bytes;    // element byte-size
+} op_hdf5_dataset_properties;
+
+const char* op_hdf5_type_to_string(hid_t t) {
+  char* text = NULL;
+  if (H5Tequal(t, H5T_NATIVE_INT)) {
+    text = (char*)malloc(4*sizeof(char));
+    strcpy(text, "int");
+  }
+  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
+    text = (char*)malloc(5*sizeof(char));
+    strcpy(text, "long");
+  }
+  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
+    text = (char*)malloc(10*sizeof(char));
+    strcpy(text, "long long");
+  }
+  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
+    text = (char*)malloc(6*sizeof(char));
+    strcpy(text, "float");
+  }
+  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
+    text = (char*)malloc(7*sizeof(char));
+    strcpy(text, "double");
+  }
+  else {
+    text = (char*)malloc(13*sizeof(char));
+    strcpy(text, "UNRECOGNISED");
+  }
+
+  return (const char*)text;
+}
+
+herr_t get_dataset_properties(hid_t dset_id, op_hdf5_dataset_properties *dset_props) {
+  hid_t status;
+
+  if (dset_props == NULL) {
+    return -1;
+  }
+
+  // Get dimension and size:
+  hid_t dataspace = H5Dget_space(dset_id);
+  if (dataspace < 0) {
+    return -1;
+  }
+  int ndims = H5Sget_simple_extent_ndims(dataspace);
+  if (ndims == 0) {
+    dset_props->size = 0;
+    dset_props->dim = 0;
+    H5Sclose(dataspace);
+  } else {
+    hsize_t dims[ndims];
+    hsize_t maxdims[ndims];
+    status = H5Sget_simple_extent_dims(dataspace, dims, maxdims);
+    H5Sclose(dataspace);
+    if (status < 0) {
+      return -1;
+    }
+    dset_props->size = dims[0];
+    dset_props->dim = (ndims > 1) ? dims[1] : 1;
+  }
+
+  // Get type information:
+  hid_t t = H5Dget_type(dset_id);
+  if (t < 0) {
+    return -1;
+  }
+  dset_props->type_str = op_hdf5_type_to_string(t);
+  if (H5Tequal(t, H5T_NATIVE_INT)) {
+    dset_props->elem_bytes = sizeof(int);
+  }
+  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
+    dset_props->elem_bytes = sizeof(long);
+  }
+  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
+    dset_props->elem_bytes = sizeof(long long);
+  }
+  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
+    dset_props->elem_bytes = sizeof(float);
+  }
+  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
+    dset_props->elem_bytes = sizeof(double);  }
+  else {
+    size_t name_len = H5Iget_name(dset_id,NULL,0);
+    char name[name_len];
+    H5Iget_name(dset_id,name,name_len+1);
+    op_printf("Error: Do not recognise type of dataset '%s'\n", name);
+    exit(2);
+  }
+  dset_props->elem_bytes *= dset_props->dim;
+
+  return 0;
+}
+
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
@@ -83,6 +181,54 @@ op_set op_decl_set_hdf5(char const *file, char const *name) {
   return op_decl_set(l_size, name);
 }
 
+op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char const *set_dataset_name) {
+  // HDF5 APIs definitions
+  hid_t file_id; // file identifier
+  hid_t dset_id; // dataset identifier
+  herr_t status;
+
+  if (file_exist(file) == 0) {
+    op_printf("File %s does not exist .... aborting op_decl_set_hdf5()\n",
+              file);
+    exit(2);
+  }
+
+  file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
+  if (file_id < 0) {
+    op_printf("Could not obtain read access to file '%s'\n", file);
+    exit(2);
+  }
+
+  status = H5Lexists(file_id, set_dataset_name, H5P_DEFAULT);
+  if (status < 0) {
+    op_printf("Dataset '%s' not found in file '%s'\n", set_dataset_name, file);
+    exit(2);
+  }
+
+  // Create the dataset with default properties and close dataspace.
+  dset_id = H5Dopen(file_id, set_dataset_name, H5P_DEFAULT);
+  if (dset_id < 0) {
+    op_printf("Could not open dataset '%s' in file '%s'\n", set_dataset_name, file);
+    exit(2);
+  }
+
+  // Get size of dataset:
+  op_hdf5_dataset_properties dset_props;
+  status = get_dataset_properties(dset_id, &dset_props);
+  if (status < 0) {
+    op_printf("Could not access dataset '%s' in file '%s'\n", set_dataset_name, file);
+    exit(2);
+  }
+  int l_size = dset_props.size;
+
+  H5Dclose(dset_id);
+  H5Fclose(file_id);
+
+  free((char*)dset_props.type_str);
+
+  return op_decl_set(l_size, name);
+}
+
 /*******************************************************************************
 * Routine to read an op_map from an hdf5 file
 *******************************************************************************/
@@ -93,6 +239,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   hid_t file_id;   // file identifier
   hid_t dset_id;   // dataset identifier
   hid_t dataspace; // data space identifier
+  herr_t status;
 
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_map_hdf5()\n",
@@ -113,19 +260,15 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     printf("op_map with name : %s not found in file : %s \n", name, file);
     return NULL;
   }
-
-  /*find total size of this map by reading attributes*/
-  int g_size;
-  // get OID of the attribute
-  hid_t attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n", name,
-           "size");
-    return NULL;
+  
+  op_hdf5_dataset_properties dset_props;
+  status = get_dataset_properties(dset_id, &dset_props);
+  if (status < 0) {
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name, file);
+    exit(2);
   }
-  // read attribute
-  H5Aread(attr, H5T_NATIVE_INT, &g_size);
-  H5Aclose(attr);
+
+  int g_size = dset_props.size;
   // check if size is accurate
   if (from->size != g_size) {
     printf("map from set size %d in file %s and size %d do not match \n",
@@ -133,44 +276,14 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     return NULL;
   }
 
-  /*find dim with available attributes*/
-  int map_dim = 0;
-  // open existing data set
-  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  // get OID of the attribute
-  attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n", name,
-           "dim");
-    return NULL;
-  }
-  // read attribute
-  H5Aread(attr, H5T_NATIVE_INT, &map_dim);
-  H5Aclose(attr);
+  int map_dim = dset_props.dim;
   if (map_dim != dim) {
     printf("map.dim %d in file %s and dim %d do not match\n", map_dim, file,
            dim);
     return NULL;
   }
 
-  /*find type with available attributes*/
-  dataspace = H5Screate(H5S_SCALAR);
-  hid_t atype = H5Tcopy(H5T_C_S1);
-  H5Tset_size(atype, 10);
-  // open existing data set
-  dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  // get OID of the attribute
-  attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_map with name : %s does not have attribute : %s \n", name,
-           "type");
-    return NULL;
-  }
-  // read attribute
-  char typ[10];
-  H5Aread(attr, atype, typ);
-  H5Aclose(attr);
-  H5Sclose(dataspace);
+  const char *typ = dset_props.type_str;
 
   // Restore previous error handler .. report hdf5 error stack automatically
   H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
@@ -198,6 +311,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   H5Fclose(file_id);
+
+  free((char*)dset_props.type_str);
+
   op_map new_map = op_decl_map(from, to, dim, map, name);
   new_map->user_managed = 0;
   return new_map;
@@ -214,6 +330,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hid_t dset_id;   // dataset identifier
   hid_t dataspace; // data space identifier
   hid_t attr;      // attribute identifier
+  herr_t status;
 
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n",
@@ -235,61 +352,28 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     return NULL;
   }
 
-  /*find element size of this dat with available attributes*/
-  size_t dat_size = 0;
-  // get OID of the attribute
-  attr = H5Aopen(dset_id, "size", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n", name,
-           "size");
-    return NULL;
+  op_hdf5_dataset_properties dset_props;
+  status = get_dataset_properties(dset_id, &dset_props);
+  if (status < 0) {
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name, file);
+    exit(2);
   }
-  // read attribute
-  H5Aread(attr, H5T_NATIVE_INT, &dat_size);
-  H5Aclose(attr);
 
-  /*find dim with available attributes*/
-  int dat_dim = 0;
-  // get OID of the attribute
-  attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n", name,
-           "dim");
-    return NULL;
-  }
-  // read attribute
-  H5Aread(attr, H5T_NATIVE_INT, &dat_dim);
-  H5Aclose(attr);
+  int dat_dim = dset_props.dim;
   if (dat_dim != dim) {
     printf("dat.dim %d in file %s and dim %d do not match\n", dat_dim, file,
            dim);
     return NULL;
   }
 
-  /*find type with available attributes*/
-  dataspace = H5Screate(H5S_SCALAR);
-  hid_t atype = H5Tcopy(H5T_C_S1);
-  // get OID of the attribute
-  attr = H5Aopen(dset_id, "type", H5P_DEFAULT);
-  if (attr < 0) {
-    printf("op_dat with name : %s does not have attribute : %s \n", name,
-           "type");
-    return NULL;
-  }
-  // get length of attribute
-  int attlen = H5Aget_storage_size(attr);
-  H5Tset_size(atype, attlen + 1);
-  // read attribute
-  char typ[attlen + 1];
-  H5Aread(attr, atype, typ);
-  H5Aclose(attr);
-  H5Sclose(dataspace);
-
+  const char *typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
     printf("dat.type %s in file %s and type %s do not match\n", typ, file,
            type);
     return NULL;
   }
+
+  size_t dat_size = dset_props.elem_bytes;
 
   // Restore previous error handler .. report hdf5 error stack automatically
   H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
@@ -364,6 +448,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   H5Fclose(file_id);
+
+  free((char*)dset_props.type_str);
 
   op_dat new_dat = op_decl_dat_char(set, dim, type, dat_size, data, name);
   new_dat->user_managed = 0;
