@@ -806,6 +806,58 @@ def main():
         f.close()
     # end of loop over input source files
 
+    ## Loop over input source files again, but this time to find 
+    ## the header file for each kernel. No need to assume that 
+    ## header file is named after the kernel:
+    for a in range(1, len(sys.argv)):
+        src_file = str(sys.argv[a])
+        f = open(src_file, 'r')
+        text = f.read()
+
+        for nk in xrange(0,len(kernels)):
+            name = kernels[nk]["name"]
+            inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+            matches = re.findall(inline_impl_pattern, text)
+            if len(matches) == 1:
+                kernels[nk]["decl_filepath"] = src_file
+                kernels[nk]["decl_filename"] = os.path.basename(src_file)
+                continue
+            decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+            matches = re.findall(decl_pattern, text)
+            if len(matches) == 1:
+                kernels[nk]["decl_filepath"] = src_file
+                kernels[nk]["decl_filename"] = os.path.basename(src_file)
+
+    for nk in xrange(0,len(kernels)):
+        name = kernels[nk]["name"]
+        if not "decl_filepath" in kernels[nk].keys():
+            ## Kernel not found in command-line supplied files, but maybe 
+            ## its declaration is in a file with the same name:
+            src_file = kernels[nk]["name"] + ".h"
+            if os.path.isfile(src_file):
+                f = open(src_file, 'r')
+                text = f.read()
+
+                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+                matches = re.findall(inline_impl_pattern, text)
+                if len(matches) == 1:
+                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
+                    kernels[nk]["decl_filename"] = src_file
+                    continue
+                decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+                matches = re.findall(decl_pattern, text)
+                if len(matches) == 1:
+                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
+                    kernels[nk]["decl_filename"] = src_file
+
+    fail = False
+    for nk in xrange(0,len(kernels)):
+        if not "decl_filepath" in kernels[nk].keys():
+            fail = True
+            print("Declaration not found for kernel " + kernels[nk]["name"])
+    if fail:
+        exit(2)
+
     #  errors and warnings
 
     if ninit == 0:
