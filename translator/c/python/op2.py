@@ -119,7 +119,6 @@ def self_evaluate_macro_defs(macro_defs):
                 if m != None:
                     k2_val = macro_defs[k2]
                     # print("Performing a substitution of '" + k2 + "' -> '" + k2_val + "' into " + k_val)
-                    # macro_defs[k] = k_val.replace(k2, k2_val)
                     macro_defs[k] = re.sub(pattern, k2_val, k_val)
                     substitutions_performed = True
 
