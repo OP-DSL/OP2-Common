@@ -104,8 +104,8 @@ def self_evaluate_macro_defs(macro_defs):
     while substitutions_performed:
         substitutions_performed = False
         for k in macro_defs.keys():
-            val = macro_defs[k]
-            m = re.search(numeric_pattern, val)
+            k_val = macro_defs[k]
+            m = re.search(numeric_pattern, k_val)
             if m != None:
                 ## This macro definiton is numeric
                 continue
@@ -113,13 +113,14 @@ def self_evaluate_macro_defs(macro_defs):
             ## If value of key 'k' depends on value of other 
             ## keys, then substitute in value:
             for k2 in macro_defs.keys():
-                pattern = r'' + k2 + '(?!A-Z)(?!_)'
-                m = re.search(pattern, val)
+                pattern = r'' + '(?!a-zA-Z0-9_)' + k2 + '(?!a-zA-Z0-9_)'
+                m = re.search(pattern, k_val)
 
                 if m != None:
-                    # print("Performing a substitution of '" + k2 + "' -> '" + macro_defs[k2] + "' into " + val)
-                    macro_defs[k] = val.replace(k2, macro_defs[k2])
-                    val = macro_defs[k]
+                    k2_val = macro_defs[k2]
+                    # print("Performing a substitution of '" + k2 + "' -> '" + k2_val + "' into " + k_val)
+                    # macro_defs[k] = k_val.replace(k2, k2_val)
+                    macro_defs[k] = re.sub(pattern, k2_val, k_val)
                     substitutions_performed = True
 
     ## Evaluate any mathematical expressions:
