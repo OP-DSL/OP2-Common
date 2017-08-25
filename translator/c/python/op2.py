@@ -49,6 +49,8 @@ from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 
+arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
+
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
     """Remove comments from text"""
@@ -99,13 +101,12 @@ def op_parse_macro_defs(text):
 def self_evaluate_macro_defs(macro_defs):
     """Recursively evaluate C macro definitions that refer to other detected macros"""
 
-    numeric_pattern = r'^[ \(\)\+\-\*\\\.0-9]+$'
     substitutions_performed = True
     while substitutions_performed:
         substitutions_performed = False
         for k in macro_defs.keys():
             k_val = macro_defs[k]
-            m = re.search(numeric_pattern, k_val)
+            m = re.search(arithmetic_regex_pattern, k_val)
             if m != None:
                 ## This macro definiton is numeric
                 continue
@@ -117,6 +118,7 @@ def self_evaluate_macro_defs(macro_defs):
                 m = re.search(pattern, k_val)
 
                 if m != None:
+                    ## The macro "k" refers to macro "k2"
                     k2_val = macro_defs[k2]
                     # print("Performing a substitution of '" + k2 + "' -> '" + k2_val + "' into " + k_val)
                     macro_defs[k] = re.sub(pattern, k2_val, k_val)
@@ -125,7 +127,7 @@ def self_evaluate_macro_defs(macro_defs):
     ## Evaluate any mathematical expressions:
     for k in macro_defs.keys():
         val = macro_defs[k]
-        m = re.search(numeric_pattern, val)
+        m = re.search(arithmetic_regex_pattern, val)
         if m != None:
             res = ""
             try:
@@ -137,6 +139,37 @@ def self_evaluate_macro_defs(macro_defs):
                     # print("Replacing '" + val + "' with '" + str(res) + "'")
                     macro_defs[k] = str(res)
 
+def evaluate_macro_defs_in_string(macro_defs, string):
+    """Recursively evaluate C macro definitions in 'string' """
+
+    resolved_string = string
+
+    substitutions_performed = True
+    while substitutions_performed:
+        substitutions_performed = False
+        for k in macro_defs.keys():
+            k_val = macro_defs[k]
+
+            k_pattern = r'' + '(?!a-zA-Z0-9_)' + k + '(?!a-zA-Z0-9_)'
+            m = re.search(k_pattern, resolved_string)
+            if m != None:
+                ## "string" contains a reference to macro "k", so substitute 
+                ## in its definition:
+                resolved_string = re.sub(k_pattern, resolved_string, k_val)
+                substitutions_performed = True
+
+
+    if re.search(arithmetic_regex_pattern, resolved_string) != None:
+        res = ""
+        try:
+            res = eval(resolved_string)
+        except:
+            return resolved_string
+        else:
+            if type(res) != type(""):
+                resolved_string = str(res)
+
+    return resolved_string
 
 def op_decl_set_parse(text):
     """Parsing for op_decl_set calls"""
@@ -355,8 +388,6 @@ def main():
     OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
                       'OP_MAX', 'OP_MIN']
 
-    numeric_pattern = r'^[ \(\)\+\-\*\\\.0-9]+$'
-
     # Loop over all input source files for C-Macro definitions:
     for a in range(1, len(sys.argv)):
         src_file = str(sys.argv[a])
@@ -415,20 +446,7 @@ def main():
 
         # cleanup '&' symbols from name and convert dim to integer
         for i in range(0, len(const_args)):
-            if const_args[i]['dim'] in macro_defs.keys():
-                # print("Replacing '" + const_args[i]['dim'] + "' with " + macro_defs[const_args[i]['dim']])
-                const_args[i]['dim'] = macro_defs[const_args[i]['dim']]
-
-                if re.search(numeric_pattern, const_args[i]['dim']) != None:
-                    res = ""
-                    try:
-                        res = eval(const_args[i]['dim'])
-                    except:
-                        pass
-                    if type(res) != type(""):
-                        if str(res) != const_args[i]['dim']:
-                            # print("Replacing '" + const_args[i]['dim'] + "' with '" + str(res) + "'")
-                            const_args[i]['dim'] = str(res)
+            const_args[i]['dim'] = evaluate_macro_defs_in_string(macro_defs, const_args[i]['dim'])
 
             if const_args[i]['name'][0] == '&':
                 const_args[i]['name'] = const_args[i]['name'][1:]
@@ -486,7 +504,7 @@ def main():
                     # print("Replacing '" + argm['dim'] + "' with " + macro_defs[argm['dim']])
                     argm['dim'] = macro_defs[argm['dim']]
 
-                    if re.search(numeric_pattern, argm['dim']) != None:
+                    if re.search(arithmetic_regex_pattern, argm['dim']) != None:
                         res = ""
                         try:
                             res = eval(argm['dim'])
