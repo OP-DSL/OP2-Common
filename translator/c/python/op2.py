@@ -114,14 +114,14 @@ def self_evaluate_macro_defs(macro_defs):
             ## If value of key 'k' depends on value of other 
             ## keys, then substitute in value:
             for k2 in macro_defs.keys():
-                pattern = r'' + '(?!a-zA-Z0-9_)' + k2 + '(?!a-zA-Z0-9_)'
+                pattern = r'' + '(^|[^a-zA-Z0-9_])' + k2 + '($|[^a-zA-Z0-9_])'
                 m = re.search(pattern, k_val)
 
                 if m != None:
                     ## The macro "k" refers to macro "k2"
                     k2_val = macro_defs[k2]
-                    # print("Performing a substitution of '" + k2 + "' -> '" + k2_val + "' into " + k_val)
-                    macro_defs[k] = re.sub(pattern, k2_val, k_val)
+                    macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
+                    # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
                     substitutions_performed = True
 
     ## Evaluate any mathematical expressions:
@@ -150,12 +150,14 @@ def evaluate_macro_defs_in_string(macro_defs, string):
         for k in macro_defs.keys():
             k_val = macro_defs[k]
 
-            k_pattern = r'' + '(?!a-zA-Z0-9_)' + k + '(?!a-zA-Z0-9_)'
+            k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
             m = re.search(k_pattern, resolved_string)
             if m != None:
                 ## "string" contains a reference to macro "k", so substitute 
                 ## in its definition:
-                resolved_string = re.sub(k_pattern, resolved_string, k_val)
+                resolved_string_new = re.sub(k_pattern, "\\g<1>"+k_val+"\\g<2>", resolved_string)
+                # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
+                resolved_string = resolved_string_new
                 substitutions_performed = True
 
 
