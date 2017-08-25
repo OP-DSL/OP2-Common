@@ -121,15 +121,16 @@ def op2_gen_seq(master, date, consts, kernels):
     indaccs = kernels[nk]['indaccs']
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
+
     mapnames = kernels[nk]['mapnames']
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
+
     nmaps = 0
     if ninds > 0:
       nmaps = max(mapinds)+1
-
+    
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -142,6 +143,7 @@ def op2_gen_seq(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -157,7 +159,8 @@ def op2_gen_seq(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -169,6 +172,7 @@ def op2_gen_seq(master, date, consts, kernels):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -178,6 +182,7 @@ def op2_gen_seq(master, date, consts, kernels):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -185,6 +190,12 @@ def op2_gen_seq(master, date, consts, kernels):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
@@ -194,6 +205,7 @@ def op2_gen_seq(master, date, consts, kernels):
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
+
 
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
@@ -323,17 +335,41 @@ def op2_gen_seq(master, date, consts, kernels):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
+      for g_m in range (0,nargs):
+        u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+        if len(u) > 0 and vectorised[g_m] > 0:
+          if accs[g_m] == OP_READ:
+            line = 'const TYP* ARG_vec[] = {\n'
+          else:
+            line = 'TYP* ARG_vec[] = {\n'
+
+          v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+          first = [i for i in range(0,len(v)) if v[i] == 1]
+          first = first[0]
+        
+          indent = ' '*(depth+2)
+          for k in range(0,sum(v)):
+            line = line + indent + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+          line = line[:-2]+'};'
+          code(line)
+      code('')
+
       line = name+'('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+' * n]'
-        if maps[g_m] == OP_MAP:
-          line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+        if maps[g_m] == OP_MAP: 
+          if vectorised[g_m]:
+            if g_m+1 in unique_args:
+                line = line + indent + 'arg'+str(g_m)+'_vec'
+          else:
+            line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
-        if g_m < nargs-1:
-          line = line +','
+        if g_m < nargs-1: 
+          if g_m+1 in unique_args and not g_m+1 == unique_args[-1]:
+            line = line +','
         else:
            line = line +');'
       code(line)
@@ -373,7 +409,16 @@ def op2_gen_seq(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
+#        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
+        if typs[g_m] == 'double': #need for both direct and indirect
+          code('op_mpi_reduce_double(&ARG,('+typs[g_m]+'*)ARG.data);')
+        elif typs[g_m] == 'float':
+          code('op_mpi_reduce_float(&ARG,('+typs[g_m]+'*)ARG.data);')
+        elif typs[g_m] == 'int':
+          code('op_mpi_reduce_int(&ARG,('+typs[g_m]+'*)ARG.data);')
+        else:
+          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
+          exit(-1)
 
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
@@ -411,7 +456,7 @@ def op2_gen_seq(master, date, consts, kernels):
         if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
           mult = ' * 2.0f'
         if not var[g_m] in names:
-          names = names + [var[invinds[g_m]]]
+          names = names + [var[g_m]]
           if maps[g_m] == OP_ID:
             code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
           elif maps[g_m] == OP_GBL:

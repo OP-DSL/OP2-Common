@@ -132,13 +132,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     mapnames = kernels[nk]['mapnames']
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
-    nmaps = 0
 
+    print soaflags
+    nmaps = 0
     if ninds > 0:
       nmaps = max(mapinds)+1
-
+    nargs_novec = nargs
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -151,6 +151,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -166,7 +167,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -178,6 +180,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -187,6 +190,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -194,6 +198,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
@@ -308,21 +318,26 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     body_text = kernel_text[i+j+1:k]
 
     # check for number of arguments
-    if len(signature_text.split(',')) != nargs:
+    if len(signature_text.split(',')) != nargs_novec:
         print 'Error parsing user kernel(%s): must have %d arguments' \
               % name, nargs
         return
 
-    for i in range(0,nargs):
+    for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if soaflags[i] and not (maps[i] == OP_MAP and accs[i] == OP_INC):
+        if kernels[nk]['soaflags'][i] and not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC):
+          print name, var
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
-          body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+          if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+          else:
+            body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
+            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
+                op2_gen_common.get_stride_string(i,kernels[nk]['maps'],kernels[nk]['mapnames'],name)+']', body_text)
 
     signature_text = '__device__ '+head_text + '_gpu( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
@@ -404,16 +419,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       if sum(v)>1 and sum(v_i)>0: #check this sum(v_i)
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'] = {'); depth += 2;
+          code('INDTYP *arg'+str(invinds[m-1])+'_vec['+str(ind)+'] = {'); depth += 2;
           for n in range(0,nargs):
             if inds[n] == m:
               g_m = n
               code('ARG_l,')
           depth -= 2
           code('};')
-        else:
-          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'];')
 #
 # lengthy code for general case with indirection
 #
@@ -515,6 +527,28 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+      code('')
+      for g_m in range (0,nargs):
+        if accs[g_m] <> OP_INC:
+          u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+          if len(u) > 0 and vectorised[g_m] > 0:
+            if accs[g_m] == OP_READ:
+              line = 'const TYP* ARG_vec[] = {\n'
+            else:
+              line = 'TYP* ARG_vec[] = {\n'
+
+            v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+            first = [i for i in range(0,len(v)) if v[i] == 1]
+            first = first[0]
+
+            indent = ' '*(depth+2)
+            for k in range(0,sum(v)):
+              if soaflags[g_m]:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+              else:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line[:-2]+'};'
+            code(line)
 
 
 
@@ -546,13 +580,21 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           line += rep(indent+'ARG_l,\n',m);
         a =a+1
       elif maps[m]==OP_MAP and  accs[m]==OP_INC:
-        line += rep(indent+'ARG_l,\n',m)
+        if vectorised[m]:
+          if m+1 in unique_args:
+            line += rep(indent+'ARG_vec,\n',m)
+        else:
+          line += rep(indent+'ARG_l,\n',m)
         a =a+1
       elif maps[m]==OP_MAP:
-        if soaflags[m]:
-          line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx,'+'\n',m)
+        if vectorised[m]:
+          if m+1 in unique_args:
+            line += rep(indent+'ARG_vec,\n',m)
         else:
-          line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*DIM,'+'\n',m)
+          if soaflags[m]:
+            line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx,'+'\n',m)
+          else:
+            line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*DIM,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
         if ninds>0:
@@ -597,17 +639,18 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         IF('col2==col')
 
         if inc_stage==1:
+          print soaflags
           for g_m in range(0,nargs):
             if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
-                if soaflags[invinds[g_m]]:
+                if soaflags[g_m]:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size];')
                 else:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM];')
           for g_m in range(0,nargs):
             if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
-                if soaflags[invinds[g_m]]:
+                if soaflags[g_m]:
                   code('ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size] = ARG_l['+str(d)+'];')
                 else:
                   code('ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM] = ARG_l['+str(d)+'];')

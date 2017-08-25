@@ -119,8 +119,15 @@ def op2_gen_openmp(master, date, consts, kernels):
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
 
-    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
+    mapnames = kernels[nk]['mapnames']
+    invmapinds = kernels[nk]['invmapinds']
+    mapinds = kernels[nk]['mapinds']
 
+    nmaps = 0
+    if ninds > 0:
+      nmaps = max(mapinds)+1
+
+    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -133,6 +140,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -148,7 +156,8 @@ def op2_gen_openmp(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -160,6 +169,7 @@ def op2_gen_openmp(master, date, consts, kernels):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -169,13 +179,20 @@ def op2_gen_openmp(master, date, consts, kernels):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
-      var = new_vars
+            var = new_vars
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
@@ -185,7 +202,6 @@ def op2_gen_openmp(master, date, consts, kernels):
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
-
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
