@@ -27,7 +27,7 @@ xxx_kernel.cu   -- for CUDA execution
 
 plus a master kernel file of the form
 
-file1_kernels.cpp  -- for OpenMP x86 execution
+file1_kernels.cpp  -- for OpenMP x86 execution`
 file1_kernels.cu   -- for CUDA execution
 """
 
@@ -500,20 +500,7 @@ def main():
 
             for m in range(0, nargs):
                 argm = loop_args[i]['args'][m]
-                if argm['dim'] in macro_defs.keys():
-                    # print("Replacing '" + argm['dim'] + "' with " + macro_defs[argm['dim']])
-                    argm['dim'] = macro_defs[argm['dim']]
-
-                    if re.search(arithmetic_regex_pattern, argm['dim']) != None:
-                        res = ""
-                        try:
-                            res = eval(argm['dim'])
-                        except:
-                            pass
-                        if type(res) != type(""):
-                            if str(res) != argm['dim']:
-                                # print("Replacing '" + argm['dim'] + "' with '" + str(res) + "'")
-                                argm['dim'] = str(res)
+                argm['dim'] = evaluate_macro_defs_in_string(macro_defs, argm['dim'])
 
                 arg_type = loop_args[i]['args'][m]['type']
                 args = loop_args[i]['args'][m]
