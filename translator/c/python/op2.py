@@ -216,10 +216,6 @@ def op_decl_const_parse(text):
             print 'Error in op_decl_const : must have three arguments'
             return
 
-        if args[0].strip() == 'NVAR':
-          args[0] = '4'
-        if args[0].strip() == 'NDIM':
-          args[0] = '3'
         consts.append({
             'loc': m.start(),
             'dim': args[0].strip(),
@@ -270,10 +266,6 @@ def get_arg_dat(arg_string, j):
                 'typ': dat_args_string.split(',')[4].strip(),
                 'acc': dat_args_string.split(',')[5].strip()}
 
-    if temp_dat['dim'] == 'NVAR':
-      temp_dat['dim'] = '4'
-    if temp_dat['dim'] == 'NDIM':
-      temp_dat['dim'] = '3'
     return temp_dat
 
 
@@ -298,10 +290,6 @@ def get_arg_gbl(arg_string, k):
                 'typ': gbl_args_string.split(',')[2].strip(),
                 'acc': gbl_args_string.split(',')[3].strip()}
 
-    if temp_gbl['dim'] == 'NVAR':
-      temp_gbl['dim'] = '4'
-    if temp_gbl['dim'] == 'NDIM':
-      temp_gbl['dim'] = '3'
     return temp_gbl
 
 def append_init_soa(text):
