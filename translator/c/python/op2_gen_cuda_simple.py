@@ -312,7 +312,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
     signature_text = kernel_text[i:i+j]
     l = signature_text[0:].find('(')
-    head_text = signature_text[0:l] #save function name
+    head_text = signature_text[0:l].strip() #save function name
     m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
     signature_text = signature_text[l+1:m]
     body_text = kernel_text[i+j+1:k]

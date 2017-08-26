@@ -29,8 +29,8 @@ ifeq ($(OP2_COMPILER),gnu)
   CC       := gcc
   CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
   CXX      := g++
-  CXXFLAGS := -std=c99 -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpiCC
+  CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
