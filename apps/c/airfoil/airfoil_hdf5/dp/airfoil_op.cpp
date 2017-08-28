@@ -128,6 +128,13 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init_soa(argc, argv, 2,1);
 
+  int renumber = 0;
+  for (int i = 1; i < argc; ++i)
+    if (strcmp(argv[i],"-renumber")==0) {
+      op_printf("Enabling renumbering\n");
+      renumber = 1;
+    }
+
   int niter;
   double rms;
 
@@ -201,7 +208,9 @@ int main(int argc, char **argv) {
   // trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
+  if (renumber) op_renumber(pecell);
 
+#define PDIM 2
   int g_ncell = op_get_size(cells);
 
   // initialise timers for total execution wall time

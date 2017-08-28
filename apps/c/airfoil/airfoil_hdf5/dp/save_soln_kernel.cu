@@ -7,7 +7,7 @@ int direct_save_soln_stride_OP2HOST=-1;
 //user function
 __device__ void save_soln_gpu( const double *q, double *qold) {
   for (int n = 0; n < 4; n++)
-    qold[n*direct_save_soln_stride_OP2CONSTANT] = q[n*direct_save_soln_stride_OP2CONSTANT];
+    qold[(n)*direct_save_soln_stride_OP2CONSTANT] = q[(n)*direct_save_soln_stride_OP2CONSTANT];
 }
 
 // CUDA kernel function

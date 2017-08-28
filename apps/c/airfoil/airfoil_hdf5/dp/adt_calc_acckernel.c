@@ -13,25 +13,25 @@ inline void adt_calc( const double *x1, const double *x2, const double *x3,
                      const double *x4, const double *q, double *adt) {
   double dx, dy, ri, u, v, c;
 
-  ri = 1.0f / q[0*direct_adt_calc_stride_OP2CONSTANT];
-  u = ri * q[1*direct_adt_calc_stride_OP2CONSTANT];
-  v = ri * q[2*direct_adt_calc_stride_OP2CONSTANT];
-  c = sqrt(gam * gm1 * (ri * q[3*direct_adt_calc_stride_OP2CONSTANT] - 0.5f * (u * u + v * v)));
+  ri = 1.0f / q[(0)*direct_adt_calc_stride_OP2CONSTANT];
+  u = ri * q[(1)*direct_adt_calc_stride_OP2CONSTANT];
+  v = ri * q[(2)*direct_adt_calc_stride_OP2CONSTANT];
+  c = sqrt(gam * gm1 * (ri * q[(3)*direct_adt_calc_stride_OP2CONSTANT] - 0.5f * (u * u + v * v)));
 
-  dx = x2[0*opDat0_adt_calc_stride_OP2CONSTANT] - x1[0*opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x2[1*opDat0_adt_calc_stride_OP2CONSTANT] - x1[1*opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x2[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x1[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x2[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x1[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x3[0*opDat0_adt_calc_stride_OP2CONSTANT] - x2[0*opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x3[1*opDat0_adt_calc_stride_OP2CONSTANT] - x2[1*opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x3[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x3[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x2[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x4[0*opDat0_adt_calc_stride_OP2CONSTANT] - x3[0*opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x4[1*opDat0_adt_calc_stride_OP2CONSTANT] - x3[1*opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x4[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x3[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x4[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x3[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x1[0*opDat0_adt_calc_stride_OP2CONSTANT] - x4[0*opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x1[1*opDat0_adt_calc_stride_OP2CONSTANT] - x4[1*opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x1[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x4[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x1[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x4[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   *adt = (*adt) * (1.0f / cfl);
@@ -120,6 +120,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         int map1idx = map0[n + set_size1 * 1];
         int map2idx = map0[n + set_size1 * 2];
         int map3idx = map0[n + set_size1 * 3];
+
 
         adt_calc(
           &data0[map0idx],

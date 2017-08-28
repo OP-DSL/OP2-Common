@@ -12,33 +12,33 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
                      double *res1, double *res2) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
-  dx = x1[0*opDat0_res_calc_stride_OP2CONSTANT] - x2[0*opDat0_res_calc_stride_OP2CONSTANT];
-  dy = x1[1*opDat0_res_calc_stride_OP2CONSTANT] - x2[1*opDat0_res_calc_stride_OP2CONSTANT];
+  dx = x1[(0)*opDat0_res_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_res_calc_stride_OP2CONSTANT];
+  dy = x1[(1)*opDat0_res_calc_stride_OP2CONSTANT] - x2[(1)*opDat0_res_calc_stride_OP2CONSTANT];
 
-  ri = 1.0f / q1[0*opDat2_res_calc_stride_OP2CONSTANT];
-  p1 = gm1 * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] * q1[1*opDat2_res_calc_stride_OP2CONSTANT] + q1[2*opDat2_res_calc_stride_OP2CONSTANT] * q1[2*opDat2_res_calc_stride_OP2CONSTANT]));
-  vol1 = ri * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] * dy - q1[2*opDat2_res_calc_stride_OP2CONSTANT] * dx);
+  ri = 1.0f / q1[(0)*opDat2_res_calc_stride_OP2CONSTANT];
+  p1 = gm1 * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] * q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] + q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] * q1[(2)*opDat2_res_calc_stride_OP2CONSTANT]));
+  vol1 = ri * (q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] * dy - q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] * dx);
 
-  ri = 1.0f / q2[0*opDat2_res_calc_stride_OP2CONSTANT];
-  p2 = gm1 * (q2[3*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q2[1*opDat2_res_calc_stride_OP2CONSTANT] * q2[1*opDat2_res_calc_stride_OP2CONSTANT] + q2[2*opDat2_res_calc_stride_OP2CONSTANT] * q2[2*opDat2_res_calc_stride_OP2CONSTANT]));
-  vol2 = ri * (q2[1*opDat2_res_calc_stride_OP2CONSTANT] * dy - q2[2*opDat2_res_calc_stride_OP2CONSTANT] * dx);
+  ri = 1.0f / q2[(0)*opDat2_res_calc_stride_OP2CONSTANT];
+  p2 = gm1 * (q2[(3)*opDat2_res_calc_stride_OP2CONSTANT] - 0.5f * ri * (q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] * q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] + q2[(2)*opDat2_res_calc_stride_OP2CONSTANT] * q2[(2)*opDat2_res_calc_stride_OP2CONSTANT]));
+  vol2 = ri * (q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] * dy - q2[(2)*opDat2_res_calc_stride_OP2CONSTANT] * dx);
 
   mu = 0.5f * ((*adt1) + (*adt2)) * eps;
 
-  f = 0.5f * (vol1 * q1[0*opDat2_res_calc_stride_OP2CONSTANT] + vol2 * q2[0*opDat2_res_calc_stride_OP2CONSTANT]) + mu * (q1[0*opDat2_res_calc_stride_OP2CONSTANT] - q2[0*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[0] += f;
-  res2[0] -= f;
-  f = 0.5f * (vol1 * q1[1*opDat2_res_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * q2[1*opDat2_res_calc_stride_OP2CONSTANT] + p2 * dy) +
-      mu * (q1[1*opDat2_res_calc_stride_OP2CONSTANT] - q2[1*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[1] += f;
-  res2[1] -= f;
-  f = 0.5f * (vol1 * q1[2*opDat2_res_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * q2[2*opDat2_res_calc_stride_OP2CONSTANT] - p2 * dx) +
-      mu * (q1[2*opDat2_res_calc_stride_OP2CONSTANT] - q2[2*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[2] += f;
-  res2[2] -= f;
-  f = 0.5f * (vol1 * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] + p1) + vol2 * (q2[3*opDat2_res_calc_stride_OP2CONSTANT] + p2)) + mu * (q1[3*opDat2_res_calc_stride_OP2CONSTANT] - q2[3*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[3] += f;
-  res2[3] -= f;
+  f = 0.5f * (vol1 * q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] + vol2 * q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]) + mu * (q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[(0)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(0)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
+  f = 0.5f * (vol1 * q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p2 * dy) +
+      mu * (q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(1)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[(1)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(1)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
+  f = 0.5f * (vol1 * q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * q2[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p2 * dx) +
+      mu * (q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(2)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[(2)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(2)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
+  f = 0.5f * (vol1 * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p1) + vol2 * (q2[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p2)) + mu * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(3)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[(3)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(3)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
 }
 
 // CUDA kernel function
@@ -49,132 +49,29 @@ __global__ void op_cuda_res_calc(
   double *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
-  int   *ind_map,
-  short *arg_map,
-  int   *ind_arg_sizes,
-  int   *ind_arg_offs,
-  int    block_offset,
-  int   *blkmap,
-  int   *offset,
-  int   *nelems,
-  int   *ncolors,
-  int   *colors,
-  int   nblocks,
+  int start,
+  int end,
+  int *col_reord,
   int   set_size) {
-  double arg6_l[4];
-  double arg7_l[4];
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if(tid + start >= end) return;
+  int n = col_reord[tid + start];
+  //initialise local variables
+  int map0idx = opDat0Map[n + set_size * 0];
+  int map1idx = opDat0Map[n + set_size * 1];
+  int map2idx = opDat2Map[n + set_size * 0];
+  int map3idx = opDat2Map[n + set_size * 1];
 
-  __shared__  int  *ind_arg3_map, ind_arg3_size;
-  __shared__  double *ind_arg3_s;
 
-  __shared__ int    nelems2, ncolor;
-  __shared__ int    nelem, offset_b;
-
-  extern __shared__ char shared[];
-
-  if (blockIdx.x+blockIdx.y*gridDim.x >= nblocks) {
-    return;
-  }
-  if (threadIdx.x==0) {
-
-    //get sizes and shift pointers and direct-mapped data
-
-    int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];
-
-    nelem    = nelems[blockId];
-    offset_b = offset[blockId];
-
-    nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
-    ncolor   = ncolors[blockId];
-
-    ind_arg3_size = ind_arg_sizes[0+blockId*1];
-
-    ind_arg3_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*1];
-
-    //set shared memory pointers
-    int nbytes = 0;
-    ind_arg3_s = (double *) &shared[nbytes];
-  }
-  __syncthreads(); // make sure all of above completed
-
-  for ( int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x ){
-    ind_arg3_s[n] = ZERO_double;
-  }
-
-  __syncthreads();
-
-  for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
-    int col2 = -1;
-    int map0idx;
-    int map1idx;
-    int map2idx;
-    int map3idx;
-    if (n<nelem) {
-      //initialise local variables
-      for ( int d=0; d<4; d++ ){
-        arg6_l[d] = ZERO_double;
-      }
-      for ( int d=0; d<4; d++ ){
-        arg7_l[d] = ZERO_double;
-      }
-      map0idx = opDat0Map[n + offset_b + set_size * 0];
-      map1idx = opDat0Map[n + offset_b + set_size * 1];
-      map2idx = opDat2Map[n + offset_b + set_size * 0];
-      map3idx = opDat2Map[n + offset_b + set_size * 1];
-
-      //user-supplied kernel call
-      res_calc_gpu(ind_arg0+map0idx,
+  //user-supplied kernel call
+  res_calc_gpu(ind_arg0+map0idx,
              ind_arg0+map1idx,
              ind_arg1+map2idx,
              ind_arg1+map3idx,
              ind_arg2+map2idx*1,
              ind_arg2+map3idx*1,
-             arg6_l,
-             arg7_l);
-      col2 = colors[n+offset_b];
-    }
-
-    //store local variables
-
-    int arg6_map;
-    int arg7_map;
-    if (col2>=0) {
-      arg6_map = arg_map[0*set_size+n+offset_b];
-      arg7_map = arg_map[1*set_size+n+offset_b];
-    }
-
-    for ( int col=0; col<ncolor; col++ ){
-      if (col2==col) {
-        arg6_l[0] += ind_arg3_s[arg6_map+0*ind_arg3_size];
-        arg6_l[1] += ind_arg3_s[arg6_map+1*ind_arg3_size];
-        arg6_l[2] += ind_arg3_s[arg6_map+2*ind_arg3_size];
-        arg6_l[3] += ind_arg3_s[arg6_map+3*ind_arg3_size];
-        arg7_l[0] += ind_arg3_s[arg7_map+0*ind_arg3_size];
-        arg7_l[1] += ind_arg3_s[arg7_map+1*ind_arg3_size];
-        arg7_l[2] += ind_arg3_s[arg7_map+2*ind_arg3_size];
-        arg7_l[3] += ind_arg3_s[arg7_map+3*ind_arg3_size];
-        ind_arg3_s[arg6_map+0*ind_arg3_size] = arg6_l[0];
-        ind_arg3_s[arg6_map+1*ind_arg3_size] = arg6_l[1];
-        ind_arg3_s[arg6_map+2*ind_arg3_size] = arg6_l[2];
-        ind_arg3_s[arg6_map+3*ind_arg3_size] = arg6_l[3];
-        ind_arg3_s[arg7_map+0*ind_arg3_size] = arg7_l[0];
-        ind_arg3_s[arg7_map+1*ind_arg3_size] = arg7_l[1];
-        ind_arg3_s[arg7_map+2*ind_arg3_size] = arg7_l[2];
-        ind_arg3_s[arg7_map+3*ind_arg3_size] = arg7_l[3];
-      }
-      __syncthreads();
-    }
-  }
-  for ( int n=threadIdx.x; n<ind_arg3_size; n+=blockDim.x ){
-    arg6_l[0] = ind_arg3_s[n+0*ind_arg3_size] + ind_arg3[ind_arg3_map[n]+0*opDat2_res_calc_stride_OP2CONSTANT];
-    arg6_l[1] = ind_arg3_s[n+1*ind_arg3_size] + ind_arg3[ind_arg3_map[n]+1*opDat2_res_calc_stride_OP2CONSTANT];
-    arg6_l[2] = ind_arg3_s[n+2*ind_arg3_size] + ind_arg3[ind_arg3_map[n]+2*opDat2_res_calc_stride_OP2CONSTANT];
-    arg6_l[3] = ind_arg3_s[n+3*ind_arg3_size] + ind_arg3[ind_arg3_map[n]+3*opDat2_res_calc_stride_OP2CONSTANT];
-    ind_arg3[ind_arg3_map[n]+0*opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[0];
-    ind_arg3[ind_arg3_map[n]+1*opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[1];
-    ind_arg3[ind_arg3_map[n]+2*opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[2];
-    ind_arg3[ind_arg3_map[n]+3*opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[3];
-  }
+             ind_arg3+map2idx,
+             ind_arg3+map3idx);
 }
 
 
@@ -226,7 +123,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
 
     if ((OP_kernels[2].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -237,8 +134,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
       cudaMemcpyToSymbol(opDat2_res_calc_stride_OP2CONSTANT, &opDat2_res_calc_stride_OP2HOST,sizeof(int));
     }
     //execute plan
-
-    int block_offset = 0;
     for ( int col=0; col<Plan->ncolors; col++ ){
       if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
@@ -249,32 +144,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int nthread = OP_block_size;
       #endif
 
-      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
-      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
-      if (Plan->ncolblk[col] > 0) {
-        int nshared = Plan->nsharedCol[col];
-        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
-        (double *)arg0.data_d,
-        (double *)arg2.data_d,
-        (double *)arg4.data_d,
-        (double *)arg6.data_d,
-        arg0.map_data_d,
-        arg2.map_data_d,
-        Plan->ind_map,
-        Plan->loc_map,
-        Plan->ind_sizes,
-        Plan->ind_offs,
-        block_offset,
-        Plan->blkmap,
-        Plan->offset,
-        Plan->nelems,
-        Plan->nthrcol,
-        Plan->thrcol,
-        Plan->ncolblk[col],
-        set->size+set->exec_size);
+      int start = Plan->col_offsets[0][col];
+      int end = Plan->col_offsets[0][col+1];
+      int nblocks = (end - start - 1)/nthread + 1;
+      op_cuda_res_calc<<<nblocks,nthread>>>(
+      (double *)arg0.data_d,
+      (double *)arg2.data_d,
+      (double *)arg4.data_d,
+      (double *)arg6.data_d,
+      arg0.map_data_d,
+      arg2.map_data_d,
+      start,
+      end,
+      Plan->col_reord,
+      set->size+set->exec_size);
 
-      }
-      block_offset += Plan->ncolblk[col];
     }
     OP_kernels[2].transfer  += Plan->transfer;
     OP_kernels[2].transfer2 += Plan->transfer2;

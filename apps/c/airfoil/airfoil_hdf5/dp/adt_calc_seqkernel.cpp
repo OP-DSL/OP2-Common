@@ -46,6 +46,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       int map2idx = arg0.map_data[n * arg0.map->dim + 2];
       int map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
+
       adt_calc(
         &((double*)arg0.data)[2 * map0idx],
         &((double*)arg0.data)[2 * map1idx],

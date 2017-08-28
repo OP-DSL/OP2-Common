@@ -32,7 +32,7 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS	= -openmp 
+  OMPFLAGS	= -qopenmp 
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)

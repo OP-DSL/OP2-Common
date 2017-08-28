@@ -15,9 +15,9 @@ inline void update( const double *qold, double *q, double *res,
   adti = 1.0f / (*adt);
 
   for (int n = 0; n < 4; n++) {
-    del = adti * res[n*direct_update_stride_OP2CONSTANT];
-    q[n*direct_update_stride_OP2CONSTANT] = qold[n*direct_update_stride_OP2CONSTANT] - del;
-    res[n*direct_update_stride_OP2CONSTANT] = 0.0f;
+    del = adti * res[(n)*direct_update_stride_OP2CONSTANT];
+    q[(n)*direct_update_stride_OP2CONSTANT] = qold[(n)*direct_update_stride_OP2CONSTANT] - del;
+    res[(n)*direct_update_stride_OP2CONSTANT] = 0.0f;
     rmsl += del * del;
   }
   *rms += rmsl;

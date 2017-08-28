@@ -27,7 +27,7 @@ xxx_kernel.cu   -- for CUDA execution
 
 plus a master kernel file of the form
 
-file1_kernels.cpp  -- for OpenMP x86 execution
+file1_kernels.cpp  -- for OpenMP x86 execution`
 file1_kernels.cu   -- for CUDA execution
 """
 
@@ -49,6 +49,8 @@ from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 from op2_gen_openmp4 import op2_gen_openmp4
+
+arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
 
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
@@ -80,6 +82,97 @@ def op_parse_calls(text):
 
     return (inits, exits, parts, hdf5s)
 
+def op_parse_macro_defs(text):
+    """Parsing for C macro definitions"""
+
+    defs = {}
+    macro_def_pattern = r'(\n|^)[ ]*(#define[ ]+)([A-Za-z0-9\_]+)[ ]+([0-9A-Za-z\_\.\+\-\*\/\(\) ]+)'
+    for match in re.findall(macro_def_pattern, text):
+        if len(match) < 4:
+            continue
+        elif len(match) > 4:
+            print("Unexpected format for macro definition: " + str(match))
+            continue
+        key = match[2]
+        value = match[3]
+        defs[key] = value
+        # print(key + " -> " + value)
+    return defs
+
+def self_evaluate_macro_defs(macro_defs):
+    """Recursively evaluate C macro definitions that refer to other detected macros"""
+
+    substitutions_performed = True
+    while substitutions_performed:
+        substitutions_performed = False
+        for k in macro_defs.keys():
+            k_val = macro_defs[k]
+            m = re.search(arithmetic_regex_pattern, k_val)
+            if m != None:
+                ## This macro definiton is numeric
+                continue
+
+            ## If value of key 'k' depends on value of other 
+            ## keys, then substitute in value:
+            for k2 in macro_defs.keys():
+                pattern = r'' + '(^|[^a-zA-Z0-9_])' + k2 + '($|[^a-zA-Z0-9_])'
+                m = re.search(pattern, k_val)
+
+                if m != None:
+                    ## The macro "k" refers to macro "k2"
+                    k2_val = macro_defs[k2]
+                    macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
+                    # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
+                    substitutions_performed = True
+
+    ## Evaluate any mathematical expressions:
+    for k in macro_defs.keys():
+        val = macro_defs[k]
+        m = re.search(arithmetic_regex_pattern, val)
+        if m != None:
+            res = ""
+            try:
+                res = eval(val)
+            except:
+                pass
+            if type(res) != type(""):
+                if str(res) != val:
+                    # print("Replacing '" + val + "' with '" + str(res) + "'")
+                    macro_defs[k] = str(res)
+
+def evaluate_macro_defs_in_string(macro_defs, string):
+    """Recursively evaluate C macro definitions in 'string' """
+
+    resolved_string = string
+
+    substitutions_performed = True
+    while substitutions_performed:
+        substitutions_performed = False
+        for k in macro_defs.keys():
+            k_val = macro_defs[k]
+
+            k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
+            m = re.search(k_pattern, resolved_string)
+            if m != None:
+                ## "string" contains a reference to macro "k", so substitute 
+                ## in its definition:
+                resolved_string_new = re.sub(k_pattern, "\\g<1>"+k_val+"\\g<2>", resolved_string)
+                # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
+                resolved_string = resolved_string_new
+                substitutions_performed = True
+
+
+    if re.search(arithmetic_regex_pattern, resolved_string) != None:
+        res = ""
+        try:
+            res = eval(resolved_string)
+        except:
+            return resolved_string
+        else:
+            if type(res) != type(""):
+                resolved_string = str(res)
+
+    return resolved_string
 
 def op_decl_set_parse(text):
     """Parsing for op_decl_set calls"""
@@ -280,6 +373,7 @@ def main():
     kernels = []
     sets = []
     kernels_in_files = []
+    macro_defs = {}
 
     OP_ID = 1
     OP_GBL = 2
@@ -297,8 +391,23 @@ def main():
     OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
                       'OP_MAX', 'OP_MIN']
 
-    #  loop over all input source files
+    # Loop over all input source files for C-Macro definitions:
+    for a in range(1, len(sys.argv)):
+        src_file = str(sys.argv[a])
+        f = open(src_file, 'r')
+        text = f.read()
 
+        defs = op_parse_macro_defs(text)
+        for k in defs.keys():
+            if (k in macro_defs) and (defs[k] != macro_defs[k]):
+                print("fail")
+                exit(0)
+            else:
+                macro_defs[k] = defs[k]
+        defs = {}
+    self_evaluate_macro_defs(macro_defs)
+
+    ## Loop over all input source files to search for op_par_loop calls
     kernels_in_files = [[] for _ in range(len(sys.argv) - 1)]
     for a in range(1, len(sys.argv)):
         print 'processing file ' + str(a) + ' of ' + str(len(sys.argv) - 1) + \
@@ -340,6 +449,8 @@ def main():
 
         # cleanup '&' symbols from name and convert dim to integer
         for i in range(0, len(const_args)):
+            const_args[i]['dim'] = evaluate_macro_defs_in_string(macro_defs, const_args[i]['dim'])
+
             if const_args[i]['name'][0] == '&':
                 const_args[i]['name'] = const_args[i]['name'][1:]
                 const_args[i]['dim'] = int(const_args[i]['dim'])
@@ -391,6 +502,9 @@ def main():
             soaflags = [0] * nargs
 
             for m in range(0, nargs):
+                argm = loop_args[i]['args'][m]
+                argm['dim'] = evaluate_macro_defs_in_string(macro_defs, argm['dim'])
+
                 arg_type = loop_args[i]['args'][m]['type']
                 args = loop_args[i]['args'][m]
 
@@ -699,6 +813,58 @@ def main():
         f.close()
     # end of loop over input source files
 
+    ## Loop over input source files again, but this time to find 
+    ## the header file for each kernel. No need to assume that 
+    ## header file is named after the kernel:
+    for a in range(1, len(sys.argv)):
+        src_file = str(sys.argv[a])
+        f = open(src_file, 'r')
+        text = f.read()
+
+        for nk in xrange(0,len(kernels)):
+            name = kernels[nk]["name"]
+            inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+            matches = re.findall(inline_impl_pattern, text)
+            if len(matches) == 1:
+                kernels[nk]["decl_filepath"] = src_file
+                kernels[nk]["decl_filename"] = os.path.basename(src_file)
+                continue
+            decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+            matches = re.findall(decl_pattern, text)
+            if len(matches) == 1:
+                kernels[nk]["decl_filepath"] = src_file
+                kernels[nk]["decl_filename"] = os.path.basename(src_file)
+
+    for nk in xrange(0,len(kernels)):
+        name = kernels[nk]["name"]
+        if not "decl_filepath" in kernels[nk].keys():
+            ## Kernel not found in command-line supplied files, but maybe 
+            ## its declaration is in a file with the same name:
+            src_file = kernels[nk]["name"] + ".h"
+            if os.path.isfile(src_file):
+                f = open(src_file, 'r')
+                text = f.read()
+
+                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+                matches = re.findall(inline_impl_pattern, text)
+                if len(matches) == 1:
+                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
+                    kernels[nk]["decl_filename"] = src_file
+                    continue
+                decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+                matches = re.findall(decl_pattern, text)
+                if len(matches) == 1:
+                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
+                    kernels[nk]["decl_filename"] = src_file
+
+    fail = False
+    for nk in xrange(0,len(kernels)):
+        if not "decl_filepath" in kernels[nk].keys():
+            fail = True
+            print("Declaration not found for kernel " + kernels[nk]["name"])
+    if fail:
+        exit(2)
+
     #  errors and warnings
 
     if ninit == 0:
@@ -727,7 +893,7 @@ def main():
 
 
     op2_gen_seq(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
-    op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+    #op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
     #code generators for OpenMP parallelisation with MPI
     #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator

@@ -116,6 +116,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
+    decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
     inddims = kernels[nk]['inddims']
@@ -125,12 +126,13 @@ def op2_gen_openacc(master, date, consts, kernels):
     mapnames = kernels[nk]['mapnames']
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
+
     nmaps = 0
     if ninds > 0:
       nmaps = max(mapinds)+1
+    nargs_novec = nargs
 
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -143,6 +145,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -158,7 +161,8 @@ def op2_gen_openacc(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -170,6 +174,7 @@ def op2_gen_openacc(master, date, consts, kernels):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -179,6 +184,7 @@ def op2_gen_openacc(master, date, consts, kernels):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -186,6 +192,12 @@ def op2_gen_openacc(master, date, consts, kernels):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
@@ -195,7 +207,6 @@ def op2_gen_openacc(master, date, consts, kernels):
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
-
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
@@ -247,20 +258,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           break
 
     comm('user function')
-    found = 0
-    for files in glob.glob( "*.h" ):
-      f = open( files, 'r' )
-      for line in f:
-        match = re.search(r''+'\\b'+name+'\\b', line)
-        if match :
-          file_name = f.name
-          found = 1;
-          break
-      if found == 1:
-        break;
-
-    if found == 0:
-      print "COUND NOT FIND KERNEL", name
+    file_name = decl_filepath
 
     f = open(file_name, 'r')
     kernel_text = f.read()
@@ -283,27 +281,32 @@ def op2_gen_openacc(master, date, consts, kernels):
     k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
     signature_text = kernel_text[i:i+j]
     l = signature_text[0:].find('(')
-    head_text = signature_text[0:l] #save function name
+    head_text = signature_text[0:l].strip() #save function name
     m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
     signature_text = signature_text[l+1:m]
     body_text = kernel_text[i+j+1:k]
 
     # check for number of arguments
-    if len(signature_text.split(',')) != nargs:
+    if len(signature_text.split(',')) != nargs_novec:
         print 'Error parsing user kernel(%s): must have %d arguments' \
               % name, nargs
         return
 
-    for i in range(0,nargs):
+    for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if soaflags[i]:
+        if kernels[nk]['soaflags'][i]:
+          print name, var
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
-          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+          if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+          else:
+            body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
+            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
+                op2_gen_common.get_stride_string(i,kernels[nk]['maps'],kernels[nk]['mapnames'],name)+']', body_text)
 
     signature_text = '//#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
@@ -505,6 +508,24 @@ def op2_gen_openacc(master, date, consts, kernels):
               '[n + set_size1 * '+str(idxs[g_m])+'];')
 
       code('')
+      for g_m in range (0,nargs):
+        u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+        if len(u) > 0 and vectorised[g_m] > 0:
+          line = 'TYP* ARG_vec[] = {\n'
+
+          v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+          first = [i for i in range(0,len(v)) if v[i] == 1]
+          first = first[0]
+
+          indent = ' '*(depth+2)
+          for k in range(0,sum(v)):
+            if soaflags[g_m]:
+              line = line + indent + ' &data'+str(first)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+            else:
+              line = line + indent + ' &data'+str(first)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+          line = line[:-2]+'};'
+          code(line)
+      code('')
       line = name+'('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
@@ -514,14 +535,19 @@ def op2_gen_openacc(master, date, consts, kernels):
           else:
             line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+' * n]'
         if maps[g_m] == OP_MAP:
-          if soaflags[g_m]:
-            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
+          if vectorised[g_m]:
+            if g_m+1 in unique_args:
+              line = line + indent + 'arg'+str(g_m)+'_vec'
           else:
-            line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+            if soaflags[g_m]:
+              line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
+            else:
+              line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&arg'+str(g_m)+'_l'
         if g_m < nargs-1:
-          line = line +','
+          if g_m+1 in unique_args and not g_m+1 == unique_args[-1]:
+            line = line +','
         else:
            line = line +');'
       code(line)

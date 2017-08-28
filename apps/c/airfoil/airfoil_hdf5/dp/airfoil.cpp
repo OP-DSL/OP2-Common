@@ -72,6 +72,13 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
+  int renumber = 0;
+  for (int i = 1; i < argc; ++i)
+    if (strcmp(argv[i],"-renumber")==0) {
+      op_printf("Enabling renumbering\n");
+      renumber = 1;
+    }
+
   int niter;
   double rms;
 
@@ -145,7 +152,9 @@ int main(int argc, char **argv) {
   // trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
+  if (renumber) op_renumber(pecell);
 
+#define PDIM 2
   int g_ncell = op_get_size(cells);
 
   // initialise timers for total execution wall time
@@ -174,7 +183,7 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_x, 1, pcell, 2, "double", OP_READ),
                   op_arg_dat(p_x, 2, pcell, 2, "double", OP_READ),
                   op_arg_dat(p_x, 3, pcell, 2, "double", OP_READ),
-                  op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
+                  op_arg_dat(p_q, -1, OP_ID, PDIM*2, "double", OP_READ),
                   op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_WRITE));
 
       //    calculate flux residual
@@ -186,7 +195,7 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_q, 1, pecell, 4, "double", OP_READ),
                   op_arg_dat(p_adt, 0, pecell, 1, "double", OP_READ),
                   op_arg_dat(p_adt, 1, pecell, 1, "double", OP_READ),
-                  op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
+                  op_arg_dat(p_res, 0, pecell, 2*PDIM, "double", OP_INC),
                   op_arg_dat(p_res, 1, pecell, 4, "double", OP_INC));
 
       op_par_loop(bres_calc, "bres_calc", bedges,

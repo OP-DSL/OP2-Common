@@ -6,7 +6,7 @@
 
 #exit script if any error is encountered during the build or
 #application executions.
-#set -e
+set -e
 
 function validate {
   $1 > perf_out
@@ -30,7 +30,7 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
-<<COMMENT0
+#<<COMMENT0
 
 echo " "
 echo " "
@@ -151,9 +151,11 @@ cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
+validate "./airfoil_openmp OP_PART_SIZE=256 -renumber"
 export OMP_NUM_THREADS=1
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq -renumber"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
 validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
@@ -341,7 +343,7 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
-COMMENT0
+#COMMENT0
 
 ###################################################################################
 ###################################################################################
