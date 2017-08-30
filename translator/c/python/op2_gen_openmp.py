@@ -183,7 +183,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
-            var = new_vars
+      var = new_vars
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
