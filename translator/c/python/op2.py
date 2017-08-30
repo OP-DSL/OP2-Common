@@ -845,7 +845,7 @@ def main():
                 f = open(src_file, 'r')
                 text = f.read()
 
-                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\\s*\('
                 matches = re.findall(inline_impl_pattern, text)
                 if len(matches) == 1:
                     kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
