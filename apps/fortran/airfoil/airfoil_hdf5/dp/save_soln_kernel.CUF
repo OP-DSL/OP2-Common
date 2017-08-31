@@ -57,6 +57,7 @@ attributes (global) SUBROUTINE op_cuda_save_soln( &
 
   INTEGER(kind=4), VALUE :: setSize
   INTEGER(kind=4) :: i1
+  INTEGER(kind=4) :: i2
 
 
   DO i1 = threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x, setSize - 1, blockDim%x * gridDim%x
@@ -77,7 +78,7 @@ attributes (host) SUBROUTINE save_soln_host( userSubroutine, set, &
   & opArg2 )
 
   IMPLICIT NONE
-  character(len=9), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   TYPE ( op_set ) , INTENT(IN) :: set
 
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -98,9 +99,8 @@ attributes (host) SUBROUTINE save_soln_host_gpu( userSubroutine, set, &
   & opArg2 )
 
   IMPLICIT NONE
-  character(len=9), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   TYPE ( op_set ) , INTENT(IN) :: set
-  type ( op_set_core ) , POINTER :: opSetCore
 
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
   TYPE ( op_arg ) , INTENT(IN) :: opArg2
@@ -140,7 +140,7 @@ attributes (host) SUBROUTINE save_soln_host_gpu( userSubroutine, set, &
   opArgArray(2) = opArg2
 
   returnSetKernelTiming = setKernelTime(0 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000_4,0.00000_4, 0)
+  & 0.0_8, 0.00000_4,0.00000_4, 0)
   IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
     direct_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
     direct_stride_OP2CONSTANT = direct_stride_OP2HOST

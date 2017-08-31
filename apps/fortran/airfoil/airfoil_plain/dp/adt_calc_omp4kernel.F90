@@ -16,18 +16,16 @@ USE ISO_C_BINDING
 ! adt_calcvariable declarations
 
 INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
-!$acc declare create(opDat1_stride_OP2CONSTANT)
+!$omp declare target(opDat1_stride_OP2CONSTANT)
 INTEGER(kind=4) :: direct_stride_OP2CONSTANT
-!$acc declare create(direct_stride_OP2CONSTANT)
+!$omp declare target(direct_stride_OP2CONSTANT)
 
 #define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
 ! user function
-subroutine adt_calc_gpu(x1,x2,x3,x4,q,adt)
-!$acc routine seq
-! adt_calc
+SUBROUTINE adt_calc_gpu(x1,x2,x3,x4,q,adt)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
@@ -59,35 +57,38 @@ END SUBROUTINE
 
 SUBROUTINE op_wrap_adt_calc( &
   & opDat1Local, &
+  & opDat1Size, &
   & opDat5Local, &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
   & col_reord, set_size, &
-  & bottom,top)
+  & bottom,top,set_size_full)
   implicit none
-  real(8) opDat1Local(*)
-  real(8) opDat5Local(*)
-  real(8) opDat6Local(1,*)
-  INTEGER(kind=4) opDat1Map(*)
-  INTEGER(kind=4) opDat1MapDim
-  INTEGER(kind=4) col_reord(*)
   INTEGER(kind=4) set_size
+  INTEGER(kind=4) col_reord(set_size)
+  INTEGER(kind=4) set_size_full
+  INTEGER(kind=4) opDat1Size
+  real(8) opDat1Local(2*opDat1Size)
+  real(8) opDat5Local(4*set_size_full)
+  real(8) opDat6Local(1,set_size_full)
+  INTEGER(kind=4) opDat1MapDim
+  INTEGER(kind=4) opDat1Map(opDat1MapDim*set_size)
 
   INTEGER(kind=4) bottom,top,i1,i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
 
-  !$acc parallel loop independent gang vector &
-!$acc& deviceptr(opDat1Local) &
-!$acc& deviceptr(opDat5Local) &
-!$acc& deviceptr(opDat6Local) &
-!$acc& deviceptr(opDat1Map) &
-!$acc& deviceptr(col_reord) private(i1) &
-!$acc& private(map1idx) &
-!$acc& private(map2idx) &
-!$acc& private(map3idx) &
-!$acc& private(map4idx) 
+  !$omp target teams distribute parallel do &
+!$omp& map(to:opDat1Local) &
+!$omp& map(to:opDat5Local) &
+!$omp& map(to:opDat6Local) &
+!$omp& map(to:opDat1Map) &
+!$omp& map(to:col_reord) private(i1) &
+!$omp& private(map1idx) &
+!$omp& private(map2idx) &
+!$omp& private(map3idx) &
+!$omp& private(map4idx) 
   DO i2 = bottom, top-1, 1
     i1 = col_reord(i2+1)
     map1idx = opDat1Map(1 + i1 + set_size * 0)+1
@@ -104,6 +105,7 @@ SUBROUTINE op_wrap_adt_calc( &
     & opDat6Local(1,i1+1) &
     & )
   END DO
+  !$omp end target teams distribute parallel do
 
 END SUBROUTINE
 SUBROUTINE adt_calc_host( userSubroutine, set, &
@@ -179,11 +181,11 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
   IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
     opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
-    !$acc update device(opDat1_stride_OP2CONSTANT)
+    !$omp target update to(opDat1_stride_OP2CONSTANT)
   END IF
   IF ((calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg5))) THEN
     direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg5)
-    !$acc update device(direct_stride_OP2CONSTANT)
+    !$omp target update to(direct_stride_OP2CONSTANT)
   END IF
   call op_timers_core(startTime)
 
@@ -200,7 +202,6 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
 
   exec_size = opSetCore%size + opSetCore%exec_size
   numberOfIndirectOpDats = 1
-  partitionSize = 128 !no effect here, just have to set
 
   partitionSize=0
   planRet_adt_calc = FortranPlanCaller( &
@@ -235,11 +236,12 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
     nelem = offset_adt_calc(i1 + 1 + 1)
     CALL op_wrap_adt_calc( &
     & opDat1Local, &
+    & getSetSizeFromOpArg(opArg1), &
     & opDat5Local, &
     & opDat6Local, &
     & opDat1Map, &
     & opDat1MapDim, &
-    & col_reord_adt_calc, exec_size, offset_b, nelem )
+    & col_reord_adt_calc, exec_size, offset_b, nelem, exec_size+opSetCore%nonexec_size )
   END DO
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
