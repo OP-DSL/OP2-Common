@@ -156,7 +156,7 @@ END SUBROUTINE
     & opArg5 )
 
     IMPLICIT NONE
-    character(len=6), INTENT(IN) :: userSubroutine
+    character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
     TYPE ( op_set ) , INTENT(IN) :: set
 
     TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -186,9 +186,8 @@ END SUBROUTINE
     & opArg5 )
 
     IMPLICIT NONE
-    character(len=6), INTENT(IN) :: userSubroutine
+    character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
     TYPE ( op_set ) , INTENT(IN) :: set
-    type ( op_set_core ) , POINTER :: opSetCore
 
     TYPE ( op_arg ) , INTENT(IN) :: opArg1
     TYPE ( op_arg ) , INTENT(IN) :: opArg2
@@ -242,7 +241,7 @@ END SUBROUTINE
     opArgArray(5) = opArg5
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & 0.d0, 0.00000_4,0.00000_4, 0)
+    & 0.0_8, 0.00000_4,0.00000_4, 0)
     IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
       direct_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
       direct_stride_OP2CONSTANT = direct_stride_OP2HOST

@@ -16,17 +16,16 @@ USE ISO_C_BINDING
 ! bres_calcvariable declarations
 
 INTEGER(kind=4) :: opDat1_stride_OP2CONSTANT
-!$acc declare create(opDat1_stride_OP2CONSTANT)
+!$omp declare target(opDat1_stride_OP2CONSTANT)
 INTEGER(kind=4) :: opDat3_stride_OP2CONSTANT
-!$acc declare create(opDat3_stride_OP2CONSTANT)
+!$omp declare target(opDat3_stride_OP2CONSTANT)
 
 #define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
 ! user function
-subroutine bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
-!$acc routine seq
+SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2) :: x1
   REAL(kind=8), DIMENSION(2) :: x2
@@ -43,7 +42,7 @@ subroutine bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
 
   IF (bound .EQ. 1) THEN
     OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + p1 * dy
-    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) -(p1 * dx)
+    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) - p1 * dx
   ELSE
     vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
     ri = 1.0 / qinf(1)
@@ -64,45 +63,54 @@ END SUBROUTINE
 
 SUBROUTINE op_wrap_bres_calc( &
   & opDat1Local, &
+  & opDat1Size, &
   & opDat3Local, &
+  & opDat3Size, &
   & opDat4Local, &
+  & opDat4Size, &
   & opDat5Local, &
+  & opDat5Size, &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
   & opDat3Map, &
   & opDat3MapDim, &
   & col_reord, set_size, &
-  & bottom,top)
+  & bottom,top,set_size_full)
   implicit none
-  real(8) opDat1Local(*)
-  real(8) opDat3Local(*)
-  real(8) opDat4Local(1,*)
-  real(8) opDat5Local(*)
-  integer opDat6Local(1,*)
-  INTEGER(kind=4) opDat1Map(*)
-  INTEGER(kind=4) opDat1MapDim
-  INTEGER(kind=4) opDat3Map(*)
-  INTEGER(kind=4) opDat3MapDim
-  INTEGER(kind=4) col_reord(*)
   INTEGER(kind=4) set_size
+  INTEGER(kind=4) col_reord(set_size)
+  INTEGER(kind=4) set_size_full
+  INTEGER(kind=4) opDat1Size
+  real(8) opDat1Local(2*opDat1Size)
+  INTEGER(kind=4) opDat3Size
+  real(8) opDat3Local(4*opDat3Size)
+  INTEGER(kind=4) opDat4Size
+  real(8) opDat4Local(1,opDat4Size)
+  INTEGER(kind=4) opDat5Size
+  real(8) opDat5Local(4*opDat5Size)
+  integer(4) opDat6Local(1,set_size_full)
+  INTEGER(kind=4) opDat1MapDim
+  INTEGER(kind=4) opDat1Map(opDat1MapDim*set_size)
+  INTEGER(kind=4) opDat3MapDim
+  INTEGER(kind=4) opDat3Map(opDat3MapDim*set_size)
 
   INTEGER(kind=4) bottom,top,i1,i2
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
 
-  !$acc parallel loop independent gang vector &
-!$acc& deviceptr(opDat1Local) &
-!$acc& deviceptr(opDat3Local) &
-!$acc& deviceptr(opDat4Local) &
-!$acc& deviceptr(opDat5Local) &
-!$acc& deviceptr(opDat6Local) &
-!$acc& deviceptr(opDat1Map) &
-!$acc& deviceptr(opDat3Map) &
-!$acc& deviceptr(col_reord) private(i1) &
-!$acc& private(map1idx) &
-!$acc& private(map2idx) &
-!$acc& private(map3idx) 
+  !$omp target teams distribute parallel do &
+!$omp& map(to:opDat1Local) &
+!$omp& map(to:opDat3Local) &
+!$omp& map(to:opDat4Local) &
+!$omp& map(to:opDat5Local) &
+!$omp& map(to:opDat6Local) &
+!$omp& map(to:opDat1Map) &
+!$omp& map(to:opDat3Map) &
+!$omp& map(to:col_reord) private(i1) &
+!$omp& private(map1idx) &
+!$omp& private(map2idx) &
+!$omp& private(map3idx) 
   DO i2 = bottom, top-1, 1
     i1 = col_reord(i2+1)
     map1idx = opDat1Map(1 + i1 + set_size * 0)+1
@@ -118,6 +126,7 @@ SUBROUTINE op_wrap_bres_calc( &
     & opDat6Local(1,i1+1) &
     & )
   END DO
+  !$omp end target teams distribute parallel do
 
 END SUBROUTINE
 SUBROUTINE bres_calc_host( userSubroutine, set, &
@@ -164,7 +173,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   real(8), POINTER, DIMENSION(:) :: opDat5Local
   INTEGER(kind=4) :: opDat5Cardinality
 
-  integer, POINTER, DIMENSION(:) :: opDat6Local
+  integer(4), POINTER, DIMENSION(:) :: opDat6Local
   INTEGER(kind=4) :: opDat6Cardinality
 
   INTEGER(kind=4) :: threadID
@@ -205,11 +214,11 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
   IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg1))) THEN
     opDat1_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg1)
-    !$acc update device(opDat1_stride_OP2CONSTANT)
+    !$omp target update to(opDat1_stride_OP2CONSTANT)
   END IF
   IF ((calledTimes.EQ.0).OR.(opDat3_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg3))) THEN
     opDat3_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg3)
-    !$acc update device(opDat3_stride_OP2CONSTANT)
+    !$omp target update to(opDat3_stride_OP2CONSTANT)
   END IF
   call op_timers_core(startTime)
 
@@ -226,7 +235,6 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   exec_size = opSetCore%size + opSetCore%exec_size
   numberOfIndirectOpDats = 4
-  partitionSize = 128 !no effect here, just have to set
 
   partitionSize=0
   planRet_bres_calc = FortranPlanCaller( &
@@ -271,15 +279,19 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
     nelem = offset_bres_calc(i1 + 1 + 1)
     CALL op_wrap_bres_calc( &
     & opDat1Local, &
+    & getSetSizeFromOpArg(opArg1), &
     & opDat3Local, &
+    & getSetSizeFromOpArg(opArg3), &
     & opDat4Local, &
+    & getSetSizeFromOpArg(opArg4), &
     & opDat5Local, &
+    & getSetSizeFromOpArg(opArg5), &
     & opDat6Local, &
     & opDat1Map, &
     & opDat1MapDim, &
     & opDat3Map, &
     & opDat3MapDim, &
-    & col_reord_bres_calc, exec_size, offset_b, nelem )
+    & col_reord_bres_calc, exec_size, offset_b, nelem, exec_size+opSetCore%nonexec_size )
   END DO
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)

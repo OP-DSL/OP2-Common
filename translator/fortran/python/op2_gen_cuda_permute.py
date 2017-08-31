@@ -310,7 +310,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     #if ('ACCUMEDGES' in name) or ('IFLUX_EDGEF' in name):
         permute = 1
 
-    stage_inc = 0
+    stage_inc = 1
     if ('IFLUX_EDGE' in name) or ('VFLUX_EDGE' in name):
       stage_inc = 1
 
@@ -1390,7 +1390,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
     code('')
     code('IMPLICIT NONE')
-    code('character(len='+str(len(name))+'), INTENT(IN) :: userSubroutine')
+    code('character(kind=c_char,len=*), INTENT(IN) :: userSubroutine')
     code('TYPE ( op_set ) , INTENT(IN) :: set')
     code('')
 
@@ -1430,7 +1430,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     if util.const_list:
       code('use HYDRA_CONST_MODULE')
     code('IMPLICIT NONE')
-    code('character(len='+str(len(name))+'), INTENT(IN) :: userSubroutine')
+    code('character(kind=c_char,len=*), INTENT(IN) :: userSubroutine')
     code('TYPE ( op_set ) , INTENT(IN) :: set')
     code('')
 

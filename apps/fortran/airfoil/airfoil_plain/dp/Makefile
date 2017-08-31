@@ -31,7 +31,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  FC = pgfortran -fast -Mcuda=cuda7.5,cc35,fastmath,ptxinfo
+  FC = pgfortran -fast
+  OPT_CUDA=-Mcuda=cuda,cc35,fastmath,ptxinfo
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
@@ -53,8 +54,25 @@ ifeq ($(OP2_COMPILER),intel)
   CPPLINK = -lstdc++
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp
 else
+ifeq ($(OP2_COMPILER),xl)
+  CC = xlc++_r
+  FC = xlf_r
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPIF90 = mpif90
+  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot
+  OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR -Xptxas -v ${OMP4_REG_COUNT} -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0 -g1
+  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,DOP2_WITH_OPENACC
+  OPENMP = -qsmp=omp -qthreaded
+  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport -WF,-DOP2_WITH_OMP4  ${OMP4_REG_COUNT} -Xptxas -v -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
+  CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
+  ALL_TARGETS = airfoil_seq airfoil_openmp \
+                airfoil_mpi airfoil_mpi_genseq \
+                airfoil_mpi_openmp airfoil_cuda \
+                airfoil_mpi_cuda
+else
 print:
 	echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -67,7 +85,7 @@ all: $(ALL_TARGET)
 
 airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil.F90
-	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
+	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq $(HDF5_LIB)
 
 airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
@@ -76,7 +94,7 @@ airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqker
         res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
-        bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
+        bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq $(HDF5_LIB)
 
 airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
@@ -85,7 +103,7 @@ airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel
         res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
-        bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq -lop2_hdf5 $(HDF5_LIB)
+        bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq $(HDF5_LIB)
 
 
 airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
@@ -95,19 +113,20 @@ airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) constants.o input.o airfoil_seqfun.o \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
-	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp -lop2_hdf5 $(HDF5_LIB)
+	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp $(HDF5_LIB)
 
 airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-ifeq ($(OP2_COMPILER),pgi)
-	$(FC) $(OPT) $(OPENMP) $(FMODS)/cuda $(FMODS) $(FLINK) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
-	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB)
-else
-	@echo "airfoil_hdf5_cuda cannot be built with $(OP2_COMPILER) compilers .. requires PGI CUDA FORTRAN compiler"
-endif
+	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda $(HDF5_LIB)
 
 
+airfoil_openmp4: airfoil_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4kernel.F90 input.F90 airfoil_seqfun.F90 \
+	res_calc_omp4kernel.F90 bres_calc_omp4kernel.F90 update_omp4kernel.F90 constants.F90 input.F90 cudaConfigurationParams.F95
+	$(FC) $(OPT) $(OMP_OFFLOAD) $(FMODS)/cuda $(FMODS) $(FLINK) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+	save_soln_omp4kernel.F90 update_omp4kernel.F90 bres_calc_omp4kernel.F90 \
+	res_calc_omp4kernel.F90 adt_calc_omp4kernel.F90 airfoil_op.F90 -o airfoil_openmp4 -lop2_for_openmp4 $(HDF5_LIB)
 
 clean:
 	rm -f *.o

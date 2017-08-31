@@ -99,7 +99,7 @@ SUBROUTINE op_wrap_bres_calc( &
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
 
-  !$omp target teams distribute parallel do&
+  !$omp target teams distribute parallel do &
 !$omp& map(to:opDat1Local) &
 !$omp& map(to:opDat3Local) &
 !$omp& map(to:opDat4Local) &

@@ -80,7 +80,7 @@ SUBROUTINE op_wrap_adt_calc( &
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
 
-  !$omp target teams distribute parallel do&
+  !$omp target teams distribute parallel do &
 !$omp& map(to:opDat1Local) &
 !$omp& map(to:opDat5Local) &
 !$omp& map(to:opDat6Local) &

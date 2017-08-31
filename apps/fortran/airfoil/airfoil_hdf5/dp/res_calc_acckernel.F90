@@ -232,6 +232,7 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
 
   exec_size = opSetCore%size + opSetCore%exec_size
   numberOfIndirectOpDats = 4
+  partitionSize = 128 !no effect here, just have to set
 
   partitionSize=0
   planRet_res_calc = FortranPlanCaller( &
