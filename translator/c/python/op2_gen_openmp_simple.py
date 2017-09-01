@@ -403,7 +403,10 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       for g_m in range (0,nargs):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
         if len(u) > 0 and vectorised[g_m] > 0:
-          line = 'TYP* ARG_vec[] = {\n'
+          if accs[g_m] == OP_READ:
+            line = 'const TYP* ARG_vec[] = {\n'
+          else:
+            line = 'TYP* ARG_vec[] = {\n'
 
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]

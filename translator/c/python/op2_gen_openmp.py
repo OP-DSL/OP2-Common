@@ -343,7 +343,10 @@ def op2_gen_openmp(master, date, consts, kernels):
           code('};')
         else:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'];')
+          if indaccs[m-1] == OP_READ:
+            code('const INDTYP *ARG_vec['+str(ind)+'];')
+          else:
+            code('INDTYP *ARG_vec['+str(ind)+'];')
 #
 # lengthy code for general case with indirection
 #
