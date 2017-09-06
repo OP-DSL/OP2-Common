@@ -239,6 +239,12 @@ void mvConstArraysToDevice(int consts_bytes) {
   cutilSafeCall(cudaDeviceSynchronize());
 }
 
+void mvConstArraysToHost(int consts_bytes) {
+  cutilSafeCall(cudaMemcpy(OP_consts_h, OP_consts_d, consts_bytes,
+                           cudaMemcpyDeviceToHost));
+  cutilSafeCall(cudaDeviceSynchronize());
+}
+
 void mvReductArraysToDevice(int reduct_bytes) {
   cutilSafeCall(cudaMemcpy(OP_reduct_d, OP_reduct_h, reduct_bytes,
                            cudaMemcpyHostToDevice));

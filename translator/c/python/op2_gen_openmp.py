@@ -224,10 +224,10 @@ def op2_gen_openmp(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0
-
+    print name, reduct
 ##########################################################################
 #  start with OpenMP kernel function
 ##########################################################################
@@ -648,7 +648,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('TYP ARG_l[DIM+64*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
@@ -692,7 +692,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for m in range(0,nargs):
         g_m = m
-        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ:
+        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
           code('&ARG_l[64*omp_get_thread_num()],')
         elif inds[m]==0:
           code('(TYP *)ARG.data,')
@@ -713,7 +713,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
-          if maps[m] == OP_GBL and accs[m] <> OP_READ:
+          if maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
               FOR('d','0','DIM')
@@ -747,7 +747,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for g_m in range(0,nargs):
         indent = ''
-        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
           code(indent+'ARG_l + thr*64,')
         else:
           code(indent+'(TYP *) ARG.data,')
@@ -768,7 +768,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and ninds==0:
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
           FOR('d','0','DIM')

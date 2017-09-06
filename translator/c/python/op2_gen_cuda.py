@@ -231,7 +231,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -324,7 +324,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('')
 
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
         code('TYP ARG_l[DIM];')
         if accs[g_m] == OP_INC:
           FOR('d','0','DIM')
@@ -519,7 +519,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         indent = '     '+' '*len(name)
 
       if maps[m] == OP_GBL:
-        if accs[m] == OP_READ:
+        if accs[m] == OP_READ or accs[m] == OP_WRITE:
           line += rep(indent+'ARG,\n',m)
         else:
           line += rep(indent+'ARG_l,\n',m);
@@ -638,7 +638,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]<>OP_READ:
+         if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
            FOR('d','0','DIM')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&ARG[d+blockIdx.x*DIM],ARG_l[d]);')
@@ -769,20 +769,20 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 #
 # transfer constants
 #
-    g = [i for i in range(0,nargs) if maps[i] == OP_GBL and accs[i] == OP_READ]
+    g = [i for i in range(0,nargs) if maps[i] == OP_GBL and (accs[i] == OP_READ or accs[i] == OP_WRITE)]
     if len(g)>0:
       comm('transfer constants to GPU')
       code('int consts_bytes = 0;')
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]==OP_READ:
+        if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m]==OP_WRITE):
           code('consts_bytes += ROUND_UP(DIM*sizeof(TYP));')
 
       code('reallocConstArrays(consts_bytes);')
       code('consts_bytes = 0;')
 
       for m in range(0,nargs):
-        if maps[m]==OP_GBL and accs[m]==OP_READ:
+        if maps[m]==OP_GBL and (accs[m]==OP_READ  or accs[m]==OP_WRITE):
           g_m = m
           code('ARG.data   = OP_consts_h + consts_bytes;')
           code('ARG.data_d = OP_consts_d + consts_bytes;')
@@ -824,7 +824,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('int reduct_size  = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
           code('reduct_size   = MAX(reduct_size,sizeof(TYP));')
 
@@ -832,7 +832,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('ARG.data   = OP_reduct_h + reduct_bytes;')
           code('ARG.data_d = OP_reduct_d + reduct_bytes;')
           FOR('b','0','maxblocks')
@@ -956,7 +956,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]<>OP_READ:
+        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m]<>OP_WRITE:
           FOR('b','0','maxblocks')
           FOR('d','0','DIM')
           if accs[m]==OP_INC:
@@ -970,6 +970,19 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
           code('ARG.data = (char *)ARGh;')
           code('op_mpi_reduce(&ARG,ARGh);')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        code('mvConstArraysToHost(consts_bytes);')
+        break
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        FOR('d','0','DIM')
+        code('ARGh[d] = ((TYP *)ARG.data)[d];') 
+        ENDFOR()
+        code('ARG.data = (char *)ARGh;')
+        code('op_mpi_reduce(&ARG,ARGh);')
 
     ENDIF()
     code('op_mpi_set_dirtybit_cuda(nargs, args);')

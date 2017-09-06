@@ -229,7 +229,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -413,7 +413,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL: #and accs[g_m]<>OP_READ:
         if not dims[g_m].isdigit() or int(dims[g_m]) > 1:
-          print 'ERROR: OpenACC does not support multi-dimensional variables'
+          print 'ERROR: OpenACC does not support multi-dimensional op_arg_gbl variables'
           exit(-1)
         code('TYP ARG_l = ARGh[0];')
 
@@ -494,7 +494,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
       if reduct:
         for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
             if accs[g_m] == OP_INC:
               line = line + ' reduction(+:arg'+str(g_m)+'_l)'
             if accs[g_m] == OP_MIN:
@@ -566,7 +566,7 @@ def op2_gen_openacc(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
             if accs[g_m]==OP_INC:
               code('ARGh[0] = ARG_l;')
             elif accs[g_m]==OP_MIN:
@@ -592,7 +592,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
       if reduct:
         for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
             if accs[g_m] == OP_INC:
               line = line + ' reduction(+:arg'+str(g_m)+'_l)'
             if accs[g_m] == OP_MIN:
@@ -638,7 +638,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
         if ninds==0: #direct version only
-          if accs[g_m]==OP_INC:
+          if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
             code('ARGh[0] = ARG_l;')
           elif accs[g_m]==OP_MIN:
             code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
