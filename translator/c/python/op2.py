@@ -42,6 +42,7 @@ from op2_gen_mpi_vec import op2_gen_mpi_vec
 
 # import OpenMP and CUDA code generation functions
 from op2_gen_openmp_simple import op2_gen_openmp_simple
+from op2_gen_openmp import op2_gen_openmp
 
 from op2_gen_openacc import op2_gen_openacc
 

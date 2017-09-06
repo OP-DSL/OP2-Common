@@ -120,6 +120,8 @@ void reallocReductArrays(int reduct_bytes);
 
 void mvConstArraysToDevice(int consts_bytes);
 
+void mvConstArraysToHost(int consts_bytes);
+
 void mvReductArraysToDevice(int reduct_bytes);
 
 void mvReductArraysToHost(int reduct_bytes);
