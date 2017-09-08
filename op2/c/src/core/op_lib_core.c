@@ -475,6 +475,7 @@ void op_exit_core() {
     free((char *)(item->dat)->name);
     free((char *)(item->dat)->type);
     TAILQ_REMOVE(&OP_dat_list, item, entries);
+    free(item->dat);
     free(item);
   }
 
