@@ -46,8 +46,19 @@ ifeq ($(OP2_COMPILER),pgi)
   NVCCFLAGS	= #-ccbin=$(MPICPP)
   ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
 else
+ifeq ($(OP2_COMPILER),clang)
+  CPP       	= clang++ 
+  CCFLAGS  	= -O3 -ffast-math
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS 	= $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -177,6 +188,38 @@ aero_kernels_mpi_cu.o:	aero_kernels.cu      \
 		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
 		-c -o aero_kernels_mpi_cu.o \
 		aero_kernels.cu -DCUDA
+
+#
+# Hybrid CPU+GPU version
+#
+
+aero_mpi_cuda_hyb: aero_op.cpp aero_hybkernels.o Makefile
+		  $(MPICPP) $(MPIFLAGS) -DOP_HYBRID_GPU aero_op.cpp -lm aero_hybkernels.o aero_hybkernels2.o \
+		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o aero_mpi_cuda_hyb
+
+aero_hybkernels.o: aero_hybkernels.cu \
+                aero_kernels.cu aero_kernels.cpp Makefile
+		nvcc -DOP_HYBRID_GPU -DGPUPASS $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+                -c -o aero_hybkernels.o aero_hybkernels.cu
+		cat aero_hybkernels.cu > aero_hybkernels2.cpp
+		$(MPICPP) -DOP_HYBRID_GPU $(OMPFLAGS) $(INC) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+                -c -o aero_hybkernels2.o aero_hybkernels2.cpp
+		rm aero_hybkernels2.cpp
+
+aero_openmp4: aero_op.cpp aero_omp4kernels.cpp aero_omp4kernel_funcs.cpp \
+			Makefile
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
+		-c aero_omp4kernel_funcs.cpp  -o aero_omp4kernel_funcs.o
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
+		-c aero_omp4kernels.cpp -o aero_omp4kernels.o
+	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
+		aero_op.cpp aero_omp4kernels.o aero_omp4kernel_funcs.o -o aero_openmp4 \
+	   	-lop2_openmp4 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
+
+
+
 
 
 write_hdf5: write_hdf5.cpp

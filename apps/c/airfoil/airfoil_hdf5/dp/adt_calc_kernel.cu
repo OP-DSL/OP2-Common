@@ -46,7 +46,10 @@ __global__ void op_cuda_adt_calc(
   int   nblocks,
   int   set_size) {
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> faaee5f... Vectorisation fixes
   __shared__ int    nelem, offset_b;
 
   extern __shared__ char shared[];
@@ -78,11 +81,19 @@ __global__ void op_cuda_adt_calc(
 
 
     //user-supplied kernel call
+<<<<<<< HEAD
     adt_calc_gpu(ind_arg0+map0idx*2,
              ind_arg0+map1idx*2,
              ind_arg0+map2idx*2,
              ind_arg0+map3idx*2,
              arg4+(n+offset_b)*4,
+=======
+    adt_calc_gpu(ind_arg0+map0idx,
+             ind_arg0+map1idx,
+             ind_arg0+map2idx,
+             ind_arg0+map3idx,
+             arg4+(n+offset_b),
+>>>>>>> faaee5f... Vectorisation fixes
              arg5+(n+offset_b)*1);
   }
 }

@@ -77,7 +77,7 @@ void op_par_loop_spMV(char const *name, op_set set,
              &((double*)arg0.data)[1 * map1idx],
              &((double*)arg0.data)[1 * map2idx],
              &((double*)arg0.data)[1 * map3idx]};
-          double* arg5_vec[] = {
+          const double* arg5_vec[] = {
              &((double*)arg5.data)[1 * map0idx],
              &((double*)arg5.data)[1 * map1idx],
              &((double*)arg5.data)[1 * map2idx],

@@ -21,6 +21,7 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
 
   mu = 0.5f * ((*adt1) + (*adt2)) * eps;
 
+<<<<<<< HEAD
   f = 0.5f * (vol1 * q1[0] + vol2 * q2[0]) + mu * (q1[0] - q2[0]);
   res1[0] += f;
   res2[0] -= f;
@@ -33,6 +34,20 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
   res1[2] += f;
   res2[2] -= f;
   f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (q2[3] + p2)) + mu * (q1[3] - q2[3]);
+=======
+  f = 0.5f * (vol1 * q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] + vol2 * q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]) + mu * (q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[0] += f;
+  res2[0] -= f;
+  f = 0.5f * (vol1 * q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p2 * dy) +
+      mu * (q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(1)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[1] += f;
+  res2[1] -= f;
+  f = 0.5f * (vol1 * q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * q2[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p2 * dx) +
+      mu * (q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(2)*opDat2_res_calc_stride_OP2CONSTANT]);
+  res1[2] += f;
+  res2[2] -= f;
+  f = 0.5f * (vol1 * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p1) + vol2 * (q2[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p2)) + mu * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(3)*opDat2_res_calc_stride_OP2CONSTANT]);
+>>>>>>> faaee5f... Vectorisation fixes
   res1[3] += f;
   res2[3] -= f;
 }
@@ -45,10 +60,13 @@ __global__ void op_cuda_res_calc(
   double *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
+<<<<<<< HEAD
   int   *ind_map,
   short *arg_map,
   int   *ind_arg_sizes,
   int   *ind_arg_offs,
+=======
+>>>>>>> faaee5f... Vectorisation fixes
   int    block_offset,
   int   *blkmap,
   int   *offset,
@@ -60,9 +78,12 @@ __global__ void op_cuda_res_calc(
   double arg6_l[4];
   double arg7_l[4];
 
+<<<<<<< HEAD
   __shared__  int  *ind_arg3_map, ind_arg3_size;
   __shared__  double *ind_arg3_s;
 
+=======
+>>>>>>> faaee5f... Vectorisation fixes
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
 
@@ -83,6 +104,7 @@ __global__ void op_cuda_res_calc(
     nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
     ncolor   = ncolors[blockId];
 
+<<<<<<< HEAD
     ind_arg3_size = ind_arg_sizes[0+blockId*1];
 
     ind_arg3_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*1];
@@ -99,6 +121,11 @@ __global__ void op_cuda_res_calc(
 
   __syncthreads();
 
+=======
+  }
+  __syncthreads(); // make sure all of above completed
+
+>>>>>>> faaee5f... Vectorisation fixes
   for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
     int col2 = -1;
     int map0idx;
@@ -120,10 +147,17 @@ __global__ void op_cuda_res_calc(
 
 
       //user-supplied kernel call
+<<<<<<< HEAD
       res_calc_gpu(ind_arg0+map0idx*2,
              ind_arg0+map1idx*2,
              ind_arg1+map2idx*4,
              ind_arg1+map3idx*4,
+=======
+      res_calc_gpu(ind_arg0+map0idx,
+             ind_arg0+map1idx,
+             ind_arg1+map2idx,
+             ind_arg1+map3idx,
+>>>>>>> faaee5f... Vectorisation fixes
              ind_arg2+map2idx*1,
              ind_arg2+map3idx*1,
              arg6_l,
@@ -133,6 +167,7 @@ __global__ void op_cuda_res_calc(
 
     //store local variables
 
+<<<<<<< HEAD
     int arg6_map;
     int arg7_map;
     if (col2>=0) {
@@ -158,13 +193,36 @@ __global__ void op_cuda_res_calc(
         ind_arg3_s[1+arg7_map*4] = arg7_l[1];
         ind_arg3_s[2+arg7_map*4] = arg7_l[2];
         ind_arg3_s[3+arg7_map*4] = arg7_l[3];
+=======
+    for ( int col=0; col<ncolor; col++ ){
+      if (col2==col) {
+        arg6_l[0] += ind_arg3[0*opDat2_res_calc_stride_OP2CONSTANT+map2idx];
+        arg6_l[1] += ind_arg3[1*opDat2_res_calc_stride_OP2CONSTANT+map2idx];
+        arg6_l[2] += ind_arg3[2*opDat2_res_calc_stride_OP2CONSTANT+map2idx];
+        arg6_l[3] += ind_arg3[3*opDat2_res_calc_stride_OP2CONSTANT+map2idx];
+        arg7_l[0] += ind_arg3[0*opDat2_res_calc_stride_OP2CONSTANT+map3idx];
+        arg7_l[1] += ind_arg3[1*opDat2_res_calc_stride_OP2CONSTANT+map3idx];
+        arg7_l[2] += ind_arg3[2*opDat2_res_calc_stride_OP2CONSTANT+map3idx];
+        arg7_l[3] += ind_arg3[3*opDat2_res_calc_stride_OP2CONSTANT+map3idx];
+        ind_arg3[0*opDat2_res_calc_stride_OP2CONSTANT+map2idx] = arg6_l[0];
+        ind_arg3[1*opDat2_res_calc_stride_OP2CONSTANT+map2idx] = arg6_l[1];
+        ind_arg3[2*opDat2_res_calc_stride_OP2CONSTANT+map2idx] = arg6_l[2];
+        ind_arg3[3*opDat2_res_calc_stride_OP2CONSTANT+map2idx] = arg6_l[3];
+        ind_arg3[0*opDat2_res_calc_stride_OP2CONSTANT+map3idx] = arg7_l[0];
+        ind_arg3[1*opDat2_res_calc_stride_OP2CONSTANT+map3idx] = arg7_l[1];
+        ind_arg3[2*opDat2_res_calc_stride_OP2CONSTANT+map3idx] = arg7_l[2];
+        ind_arg3[3*opDat2_res_calc_stride_OP2CONSTANT+map3idx] = arg7_l[3];
+>>>>>>> faaee5f... Vectorisation fixes
       }
       __syncthreads();
     }
   }
+<<<<<<< HEAD
   for ( int n=threadIdx.x; n<ind_arg3_size*4; n+=blockDim.x ){
     ind_arg3[n%4+ind_arg3_map[n/4]*4] += ind_arg3_s[n];
   }
+=======
+>>>>>>> faaee5f... Vectorisation fixes
 }
 
 
@@ -216,7 +274,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
+<<<<<<< HEAD
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
+=======
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+>>>>>>> faaee5f... Vectorisation fixes
 
     //execute plan
 
@@ -234,18 +296,25 @@ void op_par_loop_res_calc(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
+<<<<<<< HEAD
         int nshared = Plan->nsharedCol[col];
         op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
+=======
+        op_cuda_res_calc<<<nblocks,nthread>>>(
+>>>>>>> faaee5f... Vectorisation fixes
         (double *)arg0.data_d,
         (double *)arg2.data_d,
         (double *)arg4.data_d,
         (double *)arg6.data_d,
         arg0.map_data_d,
         arg2.map_data_d,
+<<<<<<< HEAD
         Plan->ind_map,
         Plan->loc_map,
         Plan->ind_sizes,
         Plan->ind_offs,
+=======
+>>>>>>> faaee5f... Vectorisation fixes
         block_offset,
         Plan->blkmap,
         Plan->offset,

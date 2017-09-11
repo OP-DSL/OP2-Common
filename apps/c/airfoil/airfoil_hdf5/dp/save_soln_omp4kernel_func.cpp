@@ -11,8 +11,8 @@ void save_soln_omp4_kernel(
   int num_teams,
   int nthread){
 
-  #pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size])
-  #pragma omp distribute parallel for schedule(static,1)
+  #pragma omp target teams distribute parallel for schedule(static,1)\
+     num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size])
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
     const double *q = &data0[4*n_op];
@@ -21,7 +21,11 @@ void save_soln_omp4_kernel(
     //inline function
       
     for (int n = 0; n < 4; n++)
+<<<<<<< HEAD
       qold[n] = q[n];
+=======
+      qold[(n)*direct_save_soln_stride_OP2CONSTANT] = q[(n)*direct_save_soln_stride_OP2CONSTANT];
+>>>>>>> faaee5f... Vectorisation fixes
     //end inline func
   }
 
