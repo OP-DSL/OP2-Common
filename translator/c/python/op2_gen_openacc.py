@@ -212,6 +212,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
+
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
@@ -300,18 +301,18 @@ def op2_gen_openacc(master, date, consts, kernels):
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
         if kernels[nk]['soaflags'][i]:
-          print name, var
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
-            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+ \
+                    op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
             body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
-                op2_gen_common.get_stride_string(i,kernels[nk]['maps'],kernels[nk]['mapnames'],name)+']', body_text)
+                    op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
     signature_text = '//#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
@@ -566,8 +567,8 @@ def op2_gen_openacc(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
-            if accs[g_m]==OP_INC:
+          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+            if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
               code('ARGh[0] = ARG_l;')
             elif accs[g_m]==OP_MIN:
               code('ARGh[0]  = MIN(ARGh[0],ARG_l);')

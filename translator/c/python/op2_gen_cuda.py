@@ -231,6 +231,16 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
     j = -1
     for i in range(0,nargs):
+      if maps[i] == OP_MAP and accs[i] == OP_RW:
+        j = i
+    ind_rw= j >= 0
+    if (ind_rw):
+      print 'Error: indirect OP_RW not supported by op2_gen_cuda code generator'
+      sys.exit(2);
+
+
+    j = -1
+    for i in range(0,nargs):
       if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0

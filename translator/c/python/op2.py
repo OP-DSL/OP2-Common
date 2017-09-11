@@ -505,10 +505,12 @@ def main():
             for m in range(0, nargs):
                 argm = loop_args[i]['args'][m]
                 argm['dim'] = evaluate_macro_defs_in_string(macro_defs, argm['dim'])
-                argm['idx'] = evaluate_macro_defs_in_string(macro_defs, argm['idx'])
 
                 arg_type = loop_args[i]['args'][m]['type']
                 args = loop_args[i]['args'][m]
+
+                if arg_type.strip() == 'op_arg_dat':
+                  argm['idx'] = evaluate_macro_defs_in_string(macro_defs, argm['idx'])
 
                 if arg_type.strip() == 'op_arg_dat':
                     var[m] = args['dat']
@@ -907,7 +909,7 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
     #code generator for GPUs with OpenMP4.5
     op2_gen_openmp4(str(sys.argv[1]), date, consts, kernels)

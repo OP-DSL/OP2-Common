@@ -105,10 +105,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=1
-  op_color2=1
-  if op_color2:
-      inc_stage=0
+  inc_stage=0
+  op_color2_force=0
+  op_color2=0
 
 ##########################################################################
 #  create new kernel file
@@ -137,11 +136,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
 
-    print soaflags
     nmaps = 0
     if ninds > 0:
       nmaps = max(mapinds)+1
     nargs_novec = nargs
+
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
     if len(vec) > 0:
       unique_args = [1];
@@ -233,13 +232,29 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
 #
-# set two logicals
+# set logicals
 #
     j = -1
     for i in range(0,nargs):
       if maps[i] == OP_MAP and accs[i] == OP_INC:
         j = i
     ind_inc = j >= 0
+
+    j = -1
+    for i in range(0,nargs):
+      if maps[i] == OP_MAP and accs[i] == OP_RW:
+        j = i
+    ind_rw = j >= 0
+
+    if ind_rw or op_color2_force:
+        op_color2 = 1
+    else:
+        op_color2 = 0
+
+    #no staging with 2 level colouring
+    if op_color2:
+      inc_stage=0
+
 
     j = -1
     for i in range(0,nargs):
@@ -335,18 +350,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
         if kernels[nk]['soaflags'][i] and (op_color2 or not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
-          print name, var
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
-            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
             body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
-                op2_gen_common.get_stride_string(i,kernels[nk]['maps'],kernels[nk]['mapnames'],name)+']', body_text)
+                               op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
     signature_text = '__device__ '+head_text + '_gpu( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
@@ -669,7 +683,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         IF('col2==col')
 
         if inc_stage==1:
-          print soaflags
           for g_m in range(0,nargs):
             if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
@@ -772,7 +785,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
     code('op_arg args['+str(nargs)+'];')
     code('')
 
-    #print vectorised
 
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]

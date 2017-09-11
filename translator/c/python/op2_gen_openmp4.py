@@ -118,6 +118,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
+    decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
     inddims = kernels[nk]['inddims']
@@ -127,12 +128,13 @@ def op2_gen_openmp4(master, date, consts, kernels):
     mapnames = kernels[nk]['mapnames']
     invmapinds = kernels[nk]['invmapinds']
     mapinds = kernels[nk]['mapinds']
+
     nmaps = 0
     if ninds > 0:
       nmaps = max(mapinds)+1
+    nargs_novec = nargs
 
     vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -145,6 +147,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -160,7 +163,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -172,6 +176,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -181,6 +186,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -188,12 +194,23 @@ def op2_gen_openmp4(master, date, consts, kernels):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
           if inds[index] == i:
             invinds[i-1] = index
             break
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
@@ -249,20 +266,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
           break
 
     comm('user function')
-    found = 0
-    for files in glob.glob( "*.h" ):
-      f = open( files, 'r' )
-      for line in f:
-        match = re.search(r''+'\\b'+name+'\\b', line)
-        if match :
-          file_name = f.name
-          found = 1;
-          break
-      if found == 1:
-        break;
-
-    if found == 0:
-      print "COUND NOT FIND KERNEL", name
+    file_name = decl_filepath
 
     f = open(file_name, 'r')
     kernel_text = f.read()
@@ -291,30 +295,47 @@ def op2_gen_openmp4(master, date, consts, kernels):
     body_text = kernel_text[i+j+1:k]
 
     # check for number of arguments
-    if len(signature_text.split(',')) != nargs:
+    if len(signature_text.split(',')) != nargs_novec:
         print 'Error parsing user kernel(%s): must have %d arguments' \
               % name, nargs
         return
 
-    for i in range(0,nargs):
+    for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if soaflags[i]:
+        if kernels[nk]['soaflags'][i]:
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
-          body_text = re.sub('\*'+var2+'(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r''+var2+'\[([A-Za-z0-9]*)\]'+'', var2+r'[\1*'+op2_gen_common.get_stride_string(i,maps,mapnames,name)+']', body_text)
+          if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+ \
+                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
+          else:
+            body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
+            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
+                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
+
     for nc in range(0,len(consts)): 
       varname = consts[nc]['name']
-      if consts[nc]['dim'] == 1:
-        body_text = re.sub(varname+'(?!\w)', varname+'_ompkernel', body_text)
-      else:
-        body_text = re.sub('\*'+varname+'(?!\[)', varname+'[0]', body_text)
-        body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
+      body_text = re.sub('\\b'+varname+'\\b', varname+'_ompkernel',body_text)
+#      if consts[nc]['dim'] == 1:
+#        body_text = re.sub(varname+'(?!\w)', varname+'_ompkernel', body_text)
+#      else:
+#        body_text = re.sub('\*'+varname+'(?!\[)', varname+'[0]', body_text)
+#        body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
+
 
     kernel_params = [ var.strip() for var in signature_text.split(',')]
+    if len(vec) > 0:
+      new_kernel_params = []
+      for m in range(0,nargs_novec):
+        if int(kernels[nk]['idxs'][m])<0 and int(kernels[nk]['maps'][m]) == OP_MAP:
+          new_kernel_params = new_kernel_params + [kernel_params[m]]*int(-1*int(kernels[nk]['idxs'][m]))
+        else:
+          new_kernel_params = new_kernel_params + [kernel_params[m]]
+      kernel_params = new_kernel_params
+
     # collect constants used by kernel
     kernel_consts = []
     for nc in range(0,len(consts)):
@@ -472,7 +493,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL: #and accs[g_m]<>OP_READ:
         if not dims[g_m].isdigit() or int(dims[g_m]) > 1:
-          print 'ERROR: OpenACC does not support multi-dimensional variables'
+          print 'ERROR: OpenMP 4 does not support multi-dimensional variables'
           exit(-1)
         code('TYP ARG_l = ARGh[0];')
 
@@ -562,7 +583,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
         IF('col == Plan->ncolors_owned-1')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
-            if accs[g_m]==OP_INC:
+            if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
               code('ARGh[0] = ARG_l;')
             elif accs[g_m]==OP_MIN:
               code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
@@ -591,7 +612,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
         if ninds==0: #direct version only
-          if accs[g_m]==OP_INC:
+          if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
             code('ARGh[0] = ARG_l;')
           elif accs[g_m]==OP_MIN:
             code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
@@ -702,6 +723,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
           if accs[g_m] == OP_MAX:
             reduction_string += ' reduction(max:arg%d_l)' % g_m
             reduction_mapping += ' arg%d_l,' % g_m
+          if accs[g_m] == OP_WRITE:
+            reduction_mapping += ' arg%d_l,' % g_m
       reduction_mapping = reduction_mapping[0:-1]+')' 
 #
 # map extra pointers for indirect version
@@ -747,6 +770,28 @@ def op2_gen_openmp4(master, date, consts, kernels):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
               '[n_op + set_size1 * '+str(idxs[g_m])+'];')
+
+      code('')
+      for g_m in range (0,nargs):
+        u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+        if len(u) > 0 and vectorised[g_m] > 0:
+          if accs[g_m] == OP_READ:
+            line = 'const TYP* ARG_vec[] = {\n'
+          else:
+            line = 'TYP* ARG_vec[] = {\n'
+
+          v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+          first = [i for i in range(0,len(v)) if v[i] == 1]
+          first = first[0]
+
+          indent = ' '*(depth+2)
+          for k in range(0,sum(v)):
+            if soaflags[g_m]:
+              line = line + indent + ' &data'+str(first)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+            else:
+              line = line + indent + ' &data'+str(first)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+          line = line[:-2]+'};'
+          code(line)
 #
 # direct version
 #
@@ -764,14 +809,21 @@ def op2_gen_openmp4(master, date, consts, kernels):
         else:
           line += '&data'+str(g_m)+'['+str(dims[g_m])+'*n_op]'
       if maps[g_m] == OP_MAP:
-        if soaflags[g_m]:
-          line += '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
+        if vectorised[g_m]:
+          if g_m+1 in unique_args:
+            line += 'arg'+str(g_m)+'_vec'
+          else:
+            line = ''
         else:
-          line += '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+          if soaflags[g_m]:
+            line += '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
+          else:
+            line += '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
       if maps[g_m] == OP_GBL:
         line += '&arg%d_l' % g_m
-      line += ';'
-      code(line)
+      if len(line):
+        line += ';'
+        code(line)
     
     code('')
     comm('inline function')
