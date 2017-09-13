@@ -194,7 +194,7 @@ aero_kernels_mpi_cu.o:	aero_kernels.cu      \
 #
 
 aero_mpi_cuda_hyb: aero_op.cpp aero_hybkernels.o Makefile
-		  $(MPICPP) $(MPIFLAGS) -DOP_HYBRID_GPU aero_op.cpp -lm aero_hybkernels.o aero_hybkernels2.o \
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) -DOP_HYBRID_GPU aero_op.cpp -lm aero_hybkernels.o aero_hybkernels2.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o aero_mpi_cuda_hyb
