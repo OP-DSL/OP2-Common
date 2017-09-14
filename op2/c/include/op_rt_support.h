@@ -104,6 +104,10 @@ op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
                            int staging);
 
+op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
+                           int nargs, op_arg *args, int ninds, int *inds,
+                           int staging, int upload);
+
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
                      op_arg *args, int ninds, int *inds);
 

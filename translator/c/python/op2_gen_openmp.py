@@ -669,7 +669,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # kernel call for indirect version
 #
     if ninds>0:
-      code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
+      code('op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);')
       code('')
       comm(' execute plan')
       code('int block_offset = 0;')
