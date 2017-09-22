@@ -687,8 +687,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size];')
                 else:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM];')
-          for g_m in range(0,nargs):
-            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+#          for g_m in range(0,nargs):
+#            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
                   code('ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size] = ARG_l['+str(d)+'];')
@@ -703,8 +703,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx];')
                 else:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM];')
-          for g_m in range(0,nargs):
-            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+#          for g_m in range(0,nargs):
+#            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
                   code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
