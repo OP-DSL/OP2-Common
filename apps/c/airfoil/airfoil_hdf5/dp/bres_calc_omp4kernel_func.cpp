@@ -24,10 +24,10 @@ void bres_calc_omp4_kernel(
   int num_teams,
   int nthread){
 
-  #pragma omp target teams distribute parallel for schedule(static,1)\
-     num_teams(num_teams) thread_limit(nthread) map(to:data5[0:dat5size]) \
+  #pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:data5[0:dat5size]) \
     map(to: gm1_ompkernel, eps_ompkernel, qinf_ompkernel[:4])\
     map(to:col_reord[0:set_size1],map0[0:map0size],map2[0:map2size],data0[0:dat0size],data2[0:dat2size],data3[0:dat3size],data4[0:dat4size])
+  #pragma omp distribute parallel for schedule(static,1)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
     int map0idx = map0[n_op + set_size1 * 0];
@@ -46,7 +46,6 @@ void bres_calc_omp4_kernel(
       
     double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
   
-<<<<<<< HEAD
     dx = x1[0] - x2[0];
     dy = x1[1] - x2[1];
   
@@ -58,19 +57,6 @@ void bres_calc_omp4_kernel(
       res1[2] += -p1 * dx;
     } else {
       vol1 = ri * (q1[1] * dy - q1[2] * dx);
-=======
-    dx = x1[(0)*opDat0_bres_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_bres_calc_stride_OP2CONSTANT];
-    dy = x1[(1)*opDat0_bres_calc_stride_OP2CONSTANT] - x2[(1)*opDat0_bres_calc_stride_OP2CONSTANT];
-  
-    ri = 1.0f / q1[(0)*opDat2_bres_calc_stride_OP2CONSTANT];
-    p1 = gm1_ompkernel * (q1[(3)*opDat2_bres_calc_stride_OP2CONSTANT] - 0.5f * ri * (q1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] * q1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] + q1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] * q1[(2)*opDat2_bres_calc_stride_OP2CONSTANT]));
-  
-    if (*bound == 1) {
-      res1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] += +p1 * dy;
-      res1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] += -p1 * dx;
-    } else {
-      vol1 = ri * (q1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] * dy - q1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] * dx);
->>>>>>> faaee5f... Vectorisation fixes
   
       ri = 1.0f / qinf_ompkernel[0];
       p2 = gm1_ompkernel * (qinf_ompkernel[3] - 0.5f * ri * (qinf_ompkernel[1] * qinf_ompkernel[1] + qinf_ompkernel[2] * qinf_ompkernel[2]));
@@ -78,7 +64,6 @@ void bres_calc_omp4_kernel(
   
       mu = (*adt1) * eps_ompkernel;
   
-<<<<<<< HEAD
       f = 0.5f * (vol1 * q1[0] + vol2 * qinf_ompkernel[0]) + mu * (q1[0] - qinf_ompkernel[0]);
       res1[0] += f;
       f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_ompkernel[1] + p2 * dy) +
@@ -90,19 +75,6 @@ void bres_calc_omp4_kernel(
       f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_ompkernel[3] + p2)) +
           mu * (q1[3] - qinf_ompkernel[3]);
       res1[3] += f;
-=======
-      f = 0.5f * (vol1 * q1[(0)*opDat2_bres_calc_stride_OP2CONSTANT] + vol2 * qinf_ompkernel[0]) + mu * (q1[(0)*opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[0]);
-      res1[(0)*opDat2_bres_calc_stride_OP2CONSTANT] += f;
-      f = 0.5f * (vol1 * q1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * qinf_ompkernel[1] + p2 * dy) +
-          mu * (q1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[1]);
-      res1[(1)*opDat2_bres_calc_stride_OP2CONSTANT] += f;
-      f = 0.5f * (vol1 * q1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * qinf_ompkernel[2] - p2 * dx) +
-          mu * (q1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[2]);
-      res1[(2)*opDat2_bres_calc_stride_OP2CONSTANT] += f;
-      f = 0.5f * (vol1 * (q1[(3)*opDat2_bres_calc_stride_OP2CONSTANT] + p1) + vol2 * (qinf_ompkernel[3] + p2)) +
-          mu * (q1[(3)*opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[3]);
-      res1[(3)*opDat2_bres_calc_stride_OP2CONSTANT] += f;
->>>>>>> faaee5f... Vectorisation fixes
     }
     //end inline func
   }

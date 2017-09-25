@@ -352,7 +352,8 @@ void op_renumber(op_map base) {
     if (row_offsets[row] == row_offsets[row+1]) printf("Zero length row\n");
     for (int col = row_offsets[row]; col < row_offsets[row+1]; col++) {
       if (col_indices[col]<0 || col_indices[col]>=row_offsets.size()-1)
-        printf("Error col idx %d, but num rows is %d\n",col_indices[col], row_offsets.size()-1);
+        printf("Error col idx %d, but num rows is %lu\n", col_indices[col],
+               row_offsets.size() - 1);
       else {
         //Symmetry
         int found = 0;
