@@ -24,7 +24,8 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
   open ( FILE_ID, file = 'new_grid.dat' )
 
   ! first line includes number of cells, nodes, edges and bedges
-  read ( FILE_ID, "(1x,I7,1x,I7,1x,I7,1x,I4)" ) nnode, ncell, nedge, nbedge
+!  read ( FILE_ID, "(1x,I7,1x,I7,1x,I7,1x,I4)" ) nnode, ncell, nedge, nbedge
+  read ( FILE_ID, "(1x,I6,1x,I6,1x,I7,1x,I4)" ) nnode, ncell, nedge, nbedge
 
   ! not closing file because it will be used below
 
@@ -129,7 +130,9 @@ subroutine initialise_flow_field ( ncell, q, res )
   qinf(3) = 0.0
   qinf(4) = r * e
 
+#ifdef OP2_WITH_OMP4
 !$omp target update to(gam, gm1, cfl, eps, mach, alpha, qinf)
+#endif
 !$acc update device(gam, gm1, cfl, eps, mach, alpha, qinf(4))
 #ifdef OP2_WITH_CUDAFOR
   if (getHybridGPU().EQ.1) then
@@ -173,7 +176,9 @@ subroutine initialise_constants ( )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
+#ifdef OP2_WITH_OMP4
 !$omp target update to(gam, gm1, cfl, eps, mach, alpha, qinf)
+#endif
 !$acc update device(gam, gm1, cfl, eps, mach, alpha, qinf(4))
 #ifdef OP2_WITH_CUDAFOR
   if (getHybridGPU().EQ.1) then
