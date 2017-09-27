@@ -29,7 +29,7 @@ void adt_calc_omp4_kernel(int *map0, int map0size, double *data4, int dat4size,
     double *adt = &data5[1*n_op];
 
     //inline function
-      
+
     double dx, dy, ri, u, v, c;
 
     ri = 1.0f / q[0];
@@ -53,7 +53,7 @@ void adt_calc_omp4_kernel(int *map0, int map0size, double *data4, int dat4size,
     dx = x1[0] - x4[0];
     dy = x1[1] - x4[1];
     *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
-  
+
     *adt = (*adt) * (1.0f / cfl_ompkernel);
     //end inline func
   }
