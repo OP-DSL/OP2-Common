@@ -509,7 +509,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         for g_m in range(0,ninds_staged):
           code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_s = ('+typs[invinds_staged[g_m]]+' *) &shared[nbytes];')
           if g_m < ninds_staged-1:
-            code('nbytes    += ROUND_UP(ind_ARG_size*sizeof('+typs[invinds_staged[g_m]]+')*'+dims[invinds_staged[g_m]]+');')
+            code('nbytes    += ROUND_UP(ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_size*sizeof('+typs[invinds_staged[g_m]]+')*'+dims[invinds_staged[g_m]]+');')
 
 
       ENDIF()
