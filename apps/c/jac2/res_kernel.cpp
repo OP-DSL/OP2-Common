@@ -40,7 +40,8 @@ void op_par_loop_res(char const *name, op_set set, op_arg arg0, op_arg arg1,
 
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get(name, set, part_size, nargs, args, ninds, inds);
+    op_plan *Plan = op_plan_get_stage_upload(name, set, part_size, nargs, args,
+                                             ninds, inds, OP_STAGE_ALL, 0);
 
     // execute plan
     int block_offset = 0;

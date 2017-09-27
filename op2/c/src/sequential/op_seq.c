@@ -112,6 +112,12 @@ op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
   return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
 }
 
+op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
+                           int nargs, op_arg *args, int ninds, int *inds,
+                           int staging, int upload) {
+  return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
+}
+
 op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
                   op_access acc) {
   return op_arg_dat_core(dat, idx, map, dim, type, acc);

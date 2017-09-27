@@ -1,5 +1,5 @@
 PREPROCESSOR = -fpp
-PART_SIZE_ENV ?= 256
+PART_SIZE_ENV ?= 128
 OP2 = $(OP2_INSTALL_PATH)
 
 F_OP2_MOD = $(OP2)/fortran/mod/$(OP2_COMPILER)
@@ -44,6 +44,18 @@ endif
 endif
 endif
 
+ifdef MAX_REG_COUNT
+  REG_COUNT = --maxrregcount $(MAX_REG_COUNT)
+  PGI_REG_COUNT = maxregcount:$(MAX_REG_COUNT)
+  ifeq ($(OP2_COMPILER),xl)
+    OMP4_REG_COUNT= -Xptxas -maxrregcount=$(MAX_REG_COUNT)
+  else
+  ifeq ($(OP2_COMPILER),clang)
+    OMP4_REG_COUNT= -Xcuda-ptxas --maxrregcount=$(MAX_REG_COUNT)
+  endif
+  endif
+endif
+
 ifeq ($(OP2_COMPILER),gnu)
   CC = gcc
   FC = gfortran
@@ -64,8 +76,8 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g 
-  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo -DOP2_WITH_CUDAFOR -Minline,reshape 
-  OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA) -Mcuda -Minfo=accel 
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape 
+  OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA),$(PGI_REG_COUNT),lineinfo -Mcuda=fastmath,ptxinfo -Minfo=accel #-Minline=reshape 
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
@@ -81,9 +93,10 @@ ifeq ($(OP2_COMPILER),xl)
   MPI_INC = #$(MPI_INSTALL_PATH)/include
   MPIF90 = mpif90 #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot 
-  OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR
-  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,OP2_WITH_OMP4
+  OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR -Xptxas -v ${OMP4_REG_COUNT} -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0 -g1
+  OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,DOP2_WITH_OPENACC
   OPENMP = -qsmp=omp -qthreaded
+  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport -WF,-DOP2_WITH_OMP4  ${OMP4_REG_COUNT} -Xptxas -v -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
   CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
@@ -157,11 +170,25 @@ airfoil_hdf5_openmp: airfoil_hdf5_op.F90 save_soln_kernel.F90 adt_calc_kernel.F9
 	bres_calc_kernel.o update_kernel.o airfoil_hdf5_op.o -o airfoil_hdf5_openmp \
 		$(FLINK) -lop2_for_openmp -lop2_hdf5 $(HDF5_LIB) -lz $(MPI_LIB)
 
+airfoil_hdf5_openmp4: airfoil_hdf5_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4kernel.F90 input.F90 \
+	res_calc_omp4kernel.F90 bres_calc_omp4kernel.F90 update_omp4kernel.F90 constants.F90 airfoil_seqfun.F90
+	$(MPIF90) $(OPT) $(OMP_OFFLOAD) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	save_soln_omp4kernel.F90 update_omp4kernel.F90 bres_calc_omp4kernel.F90 \
+	res_calc_omp4kernel.F90 adt_calc_omp4kernel.F90 airfoil_hdf5_op.F90
+	$(MPIF90) $(OPT) $(OMP_OFFLOAD) constants.o input.o airfoil_seqfun.o \
+	save_soln_omp4kernel.o adt_calc_omp4kernel.o res_calc_omp4kernel.o \
+	bres_calc_omp4kernel.o update_omp4kernel.o airfoil_hdf5_op.o -o airfoil_hdf5_openmp4 \
+		$(FLINK) -lop2_for_openmp4 -lop2_hdf5 $(HDF5_LIB) -lz $(MPI_LIB)
+
 airfoil_hdf5_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
         res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-	$(FC) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
-		save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
-		res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_hdf5_op.F90 -o airfoil_hdf5_cuda \
+	$(FC) $(OPT_CUDA) -Minline,reshape $(FMODS)/cuda $(FMODS) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+		save_soln_kernel.CUF bres_calc_kernel.CUF \
+		adt_calc_kernel.CUF -c \
+		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)
+	$(FC) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) cudaConfigurationParams.o constants.o input.o airfoil_seqfun.o \
+		save_soln_kernel.o update_kernel.CUF bres_calc_kernel.o \
+		res_calc_kernel.CUF adt_calc_kernel.o airfoil_hdf5_op.F90 -o airfoil_hdf5_cuda \
 		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)
 
 airfoil_hdf5_mpi: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90

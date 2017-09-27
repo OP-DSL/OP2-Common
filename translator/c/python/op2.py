@@ -42,12 +42,14 @@ from op2_gen_mpi_vec import op2_gen_mpi_vec
 
 # import OpenMP and CUDA code generation functions
 from op2_gen_openmp_simple import op2_gen_openmp_simple
+from op2_gen_openmp import op2_gen_openmp
 
 from op2_gen_openacc import op2_gen_openacc
 
 from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
+from op2_gen_openmp4 import op2_gen_openmp4
 
 arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
 
@@ -508,6 +510,9 @@ def main():
                 args = loop_args[i]['args'][m]
 
                 if arg_type.strip() == 'op_arg_dat':
+                  argm['idx'] = evaluate_macro_defs_in_string(macro_defs, argm['idx'])
+
+                if arg_type.strip() == 'op_arg_dat':
                     var[m] = args['dat']
                     idxs[m] = args['idx']
 
@@ -844,7 +849,7 @@ def main():
                 f = open(src_file, 'r')
                 text = f.read()
 
-                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
+                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\\s*\('
                 matches = re.findall(inline_impl_pattern, text)
                 if len(matches) == 1:
                     kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
@@ -892,7 +897,7 @@ def main():
 
 
     op2_gen_seq(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
-    op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+    #op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
     #code generators for OpenMP parallelisation with MPI
     #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator
@@ -904,15 +909,18 @@ def main():
     op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    #op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
 
-    import subprocess
-    retcode = subprocess.call("which clang-format > /dev/null", shell=True)
-    if retcode == 0:
-      retcode = subprocess.call("$OP2_INSTALL_PATH/../translator/c/python/format.sh", shell=True)
-    else:
-      print 'Cannot find clang-format in PATH'
-      print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
+    #code generator for GPUs with OpenMP4.5
+    op2_gen_openmp4(str(sys.argv[1]), date, consts, kernels)
+
+#    import subprocess
+#    retcode = subprocess.call("which clang-format > /dev/null", shell=True)
+#    if retcode == 0:
+#      retcode = subprocess.call("$OP2_INSTALL_PATH/../translator/c/python/format.sh", shell=True)
+#    else:
+#      print 'Cannot find clang-format in PATH'
+#      print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

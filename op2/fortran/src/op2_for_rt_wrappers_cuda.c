@@ -38,43 +38,15 @@
 #include <cuda_runtime_api.h>
 #include <op_cuda_rt_support.h>
 /* Functions with a different implementation in CUDA than other backends */
+void op_upload_dat(op_dat dat);
+void op_download_dat(op_dat dat);
 
 void op_put_dat(op_dat dat) {
-  int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
-    int element_size = dat->size/dat->dim;
-    for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
-        for (int c = 0; c < element_size; c++) {
-          temp_data[element_size*i*set_size + element_size*j + c] = dat->data[dat->size*j+element_size*i+c];
-        }
-      }
-    }
-    cutilSafeCall( cudaMemcpy(dat->data_d, temp_data, set_size*dat->size, cudaMemcpyHostToDevice));
-    free(temp_data);
-  } else {
-    cutilSafeCall( cudaMemcpy(dat->data_d, dat->data, set_size*dat->size, cudaMemcpyHostToDevice));
-  }
+  op_upload_dat(dat);
 }
 
 void op_get_dat(op_dat dat) {
-  int set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr( dat->type, ":soa")!= NULL  || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size*set_size*sizeof(char));
-    cutilSafeCall( cudaMemcpy(temp_data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
-    int element_size = dat->size/dat->dim;
-    for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
-        for (int c = 0; c < element_size; c++) {
-          dat->data[dat->size*j+element_size*i+c] = temp_data[element_size*i*set_size + element_size*j + c];
-        }
-      }
-    }
-    free(temp_data);
-  } else {
-    cutilSafeCall( cudaMemcpy(dat->data, dat->data_d, set_size*dat->size, cudaMemcpyDeviceToHost));
-  }
+  op_download_dat(dat);
 }
 
 void

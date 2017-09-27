@@ -64,6 +64,11 @@ op_map *OP_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
 
+const char *doublestr = "double";
+const char *floatstr = "float";
+const char *intstr = "int";
+const char *boolstr = "bool";
+
 /*
  * Utility functions
  */
@@ -470,6 +475,7 @@ void op_exit_core() {
     free((char *)(item->dat)->name);
     free((char *)(item->dat)->type);
     TAILQ_REMOVE(&OP_dat_list, item, entries);
+    free(item->dat);
     free(item);
   }
 
@@ -583,9 +589,17 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.map_data = NULL;
   }
 
-  // NJH
-  // arg.type = typ;
-  arg.type = copy_str(typ);
+  if (strcmp(typ, "double") == 0)
+    arg.type = doublestr;
+  else if (strcmp(typ, "float") == 0)
+    arg.type = floatstr;
+  else if (strcmp(typ, "int") == 0)
+    arg.type = intstr;
+  else if (strcmp(typ, "bool") == 0)
+    arg.type = boolstr;
+  else
+    arg.type = copy_str(typ); //Warning this is going to leak
+
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -623,9 +637,17 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
     arg.map_data = (map == NULL ? NULL : map->map);
   }
 
-  // NJH
-  // arg.type = typ;
-  arg.type = copy_str(typ);
+  if (strcmp(typ, "double") == 0)
+    arg.type = doublestr;
+  else if (strcmp(typ, "float") == 0)
+    arg.type = floatstr;
+  else if (strcmp(typ, "int") == 0)
+    arg.type = intstr;
+  else if (strcmp(typ, "bool") == 0)
+    arg.type = boolstr;
+  else
+    arg.type = copy_str(typ); //Warning this is going to leak
+
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
@@ -647,9 +669,15 @@ op_arg op_arg_gbl_core(char *data, int dim, const char *typ, int size,
   arg.idx = -1;
   arg.size = dim * size;
   arg.data = data;
-  // NJH
-  // arg.type = typ;
-  arg.type = copy_str(typ);
+  if (strcmp(typ, "double") == 0)
+    arg.type = doublestr;
+  else if (strcmp(typ, "float") == 0)
+    arg.type = floatstr;
+  else if (strcmp(typ, "int") == 0)
+    arg.type = intstr;
+  else if (strcmp(typ, "bool") == 0)
+    arg.type = boolstr;
+
   arg.acc = acc;
   arg.map_data_d = NULL;
   arg.map_data = NULL;

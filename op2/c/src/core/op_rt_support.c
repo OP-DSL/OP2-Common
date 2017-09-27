@@ -57,6 +57,7 @@ void op_rt_exit() {
     free(OP_plans[ip].idxs);
     free(OP_plans[ip].maps);
     free(OP_plans[ip].accs);
+    free(OP_plans[ip].optflags);
     free(OP_plans[ip].inds_staged);
     free(OP_plans[ip].nthrcol);
     free(OP_plans[ip].thrcol);
@@ -467,8 +468,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   OP_plans[ip].optflags = (int *)op_malloc(nargs * sizeof(int));
   OP_plans[ip].maps = (op_map *)op_malloc(nargs * sizeof(op_map));
   OP_plans[ip].accs = (op_access *)op_malloc(nargs * sizeof(op_access));
-  OP_plans[ip].inds_staged =
-      (op_access *)op_malloc(ninds_staged * sizeof(op_access));
+  OP_plans[ip].inds_staged = NULL;
 
   OP_plans[ip].nthrcol = (int *)op_malloc(nblocks * sizeof(int));
   OP_plans[ip].thrcol = (int *)op_malloc(exec_length * sizeof(int));

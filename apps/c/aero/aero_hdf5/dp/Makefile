@@ -30,13 +30,24 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK#-DCOMM_PERF #-DDEBUG #-vec-report
-  OMPFLAGS	= -openmp -openmp-report2
+  CPPFLAGS	= -O3 -xHost #-DMPICH_IGNORE_CXX_SEEK#-DCOMM_PERF #-DDEBUG #-vec-report
+  OMPFLAGS	= -qopenmp #-openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),clang)
+  CPP       	= clang++
+  CCFLAGS  	= -O3 #-ffast-math
+  CPPFLAGS 	= $(CCFLAGS)
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPIFLAGS 	= $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 
@@ -127,7 +138,7 @@ aero_mpi: aero.cpp Makefile
 
 #
 # mpi with openmp-nodes version
-#	
+#
 aero_mpi_openmp:	aero_op.cpp aero_kernels.cpp \
                 Makefile
 		$(MPICPP) $(VAR) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
@@ -147,8 +158,21 @@ aero_kernels_mpi_cu.o:	aero_kernels.cu \
                 Makefile
 		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
 		-c -o aero_kernels_mpi_cu.o \
-		aero_kernels.cu 
-		
+		aero_kernels.cu
+
+
+#
+# OpenMP4 version
+#
+aero_openmp4: aero_op.cpp aero_omp4kernels.cpp aero_omp4kernel_funcs.cpp Makefile
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
+		-c aero_omp4kernel_funcs.cpp  -o aero_omp4kernel_funcs.o
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
+		-c aero_omp4kernels.cpp -o aero_omp4kernels.o
+	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
+		aero_op.cpp aero_omp4kernels.o aero_omp4kernel_funcs.o -o aero_openmp4 \
+		-lop2_openmp4 -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
+
 
 write_hdf5: write_hdf5.cpp
 	$(MPICPP) $(MPIFLAGS) write_hdf5.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
@@ -160,4 +184,4 @@ write_hdf5: write_hdf5.cpp
 #
 
 clean:
-		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 aero_mpi_openmp aero_mpi_cuda *.o
+		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 aero_mpi_openmp aero_mpi_cuda aero_openmp4 *.o

@@ -301,3 +301,6 @@ int op_is_root() {
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   return (my_rank == MPI_ROOT);
 }
+
+void deviceSync() {}
+

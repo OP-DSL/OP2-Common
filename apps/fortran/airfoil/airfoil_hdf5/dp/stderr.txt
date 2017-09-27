@@ -1,0 +1,38 @@
+** cudaconfigurationparams   === End of Compilation 1 ===
+1501-510  Compilation successful for file cudaConfigurationParams.F95.
+** op2_constants   === End of Compilation 1 ===
+1501-510  Compilation successful for file constants.F90.
+** io   === End of Compilation 1 ===
+1501-510  Compilation successful for file input.F90.
+** airfoil_seq   === End of Compilation 1 ===
+"airfoil_seqfun.F90", 1500-036 (I) The NOSTRICT option (default at OPT(3)) has the potential to alter the semantics of a program.  Please refer to documentation on the STRICT/NOSTRICT option for more information.
+1501-510  Compilation successful for file airfoil_seqfun.F90.
+** save_soln_module   === End of Compilation 1 ===
+1501-510  Compilation successful for file save_soln_kernel.CUF.
+** update_module   === End of Compilation 1 ===
+"update_kernel.CUF", 1500-036 (I) The NOSTRICT option (default at OPT(3)) has the potential to alter the semantics of a program.  Please refer to documentation on the STRICT/NOSTRICT option for more information.
+1501-510  Compilation successful for file update_kernel.CUF.
+** bres_calc_module   === End of Compilation 1 ===
+1501-510  Compilation successful for file bres_calc_kernel.CUF.
+** res_calc_module   === End of Compilation 1 ===
+1501-510  Compilation successful for file res_calc_kernel.CUF.
+** adt_calc_module   === End of Compilation 1 ===
+1501-510  Compilation successful for file adt_calc_kernel.CUF.
+** airfoil   === End of Compilation 1 ===
+1501-510  Compilation successful for file airfoil_hdf5_op.F90.
+#$ _SPACE_= 
+#$ _CUDART_=cudart
+#$ _HERE_=/usr/local/cuda/bin
+#$ _THERE_=/usr/local/cuda/bin
+#$ _TARGET_SIZE_=
+#$ _TARGET_DIR_=
+#$ _TARGET_DIR_=targets/ppc64le-linux
+#$ TOP=/usr/local/cuda/bin/..
+#$ NVVMIR_LIBRARY_DIR=/usr/local/cuda/bin/../nvvm/libdevice
+#$ LD_LIBRARY_PATH=/usr/local/cuda/bin/../lib:/opt/ibm/xlf/15.1.4/../../lib:/opt/ibm/xlf/15.1.4/lib:/opt/ibm/xlf/15.1.4/lib:/opt/ibm/lib:/opt/ibm/xlsmp/4.1.4/lib:/opt/ibm/xlC/13.1.4/lib:/opt/openmpi-1.10.1-xl/lib:/opt/ibm/xlf/15.1.4/lib:/opt/ibm/lib:/opt/ibm/xlsmp/4.1.4/lib:/opt/ibm/xlC/13.1.4/lib:/opt/openmpi-1.10.1-xl/lib::/usr/local/cuda/lib64
+#$ PATH=/usr/local/cuda/bin/../open64/bin:/usr/local/cuda/bin/../nvvm/bin:/usr/local/cuda/bin:/opt/ibm/xlC/13.1.4/bin:/opt/openmpi-1.10.1-xl/bin:/opt/ibm/xlC/13.1.4/bin:/opt/openmpi-1.10.1-xl/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/cuda/bin
+#$ INCLUDES="-I/usr/local/cuda/bin/../targets/ppc64le-linux/include"  
+#$ LIBRARIES=  "-L/usr/local/cuda/bin/../targets/ppc64le-linux/lib/stubs" "-L/usr/local/cuda/bin/../targets/ppc64le-linux/lib"
+#$ CUDAFE_FLAGS=
+#$ PTXAS_FLAGS=
+nvcc fatal   : Don't know what to do with '/opt/openmpi-1.10.1-xl/lib'

@@ -153,7 +153,7 @@ END SUBROUTINE
     & opArg5 )
 
     IMPLICIT NONE
-    character(len=6), INTENT(IN) :: userSubroutine
+    character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
     TYPE ( op_set ) , INTENT(IN) :: set
 
     TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -183,7 +183,7 @@ END SUBROUTINE
     & opArg5 )
 
     IMPLICIT NONE
-    character(len=6), INTENT(IN) :: userSubroutine
+    character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
     TYPE ( op_set ) , INTENT(IN) :: set
 
     TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -238,7 +238,7 @@ END SUBROUTINE
     opArgArray(5) = opArg5
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
-    & 0.d0, 0.00000_4,0.00000_4, 0)
+    & 0.0_8, 0.00000_4,0.00000_4, 0)
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)

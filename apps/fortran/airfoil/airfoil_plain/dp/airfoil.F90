@@ -1,6 +1,6 @@
 program AIRFOIL
   use OP2_FORTRAN_DECLARATIONS
-  use OP2_FORTRAN_HDF5_DECLARATIONS
+!  use OP2_FORTRAN_HDF5_DECLARATIONS
   use OP2_Fortran_Reference
   use OP2_CONSTANTS
   use AIRFOIL_SEQ
@@ -74,7 +74,7 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  call op_init (0)
+  call op_init_base (0,0)
 
   print *, "Initialising constants"
   call initialise_flow_field ( ncell, q, res )
@@ -196,12 +196,12 @@ program AIRFOIL
 
   end do ! external loop
 
-  call op_fetch_data(p_q,q)
+!  call op_fetch_data(p_q,q)
 
-  call op_fetch_data_idx(p_q,q_part, 1, ncell)
+!  call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
   call op_timers ( endTime )
   call op_timing_output ()
-  write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
+  write (*,*) 'Max total runtime =',endTime-startTime,'seconds'
 
 end program AIRFOIL

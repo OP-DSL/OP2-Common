@@ -183,3 +183,5 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
 void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 
 void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
+void deviceSync() {}
+

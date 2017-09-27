@@ -197,7 +197,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   opArgArray(6) = opArg6
 
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000_4,0.00000_4, 0)
+  & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
@@ -213,7 +213,9 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
   exec_size = opSetCore%size + opSetCore%exec_size
   numberOfIndirectOpDats = 4
+  partitionSize = 128 !no effect here, just have to set
 
+  partitionSize=0
   planRet_bres_calc = FortranPlanCaller( &
   & userSubroutine//C_NULL_CHAR, &
   & set%setCPtr, &

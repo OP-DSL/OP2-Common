@@ -63,6 +63,8 @@ attributes (global) SUBROUTINE op_cuda_adt_calc( &
   & opDat1Map, &
   & opDat5Deviceadt_calc, &
   & opDat6Deviceadt_calc, &
+  & ind_sizes, &
+  & ind_offs, &
   & pblkMap, &
   & poffset, &
   & pnelems, &
@@ -81,6 +83,10 @@ attributes (global) SUBROUTINE op_cuda_adt_calc( &
 
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
+
+
+  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_sizes
+  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_offs
   INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap
   INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset
   INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnelems
@@ -89,6 +95,8 @@ attributes (global) SUBROUTINE op_cuda_adt_calc( &
   INTEGER(kind=4), VALUE :: blockOffset
   INTEGER(kind=4), VALUE :: setSize
 
+
+  REAL(kind=8), DIMENSION(0:*), SHARED :: sharedFloat8
 
   INTEGER(kind=4), SHARED :: numOfColours
   INTEGER(kind=4), SHARED :: numberOfActiveThreadsCeiling
@@ -114,6 +122,9 @@ attributes (global) SUBROUTINE op_cuda_adt_calc( &
 
   CALL syncthreads()
 
+
+
+  CALL syncthreads()
 
   i1 = threadIdx%x - 1
 
@@ -152,7 +163,7 @@ attributes (host) SUBROUTINE adt_calc_host( userSubroutine, set, &
   & opArg6 )
 
   IMPLICIT NONE
-  character(len=8), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   TYPE ( op_set ) , INTENT(IN) :: set
 
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -185,7 +196,7 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   & opArg6 )
 
   IMPLICIT NONE
-  character(len=8), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   TYPE ( op_set ) , INTENT(IN) :: set
 
   TYPE ( op_arg ) , INTENT(IN) :: opArg1
@@ -230,6 +241,13 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
 
   INTEGER(kind=4) :: numberOfIndirectOpDats
   INTEGER(kind=4) :: blockOffset
+
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_offs
+  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_sizes
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: pnindirect
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: nsharedCol
+  TYPE ( c_ptr ), POINTER, DIMENSION(:) :: mappingArray
+  TYPE ( c_ptr ), POINTER, DIMENSION(:) :: ind_maps
   INTEGER(kind=4) :: pblkMapSize
   INTEGER(kind=4) :: poffsetSize
   INTEGER(kind=4) :: pnelemsSize
@@ -260,7 +278,7 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   opArgArray(6) = opArg6
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000_4,0.00000_4, 0)
+  & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
@@ -283,7 +301,7 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   & numberOfOpDats, &
   & opArgArray, &
   & numberOfIndirectOpDats, &
-  & indirectionDescriptorArray,2)
+  & indirectionDescriptorArray,1)
 
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opMap1Cardinality = set%setPtr%size * getMapDimFromOpArg(opArg1)
@@ -308,6 +326,14 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   CALL c_f_pointer(actualPlan_adt_calc%nthrcol,pnthrcol,(/pnthrcolSize/))
   pthrcolSize = set%setPtr%size
   CALL c_f_pointer(actualPlan_adt_calc%thrcol,pthrcol,(/pthrcolSize/))
+  CALL c_f_pointer(actualPlan_adt_calc%nsharedCol,nsharedCol,(/actualPlan_adt_calc%ncolors_core/))
+  CALL c_f_pointer(actualPlan_adt_calc%nindirect,pnindirect,(/actualPlan_adt_calc%ninds_staged/))
+  CALL c_f_pointer(actualPlan_adt_calc%ind_maps,ind_maps,(/actualPlan_adt_calc%ninds_staged/))
+  CALL c_f_pointer(actualPlan_adt_calc%maps,mappingArray,(/numberOfOpDats/))
+  CALL c_f_pointer(actualPlan_adt_calc%ind_sizes,ind_sizes,(/actualPlan_adt_calc%nblocks * actualPlan_adt_calc%ninds_staged/))
+  CALL c_f_pointer(actualPlan_adt_calc%ind_offs,ind_offs,(/actualPlan_adt_calc%nblocks * actualPlan_adt_calc%ninds_staged/))
+
+
 
 
   blockOffset = 0
@@ -319,13 +345,15 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
     END IF
 
     blocksPerGrid = ncolblk(i2 + 1)
-    dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
+    dynamicSharedMemorySize = MAX(reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock, nsharedCol(1+i2))
 
     CALL op_cuda_adt_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
     & opDat1Deviceadt_calc, &
     & opMap1Deviceadt_calc, &
     & opDat5Deviceadt_calc, &
     & opDat6Deviceadt_calc, &
+    & ind_sizes, &
+    & ind_offs, &
     & pblkMap, &
     & poffset,pnelems,pnthrcol,pthrcol, &
     & set%setPtr%size+set%setPtr%exec_size, blockOffset)
