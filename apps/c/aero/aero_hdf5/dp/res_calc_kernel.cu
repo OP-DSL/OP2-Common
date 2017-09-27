@@ -83,10 +83,6 @@ __global__ void op_cuda_res_calc(
   double *__restrict ind_arg2,
   const int *__restrict opDat0Map,
   double *arg8,
-  int   *ind_map,
-  short *arg_map,
-  int   *ind_arg_sizes,
-  int   *ind_arg_offs,
   int    block_offset,
   int   *blkmap,
   int   *offset,
@@ -105,9 +101,6 @@ __global__ void op_cuda_res_calc(
     arg11_l,
     arg12_l,
   };
-
-  __shared__  int  *ind_arg2_map, ind_arg2_size;
-  __shared__  double *ind_arg2_s;
 
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
@@ -129,21 +122,8 @@ __global__ void op_cuda_res_calc(
     nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
     ncolor   = ncolors[blockId];
 
-    ind_arg2_size = ind_arg_sizes[0+blockId*1];
-
-    ind_arg2_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*1];
-
-    //set shared memory pointers
-    int nbytes = 0;
-    ind_arg2_s = (double *) &shared[nbytes];
   }
   __syncthreads(); // make sure all of above completed
-
-  for ( int n=threadIdx.x; n<ind_arg2_size*1; n+=blockDim.x ){
-    ind_arg2_s[n] = ZERO_double;
-  }
-
-  __syncthreads();
 
   for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
     int col2 = -1;
@@ -191,33 +171,19 @@ __global__ void op_cuda_res_calc(
 
     //store local variables
 
-    int arg9_map;
-    int arg10_map;
-    int arg11_map;
-    int arg12_map;
-    if (col2>=0) {
-      arg9_map = arg_map[0*set_size+n+offset_b];
-      arg10_map = arg_map[1*set_size+n+offset_b];
-      arg11_map = arg_map[2*set_size+n+offset_b];
-      arg12_map = arg_map[3*set_size+n+offset_b];
-    }
-
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
-        arg9_l[0] += ind_arg2_s[0+arg9_map*1];
-        ind_arg2_s[0+arg9_map*1] = arg9_l[0];
-        arg10_l[0] += ind_arg2_s[0+arg10_map*1];
-        ind_arg2_s[0+arg10_map*1] = arg10_l[0];
-        arg11_l[0] += ind_arg2_s[0+arg11_map*1];
-        ind_arg2_s[0+arg11_map*1] = arg11_l[0];
-        arg12_l[0] += ind_arg2_s[0+arg12_map*1];
-        ind_arg2_s[0+arg12_map*1] = arg12_l[0];
+        arg9_l[0] += ind_arg2[0+map0idx*1];
+        ind_arg2[0+map0idx*1] = arg9_l[0];
+        arg10_l[0] += ind_arg2[0+map1idx*1];
+        ind_arg2[0+map1idx*1] = arg10_l[0];
+        arg11_l[0] += ind_arg2[0+map2idx*1];
+        ind_arg2[0+map2idx*1] = arg11_l[0];
+        arg12_l[0] += ind_arg2[0+map3idx*1];
+        ind_arg2[0+map3idx*1] = arg12_l[0];
       }
       __syncthreads();
     }
-  }
-  for ( int n=threadIdx.x; n<ind_arg2_size*1; n+=blockDim.x ){
-    ind_arg2[n%1+ind_arg2_map[n/1]*1] += ind_arg2_s[n];
   }
 }
 
@@ -277,7 +243,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -303,17 +269,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-        int nshared = Plan->nsharedCol[col];
-        op_cuda_res_calc<<<nblocks,nthread,nshared>>>(
+        op_cuda_res_calc<<<nblocks,nthread>>>(
         (double *)arg0.data_d,
         (double *)arg4.data_d,
         (double *)arg9.data_d,
         arg0.map_data_d,
         (double*)arg8.data_d,
-        Plan->ind_map,
-        Plan->loc_map,
-        Plan->ind_sizes,
-        Plan->ind_offs,
         block_offset,
         Plan->blkmap,
         Plan->offset,
