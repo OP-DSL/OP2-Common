@@ -369,5 +369,6 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
 void op_wait_all_cuda(op_arg *arg);
 void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
+void op_move_to_device();
 
 #endif /* __OP_MPI_CORE_H */

@@ -296,6 +296,8 @@ void op_partition(const char *lib_name, const char *lib_routine,
   partition(lib_name, lib_routine, prime_set, prime_map, coords);
 }
 
+void op_move_to_device() {}
+
 int op_is_root() {
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
