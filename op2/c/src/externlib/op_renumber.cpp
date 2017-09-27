@@ -483,6 +483,8 @@ void op_renumber(op_map base) {
     reorder_set(OP_set_list[i], set_permutations, set_ipermutations);
   }
 
+  op_move_to_device();
+
   op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
   //Statistics
   max_dist = 0;
