@@ -103,6 +103,7 @@ void op_mvHostToDevice(void **map, int size) {
 void op_cpHostToDevice(void **data_d, void **data_h, int size) {
   if (!OP_hybrid_gpu)
     return;
+  if (*data_d != NULL) cutilSafeCall(cudaFree(*data_d));
   cutilSafeCall(cudaMalloc(data_d, size));
   cutilSafeCall(cudaMemcpy(*data_d, *data_h, size, cudaMemcpyHostToDevice));
   cutilSafeCall(cudaDeviceSynchronize());

@@ -253,6 +253,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                       dat->size * set_size);
     free(temp_data);
 
+    if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
     cutilSafeCall(
         cudaMalloc((void **)&(dat->buffer_d_r),
                    dat->size * (OP_import_exec_list[set->index]->size +
@@ -263,6 +264,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                       dat->size * set_size);
   }
   dat->dirty_hd = 0;
+  if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
   cutilSafeCall(
       cudaMalloc((void **)&(dat->buffer_d),
                  dat->size * (OP_export_exec_list[set->index]->size +
@@ -271,44 +273,72 @@ void op_mv_halo_device(op_set set, op_dat dat) {
 }
 
 void op_mv_halo_list_device() {
+  if (export_exec_list_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (export_exec_list_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_exec_list_d[OP_set_list[s]->index]));
+    free(export_exec_list_d);
+  }
   export_exec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
+    export_exec_list_d[set->index] = NULL;
 
     op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
                       (void **)&(OP_export_exec_list[set->index]->list),
                       OP_export_exec_list[set->index]->size * sizeof(int));
   }
 
+  if (export_nonexec_list_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (export_nonexec_list_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_nonexec_list_d[OP_set_list[s]->index]));
+    free(export_nonexec_list_d);
+  }
   export_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
+    export_nonexec_list_d[set->index] = NULL;
 
     op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
                       (void **)&(OP_export_nonexec_list[set->index]->list),
                       OP_export_nonexec_list[set->index]->size * sizeof(int));
   }
 
+  if ( export_nonexec_list_partial_d!= NULL) {
+    for (int s = 0; s < OP_map_index; s++)
+      if (OP_map_partial_exchange[s] && export_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
+    free(export_nonexec_list_partial_d);
+  }
   export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
       continue;
     op_map map = OP_map_list[s];
+    export_nonexec_list_partial_d[map->index] = NULL;
 
     op_cpHostToDevice((void **)&(export_nonexec_list_partial_d[map->index]),
                       (void **)&(OP_export_nonexec_permap[map->index]->list),
                       OP_export_nonexec_permap[map->index]->size * sizeof(int));
   }
 
+  if ( import_nonexec_list_partial_d!= NULL) {
+    for (int s = 0; s < OP_map_index; s++)
+      if (OP_map_partial_exchange[s] && import_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
+    free(import_nonexec_list_partial_d);
+  }
   import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
       continue;
     op_map map = OP_map_list[s];
+    import_nonexec_list_partial_d[map->index] = NULL;
 
     op_cpHostToDevice((void **)&(import_nonexec_list_partial_d[map->index]),
                       (void **)&(OP_import_nonexec_permap[map->index]->list),
