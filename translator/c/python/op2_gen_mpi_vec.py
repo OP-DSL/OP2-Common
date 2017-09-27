@@ -214,7 +214,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -248,6 +248,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if inds[index] == i:
             invinds[i-1] = index
             break
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)

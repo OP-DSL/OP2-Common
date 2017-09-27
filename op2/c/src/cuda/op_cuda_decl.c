@@ -151,25 +151,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
       (char *)calloc(set->size * dim * size, 1); // initialize data bits to 0
   dat->user_managed = 0;
 
-  // transpose data
-  if (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size * set->size * sizeof(char));
-    int element_size = dat->size / dat->dim;
-    for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set->size; j++) {
-        for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set->size + element_size * j + c] =
-              data[dat->size * j + element_size * i + c];
-        }
-      }
-    }
-    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      dat->size * set->size);
-    free(temp_data);
-  } else {
-    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                      dat->size * set->size);
-  }
+	op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                    dat->size * set->size);
 
   return dat;
 }

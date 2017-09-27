@@ -426,7 +426,10 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       i = re.search('SUBROUTINE '+name+'\\b',text).start() #text.find('SUBROUTINE '+name)
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       text = text[i:j]+'\n\n'
-      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,1,re.IGNORECASE)
+      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,2,re.IGNORECASE)
+      if not host_exec:
+        text = text.replace(')\n',')\n!$acc routine seq\n',1)
+      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
       file_text += text
     else:
       comm('user function')
@@ -630,7 +633,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           if maps[g_m] == OP_MAP:
             DO('i3','0', dims[g_m])
             code('opDat'+str(g_m+1)+'Staged(i3+1) = opDat'+str(invinds[inds[g_m]-1]+1)+'Local &')
-            code('  & (i3 * '+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx)')
+            code('  & (i3 * '+get_stride_string(g_m,maps,mapnames,set_name)+' + map'+str(mapinds[g_m]+1)+'idx)')
             ENDDO()
           else:
             DO('i3','0', dims[g_m])
@@ -689,7 +692,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if maps[g_m] == OP_MAP:
             DO('i3','0', dims[g_m])
-            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local(i3 * '+get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
+            code('opDat'+str(invinds[inds[g_m]-1]+1)+'Local(i3 * '+get_stride_string(g_m,maps,mapnames,set_name)+' + map'+str(mapinds[g_m]+1)+'idx) = &')
             code('  & opDat'+str(g_m+1)+'Staged(i3+1)')
             ENDDO()
           else:
@@ -812,7 +815,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
     code('')
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
-    code('& 0.d0, 0.00000_4,0.00000_4, 0)')
+    code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
 
     #managing constants
     if any_soa and not host_exec:
@@ -851,7 +854,9 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
       code('exec_size = opSetCore%size + opSetCore%exec_size')
       code('numberOfIndirectOpDats = '+str(ninds))
+      code('partitionSize = 128 !no effect here, just have to set')
       code('')
+      code('partitionSize=0')
       code('planRet_'+name+' = FortranPlanCaller( &')
       code('& userSubroutine//C_NULL_CHAR, &')
       code('& set%setCPtr, &')

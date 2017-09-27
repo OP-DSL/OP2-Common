@@ -4,7 +4,7 @@
 
 program AIRFOIL
   use OP2_FORTRAN_DECLARATIONS
-  use OP2_FORTRAN_HDF5_DECLARATIONS
+!  use OP2_FORTRAN_HDF5_DECLARATIONS
   use SAVE_SOLN_MODULE
   use ADT_CALC_MODULE
   use RES_CALC_MODULE
@@ -83,7 +83,7 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  call op_init (0)
+  call op_init_base (0,0)
 
   print *, "Initialising constants"
   call initialise_flow_field ( ncell, q, res )
@@ -112,14 +112,7 @@ program AIRFOIL
 
 
   print *, "Declaring OP2 constants"
-  call op_decl_const(gam, 1, 'gam')
-  call op_decl_const(gm1, 1, 'gm1')
-  call op_decl_const(cfl, 1, 'cfl')
-  call op_decl_const(eps, 1, 'eps')
-  call op_decl_const(mach, 1, 'mach')
-  call op_decl_const(alpha, 1, 'alpha')
-  call op_decl_const(qinf, 4, 'qinf')
-
+       
   !call op_dump_to_hdf5("new_grid_out.h5")
   !call op_fetch_data_hdf5_file(p_x, "new_grid_out.h5")
 
@@ -215,12 +208,12 @@ program AIRFOIL
 
   end do ! external loop
 
-  call op_fetch_data(p_q,q)
+!  call op_fetch_data(p_q,q)
 
-  call op_fetch_data_idx(p_q,q_part, 1, ncell)
+!  call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
   call op_timers ( endTime )
   call op_timing_output ()
-  write (*,*), 'Max total runtime =', endTime - startTime,'seconds'
+  write (*,*) 'Max total runtime =',endTime-startTime,'seconds'
 
 end program AIRFOIL

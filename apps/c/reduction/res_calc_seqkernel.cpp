@@ -42,7 +42,7 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
     op_mpi_wait_all(nargs, args);
   }
   // combine reduction data
-  op_mpi_reduce(&arg1, (int *)arg1.data);
+  op_mpi_reduce_int(&arg1, (int *)arg1.data);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record

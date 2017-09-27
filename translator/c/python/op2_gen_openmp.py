@@ -119,8 +119,15 @@ def op2_gen_openmp(master, date, consts, kernels):
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
 
-    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
+    mapnames = kernels[nk]['mapnames']
+    invmapinds = kernels[nk]['invmapinds']
+    mapinds = kernels[nk]['mapinds']
 
+    nmaps = 0
+    if ninds > 0:
+      nmaps = max(mapinds)+1
+
+    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -133,6 +140,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -148,7 +156,8 @@ def op2_gen_openmp(master, date, consts, kernels):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -160,6 +169,7 @@ def op2_gen_openmp(master, date, consts, kernels):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -169,6 +179,7 @@ def op2_gen_openmp(master, date, consts, kernels):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -176,16 +187,26 @@ def op2_gen_openmp(master, date, consts, kernels):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
           if inds[index] == i:
             invinds[i-1] = index
             break
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
-
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
@@ -203,10 +224,10 @@ def op2_gen_openmp(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0
-
+    print name, reduct
 ##########################################################################
 #  start with OpenMP kernel function
 ##########################################################################
@@ -322,7 +343,10 @@ def op2_gen_openmp(master, date, consts, kernels):
           code('};')
         else:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'];')
+          if indaccs[m-1] == OP_READ:
+            code('const INDTYP *ARG_vec['+str(ind)+'];')
+          else:
+            code('INDTYP *ARG_vec['+str(ind)+'];')
 #
 # lengthy code for general case with indirection
 #
@@ -624,7 +648,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('TYP ARG_l[DIM+64*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
@@ -645,7 +669,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 # kernel call for indirect version
 #
     if ninds>0:
-      code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
+      code('op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);')
       code('')
       comm(' execute plan')
       code('int block_offset = 0;')
@@ -668,7 +692,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for m in range(0,nargs):
         g_m = m
-        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ:
+        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
           code('&ARG_l[64*omp_get_thread_num()],')
         elif inds[m]==0:
           code('(TYP *)ARG.data,')
@@ -689,7 +713,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
-          if maps[m] == OP_GBL and accs[m] <> OP_READ:
+          if maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
               FOR('d','0','DIM')
@@ -723,7 +747,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for g_m in range(0,nargs):
         indent = ''
-        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
           code(indent+'ARG_l + thr*64,')
         else:
           code(indent+'(TYP *) ARG.data,')
@@ -744,7 +768,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and ninds==0:
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
           FOR('d','0','DIM')

@@ -78,26 +78,15 @@ def replace_npdes(text):
 
 funlist = []
 
-def get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf):
+def get_stride_string(g_m,maps,mapnames,set_name):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
-  if bookleaf:
-    if maps[g_m] == OP_MAP:
-      if 'el2node' in mapnames[g_m]:
-        return 'nodes_stride_OP2'
-      elif 'el2el' in mapnames[g_m]:
-        return 'elements_stride_OP2'
-      elif 'el2reg' in mapnames[g_m]:
-        return 'reg_stride_OP2'
-    else:
-      return set_name.strip()[2:]+'_stride_OP2'
+  if maps[g_m] == OP_ID:
+    return 'direct_stride_OP2CONSTANT'
+  if maps[g_m] == OP_GBL:
+    return '(gridDim%x*blockDim%x)'
   else:
-    if maps[g_m] == OP_ID:
-      return 'direct_stride_OP2CONSTANT'
-    if maps[g_m] == OP_GBL:
-      return '(gridDim%x*blockDim%x)'
-    else:
-      idx = mapnames.index(mapnames[g_m])
-      return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
+    idx = mapnames.index(mapnames[g_m])
+    return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
 
 def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf):
@@ -116,6 +105,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
   arg_list = arg_list.replace('&','')
   varlist = ['']*nargs
   leading_dim = [-1]*nargs
+  
   for g_m in range(0,nargs):
     varlist[g_m] = arg_list.split(',')[g_m].strip()
   for g_m in range(0,nargs):
@@ -123,6 +113,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
       #Start looking for the variable in the code, after the function signature
       loc1 = endj
       p = re.compile('\\b'+varlist[g_m]+'\\b')
+
       nmatches = len(p.findall(text[loc1:]))
       for id in range(0,nmatches):
         #Search for the next occurence
@@ -133,13 +124,34 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           loc1 = loc1+i.end()
           continue
 
-        #Find closing bracket
-        endarg = arg_parse(text,loc1+i.start())
-        #Find opening bracket
-        beginarg = loc1+i.start()
-        while text[beginarg] <> '(':
-          beginarg = beginarg+1
-        beginarg = beginarg+1
+        #check to see if label is followed by array subscript
+        idx = loc1 + i.end()
+        while text[idx].isspace():
+          idx = idx+1
+
+        #normal subscript access or shape definition with varname(size)
+        if text[idx] == '(':
+          #opening bracket
+          beginarg = idx+1
+          #Find closing bracket
+          endarg = arg_parse(text,loc1+i.start())
+        #looking for shape definition, look backward for DIMENSION(size)
+        elif leading_dim[g_m] == -1:
+          j = text[:loc1+i.start()].rfind('\n')
+          j2 = loc1+i.start()
+          while text[j+1:j2].strip()[0] == '&':
+            j2 = j-1
+            j = text[:j2].rfind('\n')
+
+          k = text[j:j2].lower().find('dimension')
+          if k <> -1:
+            beginarg = j+k+text[j+k:j2].find('(')+1
+          else:
+            print 'Could not find shape specification for '+varlist[g_m]+' in '+name
+          endarg = arg_parse(text,beginarg-1)
+        else:
+          print 'Error: array subscript not found'
+
 
         #If this is the first time we see the argument (i.e. its declaration)
         if leading_dim[g_m] == -1:
@@ -150,7 +162,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           else:
             leading_dim[g_m] = 1
           #Continue search after this instance of the variable
-          loc1 = endarg+1
+          loc1 = loc1+i.start()+len(varlist[g_m])
         else:
           #If we have seen this variable already, then it's in the actual code, replace it with macro
           macro = 'OP2_SOA('+text[loc1+i.start():loc1+i.end()]+','
@@ -158,7 +170,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
             macro = macro + text[beginarg:endarg]
           else:
             macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*'+leading_dim[g_m]
-          macro = macro + ', ' + get_stride_string(g_m,maps,mapnames,set_name,hydra,bookleaf) + ')'
+          macro = macro + ', ' + get_stride_string(g_m,maps,mapnames,set_name) + ')'
           text = text[:loc1+i.start()] + macro + text[endarg+1:]
           #Continue search after this instance of the variable
           loc1 = loc1+i.start() + len(macro)

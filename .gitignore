@@ -36,6 +36,7 @@ numawrap*
 *~
 *.pyg.*
 *.optrpt
+*.lst
 
 #opt files
 *.optrpt

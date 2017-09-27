@@ -18,12 +18,12 @@ export HDF5_INSTALL_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/
 export LD_LIBRARY_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/lib:$LD_LIBRARY_PATH
 
 #NVIDIA CUDA
-#export PATH=/usr/local/cuda/bin:$PATH
-#export CUDA_INSTALL_PATH=/usr/local/cuda
-#export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-export PATH=/usr/local/cuda-6.5.14/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
-export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
+export PATH=/usr/local/cuda/bin:$PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+#export PATH=/usr/local/cuda-6.5.14/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
 
 #PGI openmpi and Compilers
 export MPI_INSTALL_PATH=/opt/pgi/linux86-64/15.1/mpi/mpich/ #/opt/openmpi-1.8.4-pgi151/ #/opt/pgi/linux86-64/2015/mpi/mpich/

@@ -44,6 +44,9 @@ from op2_gen_openmp3 import *
 import op2_gen_openacc
 from op2_gen_openacc import *
 
+import op2_gen_openmp4
+from op2_gen_openmp4 import *
+
 
 
 #import mpiseq code generation function
@@ -60,6 +63,8 @@ from op2_gen_mpivec import *
 #import cuda code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
+import op2_gen_cuda_gbl
+from op2_gen_cuda_gbl import *
 import op2_gen_cuda_permute
 from op2_gen_cuda_permute import *
 import op2_gen_cudaINC
@@ -462,7 +467,7 @@ for a in range(init_ctr,len(sys.argv)):
 
   const_args = []
   if not hydra:
-    op_decl_const_parse(text)
+    const_args = op_decl_const_parse(text)
 
   #cleanup '&' symbols from name and convert dim to integer
   for i  in range(0,len(const_args)):
@@ -929,12 +934,16 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 
 #CUDA
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
+#op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
 op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
 #OpenACC
 op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+
+#OpenMP4 offload
+op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features

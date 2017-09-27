@@ -126,8 +126,15 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
     indtyps = kernels[nk]['indtyps']
     invinds = kernels[nk]['invinds']
 
-    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
+    mapnames = kernels[nk]['mapnames']
+    invmapinds = kernels[nk]['invmapinds']
+    mapinds = kernels[nk]['mapinds']
 
+    nmaps = 0
+    if ninds > 0:
+      nmaps = max(mapinds)+1
+
+    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
     if len(vec) > 0:
       unique_args = [1];
       vec_counter = 1;
@@ -140,6 +147,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
             if m > 0:
@@ -155,7 +163,8 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
               temp[i] = dims[m]
             new_dims = new_dims+temp
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[0]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -167,6 +176,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
               unique_args = unique_args + [len(new_dims)+1]
             new_dims = new_dims+[dims[m]]
             new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
@@ -176,6 +186,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
             vectorised = vectorised+[0]
       dims = new_dims
       maps = new_maps
+      mapnames = new_mapnames
       accs = new_accs
       idxs = new_idxs
       inds = new_inds
@@ -183,16 +194,26 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       typs = new_typs
       soaflags = new_soaflags;
       nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
 
       for i in range(1,ninds+1):
         for index in range(0,len(inds)+1):
           if inds[index] == i:
             invinds[i-1] = index
             break
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
     else:
       vectorised = [0]*nargs
       unique_args = range(1,nargs+1)
-
     cumulative_indirect_index = [-1]*nargs;
     j = 0;
     for i in range (0,nargs):
@@ -210,7 +231,17 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_MAP and accs[i] == OP_RW:
+        j = i
+    ind_rw= j >= 0
+    if (ind_rw):
+      print 'Error: indirect OP_RW not supported by op2_gen_cuda code generator'
+      sys.exit(2);
+
+
+    j = -1
+    for i in range(0,nargs):
+      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -303,7 +334,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('')
 
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
         code('TYP ARG_l[DIM];')
         if accs[g_m] == OP_INC:
           FOR('d','0','DIM')
@@ -334,7 +365,10 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
           code('};')
         else:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i]==m])) + 1
-          code('INDTYP *ARG_vec['+str(ind)+'];')
+          if indaccs[m-1] == OP_READ:
+            code('const INDTYP *ARG_vec['+str(ind)+'];')
+          else:
+            code('INDTYP *ARG_vec['+str(ind)+'];')
 #
 # lengthy code for general case with indirection
 #
@@ -495,7 +529,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         indent = '     '+' '*len(name)
 
       if maps[m] == OP_GBL:
-        if accs[m] == OP_READ:
+        if accs[m] == OP_READ or accs[m] == OP_WRITE:
           line += rep(indent+'ARG,\n',m)
         else:
           line += rep(indent+'ARG_l,\n',m);
@@ -614,7 +648,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]<>OP_READ:
+         if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
            FOR('d','0','DIM')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&ARG[d+blockIdx.x*DIM],ARG_l[d]);')
@@ -745,20 +779,20 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 #
 # transfer constants
 #
-    g = [i for i in range(0,nargs) if maps[i] == OP_GBL and accs[i] == OP_READ]
+    g = [i for i in range(0,nargs) if maps[i] == OP_GBL and (accs[i] == OP_READ or accs[i] == OP_WRITE)]
     if len(g)>0:
       comm('transfer constants to GPU')
       code('int consts_bytes = 0;')
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]==OP_READ:
+        if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m]==OP_WRITE):
           code('consts_bytes += ROUND_UP(DIM*sizeof(TYP));')
 
       code('reallocConstArrays(consts_bytes);')
       code('consts_bytes = 0;')
 
       for m in range(0,nargs):
-        if maps[m]==OP_GBL and accs[m]==OP_READ:
+        if maps[m]==OP_GBL and (accs[m]==OP_READ  or accs[m]==OP_WRITE):
           g_m = m
           code('ARG.data   = OP_consts_h + consts_bytes;')
           code('ARG.data_d = OP_consts_d + consts_bytes;')
@@ -800,7 +834,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('int reduct_size  = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
           code('reduct_size   = MAX(reduct_size,sizeof(TYP));')
 
@@ -808,7 +842,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('ARG.data   = OP_reduct_h + reduct_bytes;')
           code('ARG.data_d = OP_reduct_d + reduct_bytes;')
           FOR('b','0','maxblocks')
@@ -932,7 +966,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]<>OP_READ:
+        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m]<>OP_WRITE:
           FOR('b','0','maxblocks')
           FOR('d','0','DIM')
           if accs[m]==OP_INC:
@@ -946,6 +980,19 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
           code('ARG.data = (char *)ARGh;')
           code('op_mpi_reduce(&ARG,ARGh);')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        code('mvConstArraysToHost(consts_bytes);')
+        break
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        FOR('d','0','DIM')
+        code('ARGh[d] = ((TYP *)ARG.data)[d];') 
+        ENDFOR()
+        code('ARG.data = (char *)ARGh;')
+        code('op_mpi_reduce(&ARG,ARGh);')
 
     ENDIF()
     code('op_mpi_set_dirtybit_cuda(nargs, args);')

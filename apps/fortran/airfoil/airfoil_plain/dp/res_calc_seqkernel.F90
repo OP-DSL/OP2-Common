@@ -124,7 +124,7 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   opArgArray(8) = opArg8
 
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
-  & 0.d0, 0.00000_4,0.00000_4, 0)
+  & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
