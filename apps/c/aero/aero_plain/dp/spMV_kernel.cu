@@ -47,6 +47,10 @@ __global__ void op_cuda_spMV(
   const double *__restrict ind_arg1,
   const int *__restrict opDat0Map,
   const double *__restrict arg4,
+  int   *ind_map,
+  short *arg_map,
+  int   *ind_arg_sizes,
+  int   *ind_arg_offs,
   int    block_offset,
   int   *blkmap,
   int   *offset,
@@ -65,6 +69,9 @@ __global__ void op_cuda_spMV(
     arg2_l,
     arg3_l,
   };
+
+  __shared__  int  *ind_arg0_map, ind_arg0_size;
+  __shared__  double *ind_arg0_s;
 
   __shared__ int    nelems2, ncolor;
   __shared__ int    nelem, offset_b;
@@ -86,8 +93,21 @@ __global__ void op_cuda_spMV(
     nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
     ncolor   = ncolors[blockId];
 
+    ind_arg0_size = ind_arg_sizes[0+blockId*1];
+
+    ind_arg0_map = &ind_map[0*set_size] + ind_arg_offs[0+blockId*1];
+
+    //set shared memory pointers
+    int nbytes = 0;
+    ind_arg0_s = (double *) &shared[nbytes];
   }
   __syncthreads(); // make sure all of above completed
+
+  for ( int n=threadIdx.x; n<ind_arg0_size*1; n+=blockDim.x ){
+    ind_arg0_s[n] = ZERO_double;
+  }
+
+  __syncthreads();
 
   for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
     int col2 = -1;
@@ -129,19 +149,33 @@ __global__ void op_cuda_spMV(
 
     //store local variables
 
+    int arg0_map;
+    int arg1_map;
+    int arg2_map;
+    int arg3_map;
+    if (col2>=0) {
+      arg0_map = arg_map[0*set_size+n+offset_b];
+      arg1_map = arg_map[1*set_size+n+offset_b];
+      arg2_map = arg_map[2*set_size+n+offset_b];
+      arg3_map = arg_map[3*set_size+n+offset_b];
+    }
+
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
-        arg0_l[0] += ind_arg0[0+map0idx*1];
-        arg1_l[0] += ind_arg0[0+map1idx*1];
-        arg2_l[0] += ind_arg0[0+map2idx*1];
-        arg3_l[0] += ind_arg0[0+map3idx*1];
-        ind_arg0[0+map0idx*1] = arg0_l[0];
-        ind_arg0[0+map1idx*1] = arg1_l[0];
-        ind_arg0[0+map2idx*1] = arg2_l[0];
-        ind_arg0[0+map3idx*1] = arg3_l[0];
+        arg0_l[0] += ind_arg0_s[0+arg0_map*1];
+        ind_arg0_s[0+arg0_map*1] = arg0_l[0];
+        arg1_l[0] += ind_arg0_s[0+arg1_map*1];
+        ind_arg0_s[0+arg1_map*1] = arg1_l[0];
+        arg2_l[0] += ind_arg0_s[0+arg2_map*1];
+        ind_arg0_s[0+arg2_map*1] = arg2_l[0];
+        arg3_l[0] += ind_arg0_s[0+arg3_map*1];
+        ind_arg0_s[0+arg3_map*1] = arg3_l[0];
       }
       __syncthreads();
     }
+  }
+  for ( int n=threadIdx.x; n<ind_arg0_size*1; n+=blockDim.x ){
+    ind_arg0[n%1+ind_arg0_map[n/1]*1] += ind_arg0_s[n];
   }
 }
 
@@ -194,7 +228,7 @@ void op_par_loop_spMV(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
 
     //execute plan
 
@@ -212,11 +246,16 @@ void op_par_loop_spMV(char const *name, op_set set,
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
-        op_cuda_spMV<<<nblocks,nthread>>>(
+        int nshared = Plan->nsharedCol[col];
+        op_cuda_spMV<<<nblocks,nthread,nshared>>>(
         (double *)arg0.data_d,
         (double *)arg5.data_d,
         arg0.map_data_d,
         (double*)arg4.data_d,
+        Plan->ind_map,
+        Plan->loc_map,
+        Plan->ind_sizes,
+        Plan->ind_offs,
         block_offset,
         Plan->blkmap,
         Plan->offset,
