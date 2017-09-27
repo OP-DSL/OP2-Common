@@ -105,10 +105,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=1
-  op_color2_force=0
+  inc_stage=0
   op_color2=0
-
+  op_color2_force=0
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -349,7 +348,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
 
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if kernels[nk]['soaflags'][i] and (op_color2 or not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
+        if kernels[nk]['soaflags'][i] and (op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
@@ -426,6 +425,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
       code('int   set_size ) {')
       code('')
 
+
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
         code('TYP ARG_l[DIM];')
@@ -437,7 +437,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           FOR('d','0','DIM')
           code('ARG_l[d]=ARG[d+blockIdx.x*DIM];')
           ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2:
         code('TYP ARG_l[DIM];')
 
     if ninds==0 or not op_color2:
@@ -556,21 +556,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
-#
-# simple version for global coloring
-#
-    elif ninds>0:
-      code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
-      code('if(tid + start >= end) return;')
-      code('int n = col_reord[tid + start];')
-      comm('initialise local variables')
-      k = []
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
-          code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
-
-    if ninds > 0:
       code('')
       for g_m in range (0,nargs):
         if accs[g_m] <> OP_INC:
@@ -593,6 +578,19 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
                 line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
             line = line[:-2]+'};'
             code(line)
+#
+# simple version for global coloring
+#
+    elif ninds>0:
+      code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
+      code('if(tid + start >= end) return;')
+      code('int n = col_reord[tid + start];')
+      comm('initialise local variables')
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
 
 
 
