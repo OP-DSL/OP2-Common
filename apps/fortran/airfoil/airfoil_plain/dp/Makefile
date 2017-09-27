@@ -18,6 +18,38 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 
 PART_SIZE_ENV ?= 128
 
+#
+# set flags for NVCC compilation and linking
+#
+ifndef NV_ARCH
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  NV_ARCH=Kepler
+endif
+ifeq ($(NV_ARCH),Fermi)
+  CODE_GEN_CUDA=cc20
+else
+ifeq ($(NV_ARCH),Kepler)
+  CODE_GEN_CUDA=cc35
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=cc60
+endif
+endif
+endif
+
+ifdef MAX_REG_COUNT
+  REG_COUNT = --maxrregcount $(MAX_REG_COUNT)
+  PGI_REG_COUNT = maxregcount:$(MAX_REG_COUNT)
+  ifeq ($(OP2_COMPILER),xl)
+    OMP4_REG_COUNT= -Xptxas -maxrregcount=$(MAX_REG_COUNT)
+  else
+  ifeq ($(OP2_COMPILER),clang)
+    OMP4_REG_COUNT= -Xcuda-ptxas --maxrregcount=$(MAX_REG_COUNT)
+  endif
+  endif
+endif
+
+
 ifeq ($(OP2_COMPILER),gnu)
   CC = gcc
   FC = gfortran
@@ -31,12 +63,13 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  FC = pgfortran -fast
-  OPT_CUDA=-Mcuda=cuda,cc35,fastmath,ptxinfo
+  FC = pgfortran -fast -Mcuda=kepler,cc35
+  #OPT_CUDA=-Mcuda=kepler,cc35,fastmath,ptxinfo
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2 
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
   OPENMP = -mp
   CPPLINK = -pgcpplibs
   ALL_TARGET = airfoil_seq airfoil_openmp airfoil_cuda
@@ -117,7 +150,7 @@ airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 
 airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
 	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda $(HDF5_LIB)
 

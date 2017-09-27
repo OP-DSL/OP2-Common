@@ -348,6 +348,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_IN
 ###################################################################################
 ###################################################################################
 
+#COMMENT0
 
 echo " "
 echo " "
@@ -426,7 +427,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 ###################################################################################
 ###################################################################################
 
-#COMMENT0
 
 echo " "
 echo " "
@@ -472,8 +472,9 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp4 OP_PART_SIZE=256
+#./aero_mpi_openmp4 OP_PART_SIZE=256
 
+#COMMENT0
 
 echo " "
 echo " "
@@ -492,4 +493,4 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp4 OP_PART_SIZE=256
+#./aero_mpi_openmp4 OP_PART_SIZE=256
