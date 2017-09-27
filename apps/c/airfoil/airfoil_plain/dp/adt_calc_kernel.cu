@@ -46,6 +46,7 @@ __global__ void op_cuda_adt_calc(
   int   nblocks,
   int   set_size) {
 
+
   __shared__ int    nelem, offset_b;
 
   extern __shared__ char shared[];
