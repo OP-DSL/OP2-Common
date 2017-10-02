@@ -138,6 +138,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
 validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda -renumber OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
