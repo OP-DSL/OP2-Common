@@ -495,3 +495,5 @@ export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
+
+echo "All tests Passed !"
