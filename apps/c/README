@@ -33,7 +33,7 @@ CMake supports out-of-source builds and these are highly recommended. Using a
 dedicated build tree has a number of advantages:
 
 * The source remains free of object files and other 'clutter' from the build.
-* Cleaning is as simple ad removing the build directory.
+* Cleaning is as simple as removing the build directory.
 * It is possible to have many builds from the same source simultaneously with
   different build options.
 
@@ -149,3 +149,22 @@ To compile using the regular Makefiles provided, it is required to:
       export HDF5_INSTALL_PATH=/home/gihan/hdf5/
 
       export MPI_INSTALL_PATH=/home/gihan/openmpi-intel/
+
+
+Known issues
+============
+
+Invalid device symbol in airfoil_*_cuda
+---------------------------------------
+The  most likely cause is that cmake picked an incorrect architecture for your
+device. Use "deviceQuery" from CUDA samples to check your copmute capability
+and change accordingly forcing e.g. for
+
+        ./deviceQuery 
+        ...
+        Device 0: "Quadro K1100M"
+         CUDA Driver Version / Runtime Version          9.1 / 9.0
+         CUDA Capability Major/Minor version number:    3.0
+        ...
+
+pass -DCUDA_NVCC_FLAGS="-arch=sm_30;-Xptxas=-v" to your apps cmake.

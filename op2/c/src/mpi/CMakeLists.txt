@@ -37,7 +37,8 @@ endif()
 # MPI library
 add_definitions(${OP2_MPI_DEFINITIONS})
 include_directories(${OP2_MPI_INCLUDE_DIRS})
-add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC} op_mpi_decl.c op_mpi_rt_support.c)
+add_library(op2_mpi ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
+  op_mpi_decl.c op_mpi_rt_support.c ../externlib/op_renumber.cpp)
 target_link_libraries(op2_mpi ${OP2_MPI_LIBRARIES})
 
 # Add target to the build-tree export set
@@ -60,7 +61,9 @@ if(OP2_WITH_CUDA AND CUDA_FOUND AND MPI_INCLUDE_PATH)
 
   cuda_add_library(op2_mpi_cuda ${COMMON_SRC} ${RT_SRC} ${UTIL_SRC} ${MPI_SRC}
     op_mpi_part_core.c op_mpi_core.c op_mpi_cuda_decl.c op_mpi_cuda_kernels.cu
-    ../cuda/op_cuda_rt_support.c op_mpi_cuda_rt_support.c)
+    ../cuda/op_cuda_rt_support.c op_mpi_cuda_rt_support.c
+    ../externlib/op_renumber.cpp
+    )
   target_link_libraries(op2_mpi_cuda ${OP2_MPI_LIBRARIES})
 
   # Add target to the build-tree export set
