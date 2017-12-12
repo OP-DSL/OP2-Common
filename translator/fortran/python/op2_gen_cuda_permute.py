@@ -586,6 +586,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 #  Inline user kernel function
 ##########################################################################
+    using_consts = 0
     if hydra:
       code('')
       comm(name + ' user functions (CPU and GPU)')
@@ -603,6 +604,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       util.const_list = []
       text = re.sub('!.*\n','\n',text)
       text = replace_consts(text)
+      using_consts = text.find('use HYDRA_CONST_MODULE')>=0
       text = text.replace('subroutine '+name, 'attributes(device) subroutine '+name+'_gpu',1)
 
 
@@ -736,6 +738,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('& setSize)')
 
     code('')
+    if hydra and using_consts:
+        code('use HYDRA_CONST_MODULE')
     code('IMPLICIT NONE')
     code('')
 
@@ -1227,11 +1231,16 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
                   ENDDO()
             else:
               if dims[g_m].isdigit():
-                for i in range(0,int(dims[g_m])):
-                  code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(g_m+1)+'Local('+str(i)+')'+ \
-                  '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
-                for i in range(0,int(dims[g_m])):
-                  code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local('+str(i)+')')
+                if int(dims[g_m])==1:
+                    code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local'+ \
+                    '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
+                    code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local')
+                else:
+                  for i in range(0,int(dims[g_m])):
+                    code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(g_m+1)+'Local('+str(i)+')'+ \
+                    '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
+                  for i in range(0,int(dims[g_m])):
+                    code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local('+str(i)+')')
               else:
                 DO('i2','0', dims[g_m])
                 code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + (i2 + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = &')
@@ -1264,15 +1273,22 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             if soaflags[invinds_staged[g_m]] == 1:
               DOWHILE('i1 < ind_maps'+str(invinds_staged[g_m]+1)+'size')
               if inddims_staged[g_m].isdigit():
-                for i in range(0,int(inddims_staged[g_m])):
-                  code('opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+') = &')
+                if int(inddims_staged[g_m])==1:
+                  code('opDat'+str(invinds_staged[g_m]+1)+'Local = &')
                   code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
-                  '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
-                  code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + '+str(i)+' + i1 * ('+inddims_staged[g_m]+\
-                  '))')
-                for i in range(0,int(inddims_staged[g_m])):
+                    '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
                   code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
-                  '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+')')
+                    '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = opDat'+str(invinds_staged[g_m]+1)+'Local')
+                else:
+                  for i in range(0,int(inddims_staged[g_m])):
+                    code('opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+') = &')
+                    code('& opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                    '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) + &')
+                    code('& sharedFloat8(opDat'+str(invinds_staged[g_m]+1)+'nBytes + '+str(i)+' + i1 * ('+inddims_staged[g_m]+\
+                    '))')
+                  for i in range(0,int(inddims_staged[g_m])):
+                    code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + '+str(i)+' * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
+                    '(ind_maps'+str(invinds_staged[g_m]+1)+'offset + i1)) = opDat'+str(invinds_staged[g_m]+1)+'Local('+str(i)+')')
               else:
                 DO('i2','0', inddims_staged[g_m])
                 code('opDat'+str(invinds_staged[g_m]+1)+'Device'+name+'(1 + i2 * '+get_stride_string(invinds_staged[g_m],maps,mapnames,set_name)+' + ind_maps'+str(invinds_staged[g_m]+1)+\
