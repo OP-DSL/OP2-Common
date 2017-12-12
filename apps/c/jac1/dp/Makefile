@@ -34,18 +34,19 @@ ifeq ($(OP2_COMPILER),intel)
   CPPFLAGS	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
-  NVCCFLAGS	= -ccbin=$(MPICPP)
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CPP           = pgc++
+  CC           = pgcc
   CCFLAGS       = -O3
   CPPFLAGS      = $(CCFLAGS)
   OMPFLAGS      = -mp
   MPICC         = $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP        = $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS      = $(CPPFLAGS)
-  NVCCFLAGS     = -ccbin=$(MPICPP)
+  NVCCFLAGS     = #-ccbin=$(MPICPP)
   ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
 else
 print:
@@ -94,7 +95,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 ALL_TARGETS: clean jac_seq jac_genseq jac_openmp jac_cuda jac_mpi
 
 ifeq ($(OP2_COMPILER),pgi)
-        ALL_TARGETS += #jac_openacc
+        ALL_TARGETS += jac_openacc
 endif
 ifeq ($(OP2_COMPILER),intel)
         ALL_TARGETS += jac_vec
@@ -152,6 +153,14 @@ jac_kernels_cu.o:	jac_kernels.cu  res_kernel.cu res.h \
 			update_kernel.cu  update.h  \
 			Makefile
 			nvcc $(INC) $(NVCCFLAGS) $(OP2_INC) -c -o jac_kernels_cu.o jac_kernels.cu
+
+#
+# OpenACC version
+#
+jac_openacc:	jac_op.cpp jac_acckernels.c Makefile
+		$(CC) $(ACCFLAGS) $(CPPFLAGS) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) jac_acckernels.c -c
+		$(CPP) $(ACCFLAGS) $(CPPFLAGS) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
+		jac_op.cpp jac_acckernels.o -lcudart -lop2_cuda -o jac_openacc
 
 #
 # mpi with sequential-nodes version
