@@ -60,7 +60,7 @@ double alpha;
 //
 // kernel routines for parallel loops
 //
-
+#include "user_types.h"
 #include "res.h"
 #include "update.h"
 

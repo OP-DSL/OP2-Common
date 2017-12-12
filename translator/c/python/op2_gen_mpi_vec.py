@@ -12,6 +12,7 @@
 import re
 import datetime
 import glob
+import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -778,6 +779,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
   file_text =''
   comm(' header                 ')
+  if os.path.exists('./user_types.h'):
+    code('#include "user_types.h"')
   code('#include "op_lib_cpp.h"       ')
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')

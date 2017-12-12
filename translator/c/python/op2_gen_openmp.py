@@ -11,6 +11,7 @@
 
 import re
 import datetime
+import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -834,6 +835,8 @@ def op2_gen_openmp(master, date, consts, kernels):
 
   file_text =''
   comm(' header                 ')
+  if os.path.exists('./user_types.h'):
+    code('#include "user_types.h"')
   code('#include "op_lib_cpp.h"       ')
   code('')
   comm(' global constants       ')

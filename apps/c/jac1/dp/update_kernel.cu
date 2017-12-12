@@ -8,7 +8,7 @@ __device__ void update_gpu( const double *r, double *du, double *u, double *u_su
   *u += *du + alpha * (*r);
   *du = 0.0f;
   *u_sum += (*u) * (*u);
-  *u_max = MAX(*u_max, *u);
+  *u_max = maxfun(*u_max, *u);
 }
 
 // CUDA kernel function
