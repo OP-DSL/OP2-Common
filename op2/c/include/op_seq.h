@@ -1,4 +1,5 @@
-
+#ifndef __OP_SEQ_H
+#define __OP_SEQ_H
 //
 // header for sequential and MPI+sequentional execution
 //
@@ -3763,3 +3764,5 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
     free(p_a[19]);
   }
 }
+
+#endif /* __OP_SEQ_H */
