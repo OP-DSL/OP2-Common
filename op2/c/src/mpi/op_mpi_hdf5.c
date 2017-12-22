@@ -186,6 +186,43 @@ int compute_local_size_weight(int global_size, int mpi_comm_size,
   return local_size;
 }
 
+/*create path specified by dat->name for a data set within an HDF5 file*/
+void create_path(op_dat dat, hid_t file_id) {
+  hid_t group_id;
+  herr_t status;
+  char *path = (char *)dat->name;
+  char *ssc;
+  int l = 0;
+  int k = 0;
+  int c = 0;
+  ssc = strstr(path, "/");
+  char buffer[50];
+  while (ssc) {
+    char result[20];
+    k = strlen(path) - strlen(ssc);
+    strncpy(result, &path[0], k);
+    result[k] = '\0';
+    if (k > 0) {
+      sprintf(&buffer[c], "/%s", result);
+      c = 1 + k;
+      printf("%d,%s\n", k, buffer);
+    }
+
+    // Create a group named "/result" in the file.
+    group_id =
+        H5Gcreate2(file_id, buffer, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Gclose(group_id);
+
+    l = strlen(ssc) + 1;
+    path = &path[strlen(path) - l + 2];
+    ssc = strstr(path, "/");
+  }
+  char name[20];
+  strncpy(name, &path[0], strlen(path));
+  name[strlen(path)] = '\0';
+  printf("%s\n", name);
+}
+
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
@@ -369,12 +406,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     H5Fclose(file_id);
     return NULL;
   }
-  
+
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
@@ -515,8 +552,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file);
     return NULL;
   }
   size_t dat_size = dset_props.elem_bytes;
@@ -666,8 +703,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file_name);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file_name);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
@@ -1237,6 +1274,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
     op_printf("File %s exists .... checking for dataset %s in file\n",
               file_name, dat->name);
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
+
     if (H5Lexists(file_id, dat->name, H5P_DEFAULT) != 0) {
       op_printf("op_dat %s exists in the file ... updating data\n", dat->name);
 
@@ -1404,6 +1442,9 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   // Create property list for collective dataset write.
   plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+  // create dataset path
+  create_path(dat, file_id);
 
   // Create the dataset with default properties and close dataspace.
   if (strcmp(dat->type, "double") == 0 ||
