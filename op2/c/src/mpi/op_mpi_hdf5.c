@@ -417,8 +417,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -459,7 +458,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   const char *typ = dset_props.type_str;
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   /*read in map in hyperslabs*/
 
@@ -559,8 +558,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -595,7 +593,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   }
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   /*read in dat in hyperslabs*/
 
