@@ -314,8 +314,8 @@ int main(int argc, char **argv) {
   op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
 
   op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
-  // op_dat p_x = op_decl_dat(nodes, 2, "double", x, "/group1/group2/p_x");
-  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
+  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "/group3/group2/group1/p_x");
+  // op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
   op_dat p_q = op_decl_dat(cells, 4, "double", q, "p_q");
   op_dat p_qold = op_decl_dat(cells, 4, "double", qold, "p_qold");
   op_dat p_adt = op_decl_dat(cells, 1, "double", adt, "p_adt");

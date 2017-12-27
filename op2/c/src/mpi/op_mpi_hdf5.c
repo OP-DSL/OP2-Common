@@ -192,32 +192,36 @@ void create_path(op_dat dat, hid_t file_id) {
   herr_t status;
   char *path = (char *)dat->name;
   char *ssc;
-  int l = 0;
   int k = 0;
+  int size = 50;
   int c = 0;
   ssc = strstr(path, "/");
-  char buffer[50];
+  char *buffer = (char *)xmalloc(50 * sizeof(char));
   while (ssc) {
-    char result[20];
     k = strlen(path) - strlen(ssc);
-    strncpy(result, &path[0], k);
-    result[k] = '\0';
     if (k > 0) {
+      char result[30];
+      strncpy(result, &path[0], k);
+      result[k] = '\0';
+      printf("%s\n", result);
+      if (size <= c + k + 1) {
+        size = 2 * (size + c + k + 1);
+        buffer = (char *)xrealloc(buffer, 2 * size * sizeof(char));
+      }
       sprintf(&buffer[c], "/%s", result);
-      c = 1 + k;
-      printf("%d,%s\n", k, buffer);
+      c += 1 + k;
+      printf("%d,%s\n", c, buffer);
+
+      // Create a group named "/result" in the file.
+      group_id =
+          H5Gcreate2(file_id, buffer, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      status = H5Gclose(group_id);
     }
-
-    // Create a group named "/result" in the file.
-    group_id =
-        H5Gcreate2(file_id, buffer, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    status = H5Gclose(group_id);
-
-    l = strlen(ssc) + 1;
-    path = &path[strlen(path) - l + 2];
+    path = &path[strlen(path) - strlen(ssc) + 1];
     ssc = strstr(path, "/");
   }
-  char name[20];
+  free(buffer);
+  char name[30];
   strncpy(name, &path[0], strlen(path));
   name[strlen(path)] = '\0';
   printf("%s\n", name);
