@@ -314,12 +314,18 @@ int main(int argc, char **argv) {
   op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
 
   op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
-  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "/group3/group2/group1/p_x");
-  // op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
+  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
   op_dat p_q = op_decl_dat(cells, 4, "double", q, "p_q");
   op_dat p_qold = op_decl_dat(cells, 4, "double", qold, "p_qold");
   op_dat p_adt = op_decl_dat(cells, 1, "double", adt, "p_adt");
   op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
+
+  /* Test out creating dataset within a nested path in an HDF5 file
+  -- Remove when needing to create correct Airfoil mesh
+  */
+  op_dat p_x_test =
+      op_decl_dat(nodes, 2, "double", x, "/group3/group2/group1/p_x_test");
+  op_map pedge_test = op_decl_map(edges, nodes, 2, edge, "/group3/pedge_test");
 
   op_decl_const(1, "double", &gam);
   op_decl_const(1, "double", &gm1);
@@ -331,10 +337,10 @@ int main(int argc, char **argv) {
 
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
 
-  op_fetch_data_hdf5_file(p_x, "test.h5");
+  op_fetch_data_hdf5_file(p_x_test, "test.h5");
 
-  /*op_dump_to_hdf5(file_out);*/
-  /*op_write_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid_out.h5");
+  op_dump_to_hdf5(file_out);
+  op_write_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid_out.h5");
   op_write_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid_out.h5");
   op_write_const_hdf5("cfl", 1, "double", (char *)&cfl, "new_grid_out.h5");
   op_write_const_hdf5("eps", 1, "double", (char *)&eps, "new_grid_out.h5");
@@ -343,7 +349,7 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
 
   // create halos - for sanity check
-  op_halo_create();*/
+  op_halo_create();
 
   op_exit();
 }

@@ -72,6 +72,18 @@ typedef struct {
   size_t elem_bytes;    // element byte-size
 } op_hdf5_dataset_properties;
 
+/* Temporarily switch off HDF5 error handler*/
+void H5error_off(H5E_auto_t old_func, void *old_client_data) {
+  /* Save old error handler */
+  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
+  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+}
+
+/* Restore previous error handler .. report hdf5 error stack automatically*/
+void H5error_on(H5E_auto_t old_func, void *old_client_data) {
+  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+}
+
 const char* op_hdf5_type_to_string(hid_t t) {
   char* text = NULL;
   if (H5Tequal(t, H5T_NATIVE_INT)) {
@@ -186,11 +198,16 @@ int compute_local_size_weight(int global_size, int mpi_comm_size,
   return local_size;
 }
 
-/*create path specified by dat->name for a data set within an HDF5 file*/
-void create_path(op_dat dat, hid_t file_id) {
+/*create path specified by map or dat ->name for a map or dataset
+  within an HDF5 file*/
+void create_path(const char *name, hid_t file_id) {
+
   hid_t group_id;
   herr_t status;
-  char *path = (char *)dat->name;
+  H5E_auto_t old_func;
+  void *old_client_data;
+
+  char *path = (char *)name;
   char *ssc;
   int k = 0;
   int size = 50;
@@ -203,28 +220,29 @@ void create_path(op_dat dat, hid_t file_id) {
       char result[30];
       strncpy(result, &path[0], k);
       result[k] = '\0';
-      printf("%s\n", result);
       if (size <= c + k + 1) {
         size = 2 * (size + c + k + 1);
         buffer = (char *)xrealloc(buffer, 2 * size * sizeof(char));
       }
       sprintf(&buffer[c], "/%s", result);
       c += 1 + k;
-      printf("%d,%s\n", c, buffer);
 
       // Create a group named "/result" in the file.
-      group_id =
-          H5Gcreate2(file_id, buffer, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      status = H5Gclose(group_id);
+      H5error_off(old_func, old_client_data);
+      status = H5Gget_objinfo(file_id, buffer, 0, NULL);
+      H5error_on(old_func, old_client_data);
+
+      // printf("status %d, %s\n",status,buffer);
+      if (status != 0) {
+        group_id =
+            H5Gcreate2(file_id, buffer, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Gclose(group_id);
+      }
     }
     path = &path[strlen(path) - strlen(ssc) + 1];
     ssc = strstr(path, "/");
   }
   free(buffer);
-  char name[30];
-  strncpy(name, &path[0], strlen(path));
-  name[strlen(path)] = '\0';
-  printf("%s\n", name);
 }
 
 /*******************************************************************************
@@ -839,6 +857,7 @@ void op_dump_to_hdf5(char const *file_name) {
     H5Pclose(plist_id);
     H5Dclose(dset_id);
   }
+
   /*loop over all the op_maps and write them to file*/
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
@@ -876,6 +895,9 @@ void op_dump_to_hdf5(char const *file_name) {
     // Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+    // create map path
+    create_path(map->name, file_id);
 
     // Create the dataset with default properties and close dataspace.
     if (sizeof(map->map[0]) == sizeof(int)) {
@@ -946,6 +968,7 @@ void op_dump_to_hdf5(char const *file_name) {
     // Close to the dataset.
     H5Dclose(dset_id);
   }
+
   /*loop over all the op_dats and write them to file*/
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
@@ -983,6 +1006,9 @@ void op_dump_to_hdf5(char const *file_name) {
     // Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+    // create dateset path
+    create_path(dat->name, file_id);
 
     // Create the dataset with default properties and close dataspace.
     if (strcmp(dat->type, "double") == 0 ||
@@ -1448,7 +1474,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
   // create dataset path
-  create_path(dat, file_id);
+  create_path(dat->name, file_id);
 
   // Create the dataset with default properties and close dataspace.
   if (strcmp(dat->type, "double") == 0 ||
