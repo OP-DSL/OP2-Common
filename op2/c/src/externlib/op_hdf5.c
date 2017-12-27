@@ -31,10 +31,10 @@
  */
 
 /*
- * op_mpi_core.c
+ * op_hdf5.c
  *
  * Implements the HDF5 based I/O routines for the OP2 single node
- * backe end
+ * back end
  *
  * written by: Gihan R. Mudalige, (Started 10-10-2011)
  */
@@ -53,103 +53,7 @@
 
 #include <op_util.h> //just to include xmalloc routine
 
-typedef struct {
-  const char* type_str; // dataset type as string
-  hsize_t size;         // dataset size (first dimension)
-  hsize_t dim;          // element size (second dimension)
-  size_t elem_bytes;    // element byte-size
-} op_hdf5_dataset_properties;
-
-const char* op_hdf5_type_to_string(hid_t t) {
-  char* text = NULL;
-  if (H5Tequal(t, H5T_NATIVE_INT)) {
-    text = (char*)malloc(4*sizeof(char));
-    strcpy(text, "int");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
-    text = (char*)malloc(5*sizeof(char));
-    strcpy(text, "long");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
-    text = (char*)malloc(10*sizeof(char));
-    strcpy(text, "long long");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
-    text = (char*)malloc(6*sizeof(char));
-    strcpy(text, "float");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
-    text = (char*)malloc(7*sizeof(char));
-    strcpy(text, "double");
-  }
-  else {
-    text = (char*)malloc(13*sizeof(char));
-    strcpy(text, "UNRECOGNISED");
-  }
-
-  return (const char*)text;
-}
-
-herr_t get_dataset_properties(hid_t dset_id, op_hdf5_dataset_properties *dset_props) {
-  hid_t status;
-
-  if (dset_props == NULL) {
-    return -1;
-  }
-
-  // Get dimension and size:
-  hid_t dataspace = H5Dget_space(dset_id);
-  if (dataspace < 0) {
-    return -1;
-  }
-  int ndims = H5Sget_simple_extent_ndims(dataspace);
-  if (ndims == 0) {
-    dset_props->size = 0;
-    dset_props->dim = 0;
-    H5Sclose(dataspace);
-  } else {
-    hsize_t dims[ndims];
-    hsize_t maxdims[ndims];
-    status = H5Sget_simple_extent_dims(dataspace, dims, maxdims);
-    H5Sclose(dataspace);
-    if (status < 0) {
-      return -1;
-    }
-    dset_props->size = dims[0];
-    dset_props->dim = (ndims > 1) ? dims[1] : 1;
-  }
-
-  // Get type information:
-  hid_t t = H5Dget_type(dset_id);
-  if (t < 0) {
-    return -1;
-  }
-  dset_props->type_str = op_hdf5_type_to_string(t);
-  if (H5Tequal(t, H5T_NATIVE_INT)) {
-    dset_props->elem_bytes = sizeof(int);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
-    dset_props->elem_bytes = sizeof(long);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
-    dset_props->elem_bytes = sizeof(long long);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
-    dset_props->elem_bytes = sizeof(float);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
-    dset_props->elem_bytes = sizeof(double);  }
-  else {
-    size_t name_len = H5Iget_name(dset_id,NULL,0);
-    char name[name_len];
-    H5Iget_name(dset_id,name,name_len+1);
-    op_printf("Error: Do not recognise type of dataset '%s'\n", name);
-    exit(2);
-  }
-  dset_props->elem_bytes *= dset_props->dim;
-
-  return 0;
-}
+#include "op_hdf5_common.c"
 
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
@@ -251,8 +155,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -260,7 +163,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     printf("op_map with name : %s not found in file : %s \n", name, file);
     return NULL;
   }
-  
+
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
@@ -286,7 +189,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   const char *typ = dset_props.type_str;
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -342,8 +245,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -376,7 +278,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   size_t dat_size = dset_props.elem_bytes;
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   // Create the dataset with default properties
   dataspace = H5Dget_space(dset_id);
@@ -508,6 +410,9 @@ void op_dump_to_hdf5(char const *file_name) {
     dimsf[1] = map->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
 
+    // create map path
+    create_path(map->name, file_id);
+
     // Create the dataset with default properties and write data
     if (sizeof(map->map[0]) == sizeof(int)) {
       dset_id = H5Dcreate(file_id, map->name, H5T_NATIVE_INT, dataspace,
@@ -595,6 +500,9 @@ void op_dump_to_hdf5(char const *file_name) {
     dimsf[0] = g_size;
     dimsf[1] = dat->dim;
     dataspace = H5Screate_simple(2, dimsf, NULL);
+
+    // create dateset path
+    create_path(dat->name, file_id);
 
     // Create the dataset with default properties and write data
     if (strcmp(dat->type, "double") == 0 ||
@@ -1062,6 +970,9 @@ void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
   dimsf[0] = dat->set->size;
   dimsf[1] = dat->dim;
   dataspace = H5Screate_simple(2, dimsf, NULL);
+
+  // create dataset path
+  create_path(dat->name, file_id);
 
   // Create the dataset with default properties and write data
   if ((strcmp(dat->type, "double") == 0) ||

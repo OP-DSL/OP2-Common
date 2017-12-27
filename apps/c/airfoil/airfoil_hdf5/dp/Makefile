@@ -145,7 +145,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 #
 # master to make all versions
 #
-ALL_TARGETS = clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh
+ALL_TARGETS = clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh_seq convert_mesh_mpi
 ifeq ($(OP2_COMPILER),pgi)
 	ALL_TARGETS += airfoil_openacc airfoil_mpi_openacc
 endif
@@ -153,7 +153,6 @@ ifeq ($(OP2_COMPILER),intel)
 	ALL_TARGETS += airfoil_mpi_vec
 endif
 
-#all: clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda airfoil_mpi_openmp airfoil_mpi_cuda_hyb convert_mesh
 all: $(ALL_TARGETS)
 
 #
@@ -381,13 +380,18 @@ airfoil_hybkernels.o: airfoil_hybkernels.cu \
 		$(MPICPP) -DOP_HYBRID_GPU $(OMPFLAGS) $(INC) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
                 -c -o airfoil_hybkernels2.o airfoil_hybkernels2.cpp
 		rm airfoil_hybkernels2.cpp
+
 #
 # convert ASCI new_gird.dat to HDF5 new_grid.h5
 #
 
-convert_mesh: convert_mesh.cpp
+convert_mesh_seq: convert_mesh.cpp
 	$(MPICPP) $(MPIFLAGS) convert_mesh.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o convert_mesh
+	$(OP2_LIB) -lop2_seq -lop2_hdf5 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o convert_mesh_seq
+
+convert_mesh_mpi: convert_mesh_mpi.cpp
+	$(MPICPP) $(MPIFLAGS) convert_mesh_mpi.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o convert_mesh_mpi
 
 
 
@@ -397,4 +401,4 @@ convert_mesh: convert_mesh.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh airfoil_openacc airfoil_mpi_openacc *.o *.optrpt
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o *.optrpt
