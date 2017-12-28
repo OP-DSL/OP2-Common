@@ -1101,10 +1101,11 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 /*******************************************************************************
 * Routine to write an op_dat to a named hdf5 file,
 * if file does not exist, creates it
-* if the data set does not exists in file creates data set
+* if the data set given at path does not exists in file creates data set
 *******************************************************************************/
 
-void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
+void op_fetch_data_hdf5(op_dat data, char const *file_name,
+                        char const *path_name) {
   // fetch data based on the backend
   op_dat dat = op_fetch_data_file_char(data);
 
@@ -1146,18 +1147,19 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
     file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   } else {
     op_printf("File %s exists .... checking for dataset %s in file\n",
-              file_name, dat->name);
+              file_name, path_name);
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
 
-    if (H5Lexists(file_id, dat->name, H5P_DEFAULT) != 0) {
-      op_printf("op_dat %s exists in the file ... updating data\n", dat->name);
+    if (H5Lexists(file_id, path_name, H5P_DEFAULT) != 0) {
+      op_printf("op_dat %s exists in the file ... updating data\n", path_name);
 
-      dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
+      dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
       op_hdf5_dataset_properties dset_props;
       herr_t status = get_dataset_properties(dset_id, &dset_props);
       if (status < 0) {
-        op_printf("Could not get properties of dataset '%s' in file '%s'\n", dat->name, file_name);
+        op_printf("Could not get properties of dataset '%s' in file '%s'\n",
+                  path_name, file_name);
         exit(2);
       }
 
@@ -1276,12 +1278,12 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
       return;
     } else {
       op_printf("op_dat %s does not exists in the file ... creating data set\n",
-                dat->name);
+                path_name);
     }
   }
 
   //
-  // new file and new data set ...
+  // new data set ...
   //
 
   H5Pclose(plist_id);
@@ -1318,14 +1320,14 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
   // create dataset path
-  create_path(dat->name, file_id);
+  create_path(path_name, file_id);
 
   // Create the dataset with default properties and close dataspace.
   if (strcmp(dat->type, "double") == 0 ||
       strcmp(dat->type, "double:soa") == 0 ||
       strcmp(dat->type, "double precision") == 0 ||
       strcmp(dat->type, "real(8)") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_DOUBLE, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id,
              dat->data);
@@ -1333,7 +1335,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
              strcmp(dat->type, "float:soa") == 0 ||
              strcmp(dat->type, "real(4)") == 0 ||
              strcmp(dat->type, "real") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_FLOAT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id,
              dat->data);
@@ -1342,18 +1344,18 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
              strcmp(dat->type, "int(4)") == 0 ||
              strcmp(dat->type, "integer") == 0 ||
              strcmp(dat->type, "integer(4)") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_INT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
   } else if ((strcmp(dat->type, "long") == 0) ||
              (strcmp(dat->type, "long:soa") == 0)) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LONG, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_LONG, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id,
              dat->data);
   } else if ((strcmp(dat->type, "long long") == 0) ||
              (strcmp(dat->type, "long long:soa") == 0)) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LLONG, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_LLONG, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id,
              dat->data);
@@ -1371,7 +1373,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   /*attach attributes to dat*/
 
   // open existing data set
-  dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
+  dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
   // create the data space for the attribute
   hsize_t dims = 1;
@@ -1411,4 +1413,26 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   op_free(dat);
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+}
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file,
+* if file does not exist, creates it
+* if the data set does not exists in file creates data set
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
+  op_fetch_data_hdf5(dat, file_name, dat->name);
+}
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file, where dataset_name is a
+* freely chosen path inside the h5-file of the dataset.
+* If file does not exist, creates it
+* If the data set does not exists in file creates data set
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file_path(op_dat dat, char const *file_name,
+                                  char const *path_name) {
+  op_fetch_data_hdf5(dat, file_name, path_name);
 }
