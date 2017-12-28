@@ -214,8 +214,17 @@ int main(int argc, char **argv) {
   op_decl_const(1, "double", &alpha);
   op_decl_const(4, "double", qinf);
 
+  /* Test functionality of fetching data of an op_dat to an HDF5 file*/
   op_fetch_data_hdf5_file(p_x_test, "test.h5");
 
+  char name[128];
+  int time = 0;
+  sprintf(name, "states_%07i", (int)(time * 100.0));
+  op_fetch_data_hdf5_file_path(p_x_test, "test.h5", name);
+  sprintf(name, "/results/states_%07i", (int)(time * 100.0));
+  op_fetch_data_hdf5_file_path(p_x_test, "test.h5", name);
+
+  /* Test functionality of dumping all the sets,maps and dats to an HDF5 file*/
   op_dump_to_hdf5(file_out);
   op_write_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid_out.h5");
   op_write_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid_out.h5");

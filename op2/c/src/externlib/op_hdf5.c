@@ -836,14 +836,22 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
 
   hsize_t dimsf[2]; // dataset dimensions
 
+  H5E_auto_t old_func;
+  void *old_client_data;
+
   if (file_exist(file_name) == 0) {
     printf("File %s does not exist .... creating file\n", file_name);
     file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
   } else {
-    printf("File %s exists .... checking for dataset and path%s in file\n",
+    printf("File %s exists .... checking for dataset and path %s in file\n",
            file_name, path_name);
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (H5Lexists(file_id, path_name, H5P_DEFAULT) != 0) {
+
+    H5error_off(old_func, old_client_data);
+    herr_t status = H5Gget_objinfo(file_id, path_name, 0, NULL);
+    H5error_on(old_func, old_client_data);
+
+    if (status == 0) {
       printf("op_dat %s exists in the file ... updating data\n", path_name);
       dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
@@ -958,7 +966,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
       H5Fclose(file_id);
       return;
     } else {
-      printf("op_dat %s does not exists in the file ... creating data set",
+      printf("op_dat %s does not exists in the file ... creating data set\n",
              path_name);
     }
   }
@@ -1059,6 +1067,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
 *******************************************************************************/
 
 void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
+  printf("in op_fetch_data_hdf5_file\n");
   op_fetch_data_hdf5(dat, file_name, dat->name);
 }
 

@@ -86,7 +86,7 @@ cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
 $OP2_C_CODEGEN_DIR/op2.py aero.cpp
 make clean;make
 
-#COMMENT1
+
 
 echo " "
 echo " "
@@ -144,7 +144,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-#COMMENT1
+
 echo " "
 echo " "
 echo "=======================> Running Airfoil HDF5 DP built with Intel Compilers"
@@ -169,7 +169,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-
+#COMMENT1
 echo "=======================> Running Convertmesh built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 make convert_mesh_seq convert_mesh_mpi
@@ -181,12 +181,12 @@ fi
 ./convert_mesh_seq
 ./convert_mesh_seq
 rm ./test.h5
-$MPI_INSTALL_PATH/bin/mpirun -np 1 ./convert_mesh_mpi
-$MPI_INSTALL_PATH/bin/mpirun -np 1 ./convert_mesh_mpi
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./convert_mesh_mpi
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./convert_mesh_mpi
 ./convert_mesh_seq
 rm ./test.h5
 ./convert_mesh_seq
-$MPI_INSTALL_PATH/bin/mpirun -np 1 ./convert_mesh_mpi
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./convert_mesh_mpi
 
 
 echo " "

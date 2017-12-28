@@ -1130,6 +1130,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   hsize_t count[2]; // hyperslab selection parameters
   hsize_t offset[2];
 
+  H5E_auto_t old_func;
+  void *old_client_data;
+
   // Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
@@ -1150,7 +1153,11 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
               file_name, path_name);
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
 
-    if (H5Lexists(file_id, path_name, H5P_DEFAULT) != 0) {
+    H5error_off(old_func, old_client_data);
+    herr_t status = H5Gget_objinfo(file_id, path_name, 0, NULL);
+    H5error_on(old_func, old_client_data);
+
+    if (status == 0) {
       op_printf("op_dat %s exists in the file ... updating data\n", path_name);
 
       dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
