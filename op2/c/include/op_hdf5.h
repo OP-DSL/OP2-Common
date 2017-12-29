@@ -60,6 +60,8 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name);
 
 void op_fetch_data_hdf5_file(op_dat dat, char const *file_name);
+void op_fetch_data_hdf5_file_path(op_dat dat, char const *file_name,
+                                  char const *path_name);
 
 #ifdef __cplusplus
 }

@@ -52,6 +52,7 @@
 #define H5Dopen_vers 2
 #define H5Acreate_vers 2
 #define H5Dcreate_vers 2
+
 // hdf5 header
 #include <hdf5.h>
 
@@ -59,109 +60,13 @@
 #include <op_hdf5.h>
 #include <op_lib_mpi.h>
 
+#include "../externlib/op_hdf5_common.c"
+
 //
 // MPI Communicator for parallel I/O
 //
 
 MPI_Comm OP_MPI_HDF5_WORLD;
-
-typedef struct {
-  const char* type_str; // dataset type as string
-  hsize_t size;         // dataset size (first dimension)
-  hsize_t dim;          // element size (second dimension)
-  size_t elem_bytes;    // element byte-size
-} op_hdf5_dataset_properties;
-
-const char* op_hdf5_type_to_string(hid_t t) {
-  char* text = NULL;
-  if (H5Tequal(t, H5T_NATIVE_INT)) {
-    text = (char*)malloc(4*sizeof(char));
-    strcpy(text, "int");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
-    text = (char*)malloc(5*sizeof(char));
-    strcpy(text, "long");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
-    text = (char*)malloc(10*sizeof(char));
-    strcpy(text, "long long");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
-    text = (char*)malloc(6*sizeof(char));
-    strcpy(text, "float");
-  }
-  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
-    text = (char*)malloc(7*sizeof(char));
-    strcpy(text, "double");
-  }
-  else {
-    text = (char*)malloc(13*sizeof(char));
-    strcpy(text, "UNRECOGNISED");
-  }
-
-  return (const char*)text;
-}
-
-herr_t get_dataset_properties(hid_t dset_id, op_hdf5_dataset_properties *dset_props) {
-  hid_t status;
-
-  if (dset_props == NULL) {
-    return -1;
-  }
-
-  // Get dimension and size:
-  hid_t dataspace = H5Dget_space(dset_id);
-  if (dataspace < 0) {
-    return -1;
-  }
-  int ndims = H5Sget_simple_extent_ndims(dataspace);
-  if (ndims == 0) {
-    dset_props->size = 0;
-    dset_props->dim = 0;
-    H5Sclose(dataspace);
-  } else {
-    hsize_t dims[ndims];
-    hsize_t maxdims[ndims];
-    status = H5Sget_simple_extent_dims(dataspace, dims, maxdims);
-    H5Sclose(dataspace);
-    if (status < 0) {
-      return -1;
-    }
-    dset_props->size = dims[0];
-    dset_props->dim = (ndims > 1) ? dims[1] : 1;
-  }
-
-  // Get type information:
-  hid_t t = H5Dget_type(dset_id);
-  if (t < 0) {
-    return -1;
-  }
-  dset_props->type_str = op_hdf5_type_to_string(t);
-  if (H5Tequal(t, H5T_NATIVE_INT)) {
-    dset_props->elem_bytes = sizeof(int);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LONG)) {
-    dset_props->elem_bytes = sizeof(long);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_LLONG)) {
-    dset_props->elem_bytes = sizeof(long long);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_FLOAT)) {
-    dset_props->elem_bytes = sizeof(float);
-  }
-  else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
-    dset_props->elem_bytes = sizeof(double);  }
-  else {
-    size_t name_len = H5Iget_name(dset_id,NULL,0);
-    char name[name_len];
-    H5Iget_name(dset_id,name,name_len+1);
-    op_printf("Error: Do not recognise type of dataset '%s'\n", name);
-    exit(2);
-  }
-  dset_props->elem_bytes *= dset_props->dim;
-
-  return 0;
-}
 
 int compute_local_size_weight(int global_size, int mpi_comm_size,
                               int mpi_rank) {
@@ -358,8 +263,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -369,12 +273,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     H5Fclose(file_id);
     return NULL;
   }
-  
+
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
@@ -400,7 +304,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   const char *typ = dset_props.type_str;
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   /*read in map in hyperslabs*/
 
@@ -500,8 +404,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
-  H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
+  H5error_off(old_func, old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -515,8 +418,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file);
     return NULL;
   }
   size_t dat_size = dset_props.elem_bytes;
@@ -536,7 +439,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   }
 
   // Restore previous error handler .. report hdf5 error stack automatically
-  H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
+  H5error_on(old_func, old_client_data);
 
   /*read in dat in hyperslabs*/
 
@@ -666,8 +569,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   op_hdf5_dataset_properties dset_props;
   status = get_dataset_properties(dset_id, &dset_props);
   if (status < 0) {
-    op_printf("Could not get properties of dataset '%s' in file '%s'\n", 
-              name, file_name);
+    op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
+              file_name);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
@@ -798,6 +701,7 @@ void op_dump_to_hdf5(char const *file_name) {
     H5Pclose(plist_id);
     H5Dclose(dset_id);
   }
+
   /*loop over all the op_maps and write them to file*/
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
@@ -835,6 +739,9 @@ void op_dump_to_hdf5(char const *file_name) {
     // Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+    // create map path
+    create_path(map->name, file_id);
 
     // Create the dataset with default properties and close dataspace.
     if (sizeof(map->map[0]) == sizeof(int)) {
@@ -905,6 +812,7 @@ void op_dump_to_hdf5(char const *file_name) {
     // Close to the dataset.
     H5Dclose(dset_id);
   }
+
   /*loop over all the op_dats and write them to file*/
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
@@ -942,6 +850,9 @@ void op_dump_to_hdf5(char const *file_name) {
     // Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+
+    // create dateset path
+    create_path(dat->name, file_id);
 
     // Create the dataset with default properties and close dataspace.
     if (strcmp(dat->type, "double") == 0 ||
@@ -1190,10 +1101,11 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 /*******************************************************************************
 * Routine to write an op_dat to a named hdf5 file,
 * if file does not exist, creates it
-* if the data set does not exists in file creates data set
+* if the data set given at path does not exists in file creates data set
 *******************************************************************************/
 
-void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
+void op_fetch_data_hdf5(op_dat data, char const *file_name,
+                        char const *path_name) {
   // fetch data based on the backend
   op_dat dat = op_fetch_data_file_char(data);
 
@@ -1218,6 +1130,9 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   hsize_t count[2]; // hyperslab selection parameters
   hsize_t offset[2];
 
+  H5E_auto_t old_func;
+  void *old_client_data;
+
   // Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
@@ -1235,17 +1150,23 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
     file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   } else {
     op_printf("File %s exists .... checking for dataset %s in file\n",
-              file_name, dat->name);
+              file_name, path_name);
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
-    if (H5Lexists(file_id, dat->name, H5P_DEFAULT) != 0) {
-      op_printf("op_dat %s exists in the file ... updating data\n", dat->name);
 
-      dset_id = H5Dopen(file_id, dat->name, H5P_DEFAULT);
+    H5error_off(old_func, old_client_data);
+    herr_t status = H5Gget_objinfo(file_id, path_name, 0, NULL);
+    H5error_on(old_func, old_client_data);
+
+    if (status == 0) {
+      op_printf("op_dat %s exists in the file ... updating data\n", path_name);
+
+      dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
       op_hdf5_dataset_properties dset_props;
       herr_t status = get_dataset_properties(dset_id, &dset_props);
       if (status < 0) {
-        op_printf("Could not get properties of dataset '%s' in file '%s'\n", dat->name, file_name);
+        op_printf("Could not get properties of dataset '%s' in file '%s'\n",
+                  path_name, file_name);
         exit(2);
       }
 
@@ -1364,12 +1285,12 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
       return;
     } else {
       op_printf("op_dat %s does not exists in the file ... creating data set\n",
-                dat->name);
+                path_name);
     }
   }
 
   //
-  // new file and new data set ...
+  // new data set ...
   //
 
   H5Pclose(plist_id);
@@ -1405,12 +1326,15 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
+  // create dataset path
+  create_path(path_name, file_id);
+
   // Create the dataset with default properties and close dataspace.
   if (strcmp(dat->type, "double") == 0 ||
       strcmp(dat->type, "double:soa") == 0 ||
       strcmp(dat->type, "double precision") == 0 ||
       strcmp(dat->type, "real(8)") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_DOUBLE, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_DOUBLE, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id,
              dat->data);
@@ -1418,7 +1342,7 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
              strcmp(dat->type, "float:soa") == 0 ||
              strcmp(dat->type, "real(4)") == 0 ||
              strcmp(dat->type, "real") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_FLOAT, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_FLOAT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id,
              dat->data);
@@ -1427,18 +1351,18 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
              strcmp(dat->type, "int(4)") == 0 ||
              strcmp(dat->type, "integer") == 0 ||
              strcmp(dat->type, "integer(4)") == 0) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_INT, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_INT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, dat->data);
   } else if ((strcmp(dat->type, "long") == 0) ||
              (strcmp(dat->type, "long:soa") == 0)) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LONG, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_LONG, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id,
              dat->data);
   } else if ((strcmp(dat->type, "long long") == 0) ||
              (strcmp(dat->type, "long long:soa") == 0)) {
-    dset_id = H5Dcreate(file_id, dat->name, H5T_NATIVE_LLONG, dataspace,
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_LLONG, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id,
              dat->data);
@@ -1453,6 +1377,41 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   H5Sclose(dataspace);
   op_free(sizes);
 
+  /*attach attributes to dat*/
+
+  // open existing data set
+  dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
+
+  // create the data space for the attribute
+  hsize_t dims = 1;
+  dataspace = H5Screate_simple(1, &dims, NULL);
+
+  // Create an int attribute - size
+  hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
+                              H5P_DEFAULT, H5P_DEFAULT);
+  H5Awrite(attribute, H5T_NATIVE_INT, &dat->size);
+  H5Aclose(attribute);
+
+  // Create an int attribute - dimension
+  attribute = H5Acreate(dset_id, "dim", H5T_NATIVE_INT, dataspace, H5P_DEFAULT,
+                        H5P_DEFAULT);
+  H5Awrite(attribute, H5T_NATIVE_INT, &dat->dim);
+  H5Aclose(attribute);
+  H5Sclose(dataspace);
+
+  // Create an string attribute - type
+  dataspace = H5Screate(H5S_SCALAR);
+  hid_t atype = H5Tcopy(H5T_C_S1);
+  int attlen = strlen(dat->type);
+  H5Tset_size(atype, attlen);
+
+  attribute =
+      H5Acreate(dset_id, "type", atype, dataspace, H5P_DEFAULT, H5P_DEFAULT);
+  H5Awrite(attribute, atype, dat->type);
+  H5Aclose(attribute);
+
+  H5Sclose(dataspace);
+  H5Dclose(dset_id);
   H5Fclose(file_id);
 
   // free the temp op_dat used for this write
@@ -1461,4 +1420,26 @@ void op_fetch_data_hdf5_file(op_dat data, char const *file_name) {
   op_free(dat);
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+}
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file,
+* if file does not exist, creates it
+* if the data set does not exists in file creates data set
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
+  op_fetch_data_hdf5(dat, file_name, dat->name);
+}
+
+/*******************************************************************************
+* Routine to write an op_dat to a named hdf5 file, where dataset_name is a
+* freely chosen path inside the h5-file of the dataset.
+* If file does not exist, creates it
+* If the data set does not exists in file creates data set
+*******************************************************************************/
+
+void op_fetch_data_hdf5_file_path(op_dat dat, char const *file_name,
+                                  char const *path_name) {
+  op_fetch_data_hdf5(dat, file_name, path_name);
 }
