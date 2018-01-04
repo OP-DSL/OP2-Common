@@ -113,7 +113,8 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   dset_id = H5Dopen(file_id, set_dataset_name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("Could not open dataset '%s' in file '%s'\n", set_dataset_name, file);
-    exit(2);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   // Get size of dataset:
@@ -161,7 +162,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("op_map with name : %s not found in file : %s \n", name, file);
-    exit(2);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   op_hdf5_dataset_properties dset_props;
@@ -251,7 +253,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("op_dat with name : %s not found in file : %s \n", name, file);
-    exit(2);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   op_hdf5_dataset_properties dset_props;
@@ -363,9 +366,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 *******************************************************************************/
 
 void op_dump_to_hdf5(char const *file_name) {
-  if (OP_diags > 2) {
-    op_printf("Writing to %s\n", file_name);
-  }
+  op_printf("Writing to %s\n", file_name);
 
   // declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -620,6 +621,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   // open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) {
+    op_printf("dataset '%s' not found in file '%s'\n", name, file_name);
+    H5Fclose(file_id);
+    const_data = NULL;
+    return;
+  }
 
   // get OID of the dim attribute
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
@@ -701,6 +708,9 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
 void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", name, file_name);
+
   // HDF5 APIs definitions
   hid_t file_id;   // file identifier
   hid_t dset_id;   // dataset identifier
@@ -714,9 +724,8 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
     H5Fclose(file_id);
   }
 
-  if (OP_diags > 2) {
-    op_printf("Writing constant to %s\n", file_name);
-  }
+  
+  op_printf("Writing constant to %s\n", file_name);
 
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
@@ -833,6 +842,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 
 void op_fetch_data_hdf5(op_dat dat, char const *file_name,
                         char const *path_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", path_name, file_name);
+
   // fetch data based on the backend
   op_fetch_data_char(dat, dat->data);
 
@@ -865,7 +877,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
 
     if (status == 0) {
       if (OP_diags > 3) {
-        op_printf("op_dat %s exists in the file ... updating data\n", path_name);
+        op_printf("dataset '%s' exists in the file ... updating data\n", path_name);
       }
       dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 

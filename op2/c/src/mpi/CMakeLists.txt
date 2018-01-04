@@ -31,6 +31,8 @@
 
 set(MPI_SRC op_mpi_part_core.c op_mpi_core.c op_mpi_util.cpp)
 if(OP2_WITH_HDF5)
+  include_directories(${OP2_HDF5_INCLUDE_DIRS})
+  add_definitions(${OP2_HDF5_DEFINITIONS})
   set(MPI_SRC ${MPI_SRC} op_mpi_hdf5.c)
 endif()
 
