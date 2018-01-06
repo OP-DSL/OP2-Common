@@ -222,14 +222,14 @@ airfoil_cuda_clang:     airfoil_op.cpp cuda/airfoil_kernels_cu_clang.o Makefile
 	$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda_clang
 
 airfoil_kernels_cu_clang.o:     cuda/airfoil_kernels.cu      \
-                save_soln_kernel.cu save_soln.h \
-                adt_calc_kernel.cu  adt_calc.h  \
-                res_calc_kernel.cu  res_calc.h  \
-                bres_calc_kernel.cu bres_calc.h \
-                update_kernel.cu    update.h    \
+                cuda/save_soln_kernel.cu save_soln.h \
+                cuda/adt_calc_kernel.cu  adt_calc.h  \
+                cuda/res_calc_kernel.cu  res_calc.h  \
+                cuda/bres_calc_kernel.cu bres_calc.h \
+                cuda/update_kernel.cu    update.h    \
                 Makefile
-	clang++  $(VAR) $(INC) -m64 -O3 $(OP2_INC) $(HDF5_INC) -gline-tables-only -I /home/gihan/openmpi-intel/include \
-	-c -o airfoil_kernels_cu_clang.o airfoil_kernels.cu --cuda-gpu-arch=sm_35 -ffast-math $(OMP4_REG_COUNT) -Xcuda-ptxas -v
+	clang++  $(VAR) $(INC) -m64 -O3 $(OP2_INC) $(HDF5_INC) -gline-tables-only -I$(MPI_INSTALL_PATH)/include \
+	-c -o cuda/airfoil_kernels_cu_clang.o cuda/airfoil_kernels.cu --cuda-gpu-arch=sm_35 -ffast-math $(OMP4_REG_COUNT) -Xcuda-ptxas -v
 
 #
 # mpi with sequential-nodes version
