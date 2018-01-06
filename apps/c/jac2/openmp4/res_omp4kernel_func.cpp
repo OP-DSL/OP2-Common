@@ -17,7 +17,9 @@ void res_omp4_kernel(
   int start,
   int end,
   int num_teams,
-  int nthread){
+  int nthread,
+  int opDat1_res_stride_OP2CONSTANT,
+  int direct_res_stride_OP2CONSTANT){
 
   float arg3_l = *arg3;
   #pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size])\
@@ -29,14 +31,14 @@ void res_omp4_kernel(
     int map2idx = map1[n_op + set_size1 * 0];
 
     //variable mapping
-    const double *A = &data0[1*n_op];
-    const float *u = &data1[1 * map1idx];
-    float *du = &data2[1 * map2idx];
+    const double *A = &data0[n_op];
+    const float *u = &data1[map1idx];
+    float *du = &data2[map2idx];
     const float *beta = &arg3_l;
 
     //inline function
     
-    *du += (float)((*beta) * (*A) * (*u));
+    du[(0)*opDat1_res_stride_OP2CONSTANT]+= (float)((*beta) * (A[(0)*direct_res_stride_OP2CONSTANT]) * (u[(0)*opDat1_res_stride_OP2CONSTANT]));
     //end inline func
   }
 

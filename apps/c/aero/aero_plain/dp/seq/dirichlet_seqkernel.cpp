@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "dirichlet.h"
+#include "../dirichlet.h"
 
 // host stub function
 void op_par_loop_dirichlet(char const *name, op_set set,

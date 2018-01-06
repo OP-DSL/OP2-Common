@@ -247,7 +247,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     if FORTRAN:
       code('include '+name+'.inc')
     elif CPP:
-      code('#include "'+decl_filename+'"')
+      code('#include "../'+decl_filename+'"')
 
 ##########################################################################
 # then C++ stub function
@@ -584,7 +584,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
   file_text =''
   comm(' header                 ')
   if os.path.exists('./user_types.h'):
-    code('#include "user_types.h"')
+    code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"       ')
   code('')
   comm(' global constants       ')

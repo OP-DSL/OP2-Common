@@ -3,10 +3,14 @@
 //
 
 //user function
+int opDat1_res_stride_OP2CONSTANT;
+int opDat1_res_stride_OP2HOST=-1;
+int direct_res_stride_OP2CONSTANT;
+int direct_res_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void res( const double *A, const float *u, float *du, const float *beta) {
-  *du += (float)((*beta) * (*A) * (*u));
+  du[(0)*opDat1_res_stride_OP2CONSTANT]+= (float)((*beta) * (A[(0)*direct_res_stride_OP2CONSTANT]) * (u[(0)*opDat1_res_stride_OP2CONSTANT]));
 }
 
 // host stub function
@@ -54,6 +58,14 @@ void op_par_loop_res(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[0].count==1) || (opDat1_res_stride_OP2HOST != getSetSizeFromOpArg(&arg1))) {
+      opDat1_res_stride_OP2HOST = getSetSizeFromOpArg(&arg1);
+      opDat1_res_stride_OP2CONSTANT = opDat1_res_stride_OP2HOST;
+    }
+    if ((OP_kernels[0].count==1) || (direct_res_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_res_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_res_stride_OP2CONSTANT = direct_res_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
     int *map1 = arg1.map_data_d;
@@ -83,9 +95,9 @@ void op_par_loop_res(char const *name, op_set set,
 
 
         res(
-          &data0[1 * n],
-          &data1[1 * map1idx],
-          &data2[1 * map2idx],
+          &data0[n],
+          &data1[map1idx],
+          &data2[map2idx],
           &arg3_l);
       }
 

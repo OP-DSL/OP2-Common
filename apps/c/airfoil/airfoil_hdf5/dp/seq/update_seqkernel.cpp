@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "update.h"
+#include "../update.h"
 
 // host stub function
 void op_par_loop_update(char const *name, op_set set,

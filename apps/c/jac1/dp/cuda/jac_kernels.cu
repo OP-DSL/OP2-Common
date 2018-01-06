@@ -3,7 +3,7 @@
 //
 
 #define OP_FUN_PREFIX __device__ __host__
-#include "user_types.h"
+#include "../user_types.h"
 //header
 #include "op_lib_cpp.h"
 

@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "spMV.h"
+#include "../spMV.h"
 
 // host stub function
 void op_par_loop_spMV(char const *name, op_set set,

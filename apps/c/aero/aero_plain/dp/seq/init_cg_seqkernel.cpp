@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "init_cg.h"
+#include "../init_cg.h"
 
 // host stub function
 void op_par_loop_init_cg(char const *name, op_set set,

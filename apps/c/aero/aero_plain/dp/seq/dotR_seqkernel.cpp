@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "dotR.h"
+#include "../dotR.h"
 
 // host stub function
 void op_par_loop_dotR(char const *name, op_set set,

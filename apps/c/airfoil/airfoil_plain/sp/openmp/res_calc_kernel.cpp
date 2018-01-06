@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "res_calc.h"
+#include "../res_calc.h"
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
