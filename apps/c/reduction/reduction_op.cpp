@@ -51,7 +51,7 @@
 // OP header file
 //
 
-#include "op_lib_cpp.h"
+#include  "op_lib_cpp.h"
 
 //
 // op_par_loop declarations
@@ -62,14 +62,19 @@ extern "C" {
 #endif
 #endif
 
-void op_par_loop_res_calc(char const *, op_set, op_arg, op_arg);
+void op_par_loop_res_calc(char const *, op_set,
+  op_arg,
+  op_arg );
 
-void op_par_loop_update(char const *, op_set, op_arg, op_arg);
+void op_par_loop_update(char const *, op_set,
+  op_arg,
+  op_arg );
 #ifdef OPENACC
 #ifdef __cplusplus
 }
 #endif
 #endif
+
 
 //
 // kernel routines for parallel loops
@@ -82,7 +87,7 @@ void op_par_loop_update(char const *, op_set, op_arg, op_arg);
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc, argv, 2);
+  op_init_soa(argc, argv, 2,1);
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
@@ -171,9 +176,9 @@ int main(int argc, char **argv) {
 
   // indirect reduction
   count1 = 0;
-  op_par_loop_res_calc("res_calc", edges,
-                       op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
-                       op_arg_gbl(&count1, 1, "int", OP_INC));
+  op_par_loop_res_calc("res_calc",edges,
+              op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
+              op_arg_gbl(&count1,1,"int",OP_INC));
   op_printf("number of edges:: %d should be: %d \n", count1, nedge);
   if (count1 != nedge)
     op_printf("indirect reduction Failed\n");
@@ -181,9 +186,9 @@ int main(int argc, char **argv) {
     op_printf("indirect reduction Passed\n");
   // direct reduction
   count2 = 0;
-  op_par_loop_update("update", cells,
-                     op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),
-                     op_arg_gbl(&count2, 1, "int", OP_INC));
+  op_par_loop_update("update",cells,
+              op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+              op_arg_gbl(&count2,1,"int",OP_INC));
   op_printf("number of cells: %d should be: %d \n", count2, ncell);
   if (count2 != ncell)
     op_printf("direct reduction Failed\n");
