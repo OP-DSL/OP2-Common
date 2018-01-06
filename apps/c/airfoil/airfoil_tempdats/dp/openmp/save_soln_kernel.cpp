@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "save_soln.h"
+#include "../save_soln.h"
 
 // host stub function
 void op_par_loop_save_soln(char const *name, op_set set,

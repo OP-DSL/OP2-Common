@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "adt_calc.h"
+#include "../adt_calc.h"
 
 // host stub function
 void op_par_loop_adt_calc(char const *name, op_set set,

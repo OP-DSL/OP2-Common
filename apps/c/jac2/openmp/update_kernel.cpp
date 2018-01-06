@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "update.h"
+#include "../update.h"
 
 // host stub function
 void op_par_loop_update(char const *name, op_set set,
@@ -65,9 +65,9 @@ void op_par_loop_update(char const *name, op_set set,
       int finish = (set->size*(thr+1))/nthreads;
       for ( int n=start; n<finish; n++ ){
         update(
-          &((float*)arg0.data)[1*n],
-          &((float*)arg1.data)[1*n],
-          &((float*)arg2.data)[1*n],
+          &((float*)arg0.data)[2*n],
+          &((float*)arg1.data)[3*n],
+          &((float*)arg2.data)[2*n],
           &arg3_l[64*omp_get_thread_num()],
           &arg4_l[64*omp_get_thread_num()]);
       }

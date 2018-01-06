@@ -3,7 +3,7 @@
 //
 
 //user function
-#include "bres_calc.h"
+#include "../bres_calc.h"
 
 // host stub function
 void op_par_loop_bres_calc(char const *name, op_set set,
