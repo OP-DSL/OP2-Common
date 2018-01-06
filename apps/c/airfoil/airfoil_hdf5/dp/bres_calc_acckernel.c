@@ -119,8 +119,14 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int map1idx = map0[n + set_size1 * 1];
         int map2idx = map2[n + set_size1 * 0];
 
-        bres_calc(&data0[2 * map0idx], &data0[2 * map1idx], &data2[4 * map2idx],
-                  &data3[1 * map2idx], &data4[4 * map2idx], &data5[1 * n]);
+
+        bres_calc(
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data2[4 * map2idx],
+          &data3[1 * map2idx],
+          &data4[4 * map2idx],
+          &data5[1 * n]);
       }
 
     }
