@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
 
   // OP initialisation
 
-  op_init(argc, argv, 2);
+  op_init_soa(argc, argv, 2,1);
 
   // declare sets, pointers, datasets and global constants
 

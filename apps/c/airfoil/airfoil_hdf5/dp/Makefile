@@ -173,7 +173,7 @@ airfoil_openmp:	airfoil_op.cpp openmp/airfoil_kernels.cpp \
 		openmp/bres_calc_kernel.cpp  bres_calc.h \
 		openmp/update_kernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) -Iopenmp \
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) -Iopenmp -I. \
 		airfoil_op.cpp -lm openmp/airfoil_kernels.cpp -lm -lop2_openmp -lop2_hdf5 $(HDF5_LIB) -o airfoil_openmp
 
 #
@@ -187,7 +187,7 @@ airfoil_openacc: airfoil_op.cpp openacc/airfoil_acckernels.c \
                 openacc/bres_calc_acckernel.c  \
                 openacc/update_acckernel.c   \
                 Makefile
-		$(MPICC) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) $(PGI_REG_COUNT) -Iopenacc \
+		$(MPICC) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) $(PGI_REG_COUNT) -Iopenacc -I. \
                 openacc/airfoil_acckernels.c -c -o openacc/airfoil_acckernels.o
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) \
                 airfoil_op.cpp -lm openacc/airfoil_acckernels.o -lm $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_openacc
@@ -209,7 +209,7 @@ cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
 		cuda/bres_calc_kernel.cu bres_calc.h \
 		cuda/update_kernel.cu    update.h    \
                 Makefile
-		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -Icuda \
+		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -Icuda -I. \
 		-c -o cuda/airfoil_kernels_cu.o cuda/airfoil_kernels.cu
 
 #
@@ -221,14 +221,14 @@ airfoil_cuda_clang:     airfoil_op.cpp cuda/airfoil_kernels_cu_clang.o Makefile
         $(CUDA_INC) $(OP2_INC) $(HDF5_INC) \
 	$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda_clang
 
-airfoil_kernels_cu_clang.o:     cuda/airfoil_kernels.cu      \
+cuda/airfoil_kernels_cu_clang.o:     cuda/airfoil_kernels.cu      \
                 cuda/save_soln_kernel.cu save_soln.h \
                 cuda/adt_calc_kernel.cu  adt_calc.h  \
                 cuda/res_calc_kernel.cu  res_calc.h  \
                 cuda/bres_calc_kernel.cu bres_calc.h \
                 cuda/update_kernel.cu    update.h    \
                 Makefile
-	clang++  $(VAR) $(INC) -m64 -O3 $(OP2_INC) $(HDF5_INC) -gline-tables-only -I$(MPI_INSTALL_PATH)/include \
+	clang++  $(VAR) $(INC) -m64 -O3 $(OP2_INC) $(HDF5_INC) -gline-tables-only -I$(MPI_INSTALL_PATH)/include -Icuda -I. \
 	-c -o cuda/airfoil_kernels_cu_clang.o cuda/airfoil_kernels.cu --cuda-gpu-arch=sm_35 -ffast-math $(OMP4_REG_COUNT) -Xcuda-ptxas -v
 
 #
@@ -251,7 +251,7 @@ airfoil_mpi_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp \
                 seq/update_seqkernel.cpp     update.h    \
                 Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq \
+		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. \
 		airfoil_op.cpp -lm seq/airfoil_seqkernels.cpp $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_genseq
 
@@ -267,7 +267,7 @@ airfoil_mpi_vec: airfoil_op.cpp vec/airfoil_veckernels.cpp \
                 vec/update_veckernel.cpp     update.h    \
                 Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-                $(PARMETIS_INC) $(PTSCOTCH_INC) -Ivec \
+                $(PARMETIS_INC) $(PTSCOTCH_INC) -Ivec  -I. \
                 airfoil_op.cpp -lm vec/airfoil_veckernels.cpp $(OP2_LIB) -lop2_mpi \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_vec
 
@@ -284,7 +284,7 @@ airfoil_mpi_openmp: airfoil_op.cpp openmp/airfoil_kernels.cpp \
                 openmp/update_kernel.cpp     update.h    \
                 Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iopenmp \
+		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iopenmp -I. \
 		airfoil_op.cpp -lm openmp/airfoil_kernels.cpp $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_openmp
 
@@ -300,9 +300,9 @@ airfoil_openmp4: airfoil_op.cpp openmp4/airfoil_omp4kernels.cpp openmp4/airfoil_
 			openmp4/update_omp4kernel_func.cpp     update.h    openmp4/update_omp4kernel.cpp \
 			Makefile
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
-		-Iopenmp4/ -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
+		-Iopenmp4/  -I. -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
-		-Iopenmp4/ -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
+		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		airfoil_op.cpp openmp4/airfoil_omp4kernels.o openmp4/airfoil_omp4kernel_funcs.o -o airfoil_openmp4 \
 	   	-lop2_openmp4 -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
@@ -316,9 +316,9 @@ airfoil_mpi_openmp4: airfoil_op.cpp openmp4/airfoil_omp4kernels.cpp openmp4/airf
 			openmp4/update_omp4kernel_func.cpp     update.h    openmp4/update_omp4kernel.cpp \
 			Makefile
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) \
-		-Iopenmp4/ -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
+		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) \
-		-Iopenmp4/ -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
+		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(CUDA_LIB) -lcudart  \
 		airfoil_op.cpp openmp4/airfoil_omp4kernels.o openmp4/airfoil_omp4kernel_funcs.o -o airfoil_mpi_openmp4 \
 	   	-lop2_mpi_cuda $(HDF5_LIB) $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(CUDA_LIB) -lcudart
@@ -333,7 +333,7 @@ airfoil_mpi_openacc: airfoil_op.cpp openacc/airfoil_acckernels.c \
                 openacc/bres_calc_acckernel.c  bres_calc.h \
                 openacc/update_acckernel.c     update.h    \
                 Makefile
-		$(MPICC) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) -Iopenacc/ \
+		$(MPICC) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OMPFLAGS) $(OP2_INC) -Iopenacc/ -I. \
 		openacc/airfoil_acckernels.c -c -o airfoil_acckernels.o
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(ACCFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
 		$(PARMETIS_INC) $(PTSCOTCH_INC) \
@@ -356,7 +356,7 @@ cuda/airfoil_kernels_mpi_cu.o: cuda/airfoil_kernels.cu \
 		cuda/bres_calc_kernel.cu  bres_calc.h \
 		cuda/update_kernel.cu     update.h    \
 		Makefile
-		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda -I. \
 		-c -o cuda/airfoil_kernels_mpi_cu.o cuda/airfoil_kernels.cu
 
 #
@@ -369,17 +369,17 @@ airfoil_mpi_cuda_hyb: airfoil_op.cpp cuda/airfoil_hybkernels.o Makefile
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda_hyb
 
-airfoil_hybkernels.o: cuda/airfoil_hybkernels.cu \
+cuda/airfoil_hybkernels.o: cuda/airfoil_hybkernels.cu \
                 cuda/airfoil_kernels.cu save_soln.h \
                 adt_calc.h  res_calc.h  \
                 bres_calc.h update.h    \
                 Makefile
-		nvcc -DOP_HYBRID_GPU -DGPUPASS $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda \
+		nvcc -DOP_HYBRID_GPU -DGPUPASS $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda -I. \
                 -c -o cuda/airfoil_hybkernels.o cuda/airfoil_hybkernels.cu
 		cat cuda/airfoil_hybkernels.cu > cuda/airfoil_hybkernels2.cpp
-		$(MPICPP) -DOP_HYBRID_GPU $(OMPFLAGS) $(INC) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda \
+		$(MPICPP) -DOP_HYBRID_GPU $(OMPFLAGS) $(INC) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda -I. -Iopenmp \
                 -c -o cuda/airfoil_hybkernels2.o cuda/airfoil_hybkernels2.cpp
-		rm airfoil_hybkernels2.cpp
+		rm cuda/airfoil_hybkernels2.cpp
 
 #
 # convert ASCI new_gird.dat to HDF5 new_grid.h5
@@ -401,4 +401,4 @@ convert_mesh_mpi: convert_mesh_mpi.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o *.optrpt
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt

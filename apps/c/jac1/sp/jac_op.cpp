@@ -59,7 +59,7 @@ float alpha;
 // OP header file
 //
 
-#include "op_lib_cpp.h"
+#include  "op_lib_cpp.h"
 
 //
 // op_par_loop declarations
@@ -70,15 +70,24 @@ extern "C" {
 #endif
 #endif
 
-void op_par_loop_res(char const *, op_set, op_arg, op_arg, op_arg, op_arg);
+void op_par_loop_res(char const *, op_set,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg );
 
-void op_par_loop_update(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
-                        op_arg);
+void op_par_loop_update(char const *, op_set,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg,
+  op_arg );
 #ifdef OPENACC
 #ifdef __cplusplus
 }
 #endif
 #endif
+
 
 //
 // kernel routines for parallel loops
@@ -100,7 +109,7 @@ void op_par_loop_update(char const *, op_set, op_arg, op_arg, op_arg, op_arg,
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc, argv, 5);
+  op_init_soa(argc, argv, 5,1);
 
   // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -171,7 +180,7 @@ int main(int argc, char **argv) {
   op_dat p_du = op_decl_dat(nodes, 1, "float", du, "p_du");
 
   alpha = 1.0f;
-  op_decl_const2("alpha", 1, "float", &alpha);
+  op_decl_const2("alpha",1,"float",&alpha);
 
   op_diagnostic_output();
 
@@ -183,20 +192,20 @@ int main(int argc, char **argv) {
   float u_sum, u_max, beta = 1.0f;
 
   for (int iter = 0; iter < NITER; iter++) {
-    op_par_loop_res("res", edges,
-                    op_arg_dat(p_A, -1, OP_ID, 1, "float", OP_READ),
-                    op_arg_dat(p_u, 1, ppedge, 1, "float", OP_READ),
-                    op_arg_dat(p_du, 0, ppedge, 1, "float", OP_INC),
-                    op_arg_gbl(&beta, 1, "float", OP_READ));
+    op_par_loop_res("res",edges,
+                op_arg_dat(p_A,-1,OP_ID,1,"float",OP_READ),
+                op_arg_dat(p_u,1,ppedge,1,"float",OP_READ),
+                op_arg_dat(p_du,0,ppedge,1,"float",OP_INC),
+                op_arg_gbl(&beta,1,"float",OP_READ));
 
     u_sum = 0.0f;
     u_max = 0.0f;
-    op_par_loop_update("update", nodes,
-                       op_arg_dat(p_r, -1, OP_ID, 1, "float", OP_READ),
-                       op_arg_dat(p_du, -1, OP_ID, 1, "float", OP_RW),
-                       op_arg_dat(p_u, -1, OP_ID, 1, "float", OP_INC),
-                       op_arg_gbl(&u_sum, 1, "float", OP_INC),
-                       op_arg_gbl(&u_max, 1, "float", OP_MAX));
+    op_par_loop_update("update",nodes,
+                op_arg_dat(p_r,-1,OP_ID,1,"float",OP_READ),
+                op_arg_dat(p_du,-1,OP_ID,1,"float",OP_RW),
+                op_arg_dat(p_u,-1,OP_ID,1,"float",OP_INC),
+                op_arg_gbl(&u_sum,1,"float",OP_INC),
+                op_arg_gbl(&u_max,1,"float",OP_MAX));
     op_printf("\n u max/rms = %f %f \n\n", u_max, sqrt(u_sum / nnode));
   }
 
