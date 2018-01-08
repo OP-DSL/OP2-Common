@@ -3,12 +3,10 @@
 //
 
 //user function
-int direct_update_stride_OP2CONSTANT;
-int direct_update_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void update( double *data, int *count) {
-  data[(0)*direct_update_stride_OP2CONSTANT] = 0.0;
+  data[0] = 0.0;
   (*count)++;
 }
 
@@ -42,19 +40,13 @@ void op_par_loop_update(char const *name, op_set set,
 
   if (set->size >0) {
 
-    if ((OP_kernels[1].count==1) || (direct_update_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
-      direct_update_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      direct_update_stride_OP2CONSTANT = direct_update_stride_OP2HOST;
-    }
 
     //Set up typed device pointers for OpenACC
 
     double* data0 = (double*)arg0.data_d;
     #pragma acc parallel loop independent deviceptr(data0) reduction(+:arg1_l)
     for ( int n=0; n<set->size; n++ ){
-      update(
-        &data0[n],
-        &arg1_l);
+      update(&data0[4 * n], &arg1_l);
     }
   }
 
