@@ -31,7 +31,7 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
-#<<COMMENT0
+
 
 echo " "
 echo " "
@@ -40,7 +40,6 @@ echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
 . $CURRENT_DIR/source_intel
 make clean; make
-#<<COMMENT1
 
 echo " "
 echo " "
@@ -70,7 +69,9 @@ echo " "
 echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
 make clean;make
+
 
 echo " "
 echo " "
@@ -116,7 +117,7 @@ $OP2_C_CODEGEN_DIR/op2.py reduction.cpp
 $OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
 make clean;make
 
-
+#<<COMMENT0
 
 
 echo " "
@@ -206,6 +207,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
+#COMMENT1
 
 
 echo " "

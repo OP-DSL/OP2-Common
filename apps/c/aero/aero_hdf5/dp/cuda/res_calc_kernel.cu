@@ -20,13 +20,13 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
+      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][1];
     for (int m = 0; m < 4; m++)
       N_x[m] = det_x_xi * Ng2_xi[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi[4 * i + m] * x[m][0];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] = a * Ng2_xi[4 * i + 16 + m];
 
@@ -34,13 +34,13 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi[4 * i + m] * x[m][1];
     for (int m = 0; m < 4; m++)
       N_x[m] -= a * Ng2_xi[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi[4 * i + 16 + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
+      b += Ng2_xi[4 * i + 16 + m] * x[m][0];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] -= b * Ng2_xi[4 * i + m];
 
@@ -151,10 +151,10 @@ __global__ void op_cuda_res_calc(
       map3idx = opDat0Map[n + offset_b + set_size * 3];
 
       const double* arg0_vec[] = {
-         &ind_arg0[map0idx],
-         &ind_arg0[map1idx],
-         &ind_arg0[map2idx],
-         &ind_arg0[map3idx]};
+         &ind_arg0[2 * map0idx],
+         &ind_arg0[2 * map1idx],
+         &ind_arg0[2 * map2idx],
+         &ind_arg0[2 * map3idx]};
       const double* arg4_vec[] = {
          &ind_arg1[1 * map0idx],
          &ind_arg1[1 * map1idx],
