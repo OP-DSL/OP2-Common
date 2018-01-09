@@ -125,6 +125,11 @@ op_set op_decl_set_hdf5(char const *file, char const *name) {
 
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) {
+    op_printf("Could not open dataset '%s' in file '%s'\n", name, file);
+    H5Fclose(file_id);
+    return NULL;
+  }
 
   // Create property list for collective dataset read.
   plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -146,7 +151,7 @@ op_set op_decl_set_hdf5(char const *file, char const *name) {
 }
 
 op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char const *set_dataset_name) {
-  // printf("op_decl_set_hdf5_infer_size() called in op_mpi_hdf5.c\n");
+  // op_printf("op_decl_set_hdf5_infer_size() called in op_mpi_hdf5.c\n");
   // create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
@@ -172,32 +177,34 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   // Set up file access property list with parallel I/O access
   plist_id = H5Pcreate(H5P_FILE_ACCESS);
   if (plist_id < 0) {
-    printf("H5Pcreate() failed\n");
-    exit(2);
+    op_printf("H5Pcreate() failed\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
   if (H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info) < 0) {
-    printf("H5Pset_fapl_mpio() failed\n");
-    exit(2);
+    op_printf("H5Pset_fapl_mpio() failed\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   file_id = H5Fopen(file, H5F_ACC_RDONLY, plist_id);
   H5Pclose(plist_id);
   if (file_id < 0) {
-    printf("Could not obtain read access to file '%s'\n", file);
-    exit(2);
+    op_printf("Could not obtain read access to file '%s'\n", file);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   if (!H5Lexists(file_id, set_dataset_name, H5P_DEFAULT)) {
-    printf("Dataset '%s' not found in file '%s'\n", set_dataset_name, file);
-    exit(2);
+    op_printf("Dataset '%s' not found in file '%s'\n", set_dataset_name, file);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   // Create the dataset with default properties and close dataspace.
-  // printf("Rank %d reading set %s\n", my_rank, name);
+  // op_printf("Rank %d reading set %s\n", my_rank, name);
   dset_id = H5Dopen(file_id, set_dataset_name, H5P_DEFAULT);
   if (dset_id < 0) {
-    printf("Could not open dataset '%s' in file '%s'\n", set_dataset_name, file);
-    exit(2);
+    op_printf("Could not open dataset '%s' in file '%s'\n", set_dataset_name, file);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   // Get size of dataset:
@@ -206,7 +213,6 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   if (status < 0) {
     op_printf("Could not access dataset '%s' in file '%s'\n", set_dataset_name, file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-    return NULL;
   }
   int g_size = dset_props.size;
 
@@ -251,7 +257,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_map_hdf5()\n",
               file);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   // Set up file access property list with parallel I/O access
@@ -269,7 +275,6 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("op_map with name : %s not found in file : %s \n", name, file);
-    H5Dclose(dset_id);
     H5Fclose(file_id);
     return NULL;
   }
@@ -291,14 +296,14 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     op_printf(
         "map from set size %d in file %s and size %d do not match on rank %d\n",
         l_size, file, from->size, my_rank);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   int map_dim = dset_props.dim;
   if (map_dim != dim) {
     op_printf("map.dim %d in file %s and dim %d do not match\n", map_dim, file,
               dim);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   const char *typ = dset_props.type_str;
@@ -344,7 +349,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
   } else {
     op_printf("unknown type\n");
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   H5Pclose(plist_id);
@@ -391,7 +396,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n",
               file);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   // Set up file access property list with parallel I/O access
@@ -410,7 +415,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("op_dat with name : %s not found in file : %s \n", name, file);
-    H5Dclose(dset_id);
     H5Fclose(file_id);
     return NULL;
   }
@@ -420,7 +424,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   if (status < 0) {
     op_printf("Could not get properties of dataset '%s' in file '%s'\n", name,
               file);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
   size_t dat_size = dset_props.elem_bytes;
 
@@ -428,14 +432,14 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   if (dat_dim != dim) {
     op_printf("dat.dim %d in file %s and dim %d do not match\n", dat_dim, file,
               dim);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   const char *typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
     op_printf("dat.type %s in file %s and type %s do not match\n", typ, file,
               type);
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   // Restore previous error handler .. report hdf5 error stack automatically
@@ -477,7 +481,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     if (dat_size != dim * sizeof(double)) {
       op_printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",
                 dat_size, file, dim);
-      return NULL;
+      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     } else
       dat_size = sizeof(double);
   } else if (strcmp(type, "float") == 0 || strcmp(type, "float:soa") == 0 ||
@@ -488,7 +492,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     if (dat_size != dim * sizeof(float)) {
       op_printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",
                 dat_size, file, dim);
-      return NULL;
+      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     } else
       dat_size = sizeof(float);
 
@@ -501,12 +505,12 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     if (dat_size != dim * sizeof(int)) {
       op_printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",
                 dat_size, file, dim);
-      return NULL;
+      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     } else
       dat_size = sizeof(int);
   } else {
     op_printf("unknown type\n");
-    return NULL;
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   H5Pclose(plist_id);
@@ -561,6 +565,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   // find dimension of this constant with available attributes
   int const_dim = 0;
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) {
+    op_printf("dataset with '%s' not found in file '%s' \n", name, file_name);
+    H5Fclose(file_id);
+    const_data = NULL;
+    return;
+  }
 
   // Create property list for collective dataset read.
   plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -576,17 +586,17 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   const_dim = dset_props.size;
   if (const_dim != dim) {
-    printf("dim of constant %d in file %s and requested dim %d do not match\n",
-           const_dim, file_name, dim);
+    op_printf("dim of constant %d in file %s and requested dim %d do not match\n",
+              const_dim, file_name, dim);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   const char* typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
-    printf(
+    op_printf(
         "type of constant %s in file %s and requested type %s do not match\n",
         typ, file_name, type);
-    exit(2);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   // Create the dataset with default properties and close dataspace.
@@ -620,8 +630,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id, data);
     memcpy((void *)const_data, (void *)data, sizeof(double) * const_dim);
   } else {
-    printf("Unknown type in file %s for constant %s\n", file_name, name);
-    exit(2);
+    op_printf("Unknown type in file %s for constant %s\n", file_name, name);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   op_free(data);
@@ -893,7 +903,7 @@ void op_dump_to_hdf5(char const *file_name) {
       H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id,
                dat->data);
     } else {
-      printf("Unknown type - in op_dump_to_hdf5() writing op_dats\n");
+      op_printf("Unknown type - in op_dump_to_hdf5() writing op_dats\n");
       MPI_Abort(OP_MPI_HDF5_WORLD, 2);
     }
 
@@ -949,7 +959,7 @@ void op_dump_to_hdf5(char const *file_name) {
              OP_MPI_HDF5_WORLD);
 
   if (my_rank == MPI_ROOT)
-    printf("Max hdf5 file write time = %lf\n\n", max_time);
+    op_printf("Max hdf5 file write time = %lf\n\n", max_time);
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
 }
@@ -959,6 +969,9 @@ void op_dump_to_hdf5(char const *file_name) {
 *******************************************************************************/
 void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", name, file_name);
+
   // create new communicator
   int my_rank, comm_size;
   MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_HDF5_WORLD);
@@ -979,12 +992,12 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
   H5Pset_fapl_mpio(plist_id, OP_MPI_HDF5_WORLD, info);
 
   if (file_exist(file_name) == 0) {
-    op_printf("File %s does not exist .... creating file\n", file_name);
+    if (OP_diags > 3) {
+      op_printf("File %s does not exist .... creating file\n", file_name);
+    }
     file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, plist_id);
     H5Fclose(file_id);
   }
-
-  op_printf("Writing constant to %s\n", file_name);
 
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
@@ -1038,8 +1051,11 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, plist_id,
              const_data);
     H5Dclose(dset_id);
-  } else
-    printf("Unknown type in op_write_const_hdf5()\n");
+  } else {
+    op_printf("Unknown type %s for constant %s: cannot write constant to file\n",
+              type, name);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
   H5Pclose(plist_id);
   H5Sclose(dataspace);
@@ -1085,9 +1101,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
            strcmp(type, "real(4)") == 0 || strcmp(type, "real") == 0)
     H5Awrite(attribute, atype, "float");
   else {
-    printf("Unknown type %s for constant %s: cannot write constant to file\n",
-           type, name);
-    exit(2);
+    op_printf("Unknown type %s for constant %s: cannot write constant to file\n",
+              type, name);
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   H5Aclose(attribute);
@@ -1106,6 +1122,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 
 void op_fetch_data_hdf5(op_dat data, char const *file_name,
                         char const *path_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", path_name, file_name);
+
   // fetch data based on the backend
   op_dat dat = op_fetch_data_file_char(data);
 
@@ -1139,7 +1158,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
   if (file_exist(file_name) == 0) {
     MPI_Barrier(OP_MPI_WORLD);
-    op_printf("File %s does not exist .... creating file\n", file_name);
+    if (OP_diags > 3) {
+      op_printf("File %s does not exist .... creating file\n", file_name);
+    }
     MPI_Barrier(OP_MPI_HDF5_WORLD);
     if (op_is_root()) {
       FILE *fp;
@@ -1149,8 +1170,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
     MPI_Barrier(OP_MPI_HDF5_WORLD);
     file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   } else {
-    op_printf("File %s exists .... checking for dataset %s in file\n",
-              file_name, path_name);
+    if (OP_diags > 3) {
+      op_printf("File %s exists .... checking for dataset %s in file\n",
+                file_name, path_name);
+    }
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
 
     H5error_off(old_func, old_client_data);
@@ -1158,7 +1181,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
     H5error_on(old_func, old_client_data);
 
     if (status == 0) {
-      op_printf("op_dat %s exists in the file ... updating data\n", path_name);
+      if (OP_diags > 3) {
+        op_printf("op_dat %s exists in the file ... updating data\n", path_name);
+      }
 
       dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
@@ -1167,14 +1192,14 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       if (status < 0) {
         op_printf("Could not get properties of dataset '%s' in file '%s'\n",
                   path_name, file_name);
-        exit(2);
+        MPI_Abort(OP_MPI_HDF5_WORLD, 2);
       }
 
       // find element size of this dat with available attributes
       size_t dat_size = 0;
       dat_size = dset_props.elem_bytes;
       if (dat_size != dat->size) {
-        printf(
+        op_printf(
             "dat.size %zu in file %s and dim %d do not match ... aborting\n",
             dat_size, file_name, dat->dim);
         MPI_Abort(OP_MPI_HDF5_WORLD, 2);
@@ -1184,9 +1209,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       int dat_dim = 0;
       dat_dim = dset_props.dim;
       if (dat_dim != dat->dim) {
-        printf("dat.dim %d in file %s and dim %d do not match ... aborting\n",
-               dat_dim, file_name, dat->dim);
-        exit(2);
+        op_printf("dat.dim %d in file %s and dim %d do not match ... aborting\n",
+                  dat_dim, file_name, dat->dim);
+        MPI_Abort(OP_MPI_HDF5_WORLD, 2);
       }
 
       // find type with available attributes
@@ -1195,9 +1220,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       char typ_soa[50];
       sprintf(typ_soa, "%s:soa", typ);
       if (!op_type_equivalence(typ, dat->type)) {
-        printf("dat.type %s in file %s and type %s do not match\n", typ,
-               file_name, dat->type);
-        exit(2);
+        op_printf("dat.type %s in file %s and type %s do not match\n", typ,
+                  file_name, dat->type);
+        MPI_Abort(OP_MPI_HDF5_WORLD, 2);
       }
 
       //
@@ -1265,7 +1290,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
         H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id,
                  dat->data);
       else {
-        printf("Unknown type in op_fetch_data_hdf5_file()\n");
+        op_printf("Unknown type in op_fetch_data_hdf5_file()\n");
         MPI_Abort(OP_MPI_HDF5_WORLD, 2);
       }
 
@@ -1284,8 +1309,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       MPI_Comm_free(&OP_MPI_HDF5_WORLD);
       return;
     } else {
-      op_printf("op_dat %s does not exists in the file ... creating data set\n",
-                path_name);
+      if (OP_diags > 3) {
+        op_printf("op_dat %s does not exists in the file ... creating data set\n",
+                  path_name);
+      }
     }
   }
 
@@ -1367,7 +1394,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id,
              dat->data);
   } else {
-    printf("Unknown type in op_fetch_data_hdf5_file()\n");
+    op_printf("Unknown type in op_fetch_data_hdf5_file()\n");
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 

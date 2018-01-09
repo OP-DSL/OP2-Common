@@ -113,7 +113,8 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   dset_id = H5Dopen(file_id, set_dataset_name, H5P_DEFAULT);
   if (dset_id < 0) {
     op_printf("Could not open dataset '%s' in file '%s'\n", set_dataset_name, file);
-    exit(2);
+    H5Fclose(file_id);
+    return NULL;
   }
 
   // Get size of dataset:
@@ -148,7 +149,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_map_hdf5()\n",
               file);
-    return NULL;
+    exit(2);
   }
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -160,7 +161,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
-    printf("op_map with name : %s not found in file : %s \n", name, file);
+    op_printf("op_map with name : %s not found in file : %s \n", name, file);
+    H5Fclose(file_id);
     return NULL;
   }
 
@@ -174,16 +176,16 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   int g_size = dset_props.size;
   // check if size is accurate
   if (from->size != g_size) {
-    printf("map from set size %d in file %s and size %d do not match \n",
-           g_size, file, from->size);
-    return NULL;
+    op_printf("map from set size %d in file %s and size %d do not match \n",
+              g_size, file, from->size);
+    exit(2);
   }
 
   int map_dim = dset_props.dim;
   if (map_dim != dim) {
-    printf("map.dim %d in file %s and dim %d do not match\n", map_dim, file,
-           dim);
-    return NULL;
+    op_printf("map.dim %d in file %s and dim %d do not match\n", map_dim, file,
+              dim);
+    exit(2);
   }
 
   const char *typ = dset_props.type_str;
@@ -207,8 +209,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     map = (int *)xmalloc(sizeof(long long) * g_size * dim);
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, map);
   } else {
-    printf("Unknown type in file %s for map %s\n", file, name);
-    return NULL;
+    op_printf("Unknown type in file %s for map %s\n", file, name);
+    exit(2);
   }
 
   H5Sclose(dataspace);
@@ -238,7 +240,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   if (file_exist(file) == 0) {
     op_printf("File %s does not exist .... aborting op_decl_dat_hdf5()\n",
               file);
-    return NULL;
+    exit(2);
   }
   file_id = H5Fopen(file, H5F_ACC_RDONLY, H5P_DEFAULT);
 
@@ -250,7 +252,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   if (dset_id < 0) {
-    printf("op_dat with name : %s not found in file : %s \n", name, file);
+    op_printf("op_dat with name : %s not found in file : %s \n", name, file);
+    H5Fclose(file_id);
     return NULL;
   }
 
@@ -263,16 +266,16 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   int dat_dim = dset_props.dim;
   if (dat_dim != dim) {
-    printf("dat.dim %d in file %s and dim %d do not match\n", dat_dim, file,
-           dim);
-    return NULL;
+    op_printf("dat.dim %d in file %s and dim %d do not match\n", dat_dim, file,
+              dim);
+    exit(2);
   }
 
   const char *typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
-    printf("dat.type %s in file %s and type %s do not match\n", typ, file,
-           type);
-    return NULL;
+    op_printf("dat.type %s in file %s and type %s do not match\n", typ, file,
+              type);
+    exit(2);
   }
 
   size_t dat_size = dset_props.elem_bytes;
@@ -291,9 +294,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if (dat_size != dim * sizeof(double)) {
-      printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",
-             dat_size, file, dim);
-      return NULL;
+      op_printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",
+                dat_size, file, dim);
+      exit(2);
     } else
       dat_size = sizeof(double);
 
@@ -303,9 +306,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if (dat_size != dim * sizeof(float)) {
-      printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",
-             dat_size, file, dim);
-      return NULL;
+      op_printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",
+                dat_size, file, dim);
+      exit(2);
     } else
       dat_size = sizeof(float);
 
@@ -316,9 +319,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if (dat_size != dim * sizeof(int)) {
-      printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",
-             dat_size, file, dim);
-      return NULL;
+      op_printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",
+                dat_size, file, dim);
+      exit(2);
     } else
       dat_size = sizeof(int);
   } else if (strcmp(type, "long") == 0 || strcmp(type, "long:soa") == 0) {
@@ -326,9 +329,9 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if (dat_size != dim * sizeof(long)) {
-      printf("dat.size %lu in file %s and %d*sizeof(long) do not match\n",
-             dat_size, file, dim);
-      return NULL;
+      op_printf("dat.size %lu in file %s and %d*sizeof(long) do not match\n",
+                dat_size, file, dim);
+      exit(2);
     } else
       dat_size = sizeof(long);
   } else if (strcmp(type, "long long") == 0 ||
@@ -337,14 +340,14 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
     if (dat_size != dim * sizeof(long long)) {
-      printf("dat.size %lu in file %s and %d*sizeof(long long) do not match\n",
-             dat_size, file, dim);
-      return NULL;
+      op_printf("dat.size %lu in file %s and %d*sizeof(long long) do not match\n",
+                dat_size, file, dim);
+      exit(2);
     } else
       dat_size = sizeof(long long);
   } else {
-    printf("unknown type for dat\n");
-    return NULL;
+    op_printf("unknown type for dat\n");
+    exit(2);
   }
 
   H5Sclose(dataspace);
@@ -363,7 +366,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 *******************************************************************************/
 
 void op_dump_to_hdf5(char const *file_name) {
-  printf("Writing to %s\n", file_name);
+  op_printf("Writing to %s\n", file_name);
 
   // declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -430,7 +433,7 @@ void op_dump_to_hdf5(char const *file_name) {
       H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT,
                map->map);
     } else {
-      printf("Unknown type for map elements\n");
+      op_printf("Unknown type for map elements\n");
       exit(2);
     }
 
@@ -476,7 +479,7 @@ void op_dump_to_hdf5(char const *file_name) {
     else if (sizeof(map->map[0]) == sizeof(long long))
       H5Awrite(attribute, atype, "long long");
     else {
-      printf("Unknown type for map elements\n");
+      op_printf("Unknown type for map elements\n");
       exit(2);
     }
 
@@ -543,7 +546,7 @@ void op_dump_to_hdf5(char const *file_name) {
       H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT,
                dat->data);
     } else {
-      printf("Unknown type for data elements %s\n", dat->type);
+      op_printf("Unknown type for data elements %s\n", dat->type);
       exit(2);
     }
 
@@ -618,6 +621,12 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   // open existing data set
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
+  if (dset_id < 0) {
+    op_printf("dataset '%s' not found in file '%s'\n", name, file_name);
+    H5Fclose(file_id);
+    const_data = NULL;
+    return;
+  }
 
   // get OID of the dim attribute
   attr = H5Aopen(dset_id, "dim", H5P_DEFAULT);
@@ -625,8 +634,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   H5Aclose(attr);
   H5Dclose(dset_id);
   if (const_dim != dim) {
-    printf("dim of constant %d in file %s and requested dim %d do not match\n",
-           const_dim, file_name, dim);
+    op_printf("dim of constant %d in file %s and requested dim %d do not match\n",
+              const_dim, file_name, dim);
     exit(2);
   }
 
@@ -646,7 +655,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   if (!op_type_equivalence(typ, type)) {
-    printf(
+    op_printf(
         "type of constant %s in file %s and requested type %s do not match\n",
         typ, file_name, type);
     exit(2);
@@ -683,7 +692,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(double) * const_dim);
   } else {
-    printf("Unknown type in file %s for constant %s\n", file_name, name);
+    op_printf("Unknown type in file %s for constant %s\n", file_name, name);
     exit(2);
   }
 
@@ -699,18 +708,24 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
 void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", name, file_name);
+
   // HDF5 APIs definitions
   hid_t file_id;   // file identifier
   hid_t dset_id;   // dataset identifier
   hid_t dataspace; // data space identifier
 
   if (file_exist(file_name) == 0) {
-    op_printf("File %s does not exist .... creating file\n", file_name);
+    if (OP_diags > 3) {
+      op_printf("File %s does not exist .... creating file\n", file_name);
+    }
     file_id = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     H5Fclose(file_id);
   }
 
-  printf("Writing constant to %s\n", file_name);
+  
+  op_printf("Writing constant to %s\n", file_name);
 
   /* Open the existing file. */
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
@@ -760,8 +775,10 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT,
              const_data);
     H5Dclose(dset_id);
-  } else
-    printf("Unknown type for write_const\n");
+  } else {
+    op_printf("Unknown type for write_const\n");
+    exit(2);
+  }
 
   H5Sclose(dataspace);
 
@@ -805,8 +822,8 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
            strcmp(type, "real") == 0)
     H5Awrite(attribute, atype, "float");
   else {
-    printf("Unknown type %s for constant %s: cannot write constant to file\n",
-           type, name);
+    op_printf("Unknown type %s for constant %s: cannot write constant to file\n",
+              type, name);
     exit(2);
   }
 
@@ -825,6 +842,9 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 
 void op_fetch_data_hdf5(op_dat dat, char const *file_name,
                         char const *path_name) {
+  // letting know that writing is happening ...
+  op_printf("Writing '%s' to file '%s'\n", path_name, file_name);
+
   // fetch data based on the backend
   op_fetch_data_char(dat, dat->data);
 
@@ -840,11 +860,15 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
   void *old_client_data;
 
   if (file_exist(file_name) == 0) {
-    printf("File %s does not exist .... creating file\n", file_name);
+    if (OP_diags > 3) {
+      op_printf("File %s does not exist .... creating file\n", file_name);
+    }
     file_id = H5Fcreate(file_name, H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
   } else {
-    printf("File %s exists .... checking for dataset and path %s in file\n",
-           file_name, path_name);
+    if (OP_diags > 3) {
+      op_printf("File %s exists .... checking for dataset and path %s in file\n",
+                file_name, path_name);
+    }
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
 
     H5error_off(old_func, old_client_data);
@@ -852,7 +876,9 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
     H5error_on(old_func, old_client_data);
 
     if (status == 0) {
-      printf("op_dat %s exists in the file ... updating data\n", path_name);
+      if (OP_diags > 3) {
+        op_printf("dataset '%s' exists in the file ... updating data\n", path_name);
+      }
       dset_id = H5Dopen(file_id, path_name, H5P_DEFAULT);
 
       // find dat->size with available attributes
@@ -863,15 +889,15 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
         H5Aread(attr, H5T_NATIVE_INT, &dat_size);
         H5Aclose(attr);
         if (dat_size != dat->size) {
-          printf(
+          op_printf(
               "dat.size %zu in file %s and dim %d do not match ... aborting\n",
               dat_size, file_name, dat->dim);
           exit(2);
         }
       } else {
-        printf("data set %s on file %s does not have attribute 'size'",
-               path_name, file_name);
-        printf(" -- cannot check size ... aborting\n");
+        op_printf("data set %s on file %s does not have attribute 'size'",
+                  path_name, file_name);
+        op_printf(" -- cannot check size ... aborting\n");
         exit(2);
       }
 
@@ -883,14 +909,14 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
         H5Aread(attr, H5T_NATIVE_INT, &dat_dim);
         H5Aclose(attr);
         if (dat_dim != dat->dim) {
-          printf("dat.dim %d in file %s and dim %d do not match ... aborting\n",
-                 dat_dim, file_name, dat->dim);
+          op_printf("dat.dim %d in file %s and dim %d do not match ... aborting\n",
+                    dat_dim, file_name, dat->dim);
           exit(2);
         }
       } else {
-        printf("data set %s on file %s does not have attribute 'dim'",
-               path_name, file_name);
-        printf(" -- cannot check dim ... aborting\n");
+        op_printf("data set %s on file %s does not have attribute 'dim'",
+                  path_name, file_name);
+        op_printf(" -- cannot check dim ... aborting\n");
         exit(2);
       }
 
@@ -909,14 +935,14 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
         char typ_soa[50];
         sprintf(typ_soa, "%s:soa", typ);
         if (!op_type_equivalence(typ, dat->type)) {
-          printf("dat.type %s in file %s and type %s do not match\n", typ,
-                 file_name, dat->type);
+          op_printf("dat.type %s in file %s and type %s do not match\n", typ,
+                    file_name, dat->type);
           exit(2);
         }
       } else {
-        printf("data set %s on file %s does not have attribute 'type'",
-               path_name, file_name);
-        printf(" -- cannot check type ... aborting\n");
+        op_printf("data set %s on file %s does not have attribute 'type'",
+                  path_name, file_name);
+        op_printf(" -- cannot check type ... aborting\n");
         exit(2);
       }
 
@@ -957,7 +983,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
         H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT,
                  dat->data);
       else {
-        printf("Unknown type for data elements\n");
+        op_printf("Unknown type for data elements\n");
         exit(2);
       }
 
@@ -966,8 +992,10 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
       H5Fclose(file_id);
       return;
     } else {
-      printf("op_dat %s does not exists in the file ... creating data set\n",
-             path_name);
+      if (OP_diags > 3) {
+        op_printf("op_dat %s does not exists in the file ... creating data set\n",
+                  path_name);
+      }
     }
   }
 
@@ -1015,7 +1043,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
     H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, dataspace, H5P_DEFAULT,
              dat->data);
   } else {
-    printf("Unknown type for data elements\n");
+    op_printf("Unknown type for data elements\n");
     exit(2);
   }
 
@@ -1067,7 +1095,6 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
 *******************************************************************************/
 
 void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
-  printf("in op_fetch_data_hdf5_file\n");
   op_fetch_data_hdf5(dat, file_name, dat->name);
 }
 
