@@ -84,7 +84,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_openmp_simple(master, date, consts, kernels):
+def op2_gen_openmp_simple(master, date, consts, kernels, threads=0):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -116,7 +116,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
-    decl_filename = kernels[nk]['decl_filename']
+    decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
     inddims = kernels[nk]['inddims']
@@ -247,7 +247,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     if FORTRAN:
       code('include '+name+'.inc')
     elif CPP:
-      code('#include "../'+decl_filename+'"')
+      code('#include "../'+decl_filepath+'"')
 
 ##########################################################################
 # then C++ stub function
@@ -345,9 +345,17 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
 
     if reduct or ninds==0:
-      comm(' set number of threads')
+      code('')
+      comm('set number of threads')
       code('#ifdef _OPENMP')
       code('  int nthreads = omp_get_max_threads();')
+      if (threads is not None):
+        depth += 2
+        IF(str(threads)+' <= nthreads')
+        code('nthreads = ' + str(threads) + ';')
+        code('omp_set_num_threads(' + str(threads) + ');')
+        ENDIF()
+        depth -= 2
       code('#else')
       code('  int nthreads = 1;')
       code('#endif')

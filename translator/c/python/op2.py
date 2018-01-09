@@ -9,7 +9,7 @@ target-specific code to execute the user's kernel functions.
 This prototype is written in Python and is directly based on the
 parsing and code generation of the matlab source code transformation code
 
-usage: ./op2.py 'file1','file2',...
+usage: ./op2.py [-o nCoresOpenMP] 'file1','file2', ..., [kernel_dir]
 
 This takes as input
 
@@ -29,6 +29,13 @@ plus a master kernel file of the form
 
 file1_kernels.cpp  -- for OpenMP x86 execution`
 file1_kernels.cu   -- for CUDA execution
+
+If user kernel files are located in a sub-directory (e.g. 'kernel_dir'), then
+this directory can be provided as argument as well.
+
+The option '-o nCoresOpenMP' can be used to define the number of cores that are
+used with the OpenMP backend. 'nCoresOpenMP' can be an integer or a variable name
+that is used at runtime to set the number of cores.
 """
 
 import sys
@@ -359,8 +366,22 @@ def op_par_loop_parse(text):
     print '\n\n'
     return (loop_args)
 
+def op_check_kernel_header_file(src_file,text,name):
+    match = False
+    inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'[ ]\('
+    matches = re.findall(inline_impl_pattern, text)
+    decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+    if len(re.findall(inline_impl_pattern, text)) == 1:
+        match = True
+    elif len(re.findall(decl_pattern, text)) == 1:
+        match = True
+    if match:
+        return src_file
+    else:
+        return None
 
-def main():
+
+def main(srcFilesAndDirs=sys.argv[1:],ompThreads=None):
 
     # declare constants
 
@@ -393,10 +414,13 @@ def main():
                       'OP_MAX', 'OP_MIN']
 
     # Loop over all input source files for C-Macro definitions:
-    for a in range(1, len(sys.argv)):
-        src_file = str(sys.argv[a])
-        f = open(src_file, 'r')
-        text = f.read()
+    for a in range(len(srcFilesAndDirs)):
+        src_file = str(srcFilesAndDirs[a])
+        if not os.path.isfile(src_file):
+            continue
+        else:
+            f = open(src_file, 'r')
+            text = f.read()
 
         defs = op_parse_macro_defs(text)
         for k in defs.keys():
@@ -409,18 +433,20 @@ def main():
     self_evaluate_macro_defs(macro_defs)
 
     ## Loop over all input source files to search for op_par_loop calls
-    kernels_in_files = [[] for _ in range(len(sys.argv) - 1)]
-    for a in range(1, len(sys.argv)):
-        print 'processing file ' + str(a) + ' of ' + str(len(sys.argv) - 1) + \
-              ' ' + str(sys.argv[a])
-
-        src_file = str(sys.argv[a])
-        f = open(src_file, 'r')
-        text = f.read()
+    kernels_in_files = [[] for _ in range(len(srcFilesAndDirs) - 1)]
+    for a in range(len(srcFilesAndDirs)):
+        src_file = str(srcFilesAndDirs[a])
+        if not os.path.isfile(src_file):
+            continue
+        else:
+            print 'processing file ' + str(a+1) + ' of ' + str(len(srcFilesAndDirs)) + \
+              ' ' + src_file
+            f = open(src_file, 'r')
+            text = f.read()
+        
         any_soa = 0
 
         # check for op_init/op_exit/op_partition/op_hdf5 calls
-
         inits, exits, parts, hdf5s = op_parse_calls(text)
 
         if inits + exits + parts + hdf5s > 0:
@@ -820,24 +846,17 @@ def main():
     ## Loop over input source files again, but this time to find 
     ## the header file for each kernel. No need to assume that 
     ## header file is named after the kernel:
-    for a in range(1, len(sys.argv)):
-        src_file = str(sys.argv[a])
-        f = open(src_file, 'r')
-        text = f.read()
+    for a in range(len(srcFilesAndDirs)):
+        src_file = str(srcFilesAndDirs[a])
+        if os.path.isfile(src_file):
+            f = open(src_file, 'r')
+            text = f.read()
 
-        for nk in xrange(0,len(kernels)):
-            name = kernels[nk]["name"]
-            inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\('
-            matches = re.findall(inline_impl_pattern, text)
-            if len(matches) == 1:
-                kernels[nk]["decl_filepath"] = src_file
-                kernels[nk]["decl_filename"] = os.path.basename(src_file)
-                continue
-            decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
-            matches = re.findall(decl_pattern, text)
-            if len(matches) == 1:
-                kernels[nk]["decl_filepath"] = src_file
-                kernels[nk]["decl_filename"] = os.path.basename(src_file)
+            for nk in xrange(0,len(kernels)):
+                name = kernels[nk]["name"]
+                path = op_check_kernel_header_file(src_file,text,name)
+                if path:
+                    kernels[nk]["decl_filepath"] = path
 
     for nk in xrange(0,len(kernels)):
         name = kernels[nk]["name"]
@@ -845,21 +864,29 @@ def main():
             ## Kernel not found in command-line supplied files, but maybe 
             ## its declaration is in a file with the same name:
             src_file = kernels[nk]["name"] + ".h"
+            
             if os.path.isfile(src_file):
                 f = open(src_file, 'r')
                 text = f.read()
 
-                inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\\s*\('
-                matches = re.findall(inline_impl_pattern, text)
-                if len(matches) == 1:
-                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
-                    kernels[nk]["decl_filename"] = src_file
-                    continue
-                decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
-                matches = re.findall(decl_pattern, text)
-                if len(matches) == 1:
-                    kernels[nk]["decl_filepath"] = os.path.join(os.getcwd(), src_file)
-                    kernels[nk]["decl_filename"] = src_file
+                path = op_check_kernel_header_file(src_file,text,name)
+                if path:
+                    kernels[nk]["decl_filepath"] = path
+    
+        if not "decl_filepath" in kernels[nk].keys():
+            ## if Kernel still not found, maybe its declaration is in a subdir  
+            for a in range(len(srcFilesAndDirs)):
+                dirname = str(srcFilesAndDirs[a])
+                if os.path.isdir(dirname):
+                    filename = os.path.join(dirname,src_file)
+                    if os.path.isfile(filename):
+                        f = open(filename, 'r')
+                        text = f.read()
+
+                        path = op_check_kernel_header_file(filename,text,name)
+                        if path:
+                            kernels[nk]["decl_filepath"] = path
+
 
     fail = False
     for nk in xrange(0,len(kernels)):
@@ -894,39 +921,50 @@ def main():
     #
     #  finally, generate target-specific kernel files
     #
+    masterFile = str(srcFilesAndDirs[0])
 
-
-    op2_gen_seq(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
-    #op2_gen_mpi_vec(str(sys.argv[1]), date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+    op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+    #op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
     #code generators for OpenMP parallelisation with MPI
-    #op2_gen_openmp(str(sys.argv[1]), date, consts, kernels) # Initial OpenMP code generator
-    op2_gen_openmp_simple(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
-    op2_gen_openacc(str(sys.argv[1]), date, consts, kernels) # Simplified and Optimized OpenMP code generator
+    #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
+    op2_gen_openmp_simple(masterFile, date, consts, kernels, ompThreads) # Simplified and Optimized OpenMP code generator
+    op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
     #code generators for NVIDIA GPUs with CUDA
-    #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Fermi GPUs
-    op2_gen_cuda_simple(str(sys.argv[1]), date, consts, kernels,sets) # Optimized for Kepler GPUs
+    #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
+    op2_gen_cuda_simple(masterFile, date, consts, kernels, sets) # Optimized for Kepler GPUs
 
     # generates openmp code as well as cuda code into the same file
-    op2_gen_cuda_simple_hyb(str(sys.argv[1]), date, consts, kernels,sets) # CPU and GPU will then do comutations as a hybrid application
+    op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
 
     #code generator for GPUs with OpenMP4.5
-    op2_gen_openmp4(str(sys.argv[1]), date, consts, kernels)
+    op2_gen_openmp4(masterFile, date, consts, kernels)
 
-#    import subprocess
-#    retcode = subprocess.call("which clang-format > /dev/null", shell=True)
-#    if retcode == 0:
-#      retcode = subprocess.call("$OP2_INSTALL_PATH/../translator/c/python/format.sh", shell=True)
-#    else:
-#      print 'Cannot find clang-format in PATH'
-#      print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
+    # import subprocess
+    # retcode = subprocess.call("which clang-format > /dev/null", shell=True)
+    # if retcode == 0:
+    #     retcode = subprocess.call(os.path.dirname(os.path.abspath(__file__))+"/format.sh", shell=True)
+    # else:
+    #     print 'Cannot find clang-format in PATH'
+    #     print 'Install and add clang-format to PATH to format generated code to conform to code formatting guidelines'
+
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        main()
+    # parse the command line arguments (and options)
+    import getopt
+    optlist,args = getopt.getopt(sys.argv[1:],'o:')
+    # default values
+    nthreads = None
+    # from command line options
+    for o,a in optlist:
+        if o == '-o':
+            print "setting number of cores in OpenMP to '%s'\n"%a
+            nthreads = a
+    # calling the generator
+    if len(args) > 1:
+        main(srcFilesAndDirs=args, ompThreads=nthreads)
     # Print usage message if no arguments given
     else:
         print __doc__
         sys.exit(1)
-
