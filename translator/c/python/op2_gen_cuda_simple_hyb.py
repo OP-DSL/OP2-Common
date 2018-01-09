@@ -113,7 +113,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     code('#define op_par_loop_'+name+' op_par_loop_'+name+'_cpu')
-  code('#include "'+master.split('.')[0]+'_kernels.cpp"')
+  code('#include "../openmp/'+master.split('.')[0]+'_kernels.cpp"')
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     code('#undef op_par_loop_'+name)
