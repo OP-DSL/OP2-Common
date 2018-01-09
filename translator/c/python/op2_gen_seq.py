@@ -115,7 +115,7 @@ def op2_gen_seq(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
-    decl_filename = kernels[nk]['decl_filename']
+    decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
     inddims = kernels[nk]['inddims']
@@ -249,7 +249,7 @@ def op2_gen_seq(master, date, consts, kernels):
     if FORTRAN:
       code('include '+name+'.inc')
     elif CPP:
-      code('#include "../'+decl_filename+'"')
+      code('#include "../'+decl_filepath+'"')
 
 ##########################################################################
 # then C++ stub function
