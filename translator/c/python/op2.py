@@ -9,7 +9,7 @@ target-specific code to execute the user's kernel functions.
 This prototype is written in Python and is directly based on the
 parsing and code generation of the matlab source code transformation code
 
-usage: ./op2.py [-o nCoresOpenMP] 'file1','file2', ..., [kernel_dir]
+usage: ./op2.py 'file1','file2', ..., [kernel_dir]
 
 This takes as input
 
@@ -32,10 +32,6 @@ file1_kernels.cu   -- for CUDA execution
 
 If user kernel files are located in a sub-directory (e.g. 'kernel_dir'), then
 this directory can be provided as argument as well.
-
-The option '-o nCoresOpenMP' can be used to define the number of cores that are
-used with the OpenMP backend. 'nCoresOpenMP' can be an integer or a variable name
-that is used at runtime to set the number of cores.
 """
 
 import sys
@@ -381,7 +377,7 @@ def op_check_kernel_header_file(src_file,text,name):
     return None
 
 
-def main(srcFilesAndDirs=sys.argv[1:],ompThreads=None):
+def main(srcFilesAndDirs=sys.argv[1:]):
 
   # declare constants
 
@@ -928,7 +924,7 @@ def main(srcFilesAndDirs=sys.argv[1:],ompThreads=None):
 
   #code generators for OpenMP parallelisation with MPI
   #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
-  op2_gen_openmp_simple(masterFile, date, consts, kernels, ompThreads) # Simplified and Optimized OpenMP code generator
+  op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
   op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
   #code generators for NVIDIA GPUs with CUDA
@@ -953,17 +949,10 @@ def main(srcFilesAndDirs=sys.argv[1:],ompThreads=None):
 if __name__ == '__main__':
   # parse the command line arguments (and options)
   import getopt
-  optlist,args = getopt.getopt(sys.argv[1:],'o:')
-  # default values
-  nthreads = None
-  # from command line options
-  for o,a in optlist:
-    if o == '-o':
-      print "setting number of cores in OpenMP to '%s'\n"%a
-      nthreads = a
+  optlist,args = getopt.getopt(sys.argv[1:])
   # calling the generator
   if len(args) > 1:
-    main(srcFilesAndDirs=args, ompThreads=nthreads)
+    main(srcFilesAndDirs=args)
   # Print usage message if no arguments given
   else:
     print __doc__

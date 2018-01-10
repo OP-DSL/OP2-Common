@@ -84,7 +84,7 @@ def ENDIF():
     code('}')
 
 
-def op2_gen_openmp_simple(master, date, consts, kernels, threads=0):
+def op2_gen_openmp_simple(master, date, consts, kernels):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -349,13 +349,6 @@ def op2_gen_openmp_simple(master, date, consts, kernels, threads=0):
       comm('set number of threads')
       code('#ifdef _OPENMP')
       code('  int nthreads = omp_get_max_threads();')
-      if (threads is not None):
-        depth += 2
-        IF(str(threads)+' <= nthreads')
-        code('nthreads = ' + str(threads) + ';')
-        code('omp_set_num_threads(' + str(threads) + ');')
-        ENDIF()
-        depth -= 2
       code('#else')
       code('  int nthreads = 1;')
       code('#endif')
