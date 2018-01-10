@@ -629,15 +629,15 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       if ninds > 0:
         invmapinds = invinds[:]
         for i in range(0,ninds):
-        for j in range(0,i):
-          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
-          invmapinds[i] = invmapinds[j]
+          for j in range(0,i):
+            if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+              invmapinds[i] = invmapinds[j]
 
         for i in range(0,nargs):
-        mapinds[i] = i
-        for j in range(0,i):
-          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
-          mapinds[i] = mapinds[j]
+          mapinds[i] = i
+          for j in range(0,i):
+            if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+              mapinds[i] = mapinds[j]
 
       # check for repeats
 
