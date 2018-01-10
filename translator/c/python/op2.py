@@ -949,7 +949,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 if __name__ == '__main__':
   # parse the command line arguments (and options)
   import getopt
-  optlist,args = getopt.getopt(sys.argv[1:])
+  optlist,args = getopt.getopt(sys.argv[1:],'')
   # calling the generator
   if len(args) > 1:
     main(srcFilesAndDirs=args)
