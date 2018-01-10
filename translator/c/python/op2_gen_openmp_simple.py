@@ -345,8 +345,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
 
     if reduct or ninds==0:
-      code('')
-      comm('set number of threads')
+      comm(' set number of threads')
       code('#ifdef _OPENMP')
       code('  int nthreads = omp_get_max_threads();')
       code('#else')

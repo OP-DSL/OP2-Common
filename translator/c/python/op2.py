@@ -364,7 +364,7 @@ def op_par_loop_parse(text):
 
 def op_check_kernel_header_file(src_file,text,name):
   match = False
-  inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'[ ]\('
+  inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\s*\('
   matches = re.findall(inline_impl_pattern, text)
   decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
   if len(re.findall(inline_impl_pattern, text)) == 1:
@@ -429,7 +429,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   self_evaluate_macro_defs(macro_defs)
 
   ## Loop over all input source files to search for op_par_loop calls
-  kernels_in_files = [[] for _ in range(len(srcFilesAndDirs) - 1)]
+  kernels_in_files = [[] for _ in range(len(srcFilesAndDirs))]
   for a in range(len(srcFilesAndDirs)):
     src_file = str(srcFilesAndDirs[a])
     if not os.path.isfile(src_file):
@@ -724,14 +724,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             'mapinds': mapinds,
             'invmapinds' : invmapinds}
         kernels.append(temp)
-        (kernels_in_files[a - 1]).append(nkernels - 1)
+        (kernels_in_files[a]).append(nkernels - 1)
       else:
         append = 1
-        for in_file in range(0, len(kernels_in_files[a - 1])):
-          if kernels_in_files[a - 1][in_file] == which_file:
+        for in_file in range(0, len(kernels_in_files[a])):
+          if kernels_in_files[a][in_file] == which_file:
             append = 0
         if append == 1:
-          (kernels_in_files[a - 1]).append(which_file)
+          (kernels_in_files[a]).append(which_file)
 
     # output new source file
 
@@ -782,8 +782,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         fid.write(' "op_lib_cpp.h"\n\n')
         fid.write('//\n// op_par_loop declarations\n//\n')
         fid.write('#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
-        for k_iter in range(0, len(kernels_in_files[a - 1])):
-          k = kernels_in_files[a - 1][k_iter]
+        for k_iter in range(0, len(kernels_in_files[a])):
+          k = kernels_in_files[a][k_iter]
           line = '\nvoid op_par_loop_' + \
             kernels[k]['name'] + '(char const *, op_set,\n'
           for n in range(1, kernels[k]['nargs']):
@@ -951,7 +951,7 @@ if __name__ == '__main__':
   import getopt
   optlist,args = getopt.getopt(sys.argv[1:],'')
   # calling the generator
-  if len(args) > 1:
+  if len(args) > 0:
     main(srcFilesAndDirs=args)
   # Print usage message if no arguments given
   else:
