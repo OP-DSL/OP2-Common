@@ -107,6 +107,8 @@ def self_evaluate_macro_defs(macro_defs):
   """Recursively evaluate C macro definitions that refer to other detected macros"""
 
   substitutions_performed = True
+  num_subs_performed = 0
+  max_subs_allowed = 10000
   while substitutions_performed:
     substitutions_performed = False
     for k in macro_defs.keys():
@@ -119,6 +121,9 @@ def self_evaluate_macro_defs(macro_defs):
       ## If value of key 'k' depends on value of other
       ## keys, then substitute in value:
       for k2 in macro_defs.keys():
+        if k == k2:
+          continue
+
         pattern = r'' + '(^|[^a-zA-Z0-9_])' + k2 + '($|[^a-zA-Z0-9_])'
         m = re.search(pattern, k_val)
 
@@ -128,6 +133,10 @@ def self_evaluate_macro_defs(macro_defs):
           macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
           # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
           substitutions_performed = True
+
+          num_subs_performed = num_subs_performed + 1
+          if num_subs_performed == max_subs_allowed:
+            sys.exit(str(max_subs_allowed) + " macro substitutions performed, probably stuck in a loop.")
 
   ## Evaluate any mathematical expressions:
   for k in macro_defs.keys():
@@ -150,6 +159,8 @@ def evaluate_macro_defs_in_string(macro_defs, string):
   resolved_string = string
 
   substitutions_performed = True
+  num_subs_performed = 0
+  max_subs_allowed = 10000
   while substitutions_performed:
     substitutions_performed = False
     for k in macro_defs.keys():
@@ -164,6 +175,10 @@ def evaluate_macro_defs_in_string(macro_defs, string):
         # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
         resolved_string = resolved_string_new
         substitutions_performed = True
+
+        num_subs_performed = num_subs_performed + 1
+        if num_subs_performed == max_subs_allowed:
+          sys.exit(str(max_subs_allowed) + " macro substitutions performed, probably stuck in a loop.")
 
 
   if re.search(arithmetic_regex_pattern, resolved_string) != None:
