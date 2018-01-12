@@ -118,6 +118,10 @@ def self_evaluate_macro_defs(macro_defs):
         ## This macro definiton is numeric
         continue
 
+      if k == k_val:
+        del macro_defs[k]
+        continue
+
       ## If value of key 'k' depends on value of other
       ## keys, then substitute in value:
       for k2 in macro_defs.keys():
