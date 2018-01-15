@@ -106,9 +106,24 @@ def op_parse_macro_defs(text):
 def self_evaluate_macro_defs(macro_defs):
   """Recursively evaluate C macro definitions that refer to other detected macros"""
 
+  ## First, calculate the expected number of substitutions to perform:
+  num_subs_expected = 0
+  for k in macro_defs.keys():
+    k_val = macro_defs[k]
+    m = re.search(arithmetic_regex_pattern, k_val)
+    if m != None:
+      continue
+
+    pattern = r'' + '([a-zA-Z0-9_]+)'
+    occurences = re.findall(pattern, k_val)
+    for o in occurences:
+      m = re.search(arithmetic_regex_pattern, o)
+      if m == None:
+        if o in macro_defs.keys():
+          num_subs_expected = num_subs_expected + 1
+
   substitutions_performed = True
   num_subs_performed = 0
-  max_subs_allowed = 10000
   while substitutions_performed:
     substitutions_performed = False
     for k in macro_defs.keys():
@@ -134,13 +149,23 @@ def self_evaluate_macro_defs(macro_defs):
         if m != None:
           ## The macro "k" refers to macro "k2"
           k2_val = macro_defs[k2]
+
+          m = re.search(arithmetic_regex_pattern, k2_val)
+          if m == None:
+            # 'k2_val' has not been resolved. Wait for this to occur before
+            # substituting its value into 'k_val', as this minimises the total 
+            # number of substitutions performed across all macros and so 
+            # improves detection of infinite substitution loops.
+            continue
+
           macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
           # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
           substitutions_performed = True
 
           num_subs_performed = num_subs_performed + 1
-          if num_subs_performed == max_subs_allowed:
-            sys.exit(str(max_subs_allowed) + " macro substitutions performed, probably stuck in a loop.")
+          if num_subs_performed > num_subs_expected:
+            print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+            return
 
   ## Evaluate any mathematical expressions:
   for k in macro_defs.keys():
@@ -160,11 +185,22 @@ def self_evaluate_macro_defs(macro_defs):
 def evaluate_macro_defs_in_string(macro_defs, string):
   """Recursively evaluate C macro definitions in 'string' """
 
+  ## First, calculate the expected number of substitutions to perform:
+  num_subs_expected = 0
+  m = re.search(arithmetic_regex_pattern, string)
+  if m == None:
+    pattern = r'' + '([a-zA-Z0-9_]+)'
+    occurences = re.findall(pattern, string)
+    for o in occurences:
+      m = re.search(arithmetic_regex_pattern, o)
+      if m == None:
+        if o in macro_defs.keys():
+          num_subs_expected = num_subs_expected + 1
+
   resolved_string = string
 
   substitutions_performed = True
   num_subs_performed = 0
-  max_subs_allowed = 10000
   while substitutions_performed:
     substitutions_performed = False
     for k in macro_defs.keys():
@@ -173,16 +209,16 @@ def evaluate_macro_defs_in_string(macro_defs, string):
       k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
       m = re.search(k_pattern, resolved_string)
       if m != None:
-        ## "string" contains a reference to macro "k", so substitute
-        ## in its definition:
+        ## "string" contains a reference to macro "k", so substitute in its definition:
         resolved_string_new = re.sub(k_pattern, "\\g<1>"+k_val+"\\g<2>", resolved_string)
         # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
         resolved_string = resolved_string_new
         substitutions_performed = True
 
         num_subs_performed = num_subs_performed + 1
-        if num_subs_performed == max_subs_allowed:
-          sys.exit(str(max_subs_allowed) + " macro substitutions performed, probably stuck in a loop.")
+        if num_subs_performed > num_subs_expected:
+          print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+          return
 
 
   if re.search(arithmetic_regex_pattern, resolved_string) != None:
