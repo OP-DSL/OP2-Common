@@ -894,13 +894,13 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     f.close()
   # end of loop over input source files
 
+  ## Loop over kernels, looking for a header file named after each 
+  ## kernel in either working directory or one of the input-supplied 
+  ## directories:
   for nk in xrange(0,len(kernels)):
     name = kernels[nk]["name"]
     if not "decl_filepath" in kernels[nk].keys():
-      ## Kernel not found in command-line supplied files, but maybe
-      ## its declaration is in a file with the same name:
       src_file = kernels[nk]["name"] + ".h"
-
       if os.path.isfile(src_file):
         f = open(src_file, 'r')
         text = f.read()
@@ -908,36 +908,45 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         path = op_check_kernel_header_file(src_file,text,name)
         if path:
           kernels[nk]["decl_filepath"] = path
+          continue
 
+      for dirname in [d for d in srcFilesAndDirs if os.path.isdir(d)]:
+        filepath = os.path.join(dirname, src_file)
+        if os.path.isfile(filepath):
+          f = open(filepath, 'r')
+          text = f.read()
+
+          path = op_check_kernel_header_file(filename,text,name)
+          if path:
+            kernels[nk]["decl_filepath"] = path
+            break
+
+  ## Any kernel declarations still not found must exist in files 
+  ## not named after the kernel. Search through content of all 
+  ## input-supplied files, and through all files of input-supplied 
+  ## directories:
+  for nk in xrange(0,len(kernels)):
     if not "decl_filepath" in kernels[nk].keys():
-      ## if Kernel still not found, maybe its declaration is in a subdir
-      for a in range(len(srcFilesAndDirs)):
-        dirname = str(srcFilesAndDirs[a])
-        if os.path.isdir(dirname):
-          filename = os.path.join(dirname,src_file)
-          if os.path.isfile(filename):
-            f = open(filename, 'r')
+      name = kernels[nk]["name"]
+
+      for src_file in [s for s in srcFilesAndDirs if os.path.isfile(s)]:
+        f = open(src_file, 'r')
+        text = f.read()
+        if op_check_kernel_header_file(text, name):
+          kernels[nk]["decl_filepath"] = src_file
+          break
+
+      if not "decl_filepath" in kernels[nk].keys():
+        for src_dir in [d for d in srcFilesAndDirs if os.path.isdir(d)]:
+          for src_dir_subfile in [s for s in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, s))]:
+            src_dir_subfilepath = os.path.join(src_dir, src_dir_subfile)
+            f = open(src_dir_subfilepath, 'r')
             text = f.read()
-
-            path = op_check_kernel_header_file(filename,text,name)
-            if path:
-              kernels[nk]["decl_filepath"] = path
-
-  ## Loop over input source files again, but this time to find
-  ## the header file for each kernel. No need to assume that
-  ## header file is named after the kernel:
-  for a in range(len(srcFilesAndDirs)):
-    src_file = str(srcFilesAndDirs[a])
-    if os.path.isfile(src_file):
-      f = open(src_file, 'r')
-      text = f.read()
-
-      for nk in xrange(0,len(kernels)):
-        name = kernels[nk]["name"]
-        path = op_check_kernel_header_file(src_file,text,name)
-        if path:
-          kernels[nk]["decl_filepath"] = path
-
+            if op_check_kernel_header_file(text, name):
+              kernels[nk]["decl_filepath"] = src_dir_subfilepath
+              break
+          if "decl_filepath" in kernels[nk].keys():
+            break
 
   fail = False
   for nk in xrange(0,len(kernels)):
