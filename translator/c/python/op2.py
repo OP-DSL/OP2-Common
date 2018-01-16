@@ -894,21 +894,6 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     f.close()
   # end of loop over input source files
 
-  ## Loop over input source files again, but this time to find
-  ## the header file for each kernel. No need to assume that
-  ## header file is named after the kernel:
-  for a in range(len(srcFilesAndDirs)):
-    src_file = str(srcFilesAndDirs[a])
-    if os.path.isfile(src_file):
-      f = open(src_file, 'r')
-      text = f.read()
-
-      for nk in xrange(0,len(kernels)):
-        name = kernels[nk]["name"]
-        path = op_check_kernel_header_file(src_file,text,name)
-        if path:
-          kernels[nk]["decl_filepath"] = path
-
   for nk in xrange(0,len(kernels)):
     name = kernels[nk]["name"]
     if not "decl_filepath" in kernels[nk].keys():
@@ -937,6 +922,21 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             path = op_check_kernel_header_file(filename,text,name)
             if path:
               kernels[nk]["decl_filepath"] = path
+
+  ## Loop over input source files again, but this time to find
+  ## the header file for each kernel. No need to assume that
+  ## header file is named after the kernel:
+  for a in range(len(srcFilesAndDirs)):
+    src_file = str(srcFilesAndDirs[a])
+    if os.path.isfile(src_file):
+      f = open(src_file, 'r')
+      text = f.read()
+
+      for nk in xrange(0,len(kernels)):
+        name = kernels[nk]["name"]
+        path = op_check_kernel_header_file(src_file,text,name)
+        if path:
+          kernels[nk]["decl_filepath"] = path
 
 
   fail = False
