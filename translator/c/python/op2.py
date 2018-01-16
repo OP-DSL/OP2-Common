@@ -788,7 +788,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     if src_dirpath[0:2] == "./":
       src_dirpath = src_dirpath[2:]
 
-    op_src_filename = src_filename.split('.')[0] + '_op.cpp'
+    op_extension = "_op"
+    if '.' in src_filename:
+      src_filename_pieces = src_filename.split('.')
+      n = len(src_filename_pieces)
+      src_filename_extension = src_filename_pieces[n-1]
+      op_src_filename = '.'.join(src_filename_pieces[0:(n-1)]) + op_extension + '.' + src_filename_extension
+    else:
+      op_src_filename = src_filename + op_extension
     op_src_filepath = op_src_filename
     op_src_dirpath = ""
     if src_dirpath != "":
