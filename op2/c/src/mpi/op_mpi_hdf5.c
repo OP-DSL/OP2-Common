@@ -598,7 +598,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
         typ, file_name, type);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
-
+  H5Dclose(dset_id);
+  
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   dataspace = H5Dget_space(dset_id);
