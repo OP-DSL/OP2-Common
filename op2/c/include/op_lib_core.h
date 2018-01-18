@@ -196,6 +196,20 @@ typedef struct op_dat_entry_core op_dat_entry;
 
 typedef TAILQ_HEAD(, op_dat_entry_core) Double_linked_list;
 
+typedef struct op_kernel_descriptor {
+  const char *name;   /* name of kernel */
+  unsigned long hash; /* hash of loop */
+  op_arg *args;       /* list of arguments to pass in */
+  int nargs;          /* number of arguments */
+  int index;          /* index of the loop */
+  int device;         /* flag to indicate if loop runs on device */
+  int size;           /* process local execution range */
+  int orig_size;      /* original execution range */
+  op_set set;         /* set to execute on */
+  void (*function)(struct op_kernel_descriptor
+                       *desc); /* Function pointer to a wrapper to be called */
+} ops_kernel_descriptor;
+
 /*
  * min / max definitions
  */
@@ -355,6 +369,11 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+
+/*******************************************************************************
+/* lazy execution
+*******************************************************************************/
+void op_enqueue_kernel(op_kernel_descriptor *desc);
 
 #ifdef __cplusplus
 }
