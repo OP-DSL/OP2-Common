@@ -5,24 +5,76 @@
 //user function
 #include "../adt_calc.h"
 
+#ifdef OPS_JIT
+void (*adt_calc_function)(struct op_kernel_descriptor *desc) = NULL;
+#endif
+
 // host stub function
-void op_par_loop_adt_calc(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1,
-  op_arg arg2,
-  op_arg arg3,
-  op_arg arg4,
-  op_arg arg5){
+void op_par_loop_adt_calc_execute(op_kernel_descriptor *desc) {
 
+  op_set set = desc->set;
+  char const *name = desc->name;
   int nargs = 6;
-  op_arg args[6];
 
-  args[0] = arg0;
-  args[1] = arg1;
-  args[2] = arg2;
-  args[3] = arg3;
-  args[4] = arg4;
-  args[5] = arg5;
+  op_arg arg0 = desc->args[0];
+  op_arg arg1 = desc->args[1];
+  op_arg arg2 = desc->args[2];
+  op_arg arg3 = desc->args[3];
+  op_arg arg4 = desc->args[4];
+  op_arg arg5 = desc->args[5];
+
+  op_arg args[6] = {arg0, arg1, arg2, arg3, arg4, arg5};
+
+// Compiling to Do JIT
+#ifdef OPS_JIT
+  if (adt_calc_function == NULL) {
+    op_printf("JIT Compiling Kernel %s\n", name);
+
+    /* Write constants to headder file*/
+    FILE *f = fopen("jit_const.h", "r");
+    if (f == NULL) {
+      f = fopen("jit_const.h", "w"); // create only if file does not exist
+      if (f == NULL) {
+        printf("Error opening file!\n");
+        exit(1);
+      }
+
+      /*need to generate this block of code using the code generator
+      using what is declared in op_decal_consts
+      */
+      fprintf(f, "#define gam %lf\n", gam);
+      fprintf(f, "#define gm1 %lf\n", gm1);
+      fprintf(f, "#define cfl %lf\n", cfl);
+      fprintf(f, "#define eps %lf\n", eps);
+      fprintf(f, "#define mach %lf\n", mach);
+      fprintf(f, "#define alpha %lf\n", alpha);
+
+      fprintf(f, "extern double qinf[4];\n");
+
+      fclose(f);
+    }
+
+    void *handle;
+    char *error;
+    int ret = system("make adt_calc_jit");
+
+    // load .so that was created
+    handle = dlopen("seq/adt_calc_seqkernel_rec.so", RTLD_LAZY);
+    if (!handle) {
+      fputs(dlerror(), stderr);
+      exit(1);
+    }
+
+    adt_calc_function = (void (*)(ops_kernel_descriptor *))dlsym(
+        handle, "op_par_loop_adt_calc_rec_execute");
+    if ((error = dlerror()) != NULL) {
+      fputs(error, stderr);
+      exit(1);
+    }
+  }
+  (*adt_calc_function)(desc);
+  return;
+#endif
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -72,4 +124,39 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   OP_kernels[1].transfer += (float)set->size * arg4.size;
   OP_kernels[1].transfer += (float)set->size * arg5.size;
   OP_kernels[1].transfer += (float)set->size * arg0.map->dim * 4.0f;
+}
+
+void op_par_loop_adt_calc(char const *name, op_set set, op_arg arg0,
+                          op_arg arg1, op_arg arg2, op_arg arg3, op_arg arg4,
+                          op_arg arg5) {
+
+  op_kernel_descriptor *desc =
+      (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
+  desc->name = name;
+  desc->set = set;
+  desc->device = 1;
+  desc->index = 1;
+  desc->hash = 5380;
+  desc->hash = ((desc->hash << 5) + desc->hash) + 6;
+
+  // save the iteration range
+
+  // save the arguments
+  desc->nargs = 6;
+  desc->args = (op_arg *)malloc(6 * sizeof(op_arg));
+  desc->args[0] = arg0;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg0.dat->index;
+  desc->args[1] = arg1;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg1.dat->index;
+  desc->args[2] = arg2;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg2.dat->index;
+  desc->args[3] = arg3;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg3.dat->index;
+  desc->args[4] = arg4;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg4.dat->index;
+  desc->args[5] = arg5;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg5.dat->index;
+  desc->function = op_par_loop_adt_calc_execute;
+
+  op_enqueue_kernel(desc);
 }

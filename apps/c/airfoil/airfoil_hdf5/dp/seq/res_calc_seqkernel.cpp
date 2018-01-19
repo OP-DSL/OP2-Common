@@ -6,7 +6,7 @@
 #include "../res_calc.h"
 
 #ifdef OPS_JIT
-void (*function)(struct op_kernel_descriptor *desc) = NULL;
+void (*res_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 #endif
 
 // host stub function
@@ -29,14 +29,16 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
 
   // Compiling to Do JIT
 #ifdef OPS_JIT
-  if (function == NULL) {
+  if (res_calc_function == NULL) {
     op_printf("JIT Compiling Kernel %s\n", name);
 
     /* Write constants to headder file*/
-    FILE *f = fopen("jit_const.h", "w");
+    FILE *f = fopen("jit_const.h", "r");
     if (f == NULL) {
-      printf("Error opening file!\n");
-      exit(1);
+      f = fopen("jit_const.h", "w"); // create only if file does not exist
+      if (f == NULL) {
+        printf("Error opening file!\n");
+        exit(1);
     }
 
     /*need to generate this block of code using the code generator
@@ -52,6 +54,7 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
     fprintf(f, "extern double qinf[4];\n");
 
     fclose(f);
+    }
 
     void *handle;
     char *error;
@@ -64,14 +67,14 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
       exit(1);
     }
 
-    function = (void (*)(ops_kernel_descriptor *))dlsym(
+    res_calc_function = (void (*)(ops_kernel_descriptor *))dlsym(
         handle, "op_par_loop_res_calc_rec_execute");
     if ((error = dlerror()) != NULL) {
       fputs(error, stderr);
       exit(1);
     }
   }
-  (*function)(desc);
+  (*res_calc_function)(desc);
   return;
 #endif
 
@@ -164,10 +167,6 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
   desc->args[7] = arg7;
   desc->hash = ((desc->hash << 5) + desc->hash) + arg7.dat->index;
   desc->function = op_par_loop_res_calc_execute;
-
-  // if (OP_diags > 1) {
-  //  op_timing_realloc(6, "res_calc_kernel");
-  //}
 
   op_enqueue_kernel(desc);
 }

@@ -21,12 +21,12 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -DOPS_JIT #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -rdynamic -DOPS_JIT #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
-  MPICPP	= $(MPICXX_PATH)
-  # NVCCFLAGS	~= -ccbin=$(MPICPP)
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
@@ -245,12 +245,31 @@ airfoil_mpi_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp \
 
 
 res_calc_jit:   jit_const.h
-	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-                $(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. \
-                $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) \
-                -c ./seq/res_calc_seqkernel_rec.cpp \
-                -o ./seq/res_calc_seqkernel_rec.o -fPIC
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
+	        -Iseq  -I. \
+	        -c ./seq/res_calc_seqkernel_rec.cpp \
+		-o ./seq/res_calc_seqkernel_rec.o -fPIC
 		$(MPICPP) seq/res_calc_seqkernel_rec.o -shared -o ./seq/res_calc_seqkernel_rec.so
+bres_calc_jit:  jit_const.h
+	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
+	        -Iseq  -I. \
+	        -c ./seq/bres_calc_seqkernel_rec.cpp \
+		 ./seq/bres_calc_seqkernel_rec.o -fPIC
+		$(MPICPP) seq/bres_calc_seqkernel_rec.o -shared -o ./seq/bres_calc_seqkernel_rec.so
+
+adt_calc_jit:  jit_const.h
+	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
+	        -Iseq  -I. \
+	        -c ./seq/adt_calc_seqkernel_rec.cpp \
+		-o ./seq/adt_calc_seqkernel_rec.o -fPIC
+		$(MPICPP) seq/adt_calc_seqkernel_rec.o -shared -o ./seq/adt_calc_seqkernel_rec.so
+
+update_jit:  jit_const.h
+	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
+	        -Iseq  -I. \
+	        -c ./seq/update_seqkernel_rec.cpp \
+		-o ./seq/update_seqkernel_rec.o -fPIC
+		$(MPICPP) seq/update_seqkernel_rec.o -shared -o ./seq/update_seqkernel_rec.so
 
 
 #

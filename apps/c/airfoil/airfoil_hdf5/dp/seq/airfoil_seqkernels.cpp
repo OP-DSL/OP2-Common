@@ -11,9 +11,12 @@ extern double mach;
 extern double alpha;
 extern double qinf[4];
 
+<<<<<<< HEAD
 // header
 #include "op_lib_cpp.h"
 
+=======
+>>>>>>> Working bres_calc, adt_calc and update
 // user kernel files
 #include "save_soln_seqkernel.cpp"
 #include "adt_calc_seqkernel.cpp"
