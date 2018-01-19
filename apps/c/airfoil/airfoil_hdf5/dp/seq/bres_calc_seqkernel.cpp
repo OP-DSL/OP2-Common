@@ -31,33 +31,36 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
     op_printf("JIT Compiling Kernel %s\n", name);
 
     /* Write constants to headder file*/
-    FILE *f = fopen("jit_const.h", "r");
-    if (f == NULL) {
-      f = fopen("jit_const.h", "w"); // create only if file does not exist
+    if (op_is_root()) {
+      FILE *f = fopen("jit_const.h", "r");
       if (f == NULL) {
-        printf("Error opening file!\n");
-        exit(1);
+        f = fopen("jit_const.h", "w"); // create only if file does not exist
+        if (f == NULL) {
+          printf("Error opening file!\n");
+          exit(1);
+        }
+
+        /*need to generate this block of code using the code generator
+        using what is declared in op_decal_consts
+        */
+        fprintf(f, "#define gam %lf\n", gam);
+        fprintf(f, "#define gm1 %lf\n", gm1);
+        fprintf(f, "#define cfl %lf\n", cfl);
+        fprintf(f, "#define eps %lf\n", eps);
+        fprintf(f, "#define mach %lf\n", mach);
+        fprintf(f, "#define alpha %lf\n", alpha);
+
+        fprintf(f, "extern double qinf[4];\n");
+
+        fclose(f);
       }
 
-      /*need to generate this block of code using the code generator
-      using what is declared in op_decal_consts
-      */
-      fprintf(f, "#define gam %lf\n", gam);
-      fprintf(f, "#define gm1 %lf\n", gm1);
-      fprintf(f, "#define cfl %lf\n", cfl);
-      fprintf(f, "#define eps %lf\n", eps);
-      fprintf(f, "#define mach %lf\n", mach);
-      fprintf(f, "#define alpha %lf\n", alpha);
-
-      fprintf(f, "extern double qinf[4];\n");
-
-      fclose(f);
+      int ret = system("make bres_calc_jit");
     }
+    op_mpi_barrier();
 
     void *handle;
     char *error;
-    int ret = system("make bres_calc_jit");
-
     // load .so that was created
     handle = dlopen("seq/bres_calc_seqkernel_rec.so", RTLD_LAZY);
     if (!handle) {
