@@ -36,8 +36,9 @@
  *  backends. Specifically implements the lazy execution functionality
   */
 
-#include "op_hdf5.h"
 #include "op_lib_core.h"
+
+#include "op_hdf5.h"
 #include <stdlib.h>
 #include <sys/time.h>
 

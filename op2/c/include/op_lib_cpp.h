@@ -50,6 +50,10 @@
 #include <omp.h>
 #endif
 
+#ifndef _JIT
+#include <dlfcn.h>
+#endif
+
 /*
  * run-time type-checking routines
  */

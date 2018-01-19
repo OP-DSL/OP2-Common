@@ -1,13 +1,7 @@
 #include "op_lib_cpp.h"
 
-// global constants
-extern double gam;
-extern double gm1;
-extern double cfl;
-extern double eps;
-extern double mach;
-extern double alpha;
-extern double qinf[4];
+// global constants - values #defined by JIT
+#include "jit_const.h"
 
 // user function
 #include "../res_calc.h"
