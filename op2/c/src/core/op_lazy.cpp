@@ -48,7 +48,7 @@
 
 void op_enqueue_kernel(op_kernel_descriptor *desc) {
 
-  op_printf("In op_enqueue_kernel ****\n");
+  // op_printf("In op_enqueue_kernel ****\n");
   // If not tiling, have to do the halo exchanges here
   double t1, t2, c;
   if (OP_diags > 1)
