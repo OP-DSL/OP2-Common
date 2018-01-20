@@ -36,7 +36,7 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
     /* Write constants to headder file*/
     if (op_is_root()) {
       jit_consts();
-      int ret = system("make res_calc_jit");
+      int ret = system("make -j res_calc_jit");
     }
     op_mpi_barrier();
 

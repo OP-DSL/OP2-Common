@@ -34,7 +34,7 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
     /* Write constants to headder file*/
     if (op_is_root()) {
       jit_consts();
-      int ret = system("make bres_calc_jit");
+      int ret = system("make -j bres_calc_jit");
     }
     op_mpi_barrier();
 

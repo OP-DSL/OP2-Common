@@ -6,6 +6,7 @@
 #include "../update.h"
 
 #ifdef OPS_JIT
+void jit_consts();
 void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
 #endif
 
@@ -31,29 +32,7 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
 
     /* Write constants to headder file*/
     if (op_is_root()) {
-      FILE *f = fopen("jit_const.h", "r");
-      if (f == NULL) {
-        f = fopen("jit_const.h", "w"); // create only if file does not exist
-        if (f == NULL) {
-          printf("Error opening file!\n");
-          exit(1);
-        }
-
-        /*need to generate this block of code using the code generator
-        using what is declared in op_decal_consts
-        */
-        fprintf(f, "#define gam %lf\n", gam);
-        fprintf(f, "#define gm1 %lf\n", gm1);
-        fprintf(f, "#define cfl %lf\n", cfl);
-        fprintf(f, "#define eps %lf\n", eps);
-        fprintf(f, "#define mach %lf\n", mach);
-        fprintf(f, "#define alpha %lf\n", alpha);
-
-        fprintf(f, "extern double qinf[4];\n");
-
-        fclose(f);
-      }
-
+      jit_consts();
       int ret = system("make update_jit");
     }
     op_mpi_barrier();
