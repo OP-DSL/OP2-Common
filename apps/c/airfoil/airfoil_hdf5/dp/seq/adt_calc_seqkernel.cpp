@@ -5,60 +5,20 @@
 //user function
 #include "../adt_calc.h"
 
-#ifdef OPS_JIT
-void jit_consts();
-void (*adt_calc_function)(struct op_kernel_descriptor *desc) = NULL;
-#endif
-
 // host stub function
-void op_par_loop_adt_calc_execute(op_kernel_descriptor *desc) {
+void op_par_loop_adt_calc(char const *name, op_set set, op_arg arg0,
+                          op_arg arg1, op_arg arg2, op_arg arg3, op_arg arg4,
+                          op_arg arg5) {
 
-  op_set set = desc->set;
-  char const *name = desc->name;
   int nargs = 6;
+  op_arg args[6];
 
-  op_arg arg0 = desc->args[0];
-  op_arg arg1 = desc->args[1];
-  op_arg arg2 = desc->args[2];
-  op_arg arg3 = desc->args[3];
-  op_arg arg4 = desc->args[4];
-  op_arg arg5 = desc->args[5];
-
-  op_arg args[6] = {arg0, arg1, arg2, arg3, arg4, arg5};
-
-// Compiling to Do JIT
-#ifdef OPS_JIT
-  if (adt_calc_function == NULL) {
-    op_printf("JIT Compiling Kernel %s\n", name);
-
-    /* Write constants to headder file*/
-    if (op_is_root()) {
-      jit_consts();
-      int ret = system("make -j adt_calc_jit");
-    }
-    op_mpi_barrier();
-
-    void *handle;
-    char *error;
-
-    // load .so that was created
-    handle = dlopen("seq/adt_calc_seqkernel_rec.so", RTLD_LAZY);
-    if (!handle) {
-      fputs(dlerror(), stderr);
-      exit(1);
-    }
-
-    adt_calc_function = (void (*)(ops_kernel_descriptor *))dlsym(
-        handle, "op_par_loop_adt_calc_rec_execute");
-    if ((error = dlerror()) != NULL) {
-      fputs(error, stderr);
-      exit(1);
-    }
-  }
-  op_mpi_barrier();
-  (*adt_calc_function)(desc);
-  return;
-#endif
+  args[0] = arg0;
+  args[1] = arg1;
+  args[2] = arg2;
+  args[3] = arg3;
+  args[4] = arg4;
+  args[5] = arg5;
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -108,39 +68,4 @@ void op_par_loop_adt_calc_execute(op_kernel_descriptor *desc) {
   OP_kernels[1].transfer += (float)set->size * arg4.size;
   OP_kernels[1].transfer += (float)set->size * arg5.size;
   OP_kernels[1].transfer += (float)set->size * arg0.map->dim * 4.0f;
-}
-
-void op_par_loop_adt_calc(char const *name, op_set set, op_arg arg0,
-                          op_arg arg1, op_arg arg2, op_arg arg3, op_arg arg4,
-                          op_arg arg5) {
-
-  op_kernel_descriptor *desc =
-      (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
-  desc->name = name;
-  desc->set = set;
-  desc->device = 1;
-  desc->index = 1;
-  desc->hash = 5380;
-  desc->hash = ((desc->hash << 5) + desc->hash) + 6;
-
-  // save the iteration range
-
-  // save the arguments
-  desc->nargs = 6;
-  desc->args = (op_arg *)malloc(6 * sizeof(op_arg));
-  desc->args[0] = arg0;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg0.dat->index;
-  desc->args[1] = arg1;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg1.dat->index;
-  desc->args[2] = arg2;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg2.dat->index;
-  desc->args[3] = arg3;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg3.dat->index;
-  desc->args[4] = arg4;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg4.dat->index;
-  desc->args[5] = arg5;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg5.dat->index;
-  desc->function = op_par_loop_adt_calc_execute;
-
-  op_enqueue_kernel(desc);
 }

@@ -5,58 +5,18 @@
 //user function
 #include "../update.h"
 
-#ifdef OPS_JIT
-void jit_consts();
-void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
-#endif
-
 // host stub function
-void op_par_loop_update_execute(op_kernel_descriptor *desc) {
+void op_par_loop_update(char const *name, op_set set, op_arg arg0, op_arg arg1,
+                        op_arg arg2, op_arg arg3, op_arg arg4) {
 
-  op_set set = desc->set;
-  char const *name = desc->name;
   int nargs = 5;
+  op_arg args[5];
 
-  op_arg arg0 = desc->args[0];
-  op_arg arg1 = desc->args[1];
-  op_arg arg2 = desc->args[2];
-  op_arg arg3 = desc->args[3];
-  op_arg arg4 = desc->args[4];
-
-  op_arg args[5] = {arg0, arg1, arg2, arg3, arg4};
-
-// Compiling to Do JIT
-#ifdef OPS_JIT3 // switched off as not benifitial for update kernel
-  if (update_function == NULL) {
-    op_printf("JIT Compiling Kernel %s\n", name);
-
-    /* Write constants to headder file*/
-    if (op_is_root()) {
-      jit_consts();
-      int ret = system("make update_jit");
-    }
-    op_mpi_barrier();
-
-    void *handle;
-    char *error;
-
-    // load .so that was created
-    handle = dlopen("seq/update_seqkernel_rec.so", RTLD_LAZY);
-    if (!handle) {
-      fputs(dlerror(), stderr);
-      exit(1);
-    }
-
-    update_function = (void (*)(ops_kernel_descriptor *))dlsym(
-        handle, "op_par_loop_update_rec_execute");
-    if ((error = dlerror()) != NULL) {
-      fputs(error, stderr);
-      exit(1);
-    }
-  }
-  (*update_function)(desc);
-  return;
-#endif
+  args[0] = arg0;
+  args[1] = arg1;
+  args[2] = arg2;
+  args[3] = arg3;
+  args[4] = arg4;
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -95,37 +55,4 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
   OP_kernels[4].transfer += (float)set->size * arg1.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg3.size;
-}
-
-void op_par_loop_update(char const *name, op_set set, op_arg arg0, op_arg arg1,
-                        op_arg arg2, op_arg arg3, op_arg arg4) {
-
-  op_kernel_descriptor *desc =
-      (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
-  desc->name = name;
-  desc->set = set;
-  desc->device = 1;
-  desc->index = 4;
-  desc->hash = 5379;
-  desc->hash = ((desc->hash << 5) + desc->hash) + 6;
-
-  // save the iteration range
-
-  // save the arguments
-  desc->nargs = 5;
-  desc->args = (op_arg *)malloc(5 * sizeof(op_arg));
-  desc->args[0] = arg0;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg0.dat->index;
-  desc->args[1] = arg1;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg1.dat->index;
-  desc->args[2] = arg2;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg2.dat->index;
-  desc->args[3] = arg3;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg3.dat->index;
-  desc->args[4] = arg4;
-  desc->hash =
-      ((desc->hash << 5) + desc->hash) + 5; // this is a global .. so no .dat
-  desc->function = op_par_loop_update_execute;
-
-  op_enqueue_kernel(desc);
 }
