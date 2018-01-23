@@ -417,7 +417,7 @@ def op_par_loop_parse(text):
   print '\n\n'
   return (loop_args)
 
-def op_check_kernel_header_file(src_file,text,name):
+def op_check_kernel_in_text(text, name):
   match = False
   inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\s*\('
   matches = re.findall(inline_impl_pattern, text)
@@ -426,11 +426,7 @@ def op_check_kernel_header_file(src_file,text,name):
     match = True
   elif len(re.findall(decl_pattern, text)) == 1:
     match = True
-  if match:
-    return src_file
-  else:
-    return None
-
+  return match
 
 def main(srcFilesAndDirs=sys.argv[1:]):
 
@@ -464,35 +460,33 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   OP_accs_labels = ['OP_READ', 'OP_WRITE', 'OP_RW', 'OP_INC',
             'OP_MAX', 'OP_MIN']
 
-  # Loop over all input source files for C-Macro definitions:
-  for a in range(len(srcFilesAndDirs)):
-    src_file = str(srcFilesAndDirs[a])
-    if not os.path.isfile(src_file):
-      continue
-    else:
-      f = open(src_file, 'r')
+  src_files = [s for s in srcFilesAndDirs if os.path.isfile(s)]
+  src_dirs  = [d for d in srcFilesAndDirs if os.path.isdir(d)]
+
+  ## Extract macro definitions:
+  for src_file in src_files:
+    print("Parsing file '" + src_file + "' for macro definitions.")
+    with open(src_file, 'r') as f:
       text = f.read()
 
-    defs = op_parse_macro_defs(text)
-    for k in defs.keys():
-      if (k in macro_defs) and (defs[k] != macro_defs[k]):
-        print("fail")
-        exit(0)
+    local_defs = op_parse_macro_defs(text)
+    for k in local_defs.keys():
+      if (k in macro_defs) and (local_defs[k] != macro_defs[k]):
+        msg = "WARNING: Have found two different definitions for macro '{}': '{}' and '{}'. Using the first definition.".format(k, macro_defs[k], local_defs[k])
+        print(msg)
+        continue
       else:
-        macro_defs[k] = defs[k]
-    defs = {}
+        macro_defs[k] = local_defs[k]
   self_evaluate_macro_defs(macro_defs)
 
   ## Loop over all input source files to search for op_par_loop calls
   kernels_in_files = [[] for _ in range(len(srcFilesAndDirs))]
-  for a in range(len(srcFilesAndDirs)):
-    src_file = str(srcFilesAndDirs[a])
-    if not os.path.isfile(src_file):
-      continue
-    else:
-      print 'processing file ' + str(a+1) + ' of ' + str(len(srcFilesAndDirs)) + \
-        ' ' + src_file
-      f = open(src_file, 'r')
+  src_file_num = -1
+  for src_file in src_files:
+    src_file_num = src_file_num + 1
+    print("Processing file " + str(src_file_num+1) + " of " + str(len(src_files)) + \
+          ": " + src_file)
+    with open(src_file, 'r') as f:
       text = f.read()
 
     any_soa = 0
@@ -522,7 +516,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
     const_args = op_decl_const_parse(text)
     set_list = op_decl_set_parse(text)
-    for i in range(0,len(set_list)):
+    for i in range(0, len(set_list)):
       sets.append(set_list[i])
 
     # cleanup '&' symbols from name and convert dim to integer
@@ -683,14 +677,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
       if ninds > 0:
         invmapinds = invinds[:]
-        for i in range(0,ninds):
-          for j in range(0,i):
+        for i in range(0, ninds):
+          for j in range(0, i):
             if (mapnames[invinds[i]] == mapnames[invinds[j]]):
               invmapinds[i] = invmapinds[j]
 
-        for i in range(0,nargs):
+        for i in range(0, nargs):
           mapinds[i] = i
-          for j in range(0,i):
+          for j in range(0, i):
             if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
               mapinds[i] = mapinds[j]
 
@@ -779,18 +773,44 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             'mapinds': mapinds,
             'invmapinds' : invmapinds}
         kernels.append(temp)
-        (kernels_in_files[a]).append(nkernels - 1)
+        (kernels_in_files[src_file_num]).append(nkernels - 1)
       else:
         append = 1
-        for in_file in range(0, len(kernels_in_files[a])):
-          if kernels_in_files[a][in_file] == which_file:
+        for in_file in range(0, len(kernels_in_files[src_file_num])):
+          if kernels_in_files[src_file_num][in_file] == which_file:
             append = 0
         if append == 1:
-          (kernels_in_files[a]).append(which_file)
+          (kernels_in_files[src_file_num]).append(which_file)
 
     # output new source file
+    src_filename = os.path.basename(src_file)
+    src_dirpath  = os.path.dirname(src_file)
+    if src_dirpath[0:2] == "./":
+      src_dirpath = src_dirpath[2:]
 
-    fid = open(src_file.split('.')[0] + '_op.cpp', 'w')
+    op_extension = "_op"
+    if '.' in src_filename:
+      src_filename_pieces = src_filename.split('.')
+      n = len(src_filename_pieces)
+      src_filename_extension = src_filename_pieces[n-1]
+      op_src_filename = '.'.join(src_filename_pieces[0:(n-1)]) + op_extension + '.' + src_filename_extension
+    else:
+      op_src_filename = src_filename + op_extension
+    op_src_filepath = op_src_filename
+    op_src_dirpath = ""
+    if src_dirpath != "":
+      src_dirpath_pieces = src_dirpath.split('/')
+      root_dir = src_dirpath_pieces[0]
+      if len(src_dirpath_pieces) == 0:
+        rem_dirpath = ''
+      else:
+        rem_dirpath = '/'.join(src_dirpath_pieces[1:])
+      op_src_dirpath = os.path.join(root_dir+"_op", rem_dirpath)
+      op_src_filepath = os.path.join(op_src_dirpath, op_src_filename)
+
+    if op_src_dirpath != "" and not os.path.exists(op_src_dirpath):
+      os.makedirs(op_src_dirpath)
+    fid = open(op_src_filepath, 'w')
     date = datetime.datetime.now()
     #fid.write('//\n// auto-generated by op2.py on ' +
     #          date.strftime("%Y-%m-%d %H:%M") + '\n//\n\n')
@@ -837,8 +857,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         fid.write(' "op_lib_cpp.h"\n\n')
         fid.write('//\n// op_par_loop declarations\n//\n')
         fid.write('#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
-        for k_iter in range(0, len(kernels_in_files[a])):
-          k = kernels_in_files[a][k_iter]
+        for k_iter in range(0, len(kernels_in_files[src_file_num])):
+          k = kernels_in_files[src_file_num][k_iter]
           line = '\nvoid op_par_loop_' + \
             kernels[k]['name'] + '(char const *, op_set,\n'
           for n in range(1, kernels[k]['nargs']):
@@ -890,57 +910,62 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
     fid.write(text[loc_old:])
     fid.close()
-
-    f.close()
   # end of loop over input source files
 
-  ## Loop over input source files again, but this time to find
-  ## the header file for each kernel. No need to assume that
-  ## header file is named after the kernel:
-  for a in range(len(srcFilesAndDirs)):
-    src_file = str(srcFilesAndDirs[a])
-    if os.path.isfile(src_file):
-      f = open(src_file, 'r')
-      text = f.read()
-
-      for nk in xrange(0,len(kernels)):
-        name = kernels[nk]["name"]
-        path = op_check_kernel_header_file(src_file,text,name)
-        if path:
-          kernels[nk]["decl_filepath"] = path
-
-  for nk in xrange(0,len(kernels)):
-    name = kernels[nk]["name"]
-    if not "decl_filepath" in kernels[nk].keys():
-      ## Kernel not found in command-line supplied files, but maybe
-      ## its declaration is in a file with the same name:
-      src_file = kernels[nk]["name"] + ".h"
-
+  ## Loop over kernels, looking for a header file named after each 
+  ## kernel in either working directory or one of the input-supplied 
+  ## directories:
+  for nk in xrange(0, len(kernels)):
+    k_data = kernels[nk]
+    k_name = k_data["name"]
+    if not "decl_filepath" in k_data.keys():
+      src_file = k_name + ".h"
       if os.path.isfile(src_file):
-        f = open(src_file, 'r')
-        text = f.read()
+        with open(src_file, 'r') as f:
+          text = f.read()
+        if op_check_kernel_in_text(text, k_name):
+          k_data["decl_filepath"] = src_file
+          continue
 
-        path = op_check_kernel_header_file(src_file,text,name)
-        if path:
-          kernels[nk]["decl_filepath"] = path
-
-    if not "decl_filepath" in kernels[nk].keys():
-      ## if Kernel still not found, maybe its declaration is in a subdir
-      for a in range(len(srcFilesAndDirs)):
-        dirname = str(srcFilesAndDirs[a])
-        if os.path.isdir(dirname):
-          filename = os.path.join(dirname,src_file)
-          if os.path.isfile(filename):
-            f = open(filename, 'r')
+      for dirname in src_dirs:
+        filepath = os.path.join(dirname, src_file)
+        if os.path.isfile(filepath):
+          with open(filepath, 'r') as f:
             text = f.read()
+          if op_check_kernel_in_text(text, k_name):
+            k_data["decl_filepath"] = filepath
+            break
 
-            path = op_check_kernel_header_file(filename,text,name)
-            if path:
-              kernels[nk]["decl_filepath"] = path
+  ## Any kernel declarations still not found must exist in files 
+  ## not named after the kernel. Search through content of all 
+  ## input-supplied files, and through all files of input-supplied 
+  ## directories:
+  for nk in xrange(0, len(kernels)):
+    if not "decl_filepath" in kernels[nk].keys():
+      k_data = kernels[nk]
+      k_name = k_data["name"]
 
+      for src_file in src_files:
+        with open(src_file, 'r') as f:
+          text = f.read()
+        if op_check_kernel_in_text(text, k_name):
+          k_data["decl_filepath"] = src_file
+          break
+
+      if not "decl_filepath" in k_data.keys():
+        for src_dir in src_dirs:
+          for src_dir_subfile in [s for s in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, s))]:
+            src_dir_subfilepath = os.path.join(src_dir, src_dir_subfile)
+            with open(src_dir_subfilepath, 'r') as f:
+              text = f.read()
+            if op_check_kernel_in_text(text, k_name):
+              k_data["decl_filepath"] = src_dir_subfilepath
+              break
+          if "decl_filepath" in k_data.keys():
+            break
 
   fail = False
-  for nk in xrange(0,len(kernels)):
+  for nk in xrange(0, len(kernels)):
     if not "decl_filepath" in kernels[nk].keys():
       fail = True
       print("Declaration not found for kernel " + kernels[nk]["name"])
