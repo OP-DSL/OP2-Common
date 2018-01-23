@@ -208,7 +208,7 @@ typedef struct op_kernel_descriptor {
   op_set set;         /* set to execute on */
   void (*function)(struct op_kernel_descriptor
                        *desc); /* Function pointer to a wrapper to be called */
-} ops_kernel_descriptor;
+} op_kernel_descriptor;
 
 /*
  * min / max definitions
@@ -374,6 +374,8 @@ void deviceSync();
 /* lazy execution
 *******************************************************************************/
 void op_enqueue_kernel(op_kernel_descriptor *desc);
+void op_lazy_const(int dim, char const *type, int typeSize, char *data,
+                        char const *name);
 
 #ifdef __cplusplus
 }

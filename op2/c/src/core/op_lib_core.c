@@ -444,11 +444,7 @@ int op_free_dat_temp_core(op_dat dat) {
 
 void op_decl_const_core(int dim, char const *type, int typeSize, char *data,
                         char const *name) {
-  (void)dim;
-  (void)type;
-  (void)typeSize;
-  (void)data;
-  (void)name;
+  op_lazy_const(dim, type, typeSize, data, name);
 }
 
 void op_exit_core() {

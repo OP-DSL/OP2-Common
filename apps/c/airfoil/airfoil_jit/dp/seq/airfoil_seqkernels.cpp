@@ -23,6 +23,7 @@ extern double qinf[4];
 
 #ifdef OPS_JIT
 void jit_consts() {
+  return;
   FILE *f = fopen("jit_const.h", "r");
   if (f == NULL) {
     f = fopen("jit_const.h", "w"); // create only if file does not exist

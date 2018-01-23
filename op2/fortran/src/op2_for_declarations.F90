@@ -288,6 +288,14 @@ module OP2_Fortran_Declarations
 
     end subroutine op_exit_c
 
+    subroutine op_decl_const_char_c ( dim, type, typesize, data, name ) BIND(C,name='op_decl_const_char')
+      use, intrinsic :: ISO_C_BINDING
+      integer(kind=c_int), intent(in), value :: dim, typesize
+      character(kind=c_char,len=1), intent(in)  :: type(*)
+      type(c_ptr), value, intent(in)                :: data
+      character(kind=c_char,len=1), intent(in)  :: name(*)
+    end subroutine op_decl_const_char_c
+
     type(c_ptr) function op_decl_set_c ( setsize, name ) BIND(C,name='op_decl_set')
 
       use, intrinsic :: ISO_C_BINDING
@@ -534,6 +542,10 @@ module OP2_Fortran_Declarations
    end subroutine printFirstDatPosition
 
     subroutine op_diagnostic_output (  ) BIND(C,name='op_diagnostic_output')
+      use, intrinsic :: ISO_C_BINDING
+    end subroutine
+
+    subroutine op_generate_consts_header (  ) BIND(C,name='op_generate_consts_header')
       use, intrinsic :: ISO_C_BINDING
     end subroutine
 
@@ -976,14 +988,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    integer(4), dimension(1) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "integer(4)" //C_NULL_CHAR, &
+      & 4, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_integer_4
 
@@ -993,14 +999,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    integer(4), dimension(1,1) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy(1,1) = dat(1,1)
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "integer(4)" //C_NULL_CHAR, &
+      & 4, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_integer_2_4
 
@@ -1010,14 +1010,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    real(8), dimension(1,1) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy(1,1) = dat(1,1)
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "real(8)" //C_NULL_CHAR, &
+      & 8, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_real_2_8
 
@@ -1027,14 +1021,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    real(8), dimension(1) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "real(8)" //C_NULL_CHAR, &
+      & 8, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_real_8
 
@@ -1044,14 +1032,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    integer(4) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "integer(4)" //C_NULL_CHAR, &
+      & 4, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_scalar_integer_4
 
@@ -1061,14 +1043,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    real(8) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "real(8)" //C_NULL_CHAR, &
+      & 8, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_scalar_real_8
 
@@ -1078,14 +1054,8 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    logical :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    call op_decl_const_char_c( constdim, "logical" //C_NULL_CHAR, &
+      & 4, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_logical
 

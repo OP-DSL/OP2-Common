@@ -263,6 +263,7 @@ directories:
 
 core: 	directories $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lazy.cpp -o $(F_OP2_OBJ)/op_lazy.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
 
 hdf5:   directories $(C_OP2_INC)/op_hdf5.h $(C_OP2_SRC)/externlib/op_hdf5.c
@@ -295,6 +296,7 @@ f_seq:	directories core $(C_OP2_SRC)/sequential/op_seq.c \
 	$(FC) $(FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	ar -r $(F_OP2_LIB)/libop2_for_seq.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_util.o \
 	$(F_OP2_OBJ)/op_seq.o \
 	$(F_OP2_OBJ)/op_dummy_singlenode.o \
@@ -335,6 +337,7 @@ f_openmp: directories core $(C_OP2_SRC)/openmp/op_openmp_decl.c \
 	ar -r $(F_OP2_LIB)/libop2_for_openmp.a \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_openmp_decl.o \
 	$(F_OP2_OBJ)/op2_for_declarations.o \
@@ -366,6 +369,7 @@ f_cuda: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(F_OP2_SRC)/ $(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_cuda_decl.o \
 	$(F_OP2_OBJ)/op_cuda_rt_support.o \
@@ -400,6 +404,7 @@ f_openmp4: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_dummy_singlenode.c -o $(F_OP2_OBJ)/op_dummy_singlenode.o
 	ar -r $(F_OP2_LIB)/libop2_for_openmp4.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_openmp4_decl.o \
 	$(F_OP2_OBJ)/op_openmp4_rt_support.o \
@@ -454,6 +459,7 @@ f_mpi_seq: directories core \
 	$(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_util.o \
 	$(F_OP2_OBJ)/op_dummy_wrappers.o \
@@ -515,6 +521,7 @@ f_mpi_cuda: directories core \
 	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
+	$(F_OP2_OBJ)/op_lazy.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
 	$(F_OP2_OBJ)/op_util.o \
 	$(F_OP2_OBJ)/op2_for_C_wrappers.o \

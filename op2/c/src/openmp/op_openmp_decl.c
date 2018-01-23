@@ -105,11 +105,7 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
 
 void op_decl_const_char(int dim, char const *type, int typeSize, char *data,
                         char const *name) {
-  (void)dim;
-  (void)type;
-  (void)typeSize;
-  (void)data;
-  (void)name;
+  op_decl_const_core(dim, type, typeSize, data, name);
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,

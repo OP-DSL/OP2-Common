@@ -93,11 +93,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
 void op_decl_const_char(int dim, char const *type, int typeSize, char *data,
                         char const *name) {
-  (void)dim;
-  (void)type;
-  (void)typeSize;
-  (void)data;
-  (void)name;
+  op_decl_const_core(dim, type, typeSize, data, name);
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
