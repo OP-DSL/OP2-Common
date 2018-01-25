@@ -21,7 +21,7 @@
 #define op_par_loop_res_calc op_par_loop_res_calc_cpu
 #define op_par_loop_bres_calc op_par_loop_bres_calc_cpu
 #define op_par_loop_update op_par_loop_update_cpu
-#include "airfoil_kernels.cpp"
+#include "../openmp/airfoil_kernels.cpp"
 #undef op_par_loop_save_soln
 #undef op_par_loop_adt_calc
 #undef op_par_loop_res_calc

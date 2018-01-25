@@ -6,6 +6,7 @@ __constant__ int opDat0_spMV_stride_OP2CONSTANT;
 int opDat0_spMV_stride_OP2HOST=-1;
 __constant__ int direct_spMV_stride_OP2CONSTANT;
 int direct_spMV_stride_OP2HOST=-1;
+#include "../spMV.h"
 //user function
 __device__ void spMV_gpu( double **v, const double *K, const double **p) {
 

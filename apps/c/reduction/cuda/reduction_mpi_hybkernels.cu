@@ -12,7 +12,7 @@
 #else
 #define op_par_loop_res_calc op_par_loop_res_calc_cpu
 #define op_par_loop_update op_par_loop_update_cpu
-#include "reduction_mpi_kernels.cpp"
+#include "../openmp/reduction_mpi_kernels.cpp"
 #undef op_par_loop_res_calc
 #undef op_par_loop_update
 
