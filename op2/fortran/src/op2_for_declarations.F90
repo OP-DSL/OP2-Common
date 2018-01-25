@@ -696,7 +696,7 @@ module OP2_Fortran_Declarations
 
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
-    & op_decl_const_scalar_real_8, op_decl_const_logical, &
+    & op_decl_const_scalar_real_8, op_decl_const_logical, op_decl_const_logical_1d, &
     & op_decl_const_integer_2_4, op_decl_const_real_2_8
   end interface op_decl_const
 
@@ -1058,6 +1058,17 @@ contains
       & 4, c_loc(dat), opname//C_NULL_CHAR);
 
   end subroutine op_decl_const_logical
+
+  subroutine op_decl_const_logical_1d ( dat, constdim, opname )
+
+    logical, dimension(:), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    call op_decl_const_char_c( constdim, "logical" //C_NULL_CHAR, &
+      & 4, c_loc(dat), opname//C_NULL_CHAR);
+
+  end subroutine op_decl_const_logical_1d
 
   type(op_arg) function op_arg_dat_python (dat, idx, map, dim, type, access)
 

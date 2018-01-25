@@ -107,6 +107,8 @@ void op_lazy_const(int dim, char const *type, int typeSize, char *data,
       if (strcmp(op_const_list[i].type, type) || op_const_list[i].dim != dim) {
         op_printf("Error, incompatible redefitiontion of constant '%s'!\n",op_const_list[i].name);
         exit(-1);
+      } else {
+        op_const_list[i].data = data;
       }
     }
   }
@@ -139,7 +141,10 @@ void op_generate_consts_header() {
         fprintf(f, "#define %s %d\n", op_const_list[i].name, *((int*)op_const_list[i].data));
       } else if (!strcmp(op_const_list[i].type,"bool") ||
           !strcmp(op_const_list[i].type,"logical")) {
-        fprintf(f, "#define %s %d\n", op_const_list[i].name, *((bool*)op_const_list[i].data));
+        if (*((char*)op_const_list[i].data))
+          fprintf(f, "#define %s .true.\n", op_const_list[i].name);
+        else
+          fprintf(f, "#define %s .false.\n", op_const_list[i].name);
       }
 /*      else {
         fprintf(f, "extern %s %s;\n",op_const_list[i].type, op_const_list[i].name);
