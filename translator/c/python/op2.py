@@ -86,6 +86,153 @@ def op_parse_calls(text):
 
   return (inits, exits, parts, hdf5s)
 
+def op_parse_macro_defs(text):
+  """Parsing for C macro definitions"""
+
+  defs = {}
+  macro_def_pattern = r'(\n|^)[ ]*(#define[ ]+)([A-Za-z0-9\_]+)[ ]+([0-9A-Za-z\_\.\+\-\*\/\(\) ]+)'
+  for match in re.findall(macro_def_pattern, text):
+    if len(match) < 4:
+      continue
+    elif len(match) > 4:
+      print("Unexpected format for macro definition: " + str(match))
+      continue
+    key = match[2]
+    value = match[3]
+    defs[key] = value
+    # print(key + " -> " + value)
+  return defs
+
+def self_evaluate_macro_defs(macro_defs):
+  """Recursively evaluate C macro definitions that refer to other detected macros"""
+
+  ## First, calculate the expected number of substitutions to perform:
+  num_subs_expected = 0
+  for k in macro_defs.keys():
+    k_val = macro_defs[k]
+    m = re.search(arithmetic_regex_pattern, k_val)
+    if m != None:
+      continue
+
+    pattern = r'' + '([a-zA-Z0-9_]+)'
+    occurences = re.findall(pattern, k_val)
+    for o in occurences:
+      m = re.search(arithmetic_regex_pattern, o)
+      if m == None:
+        if o in macro_defs.keys():
+          num_subs_expected = num_subs_expected + 1
+
+  substitutions_performed = True
+  num_subs_performed = 0
+  while substitutions_performed:
+    substitutions_performed = False
+    for k in macro_defs.keys():
+      k_val = macro_defs[k]
+      m = re.search(arithmetic_regex_pattern, k_val)
+      if m != None:
+        ## This macro definiton is numeric
+        continue
+
+      if k == k_val:
+        del macro_defs[k]
+        continue
+
+      ## If value of key 'k' depends on value of other
+      ## keys, then substitute in value:
+      for k2 in macro_defs.keys():
+        if k == k2:
+          continue
+
+        pattern = r'' + '(^|[^a-zA-Z0-9_])' + k2 + '($|[^a-zA-Z0-9_])'
+        m = re.search(pattern, k_val)
+
+        if m != None:
+          ## The macro "k" refers to macro "k2"
+          k2_val = macro_defs[k2]
+
+          m = re.search(arithmetic_regex_pattern, k2_val)
+          if m == None:
+            # 'k2_val' has not been resolved. Wait for this to occur before
+            # substituting its value into 'k_val', as this minimises the total
+            # number of substitutions performed across all macros and so
+            # improves detection of infinite substitution loops.
+            continue
+
+          macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
+          # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
+          substitutions_performed = True
+
+          num_subs_performed = num_subs_performed + 1
+          if num_subs_performed > num_subs_expected:
+            print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+            return
+
+  ## Evaluate any mathematical expressions:
+  for k in macro_defs.keys():
+    val = macro_defs[k]
+    m = re.search(arithmetic_regex_pattern, val)
+    if m != None:
+      res = ""
+      try:
+        res = eval(val)
+      except:
+        pass
+      if type(res) != type(""):
+        if str(res) != val:
+          # print("Replacing '" + val + "' with '" + str(res) + "'")
+          macro_defs[k] = str(res)
+
+def evaluate_macro_defs_in_string(macro_defs, string):
+  """Recursively evaluate C macro definitions in 'string' """
+
+  ## First, calculate the expected number of substitutions to perform:
+  num_subs_expected = 0
+  m = re.search(arithmetic_regex_pattern, string)
+  if m == None:
+    pattern = r'' + '([a-zA-Z0-9_]+)'
+    occurences = re.findall(pattern, string)
+    for o in occurences:
+      m = re.search(arithmetic_regex_pattern, o)
+      if m == None:
+        if o in macro_defs.keys():
+          num_subs_expected = num_subs_expected + 1
+
+  resolved_string = string
+
+  substitutions_performed = True
+  num_subs_performed = 0
+  while substitutions_performed:
+    substitutions_performed = False
+    for k in macro_defs.keys():
+      k_val = macro_defs[k]
+
+      k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
+      m = re.search(k_pattern, resolved_string)
+      if m != None:
+        ## "string" contains a reference to macro "k", so substitute in its definition:
+        resolved_string_new = re.sub(k_pattern, "\\g<1>"+k_val+"\\g<2>", resolved_string)
+        # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
+        resolved_string = resolved_string_new
+        substitutions_performed = True
+
+        num_subs_performed = num_subs_performed + 1
+        if num_subs_performed > num_subs_expected:
+          print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+          return
+
+
+  if re.search(arithmetic_regex_pattern, resolved_string) != None:
+    res = ""
+    try:
+      res = eval(resolved_string)
+    except:
+      return resolved_string
+    else:
+      if type(res) != type(""):
+        resolved_string = str(res)
+
+  return resolved_string
+
 def op_decl_set_parse(text):
   """Parsing for op_decl_set calls"""
 
@@ -917,24 +1064,27 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   #
   masterFile = str(srcFilesAndDirs[0])
 
-  op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
-  # Vec translator is not yet ready for release, eg it cannot translate the 'aero' app.
-  op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+if JIT in srcFilesAndDirs:
+  print "Generating JIT version of application"
 
-  #code generators for OpenMP parallelisation with MPI
-  #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
-  op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
-  op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
+else: #non-JIT
+  #op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+  ##op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
-  #code generators for NVIDIA GPUs with CUDA
-  #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
-  op2_gen_cuda_simple(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
+  ##code generators for OpenMP parallelisation with MPI
+  ##op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
+  #op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
+  #op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
-  # generates openmp code as well as cuda code into the same file
-  op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
+  ##code generators for NVIDIA GPUs with CUDA
+  ##op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
+  #op2_gen_cuda_simple(masterFile, date, consts, kernels, sets) # Optimized for Kepler GPUs
 
-  #code generator for GPUs with OpenMP4.5
-  op2_gen_openmp4(masterFile, date, consts, kernels)
+  ##generates openmp code as well as cuda code into the same file
+  #op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
+
+  ##code generator for GPUs with OpenMP4.5
+  #op2_gen_openmp4(masterFile, date, consts, kernels)
 
   # import subprocess
   # retcode = subprocess.call("which clang-format > /dev/null", shell=True)

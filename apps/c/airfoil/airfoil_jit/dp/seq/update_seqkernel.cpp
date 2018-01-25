@@ -32,7 +32,6 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
 
     /* Write constants to headder file*/
     if (op_is_root()) {
-      jit_consts();
       int ret = system("make update_jit");
     }
     op_mpi_barrier();
@@ -47,7 +46,7 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
       exit(1);
     }
 
-    update_function = (void (*)(ops_kernel_descriptor *))dlsym(
+    update_function = (void (*)(op_kernel_descriptor *))dlsym(
         handle, "op_par_loop_update_rec_execute");
     if ((error = dlerror()) != NULL) {
       fputs(error, stderr);

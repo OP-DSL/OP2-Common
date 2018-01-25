@@ -57,7 +57,7 @@ static char *copy_str(char const *src) {
 extern "C" void op_generate_consts_header();
 
 ////////////////////////////////////////////////////////////////////////
-// Global variables 
+// Global variables
 /////////////////////////////////////////////////////////////////////////
 
 bool consts_header_generated = false;
@@ -146,12 +146,10 @@ void op_generate_consts_header() {
         else
           fprintf(f, "#define %s .false.\n", op_const_list[i].name);
       }
-/*      else {
-        fprintf(f, "extern %s %s;\n",op_const_list[i].type, op_const_list[i].name);
-      }*/
-    }/* else {
-      fprintf(f, "extern %s %s[%d];\n",op_const_list[i].type, op_const_list[i].name,op_const_list[i].dim);
-    }*/
+    } else {
+      fprintf(f, "extern %s %s[%d];\n", op_const_list[i].type,
+              op_const_list[i].name, op_const_list[i].dim);
+    }
   }
   fclose(f);
   consts_header_generated = true;

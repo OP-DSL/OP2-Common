@@ -20,30 +20,3 @@ extern double qinf[4];
 #include "res_calc_seqkernel.cpp"
 #include "save_soln_seqkernel.cpp"
 #include "update_seqkernel.cpp"
-
-#ifdef OPS_JIT
-void jit_consts() {
-  return;
-  FILE *f = fopen("jit_const.h", "r");
-  if (f == NULL) {
-    f = fopen("jit_const.h", "w"); // create only if file does not exist
-    if (f == NULL) {
-      printf("Error opening file!\n");
-      exit(1);
-    }
-    /*need to generate this block of code using the code generator
-    using what is declared in op_decal_consts
-    */
-    fprintf(f, "#define gam %lf\n", gam);
-    fprintf(f, "#define gm1 %lf\n", gm1);
-    fprintf(f, "#define cfl %lf\n", cfl);
-    fprintf(f, "#define eps %lf\n", eps);
-    fprintf(f, "#define mach %lf\n", mach);
-    fprintf(f, "#define alpha %lf\n", alpha);
-
-    fprintf(f, "extern double qinf[4];\n");
-
-    fclose(f);
-  }
-}
-#endif
