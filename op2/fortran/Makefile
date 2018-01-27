@@ -211,17 +211,18 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -xHOST -vec-report
+  OPT             = -O3 -xHOST -fPIC #-vec-report
   CC              = icc
-  CXX             = icpc 
+  CXX             = icpc
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
-  CFLAGS_SLOW          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
+  CXXFLAGS        = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
+  CFLAGS_SLOW     = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT)
-  FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
-  MPICC           = $(MPICC_PATH) $(OPT)
-  MPICXX          = $(MPICXX_PATH) $(OPT)
-  MPIF90          = $(MPIF90_PATH) $(OPT)
+  FFLAGS          = -fPIC -module $(F_INC_MOD) $(DEBUG_FLAGS)
+  FMPI_FLAGS	  = -fPIC -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
+  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx $(OPT)
+  MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else
