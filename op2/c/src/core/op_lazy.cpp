@@ -147,8 +147,8 @@ void op_generate_consts_header() {
           fprintf(f, "#define %s .false.\n", op_const_list[i].name);
       }
     } else {
-      fprintf(f, "extern %s %s[%d];\n", op_const_list[i].type,
-              op_const_list[i].name, op_const_list[i].dim);
+      // fprintf(f, "extern %s %s[%d];\n", op_const_list[i].type,
+      //    op_const_list[i].name, op_const_list[i].dim);
     }
   }
   fclose(f);

@@ -96,7 +96,7 @@ ifeq ($(OP2_COMPILER),xl)
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR -Xptxas -v ${OMP4_REG_COUNT} -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0 -g1
   OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,DOP2_WITH_OPENACC
   OPENMP = -qsmp=omp -qthreaded
-  OMP_OFFLOAD = -qsmp=omp -qoffload -WF,-DOP2_WITH_OMP4  ${OMP4_REG_COUNT} -Xptxas -v -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
+  OMP_OFFLOAD = -qsmp=omp -qoffload -qreport -WF,-DOP2_WITH_OMP4  ${OMP4_REG_COUNT} -Xptxas -v -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
   CPPLINK = -lstdc++ -lmpi_cxx -L/opt/ibm/xlC/13.1.5/lib -libmc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
@@ -111,7 +111,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPENMP = -qopenmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xHost -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_vec airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq airfoil_hdf5_mpi_vec\
@@ -200,11 +200,16 @@ airfoil_hdf5_mpi_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_seqkernel.F90 a
 	res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
-	res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_hdf5_op.F90
+	res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl
 	$(MPIF90) $(OPT) $(OPENMP) $(PARMETIS_INC) $(PTSCOTCH_INC) input.o constants.o airfoil_seqfun.o \
 	save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
 	bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_mpi_genseq \
-	$(FLINK) -lop2_for_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+	$(FLINK) -lop2_for_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK) -ldl
+
+res_calc_jit:   jit_const.h
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -c res_calc_seqkernel_rec.F90 -fPIC
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS)	-shared -o res_calc_seqkernel_rec.so res_calc_seqkernel_rec.o
+
 
 airfoil_hdf5_mpi_vec: airfoil_hdf5_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
@@ -255,14 +260,13 @@ airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_a
 
 clean:
 	rm -f *.o
-	rm -f *.mod *.optrpt
+	rm -f *.mod
 	rm -f $(EXEC)
 	rm -f *~
-	rm -f airfoil_hdf5_seq airfoil_hdf5_vec
+	rm -f airfoil_hdf5_seq
 	rm -f airfoil_hdf5_mpi
 	rm -f airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc
 	rm -f airfoil_hdf5_openmp airfoil_hdf5_mpi_openmp airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
 	rm -f airfoil_hdf5_mpi_vec airfoil_hdf5_vec
-	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda
-	rm -f airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc
+	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda *.optrpt
