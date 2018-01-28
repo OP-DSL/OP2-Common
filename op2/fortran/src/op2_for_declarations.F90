@@ -780,7 +780,7 @@ contains
     integer(4) :: diags
     call op_init_base_soa(diags,1,0)
   end subroutine op_init
-  
+
   subroutine op_init_soa(diags,soa)
     integer(4) :: diags
     integer(4) :: soa

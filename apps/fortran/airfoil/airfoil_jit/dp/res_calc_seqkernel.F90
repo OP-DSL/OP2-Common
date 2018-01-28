@@ -5,8 +5,12 @@
 MODULE RES_CALC_MODULE
 USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
-USE ISO_C_BINDING
+USE OP2_FORTRAN_JIT
 USE OP2_CONSTANTS
+USE ISO_C_BINDING
+
+
+type(c_funptr) :: proc_addr_res_calc
 
 CONTAINS
 
@@ -35,38 +39,7 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
 
   integer STATUS
 
-  integer(c_int), parameter :: rtld_lazy=1 ! value extracte from the C header file
-  integer(c_int), parameter :: rtld_now=2 ! value extracte from the C header file
-
-  !
-  ! interface to linux API
-  interface
-      function dlopen(filename,mode) bind(c,name="dlopen")
-          ! void *dlopen(const char *filename, int mode);
-          use iso_c_binding
-          implicit none
-          type(c_ptr) :: dlopen
-          character(c_char), intent(in) :: filename(*)
-          integer(c_int), value :: mode
-      end function
-
-      function dlsym(handle,name) bind(c,name="dlsym")
-          ! void *dlsym(void *handle, const char *name);
-          use iso_c_binding
-          implicit none
-          type(c_funptr) :: dlsym
-          type(c_ptr), value :: handle
-          character(c_char), intent(in) :: name(*)
-      end function
-
-      function dlclose(handle) bind(c,name="dlclose")
-          ! int dlclose(void *handle);
-          use iso_c_binding
-          implicit none
-          integer(c_int) :: dlclose
-          type(c_ptr), value :: handle
-      end function
-  end interface
+  integer(c_int), parameter :: RTLD_LAZY=1 ! value extracte from the C header file
 
   ! Define interface of call-back routine.
   abstract interface
@@ -102,32 +75,33 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   end interface
   ! End interface of call-back routine
 
-  type(c_funptr) :: proc_addr
+  procedure(called_proc), bind(c), pointer :: proc_res_calc
   type(c_ptr) :: handle
-  procedure(called_proc), bind(c), pointer :: proc
 
-  ! compile res_calc_seqkernel_rec.F90 using system command
-  write(*,*) 'JIT compiling procedure res_calc_host_rec'
-  call execute_command_line ("make -j res_calc_jit", exitstat=STATUS)
+  if(.not. c_associated(proc_addr_res_calc)) then
 
-  ! dynamically load res_calc_host_rec.so
-  handle=dlopen("./res_calc_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
-  if (.not. c_associated(handle))then
-      print*, 'Unable to load DLL ./res_calc_seqkernel_rec.so'
-      stop
+    ! compile res_calc_seqkernel_rec.F90 using system command
+    write(*,*) 'JIT compiling procedure res_calc_host_rec'
+    call execute_command_line ("make -j res_calc_jit", exitstat=STATUS)
+
+    ! dynamically load res_calc_host_rec.so
+    handle=dlopen("./res_calc_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
+    if (.not. c_associated(handle))then
+        print*, 'Unable to load DLL ./res_calc_seqkernel_rec.so'
+        stop
+    end if
+
+    proc_addr_res_calc=dlsym(handle, "res_calc_module_execute_mp_res_calc_host_rec_"//c_null_char)
+    if (.not. c_associated(proc_addr_res_calc))then
+        write(*,*) 'Unable to load the procedure res_calc_module_execute_mp_res_calc_host_rec_'
+        stop
+    end if
+    call c_f_procpointer( proc_addr_res_calc, proc_res_calc )
+
   end if
-  !
-  proc_addr=dlsym(handle, "res_calc_module_execute_mp_res_calc_host_rec_"//c_null_char)
-  if (.not. c_associated(proc_addr))then
-      write(*,*) 'Unable to load the procedure res_calc_module_execute_mp_res_calc_host_rec_'
-      stop
-  end if
-
-
 
   ! call/execute dynamically loaded procedure with the parameters from res_calc_host() signature
-  call c_f_procpointer( proc_addr, proc )
-  call proc( userSubroutine, set, &
+  call proc_res_calc( userSubroutine, set, &
   & opArg1, &
   & opArg2, &
   & opArg3, &
