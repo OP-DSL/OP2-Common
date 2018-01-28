@@ -83,10 +83,10 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
       use, intrinsic :: iso_c_binding
       USE OP2_FORTRAN_DECLARATIONS
       USE OP2_FORTRAN_RT_SUPPORT
-      USE ISO_C_BINDING
       USE OP2_CONSTANTS
 
-      character(kind=c_char), INTENT(IN) :: userSubroutine
+      !character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+      character(kind=c_char), dimension(*), intent(in) :: userSubroutine
       type ( op_set ) , INTENT(IN) :: set
 
       type ( op_arg ) , INTENT(IN) :: opArg1
@@ -107,10 +107,10 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   procedure(called_proc), bind(c), pointer :: proc
 
   ! compile res_calc_seqkernel_rec.F90 using system command
+  write(*,*) 'JIT compiling procedure res_calc_host_rec'
   call execute_command_line ("make -j res_calc_jit", exitstat=STATUS)
 
   ! dynamically load res_calc_host_rec.so
-
   handle=dlopen("./res_calc_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
   if (.not. c_associated(handle))then
       print*, 'Unable to load DLL ./res_calc_seqkernel_rec.so'
@@ -122,6 +122,8 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
       write(*,*) 'Unable to load the procedure res_calc_module_execute_mp_res_calc_host_rec_'
       stop
   end if
+
+
 
   ! call/execute dynamically loaded procedure with the parameters from res_calc_host() signature
   call c_f_procpointer( proc_addr, proc )
