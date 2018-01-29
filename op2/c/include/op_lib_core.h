@@ -371,8 +371,10 @@ void *op_calloc(size_t num, size_t size);
 void deviceSync();
 
 /*******************************************************************************
-/* lazy execution
+/* lazy execution and JIT
 *******************************************************************************/
+extern bool jit_compiled;
+
 void op_enqueue_kernel(op_kernel_descriptor *desc);
 void op_lazy_const(int dim, char const *type, int typeSize, char *data,
                         char const *name);

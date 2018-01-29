@@ -27,7 +27,7 @@ integer(c_int), parameter :: RTLD_LAZY=1 ! value extracte from the C header file
 integer STATUS
 
   ! compile *_seqkernel_rec.F90 using system command
-  write(*,*) 'JIT compiling procedure res_calc_host_rec'
+  write(*,*) 'JIT compiling op_par_loops'
   call execute_command_line ("make -j genseq_jit", exitstat=STATUS)
 
   ! dynamically load airfoil_seqkernel_rec.so

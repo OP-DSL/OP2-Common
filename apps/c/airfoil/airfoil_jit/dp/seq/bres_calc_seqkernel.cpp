@@ -5,10 +5,6 @@
 // user function
 #include "../bres_calc.h"
 
-#ifdef OP2_JIT
-void jit_consts();
-void (*bres_calc_function)(struct op_kernel_descriptor *desc) = NULL;
-#endif
 
 // host stub function
 void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
@@ -28,30 +24,8 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
 
 // Compiling to Do JIT
 #ifdef OP2_JIT
-  if (bres_calc_function == NULL) {
-    op_printf("JIT Compiling Kernel %s\n", name);
-
-    /* Write constants to headder file*/
-    if (op_is_root()) {
-      int ret = system("make -j bres_calc_jit");
-    }
-    op_mpi_barrier();
-
-    void *handle;
-    char *error;
-    // load .so that was created
-    handle = dlopen("seq/bres_calc_seqkernel_rec.so", RTLD_LAZY);
-    if (!handle) {
-      fputs(dlerror(), stderr);
-      exit(1);
-    }
-
-    bres_calc_function = (void (*)(op_kernel_descriptor *))dlsym(
-        handle, "op_par_loop_bres_calc_rec_execute");
-    if ((error = dlerror()) != NULL) {
-      fputs(error, stderr);
-      exit(1);
-    }
+  if (jit_compiled == 0) {
+    jit_compile();
   }
   (*bres_calc_function)(desc);
   return;

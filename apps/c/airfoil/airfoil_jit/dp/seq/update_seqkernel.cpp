@@ -5,11 +5,6 @@
 // user function
 #include "../update.h"
 
-#ifdef OP2_JIT
-void jit_consts();
-void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
-#endif
-
 // host stub function
 void op_par_loop_update_execute(op_kernel_descriptor *desc) {
 
@@ -26,32 +21,9 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
   op_arg args[5] = {arg0, arg1, arg2, arg3, arg4};
 
 // Compiling to Do JIT
-#ifdef OP2_JIT3 // switched off as not benifitial for update kernel
-  if (update_function == NULL) {
-    op_printf("JIT Compiling Kernel %s\n", name);
-
-    /* Write constants to headder file*/
-    if (op_is_root()) {
-      int ret = system("make update_jit");
-    }
-    op_mpi_barrier();
-
-    void *handle;
-    char *error;
-
-    // load .so that was created
-    handle = dlopen("seq/update_seqkernel_rec.so", RTLD_LAZY);
-    if (!handle) {
-      fputs(dlerror(), stderr);
-      exit(1);
-    }
-
-    update_function = (void (*)(op_kernel_descriptor *))dlsym(
-        handle, "op_par_loop_update_rec_execute");
-    if ((error = dlerror()) != NULL) {
-      fputs(error, stderr);
-      exit(1);
-    }
+#ifdef OP2_JIT
+  if (jit_compiled == 0) {
+    jit_compile();
   }
   (*update_function)(desc);
   return;
