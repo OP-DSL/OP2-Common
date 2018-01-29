@@ -5,7 +5,7 @@
 // user function
 #include "../res_calc.h"
 
-#ifdef OPS_JIT
+#ifdef OP2_JIT
 void jit_consts();
 void (*res_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 #endif
@@ -29,7 +29,7 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
   op_arg args[8] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7};
 
 // Compiling to Do JIT
-#ifdef OPS_JIT
+#ifdef OP2_JIT
   if (res_calc_function == NULL) {
     op_printf("JIT Compiling Kernel %s\n", name);
 

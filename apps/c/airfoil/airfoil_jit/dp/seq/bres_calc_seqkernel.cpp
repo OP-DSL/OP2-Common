@@ -5,7 +5,7 @@
 // user function
 #include "../bres_calc.h"
 
-#ifdef OPS_JIT
+#ifdef OP2_JIT
 void jit_consts();
 void (*bres_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 #endif
@@ -27,7 +27,7 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
   op_arg args[6] = {arg0, arg1, arg2, arg3, arg4};
 
 // Compiling to Do JIT
-#ifdef OPS_JIT
+#ifdef OP2_JIT
   if (bres_calc_function == NULL) {
     op_printf("JIT Compiling Kernel %s\n", name);
 

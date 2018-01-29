@@ -5,7 +5,7 @@
 // user function
 #include "../update.h"
 
-#ifdef OPS_JIT
+#ifdef OP2_JIT
 void jit_consts();
 void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
 #endif
@@ -26,7 +26,7 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
   op_arg args[5] = {arg0, arg1, arg2, arg3, arg4};
 
 // Compiling to Do JIT
-#ifdef OPS_JIT3 // switched off as not benifitial for update kernel
+#ifdef OP2_JIT3 // switched off as not benifitial for update kernel
   if (update_function == NULL) {
     op_printf("JIT Compiling Kernel %s\n", name);
 

@@ -111,7 +111,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPENMP = -qopenmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 -g #-O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE -fPIC -DOP2_JIT
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_vec airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq airfoil_hdf5_mpi_vec\

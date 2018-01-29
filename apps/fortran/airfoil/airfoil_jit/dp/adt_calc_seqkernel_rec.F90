@@ -138,7 +138,6 @@ SUBROUTINE adt_calc_host_rec( userSubroutine, set, &
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF
 
-
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 
   call op_timers_core(endTime)

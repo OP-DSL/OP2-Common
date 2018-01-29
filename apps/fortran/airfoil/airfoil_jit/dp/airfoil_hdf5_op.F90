@@ -25,7 +25,7 @@ program AIRFOIL
   integer(4), parameter :: maxcell = (9702+1)
   integer(4), parameter :: maxedge = 19502
 
-  integer(4), parameter :: iterationNumber = 1000
+  integer(4), parameter :: iterationNumber = 2000
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter, qdim
   real(8) :: ncellr
