@@ -22,7 +22,7 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
 
 // Compiling to Do JIT
 #ifdef OP2_JIT
-  if (jit_compiled == 0) {
+  if (!jit_compiled) {
     jit_compile();
   }
   (*update_function)(desc);

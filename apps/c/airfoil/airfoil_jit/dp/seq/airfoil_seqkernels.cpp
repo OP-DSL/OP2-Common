@@ -26,7 +26,7 @@ void jit_compile() {
 
   /* Write constants to headder file*/
   if (op_is_root()) {
-    int ret = system("make -j genseq_jit");
+    int ret = system("make -j airfoil_mpi_genseq_jit");
   }
   op_mpi_barrier();
 
