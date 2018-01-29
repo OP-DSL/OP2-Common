@@ -111,7 +111,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPENMP = -qopenmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel
-  OPT = -g -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 #-O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O0 -g #-O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_vec airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq airfoil_hdf5_mpi_vec\
@@ -153,17 +153,17 @@ airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_veckernel.F90 adt_c
         res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
 	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
         save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
-        res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl
+        res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl -rdynamic
 	$(MPIF90) $(OPT) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
         bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_genseq \
-        $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl
+        $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl -rdynamic
 
 genseq_jit:   jit_const.h
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c res_calc_seqkernel_rec.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c adt_calc_seqkernel_rec.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c res_calc_seqkernel_rec.F90 adt_calc_seqkernel_rec.F90 \
+	bres_calc_seqkernel_rec.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_seqkernel_rec.so res_calc_seqkernel_rec.o \
-	adt_calc_seqkernel_rec.o \
+	adt_calc_seqkernel_rec.o bres_calc_seqkernel_rec.o \
         $(FLINK) -lop2_for_seq -lop2_hdf5
 
 

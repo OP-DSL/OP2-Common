@@ -40,6 +40,14 @@ module OP2_Fortran_JIT
 
   use, intrinsic :: ISO_C_BINDING
   logical :: JIT_COMPILED = .false.
+
+  INTEGER, PARAMETER, PUBLIC :: RTLD_LAZY=1, RTLD_NOW=2, RTLD_GLOBAL=256, RTLD_LOCAL=0
+  PUBLIC :: DLOpen, DLSym, DLClose, DLError, CToFortranString
+
+  CHARACTER(C_CHAR), DIMENSION(1), SAVE, TARGET, PUBLIC :: dummy_string="?"
+
+
+
   !
   ! interface to linux API
   !
@@ -69,6 +77,30 @@ module OP2_Fortran_JIT
           integer(c_int) :: dlclose
           type(c_ptr), value :: handle
       end function
+
+      function dlerror() result(error) bind(C,NAME="dlerror")
+         ! char *dlerror(void);
+         use iso_c_binding
+         type(c_ptr) :: error
+      END function
   end interface
+
+
+CONTAINS
+
+   FUNCTION CToFortranString(cstr) RESULT(string)
+      TYPE(C_PTR), VALUE :: cstr
+      CHARACTER(C_CHAR), DIMENSION(:), POINTER :: string
+
+      CHARACTER(KIND=C_CHAR,LEN=1024), POINTER :: error_string
+      TYPE(C_PTR) :: error
+
+      IF(C_ASSOCIATED(cstr)) THEN
+         CALL C_F_POINTER(CPTR=cstr, FPTR=error_string) ! Not really standard-conforming
+         CALL C_F_POINTER(CPTR=cstr, FPTR=string, SHAPE=[INDEX(error_string,C_NULL_CHAR)])
+      ELSE
+         string=>dummy_string
+      END IF
+   END FUNCTION
 
 end module OP2_Fortran_JIT

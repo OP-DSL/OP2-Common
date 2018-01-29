@@ -10,7 +10,6 @@ USE OP2_CONSTANTS
 USE AIRFOIL_SEQ
 USE ISO_C_BINDING
 
-
 CONTAINS
 
 SUBROUTINE res_calc_host( userSubroutine, set, &
@@ -35,7 +34,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   type ( op_arg ) , INTENT(IN) :: opArg6
   type ( op_arg ) , INTENT(IN) :: opArg7
   type ( op_arg ) , INTENT(IN) :: opArg8
-
 
   ! Define interface of call-back routine.
   abstract interface

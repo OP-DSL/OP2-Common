@@ -4,8 +4,9 @@ USE OP2_FORTRAN_JIT
 use OP2_CONSTANTS
 use, intrinsic :: iso_c_binding
 
-type(c_funptr) :: proc_addr_res_calc
 type(c_funptr) :: proc_addr_adt_calc
+type(c_funptr) :: proc_addr_res_calc
+type(c_funptr) :: proc_addr_bres_calc
 
 type(c_ptr) :: handle
 
@@ -32,10 +33,17 @@ integer STATUS
   ! dynamically load airfoil_seqkernel_rec.so
   handle=dlopen("./airfoil_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
   if (.not. c_associated(handle))then
-    print*, 'Unable to load DLL ./airfoil_seqkernel_rec.so'
+    WRITE(*,*)'Unable to load DLL ./airfoil_seqkernel_rec.so', CToFortranString(DLError())
     stop
   end if
 
+  if(.not. c_associated(proc_addr_adt_calc)) then
+    proc_addr_adt_calc=dlsym(handle, "adt_calc_module_execute_mp_adt_calc_host_rec_"//c_null_char)
+    if (.not. c_associated(proc_addr_adt_calc))then
+      write(*,*) 'Unable to load the procedure adt_calc_module_execute_mp_adt_calc_host_rec_'
+      stop
+    end if
+  end if
   if(.not. c_associated(proc_addr_res_calc)) then
     proc_addr_res_calc=dlsym(handle, "res_calc_module_execute_mp_res_calc_host_rec_"//c_null_char)
     if (.not. c_associated(proc_addr_res_calc))then
@@ -43,10 +51,10 @@ integer STATUS
       stop
     end if
   end if
-  if(.not. c_associated(proc_addr_adt_calc)) then
-    proc_addr_adt_calc=dlsym(handle, "adt_calc_module_execute_mp_adt_calc_host_rec_"//c_null_char)
-    if (.not. c_associated(proc_addr_adt_calc))then
-      write(*,*) 'Unable to load the procedure adt_calc_module_execute_mp_adt_calc_host_rec_'
+  if(.not. c_associated(proc_addr_bres_calc)) then
+    proc_addr_bres_calc=dlsym(handle, "bres_calc_module_execute_mp_bres_calc_host_rec_"//c_null_char)
+    if (.not. c_associated(proc_addr_bres_calc))then
+      write(*,*) 'Unable to load the procedure bres_calc_module_execute_mp_bres_calc_host_rec_'
       stop
     end if
   end if
