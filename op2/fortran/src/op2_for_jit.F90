@@ -39,7 +39,7 @@
 module OP2_Fortran_JIT
 
   use, intrinsic :: ISO_C_BINDING
-
+  logical :: JIT_COMPILED = .false.
   !
   ! interface to linux API
   !

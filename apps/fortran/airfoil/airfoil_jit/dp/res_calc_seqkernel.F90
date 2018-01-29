@@ -7,10 +7,9 @@ USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
 USE OP2_FORTRAN_JIT
 USE OP2_CONSTANTS
+USE AIRFOIL_SEQ
 USE ISO_C_BINDING
 
-
-type(c_funptr) :: proc_addr_res_calc
 
 CONTAINS
 
@@ -37,9 +36,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   type ( op_arg ) , INTENT(IN) :: opArg7
   type ( op_arg ) , INTENT(IN) :: opArg8
 
-  integer STATUS
-
-  integer(c_int), parameter :: RTLD_LAZY=1 ! value extracte from the C header file
 
   ! Define interface of call-back routine.
   abstract interface
@@ -76,30 +72,12 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   ! End interface of call-back routine
 
   procedure(called_proc), bind(c), pointer :: proc_res_calc
-  type(c_ptr) :: handle
 
-  if(.not. c_associated(proc_addr_res_calc)) then
-
-    ! compile res_calc_seqkernel_rec.F90 using system command
-    write(*,*) 'JIT compiling procedure res_calc_host_rec'
-    call execute_command_line ("make -j res_calc_jit", exitstat=STATUS)
-
-    ! dynamically load res_calc_host_rec.so
-    handle=dlopen("./res_calc_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
-    if (.not. c_associated(handle))then
-        print*, 'Unable to load DLL ./res_calc_seqkernel_rec.so'
-        stop
-    end if
-
-    proc_addr_res_calc=dlsym(handle, "res_calc_module_execute_mp_res_calc_host_rec_"//c_null_char)
-    if (.not. c_associated(proc_addr_res_calc))then
-        write(*,*) 'Unable to load the procedure res_calc_module_execute_mp_res_calc_host_rec_'
-        stop
-    end if
-    call c_f_procpointer( proc_addr_res_calc, proc_res_calc )
-
+  if (.not. JIT_COMPILED) then
+    call jit_compile()
   end if
 
+  call c_f_procpointer( proc_addr_res_calc, proc_res_calc )
   ! call/execute dynamically loaded procedure with the parameters from res_calc_host() signature
   call proc_res_calc( userSubroutine, set, &
   & opArg1, &

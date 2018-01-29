@@ -159,9 +159,11 @@ airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_veckernel.F90 adt_c
         bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_genseq \
         $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl
 
-res_calc_jit:   jit_const.h
+genseq_jit:   jit_const.h
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c res_calc_seqkernel_rec.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o res_calc_seqkernel_rec.so res_calc_seqkernel_rec.o \
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c adt_calc_seqkernel_rec.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_seqkernel_rec.so res_calc_seqkernel_rec.o \
+	adt_calc_seqkernel_rec.o \
         $(FLINK) -lop2_for_seq -lop2_hdf5
 
 
@@ -280,6 +282,7 @@ clean:
 	rm -f *.mod
 	rm -f $(EXEC)
 	rm -f *~
+	rm -f *.so
 	rm -f airfoil_hdf5_seq airfoil_hdf5_genseq
 	rm -f airfoil_hdf5_mpi
 	rm -f airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc
