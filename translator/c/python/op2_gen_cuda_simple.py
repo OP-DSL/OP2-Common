@@ -312,6 +312,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           dir_soa = g_m
           break
 
+    if FORTRAN:
+      code('include '+name+'.inc')
+    elif CPP:
+      code('#include "../'+decl_filepath+'"')
+
     comm('user function')
     file_name = decl_filepath
 
