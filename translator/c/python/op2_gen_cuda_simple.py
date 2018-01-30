@@ -94,7 +94,7 @@ def ENDIF():
   elif CPP:
     code('}')
 
-def op2_gen_cuda_simple(master, date, consts, kernels,sets):
+def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -312,18 +312,21 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets):
           dir_soa = g_m
           break
 
-    if FORTRAN:
-      code('include '+name+'.inc')
-    elif CPP:
-      code('#include "../'+decl_filepath+'"')
-
-    comm('user function')
     file_name = decl_filepath
 
     f = open(file_name, 'r')
     kernel_text = f.read()
     f.close()
 
+    if CPP:
+      includes = op2_gen_common.extract_includes(kernel_text)
+      if len(includes) > 1:
+        for include in includes:
+          code(include)
+        code("")
+
+    comm('user function')
+    
     kernel_text = op2_gen_common.comment_remover(kernel_text)
     kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
 

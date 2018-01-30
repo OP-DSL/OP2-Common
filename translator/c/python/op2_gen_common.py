@@ -43,6 +43,48 @@ def remove_trailing_w_space(text):
     if line_end < 0:
       return striped_test[:-1]
 
+def extract_includes(text):
+  ## Find all '#includes ...' that are not inside of function declarations.
+
+  includes = []
+
+  include_pattern = r'([ \t]*#include[\s]+[\'\"<][\w\.]+[\'\">])'
+
+  first_line_pattern = '(^)([^\n]+)'
+  rest_of_lines_pattern = '([\n])([^\n]+)'
+  line_pattern = re.compile(first_line_pattern + '|' + rest_of_lines_pattern)
+
+  function_depth = 0
+  for match in re.findall(line_pattern, text):
+    if match[1] != "":
+      line = match[1]
+    else:
+      line = match[3]
+
+    ## Remove noise from the line to improve search for 
+    ## entering and exiting of functions:
+    line_clean = line
+    # Remove escaped quotation character:
+    line_clean = re.sub(r"\\\'", '', line_clean)
+    line_clean = re.sub(r"\\\"", '', line_clean)
+    # Remove quoted string in single line:
+    line_clean = re.sub(r'"[^"]*"', '', line_clean)
+    line_clean = re.sub(r"'[^']*'", '', line_clean)
+    # Remove quoted string split over two lines:
+    line_clean = re.sub(r'"[^"]*\\\n[^"]*"', '', line_clean)
+    line_clean = re.sub(r"'[^']*\\\n[^']*'", '', line_clean)
+    # Remove inline scoped logic ( {...} ):
+    line_clean = re.sub(r'{[^{]*}', '', line_clean)
+
+    function_depth += line_clean.count('{') - line_clean.count('}')
+    if function_depth != 0:
+      continue
+
+    match = re.search(include_pattern, line)
+    if match:
+      includes.append(line)
+
+  return includes
 
 def para_parse(text, j, op_b, cl_b):
     """Parsing code block, i.e. text to find the correct closing brace"""
