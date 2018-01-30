@@ -33,7 +33,7 @@
 #define op_par_loop_dotR op_par_loop_dotR_cpu
 #define op_par_loop_updateP op_par_loop_updateP_cpu
 #define op_par_loop_update op_par_loop_update_cpu
-#include "aero_mpi_kernels.cpp"
+#include "../openmp/aero_mpi_kernels.cpp"
 #undef op_par_loop_res_calc
 #undef op_par_loop_dirichlet
 #undef op_par_loop_init_cg

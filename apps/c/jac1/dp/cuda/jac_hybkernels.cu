@@ -12,7 +12,7 @@
 #else
 #define op_par_loop_res op_par_loop_res_cpu
 #define op_par_loop_update op_par_loop_update_cpu
-#include "jac_kernels.cpp"
+#include "../openmp/jac_kernels.cpp"
 #undef op_par_loop_res
 #undef op_par_loop_update
 
