@@ -39,6 +39,9 @@ import re
 import datetime
 import os
 
+sys.path.append('./jit')
+
+
 # Import MPI+SEQ and MPI+autovectorised SEQ
 from op2_gen_seq import op2_gen_seq
 from op2_gen_mpi_vec import op2_gen_mpi_vec
@@ -55,6 +58,11 @@ from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 from op2_gen_openmp4 import op2_gen_openmp4
 
 from op2_gen_common import *
+
+# import JIT code generation versions
+from jit.op2_gen_seq_jit import op2_gen_seq_jit
+
+arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
 
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
@@ -1066,26 +1074,34 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   if "JIT" in srcFilesAndDirs:
     print "Generating JIT version of parallelizations"
+
+    #code generator for sequential execution on a CPU (+MPI)
+    #op2_gen_seq_jit(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+
   else:
     print "Generating regular (non-JIT) version of parallelizations"
 
+    #code generator for sequential execution on a CPU (+MPI)
     op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
     #op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
     #code generators for OpenMP parallelisation with MPI
     #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
     op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
-    op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
-    #code generators for NVIDIA GPUs with CUDA
+    #code generators for NVIDIA GPUs with CUDA (+MPI)
     #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
-    op2_gen_cuda_simple(masterFile, date, consts, kernels, sets) # Optimized for Kepler GPUs
+    op2_gen_cuda_simple(masterFile, date, consts, kernels, sets) # Optimized for Kepler (and later) GPUs
 
-    #generates openmp code as well as cuda code into the same file
+    #generates openmp code as well as cuda code into the same file (+MPI)
     op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
 
-    #code generator for GPUs with OpenMP4.5
+    #code generator for GPUs with OpenMP4.5 (+MPI)
     op2_gen_openmp4(masterFile, date, consts, kernels)
+
+    #code generators for OpenACC paralleization (+MPI)
+    op2_gen_openacc(masterFile, date, consts, kernels) # OpenACC code generator based on the simplified and Optimized OpenMP code generator
+
 
   # import subprocess
   # retcode = subprocess.call("which clang-format > /dev/null", shell=True)
