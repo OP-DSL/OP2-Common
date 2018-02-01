@@ -252,24 +252,18 @@ def op2_gen_seq_jit(master, date, consts, kernels):
       code('#include "../'+decl_filepath+'"')
 
 ##########################################################################
-# then C++ stub function
+# then C++ stub function - to be JIT compiled
 ##########################################################################
 
     code('')
-    comm(' host stub function')
-    code('void op_par_loop_'+name+'(char const *name, op_set set,')
+    comm(' host stub function - for JIT compilation')
+    code('void op_par_loop_'+name+'_execute(op_kernel_descriptor *desc) {')
     depth += 2
 
-    for m in unique_args:
-      g_m = m - 1
-      if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
-        code('')
-      else:
-        code('op_arg ARG,')
-
+    code('op_set set = desc->set;')
+    code('char const *name = desc->name;')
     code('int nargs = '+str(nargs)+';')
-    code('op_arg args['+str(nargs)+'];')
+
     code('')
 
     for g_m in range (0,nargs):
@@ -290,7 +284,29 @@ def op2_gen_seq_jit(master, date, consts, kernels):
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('op_arg ARG = desc->args['+str(g_m)+'];')
+
+    code('')
+    code('op_arg args['+str(nargs)+'] = {')
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('ARG};');
+        code('')
+      else:
+        code('ARG,')
+
+#
+# JIT compilation
+#
+
+    code('#ifdef OP2_JIT')
+    IF('!jit_compiled')
+    code('jit_compile();')
+    ENDIF()
+    code('(*'+name+'_function)(desc);')
+    code('return;')
+    code('#endif')
 
 #
 # start timing
@@ -476,6 +492,41 @@ def op2_gen_seq_jit(master, date, consts, kernels):
 
     depth -= 2
     code('}')
+
+
+##########################################################################
+# The C++ stub function that is actualyl called
+##########################################################################
+
+    code('')
+    comm('host stub function')
+    code('void op_par_loop_'+name+'(char const *name, op_set set,')
+    depth += 2
+
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('op_arg ARG){');
+        code('')
+      else:
+        code('op_arg ARG,')
+
+    code('int nargs = '+str(nargs)+';')
+    code('op_arg args['+str(nargs)+'];')
+    code('')
+
+    code('op_kernel_descriptor *desc = ')
+    code('(op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));')
+    code('desc->name = name;')
+    code('desc->set = set;')
+    code('(desc->device = 1;')
+    code('desc->index = '+str(nk)+';')
+    code('desc->hash = 5381;')
+    code('desc->hash = ((desc->hash << 5) + desc->hash) + '+str(nk)+';')
+    code('')
+
+    comm('save the arguments')
+
 
 
 ##########################################################################

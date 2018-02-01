@@ -97,8 +97,6 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
   desc->hash = 5381;
   desc->hash = ((desc->hash << 5) + desc->hash) + 6;
 
-  // save the iteration range
-
   // save the arguments
   desc->nargs = 8;
   desc->args = (op_arg *)malloc(8 * sizeof(op_arg));
