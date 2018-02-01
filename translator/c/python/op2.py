@@ -1076,7 +1076,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     print "Generating JIT version of parallelizations"
 
     #code generator for sequential execution on a CPU (+MPI)
-    #op2_gen_seq_jit(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+    op2_gen_seq_jit(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
 
   else:
     print "Generating regular (non-JIT) version of parallelizations"
