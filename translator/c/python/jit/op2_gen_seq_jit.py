@@ -519,15 +519,35 @@ def op2_gen_seq_jit(master, date, consts, kernels):
     code('(op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));')
     code('desc->name = name;')
     code('desc->set = set;')
-    code('(desc->device = 1;')
+    code('desc->device = 1;')
     code('desc->index = '+str(nk)+';')
     code('desc->hash = 5381;')
     code('desc->hash = ((desc->hash << 5) + desc->hash) + '+str(nk)+';')
     code('')
 
     comm('save the arguments')
+    code('desc->nargs = '+str(nargs)+';')
+    code('desc->args = (op_arg *)malloc('+str(nargs)+' * sizeof(op_arg));')
 
+    declared = 0
+    for n in range (0, nargs):
+      code('desc->args['+str(n)+'] = arg'+str(n)+';')
+      if maps[n] <> OP_GBL:
+        code('desc->hash = ((desc->hash << 5) + desc->hash) + arg'+str(n)+'.dat->index;')
+      if maps[n] == OP_GBL and accs[n] == OP_READ:
+        if declared == 0:
+          code('char *tmp = (char*)malloc('+dims[n]+'*sizeof('+typs[n]+'));')
+          declared = 1
+        else:
+          code('tmp = (char*)malloc('+dims[n]+'*sizeof('+typs[n]+'));')
+        code('memcpy(tmp, arg'+str(n)+'.data,'+dims[n]+'*sizeof('+typs[n]+'));')
+        code('desc->args['+str(n)+'].data = tmp;')
+    code('desc->function = ops_par_loop_'+name+'_execute;')
 
+    code('')
+    code('op_enqueue_kernel(desc);')
+    depth -= 2
+    code('}')
 
 ##########################################################################
 #  output individual kernel file
