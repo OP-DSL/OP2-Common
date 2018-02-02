@@ -234,9 +234,7 @@ def op2_gen_seq_jit(master, date, consts, kernels):
         j = i
     reduct = j > 0
 
-##########################################################################
-#  start with the user kernel function
-##########################################################################
+
 
     FORTRAN = 0;
     CPP     = 1;
@@ -244,19 +242,16 @@ def op2_gen_seq_jit(master, date, consts, kernels):
     file_text = ''
     depth = 0
 
+
+##########################################################################
+# C++ stub function - non-JIT Header
+##########################################################################
+
     comm('user function')
-
-    if FORTRAN:
-      code('include '+name+'.inc')
-    elif CPP:
-      code('#include "../'+decl_filepath+'"')
-
-##########################################################################
-# then C++ stub function - to be JIT compiled
-##########################################################################
+    code('#include "../'+decl_filepath+'"')
 
     code('')
-    comm(' host stub function - for JIT compilation')
+    comm('host stub function')
     code('void op_par_loop_'+name+'_execute(op_kernel_descriptor *desc) {')
     depth += 2
 
@@ -296,6 +291,7 @@ def op2_gen_seq_jit(master, date, consts, kernels):
       else:
         code('ARG,')
 
+
 #
 # JIT compilation
 #
@@ -307,6 +303,83 @@ def op2_gen_seq_jit(master, date, consts, kernels):
     code('(*'+name+'_function)(desc);')
     code('return;')
     code('#endif')
+
+    #
+    # Save header
+    #
+
+    header = file_text
+    file_text = ''
+    depth -= 2
+
+##########################################################################
+# C++ stub function - JIT Header
+##########################################################################
+
+    code('#include "op_lib_cpp.h"')
+    comm('global constants - values #defined by JIT')
+    code('#include "jit_const.h"')
+
+    code('')
+    comm('user function')
+    code('#include "../'+decl_filepath+'"')
+    code('')
+
+    code('extern "C" {')
+    code('void op_par_loop_'+name+'_rec_execute(op_kernel_descriptor *desc);')
+    code('')
+
+    comm('host stub function')
+    code('void op_par_loop_'+name+'_rec_execute(op_kernel_descriptor *desc) {')
+    depth += 2
+
+    code('op_set set = desc->set;')
+    code('char const *name = desc->name;')
+    code('int nargs = '+str(nargs)+';')
+
+    code('')
+
+    for g_m in range (0,nargs):
+      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+      if len(u) > 0 and vectorised[g_m] > 0:
+        code('ARG.idx = 0;')
+        code('args['+str(g_m)+'] = ARG;')
+
+        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+        first = [i for i in range(0,len(v)) if v[i] == 1]
+        first = first[0]
+
+        FOR('v','1',str(sum(v)))
+        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        ENDFOR()
+        code('')
+      elif vectorised[g_m]>0:
+        pass
+      else:
+        code('op_arg ARG = desc->args['+str(g_m)+'];')
+
+    code('')
+    code('op_arg args['+str(nargs)+'] = {')
+    for m in unique_args:
+      g_m = m - 1
+      if m == unique_args[len(unique_args)-1]:
+        code('ARG};');
+        code('')
+      else:
+        code('ARG,')
+
+
+    #
+    # Save jit header
+    #
+    jit_header = file_text
+    file_text = ''
+
+
+##########################################################################
+# C++ stub function - Common Body
+##########################################################################
 
 #
 # start timing
@@ -494,6 +567,13 @@ def op2_gen_seq_jit(master, date, consts, kernels):
     code('}')
 
 
+    #
+    # Save common body
+    #
+    body = file_text
+    file_text = ''
+
+
 ##########################################################################
 # The C++ stub function that is actualyl called
 ##########################################################################
@@ -542,23 +622,43 @@ def op2_gen_seq_jit(master, date, consts, kernels):
           code('tmp = (char*)malloc('+dims[n]+'*sizeof('+typs[n]+'));')
         code('memcpy(tmp, arg'+str(n)+'.data,'+dims[n]+'*sizeof('+typs[n]+'));')
         code('desc->args['+str(n)+'].data = tmp;')
-    code('desc->function = ops_par_loop_'+name+'_execute;')
+    code('desc->function = op_par_loop_'+name+'_execute;')
 
     code('')
     code('op_enqueue_kernel(desc);')
     depth -= 2
     code('}')
 
+
+    #
+    # Save host stub code -final bit thats actualyl called
+    #
+    body_end = file_text
+    file_text = ''
+
+
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    if not os.path.exists('seq_jit'):
-        os.makedirs('seq_jit')
-    fid = open('seq_jit/'+name+'_seqkernel.cpp','w')
+    if not os.path.exists('seq'):
+        os.makedirs('seq')
+    fid = open('seq/'+name+'_seqkernel.cpp','w')
     date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(file_text)
+    fid.write(header+body+body_end)
     fid.close()
+
+##########################################################################
+#  output individual kernel file - JIT compiled version
+##########################################################################
+    if not os.path.exists('seq'):
+        os.makedirs('seq')
+    fid = open('seq/'+name+'_seqkernel_rec.cpp','w')
+    date = datetime.datetime.now()
+    fid.write('//\n// auto-generated by op2.py\n//\n\n')
+    fid.write(jit_header+body + '\n} //end extern c')
+    fid.close()
+
 
 # end of main kernel call loop
 
@@ -639,7 +739,7 @@ def op2_gen_seq_jit(master, date, consts, kernels):
   for nk in range(0,len(kernels)):
     code('#include "'+kernels[nk]['name']+'_seqkernel.cpp"')
   master = master.split('.')[0]
-  fid = open('seq_jit/'+master.split('.')[0]+'_seqkernels.cpp','w')
+  fid = open('seq/'+master.split('.')[0]+'_seqkernels.cpp','w')
   fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()

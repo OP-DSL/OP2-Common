@@ -16,37 +16,39 @@ extern double qinf[4];
 
 #ifdef OP2_JIT
 
+void (*save_soln_function)(struct op_kernel_descriptor *desc) = NULL;
 void (*adt_calc_function)(struct op_kernel_descriptor *desc) = NULL;
-void (*bres_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 void (*res_calc_function)(struct op_kernel_descriptor *desc) = NULL;
+void (*bres_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
 
 void jit_compile() {
   op_printf("JIT compiling op_par_loops\n");
 
-  /* Write constants to headder file*/
+  // Write constants to headder file
   if (op_is_root()) {
     int ret = system("make -j airfoil_mpi_genseq_jit");
   }
   op_mpi_barrier();
-
   void *handle;
   char *error;
 
+  // create .so
   handle = dlopen("seq/airfoil_seqkernel_rec.so", RTLD_LAZY);
   if (!handle) {
     fputs(dlerror(), stderr);
     exit(1);
   }
 
-  adt_calc_function = (void (*)(op_kernel_descriptor *))dlsym(
-      handle, "op_par_loop_adt_calc_rec_execute");
+  // dynamically load functions from the  .so
+  save_soln_function = (void (*)(op_kernel_descriptor *))dlsym(
+      handle, "op_par_loop_save_soln_rec_execute");
   if ((error = dlerror()) != NULL) {
     fputs(error, stderr);
     exit(1);
   }
-  bres_calc_function = (void (*)(op_kernel_descriptor *))dlsym(
-      handle, "op_par_loop_bres_calc_rec_execute");
+  adt_calc_function = (void (*)(op_kernel_descriptor *))dlsym(
+      handle, "op_par_loop_adt_calc_rec_execute");
   if ((error = dlerror()) != NULL) {
     fputs(error, stderr);
     exit(1);
@@ -57,18 +59,23 @@ void jit_compile() {
     fputs(error, stderr);
     exit(1);
   }
+  bres_calc_function = (void (*)(op_kernel_descriptor *))dlsym(
+      handle, "op_par_loop_bres_calc_rec_execute");
+  if ((error = dlerror()) != NULL) {
+    fputs(error, stderr);
+    exit(1);
+  }
   update_function = (void (*)(op_kernel_descriptor *))dlsym(
       handle, "op_par_loop_update_rec_execute");
   if ((error = dlerror()) != NULL) {
     fputs(error, stderr);
     exit(1);
   }
-
   op_mpi_barrier();
   jit_compiled = 1;
 }
-#endif
 
+#endif
 // user kernel files
 #include "adt_calc_seqkernel.cpp"
 #include "bres_calc_seqkernel.cpp"

@@ -6,14 +6,23 @@
 #include "../save_soln.h"
 
 // host stub function
-void op_par_loop_save_soln(char const *name, op_set set, op_arg arg0,
-                           op_arg arg1) {
-
+void op_par_loop_save_soln_execute(op_kernel_descriptor *desc) {
+  op_set set = desc->set;
+  char const *name = desc->name;
   int nargs = 2;
-  op_arg args[2];
 
-  args[0] = arg0;
-  args[1] = arg1;
+  op_arg arg0 = desc->args[0];
+  op_arg arg1 = desc->args[1];
+
+  op_arg args[2] = {arg0, arg1};
+
+#ifdef OP2_JIT
+  if (!jit_compiled) {
+    jit_compile();
+  }
+  (*save_soln_function)(desc);
+  return;
+#endif
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -43,4 +52,32 @@ void op_par_loop_save_soln(char const *name, op_set set, op_arg arg0,
   OP_kernels[0].time += wall_t2 - wall_t1;
   OP_kernels[0].transfer += (float)set->size * arg0.size;
   OP_kernels[0].transfer += (float)set->size * arg1.size * 2.0f;
+}
+
+// host stub function
+void op_par_loop_save_soln(char const *name, op_set set, op_arg arg0,
+                           op_arg arg1) {
+
+  int nargs = 2;
+  op_arg args[2];
+
+  op_kernel_descriptor *desc =
+      (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
+  desc->name = name;
+  desc->set = set;
+  desc->device = 1;
+  desc->index = 0;
+  desc->hash = 5381;
+  desc->hash = ((desc->hash << 5) + desc->hash) + 0;
+
+  // save the arguments
+  desc->nargs = 2;
+  desc->args = (op_arg *)malloc(2 * sizeof(op_arg));
+  desc->args[0] = arg0;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg0.dat->index;
+  desc->args[1] = arg1;
+  desc->hash = ((desc->hash << 5) + desc->hash) + arg1.dat->index;
+  desc->function = op_par_loop_save_soln_execute;
+
+  op_enqueue_kernel(desc);
 }

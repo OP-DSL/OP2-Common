@@ -72,7 +72,6 @@ void op_enqueue_kernel(op_kernel_descriptor *desc) {
 
   if (!consts_header_generated) op_generate_consts_header();
 
-  // op_printf("In op_enqueue_kernel ****\n");
   // If not tiling, have to do the halo exchanges here
   double t1, t2, c;
   if (OP_diags > 1)

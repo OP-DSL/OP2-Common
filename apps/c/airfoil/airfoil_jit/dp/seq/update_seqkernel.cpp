@@ -7,7 +7,6 @@
 
 // host stub function
 void op_par_loop_update_execute(op_kernel_descriptor *desc) {
-
   op_set set = desc->set;
   char const *name = desc->name;
   int nargs = 5;
@@ -20,7 +19,6 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
 
   op_arg args[5] = {arg0, arg1, arg2, arg3, arg4};
 
-// Compiling to Do JIT
 #ifdef OP2_JIT
   if (!jit_compiled) {
     jit_compile();
@@ -64,8 +62,12 @@ void op_par_loop_update_execute(op_kernel_descriptor *desc) {
   OP_kernels[4].transfer += (float)set->size * arg3.size;
 }
 
+// host stub function
 void op_par_loop_update(char const *name, op_set set, op_arg arg0, op_arg arg1,
                         op_arg arg2, op_arg arg3, op_arg arg4) {
+
+  int nargs = 5;
+  op_arg args[5];
 
   op_kernel_descriptor *desc =
       (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
@@ -73,10 +75,8 @@ void op_par_loop_update(char const *name, op_set set, op_arg arg0, op_arg arg1,
   desc->set = set;
   desc->device = 1;
   desc->index = 4;
-  desc->hash = 5379;
-  desc->hash = ((desc->hash << 5) + desc->hash) + 6;
-
-  // save the iteration range
+  desc->hash = 5381;
+  desc->hash = ((desc->hash << 5) + desc->hash) + 4;
 
   // save the arguments
   desc->nargs = 5;
@@ -90,8 +90,6 @@ void op_par_loop_update(char const *name, op_set set, op_arg arg0, op_arg arg1,
   desc->args[3] = arg3;
   desc->hash = ((desc->hash << 5) + desc->hash) + arg3.dat->index;
   desc->args[4] = arg4;
-  desc->hash =
-      ((desc->hash << 5) + desc->hash) + 5; // this is a global .. so no .dat
   desc->function = op_par_loop_update_execute;
 
   op_enqueue_kernel(desc);

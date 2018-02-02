@@ -7,7 +7,6 @@
 
 // host stub function
 void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
-
   op_set set = desc->set;
   char const *name = desc->name;
   int nargs = 8;
@@ -23,7 +22,6 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
 
   op_arg args[8] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7};
 
-// Compiling to Do JIT
 #ifdef OP2_JIT
   if (!jit_compiled) {
     jit_compile();
@@ -84,9 +82,13 @@ void op_par_loop_res_calc_execute(op_kernel_descriptor *desc) {
   OP_kernels[2].transfer += (float)set->size * arg2.map->dim * 4.0f;
 }
 
+// host stub function
 void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
                           op_arg arg1, op_arg arg2, op_arg arg3, op_arg arg4,
                           op_arg arg5, op_arg arg6, op_arg arg7) {
+
+  int nargs = 8;
+  op_arg args[8];
 
   op_kernel_descriptor *desc =
       (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
@@ -95,7 +97,7 @@ void op_par_loop_res_calc(char const *name, op_set set, op_arg arg0,
   desc->device = 1;
   desc->index = 2;
   desc->hash = 5381;
-  desc->hash = ((desc->hash << 5) + desc->hash) + 6;
+  desc->hash = ((desc->hash << 5) + desc->hash) + 2;
 
   // save the arguments
   desc->nargs = 8;

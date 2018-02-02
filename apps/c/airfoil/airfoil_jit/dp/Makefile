@@ -264,8 +264,11 @@ airfoil_mpi_genseq_jit:  jit_const.h
 		-c ./seq/bres_calc_seqkernel_rec.cpp -o ./seq/bres_calc_seqkernel_rec.o -fPIC
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) -Iseq  -I. \
                 -c ./seq/update_seqkernel_rec.cpp -o ./seq/update_seqkernel_rec.o -fPIC
+	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) -Iseq  -I. \
+		-c ./seq/save_soln_seqkernel_rec.cpp -o ./seq/save_soln_seqkernel_rec.o -fPIC
 		$(MPICPP) seq/adt_calc_seqkernel_rec.o seq/bres_calc_seqkernel_rec.o \
-		seq/res_calc_seqkernel_rec.o seq/update_seqkernel_rec.o -shared -o ./seq/airfoil_seqkernel_rec.so
+		seq/res_calc_seqkernel_rec.o seq/update_seqkernel_rec.o ./seq/save_soln_seqkernel_rec.o \
+		-shared -o ./seq/airfoil_seqkernel_rec.so
 
 
 #
