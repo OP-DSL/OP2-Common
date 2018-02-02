@@ -32,45 +32,35 @@
 import sys
 import re
 import datetime
+import os
+
+sys.path.append('./aot') #code generators for head of time compilation
+sys.path.append('./jit') #code generators for just in time compilation
+
 
 #import openmp code generation function
-import op2_gen_openmp
-from op2_gen_openmp import *
-import op2_gen_openmp2
-from op2_gen_openmp2 import *
-import op2_gen_openmp3
-from op2_gen_openmp3 import *
+from aot.op2_gen_openmp import op2_gen_openmp
+from aot.op2_gen_openmp2 import op2_gen_openmp2
+from aot.op2_gen_openmp3 import op2_gen_openmp3
 
-import op2_gen_openacc
-from op2_gen_openacc import *
-
-import op2_gen_openmp4
-from op2_gen_openmp4 import *
-
-
+#import openmp4 code generation function
+from aot.op2_gen_openmp4 import op2_gen_openmp4
 
 #import mpiseq code generation function
-import op2_gen_mpiseq
-from op2_gen_mpiseq import *
-import op2_gen_mpiseq2
-from op2_gen_mpiseq2 import *
-import op2_gen_mpiseq3
-from op2_gen_mpiseq3 import *
-import op2_gen_mpivec
-from op2_gen_mpivec import *
-
+from aot.op2_gen_mpiseq import op2_gen_mpiseq
+from aot.op2_gen_mpiseq2 import op2_gen_mpiseq2
+from aot.op2_gen_mpiseq3 import op2_gen_mpiseq3
+from aot.op2_gen_mpivec import op2_gen_mpivec
 
 #import cuda code generation function
-import op2_gen_cuda
-from op2_gen_cuda import *
-import op2_gen_cuda_gbl
-from op2_gen_cuda_gbl import *
-import op2_gen_cuda_permute
-from op2_gen_cuda_permute import *
-import op2_gen_cudaINC
-from op2_gen_cudaINC import *
-import op2_gen_cuda_old
-from op2_gen_cuda_old import *
+from aot.op2_gen_cuda import op2_gen_cuda
+from aot.op2_gen_cuda_gbl import op2_gen_cuda_gbl
+from aot.op2_gen_cuda_permute import op2_gen_cuda_permute
+from aot.op2_gen_cudaINC import op2_gen_cudaINC
+from aot.op2_gen_cuda_old import op2_gen_cuda_old
+
+#import openacc code generation function
+from aot.op2_gen_openacc import op2_gen_openacc
 
 
 #

@@ -12,7 +12,7 @@
 import re
 import datetime
 import os
-import util 
+import util
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -147,7 +147,7 @@ replace_soa = util.replace_soa
 find_function_calls=util.find_function_calls
 
 
-def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
+def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -333,12 +333,12 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
             code('INTEGER(kind=4) :: opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT')
-            code('!$acc declare create(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)')
+            code('!$omp declare target(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)')
       dir_soa = -1
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
           code('INTEGER(kind=4) :: direct_stride_OP2CONSTANT')
-          code('!$acc declare create(direct_stride_OP2CONSTANT)')
+          code('!$omp declare target(direct_stride_OP2CONSTANT)')
           dir_soa = g_m
           break
 
@@ -371,8 +371,6 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
       text = text.replace('subroutine '+name, 'subroutine '+name+'_gpu')
 
-      if not host_exec:
-        text = text.replace(')\n',')\n!$acc routine seq\n',1)
       using_npdes = 0
       for g_m in range(0,nargs):
         if var[g_m] == 'npdes':
@@ -387,12 +385,11 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
         if plus_kernels == '':
           text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
-          
+
         text = text + '\n' + plus_kernels
         for fun in util.funlist:
           regex = re.compile('\\b'+fun+'\\b',re.I)
           text = regex.sub(fun+'_gpu',text)
-          code('!$acc routine('+fun+'_gpu)')
 
         if plus_kernels <> '':
           print name
@@ -427,17 +424,14 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       j = i + 10 + text[i+10:].find('SUBROUTINE '+name) + 11 + len(name)
       text = text[i:j]+'\n\n'
       text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,2,re.IGNORECASE)
-      if not host_exec:
-        text = text.replace(')\n',')\n!$acc routine seq\n',1)
       text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
       file_text += text
     else:
       comm('user function')
       fid = open(name+'.inc', 'r')
       text = fid.read()
-      text = re.sub(r'subroutine\s*'+name, r'subroutine '+name+'_gpu',text,1,re.IGNORECASE)
       text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
-      text = text.replace(')\n',')\n!$acc routine seq\n',1)
+      text = text.replace(name, name+'_gpu',1)
       code(text)
 
 
@@ -455,6 +449,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       if invinds[g_m] in needDimList:
         code('& opDat'+str(invinds[g_m]+1)+'Dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+      code('& opDat'+str(invinds[g_m]+1)+'Size, &')
     for g_m in range(0,nargs):
       if maps[g_m] <> OP_MAP:
         if g_m in needDimList:
@@ -469,27 +464,32 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     if ninds > 0:
       code('& col_reord, set_size, &')
-    code('& bottom,top)')
+    code('& bottom,top,set_size_full)')
 
     code('implicit none')
+    if ninds>0:
+      code('INTEGER(kind=4) set_size')
+      code('INTEGER(kind=4) col_reord(set_size)')
+    code('INTEGER(kind=4) set_size_full')
     if nopts>0:
       code('INTEGER(kind=4), VALUE :: optflags')
     for g_m in range(0,ninds):
+      code('INTEGER(kind=4) opDat'+str(invinds[g_m]+1)+'Size')
       if invinds[g_m] in needDimList:
         code('INTEGER(kind=4) opDat'+str(invinds[g_m]+1)+'Dim')
       if soaflags[invinds[g_m]]:
-        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local(*)')
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+'*opDat'+str(invinds[g_m]+1)+'Size)')
       else:
-        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+        code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',opDat'+str(invinds[g_m]+1)+'Size)')
     for g_m in range(0,nargs):
       if maps[g_m] <> OP_MAP:
         if g_m in needDimList:
           code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
         if soaflags[g_m]:
-          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(*)')
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+'*set_size_full)')
         else:
-          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',set_size_full)')
       elif maps[g_m] == OP_GBL:
         if accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE and dims[g_m].isdigit() and int(dims[g_m])==1:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local')
@@ -500,12 +500,9 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
+          code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim*set_size)')
 
-    if ninds>0:
-      code('INTEGER(kind=4) col_reord(*)')
-      code('INTEGER(kind=4) set_size')
 
     if not host_exec:
       #when functions call functions, we can no longer reliably do SoA, therefore we need to stage everything in registers
@@ -524,7 +521,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           for d in range(0,int(dims[g_m])):
             code(typs[g_m]+' opDat'+str(g_m+1)+'Local_'+str(d+1))
           code(typs[g_m]+' opDat'+str(g_m+1)+'LocalArr('+dims[g_m]+')')
-          
+
 
     code('INTEGER(kind=4) bottom,top,i1,i2')
     if nmaps > 0:
@@ -547,24 +544,24 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
     code('')
 
-    line = '!$acc parallel loop independent gang vector &\n'
+    line = '!$omp target teams distribute parallel do &\n'
     for g_m in range(0,ninds):
-      line = line + '!$acc& deviceptr(opDat'+str(invinds[g_m]+1)+'Local) &\n'
+      line = line + '!$omp& map(to:opDat'+str(invinds[g_m]+1)+'Local) &\n'
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
-        line = line + '!$acc& deviceptr(opDat'+str(g_m+1)+'Local) &\n'
+        line = line + '!$omp& map(to:opDat'+str(g_m+1)+'Local) &\n'
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          line = line + '!$acc& deviceptr(opDat'+str(invinds[inds[g_m]-1]+1)+'Map) &\n'
+          line = line + '!$omp& map(to:opDat'+str(invinds[inds[g_m]-1]+1)+'Map) &\n'
     if ninds > 0:
-      line = line + '!$acc& deviceptr(col_reord) private(i1) &\n'
+      line = line + '!$omp& map(to:col_reord) private(i1) &\n'
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
-          line = line + '!$acc& private(map'+str(mapinds[g_m]+1)+'idx) &\n'
+          line = line + '!$omp& private(map'+str(mapinds[g_m]+1)+'idx) &\n'
 
 
     if not host_exec:
@@ -572,28 +569,28 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
         if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
           if int(dims[g_m])==1:
             if accs[g_m] == OP_INC:
-              line = line + '!$acc& reduction(+:'+'opDat'+str(g_m+1)+'Local) &\n'
+              line = line + '!$omp& reduction(+:'+'opDat'+str(g_m+1)+'Local) map(tofrom:opDat'+str(g_m+1)+'Local) &\n'
             if accs[g_m] == OP_MIN:
-              line = line + '!$acc& reduction(min:'+'opDat'+str(g_m+1)+'Local) &\n'
+              line = line + '!$omp& reduction(min:'+'opDat'+str(g_m+1)+'Local) map(tofrom:opDat'+str(g_m+1)+'Local) &\n'
             if accs[g_m] == OP_MAX:
-              line = line + '!$acc& reduction(max:'+'opDat'+str(g_m+1)+'Local) &\n'
+              line = line + '!$omp& reduction(max:'+'opDat'+str(g_m+1)+'Local) map(tofrom:opDat'+str(g_m+1)+'Local) &\n'
           else:
             for d in range(0,int(dims[g_m])):
               if accs[g_m] == OP_INC:
-                line = line + '!$acc& reduction(+:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
+                line = line + '!$omp& reduction(+:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') map(tofrom:opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
               if accs[g_m] == OP_MIN:
-                line = line + '!$acc& reduction(min:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
+                line = line + '!$omp& reduction(min:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') map(tofrom:opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
               if accs[g_m] == OP_MAX:
-                line = line + '!$acc& reduction(max:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
+                line = line + '!$omp& reduction(max:'+'opDat'+str(g_m+1)+'Local_'+str(d+1)+') map(tofrom:opDat'+str(g_m+1)+'Local_'+str(d+1)+') &\n'
       if stage_soa>0:
-        line = line + '!$acc& private(i3) &\n'
+        line = line + '!$omp& private(i3) &\n'
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
-          line = line + '!$acc& private(opDat'+str(g_m+1)+'Staged) &\n'
+          line = line + '!$omp& private(opDat'+str(g_m+1)+'Staged) &\n'
 
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
-        line = line + '!$acc& private(opDat'+str(g_m+1)+'LocalArr) &\n'
+        line = line + '!$omp& private(opDat'+str(g_m+1)+'LocalArr) &\n'
     line = line[:-2]
     if not host_exec:
       code(line)
@@ -706,6 +703,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
     depth = depth - 2
     ENDDO()
+    code('!$omp end target teams distribute parallel do')
     if not host_exec:
       code('')
       for g_m in range(0,nargs):
@@ -773,7 +771,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       code('LOGICAL :: firstTime_'+name+' = .TRUE.')
       code('type ( c_ptr )  :: planRet_'+name)
       code('type ( op_plan ) , POINTER :: actualPlan_'+name)
-      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: col_reord_'+name) 
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: col_reord_'+name)
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: offset_'+name)
       code('INTEGER(kind=4), DIMENSION(1:'+str(nargs)+') :: indirectionDescriptorArray')
       code('INTEGER(kind=4) :: numberOfIndirectOpDats')
@@ -826,12 +824,12 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
             k = k + [mapnames[g_m]]
             IF('(calledTimes.EQ.0).OR.(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg'+str(g_m+1)+'))')
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
-            code('!$acc update device(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)') 
+            code('!$omp target update to(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)')
             ENDIF()
       if dir_soa<>-1:
           IF('(calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
           code('direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(dir_soa+1)+')')
-          code('!$acc update device(direct_stride_OP2CONSTANT)')
+          code('!$omp target update to(direct_stride_OP2CONSTANT)')
           ENDIF()
 
 
@@ -854,7 +852,6 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
       code('exec_size = opSetCore%size + opSetCore%exec_size')
       code('numberOfIndirectOpDats = '+str(ninds))
-      code('partitionSize = 128 !no effect here, just have to set')
       code('')
       code('partitionSize=0')
       code('planRet_'+name+' = FortranPlanCaller( &')
@@ -909,7 +906,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 
       code('offset_b = offset_'+name+'(i1 + 1)')
       code('nelem = offset_'+name+'(i1 + 1 + 1)')
-      
+
       code('CALL op_wrap_'+name+'( &')
       if nopts>0:
         code('& optflags, &')
@@ -917,6 +914,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
         if invinds[g_m] in needDimList:
           code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+        code('& getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+'), &')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           if g_m in needDimList:
@@ -928,7 +926,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
-            code('& opDat'+str(g_m+1)+'Local(1), &')
+            code('& opDat'+str(g_m+1)+'Local, &')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -936,7 +934,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
             k = k + [mapnames[g_m]]
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-      code('& col_reord_'+name+', exec_size, offset_b, nelem )')
+      code('& col_reord_'+name+', exec_size, offset_b, nelem, exec_size+opSetCore%nonexec_size )')
 
       if reduct and not host_exec:
         IF('i1 .EQ. actualPlan_'+name+'%ncolors_owned -1')
@@ -956,6 +954,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
         if invinds[g_m] in needDimList:
           code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
+        code('& getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+'), &')
       for g_m in range(0,nargs):
         if g_m in needDimList:
           code('& opArg'+str(g_m+1)+'%dim, &')
@@ -965,8 +964,8 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
           if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
-            code('& opDat'+str(g_m+1)+'Local(1), &')
-      code('& sliceStart, sliceEnd)')
+            code('& opDat'+str(g_m+1)+'Local, &')
+      code('& sliceStart, sliceEnd, opSetCore%size+opSetCore%exec_size+opSetCore%nonexec_size)')
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
     if host_exec:
@@ -1035,11 +1034,11 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
 ##########################################################################
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_acckernel.F95','w')
+      fid = open(name+'_omp4kernel.F95','w')
     elif bookleaf:
-      fid = open(prefixes[prefix_i]+name+'_acckernel.f90','w')
+      fid = open(prefixes[prefix_i]+name+'_omp4kernel.F90','w')
     else:
-      fid = open(name+'_acckernel.F90','w')
+      fid = open(name+'_omp4kernel.F90','w')
     date = datetime.datetime.now()
     fid.write('!\n! auto-generated by op2.py\n!\n\n')
     fid.write(file_text.strip())

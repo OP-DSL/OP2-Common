@@ -9,6 +9,7 @@ program AIRFOIL
   use RES_CALC_MODULE
   use BRES_CALC_MODULE
   use UPDATE_MODULE
+
   use OP2_CONSTANTS
   use AIRFOIL_SEQ
   use IO
@@ -111,7 +112,8 @@ program AIRFOIL
   call op_print ("Declaring OP2 constants")
   call op_print ('Initialising constants')
   call initialise_constants ( )
-  call op_dump_to_hdf5("new_grid_out.h5");
+  call op_dump_to_hdf5("new_grid_out.h5")
+
   call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
 
   ncelli  = op_get_size(cells)
