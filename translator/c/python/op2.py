@@ -39,23 +39,24 @@ import re
 import datetime
 import os
 
+sys.path.append('./aot')
 sys.path.append('./jit')
 
 
 # Import MPI+SEQ and MPI+autovectorised SEQ
-from op2_gen_seq import op2_gen_seq
-from op2_gen_mpi_vec import op2_gen_mpi_vec
+from aot.op2_gen_seq import op2_gen_seq
+from aot.op2_gen_mpi_vec import op2_gen_mpi_vec
 
 # import OpenMP and CUDA code generation functions
-from op2_gen_openmp_simple import op2_gen_openmp_simple
-from op2_gen_openmp import op2_gen_openmp
+from aot.op2_gen_openmp_simple import op2_gen_openmp_simple
+from aot.op2_gen_openmp import op2_gen_openmp
 
-from op2_gen_openacc import op2_gen_openacc
+from aot.op2_gen_openacc import op2_gen_openacc
 
-from op2_gen_cuda import op2_gen_cuda
-from op2_gen_cuda_simple import op2_gen_cuda_simple
-from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
-from op2_gen_openmp4 import op2_gen_openmp4
+from aot.op2_gen_cuda import op2_gen_cuda
+from aot.op2_gen_cuda_simple import op2_gen_cuda_simple
+from aot.op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
+from aot.op2_gen_openmp4 import op2_gen_openmp4
 
 from op2_gen_common import *
 

@@ -261,7 +261,7 @@ def op2_gen_seq(master, date, consts, kernels):
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]
           first = first[0]
-        
+
           indent = ' '*(depth+2)
           for k in range(0,sum(v)):
             line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
@@ -274,7 +274,7 @@ def op2_gen_seq(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+' * n]'
-        if maps[g_m] == OP_MAP: 
+        if maps[g_m] == OP_MAP:
           if vectorised[g_m]:
             if g_m+1 in unique_args:
                 line = line + indent + 'arg'+str(g_m)+'_vec'
@@ -282,7 +282,7 @@ def op2_gen_seq(master, date, consts, kernels):
             line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
-        if g_m < nargs-1: 
+        if g_m < nargs-1:
           if g_m+1 in unique_args and not g_m+1 == unique_args[-1]:
             line = line +','
         else:
