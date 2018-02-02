@@ -9,7 +9,6 @@ program AIRFOIL
   use RES_CALC_MODULE
   use BRES_CALC_MODULE
   use UPDATE_MODULE
-
   use OP2_CONSTANTS
   use AIRFOIL_SEQ
   use IO
@@ -25,7 +24,7 @@ program AIRFOIL
   integer(4), parameter :: maxcell = (9702+1)
   integer(4), parameter :: maxedge = 19502
 
-  integer(4), parameter :: iterationNumber = 2000
+  integer(4), parameter :: iterationNumber = 1000
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter, qdim
   real(8) :: ncellr
@@ -110,11 +109,9 @@ program AIRFOIL
   end if
 
   call op_print ("Declaring OP2 constants")
-
   call op_print ('Initialising constants')
   call initialise_constants ( )
   call op_dump_to_hdf5("new_grid_out.h5");
-
   call op_partition ('PTSCOTCH','KWAY', edges, pecell, p_x)
 
   ncelli  = op_get_size(cells)

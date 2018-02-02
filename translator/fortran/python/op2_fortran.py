@@ -425,21 +425,24 @@ for a in range(init_ctr,len(sys.argv)):
   str(sys.argv[a])
 
   src_file = str(sys.argv[a])
-  f = open(src_file,'r')
-  text = f.read()
-  if src_file.split('.')[1].upper() == 'F90' or src_file.split('.')[1].upper() == 'F95':
-    file_format = 90
-    cont = '& '
-    cont_end = ' &'
-    comment = '! '
-  elif src_file.split('.')[1].upper() == 'F77' or src_file.split('.')[1].upper() == 'F':
-    file_format = 77
-    cont = '& '
-    cont_end = ''
-    comment = 'C '
+  if not os.path.isfile(src_file):
+      continue
   else:
-    print "Error in parsing file: unsupported file format, only *.F90, *.F95 or *.F77 supported"
-    exit()
+    f = open(src_file,'r')
+    text = f.read()
+    if src_file.split('.')[1].upper() == 'F90' or src_file.split('.')[1].upper() == 'F95':
+      file_format = 90
+      cont = '& '
+      cont_end = ' &'
+      comment = '! '
+    elif src_file.split('.')[1].upper() == 'F77' or src_file.split('.')[1].upper() == 'F':
+      file_format = 77
+      cont = '& '
+      cont_end = ''
+      comment = 'C '
+    else:
+      print "Error in parsing file: unsupported file format, only *.F90, *.F95 or *.F77 supported"
+      exit()
 
 ############ check for op_init/op_exit/op_partition/op_hdf5 calls ########
 
@@ -922,31 +925,40 @@ if npart==0 and nhdf5>0:
 
 ########## finally, generate target-specific kernel files ################
 
-#MPI+SEQ
-#op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
-op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+if "JIT" in sys.argv:
+  print "Generating JIT version of parallelizations"
 
-#OpenMP
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
-#op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
-#op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
+  #code generator for sequential execution on a CPU (+MPI)
 
-#CUDA
-#op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
-#op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
-op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
-#op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
-#op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
-#OpenACC
-op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+else:
+  print "Generating regular (non-JIT) version of parallelizations"
 
-#OpenMP4 offload
-op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+  #MPI+SEQ
+  ##op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
+  #op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
+  ##op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
-#if hydra:
-#  op2_gen_cuda_hydra() #includes several Hydra specific features
+  #OpenMP
+  #op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+  ##op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
+  ##op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
+
+  #CUDA
+  ##op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
+  ##op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
+  #op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+  ##op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
+  ##op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
+
+  #OpenACC
+  #op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+
+  #OpenMP4 offload
+  #op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+
+  #if hydra:
+  #  op2_gen_cuda_hydra() #includes several Hydra specific features
 
 ##########################################################################
 #                      ** END MAIN APPLICATION **

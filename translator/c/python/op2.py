@@ -39,8 +39,8 @@ import re
 import datetime
 import os
 
-sys.path.append('./aot')
-sys.path.append('./jit')
+sys.path.append('./aot') #code generators for head of time compilation
+sys.path.append('./jit') #code generators for just in time compilation
 
 
 # Import MPI+SEQ and MPI+autovectorised SEQ
