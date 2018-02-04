@@ -14,6 +14,9 @@ CONTAINS
 
 #ifndef OP2_JIT
 
+! user function
+#include "res_calc.inc"
+
 SUBROUTINE op_wrap_res_calc( &
   & opDat1Local, &
   & opDat3Local, &
@@ -54,6 +57,7 @@ SUBROUTINE op_wrap_res_calc( &
     & )
   END DO
 END SUBROUTINE
+
 SUBROUTINE res_calc_host( userSubroutine, set, &
   & opArg1, &
   & opArg2, &
