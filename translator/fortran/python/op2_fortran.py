@@ -816,7 +816,7 @@ for a in range(init_ctr,len(sys.argv)):
             line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
         line = line + '\n'+indent
 
-      fid.write(line[2:len(line)]);
+      fid.write(line[2:len(line)].strip());
       if bookleaf:
         loc_old = locs[loc] # keep the original include
       else:
@@ -825,7 +825,7 @@ for a in range(init_ctr,len(sys.argv)):
 
     if locs[loc] in loc_consts:# stripping the op_decl_consts -- as there is no implementation required
       line = ''
-      fid.write(line);
+      fid.write(line)
       endofcall = text.find('\n', locs[loc])
       loc_old = endofcall+1
       continue

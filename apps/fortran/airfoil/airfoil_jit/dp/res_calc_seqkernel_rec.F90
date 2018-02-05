@@ -57,6 +57,7 @@ SUBROUTINE op_wrap_res_calc( &
     & )
   END DO
 END SUBROUTINE
+
 SUBROUTINE res_calc_host_rec( userSubroutine, set, &
   & opArg1, &
   & opArg2, &
@@ -175,7 +176,6 @@ SUBROUTINE res_calc_host_rec( userSubroutine, set, &
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF
-
 
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 
