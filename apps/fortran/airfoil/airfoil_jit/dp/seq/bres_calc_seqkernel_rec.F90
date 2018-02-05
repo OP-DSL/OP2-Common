@@ -7,12 +7,11 @@ USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
-use, intrinsic :: iso_c_binding
+
 
 CONTAINS
 
 #include "jit_const.h"
-
 
 ! user function
 #include "bres_calc.inc"
@@ -57,8 +56,9 @@ SUBROUTINE op_wrap_bres_calc( &
     & )
   END DO
 END SUBROUTINE
+
 SUBROUTINE bres_calc_host_rec( userSubroutine, set, &
-  & opArg1, &
+& opArg1, &
   & opArg2, &
   & opArg3, &
   & opArg4, &
@@ -66,7 +66,7 @@ SUBROUTINE bres_calc_host_rec( userSubroutine, set, &
   & opArg6 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=10), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1
@@ -193,4 +193,4 @@ SUBROUTINE bres_calc_host_rec( userSubroutine, set, &
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
 END SUBROUTINE
-END MODULE BRES_CALC_MODULE_EXECUTE
+END MODULE

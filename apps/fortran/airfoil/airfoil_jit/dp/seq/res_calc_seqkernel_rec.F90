@@ -7,7 +7,7 @@ USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
-use, intrinsic :: iso_c_binding
+
 
 CONTAINS
 
@@ -59,7 +59,7 @@ SUBROUTINE op_wrap_res_calc( &
 END SUBROUTINE
 
 SUBROUTINE res_calc_host_rec( userSubroutine, set, &
-  & opArg1, &
+& opArg1, &
   & opArg2, &
   & opArg3, &
   & opArg4, &
@@ -69,7 +69,7 @@ SUBROUTINE res_calc_host_rec( userSubroutine, set, &
   & opArg8 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=9), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1
@@ -177,6 +177,7 @@ SUBROUTINE res_calc_host_rec( userSubroutine, set, &
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF
 
+
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 
   call op_timers_core(endTime)
@@ -191,4 +192,4 @@ SUBROUTINE res_calc_host_rec( userSubroutine, set, &
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
 END SUBROUTINE
-END MODULE RES_CALC_MODULE_EXECUTE
+END MODULE
