@@ -5,15 +5,15 @@
 MODULE SAVE_SOLN_MODULE
 USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
-USE OP2_FORTRAN_JIT
-USE AIRFOIL_SEQ
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
 
 CONTAINS
 
-#ifndef OP2_JIT
+! user function
+#include "save_soln.inc"
+
 
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
@@ -32,7 +32,6 @@ SUBROUTINE op_wrap_save_soln( &
     & )
   END DO
 END SUBROUTINE
-
 SUBROUTINE save_soln_host( userSubroutine, set, &
   & opArg1, &
   & opArg2 )
@@ -108,52 +107,3 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
 END SUBROUTINE
 END MODULE
-
-#else !OP2_JIT defined
-
-SUBROUTINE save_soln_host( userSubroutine, set, &
-  & opArg1, &
-  & opArg2 )
-
-  IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
-  type ( op_set ) , INTENT(IN) :: set
-
-  type ( op_arg ) , INTENT(IN) :: opArg1
-  type ( op_arg ) , INTENT(IN) :: opArg2
-
-! Define interface of call-back routine.
-  abstract interface
-  subroutine called_proc (userSubroutine, set, &
-  & opArg1, &
-  & opArg2 ) bind(c)
-
-    USE, intrinsic :: iso_c_binding
-    USE OP2_FORTRAN_DECLARATIONS
-    USE OP2_FORTRAN_RT_SUPPORT
-    USE OP2_CONSTANTS
-    character (kind=c_char), dimension(*), intent(in) :: userSubroutine
-    type ( op_set ) , INTENT(IN) :: set
-    type ( op_arg ) , INTENT(IN) :: opArg1
-    type ( op_arg ) , INTENT(IN) :: opArg2
-
-  end subroutine called_proc
-  end interface
-! End interface of call-back routine
-
-  procedure(called_proc), bind(c), pointer :: proc_save_soln
-
-  IF (.not. JIT_COMPILED) THEN
-    call jit_compile()
-  END IF
-  call c_f_procpointer( proc_addr_save_soln, proc_save_soln )
-
-! call/execute dynamically loaded procedure with the parameters from save_soln_host() signature
-  call proc_save_soln( userSubroutine, set, &
-  & opArg1, &
-  & opArg2 )
-
-END SUBROUTINE
-
-END MODULE
-#endif !OP2_JIT

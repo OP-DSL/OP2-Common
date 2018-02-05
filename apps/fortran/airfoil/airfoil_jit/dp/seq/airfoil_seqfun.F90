@@ -7,6 +7,8 @@ use, intrinsic :: iso_c_binding
 type(c_funptr) :: proc_addr_adt_calc
 type(c_funptr) :: proc_addr_res_calc
 type(c_funptr) :: proc_addr_bres_calc
+type(c_funptr) :: proc_addr_save_soln
+type(c_funptr) :: proc_addr_update
 
 type(c_ptr) :: handle
 
@@ -55,6 +57,20 @@ integer STATUS
     proc_addr_bres_calc=dlsym(handle, "bres_calc_module_execute_mp_bres_calc_host_rec_"//c_null_char)
     if (.not. c_associated(proc_addr_bres_calc))then
       write(*,*) 'Unable to load the procedure bres_calc_module_execute_mp_bres_calc_host_rec_'
+      stop
+    end if
+  end if
+  if(.not. c_associated(proc_addr_save_soln)) then
+    proc_addr_save_soln=dlsym(handle, "save_soln_module_execute_mp_save_soln_host_rec_"//c_null_char)
+    if (.not. c_associated(proc_addr_save_soln))then
+      write(*,*) 'Unable to load the procedure save_soln_module_execute_mp_save_soln_host_rec_'
+      stop
+    end if
+  end if
+  if(.not. c_associated(proc_addr_update)) then
+    proc_addr_update=dlsym(handle, "update_module_execute_mp_update_host_rec_"//c_null_char)
+    if (.not. c_associated(proc_addr_update))then
+      write(*,*) 'Unable to load the procedure update_module_execute_mp_update_host_rec_'
       stop
     end if
   end if

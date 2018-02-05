@@ -151,8 +151,8 @@ airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 
 airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 seq/save_soln_seqkernel.F90 seq/adt_calc_seqkernel.F90 \
         seq/res_calc_seqkernel.F90 seq/bres_calc_seqkernel.F90 seq/update_seqkernel.F90 constants.F90 seq/airfoil_seqfun.F90
-	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
-        seq/save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
+	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 seq/airfoil_seqfun.F90 \
+        seq/save_soln_seqkernel.F90 seq/update_seqkernel.F90 seq/bres_calc_seqkernel.F90 \
         seq/res_calc_seqkernel.F90 seq/adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl -rdynamic
 	$(MPIF90) $(OPT) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \

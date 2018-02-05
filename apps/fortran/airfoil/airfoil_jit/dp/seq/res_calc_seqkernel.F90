@@ -6,14 +6,16 @@ MODULE RES_CALC_MODULE
 USE OP2_FORTRAN_DECLARATIONS
 USE OP2_FORTRAN_RT_SUPPORT
 USE OP2_FORTRAN_JIT
+USE OP2_CONSTANTS
 USE AIRFOIL_SEQ
 USE ISO_C_BINDING
-USE OP2_CONSTANTS
-
 
 CONTAINS
 
 #ifndef OP2_JIT
+
+! user function
+#include "res_calc.inc"
 
 SUBROUTINE op_wrap_res_calc( &
   & opDat1Local, &
@@ -67,7 +69,7 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   & opArg8 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=9), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1
@@ -190,7 +192,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
 END SUBROUTINE
-END MODULE
 
 #else !OP2_JIT defined
 
@@ -217,45 +218,48 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   type ( op_arg ) , INTENT(IN) :: opArg7
   type ( op_arg ) , INTENT(IN) :: opArg8
 
-! Define interface of call-back routine.
+  ! Define interface of call-back routine.
   abstract interface
-  subroutine called_proc (userSubroutine, set, &
-  & opArg1, &
-  & opArg2, &
-  & opArg3, &
-  & opArg4, &
-  & opArg5, &
-  & opArg6, &
-  & opArg7, &
-  & opArg8 ) bind(c)
+      subroutine called_proc (userSubroutine, set, &
+    & opArg1, &
+    & opArg2, &
+    & opArg3, &
+    & opArg4, &
+    & opArg5, &
+    & opArg6, &
+    & opArg7, &
+    & opArg8 ) bind(c)
 
-    USE, intrinsic :: iso_c_binding
-    USE OP2_FORTRAN_DECLARATIONS
-    USE OP2_FORTRAN_RT_SUPPORT
-    USE OP2_CONSTANTS
-    character (kind=c_char), dimension(*), intent(in) :: userSubroutine
-    type ( op_set ) , INTENT(IN) :: set
-    type ( op_arg ) , INTENT(IN) :: opArg1
-    type ( op_arg ) , INTENT(IN) :: opArg2
-    type ( op_arg ) , INTENT(IN) :: opArg3
-    type ( op_arg ) , INTENT(IN) :: opArg4
-    type ( op_arg ) , INTENT(IN) :: opArg5
-    type ( op_arg ) , INTENT(IN) :: opArg6
-    type ( op_arg ) , INTENT(IN) :: opArg7
-    type ( op_arg ) , INTENT(IN) :: opArg8
+      use, intrinsic :: iso_c_binding
+      USE OP2_FORTRAN_DECLARATIONS
+      USE OP2_FORTRAN_RT_SUPPORT
+      USE OP2_CONSTANTS
 
-  end subroutine called_proc
+      !character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+      character(kind=c_char), dimension(*), intent(in) :: userSubroutine
+      type ( op_set ) , INTENT(IN) :: set
+
+      type ( op_arg ) , INTENT(IN) :: opArg1
+      type ( op_arg ) , INTENT(IN) :: opArg2
+      type ( op_arg ) , INTENT(IN) :: opArg3
+      type ( op_arg ) , INTENT(IN) :: opArg4
+      type ( op_arg ) , INTENT(IN) :: opArg5
+      type ( op_arg ) , INTENT(IN) :: opArg6
+      type ( op_arg ) , INTENT(IN) :: opArg7
+      type ( op_arg ) , INTENT(IN) :: opArg8
+
+      end subroutine called_proc
   end interface
-! End interface of call-back routine
+  ! End interface of call-back routine
 
   procedure(called_proc), bind(c), pointer :: proc_res_calc
 
-  IF (.not. JIT_COMPILED) THEN
+  if (.not. JIT_COMPILED) then
     call jit_compile()
-  END IF
-  call c_f_procpointer( proc_addr_res_calc, proc_res_calc )
+  end if
 
-! call/execute dynamically loaded procedure with the parameters from res_calc_host() signature
+  call c_f_procpointer( proc_addr_res_calc, proc_res_calc )
+  ! call/execute dynamically loaded procedure with the parameters from res_calc_host() signature
   call proc_res_calc( userSubroutine, set, &
   & opArg1, &
   & opArg2, &
@@ -268,5 +272,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
 
 END SUBROUTINE
 
-END MODULE
 #endif !OP2_JIT
+
+END MODULE
