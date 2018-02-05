@@ -149,21 +149,21 @@ airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(MPIF90) $(OPT) constants.o input.o airfoil_hdf5.o airfoil_seqfun.o -o airfoil_hdf5_seq \
 	$(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK)
 
-airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
-        res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
+airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 seq/save_soln_seqkernel.F90 seq/adt_calc_seqkernel.F90 \
+        seq/res_calc_seqkernel.F90 seq/bres_calc_seqkernel.F90 seq/update_seqkernel.F90 constants.F90 seq/airfoil_seqfun.F90
 	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
-        save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
-        res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl -rdynamic
+        seq/save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
+        seq/res_calc_seqkernel.F90 seq/adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl -rdynamic
 	$(MPIF90) $(OPT) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
         bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_genseq \
         $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl -rdynamic
 
 genseq_jit:   jit_const.h
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c res_calc_seqkernel_rec.F90 adt_calc_seqkernel_rec.F90 \
-	bres_calc_seqkernel_rec.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c seq/res_calc_seqkernel_rec.F90 seq/adt_calc_seqkernel_rec.F90 \
+	seq/bres_calc_seqkernel_rec.F90 seq/update_seqkernel_rec.F90 seq/save_soln_seqkernel_rec.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_seqkernel_rec.so res_calc_seqkernel_rec.o \
-	adt_calc_seqkernel_rec.o bres_calc_seqkernel_rec.o \
+	adt_calc_seqkernel_rec.o bres_calc_seqkernel_rec.o update_seqkernel_rec.o save_soln_seqkernel_rec.o \
         $(FLINK) -lop2_for_seq -lop2_hdf5
 
 
@@ -278,8 +278,8 @@ airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_a
 
 
 clean:
-	rm -f *.o
-	rm -f *.mod
+	rm -f *.o seq/*.o
+	rm -f *.mod seq/*.mod
 	rm -f $(EXEC)
 	rm -f *~
 	rm -f *.so
@@ -289,4 +289,4 @@ clean:
 	rm -f airfoil_hdf5_openmp airfoil_hdf5_mpi_openmp airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
 	rm -f airfoil_hdf5_mpi_vec airfoil_hdf5_vec
-	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda *.optrpt
+	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda *.optrpt seq/*.optrpt
