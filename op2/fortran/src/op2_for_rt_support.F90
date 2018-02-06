@@ -367,6 +367,9 @@ module OP2_Fortran_RT_Support
     subroutine op_barrier () BIND(C,name='op_barrier')
     end subroutine op_barrier
 
+    subroutine op_mpi_barrier () BIND(C,name='op_mpi_barrier')
+    end subroutine op_mpi_barrier
+
     integer(kind=c_int) function setKernelTime (id, name, kernelTime, transfer, transfer2, count) BIND(C,name='setKernelTime')
 
       use, intrinsic :: ISO_C_BINDING

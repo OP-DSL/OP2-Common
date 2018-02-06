@@ -3,6 +3,7 @@
 !
 
 module airfoil_hdf5_seq
+use OP2_Fortran_RT_Support
 USE OP2_FORTRAN_JIT
 use OP2_CONSTANTS
 use, intrinsic :: iso_c_binding
@@ -27,8 +28,11 @@ IMPLICIT NONE
   integer STATUS
 
 ! compile *_seqkernel_rec.F90 using system command
-  write(*,*) "JIT compiling op_par_loops"
-  call execute_command_line ("make -j genseq_jit", exitstat=STATUS)
+  IF (op_is_root() .eq. 1) then
+    write(*,*) "JIT compiling op_par_loops"
+    call execute_command_line ("make -j genseq_jit", exitstat=STATUS)
+  end if
+  call op_mpi_barrier()
 
 ! dynamically load airfoil_hdf5_seqkernel_rec.so
   handle=dlopen("./airfoil_hdf5_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
@@ -78,6 +82,7 @@ IMPLICIT NONE
   END IF
 
   JIT_COMPILED = .true.
+  call op_mpi_barrier()
 
 end subroutine jit_compile
 END MODULE airfoil_hdf5_seq
