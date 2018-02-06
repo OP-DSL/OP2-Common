@@ -150,11 +150,11 @@ airfoil_hdf5_seq: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK)
 
 airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 seq/save_soln_seqkernel.F90 seq/adt_calc_seqkernel.F90 \
-        seq/res_calc_seqkernel.F90 seq/bres_calc_seqkernel.F90 seq/update_seqkernel.F90 constants.F90 seq/airfoil_seqfun.F90
-	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 seq/airfoil_seqfun.F90 \
+        seq/res_calc_seqkernel.F90 seq/bres_calc_seqkernel.F90 seq/update_seqkernel.F90 constants.F90 seq/airfoil_hdf5_seqkernels.F90
+	$(MPIF90) $(OPT) $(FMODS) -c constants.F90 input.F90 seq/airfoil_hdf5_seqkernels.F90 \
         seq/save_soln_seqkernel.F90 seq/update_seqkernel.F90 seq/bres_calc_seqkernel.F90 \
         seq/res_calc_seqkernel.F90 seq/adt_calc_seqkernel.F90 airfoil_hdf5_op.F90 -ldl -rdynamic
-	$(MPIF90) $(OPT) input.o constants.o airfoil_seqfun.o \
+	$(MPIF90) $(OPT) input.o constants.o airfoil_hdf5_seqkernels.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
         bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_genseq \
         $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl -rdynamic
@@ -162,7 +162,7 @@ airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 seq/save_soln_seqkernel.F90 s
 genseq_jit:   jit_const.h
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c seq/res_calc_seqkernel_rec.F90 seq/adt_calc_seqkernel_rec.F90 \
 	seq/bres_calc_seqkernel_rec.F90 seq/update_seqkernel_rec.F90 seq/save_soln_seqkernel_rec.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_seqkernel_rec.so res_calc_seqkernel_rec.o \
+	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_hdf5_seqkernel_rec.so res_calc_seqkernel_rec.o \
 	adt_calc_seqkernel_rec.o bres_calc_seqkernel_rec.o update_seqkernel_rec.o save_soln_seqkernel_rec.o \
         $(FLINK) -lop2_for_seq -lop2_hdf5
 
