@@ -30,6 +30,7 @@ IMPLICIT NONE
 ! compile *_seqkernel_rec.F90 using system command
   IF (op_is_root() .eq. 1) then
     write(*,*) "JIT compiling op_par_loops"
+    !call system ("make -j genseq_jit")
     call execute_command_line ("make -j genseq_jit", exitstat=STATUS)
   end if
   call op_mpi_barrier()
