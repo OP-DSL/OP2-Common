@@ -11,8 +11,6 @@ USE OP2_CONSTANTS
 
 CONTAINS
 
-#include "jit_const.h"
-
 ! user function
 #include "res_calc.inc"
 

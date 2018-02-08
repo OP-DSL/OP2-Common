@@ -131,7 +131,7 @@ subroutine initialise_flow_field ( ncell, q, res )
 end subroutine initialise_flow_field
 
 subroutine initialise_constants ( )
-  use OP2_Fortran_Declarations
+
   ! local variables
   real(8) :: p, r, u, e
 
@@ -152,15 +152,6 @@ subroutine initialise_constants ( )
   qinf(2) = r * u
   qinf(3) = 0.0
   qinf(4) = r * e
-
-  call op_decl_const(gam, 1, "gam")
-  call op_decl_const(gm1, 1, "gm1")
-  call op_decl_const(cfl, 1, "cfl")
-  call op_decl_const(eps, 1, "eps")
-  call op_decl_const(mach, 1, "mach")
-  call op_decl_const(alpha, 1, "alpha")
-  call op_decl_const(qinf, 4, "qinf")
-  call op_generate_consts_header()
 #ifdef OP2_WITH_OMP4
 !$omp target update to(gam, gm1, cfl, eps, mach, alpha, qinf)
 #endif

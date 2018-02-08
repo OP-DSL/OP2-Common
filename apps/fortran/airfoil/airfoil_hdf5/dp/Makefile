@@ -189,7 +189,7 @@ airfoil_hdf5_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF 
 	$(FC) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) cudaConfigurationParams.o constants.o input.o airfoil_seqfun.o \
 		save_soln_kernel.o update_kernel.CUF bres_calc_kernel.o \
 		res_calc_kernel.CUF adt_calc_kernel.o airfoil_hdf5_op.F90 -o airfoil_hdf5_cuda \
-		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)
+		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK)
 
 airfoil_hdf5_mpi: constants.F90 airfoil_seqfun.F90 airfoil_hdf5.F90 input.F90
 	$(MPIF90) $(OPT) $(FMPI_MODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil_hdf5.F90

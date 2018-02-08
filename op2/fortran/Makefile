@@ -168,8 +168,8 @@ ifeq ($(OP2_COMPILER),pgi)
   PGFC            = pgfortran
   PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
-  CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
-  CFLAGS_SLOW     = -O1 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
+  CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE -DOP2_WITH_CUDAFOR
+  CFLAGS_SLOW     = -O1 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE -DOP2_WITH_CUDAFOR
   MPICC           = $(CC) -I$(MPI_INC) -L$(MPI_LIB)
   MPICXX          = $(CXX) -I$(MPI_INC) -L$(MPI_LIB)
   MPIF90          = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -362,17 +362,17 @@ f_cuda: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c \
 	$(F_OP2_SRC)/op2_hdf5_dummy.c directories
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
-	$(CC) $(CCFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
+	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_jit.F90 -o $(F_OP2_OBJ)/op2_for_jit.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(F_OP2_SRC)/ $(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -I$(F_OP2_SRC)/ -I$(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_lazy.o \
@@ -399,15 +399,15 @@ f_openmp4: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(C_OP2_INC)/op_rt_support.h $(C_OP2_SRC)/core/op_rt_support.c \
 	$(F_OP2_SRC)/op_dummy_wrappers.c \
 	$(F_OP2_SRC)/op2_hdf5_dummy.c directories
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(OMP_OFFLOAD) -c $(C_OP2_SRC)/openmp4/op_openmp4_decl.c -o $(F_OP2_OBJ)/op_openmp4_decl.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(OMP_OFFLOAD) -c $(C_OP2_SRC)/openmp4/op_openmp4_rt_support.c -o $(F_OP2_OBJ)/op_openmp4_rt_support.o
-	$(CC) $(CCFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) $(OMP_OFFLOAD) -c $(C_OP2_SRC)/openmp4/op_openmp4_decl.c -o $(F_OP2_OBJ)/op_openmp4_decl.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) $(OMP_OFFLOAD) -c $(C_OP2_SRC)/openmp4/op_openmp4_rt_support.c -o $(F_OP2_OBJ)/op_openmp4_rt_support.o
+	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_jit.F90 -o $(F_OP2_OBJ)/op2_for_jit.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
+	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
 	$(CC) $(CFLAGS) $(NO_MPI_MACRO) -I $(F_OP2_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op_dummy_wrappers.c -o $(F_OP2_OBJ)/op_dummy_wrappers.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_dummy_singlenode.c -o $(F_OP2_OBJ)/op_dummy_singlenode.o
 	ar -r $(F_OP2_LIB)/libop2_for_openmp4.a \
