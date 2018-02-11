@@ -86,6 +86,11 @@ void prepareScratch(op_arg *args, int nargs, int nthreads) {
   }
 }
 
+void op_decl_const_char(int dim, char const *type, int typeSize, char *data,
+                            char const *name) {
+    op_decl_const_core(dim, type, typeSize, data, name);
+}
+
 #ifdef __cplusplus
 }
 #endif
