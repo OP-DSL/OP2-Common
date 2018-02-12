@@ -119,17 +119,18 @@ ifeq ($(OP2_COMPILER),cray)
   MPIFLAGS = $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
+<<<<<<< HEAD
   ifdef DEBUG
     CCFLAGS  = -x c++ -O0 -I$(OMPTARGET_LIBS)/../include
   else
     CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../include
   endif
-  CXX	    = clang++
-  CXXFLAGS  = $(CCFLAGS)
-  MPICXX    = $(MPICPP_PATH)
-  MPIFLAGS  = $(CXXFLAGS)
-  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
+  CXX	   := clang++
+  CXXFLAGS := $(CCFLAGS)
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
+  MPICC   := $(MPI_INSTALL_PATH)/bin/mpicc
+  MPIFLAGS := $(CXXFLAGS)
+  OMP4FLAGS := -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
