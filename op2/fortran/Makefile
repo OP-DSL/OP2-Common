@@ -58,7 +58,7 @@ MPI_LIB = $(MPI_INSTALL_PATH)/lib
 # set NV_ARCH to select the correct one
 ifndef NV_ARCH
   MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
-  NV_ARCH=Kepler
+  NV_ARCH=Pascal
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
