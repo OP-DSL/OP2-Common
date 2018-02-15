@@ -466,4 +466,4 @@ convert_mesh_mpi: convert_mesh_mpi.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt
+		rm -f airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt
