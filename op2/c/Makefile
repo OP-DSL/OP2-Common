@@ -1,13 +1,16 @@
 #
 # The following environment variables should be predefined:
 #
+# OP2_COMPILER (gnu,intel,etc)
+#
+# ... and optionally the following. If not defined, then 
+# they must be locatable via PATH variables:
+#
 # CUDA_INSTALL_PATH
 # PARMETIS_INSTALL_PATH
 # PTSCOTCH_INSTALL_PATH
 # HDF5_INSTALL_PATH
 # MPI_INSTALL_PATH
-#
-# OP2_COMPILER (gnu,intel,etc)
 #
 
 #
@@ -19,58 +22,102 @@ INC = include
 LIB = lib
 OBJ = obj
 
-CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
+ifdef CUDA_INSTALL_PATH
+  CUDA_INC := -I$(CUDA_INSTALL_PATH)/include
+endif
 
 #
 # compiler settings
 #
 
+#
+# Locate MPI compilers:
+#
+ifdef MPI_INSTALL_PATH
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpic++)")
+    MPICPP := $(MPI_INSTALL_PATH)/bin/mpic++
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
+    MPICPP := $(MPI_INSTALL_PATH)/intel64/bin/mpic++
+  else
+    MPICPP := mpic++
+  endif
+  endif
+
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicxx)")
+    MPICXX := $(MPI_INSTALL_PATH)/bin/mpicxx
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
+    MPICXX := $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
+  else
+    MPICXX := mpicxx
+  endif
+  endif
+
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicc)")
+    MPICC := $(MPI_INSTALL_PATH)/bin/mpicc
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
+    MPICC := $(MPI_INSTALL_PATH)/intel64/bin/mpicc
+  else
+    MPICC := mpicc
+  endif
+  endif
+else
+  MPICPP := mpic++
+  MPICXX := mpicxx
+  MPICC  := mpicc
+endif
+
+#
+# Configure compilers:
+#
 ifeq ($(OP2_COMPILER),gnu)
   CC       := gcc
-  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall
   CXX      := g++
   CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
+  MPICXX   := $(MPICPP)
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-  CC       := icc
-ifdef DEBUG
-  CCFLAGS  := -O0 -g
-else
-  CCFLAGS  := -O3 -xHost #-DCOMM_PERF #-DDEBUG -g
-endif
-  CXX      := icpc
-  CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
-  MPIFLAGS := $(CXXFLAGS)
+  CC        := icc
+  ifdef DEBUG
+    CCFLAGS := -O0 -g -pg
+  else
+    CCFLAGS := -O3 -xHost #-DCOMM_PERF
+  endif
+  CXX       := icpc
+  CXXFLAGS  := $(CCFLAGS)
+  MPICXX    := $(MPICXX)
+  MPIFLAGS  := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
-  CC       := xlc
-ifdef DEBUG
-  CCFLAGS  := -O0 -g
-else
-  CCFLAGS  := -qarch=pwr8 -qtune=pwr8 -O3 -qhot
-endif
-  CXX      := xlc++
-  CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
-  MPIFLAGS := $(CXXFLAGS)
+  CC        := xlc
+  ifdef DEBUG
+    CCFLAGS := -O0 -g
+  else
+    CCFLAGS := -qarch=pwr8 -qtune=pwr8 -O3 -qhot
+  endif
+  CXX       := xlc++
+  CXXFLAGS  := $(CCFLAGS)
+  MPICXX    := $(MPICXX)
+  MPIFLAGS  := $(CXXFLAGS)
   OMP4FLAGS := -qsmp=omp -qoffload
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC	   := pgcc
   CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
-ifdef DEBUG
-  CCFLAGS  := -g -O0
-else
-  CCFLAGS  := -O3
-endif
-  CXX	   := pgc++
-  CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
-  MPIFLAGS := $(CXXFLAGS)
-  NVCCFLAGS:= #-ccbin=$(MPICXX)
+  ifdef DEBUG
+    CCFLAGS := -g -O0
+  else
+    CCFLAGS := -O3
+  endif
+  CXX	    := pgc++
+  CXXFLAGS  := $(CCFLAGS)
+  MPICXX    := $(MPICPP)
+  MPIFLAGS  := $(CXXFLAGS)
+  # NVCCFLAGS += -ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),cray)
   CC       := cc
@@ -81,17 +128,17 @@ ifeq ($(OP2_COMPILER),cray)
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
-  CC	   := clang
-ifdef DEBUG
-  CCFLAGS  := -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
-else
-  CCFLAGS  := -x c++ -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
-endif
-  CXX	   := clang++
-  CXXFLAGS := $(CCFLAGS)
-  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
-  MPICC   := $(MPI_INSTALL_PATH)/bin/mpicc
-  MPIFLAGS := $(CXXFLAGS)
+  CC	     := clang
+  ifdef DEBUG
+    CCFLAGS  := -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+  else
+    CCFLAGS  := -x c++ -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+  endif
+  CXX	    := clang++
+  CXXFLAGS  := $(CCFLAGS)
+  MPICXX    := $(MPICPP)
+  MPICCC    := $(MPICCC)
+  MPIFLAGS  := $(CXXFLAGS)
   OMP4FLAGS := -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
 print:
@@ -115,32 +162,45 @@ else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
 else
+ifeq ($(NV_ARCH),Maxwell)
+  CODE_GEN_CUDA=-gencode arch=compute_50,code=sm_50
+else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
 endif
 endif
 endif
-
-NVCCFLAGS	:= $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math #-g -G -O0
-
-PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_VER?=4
-ifeq ($(PARMETIS_VER),4)
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
-  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
-else
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
-  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/ -lparmetis -lmetis
 endif
 
-PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
-PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
-PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH) -DHAVE_PTSCOTCH
-PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
+NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math #-g -G -O0
 
-HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
+PARMETIS_VER?=4
+ifdef PARMETIS_INSTALL_PATH
+  PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
+  PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
+  PARMETIS_INC := -I$(PARMETIS_INCLUDE_PATH)/include
+  PARMETIS_LIB := -L$(PARMETIS_LIB_PATH)/lib
+endif
+PARMETIS_INC += -DHAVE_PARMETIS
+PARMETIS_LIB += -lparmetis -lmetis
+ifeq ($(PARMETIS_VER),4)
+  PARMETIS_INC += -DPARMETIS_VER_4
+endif
+
+ifdef PTSCOTCH_INSTALL_PATH
+  PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
+  PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
+  PTSCOTCH_INC := -I$(PTSCOTCH_INCLUDE_PATH)
+  PTSCOTCH_LIB := -L$(PTSCOTCH_LIB_PATH)
+endif
+PTSCOTCH_INC += -DHAVE_PTSCOTCH
+PTSCOTCH_LIB += -lptscotch -lptscotcherr
+
+ifdef HDF5_INSTALL_PATH
+  HDF5_INC := -I$(HDF5_INSTALL_PATH)/include
+  HDF5_LIB := -L$(HDF5_INSTALL_PATH)/lib
+endif
+HDF5_LIB += -lhdf5 -lz
 
 .PHONY: clean mklib
 
