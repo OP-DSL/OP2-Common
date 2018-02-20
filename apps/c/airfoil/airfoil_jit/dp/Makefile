@@ -145,12 +145,12 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 #
 # master to make all versions
 #
-ALL_TARGETS = clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh_seq convert_mesh_mpi
+ALL_TARGETS = clean airfoil_mpi_genseq #airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh_seq convert_mesh_mpi
 ifeq ($(OP2_COMPILER),pgi)
-	ALL_TARGETS += airfoil_openacc airfoil_mpi_openacc
+	ALL_TARGETS += #airfoil_openacc airfoil_mpi_openacc
 endif
 ifeq ($(OP2_COMPILER),intel)
-	ALL_TARGETS += airfoil_mpi_vec
+	ALL_TARGETS += #airfoil_mpi_vec
 endif
 
 all: $(ALL_TARGETS)

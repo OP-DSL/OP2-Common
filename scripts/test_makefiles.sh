@@ -46,7 +46,6 @@ cd $OP2_INSTALL_PATH/c
 
 #<<COMMENT0
 
-
 echo " "
 echo " "
 echo "**********************************************************************"
@@ -495,10 +494,13 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 ###################################################################################
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #COMMENT0
 =======
 COMMENT
 >>>>>>> Tests pass except clang versions -- need to fix
+=======
+>>>>>>> Testing a fix for extern variables for Fortran JIT
 
 echo " "
 echo " "

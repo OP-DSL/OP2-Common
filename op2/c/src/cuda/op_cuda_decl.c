@@ -205,7 +205,7 @@ op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
 // data in cases where it is not known at compile time
 //
 
-#ifdef OP2_WITH_CUDAFOR
+/*#ifdef OP2_WITH_CUDAFOR
 void
 op_decl_const_char ( int dim, char const * type, int size, char * dat,
                      char const * name )
@@ -213,7 +213,7 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
   cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim * size, 0,
                                        cudaMemcpyHostToDevice ) );
 }
-#endif
+#endif*/
 
 int op_get_size(op_set set) { return set->size; }
 

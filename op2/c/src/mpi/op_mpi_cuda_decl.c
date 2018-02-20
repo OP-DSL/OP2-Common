@@ -403,7 +403,7 @@ void op_timers(double *cpu, double *et) {
 // data in cases where it is not known at compile time
 //
 
-#ifdef OP2_WITH_CUDAFOR
+/*#ifdef OP2_WITH_CUDAFOR
 void
 op_decl_const_char ( int dim, char const * type, int size, char * dat,
                      char const * name )
@@ -411,7 +411,7 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
   cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim * size, 0,
                                        cudaMemcpyHostToDevice ) );
 }
-#endif
+#endif*/
 
 void op_exit() {
   // need to free buffer_d used for mpi comms in each op_dat

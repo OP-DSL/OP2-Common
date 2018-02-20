@@ -8,10 +8,11 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
+#include "jit_const.h"
 
 CONTAINS
 
-#include "jit_const.h"
+
 
 ! user function
 #include "res_calc.inc"

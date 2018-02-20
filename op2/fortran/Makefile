@@ -264,7 +264,7 @@ directories:
 
 core: 	directories $(C_OP2_INC)/op_lib_core.h $(C_OP2_SRC)/core/op_lib_core.c
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lazy.cpp -o $(F_OP2_OBJ)/op_lazy.o
+	$(CXX) $(CXXFLAGS) -I$(C_OP2_INC) -D__FORTRAN -c $(C_OP2_SRC)/core/op_lazy.cpp -o $(F_OP2_OBJ)/op_lazy.o
 	$(CC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/externlib/op_util.c -o $(F_OP2_OBJ)/op_util.o
 
 hdf5:   directories $(C_OP2_INC)/op_hdf5.h $(C_OP2_SRC)/externlib/op_hdf5.c
