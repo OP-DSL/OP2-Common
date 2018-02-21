@@ -42,6 +42,8 @@
 // mpi header
 #include <mpi.h>
 
+#include <sys/time.h>
+
 //#include <op_lib_core.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
@@ -2756,6 +2758,100 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = times_reduced[1] / (double)comm_size;
 }
 
+void op_compute_times_stats(double* times, int nthreads, double *variance, double *mean) {
+  int comm_size=0;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
+  int nthreads_global;
+  MPI_Reduce(&nthreads, &nthreads_global, 1, MPI_INT, MPI_SUM, 0, OP_MPI_WORLD);
+
+  double sum = 0.0;
+  for (int i=0; i<nthreads; i++) {
+    sum += times[i];
+  }
+
+  double sum_reduced;
+  MPI_Reduce(&sum, &sum_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
+  sum = sum_reduced;
+
+  if (op_is_root()) {
+    *mean = sum / ((double)nthreads_global);
+  }
+
+  MPI_Bcast(mean, 1, MPI_DOUBLE, 0, OP_MPI_WORLD);
+
+  double diffs_squared = 0.0;
+  for (int i=0; i<nthreads; i++) {
+    double diff = (times[i] - (*mean));
+    diffs_squared += diff*diff;
+  }
+  double diffs_squared_sum;
+  MPI_Reduce(&diffs_squared, &diffs_squared_sum, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
+
+  if (op_is_root()) {
+    *variance = diffs_squared_sum / ((double)nthreads_global);
+  } else {
+    *variance = 0.0;
+  }
+}
+
+void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
+  double nonzero_values[n];
+  int num_nonzeros = 0;
+  for (int i=0; i<n; i++) {
+    if (times[i] != 0.0) {
+      nonzero_values[num_nonzeros] = times[i];
+      num_nonzeros++;
+    }
+  }
+  int num_nonzeros_global;
+  MPI_Allreduce(&num_nonzeros, &num_nonzeros_global, 1, MPI_INT, MPI_SUM, OP_MPI_WORLD);
+
+  // Exit if all times are 0.0:
+  if (num_nonzeros_global == 0) {
+    *mean = 0.0;
+    *variance = 0.0;
+    return;
+  }
+
+  double sum = 0.0;
+  for (int i=0; i<num_nonzeros; i++) {
+    sum += nonzero_values[i];
+  }
+  double sum_global;
+  MPI_Reduce(&sum, &sum_global, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
+  sum = sum_global;
+
+  // Exit if just one non-zero time:
+  if (num_nonzeros_global == 1) {
+    *mean = sum_global;
+    *variance = 0.0;
+    return;
+  }
+
+  if (op_is_root()) {
+    *mean = sum / ((double)num_nonzeros_global);
+  } else {
+    *mean = 0.0;
+  }
+  MPI_Bcast(mean, 1, MPI_DOUBLE, 0, OP_MPI_WORLD);
+
+  double diffs_squared_sum = 0.0;
+  for (int i=0; i<num_nonzeros; i++) {
+    double diff = (nonzero_values[i] - (*mean));
+    diffs_squared_sum += diff*diff;
+  }
+  double diffs_squared_sum_global;
+  MPI_Reduce(&diffs_squared_sum, &diffs_squared_sum_global, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
+
+  if (op_is_root()) {
+    *variance = diffs_squared_sum_global / ((double)num_nonzeros_global);
+  } else {
+    *variance = 0.0;
+  }
+}
+
+
 /*******************************************************************************
  * Routine to output performance measures
  *******************************************************************************/
@@ -3193,6 +3289,8 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
+
+int op_omp_max_num_threads() { return 1; }
 
 /*******************************************************************************
  * Get the global size of a set
@@ -4108,4 +4206,10 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                handle->coupling_proclist[j], 1001, OP_MPI_GLOBAL);
     }
   }
+}
+
+double op_timers_get_wtime() {
+  struct timeval t;
+  gettimeofday(&t, (struct timezone *)0);
+  return t.tv_sec + t.tv_usec * 1.0e-6;
 }

@@ -641,7 +641,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     code('if (OP_diags>1) deviceSync();')
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    code('OP_kernels[' +str(nk)+ '].times[0] += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'

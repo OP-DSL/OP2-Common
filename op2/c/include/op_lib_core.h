@@ -175,11 +175,11 @@ typedef struct {
 typedef struct {
   char const *name; /* name of kernel function */
   int count;        /* number of times called */
-  float time;       /* total execution time */
+  double* times;    /* total execution time of each thread */
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  float mpi_time;   /* time spent in MPI calls */
+  double mpi_time;   /* time spent in MPI calls */
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
@@ -266,6 +266,8 @@ void op_timing_realloc(int);
 
 void op_timers_core(double *cpu, double *et);
 
+double op_timers_get_wtime();
+
 void op_dump_dat(op_dat data);
 
 void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
@@ -273,6 +275,8 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name);
 
 void op_compute_moment(double t, double *first, double *second);
+void op_compute_times_stats(double* times, int n, double *variance, double *mean);
+void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean);
 
 int op_size_of_set(const char *);
 
@@ -309,6 +313,8 @@ void op_mpi_reduce_int(op_arg *args, int *data);
 void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
+
+int op_omp_max_num_threads();
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation

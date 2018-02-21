@@ -13,6 +13,9 @@ import re
 import datetime
 import os
 
+timing_granularity="thread"
+# timing_granularity="process"
+
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
@@ -302,6 +305,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
     code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
+    if timing_granularity=="thread":
+      code('double process_time = 0.0;')
     code('')
 
 #
@@ -387,8 +392,22 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
       code('int nblocks = Plan->ncolblk[col];')
       code('')
-      code('#pragma omp parallel for')
-      FOR('blockIdx','0','nblocks')
+      if timing_granularity=="thread":
+        code('process_time += op_timers_get_wtime() - wall_t1;')
+        code('#pragma omp parallel')
+        code('{')
+        depth += 2
+        code('int nthreads = omp_get_num_threads();')
+        code('int thr = omp_get_thread_num();')
+        code('double thr_wall_t1 = op_timers_get_wtime();')
+        code('int thr_start = (nblocks * thr) / nthreads;')
+        code('int thr_end = (nblocks * (thr+1)) / nthreads;')
+        code('if (thr_end > nblocks) thr_end = nblocks;')
+        FOR('blockIdx','thr_start','thr_end')
+      else:
+        code('#pragma omp parallel for')
+        FOR('blockIdx','0','nblocks')
+
       code('int blockId  = Plan->blkmap[blockIdx + block_offset];')
       code('int nelem    = Plan->nelems[blockId];')
       code('int offset_b = Plan->offset[blockId];')
@@ -442,6 +461,10 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if timing_granularity=="thread":
+        depth -= 2
+        code('}')
+        code('OP_kernels[' +str(nk)+ '].times[thr]  += op_timers_get_wtime() - thr_wall_t1;')
       ENDFOR()
       code('')
 
@@ -467,6 +490,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
               error('internal error: invalid reduction option')
             ENDFOR()
         ENDIF()
+
+      if timing_granularity=="thread":
+        code('wall_t1 = op_timers_get_wtime();')
       code('block_offset += nblocks;');
       ENDIF()
 
@@ -475,8 +501,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
     else:
       comm(' execute plan')
+      if timing_granularity == "thread":
+        # Pause process timing, and switch to per-thread timing:
+        code('process_time += op_timers_get_wtime() - wall_t1;')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
+      if timing_granularity == "thread":
+        code('double thr_wall_t1 = op_timers_get_wtime();')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
       FOR('n','start','finish')
@@ -496,7 +527,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if timing_granularity=="thread":
+        code('OP_kernels['+str(nk)+'].times[thr]  += op_timers_get_wtime() - thr_wall_t1;')
       ENDFOR()
+      if timing_granularity=="thread":
+        # OpenMP block complete, so switch back to process timing:
+        code('wall_t1 = op_timers_get_wtime();')
 
     if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
@@ -547,7 +583,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    if timing_granularity == "thread":
+        FOR('thr', '0', 'omp_get_max_threads()')
+        code('OP_kernels[' +str(nk)+ '].times[thr] += process_time;')
+        code('OP_kernels[' +str(nk)+ '].times[thr] += wall_t2 - wall_t1;')
+        ENDFOR()
+    else:
+        code('OP_kernels[' +str(nk)+ '].times[0] += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'

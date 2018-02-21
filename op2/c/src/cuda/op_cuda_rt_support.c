@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -444,6 +445,8 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_barrier() {}
 
+int op_omp_max_num_threads() { return 1; }
+
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;
@@ -493,6 +496,20 @@ void op_compute_moment(double t, double *first, double *second) {
   *first = t;
   *second = t * t;
 }
+void op_compute_times_stats(double* times, int n, double *variance, double *mean) {
+  *mean = times[0];
+  *variance = 0.0;
+}
+void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
+  *mean = times[0];
+  *variance = 0.0;
+}
 
 int op_is_root() { return 1; }
+
+double op_timers_get_wtime() {
+  struct timeval t;
+  gettimeofday(&t, (struct timezone *)0);
+  return t.tv_sec + t.tv_usec * 1.0e-6;
+}
 #endif

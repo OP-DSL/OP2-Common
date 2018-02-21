@@ -743,45 +743,42 @@ void op_timing_output_core() {
              "--------------------------\n");
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        double moments_mpi_time[2];
-        double moments_time[2];
-        op_compute_moment(OP_kernels[n].time, &moments_time[0],
-                          &moments_time[1]);
-        op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
-                          &moments_mpi_time[1]);
+        double times_variance=0.0, times_mean=0.0;
+        op_compute_nonzero_times_stats(OP_kernels[n].times, 
+                                       op_omp_max_num_threads(), 
+                                       &times_variance, &times_mean);
+
+        double mpi_times_variance=0.0, mpi_times_mean=0.0;
+        op_compute_nonzero_times_stats(&OP_kernels[n].mpi_time, 1, 
+                                       &mpi_times_variance, &mpi_times_mean);
+
         if (OP_kernels[n].transfer2 < 1e-8f) {
           float transfer =
-              MAX(0.0f, OP_kernels[n].transfer / (1e9f * OP_kernels[n].time -
+              MAX(0.0f, OP_kernels[n].transfer / (1e9f * OP_kernels[n].times[0] -
                                                   OP_kernels[n].mpi_time));
 
           if (op_is_root())
             printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;        "
                    " ;   %s \n",
                    OP_kernels[n].count, OP_kernels[n].plan_time,
-                   moments_mpi_time[0],
-                   sqrt(moments_mpi_time[1] -
-                        moments_mpi_time[0] * moments_mpi_time[0]),
-                   moments_time[0],
-                   sqrt(moments_time[1] - moments_time[0] * moments_time[0]),
+                   mpi_times_mean, sqrt(mpi_times_variance),
+                   times_mean,     sqrt(times_variance), 
                    transfer, OP_kernels[n].name);
         } else {
           float transfer =
               MAX(0.0f, OP_kernels[n].transfer /
-                            (1e9f * OP_kernels[n].time -
+                            (1e9f * OP_kernels[n].times[0] -
                              OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
           float transfer2 =
               MAX(0.0f, OP_kernels[n].transfer2 /
-                            (1e9f * OP_kernels[n].time -
+                            (1e9f * OP_kernels[n].times[0] -
                              OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
           if (op_is_root())
             printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;  "
                    " %s \n",
                    OP_kernels[n].count, OP_kernels[n].plan_time,
-                   moments_mpi_time[0],
-                   sqrt(moments_mpi_time[1] -
-                        moments_mpi_time[0] * moments_mpi_time[0]),
-                   moments_time[0],
-                   sqrt(moments_time[1] - moments_time[0] * moments_time[0]),
+                   mpi_times_mean, sqrt(mpi_times_variance),
+                   times_mean,     sqrt(times_variance), 
                    transfer, transfer2, OP_kernels[n].name);
         }
       }
@@ -805,18 +802,19 @@ void op_timing_output_2_file(const char *outputFileName) {
             "\n ----------------------------------------------- \n");
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
+        double kern_time = OP_kernels[n].times[0];
         if (OP_kernels[n].transfer2 < 1e-8f) {
-          totalKernelTime += OP_kernels[n].time;
+          totalKernelTime += kern_time;
           fprintf(outputFile, " %6d  %8.4f %8.4f            %s \n",
-                  OP_kernels[n].count, OP_kernels[n].time,
-                  OP_kernels[n].transfer / (1e9f * OP_kernels[n].time),
+                  OP_kernels[n].count, kern_time,
+                  OP_kernels[n].transfer / (1e9f * kern_time),
                   OP_kernels[n].name);
         } else {
-          totalKernelTime += OP_kernels[n].time;
+          totalKernelTime += kern_time;
           fprintf(outputFile, " %6d  %8.4f %8.4f %8.4f   %s \n",
-                  OP_kernels[n].count, OP_kernels[n].time,
-                  OP_kernels[n].transfer / (1e9f * OP_kernels[n].time),
-                  OP_kernels[n].transfer2 / (1e9f * OP_kernels[n].time),
+                  OP_kernels[n].count, kern_time,
+                  OP_kernels[n].transfer / (1e9f * kern_time),
+                  OP_kernels[n].transfer2 / (1e9f * kern_time),
                   OP_kernels[n].name);
         }
       }
@@ -850,7 +848,10 @@ void op_timing_realloc(int kernel) {
 
     for (int n = OP_kern_max; n < OP_kern_max_new; n++) {
       OP_kernels[n].count = 0;
-      OP_kernels[n].time = 0.0f;
+      OP_kernels[n].times = (double*)op_malloc(op_omp_max_num_threads() * sizeof(double));
+      for (int thr = 0; thr < op_omp_max_num_threads(); thr++) {
+        OP_kernels[n].times[thr] = 0.0f;
+      }
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;

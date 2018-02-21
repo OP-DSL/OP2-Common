@@ -317,6 +317,8 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_barrier() {}
 
+int op_omp_max_num_threads() { return omp_get_max_threads(); }
+
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;
@@ -367,5 +369,70 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = t * t;
 }
 
+void op_compute_times_stats(double* times, int n, double *variance, double *mean) {
+  if (n == 0) {
+    *mean = 0.0;
+    *variance = 0.0;
+    return;
+  }
+  else if (n == 1) {
+    *mean = times[0];
+    *variance = 0.0;
+    return;
+  }
+
+  *mean = 0.0;
+  for (int i=0; i<n; i++) {
+    *mean += times[i];
+  }
+  *mean /= (double)n;
+
+  *variance = 0.0;
+  for (int i=0; i<n; i++) {
+    double diff = (times[i] - (*mean));
+    *variance += diff*diff;
+  }
+  *variance /= (double)n;
+}
+
+void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
+  double nonzero_values[n];
+  int num_nonzeros = 0;
+  for (int i=0; i<n; i++) {
+    if (times[i] != 0.0) {
+      nonzero_values[num_nonzeros] = times[i];
+      num_nonzeros++;
+    }
+  }
+
+  if (num_nonzeros == 0) {
+    *mean = 0.0;
+    *variance = 0.0;
+    return;
+  }
+  else if (num_nonzeros == 1) {
+    *mean = nonzero_values[0];
+    *variance = 0.0;
+    return;
+  }
+
+  *mean = 0.0;
+  for (int i=0; i<num_nonzeros; i++) {
+    *mean += nonzero_values[i];
+  }
+  *mean /= (double)num_nonzeros;
+
+  *variance = 0.0;
+  for (int i=0; i<num_nonzeros; i++) {
+    double diff = (nonzero_values[i] - (*mean));
+    *variance += diff*diff;
+  }
+  *variance /= (double)num_nonzeros;
+}
+
 int op_is_root() { return 1; }
+
+double op_timers_get_wtime() {
+  return omp_get_wtime();
+}
 #endif
