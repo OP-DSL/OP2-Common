@@ -79,6 +79,10 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_barrier() {}
 
+int op_mpi_comm_size() { return 1; }
+
+int op_mpi_comm_rank() { return 0; }
+
 int op_omp_max_num_threads() { return omp_get_max_threads(); }
 
 void *op_mpi_perf_time(const char *name, double time) {

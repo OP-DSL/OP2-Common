@@ -262,6 +262,8 @@ void op_timing_output_core(void);
 
 void op_timing_output_2_file(const char *);
 
+void op_timing_output_2_csv(const char *);
+
 void op_timing_realloc(int);
 
 void op_timers_core(double *cpu, double *et);
@@ -313,6 +315,10 @@ void op_mpi_reduce_int(op_arg *args, int *data);
 void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
+
+int op_mpi_comm_size();
+
+int op_mpi_comm_rank();
 
 int op_omp_max_num_threads();
 

@@ -3290,6 +3290,18 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
 
+int op_mpi_comm_size() { 
+  int s;
+  MPI_Comm_size(OP_MPI_WORLD, &s);
+  return s;
+}
+
+int op_mpi_comm_rank() { 
+  int r;
+  MPI_Comm_rank(OP_MPI_WORLD, &r);
+  return r;
+}
+
 int op_omp_max_num_threads() { return 1; }
 
 /*******************************************************************************
