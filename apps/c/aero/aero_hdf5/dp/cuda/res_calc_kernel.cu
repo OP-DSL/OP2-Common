@@ -6,7 +6,6 @@ __constant__ int opDat0_res_calc_stride_OP2CONSTANT;
 int opDat0_res_calc_stride_OP2HOST=-1;
 __constant__ int direct_res_calc_stride_OP2CONSTANT;
 int direct_res_calc_stride_OP2HOST=-1;
-#include "../res_calc.h"
 //user function
 __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
                       double **res) {
