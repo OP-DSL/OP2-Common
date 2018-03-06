@@ -25,21 +25,25 @@ SUBROUTINE save_soln(q,qold)
 END SUBROUTINE
 
 #define SIMD_VEC 4
+#define VECTORIZE
 
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   INTEGER(kind=4) bottom,top,i1, i2
 
+  !DIR$ ASSUME_ALIGNED opDat1Local : 64
+  !DIR$ ASSUME_ALIGNED opDat2Local : 64
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     !DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC, 1
-      ! vecotorized kernel call
+      ! vectorized kernel call
       CALL save_soln( &
       & opDat1Local(1,(i1+i2-1)+1), &
       & opDat2Local(1,(i1+i2-1)+1) &
@@ -50,6 +54,7 @@ SUBROUTINE op_wrap_save_soln( &
   ! remainder
   DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
+  !DIR$ FORCEINLINE
   DO i1 = bottom, top-1, 1
 #endif
     ! kernel call
