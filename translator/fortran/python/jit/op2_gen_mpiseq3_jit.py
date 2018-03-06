@@ -227,6 +227,13 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 #  Generate Header - Non JIT
 ##########################################################################
+    
+
+    if hydra :
+      if name <> 'IFLUX_EDGEK':
+        print "skipping unspecified kernel :", name
+        continue
+
     if hydra:
       code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
     else:
@@ -790,8 +797,8 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 #  output individual kernel file - non JIT version
 ##########################################################################
     if hydra:
-      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_seqkernel.F95','w')
+      new_name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+      fid = open(new_name+'_seqkernel.F95','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_seqkernel.f90','w')
     else:
@@ -806,11 +813,11 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 
 
 ##########################################################################
-#  output individual kernel file - non JIT version
+#  output individual kernel file - JIT version
 ##########################################################################
     if hydra:
-      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_seqkernel_rec.F95','w')
+      new_name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+      fid = open(new_name+'_seqkernel_rec.F95','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_seqkernel_rec.f90','w')
     else:
