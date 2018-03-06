@@ -16,6 +16,8 @@ function validate {
   rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
 }
 
+export NV_ARCH=Kepler
+
 
 export CURRENT_DIR=$PWD
 cd ../op2
