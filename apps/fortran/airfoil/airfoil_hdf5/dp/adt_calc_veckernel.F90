@@ -13,6 +13,7 @@ CONTAINS
 
 ! user function
 SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
+! adt_calc
   IMPLICIT NONE
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x1
   REAL(kind=8), DIMENSION(2), INTENT(IN) :: x2
@@ -42,21 +43,27 @@ SUBROUTINE adt_calc(x1,x2,x3,x4,q,adt)
 END SUBROUTINE
 
 #define SIMD_VEC 4
+#define VECTORIZE
 #ifdef VECTORIZE
 ! user function -- modified for vectorisation
 SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
   !dir$ attributes vector :: adt_calc_vec
+
+! adt_calc
   IMPLICIT NONE
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x1
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x2
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x3
-  real(8), DIMENSION(SIMD_VEC,(2)), INTENT(IN) :: x4
-  INTEGER(4) :: idx
-
-
+  INTEGER(KIND=4) :: idx
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x1
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x2
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x3
+  real(8), DIMENSION(SIMD_VEC,2), INTENT(IN) :: x4
   REAL(kind=8), DIMENSION(4), INTENT(IN) :: q
   REAL(kind=8) :: adt
-  REAL(kind=8) :: dx,dy,ri,u,v,c
+  REAL(kind=8) :: dx
+  REAL(kind=8) :: dy
+  REAL(kind=8) :: ri
+  REAL(kind=8) :: u
+  REAL(kind=8) :: v
+  REAL(kind=8) :: c
 
   ri = 1.0 / q(1)
   u = ri * q(2)
@@ -75,7 +82,7 @@ SUBROUTINE adt_calc_vec(x1,x2,x3,x4,q,adt,idx)
   dy = x1(idx,2) - x4(idx,2)
   adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
   adt = adt / cfl
-END SUBROUTINE
+end subroutine
 #endif
 
 SUBROUTINE op_wrap_adt_calc( &
@@ -85,6 +92,7 @@ SUBROUTINE op_wrap_adt_calc( &
   & opDat1Map, &
   & opDat1MapDim, &
   & bottom,top)
+  implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat5Local(4,*)
   real(8) opDat6Local(1,*)
@@ -93,16 +101,20 @@ SUBROUTINE op_wrap_adt_calc( &
   INTEGER(kind=4) bottom,top,i1, i2
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
-  real(8) dat1(SIMD_VEC,(2))
-  real(8) dat2(SIMD_VEC,(2))
-  real(8) dat3(SIMD_VEC,(2))
-  real(8) dat4(SIMD_VEC,(2))
+  real(8) dat1(SIMD_VEC,2)
+  real(8) dat2(SIMD_VEC,2)
+  real(8) dat3(SIMD_VEC,2)
+  real(8) dat4(SIMD_VEC,2)
 
   !dir$ attributes align: 64:: dat1
   !dir$ attributes align: 64:: dat2
   !dir$ attributes align: 64:: dat3
   !dir$ attributes align: 64:: dat4
 
+  !DIR$ ASSUME_ALIGNED opDat1Local : 64
+  !DIR$ ASSUME_ALIGNED opDat5Local : 64
+  !DIR$ ASSUME_ALIGNED opDat6Local : 64
+  !DIR$ ASSUME_ALIGNED opDat1Map : 64
 #ifdef VECTORIZE
   DO i1 = bottom, ((top-1)/SIMD_VEC)*SIMD_VEC-1, SIMD_VEC
     !DIR$ SIMD
@@ -129,7 +141,7 @@ SUBROUTINE op_wrap_adt_calc( &
     !DIR$ SIMD
     !DIR$ FORCEINLINE
     DO i2 = 1, SIMD_VEC, 1
-      ! vecotorized kernel call
+      ! vectorized kernel call
       CALL adt_calc_vec( &
       & dat1, &
       & dat2, &
@@ -146,6 +158,7 @@ SUBROUTINE op_wrap_adt_calc( &
   ! remainder
   DO i1 = ((top-1)/SIMD_VEC)*SIMD_VEC, top-1, 1
 #else
+  !DIR$ FORCEINLINE
   DO i1 = bottom, top-1, 1
 #endif
     map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
