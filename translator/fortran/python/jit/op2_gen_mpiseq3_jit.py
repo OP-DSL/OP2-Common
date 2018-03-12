@@ -158,6 +158,8 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 #  create new kernel file
 ##########################################################################
 
+  specified_kernels = 'IFLUX_EDGEK'
+
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     nargs = kernels[nk]['nargs']
@@ -228,9 +230,9 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 #  Generate Header - Non JIT
 ##########################################################################
     
-
+    
     if hydra :
-      if name <> 'IFLUX_EDGEK':
+      if name not in specified_kernels:
         print "skipping unspecified kernel :", name
         continue
 
@@ -817,7 +819,7 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
     if hydra:
       new_name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(new_name+'_seqkernel_rec.F95','w')
+      fid = open(new_name+'_seqkernel_rec.F90','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_seqkernel_rec.f90','w')
     else:
@@ -839,6 +841,7 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
   file_text =''
   code('module '+master.split('.')[0]+'_seq')
 
+  code('use OP2_Fortran_RT_Support')
   code('USE OP2_FORTRAN_JIT')
   code('use OP2_CONSTANTS')
   code('use, intrinsic :: iso_c_binding')
@@ -866,30 +869,44 @@ def op2_gen_mpiseq3_jit(master, date, consts, kernels, hydra, bookleaf):
   code('integer STATUS')
   code('')
 
+  IF('op_is_root() .eq. 1')
   comm('compile *_seqkernel_rec.F90 using system command')
   code('write(*,*) "JIT compiling op_par_loops"')
   code('call execute_command_line ("make -j genseq_jit", exitstat=STATUS)')
+  ENDIF()
+  code('call op_mpi_barrier()')
   code('')
 
   comm('dynamically load '+master.split('.')[0]+'_seqkernel_rec.so')
   code('handle=dlopen("./'+master.split('.')[0]+'_seqkernel_rec.so"//c_null_char, RTLD_LAZY)')
   IF('.not. c_associated(handle)')
-  code('WRITE(*,*)"Unable to load DLL ./'+master.split('.')[0]+'_seqkernel_rec.so", CToFortranString(DLError())')
+  code('WRITE(*,*)"Unable to load DLL ./'+master.split('.')[0]+'_seqkernel_rec.so: ", CToFortranString(DLError())')
   code('stop')
   ENDIF()
   code('')
 
   for nk in range(0,len(kernels)):
+    if hydra :
+      name = kernels[nk]['mod_file'][4:].lower()+'_module_execute_mp_'+kernels[nk]['name'].lower()+'_host_rec_'
+      if kernels[nk]['name'] not in specified_kernels:
+        continue
+    else:
+      name = kernels[nk]['name']+'_module_execute_mp_'+kernels[nk]['name']+'_host_rec_'
+
     IF('.not. c_associated(proc_addr_'+kernels[nk]['name']+')')
-    code('proc_addr_'+kernels[nk]['name']+'=dlsym(handle, "'+kernels[nk]['name']+'_module_execute_mp_'+kernels[nk]['name']+'_host_rec_"//c_null_char)')
+    code('proc_addr_'+kernels[nk]['name']+'=dlsym(handle, "'+name+'"//c_null_char)')
     IF('.not. c_associated(proc_addr_'+kernels[nk]['name']+')')
-    code('write(*,*) "Unable to load the procedure '+kernels[nk]['name']+'_module_execute_mp_'+kernels[nk]['name']+'_host_rec_"')
+    code('write(*,*) "Unable to load the procedure '+name+'"')
     code('stop')
     ENDIF()
     ENDIF()
     code('')
 
+  IF('op_is_root() .eq. 1')
+  code('write(*,*) "Sucessfully Loaded JIT Compiled Modules"')
+  ENDIF()
   code('JIT_COMPILED = .true.')
+  code('call op_mpi_barrier()')
   code('')
 
   depth -= 2
