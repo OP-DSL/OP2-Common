@@ -5,7 +5,7 @@
 module airfoil_hdf5_seq
 use OP2_Fortran_RT_Support
 USE OP2_FORTRAN_JIT
-use OP2_CONSTANTS
+USE OP2_CONSTANTS
 use, intrinsic :: iso_c_binding
 
 ! JIT function pointers
@@ -27,18 +27,17 @@ IMPLICIT NONE
   integer(c_int), parameter :: RTLD_LAZY=1 ! value extracte from the C header file
   integer STATUS
 
+  IF (op_is_root() .eq. 1) THEN
 ! compile *_seqkernel_rec.F90 using system command
-  IF (op_is_root() .eq. 1) then
     write(*,*) "JIT compiling op_par_loops"
-    !call system ("make -j genseq_jit")
-    call execute_command_line ("make -j genseq_jit", exitstat=STATUS)
-  end if
+    call execute_command_line ("make -j JIT_seqkernel_rec.so", exitstat=STATUS)
+  END IF
   call op_mpi_barrier()
 
 ! dynamically load airfoil_hdf5_seqkernel_rec.so
   handle=dlopen("./airfoil_hdf5_seqkernel_rec.so"//c_null_char, RTLD_LAZY)
   IF (.not. c_associated(handle)) THEN
-    WRITE(*,*)"Unable to load DLL ./airfoil_hdf5_seqkernel_rec.so", CToFortranString(DLError())
+    WRITE(*,*)"Unable to load DLL ./airfoil_hdf5_seqkernel_rec.so: ", CToFortranString(DLError())
     stop
   END IF
 
@@ -82,6 +81,9 @@ IMPLICIT NONE
     END IF
   END IF
 
+  IF (op_is_root() .eq. 1) THEN
+    write(*,*) "Sucessfully Loaded JIT Compiled Modules"
+  END IF
   JIT_COMPILED = .true.
   call op_mpi_barrier()
 

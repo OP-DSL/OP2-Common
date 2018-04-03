@@ -17,6 +17,10 @@ CONTAINS
 
 #include "adt_calc.inc"
 
+! user function
+#include "adt_calc.inc"
+
+
 SUBROUTINE op_wrap_adt_calc( &
   & opDat1Local, &
   & opDat5Local, &
@@ -59,7 +63,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   & opArg6 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=8), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1

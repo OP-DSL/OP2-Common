@@ -43,8 +43,8 @@ cd ../../fortran/python/
 export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
+#<<COMMENT1
 
-#<<COMMENT0
 
 echo " "
 echo " "
@@ -89,6 +89,12 @@ echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 $OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+make clean;make
+echo " "
+echo " "
+echo "=======================> Building Airfoil JIT DP with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_jit/dp/
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp JIT
 make clean;make
 
 
@@ -233,6 +239,14 @@ rm ./test.h5
 ./convert_mesh_seq
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./convert_mesh_mpi
 
+echo " "
+echo " "
+echo "=======================> Running Airfoil JIT built with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_jit/dp
+export OMP_NUM_THREADS=1
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq -renumber"
+
 
 echo " "
 echo " "
@@ -372,6 +386,15 @@ make clean; make
 
 echo " "
 echo " "
+echo "=======================> Building Airfoil Fortran JIT with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_jit/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90 JIT
+export PART_SIZE_ENV=128
+make clean; make
+
+echo " "
+echo " "
 echo "**********************************************************************"
 echo "********************** Running Fortran Apps built with Intel Compilers"
 echo "**********************************************************************"
@@ -412,6 +435,18 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_IN
 #_openmp_$PART_SIZE_ENV
 
 
+echo " "
+echo " "
+echo "=======================> Running Airfoil Fortran JIT DP built with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_jit/dp
+pwd
+export PART_SIZE_ENV=128
+validate "./airfoil_hdf5_genseq OP_MAPS_BASE_INDEX=0"
+export OMP_NUM_THREADS=1
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_genseq OP_MAPS_BASE_INDEX=0"
+
+#COMMENT1
+
 ###################################################################################
 ###################################################################################
 
@@ -444,6 +479,17 @@ pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
+
+###### EXECUTE_COMMAND_LINE does not work with PGI compilers -- so commenting out the JIT test below
+#echo " "
+#echo " "
+#echo "=======================> Building Airfoil Fortran JIT with PGI Compilers"
+#cd $OP2_APPS_DIR/fortran/airfoil/airfoil_jit/dp
+#pwd
+#$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90 JIT
+#export PART_SIZE_ENV=128
+#make clean; make
+
 
 echo " "
 echo " "
@@ -488,6 +534,18 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp OP_MAPS_
 #_$PART_SIZE_ENV
 validate "./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
+
+
+###### EXECUTE_COMMAND_LINE does not work with PGI compilers -- so commenting out the JIT test below
+#echo " "
+#echo " "
+#echo "=======================> Running Airfoil Fortran JIT DP built with PGI Compilers"
+#cd $OP2_APPS_DIR/fortran/airfoil/airfoil_jit/dp
+#pwd
+#export PART_SIZE_ENV=128
+#validate "./airfoil_hdf5_genseq OP_MAPS_BASE_INDEX=0"
+#export OMP_NUM_THREADS=1
+#validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi_genseq OP_MAPS_BASE_INDEX=0"
 
 
 ###################################################################################

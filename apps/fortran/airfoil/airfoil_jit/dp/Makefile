@@ -75,13 +75,13 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(MPI_INSTALL_PATH)/bin/mpif90  #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -DOP2_JIT -I./
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -DOP2_JIT -I./ -DOP2_JIT
   OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
   OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA),$(PGI_REG_COUNT),lineinfo -Mcuda=fastmath,ptxinfo -Minfo=accel #-Minline=reshape
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
-  ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
-                airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
+  ALL_TARGETS = airfoil_hdf5_genseq airfoil_hdf5_mpi_genseq
+                #airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
                 airfoil_hdf5_mpi_cuda airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc
 else
@@ -160,7 +160,7 @@ airfoil_hdf5_genseq: airfoil_hdf5_op.F90 input.F90 seq/save_soln_seqkernel.F90 s
         bres_calc_seqkernel.o update_seqkernel.o airfoil_hdf5_op.o -o airfoil_hdf5_genseq \
         $(FLINK) -lop2_for_seq -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB) $(CPPLINK) -ldl -rdynamic #-Bdynamic
 
-genseq_jit:   jit_const.h
+JIT_seqkernel_rec.so:   jit_const.h
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -fPIC -c seq/res_calc_seqkernel_rec.F90 seq/adt_calc_seqkernel_rec.F90 \
 	seq/bres_calc_seqkernel_rec.F90 seq/update_seqkernel_rec.F90 seq/save_soln_seqkernel_rec.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FMPI_MODS) -shared -o airfoil_hdf5_seqkernel_rec.so res_calc_seqkernel_rec.o \

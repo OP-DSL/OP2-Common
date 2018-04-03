@@ -17,6 +17,10 @@ CONTAINS
 
 #include "save_soln.inc"
 
+! user function
+#include "save_soln.inc"
+
+
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
@@ -40,7 +44,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   & opArg2 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=9), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1

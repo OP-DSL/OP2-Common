@@ -17,6 +17,10 @@ CONTAINS
 
 #include "update.inc"
 
+! user function
+#include "update.inc"
+
+
 SUBROUTINE op_wrap_update( &
   & opDat1Local, &
   & opDat2Local, &
@@ -52,7 +56,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opArg5 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=6), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1

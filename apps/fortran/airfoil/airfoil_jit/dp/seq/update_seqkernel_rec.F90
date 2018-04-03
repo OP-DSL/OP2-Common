@@ -52,7 +52,7 @@ SUBROUTINE update_host_rec( userSubroutine, set, &
   & opArg5 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=6), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1

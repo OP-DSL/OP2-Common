@@ -8,11 +8,10 @@ USE OP2_FORTRAN_RT_SUPPORT
 USE ISO_C_BINDING
 USE OP2_CONSTANTS
 
-#include "jit_const.h"
 
 CONTAINS
 
-
+#include "jit_const.h"
 
 ! user function
 #include "res_calc.inc"
@@ -70,7 +69,7 @@ SUBROUTINE res_calc_host_rec( userSubroutine, set, &
   & opArg8 )
 
   IMPLICIT NONE
-  character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
+  character(kind=c_char,len=8), INTENT(IN) :: userSubroutine
   type ( op_set ) , INTENT(IN) :: set
 
   type ( op_arg ) , INTENT(IN) :: opArg1
