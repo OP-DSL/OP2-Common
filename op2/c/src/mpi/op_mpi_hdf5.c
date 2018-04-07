@@ -426,7 +426,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
               file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
-  size_t dat_size = dset_props.elem_bytes;
+  size_t type_size;
 
   int dat_dim = dset_props.dim;
   if (dat_dim != dim) {
@@ -437,9 +437,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   const char *typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
-    op_printf("dat.type %s in file %s and type %s do not match\n", typ, file,
+    if (OP_diags>1) op_printf("dat.type %s in file %s and type %s do not match, performing automatic type conversion\n", typ, file,
               type);
-    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
   // Restore previous error handler .. report hdf5 error stack automatically
@@ -477,37 +476,19 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
       strcmp(type, "double precision") == 0 || strcmp(type, "real(8)") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(double));
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, memspace, dataspace, plist_id, data);
-
-    if (dat_size != dim * sizeof(double)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",
-                dat_size, file, dim);
-      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-    } else
-      dat_size = sizeof(double);
+    type_size = sizeof(double);
   } else if (strcmp(type, "float") == 0 || strcmp(type, "float:soa") == 0 ||
              strcmp(type, "real(4)") == 0 || strcmp(type, "real") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(float));
     H5Dread(dset_id, H5T_NATIVE_FLOAT, memspace, dataspace, plist_id, data);
-
-    if (dat_size != dim * sizeof(float)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",
-                dat_size, file, dim);
-      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-    } else
-      dat_size = sizeof(float);
+    type_size = sizeof(float);
 
   } else if (strcmp(type, "int") == 0 || strcmp(type, "int:soa") == 0 ||
              strcmp(type, "int(4)") == 0 || strcmp(type, "integer") == 0 ||
              strcmp(type, "integer(4)") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(int));
     H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, data);
-
-    if (dat_size != dim * sizeof(int)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",
-                dat_size, file, dim);
-      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-    } else
-      dat_size = sizeof(int);
+    type_size = sizeof(int);
   } else {
     op_printf("unknown type\n");
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
@@ -522,7 +503,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   free((char*)dset_props.type_str);
 
-  op_dat new_dat = op_decl_dat_core(set, dim, type, dat_size, data, name);
+  op_dat new_dat = op_decl_dat_core(set, dim, type, type_size, data, name);
   new_dat->user_managed = 0;
   return new_dat;
 }
@@ -593,10 +574,10 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   const char* typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
-    op_printf(
-        "type of constant %s in file %s and requested type %s do not match\n",
+    if (OP_diags>1) op_printf(
+        "type of constant %s in file %s and requested type %s do not match, performing automatic type conversion\n",
         typ, file_name, type);
-    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+    typ = type;
   }
   H5Dclose(dset_id);
   
