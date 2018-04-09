@@ -68,6 +68,12 @@ $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
 echo " "
 echo " "
+echo "=======================> Building Airfoil HDF5 SP with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/sp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+make clean;make
+echo " "
+echo " "
 echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
@@ -171,6 +177,13 @@ export OMP_NUM_THREADS=20
 validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
+
+echo " "
+echo " "
+echo "=======================> Running Airfoil HDF5 SP built with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/sp
+validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 #COMMENT1
 echo "=======================> Running Convertmesh built with Intel Compilers"
