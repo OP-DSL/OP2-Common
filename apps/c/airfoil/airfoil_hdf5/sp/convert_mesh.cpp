@@ -336,8 +336,5 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("alpha", 1, "float", (char *)&alpha, "new_grid_out.h5");
   op_write_const_hdf5("qinf", 4, "float", (char *)qinf, "new_grid_out.h5");
 
-  // create halos - for sanity check
-  op_halo_create();
-
   op_exit();
 }
