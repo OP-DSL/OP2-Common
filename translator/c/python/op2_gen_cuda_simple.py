@@ -320,7 +320,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     if CPP:
       includes = op2_gen_common.extract_includes(kernel_text)
-      if len(includes) > 1:
+      if len(includes) > 0:
         for include in includes:
           code(include)
         code("")
