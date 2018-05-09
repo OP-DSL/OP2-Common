@@ -840,7 +840,9 @@ void op_timing_output_2_csv(const char *outputFileName) {
         if (outputFile == NULL) {
           printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
         }
-        fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+        else {
+          fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+        }
       }
       else {
         outputFile = fopen(outputFileName, "a");
