@@ -449,7 +449,7 @@ int op_mpi_comm_size() {  return 1; }
 
 int op_mpi_comm_rank() { return 0; }
 
-int op_omp_max_num_threads() { return 1; }
+int op_num_threads() { return 1; }
 
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
@@ -500,20 +500,11 @@ void op_compute_moment(double t, double *first, double *second) {
   *first = t;
   *second = t * t;
 }
-void op_compute_times_stats(double* times, int n, double *variance, double *mean) {
-  *mean = times[0];
-  *variance = 0.0;
-}
-void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
-  *mean = times[0];
-  *variance = 0.0;
+void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
+  *first = times[0];
+  *second = times[0]*times[0];
 }
 
 int op_is_root() { return 1; }
 
-double op_timers_get_wtime() {
-  struct timeval t;
-  gettimeofday(&t, (struct timezone *)0);
-  return t.tv_sec + t.tv_usec * 1.0e-6;
-}
 #endif

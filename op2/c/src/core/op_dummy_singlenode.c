@@ -34,9 +34,9 @@
  * This file implements dummy MPI function calls for non-MPI backends
  */
 
-#include <omp.h>
-
-#include <sys/time.h>
+#ifdef _OPENMP
+  #include <omp.h>
+#endif
 
 #include "op_lib_core.h"
 
@@ -83,7 +83,13 @@ int op_mpi_comm_size() { return 1; }
 
 int op_mpi_comm_rank() { return 0; }
 
-int op_omp_max_num_threads() { return omp_get_max_threads(); }
+int op_num_threads() { 
+  #ifdef _OPENMP
+    return omp_get_max_threads();
+  #else
+    return 1;
+  #endif
+}
 
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
@@ -139,60 +145,22 @@ void op_compute_moment(double t, double *first, double *second) {
   *first = t;
   *second = t * t;
 }
-void op_compute_times_stats(double* times, int n, double *variance, double *mean) {
-  if (n == 1) {
-    *mean = times[0];
-    *variance = 0.0;
-    return;
-  }
 
-  *mean = 0.0;
-  for (int i=0; i<n; i++) {
-    *mean += times[i];
-  }
-  *mean /= (double)n;
-
-  *variance = 0.0;
-  for (int i=0; i<n; i++) {
-    double diff = (times[i] - (*mean));
-    *variance += diff*diff;
-  }
-  *variance /= (double)n;
-}
-
-void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
-  double nonzero_values[n];
-  int num_nonzeros = 0;
-  for (int i=0; i<n; i++) {
-    if (times[i] != 0.0) {
-      nonzero_values[num_nonzeros] = times[i];
-      num_nonzeros++;
+void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
+  *first = 0.0;
+  *second = 0.0f;
+  int n = 0;
+  for (int i=0; i<op_num_threads(); i++) {
+    if (ignore_zeros && (times[i] == 0.0f)) {
+      continue;
     }
+    *first += times[i];
+    *second += times[i] * times[i];
+    n++;
   }
 
-  if (num_nonzeros == 1) {
-    *variance = 0.0;
-    *mean = nonzero_values[0];
-    return;
-  }
-  if (num_nonzeros == 0) {
-    *variance = 0.0;
-    *mean = 0.0;
-    return;
-  }
-
-  *mean = 0.0;
-  for (int i=0; i<num_nonzeros; i++) {
-    *mean += nonzero_values[i];
-  }
-  *mean /= (double)num_nonzeros;
-
-  *variance = 0.0;
-  for (int i=0; i<num_nonzeros; i++) {
-    double diff = (nonzero_values[i] - (*mean));
-    *variance += diff*diff;
-  }
-  *variance /= (double)num_nonzeros;
+  *first /= (double)n;
+  *second /= (double)n;
 }
 
 void op_partition_reverse() {}
@@ -249,9 +217,3 @@ void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 
 void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
 void deviceSync() {}
-
-double op_timers_get_wtime() {
-  struct timeval t;
-  gettimeofday(&t, (struct timezone *)0);
-  return t.tv_sec + t.tv_usec * 1.0e-6;
-}

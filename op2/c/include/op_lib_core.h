@@ -268,8 +268,6 @@ void op_timing_realloc(int);
 
 void op_timers_core(double *cpu, double *et);
 
-double op_timers_get_wtime();
-
 void op_dump_dat(op_dat data);
 
 void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
@@ -277,8 +275,8 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name);
 
 void op_compute_moment(double t, double *first, double *second);
-void op_compute_times_stats(double* times, int n, double *variance, double *mean);
-void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean);
+
+void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second);
 
 int op_size_of_set(const char *);
 
@@ -320,7 +318,7 @@ int op_mpi_comm_size();
 
 int op_mpi_comm_rank();
 
-int op_omp_max_num_threads();
+int op_num_threads();
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation

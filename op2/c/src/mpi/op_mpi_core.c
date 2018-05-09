@@ -42,8 +42,6 @@
 // mpi header
 #include <mpi.h>
 
-#include <sys/time.h>
-
 //#include <op_lib_core.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
@@ -2758,97 +2756,27 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = times_reduced[1] / (double)comm_size;
 }
 
-void op_compute_times_stats(double* times, int nthreads, double *variance, double *mean) {
-  int comm_size=0;
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
+  double times_moment[2] = {0.0f, 0.0f};
 
-  int nthreads_global;
-  MPI_Reduce(&nthreads, &nthreads_global, 1, MPI_INT, MPI_SUM, 0, OP_MPI_WORLD);
-
-  double sum = 0.0;
-  for (int i=0; i<nthreads; i++) {
-    sum += times[i];
-  }
-
-  double sum_reduced;
-  MPI_Reduce(&sum, &sum_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
-  sum = sum_reduced;
-
-  if (op_is_root()) {
-    *mean = sum / ((double)nthreads_global);
-  }
-
-  MPI_Bcast(mean, 1, MPI_DOUBLE, 0, OP_MPI_WORLD);
-
-  double diffs_squared = 0.0;
-  for (int i=0; i<nthreads; i++) {
-    double diff = (times[i] - (*mean));
-    diffs_squared += diff*diff;
-  }
-  double diffs_squared_sum;
-  MPI_Reduce(&diffs_squared, &diffs_squared_sum, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
-
-  if (op_is_root()) {
-    *variance = diffs_squared_sum / ((double)nthreads_global);
-  } else {
-    *variance = 0.0;
-  }
-}
-
-void op_compute_nonzero_times_stats(double* times, int n, double *variance, double *mean) {
-  double nonzero_values[n];
-  int num_nonzeros = 0;
-  for (int i=0; i<n; i++) {
-    if (times[i] != 0.0) {
-      nonzero_values[num_nonzeros] = times[i];
-      num_nonzeros++;
+  int num_times = 0;
+  for (int i=0; i<op_num_threads(); i++) {
+    if (ignore_zeros && (times[i] == 0.0f)) {
+      continue;
     }
-  }
-  int num_nonzeros_global;
-  MPI_Allreduce(&num_nonzeros, &num_nonzeros_global, 1, MPI_INT, MPI_SUM, OP_MPI_WORLD);
-
-  // Exit if all times are 0.0:
-  if (num_nonzeros_global == 0) {
-    *mean = 0.0;
-    *variance = 0.0;
-    return;
+    times_moment[0] += times[i];
+    times_moment[1] += times[i] * times[i];
+    num_times++;
   }
 
-  double sum = 0.0;
-  for (int i=0; i<num_nonzeros; i++) {
-    sum += nonzero_values[i];
-  }
-  double sum_global;
-  MPI_Reduce(&sum, &sum_global, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
-  sum = sum_global;
+  double times_moment_world[2] = {0.0f, 0.0f};
+  MPI_Reduce(times_moment, times_moment_world, 2, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
 
-  // Exit if just one non-zero time:
-  if (num_nonzeros_global == 1) {
-    *mean = sum_global;
-    *variance = 0.0;
-    return;
-  }
+  int num_times_world;
+  MPI_Reduce(&num_times, &num_times_world, 1, MPI_INT, MPI_SUM, 0, OP_MPI_WORLD);
 
-  if (op_is_root()) {
-    *mean = sum / ((double)num_nonzeros_global);
-  } else {
-    *mean = 0.0;
-  }
-  MPI_Bcast(mean, 1, MPI_DOUBLE, 0, OP_MPI_WORLD);
-
-  double diffs_squared_sum = 0.0;
-  for (int i=0; i<num_nonzeros; i++) {
-    double diff = (nonzero_values[i] - (*mean));
-    diffs_squared_sum += diff*diff;
-  }
-  double diffs_squared_sum_global;
-  MPI_Reduce(&diffs_squared_sum, &diffs_squared_sum_global, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
-
-  if (op_is_root()) {
-    *variance = diffs_squared_sum_global / ((double)num_nonzeros_global);
-  } else {
-    *variance = 0.0;
-  }
+  *first = times_moment_world[0] / (double)num_times_world;
+  *second = times_moment_world[1] / (double)num_times_world;
 }
 
 
@@ -3302,7 +3230,7 @@ int op_mpi_comm_rank() {
   return r;
 }
 
-int op_omp_max_num_threads() { return 1; }
+int op_num_threads() { return 1; }
 
 /*******************************************************************************
  * Get the global size of a set
@@ -4218,10 +4146,4 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                handle->coupling_proclist[j], 1001, OP_MPI_GLOBAL);
     }
   }
-}
-
-double op_timers_get_wtime() {
-  struct timeval t;
-  gettimeofday(&t, (struct timezone *)0);
-  return t.tv_sec + t.tv_usec * 1.0e-6;
 }
