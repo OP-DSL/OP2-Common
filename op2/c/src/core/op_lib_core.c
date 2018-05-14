@@ -741,10 +741,11 @@ void op_timing_output_core() {
       printf("\n "
              "-----------------------------------------------------------------"
              "--------------------------\n");
+    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
         double kern_time = OP_kernels[n].times[0];
-        for (int i=1; i<op_num_threads(); i++) {
+        for (int i=1; i<num_threads_per_process; i++) {
           if (OP_kernels[n].times[i] > kern_time)
             kern_time = OP_kernels[n].times[i];
         }
@@ -809,10 +810,11 @@ void op_timing_output_2_file(const char *outputFileName) {
     fprintf(outputFile, "\n  count     time     GB/s     GB/s   kernel name ");
     fprintf(outputFile,
             "\n ----------------------------------------------- \n");
+    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
         double kern_time = OP_kernels[n].times[0];
-        for (int i=1; i<op_num_threads(); i++) {
+        for (int i=1; i<num_threads_per_process; i++) {
           if (OP_kernels[n].times[i] > kern_time)
             kern_time = OP_kernels[n].times[i];
         }
@@ -838,65 +840,6 @@ void op_timing_output_2_file(const char *outputFileName) {
   fclose(outputFile);
 }
 
-void op_timing_output_2_csv(const char *outputFileName) {
-  int comm_size   = op_mpi_comm_size();
-  int comm_rank   = op_mpi_comm_rank();
-  int num_threads = op_num_threads();
-
-  for (int p=0; p<comm_size; p++) {
-    if (p == comm_rank) {
-      // This process may now write out its data:
-
-      FILE *outputFile = NULL;
-      if (p == 0) {
-        outputFile = fopen(outputFileName, "w");
-        if (outputFile == NULL) {
-          printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
-        }
-        else {
-          fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-        }
-      }
-      else {
-        outputFile = fopen(outputFileName, "a");
-        if (outputFile == NULL) {
-          printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
-        }
-      }
-
-      if (outputFile != NULL) {
-        for (int n = 0; n < OP_kern_max; n++) {
-          if (OP_kernels[n].count > 0) {
-            for (int thr=0; thr<op_num_threads(); thr++) {
-              double kern_time = OP_kernels[n].times[thr];
-              if (kern_time == 0.0) {
-                continue;
-              }
-
-              // double plan_time = (thr==0) ? OP_kernels[n].plan_time : 0.0f;
-              double plan_time = OP_kernels[n].plan_time;
-
-              // double mpi_time = (thr==0) ? OP_kernels[n].mpi_time : 0.0f;
-              double mpi_time = OP_kernels[n].mpi_time;
-
-              fprintf(outputFile, 
-                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                      p, thr, comm_size, op_num_threads(), 
-                      OP_kernels[n].count, kern_time, plan_time, mpi_time, 
-                      OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
-                      OP_kernels[n].name);
-            }
-          }
-        }
-
-        fclose(outputFile);
-      }
-    }
-
-    op_mpi_barrier();
-  }
-}
-
 void op_timers_core(double *cpu, double *et) {
   (void)cpu;
   struct timeval t;
@@ -918,11 +861,12 @@ void op_timing_realloc(int kernel) {
       exit(-1);
     }
 
+    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = OP_kern_max; n < OP_kern_max_new; n++) {
       OP_kernels[n].count = 0;
-      OP_kernels[n].times = (double*)op_malloc(op_num_threads() * sizeof(double));
-      for (int thr = 0; thr < op_num_threads(); thr++) {
-        OP_kernels[n].times[thr] = 0.0f;
+      OP_kernels[n].times = (double*)op_malloc(num_threads_per_process * sizeof(double));
+      for (int t = 0; t < num_threads_per_process; t++) {
+        OP_kernels[n].times[t] = 0.0f;
       }
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;

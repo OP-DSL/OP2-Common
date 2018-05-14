@@ -32,6 +32,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -fopenmp
 else
 ifeq ($(OP2_COMPILER),intel)
   CC       := icc
@@ -44,6 +45,7 @@ endif
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -qopenmp
 else
 ifeq ($(OP2_COMPILER),xl)
   CC       := xlc
@@ -56,6 +58,7 @@ endif
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -qsmp=omp
   OMP4FLAGS := -qsmp=omp -qoffload
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -70,6 +73,7 @@ endif
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -mp
   NVCCFLAGS:= #-ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -79,6 +83,7 @@ ifeq ($(OP2_COMPILER),cray)
   CXXFLAGS := $(CCFLAGS)
   MPICXX   := CC
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -h omp
 else
 ifeq ($(OP2_COMPILER),clang)
   CC	   := clang
@@ -92,6 +97,7 @@ endif
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPICC   := $(MPI_INSTALL_PATH)/bin/mpicc
   MPIFLAGS := $(CXXFLAGS)
+  OMPFLAGS := -fopenmp=libomp
   OMP4FLAGS := -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
 print:
@@ -190,10 +196,10 @@ openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
 	$(OBJ)/op_openmp4_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o

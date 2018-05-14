@@ -34,10 +34,6 @@
  * This file implements dummy MPI function calls for non-MPI backends
  */
 
-#ifdef _OPENMP
-  #include <omp.h>
-#endif
-
 #include "op_lib_core.h"
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
@@ -78,18 +74,6 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() {}
-
-int op_mpi_comm_size() { return 1; }
-
-int op_mpi_comm_rank() { return 0; }
-
-int op_num_threads() { 
-  #ifdef _OPENMP
-    return omp_get_max_threads();
-  #else
-    return 1;
-  #endif
-}
 
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
@@ -150,7 +134,8 @@ void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *
   *first = 0.0;
   *second = 0.0f;
   int n = 0;
-  for (int i=0; i<op_num_threads(); i++) {
+  const int num_threads = get_num_threads_per_process();
+  for (int i=0; i<num_threads; i++) {
     if (ignore_zeros && (times[i] == 0.0f)) {
       continue;
     }

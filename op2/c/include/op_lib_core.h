@@ -262,7 +262,7 @@ void op_timing_output_core(void);
 
 void op_timing_output_2_file(const char *);
 
-void op_timing_output_2_csv(const char *);
+void op_timing_raw_output_2_csv(const char *);
 
 void op_timing_realloc(int);
 
@@ -314,12 +314,6 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
 
-int op_mpi_comm_size();
-
-int op_mpi_comm_rank();
-
-int op_num_threads();
-
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
@@ -347,6 +341,8 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
                   char const *name);
 
 int op_is_root();
+
+int get_num_threads_per_process();
 
 /*******************************************************************************
 * Memory allocation functions

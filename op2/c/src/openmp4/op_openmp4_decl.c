@@ -178,6 +178,41 @@ void op_timing_output() {
   printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
+void op_timing_raw_output_2_csv(const char *outputFileName) {
+  const int num_threads = get_num_threads_per_process();
+
+  FILE *outputFile = fopen(outputFileName, "w");
+  if (outputFile == NULL) {
+    printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
+  }
+  else {
+    fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+  }
+
+  if (outputFile != NULL) {
+    for (int n = 0; n < OP_kern_max; n++) {
+      if (OP_kernels[n].count > 0) {
+        for (int thr=0; thr<num_threads; thr++) {
+          double kern_time = OP_kernels[n].times[thr];
+          if (kern_time == 0.0) {
+            continue;
+          }
+          double plan_time = OP_kernels[n].plan_time;
+          double mpi_time = OP_kernels[n].mpi_time;
+          fprintf(outputFile, 
+                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                  0, thr, 1, num_threads, 
+                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
+                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
+                  OP_kernels[n].name);
+        }
+      }
+    }
+
+    fclose(outputFile);
+  }
+}
+
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
   // need to get data from GPU
     op_cuda_get_data(dat);
@@ -277,3 +312,7 @@ void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
 void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 
 void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
+
+int get_num_threads_per_process() {
+  return omp_get_max_threads();
+}

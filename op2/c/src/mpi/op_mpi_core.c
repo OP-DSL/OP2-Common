@@ -2759,8 +2759,10 @@ void op_compute_moment(double t, double *first, double *second) {
 void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
   double times_moment[2] = {0.0f, 0.0f};
 
+  const int num_threads = get_num_threads_per_process();
+
   int num_times = 0;
-  for (int i=0; i<op_num_threads(); i++) {
+  for (int i=0; i<num_threads; i++) {
     if (ignore_zeros && (times[i] == 0.0f)) {
       continue;
     }
@@ -3217,20 +3219,6 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
-
-int op_mpi_comm_size() { 
-  int s;
-  MPI_Comm_size(OP_MPI_WORLD, &s);
-  return s;
-}
-
-int op_mpi_comm_rank() { 
-  int r;
-  MPI_Comm_rank(OP_MPI_WORLD, &r);
-  return r;
-}
-
-int op_num_threads() { return 1; }
 
 /*******************************************************************************
  * Get the global size of a set

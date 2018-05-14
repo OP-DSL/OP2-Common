@@ -303,6 +303,87 @@ void op_timing_output() {
   mpi_timing_output();
 }
 
+void op_timing_raw_output_2_csv(const char *outputFileName) {
+  int comm_size, comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
+  const int num_threads = get_num_threads_per_process();
+
+  FILE * outputFile = NULL;
+  if (op_is_root()) {
+    outputFile = fopen(outputFileName, "w");
+    if (outputFile == NULL) {
+      printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
+    }
+    else {
+      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+    }
+  }
+
+  bool can_write = (outputFile != NULL);
+  MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
+
+  if (can_write) {
+    for (int n = 0; n < OP_kern_max; n++) {
+      op_mpi_barrier();
+      if (OP_kernels[n].count > 0) {
+        if (op_is_root()) {
+          double times[num_threads*comm_size];
+          for (int i=0; i<(num_threads*comm_size); i++) times[i] = 0.0f;
+          MPI_Gather(OP_kernels[n].times, num_threads, MPI_DOUBLE, times, num_threads, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          float plan_times[comm_size];
+          for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          double mpi_times[comm_size];
+          for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          float transfers[comm_size];
+          for (int i=0; i<comm_size; i++) transfers[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          float transfers2[comm_size];
+          for (int i=0; i<comm_size; i++) transfers2[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          // Have data, now write:
+          for (int p=0 ; p<comm_size ; p++) {
+            for (int thr=0; thr<num_threads; thr++) {
+              double kern_time = times[p*num_threads + thr];
+
+              fprintf(outputFile, 
+                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                      p, thr, comm_size, num_threads, 
+                      OP_kernels[n].count, kern_time, plan_times[p], mpi_times[p], 
+                      transfers[p]/1e9f, transfers2[p]/1e9f, 
+                      OP_kernels[n].name);
+            }
+          }
+        }
+        else {
+          MPI_Gather(OP_kernels[n].times, num_threads, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+        }
+
+        op_mpi_barrier();
+      }
+    }
+  }
+
+  if (op_is_root() && outputFile != NULL) {
+    fclose(outputFile);
+  }
+}
+
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
   // rearrange data backe to original order in mpi
   op_dat temp = op_mpi_get_data(dat);
@@ -342,4 +423,12 @@ void op_debug_arg(int n, op_arg arg) {
       printf("NJH %i succeeded free here...\n", my_rank);
     };
   }
+}
+
+int get_num_threads_per_process() {
+  #ifdef _OPENMP
+  return omp_get_max_threads();
+  #else
+  return 1;
+  #endif
 }

@@ -167,10 +167,49 @@ void op_exit() { op_exit_core(); }
 
 void op_timing_output() { op_timing_output_core(); }
 
+void op_timing_raw_output_2_csv(const char *outputFileName) {
+  const int num_threads = get_num_threads_per_process();
+
+  FILE *outputFile = fopen(outputFileName, "w");
+  if (outputFile == NULL) {
+    printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
+  }
+  else {
+    fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+  }
+
+  if (outputFile != NULL) {
+    for (int n = 0; n < OP_kern_max; n++) {
+      if (OP_kernels[n].count > 0) {
+        for (int thr=0; thr<num_threads; thr++) {
+          double kern_time = OP_kernels[n].times[thr];
+          if (kern_time == 0.0) {
+            continue;
+          }
+          double plan_time = OP_kernels[n].plan_time;
+          double mpi_time = OP_kernels[n].mpi_time;
+          fprintf(outputFile, 
+                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                  0, thr, 1, num_threads, 
+                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
+                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
+                  OP_kernels[n].name);
+        }
+      }
+    }
+
+    fclose(outputFile);
+  }
+}
+
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
   op_print_dat_to_binfile_core(dat, file_name);
 }
 
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
+}
+
+int get_num_threads_per_process() {
+  return 1;
 }
