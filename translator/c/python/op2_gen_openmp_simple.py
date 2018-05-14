@@ -393,13 +393,18 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('int nblocks = Plan->ncolblk[col];')
       code('')
       if timing_granularity=="thread":
-        code('process_time += op_timers_get_wtime() - wall_t1;')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('process_time += wall_t2 - wall_t1;')
+
         code('#pragma omp parallel')
         code('{')
         depth += 2
-        code('int nthreads = omp_get_num_threads();')
+        code('int nthreads = omp_get_max_threads();')
         code('int thr = omp_get_thread_num();')
-        code('double thr_wall_t1 = op_timers_get_wtime();')
+
+        code('double thr_wall_t1;')
+        code('op_timers_core(&cpu_t2, &thr_wall_t1);')
+
         code('int thr_start = (nblocks * thr) / nthreads;')
         code('int thr_end = (nblocks * (thr+1)) / nthreads;')
         code('if (thr_end > nblocks) thr_end = nblocks;')
@@ -464,7 +469,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if timing_granularity=="thread":
         depth -= 2
         code('}')
-        code('OP_kernels[' +str(nk)+ '].times[thr]  += op_timers_get_wtime() - thr_wall_t1;')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('OP_kernels[' +str(nk)+ '].times[thr]  += wall_t2 - thr_wall_t1;')
       ENDFOR()
       code('')
 
@@ -492,7 +498,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         ENDIF()
 
       if timing_granularity=="thread":
-        code('wall_t1 = op_timers_get_wtime();')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
       code('block_offset += nblocks;');
       ENDIF()
 
@@ -503,11 +509,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       comm(' execute plan')
       if timing_granularity == "thread":
         # Pause process timing, and switch to per-thread timing:
-        code('process_time += op_timers_get_wtime() - wall_t1;')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('process_time += wall_t2 - wall_t1;')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
       if timing_granularity == "thread":
-        code('double thr_wall_t1 = op_timers_get_wtime();')
+        code('double thr_wall_t1;')
+        code('op_timers_core(&cpu_t1, &thr_wall_t1);')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
       FOR('n','start','finish')
@@ -528,11 +536,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code(line)
       ENDFOR()
       if timing_granularity=="thread":
-        code('OP_kernels['+str(nk)+'].times[thr]  += op_timers_get_wtime() - thr_wall_t1;')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('OP_kernels['+str(nk)+'].times[thr]  += wall_t2 - thr_wall_t1;')
       ENDFOR()
       if timing_granularity=="thread":
         # OpenMP block complete, so switch back to process timing:
-        code('wall_t1 = op_timers_get_wtime();')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
 
     if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
@@ -629,8 +638,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"       ')
   code('')
-  comm(' global constants       ')
 
+  code('#ifdef _OPENMP')
+  code('  #include <omp.h>')
+  code('#endif')
+  code('')
+
+  comm(' global constants       ')
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
