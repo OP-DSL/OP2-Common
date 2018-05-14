@@ -548,3 +548,11 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
   free(temp->set);
   free(temp);
 }
+
+int get_num_threads_per_process() {
+  #ifdef _OPENMP
+  return omp_get_max_threads();
+  #else
+  return 1;
+  #endif
+}
