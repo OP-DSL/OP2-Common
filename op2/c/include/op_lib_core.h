@@ -175,6 +175,7 @@ typedef struct {
 typedef struct {
   char const *name; /* name of kernel function */
   int count;        /* number of times called */
+  double time;      /* total execution time */
   double* times;    /* total execution time of each thread */
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */

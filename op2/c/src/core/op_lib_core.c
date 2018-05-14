@@ -752,8 +752,16 @@ void op_timing_output_core() {
         
         double moments_mpi_time[2];
         double moments_time[2];
-        op_compute_moment_across_threads(OP_kernels[n].times, true, &moments_time[0],
-                          &moments_time[1]);
+        if (OP_kernels[n].time != 0.0f) {
+          // An old OP2 translation is using this library, and so 
+          // not using the new times[] array.
+          op_compute_moment(OP_kernels[n].time, &moments_time[0],
+                            &moments_time[1]);
+        }
+        else {
+          op_compute_moment_across_threads(OP_kernels[n].times, true, &moments_time[0],
+                            &moments_time[1]);
+        }
         op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
                           &moments_mpi_time[1]);
         if (OP_kernels[n].transfer2 < 1e-8f) {
@@ -864,6 +872,7 @@ void op_timing_realloc(int kernel) {
     const int num_threads_per_process = get_num_threads_per_process();
     for (int n = OP_kern_max; n < OP_kern_max_new; n++) {
       OP_kernels[n].count = 0;
+      OP_kernels[n].time = 0.0f;
       OP_kernels[n].times = (double*)op_malloc(num_threads_per_process * sizeof(double));
       for (int t = 0; t < num_threads_per_process; t++) {
         OP_kernels[n].times[t] = 0.0f;
