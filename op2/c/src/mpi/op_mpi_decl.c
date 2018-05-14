@@ -307,7 +307,6 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
   int comm_size, comm_rank;
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
   MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
-  const int num_threads = get_num_threads_per_process();
 
   FILE * outputFile = NULL;
   if (op_is_root()) {
@@ -327,10 +326,17 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
     for (int n = 0; n < OP_kern_max; n++) {
       op_mpi_barrier();
       if (OP_kernels[n].count > 0) {
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+            OP_kernels[n].time != 0.0f) {
+          // This library is being used by an OP2 translation made with the older 
+          // translator with older timing logic. Adjust to new logic:
+          OP_kernels[n].times[0] = OP_kernels[n].time;
+        }
+
         if (op_is_root()) {
-          double times[num_threads*comm_size];
-          for (int i=0; i<(num_threads*comm_size); i++) times[i] = 0.0f;
-          MPI_Gather(OP_kernels[n].times, num_threads, MPI_DOUBLE, times, num_threads, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          double times[OP_kernels[n].ntimes*comm_size];
+          for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times, OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
           float plan_times[comm_size];
           for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
@@ -350,12 +356,12 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
 
           // Have data, now write:
           for (int p=0 ; p<comm_size ; p++) {
-            for (int thr=0; thr<num_threads; thr++) {
-              double kern_time = times[p*num_threads + thr];
+            for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
+              double kern_time = times[p*OP_kernels[n].ntimes + thr];
 
               fprintf(outputFile, 
                       "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                      p, thr, comm_size, num_threads, 
+                      p, thr, comm_size, OP_kernels[n].ntimes, 
                       OP_kernels[n].count, kern_time, plan_times[p], mpi_times[p], 
                       transfers[p]/1e9f, transfers2[p]/1e9f, 
                       OP_kernels[n].name);
@@ -363,7 +369,7 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
           }
         }
         else {
-          MPI_Gather(OP_kernels[n].times, num_threads, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
           MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
@@ -423,12 +429,4 @@ void op_debug_arg(int n, op_arg arg) {
       printf("NJH %i succeeded free here...\n", my_rank);
     };
   }
-}
-
-int get_num_threads_per_process() {
-  #ifdef _OPENMP
-  return omp_get_max_threads();
-  #else
-  return 1;
-  #endif
 }

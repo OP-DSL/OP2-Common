@@ -741,27 +741,25 @@ void op_timing_output_core() {
       printf("\n "
              "-----------------------------------------------------------------"
              "--------------------------\n");
-    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+            OP_kernels[n].time != 0.0f) {
+          // This library is being used by an OP2 translation made with the older 
+          // translator with older timing logic. Adjust to new logic:
+          OP_kernels[n].times[0] = OP_kernels[n].time;
+        }
+
         double kern_time = OP_kernels[n].times[0];
-        for (int i=1; i<num_threads_per_process; i++) {
+        for (int i=1; i<OP_kernels[n].ntimes; i++) {
           if (OP_kernels[n].times[i] > kern_time)
             kern_time = OP_kernels[n].times[i];
         }
         
         double moments_mpi_time[2];
         double moments_time[2];
-        if (OP_kernels[n].time != 0.0f) {
-          // An old OP2 translation is using this library, and so 
-          // not using the new times[] array.
-          op_compute_moment(OP_kernels[n].time, &moments_time[0],
-                            &moments_time[1]);
-        }
-        else {
-          op_compute_moment_across_threads(OP_kernels[n].times, true, &moments_time[0],
-                            &moments_time[1]);
-        }
+        op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true, &moments_time[0],
+                          &moments_time[1]);
         op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
                           &moments_mpi_time[1]);
         if (OP_kernels[n].transfer2 < 1e-8f) {
@@ -818,11 +816,10 @@ void op_timing_output_2_file(const char *outputFileName) {
     fprintf(outputFile, "\n  count     time     GB/s     GB/s   kernel name ");
     fprintf(outputFile,
             "\n ----------------------------------------------- \n");
-    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
         double kern_time = OP_kernels[n].times[0];
-        for (int i=1; i<num_threads_per_process; i++) {
+        for (int i=1; i<OP_kernels[n].ntimes; i++) {
           if (OP_kernels[n].times[i] > kern_time)
             kern_time = OP_kernels[n].times[i];
         }
@@ -857,6 +854,10 @@ void op_timers_core(double *cpu, double *et) {
 }
 
 void op_timing_realloc(int kernel) {
+  op_timing_realloc_manytime(kernel, 1);
+}
+
+void op_timing_realloc_manytime(int kernel, int num_timers) {
   int OP_kern_max_new;
   OP_kern_curr = kernel;
 
@@ -869,14 +870,14 @@ void op_timing_realloc(int kernel) {
       exit(-1);
     }
 
-    const int num_threads_per_process = get_num_threads_per_process();
     for (int n = OP_kern_max; n < OP_kern_max_new; n++) {
       OP_kernels[n].count = 0;
       OP_kernels[n].time = 0.0f;
-      OP_kernels[n].times = (double*)op_malloc(num_threads_per_process * sizeof(double));
-      for (int t = 0; t < num_threads_per_process; t++) {
+      OP_kernels[n].times = (double*)op_malloc(num_timers * sizeof(double));
+      for (int t = 0; t < num_timers; t++) {
         OP_kernels[n].times[t] = 0.0f;
       }
+      OP_kernels[n].ntimes = num_timers;
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;

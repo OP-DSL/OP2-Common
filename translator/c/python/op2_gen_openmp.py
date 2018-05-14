@@ -757,7 +757,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       ENDFOR()
 
     if ninds>0:
-      code('op_timing_realloc('+str(nk)+');')
+      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer; ')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 

@@ -168,8 +168,6 @@ void op_exit() { op_exit_core(); }
 void op_timing_output() { op_timing_output_core(); }
 
 void op_timing_raw_output_2_csv(const char *outputFileName) {
-  const int num_threads = get_num_threads_per_process();
-
   FILE *outputFile = fopen(outputFileName, "w");
   if (outputFile == NULL) {
     printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
@@ -181,7 +179,14 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
   if (outputFile != NULL) {
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        for (int thr=0; thr<num_threads; thr++) {
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+            OP_kernels[n].time != 0.0f) {
+          // This library is being used by an OP2 translation made with the older 
+          // translator with older timing logic. Adjust to new logic:
+          OP_kernels[n].times[0] = OP_kernels[n].time;
+        }
+        
+        for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
           double kern_time = OP_kernels[n].times[thr];
           if (kern_time == 0.0) {
             continue;
@@ -190,7 +195,7 @@ void op_timing_raw_output_2_csv(const char *outputFileName) {
           double mpi_time = OP_kernels[n].mpi_time;
           fprintf(outputFile, 
                   "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                  0, thr, 1, num_threads, 
+                  0, thr, 1, OP_kernels[n].ntimes, 
                   OP_kernels[n].count, kern_time, plan_time, mpi_time, 
                   OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
                   OP_kernels[n].name);
@@ -210,6 +215,3 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
 
-int get_num_threads_per_process() {
-  return 1;
-}

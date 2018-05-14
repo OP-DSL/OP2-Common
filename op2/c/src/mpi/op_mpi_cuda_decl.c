@@ -455,6 +455,92 @@ void op_timing_output() {
   printf("Total plan time: %8.4f\n", OP_plan_time);
 }
 
+void op_timing_raw_output_2_csv(const char *outputFileName) {
+  int comm_size, comm_rank;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
+
+  FILE * outputFile = NULL;
+  if (op_is_root()) {
+    outputFile = fopen(outputFileName, "w");
+    if (outputFile == NULL) {
+      printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
+    }
+    else {
+      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+    }
+  }
+
+  bool can_write = (outputFile != NULL);
+  MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
+
+  if (can_write) {
+    for (int n = 0; n < OP_kern_max; n++) {
+      if (OP_kernels[n].count > 0) {
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+            OP_kernels[n].time != 0.0f) {
+          // This library is being used by an OP2 translation made with the older 
+          // translator with older timing logic. Adjust to new logic:
+          OP_kernels[n].times[0] = OP_kernels[n].time;
+        }
+
+        if (op_is_root()) {
+          double times[OP_kernels[n].ntimes*comm_size];
+          for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times, OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          float plan_times[comm_size];
+          for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          double mpi_times[comm_size];
+          for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          float transfers[comm_size];
+          for (int i=0; i<comm_size; i++) transfers[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          float transfers2[comm_size];
+          for (int i=0; i<comm_size; i++) transfers2[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          // Have data, now write:
+          for (int p=0 ; p<comm_size ; p++) {
+            for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
+              double kern_time = times[p*OP_kernels[n].ntimes + thr];
+
+              fprintf(outputFile, 
+                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                      p, thr, comm_size, OP_kernels[n].ntimes, 
+                      OP_kernels[n].count, kern_time, plan_times[p], mpi_times[p], 
+                      transfers[p]/1e9f, transfers2[p]/1e9f, 
+                      OP_kernels[n].name);
+            }
+          }
+        }
+        else {
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+        }
+
+        op_mpi_barrier();
+      }
+    }
+  }
+
+  if (op_is_root() && outputFile != NULL) {
+    fclose(outputFile);
+  }
+}
+
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
   // need to get data from GPU
   op_cuda_get_data(dat);
@@ -549,10 +635,10 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
   free(temp);
 }
 
-int get_num_threads_per_process() {
-  #ifdef _OPENMP
-  return omp_get_max_threads();
-  #else
-  return 1;
-  #endif
-}
+// int get_num_threads_per_process() {
+//   #ifdef _OPENMP
+//   return omp_get_max_threads();
+//   #else
+//   return 1;
+//   #endif
+// }

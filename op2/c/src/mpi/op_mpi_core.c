@@ -2756,13 +2756,11 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = times_reduced[1] / (double)comm_size;
 }
 
-void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
+void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros, double *first, double *second) {
   double times_moment[2] = {0.0f, 0.0f};
 
-  const int num_threads = get_num_threads_per_process();
-
   int num_times = 0;
-  for (int i=0; i<num_threads; i++) {
+  for (int i=0; i<ntimes; i++) {
     if (ignore_zeros && (times[i] == 0.0f)) {
       continue;
     }
@@ -2777,8 +2775,10 @@ void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *
   int num_times_world;
   MPI_Reduce(&num_times, &num_times_world, 1, MPI_INT, MPI_SUM, 0, OP_MPI_WORLD);
 
-  *first = times_moment_world[0] / (double)num_times_world;
-  *second = times_moment_world[1] / (double)num_times_world;
+  if (num_times_world != 0) {
+    *first = times_moment_world[0] / (double)num_times_world;
+    *second = times_moment_world[1] / (double)num_times_world;
+  }
 }
 
 

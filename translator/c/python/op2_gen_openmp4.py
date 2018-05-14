@@ -439,7 +439,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code('op_timing_realloc('+str(nk)+');')
+    code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')

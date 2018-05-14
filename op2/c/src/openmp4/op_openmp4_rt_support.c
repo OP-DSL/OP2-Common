@@ -373,11 +373,11 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = t * t;
 }
 
-void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *first, double *second) {
+void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros, double *first, double *second) {
   *first = 0.0;
   *second = 0.0f;
   int n = 0;
-  for (int i=0; i<op_num_threads(); i++) {
+  for (int i=0; i<ntimes; i++) {
     if (ignore_zeros && (times[i] == 0.0f)) {
       continue;
     }
@@ -386,8 +386,10 @@ void op_compute_moment_across_threads(double* times, bool ignore_zeros, double *
     n++;
   }
 
-  *first /= (double)n;
-  *second /= (double)n;
+  if (n != 0) {
+    *first /= (double)n;
+    *second /= (double)n;
+  }
 }
 
 int op_is_root() { return 1; }
