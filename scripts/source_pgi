@@ -7,39 +7,34 @@ unset LD_LIBRARY_PATH
 
 #OP2 specifics
 export OP2_COMPILER=pgi
-export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2/
 
 #External libraries
-export PARMETIS_INSTALL_PATH=/opt/parmetis-pgi
-export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-pgi/
+export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-PGI-17/
+export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-PGI-17
 #export HDF5_INSTALL_PATH=/opt/hdf5-pgi/
 #export LD_LIBRARY_PATH=/opt/parmetis-pgi/lib:/opt/ptscotch-pgi/lib:$LD_LIBRARY_PATH
-export HDF5_INSTALL_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/
-export LD_LIBRARY_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/lib:$LD_LIBRARY_PATH
+export HDF5_INSTALL_PATH=/opt/hdf5/1.8.18/pgi/16.10/ompi/1.10.6/
+export LD_LIBRARY_PATH=/opt/hdf5/1.8.18/pgi/16.10/ompi/1.10.6/lib:$LD_LIBRARY_PATH
 
 #NVIDIA CUDA
 export PATH=/usr/local/cuda/bin:$PATH
 export CUDA_INSTALL_PATH=/usr/local/cuda
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-#export PATH=/usr/local/cuda-6.5.14/bin:$PATH
-#export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
-#export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
 
 #PGI openmpi and Compilers
-export MPI_INSTALL_PATH=/opt/pgi/linux86-64/15.1/mpi/mpich/ #/opt/openmpi-1.8.4-pgi151/ #/opt/pgi/linux86-64/2015/mpi/mpich/
-export PATH=/opt/pgi/linux86-64/15.1/bin/:$PATH
-#export PATH=/opt/openmpi-1.8.4-pgi151/bin:$PATH #/opt/pgi/linux86-64/2015/mpi/mpich/bin/:$PATH
-export PATH=/opt/pgi/linux86-64/15.1/mpi/mpich/bin/:$PATH
-#export LD_LIBRARY_PATH=/usr/lib64/:/opt/pgi/linux86-64/2015/lib/:/opt/openmpi-1.8.4-pgi151/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/opt/pgi/linux86-64/15.1/lib:/opt/pgi/linux86-64/15.1/mpi/mpich/lib/:$LD_LIBRARY_PATH
+export MPI_INSTALL_PATH=/opt/mpi/openmpi/1.10.6/pgi/17.4/
+export PATH=/opt/pgi/licensed/17.3/linux86-64/2017/bin/:$PATH
+export PATH=/opt/mpi/openmpi/1.10.6/pgi/17.4/bin:$PATH
+export LD_LIBRARY_PATH=/opt/pgi/licensed/17.3/linux86-64/2017/lib:/opt/mpi/openmpi/1.10.6/pgi/17.4/lib/:$LD_LIBRARY_PATH
 
 #export MPICH_CXX=/opt/pgi/linux86-64/2015/bin/pgc++
 #export MPICH_CC=/opt/pgi/linux86-64/2015/bin/pgcc
 #export MPICH_F90=/opt/pgi/linux86-64/2015/bin/pgfortran
 
-export MPICH_CXX=/opt/pgi/linux86-64/15.1/bin/pgc++
-export MPICH_CC=/opt/pgi/linux86-64/15.1/bin/pgcc
-export MPICH_F90=/opt/pgi/linux86-64/15.1/bin/pgfortran
-export MPIF90_F90=/opt/pgi/linux86-64/15.1/bin/pgfortran
-export MPICH_FC=/opt/pgi/linux86-64/15.1/bin/pgfortran
+export MPICH_CXX=/opt/pgi/licensed/17.3/linux86-64/2017/bin/pgc++
+export MPICH_CC=/opt/pgi/licensed/17.3/linux86-64/2017/bin/pgcc
+export MPICH_F90=/opt/pgi/licensed/17.3/linux86-64/2017/bin/pgfortran
+export MPIF90_F90=/opt/pgi/licensed/17.3/linux86-64/2017/bin/pgfortran
+export MPICH_FC=/opt/pgi/licensed/17.3/linux86-64/2017/bin/pgfortran
 
