@@ -116,6 +116,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     idxs  = kernels[nk]['idxs']
     inds  = kernels[nk]['inds']
     soaflags = kernels[nk]['soaflags']
+    optflags = kernels[nk]['optflags']
     decl_filepath = kernels[nk]['decl_filepath']
 
     ninds   = kernels[nk]['ninds']
@@ -144,6 +145,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       new_idxs = []
       new_inds = []
       new_soaflags = []
+      new_optflags = []
       new_mapnames = []
       for m in range(0,nargs):
           if int(idxs[m])<0 and maps[m] == OP_MAP:
@@ -162,6 +164,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
             new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
             new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
             new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
+            new_optflags = new_optflags+[optflags[m]]*int(-1*int(idxs[m]))
             new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
             for i in range(0,-1*int(idxs[m])):
               new_idxs = new_idxs+[i]
@@ -176,6 +179,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
             new_mapnames = new_mapnames+[mapnames[m]]
             new_accs = new_accs+[int(accs[m])]
             new_soaflags = new_soaflags+[soaflags[m]]
+            new_optflags = new_optflags+[optflags[m]]
             new_idxs = new_idxs+[int(idxs[m])]
             new_inds = new_inds+[inds[m]]
             new_vars = new_vars+[var[m]]
@@ -190,6 +194,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       var = new_vars
       typs = new_typs
       soaflags = new_soaflags;
+      optflags = new_optflags;
       nargs = len(vectorised);
       mapinds = [0]*nargs
       for i in range(0,nargs):
@@ -217,6 +222,22 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if maps[i] == OP_MAP:
         cumulative_indirect_index[i] = j
         j = j + 1
+
+    optidxs = [0]*nargs
+    indopts = [-1]*nargs
+    nopts = 0
+    for i in range(0,nargs):
+      if optflags[i] == 1 and maps[i] == OP_ID:
+        optidxs[i] = nopts
+        nopts = nopts+1
+      elif optflags[i] == 1 and maps[i] == OP_MAP:
+        if i == invinds[inds[i]-1]: #i.e. I am the first occurence of this dat+map combination
+          optidxs[i] = nopts
+          indopts[inds[i]-1] = i
+          nopts = nopts+1
+        else:
+          optidxs[i] = optidxs[invinds[inds[i]-1]]
+
 #
 # set two logicals
 #
@@ -553,11 +574,15 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
+        if optflags[g_m]==1:
+          IF('ARG.opt')
         if maps[g_m]<>OP_GBL:
-          if accs[g_m]==OP_READ or accs[g_m]==OP_WRITE:
+          if accs[g_m]==OP_READ:
             code(line+' ARG.size;')
           else:
             code(line+' ARG.size * 2.0f;')
+        if optflags[g_m]==1:
+          ENDIF()
 
     depth -= 2
     code('}')
