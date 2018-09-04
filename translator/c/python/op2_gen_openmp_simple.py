@@ -459,7 +459,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
               FOR('d','0','DIM')
               code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
               ENDFOR()
-            elif  accs(m)==OP_MAX:
+            elif  accs[m]==OP_MAX:
               FOR('d','0','DIM')
               code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
               ENDFOR()
