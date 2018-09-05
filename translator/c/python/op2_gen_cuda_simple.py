@@ -524,6 +524,28 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
+      for g_m in range (0,nargs):
+        if accs[g_m] <> OP_INC: #TODO: add opt handling here
+          u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+          if len(u) > 0 and vectorised[g_m] > 0:
+            if accs[g_m] == OP_READ:
+              line = 'const TYP* ARG_vec[] = {\n'
+            else:
+              line = 'TYP* ARG_vec[] = {\n'
+
+            v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+            first = [i for i in range(0,len(v)) if v[i] == 1]
+            first = first[0]
+
+            indent = ' '*(depth+2)
+            for k in range(0,sum(v)):
+              if soaflags[g_m]:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+              else:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line[:-2]+'};'
+            code(line)
+
 
 
 
