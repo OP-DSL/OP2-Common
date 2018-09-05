@@ -104,7 +104,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_arg_dat(arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_INC);
   }
 
 
@@ -174,8 +174,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int map2idx = map0[n + set_size1 * 2];
         int map3idx = map0[n + set_size1 * 3];
 
-        const double *arg0_vec[] = {&data0[2 * map0idx], &data0[2 * map1idx],
-                                    &data0[2 * map2idx], &data0[2 * map3idx]};
+        const double* arg0_vec[] = {
+           &data0[2 * map0idx],
+           &data0[2 * map1idx],
+           &data0[2 * map2idx],
+           &data0[2 * map3idx]};
         const double* arg4_vec[] = {
            &data4[1 * map0idx],
            &data4[1 * map1idx],

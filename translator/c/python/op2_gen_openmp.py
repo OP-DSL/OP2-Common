@@ -484,9 +484,13 @@ def op2_gen_openmp(master, date, consts, kernels):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
+        if (optflags[g_m] == 1):
+          argtyp = 'op_opt_arg_dat(arg'+str(first)+'.opt, '
+        else:
+          argtyp = 'op_arg_dat('
 
         FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
         str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')

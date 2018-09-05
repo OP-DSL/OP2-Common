@@ -78,6 +78,7 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
 // CUDA kernel function
 __global__ void op_cuda_res_calc(
+  int optflags,
   const double *__restrict ind_arg0,
   const double *__restrict ind_arg1,
   double *__restrict ind_arg2,
@@ -173,14 +174,22 @@ __global__ void op_cuda_res_calc(
 
     for ( int col=0; col<ncolor; col++ ){
       if (col2==col) {
-        arg9_l[0] += ind_arg2[0+map0idx*1];
-        ind_arg2[0+map0idx*1] = arg9_l[0];
-        arg10_l[0] += ind_arg2[0+map1idx*1];
-        ind_arg2[0+map1idx*1] = arg10_l[0];
-        arg11_l[0] += ind_arg2[0+map2idx*1];
-        ind_arg2[0+map2idx*1] = arg11_l[0];
-        arg12_l[0] += ind_arg2[0+map3idx*1];
-        ind_arg2[0+map3idx*1] = arg12_l[0];
+        if (optflags & 1<<0) {
+          arg9_l[0] += ind_arg2[0+map0idx*1];
+          ind_arg2[0+map0idx*1] = arg9_l[0];
+        }
+        if (optflags & 1<<0) {
+          arg10_l[0] += ind_arg2[0+map1idx*1];
+          ind_arg2[0+map1idx*1] = arg10_l[0];
+        }
+        if (optflags & 1<<0) {
+          arg11_l[0] += ind_arg2[0+map2idx*1];
+          ind_arg2[0+map2idx*1] = arg11_l[0];
+        }
+        if (optflags & 1<<0) {
+          arg12_l[0] += ind_arg2[0+map3idx*1];
+          ind_arg2[0+map3idx*1] = arg12_l[0];
+        }
       }
       __syncthreads();
     }
@@ -214,9 +223,22 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_arg_dat(arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_INC);
   }
 
+  int optflags = 0;
+  if (args[9].opt) {
+    optflags |= 1<<0;
+  }
+  if (args[10].opt) {
+    optflags |= 1<<0;
+  }
+  if (args[11].opt) {
+    optflags |= 1<<0;
+  }
+  if (args[12].opt) {
+    optflags |= 1<<0;
+  }
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -270,6 +292,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if (Plan->ncolblk[col] > 0) {
         op_cuda_res_calc<<<nblocks,nthread>>>(
+        optflags,
         (double *)arg0.data_d,
         (double *)arg4.data_d,
         (double *)arg9.data_d,
