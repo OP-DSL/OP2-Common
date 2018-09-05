@@ -230,9 +230,12 @@ def op2_gen_openmp4(master, date, consts, kernels):
 #        body_text = re.sub('\*'+varname+'(?!\[)', varname+'[0]', body_text)
 #        body_text = re.sub(r''+varname+'\[([A-Za-z0-9]*)\]'+'', varname+r'_ompkernel[\1]', body_text)
 
-
+    vec = 0
+    for n in range(0,nargs):
+      if (vectorised[n] == 1):
+        vec = 1
     kernel_params = [ var.strip() for var in signature_text.split(',')]
-    if len([m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]) > 0:
+    if vec:
       new_kernel_params = []
       for m in range(0,nargs_novec):
         if int(kernels[nk]['idxs'][m])<0 and int(kernels[nk]['maps'][m]) == OP_MAP:
@@ -327,9 +330,13 @@ def op2_gen_openmp4(master, date, consts, kernels):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
+        if (optflags[g_m] == 1):
+          argtyp = 'op_opt_arg_dat(arg'+str(first)+'.opt, '
+        else:
+          argtyp = 'op_arg_dat('
 
         FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
         str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
@@ -441,13 +448,19 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if maps[g_m] == OP_ID:
         code(typs[g_m]+'* data'+str(g_m)+' = ('+typs[g_m]+'*)arg'+str(g_m)+'.data_d;')
         if maptype == 'map':
-          code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
+          if optflags[g_m]:
+              code('int dat'+str(g_m)+'size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
+          else:
+            code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
 
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
       code('TYP *data'+str(g_m)+' = (TYP *)ARG.data_d;')
       if maptype == 'map':
-        code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
+        if optflags[g_m]:
+            code('int dat'+str(g_m)+'size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
+        else:
+          code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
     
 #
 # prepare kernel params for indirect version

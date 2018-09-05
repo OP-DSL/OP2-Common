@@ -31,7 +31,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_arg_dat(arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_INC);
   }
 
 
