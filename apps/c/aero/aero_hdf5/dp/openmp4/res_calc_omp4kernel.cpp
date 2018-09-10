@@ -20,6 +20,8 @@ void res_calc_omp4_kernel(
   int dat4size,
   double *data9,
   int dat9size,
+  double *data13,
+  int dat13size,
   int *col_reord,
   int set_size1,
   int start,
@@ -34,10 +36,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg4,
   op_arg arg8,
-  op_arg arg9){
+  op_arg arg9,
+  op_arg arg13){
 
-  int nargs = 13;
-  op_arg args[13];
+  int nargs = 17;
+  op_arg args[17];
 
   arg0.idx = 0;
   args[0] = arg0;
@@ -55,7 +58,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_RW);
+  }
+
+  arg13.idx = 0;
+  args[13] = arg13;
+  for ( int v=1; v<4; v++ ){
+    args[13 + v] = op_opt_arg_dat(arg13.opt, arg13.dat, v, arg13.map, 2, "double", OP_INC);
   }
 
 
@@ -66,8 +75,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
   OP_kernels[0].name      = name;
   OP_kernels[0].count    += 1;
 
-  int  ninds   = 3;
-  int  inds[13] = {0,0,0,0,1,1,1,1,-1,2,2,2,2};
+  int  ninds   = 4;
+  int  inds[17] = {0,0,0,0,1,1,1,1,-1,2,2,2,2,3,3,3,3};
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
@@ -107,13 +116,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
      int map0size = arg0.map->dim * set_size1;
 
     double* data8 = (double*)arg8.data_d;
-    int dat8size = getSetSizeFromOpArg(&arg8) * arg8.dat->dim;
+    int dat8size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg8) * arg8.dat->dim;
     double *data0 = (double *)arg0.data_d;
     int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
     double *data4 = (double *)arg4.data_d;
     int dat4size = getSetSizeFromOpArg(&arg4) * arg4.dat->dim;
     double *data9 = (double *)arg9.data_d;
-    int dat9size = getSetSizeFromOpArg(&arg9) * arg9.dat->dim;
+    int dat9size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg9) * arg9.dat->dim;
+    double *data13 = (double *)arg13.data_d;
+    int dat13size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg13) * arg13.dat->dim;
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
     ncolors = Plan->ncolors;
@@ -138,6 +149,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
         dat4size,
         data9,
         dat9size,
+        data13,
+        dat13size,
         col_reord,
         set_size1,
         start,

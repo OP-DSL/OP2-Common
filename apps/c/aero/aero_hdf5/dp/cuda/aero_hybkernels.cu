@@ -50,7 +50,8 @@ void op_par_loop_res_calc_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
-  op_arg arg3);
+  op_arg arg3,
+  op_arg arg4);
 
 //GPU host stub function
 #if OP_HYBRID_GPU
@@ -58,21 +59,24 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
-  op_arg arg3){
+  op_arg arg3,
+  op_arg arg4){
 
   if (OP_hybrid_gpu) {
     op_par_loop_res_calc_gpu(name, set,
       arg0,
       arg1,
       arg2,
-      arg3);
+      arg3,
+      arg4);
 
     }else{
     op_par_loop_res_calc_cpu(name, set,
       arg0,
       arg1,
       arg2,
-      arg3);
+      arg3,
+      arg4);
 
   }
 }
@@ -81,13 +85,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
-  op_arg arg3){
+  op_arg arg3,
+  op_arg arg4){
 
   op_par_loop_res_calc_gpu(name, set,
     arg0,
     arg1,
     arg2,
-    arg3);
+    arg3,
+    arg4);
 
   }
 #endif //OP_HYBRID_GPU

@@ -356,7 +356,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2:
         code('TYP ARG_l[DIM];')
 
-    if ninds==0 or not op_color2:
+    if not op_color2:
       for m in range (1,ninds+1):
         g_m = m -1
         v = [int(inds[i]==m) for i in range(len(inds))]
@@ -525,7 +525,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           if optflags[g_m]==1:
             ENDIF()
       for g_m in range (0,nargs):
-        if accs[g_m] <> OP_INC: #TODO: add opt handling here
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
             if accs[g_m] == OP_READ:
