@@ -13,6 +13,8 @@ void res_calc_omp4_kernel(
   int dat4size,
   double *data9,
   int dat9size,
+  double *data13,
+  int dat13size,
   int *col_reord,
   int set_size1,
   int start,
@@ -24,7 +26,7 @@ void res_calc_omp4_kernel(
 
   #pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:data8[0:dat8size]) \
     map(to: gm1_ompkernel, gm1i_ompkernel, m2_ompkernel, wtg2_ompkernel[:4], Ng2_xi_ompkernel[:32])\
-    map(to:col_reord[0:set_size1],map0[0:map0size],data0[0:dat0size],data4[0:dat4size],data9[0:dat9size])
+    map(to:col_reord[0:set_size1],map0[0:map0size],data0[0:dat0size],data4[0:dat4size],data9[0:dat9size],data13[0:dat13size])
   #pragma omp distribute parallel for schedule(static,1)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
@@ -48,11 +50,17 @@ void res_calc_omp4_kernel(
        &data9[1 * map1idx],
        &data9[1 * map2idx],
        &data9[1 * map3idx]};
+    double* arg13_vec[] = {
+       &data13[2 * map0idx],
+       &data13[2 * map1idx],
+       &data13[2 * map2idx],
+       &data13[2 * map3idx]};
     //variable mapping
     const double **x = arg0_vec;
     const double **phim = arg4_vec;
     double *K = &data8[n_op];
     double **res = arg9_vec;
+    double **none = arg13_vec;
 
     //inline function
     

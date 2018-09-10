@@ -1,5 +1,5 @@
 inline void res_calc(const double **x, const double **phim, double *K,
-                     /*double *Kt,*/ double **res) {
+                     /*double *Kt,*/ double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
       K[j * 4 + k] = 0;
