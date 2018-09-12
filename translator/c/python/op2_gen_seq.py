@@ -369,7 +369,7 @@ def op2_gen_seq(master, date, consts, kernels):
           mult = ' * 2.0f'
         if not var[invinds[g_m]] in names:
           if optflags[g_m]==1:
-            IF('ARG.opt')
+            IF('arg'+str(invinds[g_m])+'.opt')
           code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[g_m])+'.size'+mult+';')
           if optflags[g_m]==1:
             ENDIF()
