@@ -255,8 +255,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel(%s): must have %d arguments' \
-              % name, nargs
+        print 'Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments'
         return
 
     for i in range(0,nargs_novec):

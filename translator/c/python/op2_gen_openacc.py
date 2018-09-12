@@ -111,7 +111,6 @@ def op2_gen_openacc(master, date, consts, kernels):
             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
             unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
 
-
     optidxs = [0]*nargs
     indopts = [-1]*nargs
     nopts = 0
@@ -202,8 +201,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel(%s): must have %d arguments' \
-              % name, nargs
+        print 'Error parsing user kernel('+name+'): must have '+str(nargs_novec)+' arguments'
         return
 
     for i in range(0,nargs_novec):
