@@ -474,15 +474,25 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
 
+      #non-optional maps
       k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
+          k = k + [(0*nargs+mapinds[g_m])] #non-opt
+          k = k + [(1*nargs+mapinds[g_m])] #opt
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+
+      #whatever didn't come up and is opt
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and ((not (optflags[g_m]*nargs+mapinds[g_m]) in k) and (not mapinds[g_m] in      k)):
           k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
           if optflags[g_m]==1:
-            IF('optflags & 1<<'+str(optidxs[indopts[g_m]]))
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+            IF('optflags & 1<<'+str(optidxs[g_m]))
+
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
+ 
       code('')
       for g_m in range (0,nargs):
         if accs[g_m] <> OP_INC: #TODO: add opt handling here
@@ -513,16 +523,32 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('if(tid + start >= end) return;')
       code('int n = col_reord[tid + start];')
       comm('initialise local variables')
+      #mapidx declarations
       k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('int map'+str(mapinds[g_m])+'idx;')
+
+      #non-optional maps
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
+          k = k + [(0*nargs+mapinds[g_m])] #non-opt
+          k = k + [(1*nargs+mapinds[g_m])] #opt
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+
+      #whatever didn't come up and is opt
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and ((not (optflags[g_m]*nargs+mapinds[g_m]) in k) and (not mapinds[g_m] in      k)):
           k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
           if optflags[g_m]==1:
             IF('optflags & 1<<'+str(optidxs[g_m]))
 
-          code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
+
       for g_m in range (0,nargs):
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
