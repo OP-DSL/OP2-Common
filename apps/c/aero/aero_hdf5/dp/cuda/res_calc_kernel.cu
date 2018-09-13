@@ -93,10 +93,14 @@ __global__ void op_cuda_res_calc(
   if(tid + start >= end) return;
   int n = col_reord[tid + start];
   //initialise local variables
-  int map0idx = opDat0Map[n + set_size * 0];
-  int map1idx = opDat0Map[n + set_size * 1];
-  int map2idx = opDat0Map[n + set_size * 2];
-  int map3idx = opDat0Map[n + set_size * 3];
+  int map0idx;
+  int map1idx;
+  int map2idx;
+  int map3idx;
+  map0idx = opDat0Map[n + set_size * 0];
+  map1idx = opDat0Map[n + set_size * 1];
+  map2idx = opDat0Map[n + set_size * 2];
+  map3idx = opDat0Map[n + set_size * 3];
   const double* arg0_vec[] = {
      &ind_arg0[2 * map0idx],
      &ind_arg0[2 * map1idx],

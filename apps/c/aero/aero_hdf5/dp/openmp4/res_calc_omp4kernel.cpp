@@ -116,7 +116,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
      int map0size = arg0.map->dim * set_size1;
 
     double* data8 = (double*)arg8.data_d;
-    int dat8size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg8) * arg8.dat->dim;
+    int dat8size = (arg8.opt?1:0) * getSetSizeFromOpArg(&arg8) * arg8.dat->dim;
     double *data0 = (double *)arg0.data_d;
     int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
     double *data4 = (double *)arg4.data_d;
