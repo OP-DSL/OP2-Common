@@ -187,7 +187,6 @@ def get_opt_arg_dat(arg_string, j):
 
   # remove comments
   dat_args_string = comment_remover(dat_args_string)
-  print dat_args_string
   # check for syntax errors
   if len(dat_args_string.split(',')) != 7:
     print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
