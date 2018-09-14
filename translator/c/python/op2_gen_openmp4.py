@@ -458,7 +458,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('TYP *data'+str(g_m)+' = (TYP *)ARG.data_d;')
       if maptype == 'map':
         if optflags[g_m]:
-            code('int dat'+str(g_m)+'size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
+            code('int dat'+str(g_m)+'size = (arg'+str(g_m)+'.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
         else:
           code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
     
