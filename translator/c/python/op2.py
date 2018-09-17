@@ -187,7 +187,6 @@ def get_opt_arg_dat(arg_string, j):
 
   # remove comments
   dat_args_string = comment_remover(dat_args_string)
-  print dat_args_string
   # check for syntax errors
   if len(dat_args_string.split(',')) != 7:
     print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
@@ -631,6 +630,10 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             print str(arg),
         if ninds > 0:
           print '\n  number of indirect datasets: ' + str(ninds),
+        print '\n  optional arguments:',
+        for arg in range(0, nargs):
+          if optflags[arg] == 1:
+            print str(arg),
 
         print '\n'
 
