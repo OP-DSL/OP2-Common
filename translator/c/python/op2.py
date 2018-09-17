@@ -449,6 +449,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       accs = [0] * nargs
       soaflags = [0] * nargs
       optflags = [0] * nargs
+      any_opt = 0
 
       for m in range(0, nargs):
         argm = loop_args[i]['args'][m]
@@ -463,6 +464,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         if arg_type.strip() == 'op_arg_dat' or arg_type.strip() == 'op_opt_arg_dat':
           var[m] = args['dat']
           idxs[m] = args['idx']
+          if arg_type.strip() == 'op_opt_arg_dat':
+            any_opt = 1
 
           if str(args['map']).strip() == 'OP_ID':
             maps[m] = OP_ID
@@ -630,10 +633,11 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             print str(arg),
         if ninds > 0:
           print '\n  number of indirect datasets: ' + str(ninds),
-        print '\n  optional arguments:',
-        for arg in range(0, nargs):
-          if optflags[arg] == 1:
-            print str(arg),
+        if any_opt:
+          print '\n  optional arguments:',
+          for arg in range(0, nargs):
+            if optflags[arg] == 1:
+              print str(arg),
 
         print '\n'
 
