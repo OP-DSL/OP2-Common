@@ -57,9 +57,31 @@ void op_get_all_cuda(int nargs, op_arg *args) {
 #ifdef __cplusplus
 extern "C" {
 #endif
-void prepareScratch (op_arg *args, int nargs, int nthreads) {
-  (void) args;
+
+char *scratch = NULL;
+long scratch_size = 0;
+void prepareScratch(op_arg *args, int nargs, int nthreads) {
+  long req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    //if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc == OP_INC)
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+  }
+  if (scratch_size < req_size) {
+    if (!scratch) op_free(scratch);
+    scratch = op_malloc(req_size*sizeof(char));
+    scratch_size = req_size;
+  }
+  req_size = 0;
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc == OP_INC ) {
+    //if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) {
+      args[i].data_d = scratch + req_size;
+      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+    }
+  }
 }
+
 #ifdef __cplusplus
 }
 #endif

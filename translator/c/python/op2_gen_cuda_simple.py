@@ -106,6 +106,18 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+
+
+  reproducible=op2_gen_common.reproducible
+  repr_temp_array=op2_gen_common.repr_temp_array
+  repr_coloring=op2_gen_common.repr_coloring
+
+  if reproducible and repr_temp_array and repr_coloring:
+    repr_coloring = 0
+
+  inc_stage=0
+  op_color2=0
+  op_color2_force=1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -117,15 +129,51 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     op_color2_force=0
     atomics=1
 
+    if (reproducible and repr_coloring and atomics):
+      atomics=0
+
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
            unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk], inc_stage)
 
+    varrrrrr=var
 
+    if reproducible and repr_temp_array:
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP:
+          for g_m in range(0,ninds):
+            if indaccs[g_m] == OP_RW:
+              print('Warning - OP_RW reproducibility is not supported with temporary array method. Changing to reproducible coloring.')
+              repr_temp_array = 0
+              repr_coloring = 1
+              break
+        if repr_coloring:
+          break
+
+    mapnames2=[]
+    repro_if=0
+    repro_prime_map=''
+    if reproducible:
+      mapnames2 = mapnames[:]
+      for i in range(0,len(mapnames)):
+        if mapnames[i].find('[')>=0:
+          mapnames2[i] = mapnames[i][:mapnames[i].find('[')]
+
+      if reproducible:
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames2[g_m] in k):
+                k = k + [mapnames2[g_m]]
+                repro_if=1
+                repro_prime_map=mapnames2[g_m]
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
     op_color2=0
+
+    
 #
 # set logicals
 #
@@ -212,6 +260,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
+          if repr_temp_array and repro_if and maps[g_m] == OP_MAP and accs[g_m] == OP_INC and (not (mapnames[g_m]+'tmpa') in k):
+            k = k + [(mapnames[g_m]+'tmpa')]
+            code('__constant__ int opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2CONSTANT;')
+            code('int opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2HOST;')
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
             code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT;')
@@ -223,6 +275,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code('int direct_'+name+'_stride_OP2HOST=-1;')
           dir_soa = g_m
           break
+
 
     file_name = decl_filepath
 
@@ -271,18 +324,26 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if kernels[nk]['soaflags'][i] and (op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
+        if (kernels[nk]['soaflags'][i] and ((op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC) ) or ( kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC and repr_temp_array and repro_if) ) ): 
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
-            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
+            if (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC and repr_temp_array and repro_if):
+              body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames2,name,1)+']', body_text)
+              
+            else:
+              body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
             body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'[(\1)*'+ \
-                               op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
+            if (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC and repr_temp_array and repro_if):
+              body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'[(\1)*'+ \
+                                 op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames2,name,1)+']', body_text)
+            else:
+              body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'[(\1)*'+ \
+                                 op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
     for nc in range(0,len(consts)):
       varname = consts[nc]['name']
@@ -308,7 +369,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if (indaccs[g_m]==OP_READ):
         code('const <INDTYP> *__restrict <INDARG>,')
       else:
-        code('<INDTYP> *__restrict <INDARG>,')
+        if reproducible and repr_temp_array and indaccs[g_m]==OP_INC and (indtyps[g_m] == 'double' or indtyps[g_m] == 'float'):
+          code('<TYP> *__restrict tmp_incs'+str(g_m)+'_d,')
+        else:
+          code('<INDTYP> *__restrict <INDARG>,')
 
     if nmaps > 0:
       k = []
@@ -338,7 +402,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int   *ind_arg_offs, ')
 
     if ninds>0:
-      if op_color2:
+      if op_color2 or (repr_coloring and repro_if):
         code('int start,           ')
         code('int end,             ')
         code('int *col_reord,      ')
@@ -353,7 +417,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
-      code('int   set_size) {    ')
+      if repr_temp_array and repro_if:
+        code('int   set_size,')
+        code('int   prime_map_dim) {    ')
+      else:
+        code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
       code('')
@@ -361,19 +429,20 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
-        code('<TYP> <ARG>_l[<DIM>];')
-        if accs[g_m] == OP_INC:
-          FOR('d','0','<DIM>')
-          code('<ARG>_l[d]=ZERO_<TYP>;')
-          ENDFOR()
-        else:
-          FOR('d','0','<DIM>')
-          code('<ARG>_l[d]=<ARG>[d+blockIdx.x*<DIM>];')
-          ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics:
+        if not (reproducible and repr_coloring and accs[g_m]==OP_INC and typs[g_m]=="double"):
+          code('<TYP> <ARG>_l[<DIM>];')
+          if accs[g_m] == OP_INC:
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d]=ZERO_<TYP>;')
+            ENDFOR()
+          else:
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d]=<ARG>[d+blockIdx.x*<DIM>];')
+            ENDFOR()
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics and not (repr_coloring and repro_if):
         code('<TYP> <ARG>_l[<DIM>];')
 
-    if not op_color2 and not atomics:
+    if not op_color2 and not atomics and not (repr_coloring and repro_if):
       for m in range (1,ninds+1):
         g_m = m -1
         v = [int(inds[i]==m) for i in range(len(inds))]
@@ -391,7 +460,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # lengthy code for general case with indirection
 #
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not (repr_coloring and repro_if):
       code('')
       if inc_stage==1:
         for g_m in range (0,ninds):
@@ -546,11 +615,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('initialise local variables')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-          code('<TYP> <ARG>_l[<DIM>];')
-          FOR('d','0','<DIM>')
-          code('<ARG>_l[d] = ZERO_<TYP>;')
-          ENDFOR()
+        if not (reproducible and accs[g_m]==OP_INC and (typs[g_m]=="double" or typs[g_m]=="float") and repro_if):
+          if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+            code('<TYP> <ARG>_l[<DIM>];')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d] = ZERO_<TYP>;')
+            ENDFOR()
 
       #mapidx declarations
       k = []
@@ -578,6 +648,18 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           if optflags[g_m]==1:
             ENDIF()
 
+
+      for g_m in range(0,ninds):
+        if reproducible and repr_temp_array and indaccs[g_m]==OP_INC and (indtyps[g_m] == 'double' or indtyps[g_m] == 'float') and repro_if:
+          if optflags[invinds[g_m]]==1:
+            IF('optflags & 1<<'+str(optidxs[ invinds[g_m] ]))
+          if not (any_soa and soaflags[int(invinds[g_m])]):
+            FOR('i','0',' prime_map_dim * '+ str(inddims[g_m]))
+            code('tmp_incs'+str(g_m)+'_d[i+n*prime_map_dim * '+str(inddims[g_m])+']=(<TYP>)0.0;\n')
+            ENDFOR()          
+          if optflags[invinds[g_m]]==1:
+            ENDIF()
+
       for g_m in range (0,nargs):
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
@@ -587,9 +669,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               line = '<TYP>* <ARG>_vec[] = {\n'
             if atomics and accs[g_m] == OP_INC:
               indent = ' '*(depth+2)
-              for n in range(0,nargs):
-                if vectorised[n] == vectorised[g_m]:
-                  line = line + indent + 'arg'+str(n)+'_l,\n'
+              if repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float'):
+                k=0
+                for n in range(0,nargs):
+                  if vectorised[n] == vectorised[g_m]:
+                    line += indent+'&tmp_incs'+str(inds[g_m]-1)+'_d[(n*prime_map_dim+'+str(k)+')*'+str(dims[g_m])+'],\n'
+                    k+=1
+              else:
+                for n in range(0,nargs):
+                  if vectorised[n] == vectorised[g_m]:
+                    line = line + indent + 'arg'+str(n)+'_l,\n'
               line = line[:-2]+'};'
               code(line)
             else:
@@ -616,6 +705,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('')
       comm('process set elements')
       FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
+      for g_m in range (0,nargs):
+        if (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double") and reduct and maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
+          FOR('d','0','<DIM>')
+          code('<ARG>[n+d]=ZERO_<TYP>;')
+          ENDFOR()
 
 #
 # kernel call
@@ -634,14 +728,39 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if accs[m] == OP_READ or accs[m] == OP_WRITE:
           line += rep(indent+'<ARG>,\n',m)
         else:
-          line += rep(indent+'<ARG>_l,\n',m);
+          if reproducible and accs[m]==OP_INC and typs[m]=="double":
+            line += rep(indent+'<ARG>+n*<DIM>,\n',m)
+          else:
+            line += rep(indent+'<ARG>_l,\n',m);
         a =a+1
       elif maps[m]==OP_MAP and  accs[m]==OP_INC and not op_color2:
         if vectorised[m]:
           if m+1 in unique_args:
             line += rep(indent+'<ARG>_vec,\n',m)
         else:
-          line += rep(indent+'<ARG>_l,\n',m)
+          if reproducible and repro_if and accs[m]==OP_INC and (typs[m] == 'double' or typs[m] == 'float'):
+            if repr_temp_array:
+              if soaflags[m]:
+                #line += indent+'tmp_incs'+str(inds[m]-1)+'_d+map'+str(mapinds[m])+'idx,'+'\n'
+                line += indent+'tmp_incs'+str(inds[m]-1)+'_d+offset'+str(int(idxs[m]))+',\n'
+                if optflags[invinds[m]]==1:
+                  IF('optflags & 1<<'+str(optidxs[ invinds[g_m] ]))
+                code('int offset'+str(int(idxs[m]))+'=n+set_size*'+str(int(idxs[m]))+';')
+                FOR('d','0',str(dims[m]))
+                code('tmp_incs'+str(inds[m]-1)+'_d[offset'+str(int(idxs[m]))+'+d*opMap_'+str(mapnames2[m])+'_'+name+'_stride_temp_inc_OP2CONSTANT' +']=('+str(typs[m])+')0.0;\n')
+                ENDFOR()
+                if optflags[invinds[m]]==1:
+                  ENDIF()
+              else:
+                k=0
+                for i in range(0,m):
+                  if inds[m]==inds[i]:
+                    k+=1
+                line += indent+'&tmp_incs'+str(inds[m]-1)+'_d[(n*prime_map_dim+'+str(k)+')*'+str(dims[m])+'],\n'
+            elif repr_coloring:
+              line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*<DIM>,'+'\n',m)
+          else:
+            line += rep(indent+'<ARG>_l,\n',m)
         a =a+1
       elif maps[m]==OP_MAP:
         if vectorised[m]:
@@ -654,7 +773,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*<DIM>,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0 and not op_color2 and not atomics:
+        if ninds>0 and not op_color2 and not atomics and not (repr_coloring and repro_if):
           if soaflags[m]:
             line += rep(indent+'<ARG>+(n+offset_b),\n',m)
           else:
@@ -674,7 +793,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # updating for indirect kernels ...
 #
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not repr_coloring:
       if ind_inc:
         code('col2 = colors[n+offset_b];')
         ENDIF()
@@ -740,7 +859,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR()
     if ninds>0 and atomics:
           for g_m in range(0,nargs):
-            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC and not (repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float')):
               if optflags[g_m]==1:
                 IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
@@ -782,7 +901,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
+         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE and not (reproducible and accs[m]==OP_INC and typs[m]=="double"):
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
@@ -910,7 +1029,80 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
       #code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
-    IF('set_size > 0')    
+#
+# for reproducible incs method
+#
+    
+    repro_prime_map=''
+    if reproducible:
+      if repr_temp_array and repro_if:
+        repro_if=0
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            line='set->size > 0 && '
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames2[g_m] in k):
+                k = k + [mapnames2[g_m]]
+                code('op_map prime_map_'+str(mapnames2[g_m])+' = <ARG>.map;\n')
+                code('op_reversed_map rev_map_'+str(mapnames2[g_m])+' = OP_reversed_map_list[prime_map_'+str(mapnames2[g_m])+'->index];\n')
+                line = line + 'rev_map_'+str(mapnames2[g_m])+' != NULL && '
+                code('')
+                repro_if=1
+                repro_prime_map=mapnames2[g_m]
+            
+            if repro_if:
+              IF(line[:-3])
+            
+            for g_map in k:
+              code('int prime_map_'+str(g_map)+'_dim = prime_map_'+str(g_map)+'->dim;\n')
+              code('int set_from_size_'+str(g_map)+' = prime_map_'+str(g_map)+'->from->size + prime_map_'+str(g_map)+'->from->exec_size;\n')
+              code('int set_to_size_'+str(g_map)+' = prime_map_'+str(g_map)+'->to->size + prime_map_'+str(g_map)+'->to->exec_size + prime_map_'+str(g_map)+'->to->nonexec_size;\n')
+              code('')
+            
+            k=[]
+            for g_m in range(0,nargs):              
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+                first=0
+                for i in range(0,g_m+1):
+                  if maps[g_m]==maps[i] and varrrrrr[g_m]==varrrrrr[i]:
+                    first=i
+                    break
+                if not first in k:
+                  k = k + [first] 
+                  code('<TYP> *tmp_incs'+str(first)+'_d = NULL;\n')
+                  if optflags[g_m]==1:
+                    IF('<ARG>.opt')
+                  code('int required_tmp_incs_size'+str(first)+' = set_from_size_'+str(mapnames2[first])+' * prime_map_'+str(mapnames2[first])+'_dim * arg'+str(first)+'.dat->size;\n')
+                  
+
+                  code('reallocTempArrays(arg'+str(first)+'.dat->index, required_tmp_incs_size'+str(first)+');')
+                  code('tmp_incs'+str(first)+'_d = (<TYP> *)op_repr_incs[arg'+str(first)+'.dat->index].tmp_incs_d;\n')
+                  
+                  if optflags[g_m]==1:
+                    ENDIF()
+                  code('')
+      elif repr_coloring and repro_if:
+        if ninds>0:
+          if nmaps > 0:
+            line='set->size > 0 && '
+            for g_m in range(0,nargs):
+              if (accs[g_m] == OP_INC or accs[g_m] == OP_RW) and maps[g_m] == OP_MAP:
+                code('op_map prime_map = <ARG>.map;\n')
+                code('op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];\n')
+                line = line + 'rev_map != NULL && '
+                code('')
+                repro_if=1
+                break
+            
+            if repro_if:
+              IF(line[:-3])
+        if not repro_if:
+          IF('set->size > 0')
+      else:
+        IF('set->size > 0')
+    else:
+      IF('set->size > 0')
     code('')
 
 #
@@ -958,6 +1150,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
+          if repr_temp_array and repro_if and maps[g_m] == OP_MAP and accs[g_m] == OP_INC and (not (mapnames[g_m]+'tmpa') in k):
+            k = k + [(mapnames[g_m]+'tmpa')]
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2HOST != set_from_size_'+str(mapnames2[g_m])+'* prime_map_'+str(mapnames2[g_m])+'_dim)')
+            code('opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2HOST = set_from_size_'+str(mapnames2[g_m])+'* prime_map_'+str(mapnames2[g_m])+'_dim;')
+            code('cudaMemcpyToSymbol(opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2CONSTANT, &opMap_'+str(mapnames2[g_m])+'_'+name+'_stride_temp_inc_OP2HOST,sizeof(int));')
+            ENDIF()
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
             IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
@@ -988,22 +1186,26 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     if reduct:
       comm('transfer global reduction data to GPU')
-      if ninds>0 and not atomics:
-        code('int maxblocks = 0;')
-        FOR('col','0','Plan->ncolors')
-        code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
-        ENDFOR()
-      elif atomics and ninds>0:
-        code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
-      else:
-        code('int maxblocks = nblocks;')
+      if not (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double"):
+        if ninds>0 and not atomics:
+          code('int maxblocks = 0;')
+          FOR('col','0','Plan->ncolors')
+          code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
+          ENDFOR()
+        elif atomics and ninds>0:
+          code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
+        else:
+          code('int maxblocks = nblocks;')
 
       code('int reduct_bytes = 0;')
       code('int reduct_size  = 0;')
 
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
-          code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
+          if reproducible and accs[g_m]==OP_INC and typs[g_m]=="double":
+            code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
+          else:
+            code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
 
       code('reallocReductArrays(reduct_bytes);')
@@ -1013,17 +1215,27 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
-          FOR('b','0','maxblocks')
-          FOR('d','0','<DIM>')
-          if accs[g_m]==OP_INC:
-            code('((<TYP> *)<ARG>.data)[d+b*<DIM>] = ZERO_<TYP>;')
+          if reproducible and accs[g_m]==OP_INC and typs[g_m]=="double":
+            code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
           else:
-            code('((<TYP> *)<ARG>.data)[d+b*<DIM>] = <ARG>h[d];')
-          ENDFOR()
-          ENDFOR()
-          code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
-      code('mvReductArraysToDevice(reduct_bytes);')
+            FOR('b','0','maxblocks')
+            FOR('d','0','<DIM>')
+            if accs[g_m]==OP_INC:
+              code('((<TYP> *)<ARG>.data)[d+b*<DIM>] = ZERO_<TYP>;')
+            else:
+              code('((<TYP> *)<ARG>.data)[d+b*<DIM>] = <ARG>h[d];')
+            ENDFOR()
+            ENDFOR()
+            code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
+      
+      if not reproducible:
+        code('mvReductArraysToDevice(reduct_bytes);')
       code('')
+
+    if repro_if:
+    #if repr_coloring:
+      #code('op_mpi_wait_all_cuda(nargs, args);')
+      code('op_mpi_wait_all_grouped(nargs, args, 2);')
 
 #
 # kernel call for indirect version
@@ -1033,25 +1245,36 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if not op_color2:
         code('')
         code('int block_offset = 0;')
-      FOR('col','0','Plan->ncolors')
-      IF('col==Plan->ncolors_core')
-      code('op_mpi_wait_all_grouped(nargs, args, 2);')
-      #code('op_mpi_wait_all_cuda(nargs, args);')
-      ENDIF()
+      if repro_if and repr_coloring:
+        code('op_mpi_wait_all_grouped(nargs, args, 2);')
+        #code('op_mpi_wait_all_cuda(nargs, args);')
+        FOR('col','0','rev_map->number_of_colors')
+      else:
+        FOR('col','0','Plan->ncolors')
+      if not (reproducible and repr_coloring and repro_if):
+        IF('col==Plan->ncolors_core')
+        code('op_mpi_wait_all_grouped(nargs, args, 2);')
+        #code('op_mpi_wait_all_cuda(nargs, args);')
+        ENDIF()
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
       code('#else')
       code('int nthread = OP_block_size;')
       code('#endif')
       code('')
-      if op_color2:
-        code('int start = Plan->col_offsets[0][col];')
-        code('int end = Plan->col_offsets[0][col+1];')
+      if repro_if and repr_coloring:
+        code('int start = rev_map->color_based_exec_row_starts[col];')
+        code('int end = rev_map->color_based_exec_row_starts[col+1];')
         code('int nblocks = (end - start - 1)/nthread + 1;')
       else:
-        code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
-        code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
-        IF('Plan->ncolblk[col] > 0')
+        if op_color2:
+          code('int start = Plan->col_offsets[0][col];')
+          code('int end = Plan->col_offsets[0][col+1];')
+          code('int nblocks = (end - start - 1)/nthread + 1;')
+        else:
+          code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
+          code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
+          IF('Plan->ncolblk[col] > 0')
 
       if reduct or (inc_stage==1 and ind_inc):
         if reduct and inc_stage==1:
@@ -1084,18 +1307,23 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('Plan->loc_map,')
         code('Plan->ind_sizes,')
         code('Plan->ind_offs,')
-      if op_color2:
+      if repro_if and repr_coloring:
         code('start,')
         code('end,')
-        code('Plan->col_reord,')
+        code('rev_map->color_based_exec_d,')
       else:
-        code('block_offset,')
-        code('Plan->blkmap,')
-        code('Plan->offset,')
-        code('Plan->nelems,')
-        code('Plan->nthrcol,')
-        code('Plan->thrcol,')
-        code('Plan->ncolblk[col],')
+        if op_color2:
+          code('start,')
+          code('end,')
+          code('Plan->col_reord,')
+        else:
+          code('block_offset,')
+          code('Plan->blkmap,')
+          code('Plan->offset,')
+          code('Plan->nelems,')
+          code('Plan->nthrcol,')
+          code('Plan->thrcol,')
+          code('Plan->ncolblk[col],')
       code('set->size+set->exec_size);')
       code('')
       if reduct:
@@ -1103,10 +1331,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         IF('col == Plan->ncolors_owned-1')
         code('mvReductArraysToHost(reduct_bytes);')
         ENDIF()
-      if not op_color2:
-        ENDFOR() #TODO sztem ez forditva van...
+      if not op_color2 and not (repr_coloring and repro_if):
+        ENDIF()
         code('block_offset += Plan->ncolblk[col];')
-      ENDIF()
+      ENDFOR()
 
 #
 #
@@ -1137,7 +1365,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('optflags,')
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
-        code('(<TYP> *)<ARG>.data_d,')
+        if reproducible and repr_temp_array and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float'):
+          code('tmp_incs'+str(g_m)+'_d,')
+        else:
+          code('(<TYP> *)<ARG>.data_d,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -1147,7 +1378,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(<TYP>*)<ARG>.data_d,')
-      code('start,end,set->size+set->exec_size);')
+      if repro_if and repr_temp_array:
+        code('start,end,set->size+set->exec_size,prime_map_'+repro_prime_map+'_dim);')
+      else:
+        code('start,end,set->size+set->exec_size);')
       ENDIF()
       if reduct:
         code('if (round==1) mvReductArraysToHost(reduct_bytes);')
@@ -1174,6 +1408,36 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       code(indent+'set->size );')
 
+
+
+    #apply increments to actual data
+    if reproducible and repr_temp_array:    
+      if ninds>0:
+        if nmaps > 0:
+          code('int nblocks;')
+          k=[]
+          for g_m in range(0,nargs):              
+            if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+              first=0
+              for i in range(0,g_m+1):
+                if maps[g_m]==maps[i] and varrrrrr[g_m]==varrrrrr[i]:
+                  first=i
+                  break
+              
+              if not first in k:   
+                code('')
+                k = k + [first]
+                if optflags[g_m]==1:
+                  IF('optflags & 1<<'+str(optidxs[g_m]))
+                code('nblocks = (set_to_size_'+str(mapnames2[first])+'-1)/nthread+1;')
+                if any_soa and soaflags[g_m] :
+                  code('apply_tmp_incs_soa<<<nblocks,nthread>>>(tmp_incs'+str(g_m)+'_d, <ARG>.data_d, rev_map_'+str(mapnames2[first])+'->reversed_map_d, rev_map_'+str(mapnames2[first])+ \
+                  '->row_start_idx_d, <ARG>.dim, prime_map_'+str(mapnames2[first])+'_dim,set_to_size_'+str(mapnames2[first])+',set_from_size_'+str(mapnames2[first])+');')
+                else:
+                  code('apply_tmp_incs<<<nblocks,nthread>>>(tmp_incs'+str(g_m)+'_d, <ARG>.data_d, rev_map_'+str(mapnames2[first])+'->reversed_map_d, rev_map_'+str(mapnames2[first])+'->row_start_idx_d, <ARG>.dim, set_to_size_'+str(mapnames2[first])+');')
+                if optflags[g_m]==1:
+                  ENDIF()
+
     if ninds>0 and not atomics:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
@@ -1190,20 +1454,25 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for m in range(0,nargs):
         g_m = m
         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
-          FOR('b','0','maxblocks')
-          FOR('d','0','<DIM>')
-          if accs[m]==OP_INC:
-            code('<ARG>h[d] = <ARG>h[d] + ((<TYP> *)<ARG>.data)[d+b*<DIM>];')
-          elif accs[m]==OP_MIN:
-            code('<ARG>h[d] = MIN(<ARG>h[d],((<TYP> *)<ARG>.data)[d+b*<DIM>]);')
-          elif accs[m]==OP_MAX:
-            code('<ARG>h[d] = MAX(<ARG>h[d],((<TYP> *)<ARG>.data)[d+b*<DIM>]);')
-          ENDFOR()
-          ENDFOR()
+          if reproducible and accs[m]==OP_INC and typs[m]=="double":
+            code('reprLocalSum(&<ARG>,set_size,(double*)<ARG>.data);')
+            code('<ARG>.data = (char *)<ARG>h;')
+            code('op_mpi_repr_inc_reduce_double(&<ARG>,(double*)<ARG>.data);')
+          else:
+            FOR('b','0','maxblocks')
+            FOR('d','0','<DIM>')
+            if accs[m]==OP_INC:
+              code('<ARG>h[d] = <ARG>h[d] + ((<TYP> *)<ARG>.data)[d+b*<DIM>];')
+            elif accs[m]==OP_MIN:
+              code('<ARG>h[d] = MIN(<ARG>h[d],((<TYP> *)<ARG>.data)[d+b*<DIM>]);')
+            elif accs[m]==OP_MAX:
+              code('<ARG>h[d] = MAX(<ARG>h[d],((<TYP> *)<ARG>.data)[d+b*<DIM>]);')
+            ENDFOR()
+            ENDFOR()
 
-          code('<ARG>.data = (char *)<ARG>h;')
-          code('op_mpi_reduce(&<ARG>,<ARG>h);')
-
+            code('<ARG>.data = (char *)<ARG>h;')
+            code('op_mpi_reduce(&<ARG>,<ARG>h);')
+          
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
         code('')

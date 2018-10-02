@@ -155,8 +155,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];

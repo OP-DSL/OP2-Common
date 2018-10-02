@@ -13,6 +13,7 @@ import re
 import datetime
 import os
 import glob
+import util
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -215,6 +216,13 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         j = i
     reduct = j >= 0
 
+    repro_reduction = 0
+    if util.reproducible:
+      for i in range(0,nargs):
+        if maps[i] == OP_GBL and accs[i] == OP_INC:
+          if typs[i] == 'real(8)' or typs[i] == 'REAL(kind=8)' or typs[i] == 'real*8' or typs[i] == 'r8' or typs[i] == 'real(4)' or typs[i] == 'REAL(kind=4)' or typs[i] == 'real*4' or typs[i] == 'r4':
+            repro_reduction = i
+
 
     FORTRAN = 1;
     CPP     = 0;
@@ -337,7 +345,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           k = k + [mapnames[g_m]]
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-    code('& bottom,top)')
+    if repro_reduction:
+      code('& exec_size, &') 
+    if ind_inc and util.reproducible and util.repr_coloring:
+      code('& color_based_exec_row_starts, color_based_exec, num_colors)')
+    else:
+      code('& bottom,top)')
     code('implicit none')
     for g_m in range(0,ninds):
       if invinds[g_m] in needDimList:
@@ -345,6 +358,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local(opDat'+str(invinds[g_m]+1)+'Dim,*)')
       else:
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
+    if repro_reduction:
+      code('INTEGER(kind=4) exec_size') 
     for g_m in range(0,nargs):
       if maps[g_m] != OP_MAP:
         if g_m in needDimList:
@@ -355,10 +370,13 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         else:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
       elif maps[g_m] == OP_GBL:
+        repro_mult = ''
+        if util.reproducible and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
+          repro_mult = ',exec_size'
         if g_m in needDimList:
-          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim)')
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim,'+repro_mult+')')
         else:
-          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+repro_mult+')')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
@@ -367,7 +385,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
 
-    code('INTEGER(kind=4) bottom,top,i1')
+    if ind_inc and util.reproducible and util.repr_coloring:
+      code('INTEGER(kind=4) num_colors,i1,i2,c')
+      code('integer(kind=4) color_based_exec_row_starts(*), color_based_exec(*)')
+    else:
+      code('INTEGER(kind=4) bottom,top,i1')
     if nmaps > 0:
       k = []
       line = 'INTEGER(kind=4) '
@@ -379,13 +401,21 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('')
 #    if ind_inc == 0 and reduct == 0:
 #      code('!DIR$ simd')
-    DO('i1','bottom','top')
+    if ind_inc and util.reproducible and util.repr_coloring:
+      DO('c','0','num_colors')
+      DO('i2','color_based_exec_row_starts(c+1)','color_based_exec_row_starts(c+2)')
+      code('i1 = color_based_exec(i2+1)')
+    else:
+      DO('i1','bottom','top')
     k = []
     for g_m in range(0,nargs):
       if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
         k = k + [mapinds[g_m]]
         code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
     comm('kernel call')
+    for g_m in range(0,nargs):
+      if util.reproducible and maps[g_m] == OP_GBL and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
+        code('opDat'+str(g_m+1)+'Local(:,i1+1) = 0.0')
     line = 'CALL '+name+'( &'
     indent = '\n'+' '*depth
     for g_m in range(0,nargs):
@@ -394,7 +424,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       if maps[g_m] == OP_MAP:
         line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
       if maps[g_m] == OP_GBL:
-        line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+        if util.reproducible and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
+          line = line + indent +'& opDat'+str(g_m+1)+'Local(1,i1+1)'
+        else:
+          line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
       if g_m < nargs-1:
         line = line +', &'
       else:
@@ -404,6 +437,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     depth = depth + 2
 
     ENDDO()
+    if ind_inc and util.reproducible and util.repr_coloring:
+      ENDDO()
     depth = depth - 2
     code('END SUBROUTINE')
 
@@ -456,6 +491,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'OptPtr')
 
 
+    if ind_inc and util.reproducible and util.repr_coloring:
+      code('type(op_reversed_map_core) :: rev_map')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec_row_starts')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec')
     code('')
     code('INTEGER(kind=4) :: i1')
     code('REAL(kind=4) :: dataTransfer')
@@ -479,9 +518,23 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     else:
       code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
 
+    if repro_reduction:
+      code('call prepareScratch(opArgArray, numberOfOpDats, n_upper)')
+
     code('')
     code('opSetCore => set%setPtr')
     code('')
+    if ind_inc and util.reproducible and util.repr_coloring:
+      j = 0
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP and (accs[i] == OP_INC or accs[i] == OP_RW):
+          j=i
+          break
+      code('rev_map = op_get_reversed_map(opArg'+str(j+1)+')')
+      code('call c_f_pointer(rev_map%color_based_exec_row_starts, color_based_exec_row_starts, (/rev_map%number_of_colors+1/))')
+      code('call c_f_pointer(rev_map%color_based_exec, color_based_exec, (/opSetCore%size+opSetCore%exec_size/))')
+    code('')
+
     for g_m in range(0,ninds):
       code('opDat'+str(invinds[g_m]+1)+'Cardinality = opArg'+str(invinds[g_m]+1)+'%dim * getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+')')
       code('opDat'+str(invinds[g_m]+1)+'MapDim = getMapDimFromOpArg(opArg'+str(invinds[g_m]+1)+')')
@@ -496,11 +549,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       if maps[g_m] == OP_ID:
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local,(/opDat'+str(g_m+1)+'Cardinality/))')
       elif maps[g_m] == OP_GBL:
-        code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim/))')
+        if util.reproducible and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
+          code('CALL c_f_pointer(opArgArray('+str(g_m+1)+')%data_d,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim*n_upper/))')
+        else:
+          code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim/))')
     code('')
 
     code('')
-    if 1:
+    if not (ind_inc and util.reproducible and util.repr_coloring):
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,ninds):
         if invinds[g_m] in needDimList:
@@ -519,6 +575,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             k = k + [mapnames[g_m]]
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+      if repro_reduction:
+        code('& n_upper, &') 
       code('& 0, opSetCore%core_size)')
     if grouped:
       code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
@@ -543,7 +601,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     #code('& 0, n_upper)')
-    code('& opSetCore%core_size, n_upper)')
+    if repro_reduction:
+      code('& n_upper, &') 
+    if ind_inc and util.reproducible and util.repr_coloring:
+      code('& color_based_exec_row_starts, color_based_exec, rev_map%number_of_colors)')
+    else:
+      code('& opSetCore%core_size, n_upper)')
 
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
@@ -562,29 +625,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     #reductions
     for g_m in range(0,nargs):
-      if optflags[g_m] == 1:
-        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
-          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
+        if util.reproducible and maps[g_m] == OP_GBL and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
+          code('call op_reproducible_sum(opArg'+str(g_m+1)+', opSetCore%size, opDat'+str(g_m+1)+'Local)')
+        elif maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
+          if optflags[g_m] == 1:
             IF('opArg'+str(g_m+1)+'%opt == 1')
-            code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-            ENDIF()
-          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
-            IF('opArg'+str(g_m+1)+'%opt == 1')
-            code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-            ENDIF()
-          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
-            IF('opArg'+str(g_m+1)+'%opt == 1')
-            code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-            ENDIF()
-          elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
-            IF('opArg'+str(g_m+1)+'%opt == 1')
-            code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-            ENDIF()
-          else:
-            print('Error, reduction type '+typs[g_m]+' unrecognised')
-          code('')
-      else:
-        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
           if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
             code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
@@ -596,6 +641,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           else:
             print('Error, reduction type '+typs[g_m]+' unrecognised')
           code('')
+          if optflags[g_m] == 1:
+            ENDIF()
 
     code('call op_timers_core(endTime)')
     code('')

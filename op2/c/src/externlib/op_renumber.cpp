@@ -221,6 +221,10 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
 }
 
 void op_renumber(op_map base) {
+  if (reproducible_enabled) {
+    op_printf("Reproducibility enabled, no reordering.\n");
+    return;
+  }
 #ifndef HAVE_PTSCOTCH
   op_printf("OP2 was not compiled with Scotch, no reordering.\n");
 #else

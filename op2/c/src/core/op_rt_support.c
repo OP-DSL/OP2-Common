@@ -960,7 +960,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   OP_plans[ip].transfer = 0;
   OP_plans[ip].transfer2 = 0;
   float transfer3 = 0;
-
   if (staging != OP_COLOR2 && staging != OP_STAGE_INC) {
     for (int b = 0; b < nblocks; b++) {
       for (int m = 0; m < nargs; m++) // for each argument

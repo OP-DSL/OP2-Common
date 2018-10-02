@@ -49,6 +49,16 @@
 #include <strings.h>
 #include <sys/queue.h> //contains double linked list implementation
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "binned.h"
+#include "reproBLAS.h"
+#include "binnedBLAS.h"
+#ifdef __cplusplus
+}
+#endif
+
 #ifndef OP2_ALIGNMENT
 #define OP2_ALIGNMENT 64
 #endif
@@ -75,12 +85,28 @@ typedef unsigned long long ull;
    4 or above   report use of old plans
    7 or above   report positive checks in op_plan_check
 */
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern int OP_diags;
 extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
+
+    
+extern int OP_reduct_bytes;
+extern char *OP_reduct_h;
+
+extern int reproducible_enabled;
+
+extern int repr_red_arg_count;
+extern int repr_red_arg_available;
+extern double_binned** repr_red_args;
+
+#ifdef __cplusplus
+}
+#endif
 
 /*
  * enum list for op_par_loop
@@ -123,6 +149,14 @@ typedef struct {
 typedef op_set_core *op_set;
 
 typedef struct {
+    int index;
+    int *global_ids;
+    
+} op_set_global_ids_core;
+
+typedef op_set_global_ids_core *op_set_global_ids;
+
+typedef struct {
   int index;        /* index */
   op_set from,      /* set pointed from */
       to;           /* set pointed to */
@@ -134,6 +168,26 @@ typedef struct {
 } op_map_core;
 
 typedef op_map_core *op_map;
+
+typedef struct {
+  int index;            /* index */
+  int *reversed_map;    /* reversed mapping */
+  int *row_start_idx;   /* Helper array for indexing reversed_map */
+  int number_of_colors;
+  
+  int *reversed_map_d;    /* reversed mapping  on device*/
+  int *row_start_idx_d;   /* Helper array for indexing reversed_map on device */
+
+  int *reproducible_coloring;
+  int *color_based_exec_row_starts;
+  int *color_based_exec_row_starts_d;
+  int *color_based_exec;
+  int *color_based_exec_d;
+  int *from_elements_sorted_by_global_id;
+  
+} op_reversed_map_core;
+
+typedef op_reversed_map_core *op_reversed_map;
 
 typedef struct {
   int index;        /* index */
@@ -170,6 +224,7 @@ typedef struct {
   int sent; /* flag to indicate if this argument has
                data in flight under non-blocking MPI comms*/
   int opt;  /* flag to indicate if this argument is in use */
+  double_binned *local_sum; /*Local sum for reproducible incs*/
 } op_arg;
 
 typedef struct {
@@ -181,8 +236,15 @@ typedef struct {
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  double mpi_time;   /* time spent in MPI calls */
+  float mpi_time;   /* time spent in MPI calls */
 } op_kernel;
+
+typedef struct {
+    void *tmp_incs; /* temporary increment array for reproducible MPI usage */
+    void *tmp_incs_d; /* temporary increment array for reproducible MPI usage on device*/
+    int tmp_incs_size;
+    int tmp_incs_size_d;
+} op_repr_inc;
 
 // struct definition for a double linked list entry to hold an op_dat
 struct op_dat_entry_core {
@@ -292,6 +354,7 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 void op_upload_dat(op_dat dat);
 
 void op_download_dat(op_dat dat);
+void reprLocalSum(op_arg *arg, int set_size, double *red);
 
 /*******************************************************************************
 * Core MPI lib function prototypes
@@ -317,6 +380,8 @@ void op_mpi_reduce_float(op_arg *args, float *data);
 
 void op_mpi_reduce_double(op_arg *args, double *data);
 
+void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data);
+
 void op_mpi_reduce_int(op_arg *args, int *data);
 
 void op_mpi_reduce_bool(op_arg *args, bool *data);
@@ -329,6 +394,13 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
 
+void create_reversed_mapping();
+
+void op_enable_reproducibility(const char *mode);
+
+void rev_map_realloc();
+
+void realloc_tmp_incs(int arg_idx, int req_size);
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
@@ -367,6 +439,11 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+
+
+void reallocReductArrays(int reduct_bytes);
+
+void reallocTempArrays(int dat_idx, int req_size);
 
 #ifdef __cplusplus
 }

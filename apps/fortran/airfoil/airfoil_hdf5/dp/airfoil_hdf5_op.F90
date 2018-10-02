@@ -63,7 +63,8 @@ program AIRFOIL
   integer(4):: ncelli
 
   ! OP initialisation
-  call op_init_base_soa(0,0,1)
+  call op_init_base (0,0)
+  call op_enable_reproducibility("repr_coloring")
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   call op_print ("Declaring OP2 sets")

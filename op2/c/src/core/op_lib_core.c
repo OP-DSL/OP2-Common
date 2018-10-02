@@ -40,12 +40,16 @@
 #include <string.h>
 #include <sys/time.h>
 
+
+
+
 /*
  * OP2 global state variables
  */
 
 int OP_diags = 0, OP_part_size = 0, OP_block_size = 64,
-    OP_cache_line_size = 128, OP_gpu_direct = 0;
+    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_repro_greedy_coloring = 0, 
+    OP_repro_coloring = 0, OP_repro_temparray = 0, OP_repro_trivial_coloring = 0;
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
@@ -54,6 +58,16 @@ int OP_maps_base_index = 0;
 
 int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
+    
+int OP_reduct_bytes = 0;
+char *OP_reduct_h;
+
+int reproducible_enabled = 0;
+
+
+int repr_red_arg_count = 0;
+int repr_red_arg_available = 0;
+double_binned** repr_red_args;
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -62,8 +76,11 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 op_set *OP_set_list;
 op_map *OP_map_list = NULL;
 int **OP_map_ptr_list = NULL;
+op_set_global_ids *OP_set_global_ids_list;
+op_reversed_map *OP_reversed_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
+op_repr_inc *op_repr_incs;
 
 const char *doublestr = "double";
 const char *floatstr = "float";
@@ -75,7 +92,7 @@ const char *boolstr = "bool";
  */
 static char *copy_str(char const *src) {
   const size_t len = strlen(src) + 1;
-  char *dest = (char *)op_calloc(len, sizeof(char));
+  char *dest = (char *)op_calloc(len+1, sizeof(char));
   return strncpy(dest, src, len);
 }
 
@@ -168,6 +185,11 @@ void op_set_args(int argc, char *argv) {
     OP_hybrid_balance = atof(temp + 18);
     op_printf("\n OP_hybrid_balance  = %g \n", OP_hybrid_balance);
   }
+  pch = strstr(argv, "-op_repro_greedy_coloring");
+  if (pch != NULL) {
+    OP_repro_greedy_coloring = 1;
+    op_printf("\n Applying greedy preprocessing method for reproducible coloring\n");
+  }
 
   pch = strstr(argv, "OP_MAPS_BASE_INDEX=");
   if (pch != NULL) {
@@ -191,6 +213,7 @@ void op_set_args(int argc, char *argv) {
  */
 
 void op_init_core(int argc, char **argv, int diags) {
+  reproducible_enabled=0;
   op_printf("\n Initializing OP2\n");
   OP_diags = diags;
 
@@ -265,7 +288,10 @@ op_set op_decl_set_core(int size, char const *name) {
     OP_set_max += 10;
     OP_set_list =
         (op_set *)op_realloc(OP_set_list, OP_set_max * sizeof(op_set));
-
+    if (reproducible_enabled){
+      OP_set_global_ids_list =
+          (op_set_global_ids *)op_realloc(OP_set_global_ids_list, OP_set_max * sizeof(op_set_global_ids));
+    }
     if (OP_set_list == NULL) {
       printf(" op_decl_set error -- error reallocating memory\n");
       exit(-1);
@@ -280,7 +306,13 @@ op_set op_decl_set_core(int size, char const *name) {
   set->exec_size = 0;
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
-
+  
+  if (reproducible_enabled){
+    op_set_global_ids glbl_ids = (op_set_global_ids)op_malloc(sizeof(op_set_global_ids_core));
+    glbl_ids->index = OP_set_index-1;
+    glbl_ids->global_ids = NULL;
+    OP_set_global_ids_list[OP_set_index - 1] = glbl_ids;   
+  }
   return set;
 }
 
@@ -329,10 +361,15 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
         (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
-    if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
+    if (reproducible_enabled){
+      OP_reversed_map_list =
+          (op_reversed_map *)op_realloc(OP_reversed_map_list, OP_map_max * sizeof(op_reversed_map));
+    }
+    if (OP_map_list == NULL || ( reproducible_enabled && OP_reversed_map_list==NULL ) ) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
+    
   }
 
   if (OP_maps_base_index == 1) {
@@ -440,7 +477,11 @@ op_dat op_decl_dat_temp_core(op_set set, int dim, char const *type, int size,
     exit(2);
   }
   // if not found ...
-  return op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+  if (reproducible_enabled) {    
+    rev_map_realloc();
+  }
+  return dat;
 }
 
 int op_free_dat_temp_core(op_dat dat) {
@@ -486,6 +527,11 @@ void op_exit_core() {
   }
   free(OP_set_list);
   OP_set_list = NULL;
+  
+  if (reproducible_enabled){
+    free(OP_set_global_ids_list);
+    OP_set_global_ids_list = NULL;
+  }
 
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_list[i]->user_managed)
@@ -511,11 +557,27 @@ void op_exit_core() {
     free(item);
   }
 
-  // free storage for timing info
 
+  if (reproducible_enabled){
+    for (int n = 0; n < OP_dat_index; n++) {
+          if (op_repr_incs[n].tmp_incs_size>0) {
+            op_free(op_repr_incs[n].tmp_incs);
+            op_repr_incs[n].tmp_incs_size=0;
+          }
+    }
+    free(op_repr_incs);
+    op_repr_incs = NULL;
+
+    for (int i=0; i<repr_red_arg_count; i++){
+      op_free(repr_red_args[i]);
+    }
+    op_free(repr_red_args);
+  }
+
+  // free storage for timing info
   free(OP_kernels);
   OP_kernels = NULL;
-
+  
   // reset initial values
 
   OP_set_index = 0;
@@ -704,8 +766,7 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
-  arg.sent = 0;
-
+  arg.sent = 0;  
   return arg;
 }
 
@@ -748,7 +809,15 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   /* TODO: properly??*/
   if (data == NULL)
     arg.opt = 0;
-
+  if (reproducible_enabled){
+    if (repr_red_arg_available >= repr_red_arg_count) {
+      repr_red_arg_count++;
+      repr_red_args = (double_binned**) op_realloc(repr_red_args, repr_red_arg_count * sizeof( double_binned* ) );
+      repr_red_args[repr_red_arg_count-1]=binned_dballoc(3);
+    }
+    arg.local_sum=repr_red_args[repr_red_arg_available];
+    repr_red_arg_available++;
+  }
   return arg;
 }
 
@@ -1329,3 +1398,35 @@ int op_get_size_local(op_set set) { return set->size; }
 
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
 int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
+
+double_binned** accum = NULL;
+
+void reprLocalSum(op_arg *arg, int set_size, double *red) {
+  
+  if (accum == NULL) {  
+    accum = (double_binned**)op_malloc(omp_get_max_threads()*sizeof(double_binned*));
+    for (int th=0; th<omp_get_max_threads(); th++ )
+       accum[th]=binned_dballoc(3);
+  }
+  for (int d= 0 ; d < arg->dim; d++) {
+    #pragma omp parallel for
+    for (int th=0; th<omp_get_max_threads(); th++){
+      int begin=(set_size/omp_get_max_threads())*th;
+      int end=(set_size/omp_get_max_threads())*(th+1);
+
+      if (th==omp_get_max_threads()-1){
+        end=set_size;
+      }      
+     
+      binned_dbsetzero(3, accum[th]);
+      binnedBLAS_dbdsum(3, end-begin, red+begin*arg->dim+d, arg->dim,  accum[th]);
+    }
+
+    binned_dbsetzero(3, &arg->local_sum[d]);
+    for (int th=0; th<omp_get_max_threads(); th++){
+      // binnedBLAS_dbdsum(3, omp_get_max_threads(), accum, 1, &arg->local_sum[d]);
+      binned_dbdbadd(3,accum[th],&arg->local_sum[d]);
+    }
+  }
+}
+ 

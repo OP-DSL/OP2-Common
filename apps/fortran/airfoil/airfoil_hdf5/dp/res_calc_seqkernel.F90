@@ -24,7 +24,7 @@ SUBROUTINE op_wrap_res_calc( &
   & opDat1MapDim, &
   & opDat3Map, &
   & opDat3MapDim, &
-  & bottom,top)
+  & color_based_exec_row_starts, color_based_exec, num_colors)
   implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat3Local(4,*)
@@ -34,25 +34,29 @@ SUBROUTINE op_wrap_res_calc( &
   INTEGER(kind=4) opDat1MapDim
   INTEGER(kind=4) opDat3Map(*)
   INTEGER(kind=4) opDat3MapDim
-  INTEGER(kind=4) bottom,top,i1
+  INTEGER(kind=4) num_colors,i1,i2,c
+  integer(kind=4) color_based_exec_row_starts(*), color_based_exec(*)
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
-  DO i1 = bottom, top-1, 1
-    map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
-    map2idx = opDat1Map(1 + i1 * opDat1MapDim + 1)+1
-    map3idx = opDat3Map(1 + i1 * opDat3MapDim + 0)+1
-    map4idx = opDat3Map(1 + i1 * opDat3MapDim + 1)+1
+  DO c = 0, num_colors-1, 1
+    DO i2 = color_based_exec_row_starts(c+1), color_based_exec_row_starts(c+2)-1, 1
+      i1 = color_based_exec(i2+1)
+      map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
+      map2idx = opDat1Map(1 + i1 * opDat1MapDim + 1)+1
+      map3idx = opDat3Map(1 + i1 * opDat3MapDim + 0)+1
+      map4idx = opDat3Map(1 + i1 * opDat3MapDim + 1)+1
 ! kernel call
-  CALL res_calc( &
-    & opDat1Local(1,map1idx), &
-    & opDat1Local(1,map2idx), &
-    & opDat3Local(1,map3idx), &
-    & opDat3Local(1,map4idx), &
-    & opDat5Local(1,map3idx), &
-    & opDat5Local(1,map4idx), &
-    & opDat7Local(1,map3idx), &
-    & opDat7Local(1,map4idx) &
-    & )
+    CALL res_calc( &
+      & opDat1Local(1,map1idx), &
+      & opDat1Local(1,map2idx), &
+      & opDat3Local(1,map3idx), &
+      & opDat3Local(1,map4idx), &
+      & opDat5Local(1,map3idx), &
+      & opDat5Local(1,map4idx), &
+      & opDat7Local(1,map3idx), &
+      & opDat7Local(1,map4idx) &
+      & )
+    END DO
   END DO
 END SUBROUTINE
 SUBROUTINE res_calc_host( userSubroutine, set, &
@@ -108,6 +112,9 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   real(8), POINTER, DIMENSION(:) :: opDat7Local
   INTEGER(kind=4) :: opDat7Cardinality
 
+  type(op_reversed_map_core) :: rev_map
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec_row_starts
+  INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec
 
   INTEGER(kind=4) :: i1
   REAL(kind=4) :: dataTransfer
@@ -131,6 +138,10 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
 
   opSetCore => set%setPtr
 
+  rev_map = op_get_reversed_map(opArg7)
+  call c_f_pointer(rev_map%color_based_exec_row_starts, color_based_exec_row_starts, (/rev_map%number_of_colors+1/))
+  call c_f_pointer(rev_map%color_based_exec, color_based_exec, (/opSetCore%size+opSetCore%exec_size/))
+
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opDat1MapDim = getMapDimFromOpArg(opArg1)
   opDat3Cardinality = opArg3%dim * getSetSizeFromOpArg(opArg3)
@@ -149,16 +160,6 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   CALL c_f_pointer(opArg7%map_data,opDat7Map,(/opSetCore%size*opDat7MapDim/))
 
 
-  CALL op_wrap_res_calc( &
-  & opDat1Local, &
-  & opDat3Local, &
-  & opDat5Local, &
-  & opDat7Local, &
-  & opDat1Map, &
-  & opDat1MapDim, &
-  & opDat3Map, &
-  & opDat3MapDim, &
-  & 0, opSetCore%core_size)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_res_calc( &
   & opDat1Local, &
@@ -169,7 +170,7 @@ SUBROUTINE res_calc_host( userSubroutine, set, &
   & opDat1MapDim, &
   & opDat3Map, &
   & opDat3MapDim, &
-  & opSetCore%core_size, n_upper)
+  & color_based_exec_row_starts, color_based_exec, rev_map%number_of_colors)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF

@@ -42,6 +42,19 @@
 // mpi header
 #include <mpi.h>
 
+
+// headers for reproducible MPI reduce
+#ifdef HAVE_REPRO
+#ifdef __cplusplus 
+  extern "C" {
+#endif
+  #include <binned.h>
+  #include <binnedMPI.h>
+#ifdef __cplusplus 
+  }
+#endif
+#endif
+
 //#include <op_lib_core.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
@@ -2358,6 +2371,46 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
     if (arg->dim > 1)
       op_free(result);
   }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+}
+
+void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
+  (void)data;
+  if (arg->data == NULL)
+    return;
+  op_timers_core(&c1, &t1);
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+    double result_static;
+    double *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE)
+      result = (double *)calloc(arg->dim, sizeof(double));
+    else
+      result = &result_static;
+ 
+  //binned scattered 
+    if (arg->acc == OP_INC) // global reduction
+    {
+      double_binned* binned_result = (double_binned *)op_malloc(binned_dbsize(3));
+      for (int i=0; i<arg->dim; i++) {
+
+          binned_dbsetzero(3,binned_result);
+          MPI_Allreduce(arg->local_sum, binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
+                    
+          result[i]=binned_ddbconv(3,binned_result);   
+          
+      }
+      op_free(binned_result);
+      
+      memcpy(arg->data, result, sizeof(double) * arg->dim);
+    } 
+ 
+    
+    if (arg->dim > 1)
+      op_free(result);
+  }
+  repr_red_arg_available=0;
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;

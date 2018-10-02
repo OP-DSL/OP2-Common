@@ -76,6 +76,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
 
   opSetCore => set%setPtr
 
+
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
   CALL c_f_pointer(opArg1%data,opDat1Local,(/opDat1Cardinality/))

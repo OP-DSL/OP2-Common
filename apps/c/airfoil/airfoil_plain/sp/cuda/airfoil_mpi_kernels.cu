@@ -20,6 +20,11 @@ __constant__ float qinf_cuda[4];
 #include "op_cuda_rt_support.h"
 #include "op_cuda_reduction.h"
 
+//header
+#include "op_lib_cpp.h"
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
+
 void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;

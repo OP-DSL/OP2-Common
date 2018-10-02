@@ -207,6 +207,12 @@ ifdef HDF5_INSTALL_PATH
   HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
+REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)/include
+
+ifdef REPRO_MPI_INSTALL_PATH
+  CXXFLAGS += $(REPRO_MPI_INC) -DHAVE_REPRO
+  MPIFLAGS += $(REPRO_MPI_INC) -DHAVE_REPRO
+endif
 
 .PHONY: clean mklib
 
@@ -229,14 +235,14 @@ seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
-	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_lib_core.o $(OBJ)/op_seq.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
+	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_seq.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
 
 cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
 	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
 
-	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_ALIGNE_FLAG) $(CUDA_INC) -I$(INC) \
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_ALIGNE_FLAG) $(CUDA_INC) -I$(INC) $(REPRO_MPI_INC) \
 	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/op_cuda_decl.o
-	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) $(REPRO_MPI_INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 
@@ -246,7 +252,7 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
 	$(SRC)/openmp4/op_openmp4_rt_support.c $(OBJ)/op_lib_core.o
 
-	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(OMP4FLAGS) -I$(INC) \
+	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(OMP4FLAGS) -I$(INC) $(REPRO_MPI_INC) \
 	-c $(SRC)/openmp4/op_openmp4_decl.c -o $(OBJ)/op_openmp4_decl.o
 	$(CXX) $(CXXFLAGS) $(OMP4FLAGS) -I$(INC) -c $(SRC)/openmp4/op_openmp4_rt_support.c \
 	-o $(OBJ)/op_openmp4_rt_support.o
@@ -295,6 +301,7 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_hdf5.o \
 	$(OBJ)/op_mpi_util.o \
 	$(OBJ)/op_renumber.o
+    
 
 mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
@@ -318,7 +325,7 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) $(HDF5_INC) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/op_mpi_hdf5.o
-	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_INSTALL_PATH)/include \
+	nvcc $(NVCCFLAGS) -I$(INC) $(REPRO_MPI_INC) -I $(MPI_INSTALL_PATH)/include \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
 	-o $(OBJ)/op_mpi_cuda_kernels.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \

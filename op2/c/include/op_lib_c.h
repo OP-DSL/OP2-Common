@@ -51,13 +51,17 @@
  * external variables declared in op_lib_core.cpp
  */
 
-extern int OP_diags, OP_part_size, OP_block_size, OP_gpu_direct;
+extern int OP_diags, OP_part_size, OP_block_size, OP_gpu_direct, 
+    OP_repro_greedy_coloring, OP_repro_coloring, OP_repro_temparray, OP_repro_trivial_coloring;
 
 extern int OP_set_index, OP_set_max, OP_map_index, OP_map_max, OP_dat_index,
     OP_plan_index, OP_plan_max, OP_kern_max, OP_kern_curr;
 
 extern op_set *OP_set_list;
+extern op_set_global_ids *OP_set_global_ids_list;
 extern op_map *OP_map_list;
+extern op_reversed_map *OP_reversed_map_list;
+extern op_repr_inc *op_repr_incs;
 extern Double_linked_list OP_dat_list;
 extern op_kernel *OP_kernels;
 extern double OP_plan_time;

@@ -12,6 +12,11 @@ import datetime
 import glob
 import os
 
+reproducible = 1
+repr_temp_array = 0
+repr_coloring = 1
+trivial_coloring = 0  #only relevant on CPU, no OMP
+
 def comment_remover(text):
     """Remove comments from text"""
 
@@ -137,15 +142,18 @@ def replace_local_includes_with_file_contents(text, search_dir):
           text2 += leading_whitespace + line+'\n'
   return text2
 
-def get_stride_string(g_m,maps,mapnames,name):
+def get_stride_string(g_m,maps,mapnames,name,repr_temp_inc=0):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   if maps[g_m] == OP_ID:
     return 'direct_'+name+'_stride_OP2CONSTANT'
   if maps[g_m] == OP_GBL:
     return '(gridDim%x*blockDim%x)'
   else:
-    idx = mapnames.index(mapnames[g_m])
-    return 'opDat'+str(idx)+'_'+name+'_stride_OP2CONSTANT'
+    if repr_temp_inc:
+      return 'opMap_'+str(mapnames[g_m])+'_'+name+'_stride_temp_inc_OP2CONSTANT'
+    else:
+      idx = mapnames.index(mapnames[g_m])
+      return 'opDat'+str(idx)+'_'+name+'_stride_OP2CONSTANT'
 
 arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
 
