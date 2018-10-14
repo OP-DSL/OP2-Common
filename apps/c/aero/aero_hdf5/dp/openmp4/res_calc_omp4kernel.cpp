@@ -122,9 +122,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
     double *data4 = (double *)arg4.data_d;
     int dat4size = getSetSizeFromOpArg(&arg4) * arg4.dat->dim;
     double *data9 = (double *)arg9.data_d;
-    int dat9size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg9) * arg9.dat->dim;
+    int dat9size =
+        (arg9.opt ? 1 : 0) * getSetSizeFromOpArg(&arg9) * arg9.dat->dim;
     double *data13 = (double *)arg13.data_d;
-    int dat13size = (arg.opt?1:0) * getSetSizeFromOpArg(&arg13) * arg13.dat->dim;
+    int dat13size =
+        (arg13.opt ? 1 : 0) * getSetSizeFromOpArg(&arg13) * arg13.dat->dim;
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
     ncolors = Plan->ncolors;

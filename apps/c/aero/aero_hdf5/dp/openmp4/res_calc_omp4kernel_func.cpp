@@ -24,10 +24,17 @@ void res_calc_omp4_kernel(
   int opDat0_res_calc_stride_OP2CONSTANT,
   int direct_res_calc_stride_OP2CONSTANT){
 
-  #pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(to:data8[0:dat8size]) \
-    map(to: gm1_ompkernel, gm1i_ompkernel, m2_ompkernel, wtg2_ompkernel[:4], Ng2_xi_ompkernel[:32])\
-    map(to:col_reord[0:set_size1],map0[0:map0size],data0[0:dat0size],data4[0:dat4size],data9[0:dat9size],data13[0:dat13size])
-  #pragma omp distribute parallel for schedule(static,1)
+#pragma omp target teams distribute parallel for schedule(static,              \
+                                                          1) num_teams(        \
+    num_teams) thread_limit(nthread) map(to : data8[0 : dat8size]) map(        \
+    to : gm1_ompkernel, gm1i_ompkernel, m2_ompkernel,                          \
+    wtg2_ompkernel[ : 4], Ng2_xi_ompkernel[ : 32])                             \
+        map(to : col_reord[0 : set_size1],                                     \
+                           map0[0 : map0size],                                 \
+                                data0[0 : dat0size],                           \
+                                      data4[0 : dat4size],                     \
+                                            data9[0 : dat9size],               \
+                                                  data13[0 : dat13size])
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
     int map0idx = map0[n_op + set_size1 * 0];
