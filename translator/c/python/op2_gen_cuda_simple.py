@@ -1170,16 +1170,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   code('#define MAX_CONST_SIZE 128')
   code('#endif')
   code('')
-  if os.path.exists('./user_types.h'):
-    code('#define OP_FUN_PREFIX __device__ __host__')
-    code('#include "../user_types.h"')
-  comm('header')
-  code('#include "op_lib_cpp.h"')
-  code('')
-  code('#include "op_cuda_rt_support.h"')
-  code('#include "op_cuda_reduction.h"')
-  code('')
-
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
@@ -1190,6 +1180,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         num = 'MAX_CONST_SIZE'
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
+
+  if os.path.exists('./user_types.h'):
+    code('#define OP_FUN_PREFIX __device__ __host__')
+    code('#include "../user_types.h"')
+  comm('header')
+  code('#include "op_lib_cpp.h"')
+  code('')
+  code('#include "op_cuda_rt_support.h"')
+  code('#include "op_cuda_reduction.h"')
 
   code('')
   code('void op_decl_const_char(int dim, char const *type,')
