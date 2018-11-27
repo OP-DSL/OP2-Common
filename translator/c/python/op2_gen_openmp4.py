@@ -807,6 +807,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
+
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
@@ -821,6 +822,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
   code('')
 
   comm(' header                 ')
+
   if os.path.exists('./user_types.h'):
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"       ')

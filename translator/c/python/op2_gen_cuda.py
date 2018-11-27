@@ -952,12 +952,14 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 ##########################################################################
 
   file_text = ''
-  comm('header')
+
   comm('global constants')
+
   code('#ifndef MAX_CONST_SIZE')
   code('#define MAX_CONST_SIZE 128')
   code('#endif')
   code('')
+
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
@@ -968,7 +970,9 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         num = 'MAX_CONST_SIZE'
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
 
+  comm('header')
   if os.path.exists('./user_types.h'):
     code('#define OP_FUN_PREFIX __host__ __device__')
     code('#include "../user_types.h"')

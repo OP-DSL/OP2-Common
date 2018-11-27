@@ -685,6 +685,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
+
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')
   code('#define int_ALIGN 64')
@@ -711,11 +712,14 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       else:
         num = 'MAX_CONST_SIZE'
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
 
   comm(' header                 ')
+
   if os.path.exists('./user_types.h'):
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
+  code('')
 
   comm(' user kernel files')
 
