@@ -953,17 +953,17 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
   file_text = ''
   comm('header')
+  comm('global constants')
+  code('#ifndef MAX_CONST_SIZE')
+  code('#define MAX_CONST_SIZE 128')
+  code('#endif')
+  code('')
   if os.path.exists('./user_types.h'):
     code('#define OP_FUN_PREFIX __host__ __device__')
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
-  code('')
-  comm('global constants')
-  code('#ifndef MAX_CONST_SIZE')
-  code('#define MAX_CONST_SIZE 128')
-  code('#endif')
   code('')
 
   for nc in range (0,len(consts)):

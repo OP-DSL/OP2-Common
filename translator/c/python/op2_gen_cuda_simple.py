@@ -1165,6 +1165,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 ##########################################################################
 
   file_text = ''
+  comm('global constants')
+  code('#ifndef MAX_CONST_SIZE')
+  code('#define MAX_CONST_SIZE 128')
+  code('#endif')
+  code('')
   if os.path.exists('./user_types.h'):
     code('#define OP_FUN_PREFIX __device__ __host__')
     code('#include "../user_types.h"')
@@ -1173,11 +1178,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   code('')
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
-  code('')
-  comm('global constants')
-  code('#ifndef MAX_CONST_SIZE')
-  code('#define MAX_CONST_SIZE 128')
-  code('#endif')
   code('')
 
   for nc in range (0,len(consts)):
