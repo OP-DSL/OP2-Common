@@ -1166,7 +1166,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   file_text = ''
   if os.path.exists('./user_types.h'):
-    code('#define OP_FUN_PREFIX __device__ __host__')
+    code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
     code('#include "../user_types.h"')
   comm('header')
   code('#include "op_lib_cpp.h"')

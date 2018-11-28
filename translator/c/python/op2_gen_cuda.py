@@ -954,7 +954,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
   file_text = ''
   comm('header')
   if os.path.exists('./user_types.h'):
-    code('#define OP_FUN_PREFIX __host__ __device__')
+    code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
   code('#include "op_cuda_rt_support.h"')
