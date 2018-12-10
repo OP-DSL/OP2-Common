@@ -952,15 +952,9 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 ##########################################################################
 
   file_text = ''
-  comm('header')
-  if os.path.exists('./user_types.h'):
-    code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
-    code('#include "../user_types.h"')
-  code('#include "op_lib_cpp.h"')
-  code('#include "op_cuda_rt_support.h"')
-  code('#include "op_cuda_reduction.h"')
-  code('')
+
   comm('global constants')
+
   code('#ifndef MAX_CONST_SIZE')
   code('#define MAX_CONST_SIZE 128')
   code('#endif')
@@ -976,6 +970,16 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         num = 'MAX_CONST_SIZE'
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
+
+  comm('header')
+  if os.path.exists('./user_types.h'):
+    code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
+    code('#include "../user_types.h"')
+  code('#include "op_lib_cpp.h"')
+  code('#include "op_cuda_rt_support.h"')
+  code('#include "op_cuda_reduction.h"')
+  code('')
 
   # if any_soa:
   #   code('__constant__ int op2_stride;')

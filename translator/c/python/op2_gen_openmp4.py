@@ -807,11 +807,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
-  comm(' header                 ')
-  if os.path.exists('./user_types.h'):
-    code('#include "../user_types.h"')
-  code('#include "op_lib_cpp.h"       ')
-  code('')
+
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
@@ -824,6 +820,14 @@ def op2_gen_openmp4(master, date, consts, kernels):
         num = 'MAX_CONST_SIZE'
       code(consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_ompkernel['+num+'];')
   code('')
+
+  comm(' header                 ')
+
+  if os.path.exists('./user_types.h'):
+    code('#include "../user_types.h"')
+  code('#include "op_lib_cpp.h"       ')
+  code('')
+
   code('void op_decl_const_char(int dim, char const *type,')
   code('  int size, char *dat, char const *name){')
   indent = ' ' * ( 2+ depth)
