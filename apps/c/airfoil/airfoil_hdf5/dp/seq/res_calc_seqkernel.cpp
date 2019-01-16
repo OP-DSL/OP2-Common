@@ -41,7 +41,34 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set_size > 0) {
 
+    op_map old_mapping = arg6.map; //TODO works only with arg6...
+    int set_from_size = op_get_size(old_mapping->from);  
+    int set_to_size = op_get_size(old_mapping->to);  
+    int old_map_dim = old_mapping->dim;
+    int new_map_max_dim=20;  //TODO dimension size???
+    double *tmp_incs = (double *)malloc(set_from_size * old_map_dim * arg6.dat->size );//arg6.dat.size = arg6->dim*sizeof(double)
+    int *row_lens = (int *)malloc(set_to_size * sizeof(int));
+    int *new_map = (int *)malloc(set_to_size * new_map_max_dim * sizeof(int));
+    for (int i=0; i<set_to_size ; i++ ) {
+      row_lens[i] = 0;
+    }
+	
+	for (int i=0; i<set_from_size * old_map_dim * arg6.dim; i++){
+	  tmp_incs[i]=0;
+	}
+	
+//    int size_of_new_map = 0;
+    
+    for ( int i=0; i<set_from_size; i++ ) {
+      for ( int j=0; j<old_map_dim; j++ ) {
+	    new_map[old_mapping->map[i*old_map_dim+j] * new_map_max_dim + row_lens[old_mapping->map[i*old_map_dim+j]]] = i * old_map_dim + j;
+        row_lens[old_mapping->map[i*old_map_dim+j]]++;
+//        size_of_new_map++;
+      }      
+    }
+  
     for ( int n=0; n<set_size; n++ ){
+
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
@@ -51,16 +78,40 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
 
-      res_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg2.data)[4 * map2idx],
-        &((double*)arg2.data)[4 * map3idx],
-        &((double*)arg4.data)[1 * map2idx],
-        &((double*)arg4.data)[1 * map3idx],
-        &((double*)arg6.data)[4 * map2idx],
-        &((double*)arg6.data)[4 * map3idx]);
+//      res_calc(
+//        &((double*)arg0.data)[2 * map0idx],
+//        &((double*)arg0.data)[2 * map1idx],
+//        &((double*)arg2.data)[4 * map2idx],
+//        &((double*)arg2.data)[4 * map3idx],
+//        &((double*)arg4.data)[1 * map2idx],
+//        &((double*)arg4.data)[1 * map3idx],
+//        &((double*)arg6.data)[4 * map2idx],
+//        &((double*)arg6.data)[4 * map3idx]);
+
+        res_calc(
+          &((double*)arg0.data)[2 * map0idx],
+          &((double*)arg0.data)[2 * map1idx],
+          &((double*)arg2.data)[4 * map2idx],
+          &((double*)arg2.data)[4 * map3idx],
+          &((double*)arg4.data)[1 * map2idx],
+          &((double*)arg4.data)[1 * map3idx],
+          &tmp_incs[(n*old_map_dim+0)*4],
+          &tmp_incs[(n*old_map_dim+1)*4]);
     }
+	
+	for ( int n=0; n<set_to_size; n++ ){
+		for ( int i=0; i<row_lens[n]; i++){
+		
+			((double*)arg6.data)[4 * n + 0] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 0];
+			((double*)arg6.data)[4 * n + 1] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 1];
+			((double*)arg6.data)[4 * n + 2] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 2];
+			((double*)arg6.data)[4 * n + 3] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 3];
+		}
+	}
+free(tmp_incs);	
+free(row_lens);	
+free(new_map);	
+
   }
 
   if (set_size == 0 || set_size == set->core_size) {
