@@ -45,28 +45,39 @@ void op_par_loop_res_calc(char const *name, op_set set,
     int set_from_size = op_get_size(old_mapping->from);  
     int set_to_size = op_get_size(old_mapping->to);  
     int old_map_dim = old_mapping->dim;
-    int new_map_max_dim=20;  //TODO dimension size???
     double *tmp_incs = (double *)malloc(set_from_size * old_map_dim * arg6.dat->size );//arg6.dat.size = arg6->dim*sizeof(double)
     int *row_lens = (int *)malloc(set_to_size * sizeof(int));
-    int *new_map = (int *)malloc(set_to_size * new_map_max_dim * sizeof(int));
-    for (int i=0; i<set_to_size ; i++ ) {
+    int *row_star_idx = (int *)malloc((set_to_size + 1) * sizeof(int));
+    int *new_map = (int *)malloc(set_from_size * old_map_dim * sizeof(int));
+    for (int i=0; i<set_to_size; i++ ) {
       row_lens[i] = 0;
+      row_star_idx[i] = 0;
     }
-	
-	for (int i=0; i<set_from_size * old_map_dim * arg6.dim; i++){
-	  tmp_incs[i]=0;
-	}
-	
-//    int size_of_new_map = 0;
+    row_star_idx[set_to_size]= set_from_size * old_map_dim;
     
+    for (int i=0; i<set_from_size * old_map_dim * arg6.dim; i++){
+      tmp_incs[i]=0;
+    }
+    
+    //compressed new_map storage
     for ( int i=0; i<set_from_size; i++ ) {
       for ( int j=0; j<old_map_dim; j++ ) {
-	    new_map[old_mapping->map[i*old_map_dim+j] * new_map_max_dim + row_lens[old_mapping->map[i*old_map_dim+j]]] = i * old_map_dim + j;
+        row_star_idx[old_mapping->map[i*old_map_dim+j]]++;
+      }
+    }
+    
+    for (int i=set_to_size-1; i>=0; i--){
+        row_star_idx[i]=  row_star_idx[i+1] - row_star_idx[i];
+    }
+           
+    for ( int i=0; i<set_from_size; i++ ) {
+      for ( int j=0; j<old_map_dim; j++ ) {
+        new_map[row_star_idx[old_mapping->map[i*old_map_dim+j]] + row_lens[old_mapping->map[i*old_map_dim+j]]] = i * old_map_dim + j;
         row_lens[old_mapping->map[i*old_map_dim+j]]++;
-//        size_of_new_map++;
       }      
     }
-  
+
+
     for ( int n=0; n<set_size; n++ ){
 
       if (n==set->core_size) {
@@ -98,19 +109,20 @@ void op_par_loop_res_calc(char const *name, op_set set,
           &tmp_incs[(n*old_map_dim+0)*4],
           &tmp_incs[(n*old_map_dim+1)*4]);
     }
-	
-	for ( int n=0; n<set_to_size; n++ ){
-		for ( int i=0; i<row_lens[n]; i++){
-		
-			((double*)arg6.data)[4 * n + 0] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 0];
-			((double*)arg6.data)[4 * n + 1] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 1];
-			((double*)arg6.data)[4 * n + 2] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 2];
-			((double*)arg6.data)[4 * n + 3] += tmp_incs[new_map[n*new_map_max_dim+i] * 4 + 3];
-		}
-	}
-free(tmp_incs);	
-free(row_lens);	
-free(new_map);	
+    
+    for ( int n=0; n<set_to_size; n++ ){
+        for ( int i=0; i<row_lens[n]; i++){
+        
+            ((double*)arg6.data)[4 * n + 0] += tmp_incs[new_map[row_star_idx[n]+i] * 4 + 0];
+            ((double*)arg6.data)[4 * n + 1] += tmp_incs[new_map[row_star_idx[n]+i] * 4 + 1];
+            ((double*)arg6.data)[4 * n + 2] += tmp_incs[new_map[row_star_idx[n]+i] * 4 + 2];
+            ((double*)arg6.data)[4 * n + 3] += tmp_incs[new_map[row_star_idx[n]+i] * 4 + 3];
+        }
+    }
+free(tmp_incs);    
+free(row_lens);    
+free(new_map);    
+free(row_star_idx);    
 
   }
 
