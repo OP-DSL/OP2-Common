@@ -145,6 +145,14 @@ typedef op_reversed_map_core *op_reversed_map;
 
 typedef struct {
   int index;        /* index */
+  int *reversed_map;    /* reversed mapping */
+  int *row_start_idx;    /* Helper array for indexing reversed_map */
+} op_reversed_map_core;
+
+typedef op_reversed_map_core *op_reversed_map;
+
+typedef struct {
+  int index;        /* index */
   op_set set;       /* set on which data is defined */
   int dim,          /* dimension of data */
       size;         /* size of each element in dataset */
