@@ -42,40 +42,53 @@ void op_par_loop_res_calc(char const *name, op_set set,
   if (set_size > 0) {
 
     op_map prime_map = arg6.map; //TODO works only with arg6...
-    int set_from_size = op_get_size(prime_map->from);  
-    int set_to_size = op_get_size(prime_map->to);  
+    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
     int prime_map_dim = prime_map->dim;
+    int set_from_size = prime_map->from->size + prime_map->from->exec_size + prime_map->from->nonexec_size;
+    int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
+    
     double *tmp_incs = (double *)malloc(set_from_size * prime_map_dim * arg6.dat->size );//arg6.dat.size = arg6.dim*sizeof(double)
-    int *reversed_map = (int *)malloc(set_from_size * prime_map_dim * sizeof(int));
-    int *rev_row_lens = (int *)malloc(set_to_size * sizeof(int));
-    int *rev_row_start_idx = (int *)malloc((set_to_size + 1) * sizeof(int));
    
     for (int i=0; i<set_from_size * prime_map_dim * arg6.dim; i++){
       tmp_incs[i]=0;
     }
     
-    for (int i=0; i<set_to_size; i++ ) {
-      rev_row_lens[i] = 0;
-      rev_row_start_idx[i] = 0;
-    }
-    rev_row_start_idx[set_to_size]= set_from_size * prime_map_dim;
-
-    for ( int i=0; i<set_from_size; i++ ) {
-      for ( int j=0; j<prime_map_dim; j++ ) {
-        rev_row_start_idx[prime_map->map[i*prime_map_dim+j]]++;
-      }
-    }
     
-    for (int i=set_to_size-1; i>=0; i--){
-        rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i];
-    }
-           
-    for ( int i=0; i<set_from_size; i++ ) {
-      for ( int j=0; j<prime_map_dim; j++ ) {
-        reversed_map[rev_row_start_idx[prime_map->map[i*prime_map_dim+j]] + rev_row_lens[prime_map->map[i*prime_map_dim+j]]] = i * prime_map_dim + j;
-        rev_row_lens[prime_map->map[i*prime_map_dim+j]]++;
-      }      
-    }
+//   // int set_from_size = op_get_size(prime_map->from);  
+//    int set_from_size = prime_map->from->size + prime_map->from->exec_size + prime_map->from->nonexec_size;
+//   // int set_to_size = op_get_size(prime_map->to);  
+//    int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
+//    int prime_map_dim = prime_map->dim;
+//     int *reversed_map = (int *)malloc(set_from_size * prime_map_dim * sizeof(int));
+//    int *rev_row_lens = (int *)malloc(set_to_size * sizeof(int));
+//    int *rev_row_start_idx = (int *)malloc((set_to_size + 1) * sizeof(int));
+//   
+//    for (int i=0; i<set_from_size * prime_map_dim * arg6.dim; i++){
+//      tmp_incs[i]=0;
+//    }
+//    
+//    for (int i=0; i<set_to_size; i++ ) {
+//      rev_row_lens[i] = 0;
+//      rev_row_start_idx[i] = 0;
+//    }
+//    rev_row_start_idx[set_to_size]= set_from_size * prime_map_dim;
+//
+//    for ( int i=0; i<set_from_size; i++ ) {
+//      for ( int j=0; j<prime_map_dim; j++ ) {
+//        rev_row_start_idx[prime_map->map[i*prime_map_dim+j]]++;
+//      }
+//    }
+//    
+//    for (int i=set_to_size-1; i>=0; i--){
+//        rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i];
+//    }
+//           
+//    for ( int i=0; i<set_from_size; i++ ) {
+//      for ( int j=0; j<prime_map_dim; j++ ) {
+//        reversed_map[rev_row_start_idx[prime_map->map[i*prime_map_dim+j]] + rev_row_lens[prime_map->map[i*prime_map_dim+j]]] = i * prime_map_dim + j;
+//        rev_row_lens[prime_map->map[i*prime_map_dim+j]]++;
+//      }      
+//    }
 
 
     for ( int n=0; n<set_size; n++ ){
@@ -100,16 +113,16 @@ void op_par_loop_res_calc(char const *name, op_set set,
     }
     
     for ( int n=0; n<set_to_size; n++ ){
-        for ( int i=0; i<rev_row_lens[n]; i++){
+        for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
             for (int d=0; d<arg6.dim; d++){
-                ((double*)arg6.data)[arg6.dim * n + d] += tmp_incs[reversed_map[rev_row_start_idx[n]+i] * arg6.dim + d];
+                ((double*)arg6.data)[arg6.dim * n + d] += tmp_incs[rev_map->reversed_map[rev_map->row_start_idx[n]+i] * arg6.dim + d];
             }
         }
     }
     free(tmp_incs);    
-    free(rev_row_lens);    
-    free(reversed_map);    
-    free(rev_row_start_idx);    
+ //   free(rev_row_lens);    
+ //   free(reversed_map);    
+ //   free(rev_row_start_idx);    
 
   }
 

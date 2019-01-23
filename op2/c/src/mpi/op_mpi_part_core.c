@@ -3712,6 +3712,56 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       OP_map_partial_exchange[i] = 0;
   }
 
+  //Create reversed mapping for each map
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map original_map = OP_map_list[m];
+        
+    int set_from_size = original_map->from->size + original_map->from->exec_size + original_map->from->nonexec_size;
+    int set_to_size = original_map->to->size + original_map->to->exec_size + original_map->to->nonexec_size;
+    int original_map_dim = original_map->dim;
+    int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
+    int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
+    int *rev_row_start_idx = (int *)op_malloc((set_to_size + 1) * sizeof(int));
+   
+    
+    for (int i=0; i<set_to_size; i++ ) {
+      rev_row_lens[i] = 0;
+      rev_row_start_idx[i] = 0;
+    }
+    rev_row_start_idx[set_to_size]= set_from_size * original_map_dim;
+
+    for ( int i=0; i<set_from_size; i++ ) {
+      for ( int j=0; j<original_map_dim; j++ ) {
+        rev_row_start_idx[original_map->map[i*original_map_dim+j]]++;
+      }
+    }
+    
+    for (int i=set_to_size-1; i>=0; i--){
+        rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i];
+    }
+           
+    for ( int i=0; i<set_from_size; i++ ) {
+      for ( int j=0; j<original_map_dim; j++ ) {
+        reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
+        rev_row_lens[original_map->map[i*original_map_dim+j]]++;
+      }      
+    }    
+    
+    op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map));
+    
+    rev_map->index = original_map->index;
+    rev_map->reversed_map = reversed_map;
+    rev_map->row_start_idx = rev_row_start_idx;
+        
+    op_free(rev_row_lens);    
+    OP_reversed_map_list[m] = rev_map;
+    
+  }
+  
+  
+  
+  
+  
 #ifdef DEBUG // sanity check to identify if the partitioning results in ophan
              // elements
   int ctr = 0;

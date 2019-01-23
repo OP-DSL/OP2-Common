@@ -329,10 +329,14 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
         (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
-    if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
+    OP_reversed_map_list =
+        (op_reversed_map *)op_realloc(OP_reversed_map_list, OP_map_max * sizeof(op_reversed_map));
+
+    if (OP_map_list == NULL || OP_reversed_map_list==NULL ) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
+    
   }
 
   if (OP_maps_base_index == 1) {
