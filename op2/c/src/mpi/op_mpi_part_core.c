@@ -3720,9 +3720,6 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         
     int set_from_size = original_map->from->size  + original_map->from->exec_size;
     int set_to_size = original_map->to->size  + original_map->to->exec_size + original_map->to->nonexec_size;
-    if (set_from_size==0) {
-        OP_reversed_map_list[m] = NULL;
-    } else {
     int original_map_dim = original_map->dim;
     int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
     int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
