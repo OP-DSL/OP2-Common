@@ -102,7 +102,12 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-
+    
+    
+    int init = dat->set->size * dat->size;
+    char* tmp_comparends = (char*)malloc(imp_exec_list->size*dat->size);
+    memcpy(tmp_comparends,&dat->data[init],imp_exec_list->size*dat->size);
+    
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
@@ -124,17 +129,31 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
-    int init = dat->set->size * dat->size;
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-      //      printf("import exec on to %d from %d data %10s, number of elements
-      //      of size %d | recieving:\n ",
-      //           my_rank, imp_exec_list->ranks[i], dat->name,
+      //printf("import exec on to %d from %d data %10s, number of elements of size %d | recieving:\n",
+      //           my_rank, 
+      //           imp_exec_list->ranks[i], 
+      //           dat->name,
       //           imp_exec_list->sizes[i]);
+                 
       MPI_Irecv(&(dat->data[init + imp_exec_list->disps[i] * dat->size]),
-                dat->size * imp_exec_list->sizes[i], MPI_CHAR,
-                imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
-                &((op_mpi_buffer)(dat->mpi_buffer))
-                     ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+                dat->size * imp_exec_list->sizes[i],
+                MPI_CHAR,
+                imp_exec_list->ranks[i],
+                dat->index,
+                OP_MPI_WORLD,
+                &((op_mpi_buffer)(dat->mpi_buffer))->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      
+    }
+  //  MPI_Status status1[30];
+  //  MPI_Status status2[30];
+  //
+  //  MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,status1);
+  //  MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,status2);
+    
+    int n = memcmp( tmp_comparends, &dat->data[init],imp_exec_list->size*dat->size);
+    if (n != 0) {
+        printf("Error - different data in the exchanged halos. First different byte: %d, dat_name: %s\n",n,dat->name);
     }
 
     //-----second exchange nonexec elements related to this data array------

@@ -3717,8 +3717,11 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   
     op_map original_map = OP_map_list[m];
         
-    int set_from_size = original_map->from->core_size  + original_map->from->exec_size + original_map->from->nonexec_size;
-    int set_to_size = original_map->to->core_size  + original_map->to->exec_size + original_map->to->nonexec_size;
+    int set_from_size = original_map->from->size  + original_map->from->exec_size;
+    int set_to_size = original_map->to->size  + original_map->to->exec_size + original_map->to->nonexec_size;
+    if (set_from_size==0) {
+        OP_reversed_map_list[m] = NULL;
+    } else {
     int original_map_dim = original_map->dim;
     int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
     int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
@@ -3747,7 +3750,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       }      
     }    
     
-    op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map));
+    op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
     
     rev_map->index = original_map->index;
     rev_map->reversed_map = reversed_map;
@@ -3755,7 +3758,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         
     op_free(rev_row_lens);    
     OP_reversed_map_list[m] = rev_map;
-    
+    }
   }
   
   

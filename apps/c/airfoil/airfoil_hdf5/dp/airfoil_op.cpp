@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
   op_map pbedge = op_decl_map_hdf5(bedges, nodes, 2, file, "pbedge");
   op_map pbecell = op_decl_map_hdf5(bedges, cells, 1, file, "pbecell");
   op_map pcell = op_decl_map_hdf5(cells, nodes, 4, file, "pcell");
-
+  
   op_map m_test = op_decl_map_hdf5(cells, nodes, 4, file, "m_test");
   if (m_test == NULL)
     printf("m_test not found\n");
@@ -204,10 +204,12 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("mach", 1, "double", (char *)&mach, "new_grid_out.h5");
   op_write_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid_out.h5");
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
-
+  
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
-  // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
+  //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+  
+  
+  op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
 
 #define PDIM 2
@@ -228,8 +230,11 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
                 op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
 
-    //  predictor/corrector update loop
 
+	if (iter % 10 == 0 )
+		printf("Calculating res_calc %d/%d\n",iter,niter);
+	
+    //  predictor/corrector update loop
     for (int k = 0; k < 2; k++) {
 
       //    calculate area/timstep
@@ -243,7 +248,6 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
 
       //    calculate flux residual
-
       op_par_loop_res_calc("res_calc",edges,
                   op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pedge,2,"double",OP_READ),
@@ -297,6 +301,10 @@ int main(int argc, char **argv) {
   }
 
   op_timers(&cpu_t2, &wall_t2);
+  
+    // output the result dat array to files
+ // op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); // ASCI
+  op_print_dat_to_binfile(p_q, "out_grid_seq_reversed.bin"); // Binary
 
   // write given op_dat's indicated segment of data to a memory block in the
   // order it was originally
