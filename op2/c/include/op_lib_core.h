@@ -136,9 +136,9 @@ typedef struct {
 typedef op_map_core *op_map;
 
 typedef struct {
-  int index;        /* index */
+  int index;            /* index */
   int *reversed_map;    /* reversed mapping */
-  int *row_start_idx;    /* Helper array for indexing reversed_map */
+  int *row_start_idx;   /* Helper array for indexing reversed_map */
 } op_reversed_map_core;
 
 typedef op_reversed_map_core *op_reversed_map;

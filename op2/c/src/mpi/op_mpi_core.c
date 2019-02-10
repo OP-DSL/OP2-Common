@@ -3036,7 +3036,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {      
   int size = set->size;
   int direct_flag = 1;
 
@@ -3093,11 +3093,14 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
           op_exchange_halo(&args[n], exec_flag);
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
-          if (OP_map_partial_exchange[args[n].map->index])
+
+          if (OP_map_partial_exchange[args[n].map->index]){
             op_exchange_halo_partial(&args[n], exec_flag);
-          else
+          }
+          else{
             op_exchange_halo(&args[n], exec_flag);
-        }
+            }
+        }        
       }
     }
   }

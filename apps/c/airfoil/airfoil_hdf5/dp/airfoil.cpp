@@ -150,8 +150,8 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
-  // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
+  //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+   op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
 
 #define PDIM 2
@@ -174,6 +174,9 @@ int main(int argc, char **argv) {
 
     //  predictor/corrector update loop
 
+	if (iter % 10 == 0 )
+		printf("Calculating res_calc %d/%d\n",iter,niter);
+	
     for (int k = 0; k < 2; k++) {
 
       //    calculate area/timstep
@@ -242,6 +245,8 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
 
+  op_print_dat_to_binfile(p_q, "out_grid_seq_reference.bin"); // Binary
+  
   // write given op_dat's indicated segment of data to a memory block in the
   // order it was originally
   // arranged (i.e. before partitioning and reordering)
