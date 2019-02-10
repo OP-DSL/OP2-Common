@@ -489,7 +489,7 @@ clean:
 	-rm -if $(F_OP2_OBJ)/*.o
 	-rm -if $(F_OP2_LIB)/*.a
 	-rm -if $(F_OP2_SRC)/*~
-	-rm -if $(F_OP2_SRC)/*~
+	-rm -if $(F_OP2_OBJ)/*.optrpt
 	-rm -if $(F_OP2_SRC)/op2_for_reference.c
 	-rm -if $(F_OP2_SRC)/op2_cpp_reference.F90
 	-rm -if $(F_OP2_MOD)/*.mod
