@@ -102,12 +102,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-
-
-    int init = dat->set->size * dat->size;
-    char* tmp_comparends = (char*)malloc(imp_exec_list->size*dat->size);
-    memcpy(tmp_comparends,&dat->data[init],imp_exec_list->size*dat->size);
-
+    
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
@@ -129,6 +124,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
+    int init = dat->set->size * dat->size;
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
       //printf("import exec on to %d from %d data %10s, number of elements of size %d | recieving:\n",
       //           my_rank,
