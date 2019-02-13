@@ -3144,8 +3144,13 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
     char* tmp_buffer_recieved_eeh = (char*)malloc(imp_exec_list->size*dat->size);   //what is the size of the other procs eeh? should be same as the ieh of this proc...
     memcpy(tmp_buffer_owned_eeh,&dat->data[init],imp_exec_list->size*dat->size);
     
+    int my_rank;
+    MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  
     int set_elem_index;
+    printf("I am going to send %d times, and I am: %d\n",exp_exec_list->ranks_size,my_rank);
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
+        
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
@@ -3153,6 +3158,12 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
                                j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
+      
+      printf("sending i: %d, buf_exec[%d], count: %d, target: %d, tag:%d\n",i ,exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], dat->index);  
+      double* tmpppp = (double*)malloc(3*sizeof(double));
+      memcpy(tmpppp,&((op_mpi_buffer)(dat->mpi_buffer))->buf_exec[exp_exec_list->disps[i] * dat->size],3*sizeof(double));
+      printf("first 3 sent data: %f,%f,%f\n", tmpppp[0], tmpppp[1], tmpppp[2]);      
+      free(tmpppp);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->buf_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], 
                 MPI_CHAR,
@@ -3163,7 +3174,8 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
     }
 
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-         
+      printf("recieving i: %d, tmp_buffer_recieved_eeh[%d], count: %d, source: %d, tag:%d\n",i ,imp_exec_list->disps[i] * dat->size,dat->size * imp_exec_list->sizes[i], imp_exec_list->ranks[i], dat->index);  
+    //  printf("first 3 recieved data: %f, %f, %f\n", , , )
       MPI_Irecv(&tmp_buffer_recieved_eeh[imp_exec_list->disps[i] * dat->size], // &(dat->data[init + imp_exec_list->disps[i] * dat->size]),
                 dat->size * imp_exec_list->sizes[i],
                 MPI_CHAR,
@@ -3180,7 +3192,11 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
     
     int n = memcmp( tmp_buffer_owned_eeh, tmp_buffer_recieved_eeh,imp_exec_list->size*dat->size);
     
+    double* owned_double_eeh = (double*)tmp_buffer_owned_eeh;
+    double* recieved_double_eeh = (double*)tmp_buffer_recieved_eeh;
     
+    printf("owned: 0: %f, 1: %f 2: %f\n",owned_double_eeh[0],owned_double_eeh[1],owned_double_eeh[2]);
+    printf("recie: 0: %f, 1: %f 2: %f\n",recieved_double_eeh[0],recieved_double_eeh[1],recieved_double_eeh[2]);
     
 
     if (n != 0) printf("Error - different halo data at exchange. First diff byte: %5d, dat_name: %10s, %s",n,dat->name, debug_msg);
