@@ -276,9 +276,9 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
 
                   
-      snprintf(debug_msg, 200, "after: %s, iteration: %d/%d, k: %d\n", "res_calc and forced exchange", iter,niter,k);
-      forced_exchange(p_res);
-      comapre_mpi_halo_check(p_res,debug_msg);
+      //snprintf(debug_msg, 200, "after: %s, iteration: %d/%d, k: %d\n", "res_calc and forced exchange", iter,niter,k);
+      //forced_exchange(p_res);
+      //comapre_mpi_halo_check(p_res,debug_msg);
       
       
       
