@@ -3036,7 +3036,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {          
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
 
@@ -3100,7 +3100,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
           else{
             op_exchange_halo(&args[n], exec_flag);
             }
-        }        
+        }
       }
     }
   }
@@ -3118,7 +3118,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
  *********************************************************************************************************/
 int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
 {
-  
+
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
@@ -3137,45 +3137,48 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    
-    
+
+
     int init = dat->set->size * dat->size;
-    char* tmp_buffer_owned_eeh = (char*)malloc(imp_exec_list->size*dat->size);
-    char* tmp_buffer_recieved_eeh = (char*)malloc(imp_exec_list->size*dat->size);   //what is the size of the other procs eeh? should be same as the ieh of this proc...
+    char* tmp_buffer_owned_eeh    = (char*)malloc(imp_exec_list->size*dat->size);
+    char* tmp_buffer_recieved_eeh = (char*)malloc(imp_exec_list->size*dat->size);
     memcpy(tmp_buffer_owned_eeh,&dat->data[init],imp_exec_list->size*dat->size);
-    
+
     int my_rank;
     MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  
+
     int set_elem_index;
-    printf("I am going to send %d times, and I am: %d\n",exp_exec_list->ranks_size,my_rank);
+    //printf("I am going to send %d times, and I am: %d\n",exp_exec_list->ranks_size,my_rank);
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
-        
+
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
                     ->buf_exec[exp_exec_list->disps[i] * dat->size +
                                j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+        if(j==0){
+          printf("on rank %d ******* First %d owned and sent data: %f\n", my_rank, j, ((double *)dat->data)[(set_elem_index)*4+0]);
+          printf("on rank %d ******* First %d owned and sent data: %f\n", my_rank, j, ((double *)dat->data)[(set_elem_index)*4+1]);
+          printf("on rank %d ******* First %d owned and sent data: %f\n", my_rank, j, ((double *)dat->data)[(set_elem_index)*4+2]);
+          printf("on rank %d ******* First %d owned and sent data: %f\n", my_rank, j, ((double *)dat->data)[(set_elem_index)*4+3]);
+        }
       }
-      
-      printf("sending i: %d, buf_exec[%d], count: %d, target: %d, tag:%d\n",i ,exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], dat->index);  
-      double* tmpppp = (double*)malloc(3*sizeof(double));
-      memcpy(tmpppp,&((op_mpi_buffer)(dat->mpi_buffer))->buf_exec[exp_exec_list->disps[i] * dat->size],3*sizeof(double));
-      printf("first 3 sent data: %f,%f,%f\n", tmpppp[0], tmpppp[1], tmpppp[2]);      
-      free(tmpppp);
+
+      //printf("sending i: %d, buf_exec[%d], count: %d, target: %d, tag:%d\n",i ,exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], dat->index);
+
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->buf_exec[exp_exec_list->disps[i] * dat->size],
-                dat->size * exp_exec_list->sizes[i], 
+                dat->size * exp_exec_list->sizes[i],
                 MPI_CHAR,
-                exp_exec_list->ranks[i], 
-                dat->index, 
+                exp_exec_list->ranks[i],
+                dat->index,
                 OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-      printf("recieving i: %d, tmp_buffer_recieved_eeh[%d], count: %d, source: %d, tag:%d\n",i ,imp_exec_list->disps[i] * dat->size,dat->size * imp_exec_list->sizes[i], imp_exec_list->ranks[i], dat->index);  
-    //  printf("first 3 recieved data: %f, %f, %f\n", , , )
+      //printf("recieving i: %d, tmp_buffer_recieved_eeh[%d], count: %d, source: %d, tag:%d\n",i ,imp_exec_list->disps[i] * dat->size,dat->size * imp_exec_list->sizes[i], imp_exec_list->ranks[i], dat->index);
+
       MPI_Irecv(&tmp_buffer_recieved_eeh[imp_exec_list->disps[i] * dat->size], // &(dat->data[init + imp_exec_list->disps[i] * dat->size]),
                 dat->size * imp_exec_list->sizes[i],
                 MPI_CHAR,
@@ -3183,36 +3186,37 @@ int comapre_mpi_halo_check(op_dat dat, char const *debug_msg)
                 dat->index,
                 OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-      
+
     }
-    
-    
+
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,MPI_STATUSES_IGNORE);
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,MPI_STATUSES_IGNORE);
-    
+
     int n = memcmp( tmp_buffer_owned_eeh, tmp_buffer_recieved_eeh,imp_exec_list->size*dat->size);
-    
+
     double* owned_double_eeh = (double*)tmp_buffer_owned_eeh;
     double* recieved_double_eeh = (double*)tmp_buffer_recieved_eeh;
-    
-    printf("owned: 0: %f, 1: %f 2: %f\n",owned_double_eeh[0],owned_double_eeh[1],owned_double_eeh[2]);
-    printf("recie: 0: %f, 1: %f 2: %f\n",recieved_double_eeh[0],recieved_double_eeh[1],recieved_double_eeh[2]);
-    
 
-    if (n != 0) printf("Error - different halo data at exchange. First diff byte: %5d, dat_name: %10s, %s",n,dat->name, debug_msg);
-     else printf("NO Error   - same halo data at exchange. First same byte: %5d, dat_name: %10s, %s",n,dat->name,debug_msg);
+    printf("on rank %d owned: 0: %f, 1: %f 2: %f 3: %f \n",my_rank, owned_double_eeh[0],owned_double_eeh[1],owned_double_eeh[2], owned_double_eeh[3]);
+    printf("on rank %d recie: 0: %f, 1: %f 2: %f 3: %f \n",my_rank, recieved_double_eeh[0],recieved_double_eeh[1],recieved_double_eeh[2],recieved_double_eeh[3]);
 
-  
+
+    if (n != 0)
+      printf("Error    - different halo data at exchange. First diff byte: %5d, dat_name: %10s, %s",n,dat->name, debug_msg);
+    else
+      printf("NO Error - same halo data at exchange.      First same byte: %5d, dat_name: %10s, %s",n,dat->name,debug_msg);
+
+
 
     free(tmp_buffer_owned_eeh);
     free(tmp_buffer_recieved_eeh);
-    
-    return n;  
-  
+
+    return n;
+
 }
 
 int forced_exchange(op_dat dat)
-{  
+{
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
@@ -3231,10 +3235,10 @@ int forced_exchange(op_dat dat)
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    
-    
+
+
     int init = dat->set->size * dat->size;
-   
+
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
@@ -3245,16 +3249,16 @@ int forced_exchange(op_dat dat)
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))->buf_exec[exp_exec_list->disps[i] * dat->size],
-                dat->size * exp_exec_list->sizes[i], 
+                dat->size * exp_exec_list->sizes[i],
                 MPI_CHAR,
-                exp_exec_list->ranks[i], 
-                dat->index, 
+                exp_exec_list->ranks[i],
+                dat->index,
                 OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-         
+
       MPI_Irecv( &(dat->data[init + imp_exec_list->disps[i] * dat->size]),
                 dat->size * imp_exec_list->sizes[i],
                 MPI_CHAR,
@@ -3262,16 +3266,13 @@ int forced_exchange(op_dat dat)
                 dat->index,
                 OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-      
+
     }
-    
-    
+
+
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,MPI_STATUSES_IGNORE);
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,MPI_STATUSES_IGNORE);
-    
-      
-    
-  
+
   return 0;
 }
 
