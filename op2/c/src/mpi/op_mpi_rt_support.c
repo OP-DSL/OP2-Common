@@ -102,7 +102,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    
+
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {

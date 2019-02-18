@@ -39,21 +39,21 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
     op_map prime_map = arg4.map; //TODO works only with arg4...
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
-  
+
     if (rev_map != NULL) {
-  
+
         int prime_map_dim = prime_map->dim;
         int set_from_size = prime_map->from->size + prime_map->from->exec_size;
-        int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
-        
+        int set_to_size = prime_map->to->size + prime_map->to->exec_size;// + prime_map->to->nonexec_size;
+
         double *tmp_incs = (double *)malloc(set_from_size * prime_map_dim * arg4.dat->size );//arg4.dat.size = arg4.dim*sizeof(double)
-       
-  
+
+
         for (int i=0; i<set_from_size * prime_map_dim * arg4.dim; i++){
           tmp_incs[i]=0;
-        }  
-  
-  
+        }
+
+
         for ( int n=0; n<set_size; n++ ){
           if (n==set->core_size) {
             op_mpi_wait_all(nargs, args);
@@ -70,8 +70,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
  //           &((double*)arg3.data)[1 * map2idx],
  //           &((double*)arg4.data)[4 * map2idx],
  //           &((int*)arg5.data)[1 * n]);
-            
-            
+
+
           bres_calc(
             &((double*)arg0.data)[2 * map0idx],
             &((double*)arg0.data)[2 * map1idx],
@@ -80,8 +80,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
             &tmp_incs[(n*prime_map_dim+0)*arg4.dim],
             &((int*)arg5.data)[1 * n]);
         }
-    
-    
+
+
         for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg4.dim; d++){
@@ -89,12 +89,12 @@ void op_par_loop_bres_calc(char const *name, op_set set,
                 }
             }
         }
-        free(tmp_incs);      
-    
-    
-    
+        free(tmp_incs);
+
+
+
     }
-    
+
   }
 
   if (set_size == 0 || set_size == set->core_size) {
