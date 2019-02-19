@@ -3746,10 +3746,9 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     for ( int i=0; i<set_from_size; i++ ) {
       for ( int j=0; j<original_map_dim; j++ ) {
         reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
-        rev_row_lens[original_map->map[i*original_map_dim+j]]++;
+        (rev_row_lens[original_map->map[i*original_map_dim+j]])++;
       }
     }
-
 
     /*for ( int i=original_map->from->size; i<set_from_size; i++ ) {
       for ( int j=0; j<original_map_dim; j++ ) {

@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 
       //    calculate area/timstep
 
-      snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "adt_calc", iter,niter,k);
+      //snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "adt_calc", iter,niter,k);
       op_par_loop_adt_calc( "adt_calc",cells,
                   op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pcell,2,"double",OP_READ),
@@ -260,9 +260,9 @@ int main(int argc, char **argv) {
 
       //    calculate flux residual
 
-      snprintf(debug_msg, 200, "before: %s, iteration: %d/%d, k: %d\n", "res_calc", iter,niter,k);
-      comapre_mpi_halo_check(p_res,debug_msg);
-      snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "res_calc", iter,niter,k);
+      //snprintf(debug_msg, 200, "before: %s, iteration: %d/%d, k: %d\n", "res_calc", iter,niter,k);
+      //comapre_mpi_halo_check(p_res,debug_msg);
+      //snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "res_calc", iter,niter,k);
 
       op_par_loop_res_calc("res_calc",edges,
                   op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
@@ -274,16 +274,17 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
                   op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
 
+      if (iter == 1 && k == 0) {
+        snprintf(debug_msg, 200, "after: %s, iteration: %d/%d, k: %d\n", "res_calc and forced exchange", iter,niter,k);
+        //forced_exchange(p_res);
+        comapre_mpi_halo_check(p_res,debug_msg);
+        //op_fetch_data_hdf5_file(p_res, "res.h5");
+        exit(-1);
+      }
 
-      snprintf(debug_msg, 200, "after: %s, iteration: %d/%d, k: %d\n", "res_calc and forced exchange", iter,niter,k);
-      //forced_exchange(p_res);
-      comapre_mpi_halo_check(p_res,debug_msg);
-      //if (iter == 1 && k > 0)
-      exit(-1);
 
 
-
-      snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "bres_calc", iter,niter,k);
+      //snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "bres_calc", iter,niter,k);
       op_par_loop_bres_calc("bres_calc",bedges,
                   op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pbedge,2,"double",OP_READ),
@@ -296,7 +297,7 @@ int main(int argc, char **argv) {
 
       rms = 0.0;
 
-      snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "update", iter,niter,k);
+      //snprintf(debug_msg, 200, "kernel_name: %s, iteration: %d/%d, k: %d\n", "update", iter,niter,k);
       //op_par_loop_update("update",cells,
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
