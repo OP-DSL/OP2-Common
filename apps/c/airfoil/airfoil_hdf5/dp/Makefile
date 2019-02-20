@@ -21,8 +21,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
-  # CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CFLAGS        = -O3 -xHost -restrict -fno-alias -inline-forceinline -fp-model strict -fp-model source -prec-div -prec-sqrt
+  #CCFLAGS	= -O0 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= $(MPICXX_PATH)
