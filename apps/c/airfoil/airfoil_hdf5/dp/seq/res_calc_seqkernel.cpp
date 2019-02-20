@@ -71,6 +71,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
           int map2idx = arg2.map_data[n * arg2.map->dim + 0];
           int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
+#define WITH_INCS 1
+
             res_calc(
               &((double*)arg0.data)[2 * map0idx],
               &((double*)arg0.data)[2 * map1idx],
@@ -78,10 +80,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
               &((double*)arg2.data)[4 * map3idx],
               &((double*)arg4.data)[1 * map2idx],
               &((double*)arg4.data)[1 * map3idx],
+#ifdef WITH_INCS
               &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
               &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
-              //&((double*)arg6.data)[4 * map2idx],
-              //&((double*)arg6.data)[4 * map3idx]);
+#else
+              &((double*)arg6.data)[4 * map2idx],
+              &((double*)arg6.data)[4 * map3idx]);
+#endif
         }
 
         /*for (int i=0; i<set_from_size * prime_map_dim; i++){
@@ -89,6 +94,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
             tmp_incs[i*prime_map_dim+1], tmp_incs[i*prime_map_dim+2], tmp_incs[i*prime_map_dim+3]);
         }*/
 
+#ifdef WITH_INCS
         for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg6.dim; d++){
@@ -97,10 +103,20 @@ void op_par_loop_res_calc(char const *name, op_set set,
                 }
             }
         }
+#endif
 
-        //for ( int n=prime_map->to->core_size; n< prime_map->to->size; n++ ){
+        for ( int n=0; n< prime_map->to->size+prime_map->to->exec_size; n++ ){
+          printf("on rank %d whole arg6.data data: %f %f %f %f\n", my_rank, ((double*)arg6.data)[arg6.dim * n + 0],
+            ((double*)arg6.data)[arg6.dim * n + 1], ((double*)arg6.data)[arg6.dim * n + 2], ((double*)arg6.data)[arg6.dim * n + 3]);
+        }
+
         for ( int n=prime_map->to->size; n< prime_map->to->size+prime_map->to->exec_size; n++ ){
-          printf("on rank %d arg6.data data: %f %f %f %f\n", my_rank, ((double*)arg6.data)[arg6.dim * n + 0],
+          printf("on rank %d imp exec halo of arg6.data data: %f %f %f %f\n", my_rank, ((double*)arg6.data)[arg6.dim * n + 0],
+            ((double*)arg6.data)[arg6.dim * n + 1], ((double*)arg6.data)[arg6.dim * n + 2], ((double*)arg6.data)[arg6.dim * n + 3]);
+        }
+
+        for ( int n=prime_map->to->core_size; n< prime_map->to->size; n++ ){
+          printf("on rank %d exp exec halo of arg6.data data: %f %f %f %f\n", my_rank, ((double*)arg6.data)[arg6.dim * n + 0],
             ((double*)arg6.data)[arg6.dim * n + 1], ((double*)arg6.data)[arg6.dim * n + 2], ((double*)arg6.data)[arg6.dim * n + 3]);
         }
 
