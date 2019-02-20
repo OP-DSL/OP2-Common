@@ -78,10 +78,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
               &((double*)arg2.data)[4 * map3idx],
               &((double*)arg4.data)[1 * map2idx],
               &((double*)arg4.data)[1 * map3idx],
-              //&tmp_incs[(n*prime_map_dim+0)*arg6.dim],
-              //&tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
-              &((double*)arg6.data)[4 * map2idx],
-              &((double*)arg6.data)[4 * map3idx]);
+              &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
+              &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
+              //&((double*)arg6.data)[4 * map2idx],
+              //&((double*)arg6.data)[4 * map3idx]);
         }
 
         /*for (int i=0; i<set_from_size * prime_map_dim; i++){
@@ -89,17 +89,17 @@ void op_par_loop_res_calc(char const *name, op_set set,
             tmp_incs[i*prime_map_dim+1], tmp_incs[i*prime_map_dim+2], tmp_incs[i*prime_map_dim+3]);
         }*/
 
-        /*for ( int n=0; n<set_to_size; n++ ){
+        for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg6.dim; d++){
                     ((double*)arg6.data)[arg6.dim * n + d] +=
                     tmp_incs[rev_map->reversed_map[rev_map->row_start_idx[n]+i] * arg6.dim + d];
                 }
             }
-        }*/
+        }
 
-        for ( int n=prime_map->to->core_size; n< prime_map->to->size; n++ ){
-        //for ( int n=prime_map->to->size; n< prime_map->to->size+prime_map->to->exec_size; n++ ){
+        //for ( int n=prime_map->to->core_size; n< prime_map->to->size; n++ ){
+        for ( int n=prime_map->to->size; n< prime_map->to->size+prime_map->to->exec_size; n++ ){
           printf("on rank %d arg6.data data: %f %f %f %f\n", my_rank, ((double*)arg6.data)[arg6.dim * n + 0],
             ((double*)arg6.data)[arg6.dim * n + 1], ((double*)arg6.data)[arg6.dim * n + 2], ((double*)arg6.data)[arg6.dim * n + 3]);
         }

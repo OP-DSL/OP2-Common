@@ -126,20 +126,15 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 
     int init = dat->set->size * dat->size;
     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-      //printf("import exec on to %d from %d data %10s, number of elements of size %d | recieving:\n",
-      //           my_rank,
-      //           imp_exec_list->ranks[i],
-      //           dat->name,
+      //      printf("import exec on to %d from %d data %10s, number of elements
+      //      of size %d | recieving:\n ",
+      //           my_rank, imp_exec_list->ranks[i], dat->name,
       //           imp_exec_list->sizes[i]);
-
       MPI_Irecv(&(dat->data[init + imp_exec_list->disps[i] * dat->size]),
-                dat->size * imp_exec_list->sizes[i],
-                MPI_CHAR,
-                imp_exec_list->ranks[i],
-                dat->index,
-                OP_MPI_WORLD,
-                &((op_mpi_buffer)(dat->mpi_buffer))->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-
+                dat->size * imp_exec_list->sizes[i], MPI_CHAR,
+                imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
+                &((op_mpi_buffer)(dat->mpi_buffer))
+                     ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
     MPI_Status status1[30];
     MPI_Status status2[30];
