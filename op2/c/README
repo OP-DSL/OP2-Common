@@ -12,6 +12,7 @@ Third party
 Regular Makefile build
 ======================
 
+The recommended way of building the examples is by using the regular Makefile build.
 To compile using the regular Makefiles provided, it is required to:
 
 1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.

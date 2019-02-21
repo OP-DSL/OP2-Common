@@ -3,6 +3,9 @@ This directory contains example applications using the C and C++ OP2 library.
 Regular Makefile build
 ======================
 
+The recommended way of building the examples is using the regular Makefiles under
+each aexample pplication directory.
+
 To compile using the regular Makefiles provided, it is required to:
 
 1. Make sure that the OP2 backend libraries have been built under
@@ -33,8 +36,6 @@ To compile using the regular Makefiles provided, it is required to:
 
 CMake build
 ===========
-
-The recommended way of building the examples is using CMake (http://cmake.org).
 
 For a standard developer build with debugging symbols and all features enabled
 run:
