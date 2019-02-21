@@ -3754,6 +3754,86 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       }
     }*/
 
+    
+    //share halo orders in reveresed maps with neighbors
+    int my_rank, comm_size;
+    MPI_Comm OP_CHECK_WORLD;
+    MPI_Comm_dup(OP_MPI_WORLD, &OP_CHECK_WORLD);
+    MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
+    MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
+    MPI_Request req;
+
+    // Compute global partition range information for each set
+    int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+    get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
+    
+    halo_list imp_exec_list = OP_import_exec_list[original_map->from->index];
+    halo_list exp_exec_list = OP_export_exec_list[original_map->from->index];
+   
+   for (int r=0; r<exp_exec_list->ranks_size; r++)
+    {    
+  
+        for (int i=original_map->to->core_size; i<original_map->to->size; i++){                 //iterate through the local eeh  ( iterate through the local to elements set's eeh part)
+            int *order_share_buff = (int*)op_malloc((rev_row_start_idx[i+1]-rev_row_start_idx[i])*sizeof(int));
+            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){                    //iterate through the referenced from elements of a to element
+                int from_id = reversed_map[j] / original_map_dim;                               //this is the id of the referenced from element
+                int global_index = get_global_index(from_id, my_rank, part_range[original_map->from->index], comm_size); //find the global index of the from element
+                order_share_buff[j-rev_row_start_idx[i]]=global_index;                          //fill up a buffer with the global indices of the main order
+            }
+            int global_index_to_element = get_global_index(i, my_rank, part_range[original_map->to->index], comm_size);
+            
+            if (rev_row_start_idx[i+1]-rev_row_start_idx[i]>0){// && global_index_to_element==361263){       // !!! always should be >0
+            printf("I am going to send %d elements from rank %d to rank %d with the id: %d. Data:",rev_row_start_idx[i+1]-rev_row_start_idx[i], my_rank, exp_exec_list->ranks[r], global_index_to_element);
+            for (int p=0;p<rev_row_start_idx[i+1]-rev_row_start_idx[i];p++) printf(" %d,",order_share_buff);
+            printf("\n");}
+            
+            MPI_Isend(&order_share_buff, rev_row_start_idx[i+1]-rev_row_start_idx[i], MPI_INT, exp_exec_list->ranks[r], global_index_to_element, OP_MPI_WORLD, &req);
+            MPI_Request_free(&req);
+            
+        }
+    }
+
+    
+    for (int r=0; r<imp_exec_list->ranks_size; r++)
+    {
+        for (int i=original_map->to->size; i< original_map->to->size + original_map->to->exec_size ;i++){   //iterate through the local ieh ( iterate through the local to elements set's ieh part)
+            int *order_share_buff = (int*)op_malloc((rev_row_start_idx[i+1]-rev_row_start_idx[i])*sizeof(int));       
+        
+            int global_index_to_element = get_global_index(i, my_rank, part_range[original_map->to->index], comm_size);
+            MPI_Irecv(&order_share_buff, rev_row_start_idx[i+1]-rev_row_start_idx[i], MPI_INT, imp_exec_list->ranks[r], global_index_to_element, OP_MPI_WORLD, &req);
+            MPI_Request_free(&req);
+            
+            if (rev_row_start_idx[i+1]-rev_row_start_idx[i]>0){// && global_index_to_element==361263){      // !!! always should be >0
+            printf("I want to recieve %d elements to rank %d from rank %d with the id: %d. Data:",rev_row_start_idx[i+1]-rev_row_start_idx[i], my_rank, imp_exec_list->ranks[r], global_index_to_element);
+            for (int p=0;p<rev_row_start_idx[i+1]-rev_row_start_idx[i];p++) printf(" %d,",order_share_buff);
+            printf("\n");}
+        
+            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){                    //iterate through the referenced from elements of a to element  (iterate through the buffer)
+                int local_index_of_from_item = get_local_index(order_share_buff[j-rev_row_start_idx[i]], my_rank, part_range[original_map->from->index], comm_size);           
+                int local_index_of_tmp_incs=0;            
+                
+                //find the index to tmp_inc data from the recieved global index of the from element 
+                for (int k=0; k< rev_row_start_idx[i+1]-rev_row_start_idx[i]; k++){ 
+                    if (local_index_of_from_item * original_map_dim <= reversed_map[j] && reversed_map[j] < (local_index_of_from_item+1) * original_map_dim){   //note: this is about to find the remainder of the division calculating the from_id a few lines above
+                        local_index_of_tmp_incs = reversed_map[j];                        
+                    }
+                }
+                order_share_buff[j-rev_row_start_idx[i]] = local_index_of_tmp_incs;
+            }
+            
+            
+            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){
+                reversed_map[j]=order_share_buff[j-rev_row_start_idx[i]];
+            }
+            
+        }
+    }
+    
+    
+    
+    
+    
+    
     op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
 
     rev_map->index = original_map->index;
@@ -3764,11 +3844,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     OP_reversed_map_list[m] = rev_map;
     }
   }
-
-
-
-
-
+    
 #ifdef DEBUG // sanity check to identify if the partitioning results in ophan
              // elements
   int ctr = 0;
