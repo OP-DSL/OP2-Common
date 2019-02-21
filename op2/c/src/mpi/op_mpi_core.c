@@ -177,6 +177,23 @@ int get_global_index(int local_index, int partition, int *part_range,
   return g_index;
 }
 
+
+/*******************************************************************************
+ * Routine to convert a global index in to a local index
+ *******************************************************************************/
+
+int get_local_index(int global_index, int partition, int *part_range,
+                     int comm_size) {
+  (void)comm_size;
+  int l_index = global_index - part_range[2 * partition];
+//#ifdef DEBUG  //TODO check for local index
+//  if (l_index > part_range[2 * (comm_size - 1) + 1] && OP_diags > 2)
+//    printf("Global index larger than set size\n");
+//#endif
+  return l_index;
+}
+
+
 /*******************************************************************************
  * Routine to find the MPI neighbors given a halo list
  *******************************************************************************/
