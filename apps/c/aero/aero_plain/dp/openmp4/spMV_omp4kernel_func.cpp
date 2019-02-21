@@ -7,12 +7,12 @@ void spMV_omp4_kernel(int *map0, int map0size, double *data4, int dat4size,
                       int *col_reord, int set_size1, int start, int end,
                       int num_teams, int nthread) {
 
-#pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
-    map(to : data4[0 : dat4size])                                              \
-        map(to : col_reord[0 : set_size1], map0[0 : map0size],                 \
-                                                data0[0 : dat0size],           \
-                                                      data5[0 : dat5size])
-#pragma omp distribute parallel for schedule(static, 1)
+#pragma omp target teams distribute parallel for schedule(                     \
+    static, 1) num_teams(num_teams) thread_limit(nthread)                      \
+        map(to : data4[0 : dat4size])                                          \
+            map(to : col_reord[0 : set_size1], map0[0 : map0size],             \
+                                                    data0[0 : dat0size],       \
+                                                          data5[0 : dat5size])
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
     int map0idx = map0[n_op + set_size1 * 0];
