@@ -255,7 +255,7 @@ airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_a
 
 clean:
 	rm -f *.o
-	rm -f *.mod
+	rm -f *.mod *.optrpt
 	rm -f $(EXEC)
 	rm -f *~
 	rm -f airfoil_hdf5_seq

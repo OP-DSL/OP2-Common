@@ -1,11 +1,72 @@
-This directory provides an implementation of the C and C++ OP2 interface.  
-The library and applications can be built using either CMake or regular Makefiles.
+This directory provides an implementation of the C and C++ OP2 interface.
+The library and applications can be built using either regular Makefiles or CMake.
 
 Third party
 =============
 
  * Parallel build of HDF5
- * PT-Scotch version < 6.0
+ * PT-Scotch version 6.0 (or greater) or ParMetis version (3.0 or greater) for distributed memory partitioning
+ * NVIDIA CUDA for GPU build
+ * MPI
+
+Regular Makefile build
+======================
+
+The recommended way of building the examples is by using the regular Makefile build.
+To compile using the regular Makefiles provided, it is required to:
+
+1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.
+   For instance, on under bash, if we want to use cuda,
+   we will have to set it as following:
+
+      export CUDA_INSTALL_PATH=/usr/local/cuda/
+
+2. Set the environment variable OP2_COMPILER to either 'intel', 'pgi',
+   'gnu' or 'cray' to select building with either icc or gcc compilers.
+   Other compilers can also be supported by adding the relevant compilers
+   commands and flags.
+
+3. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
+   or PTSCOTCH_INSTALL_PATH, HDF5_INSTALL_PATH to the installation
+   directories of these libraries.
+   (Example source files for various compilers that set the above environment
+   variables can be found under ~/OP2/scripts directory)
+
+   For instance:
+
+      export PARMETIS_INSTALL_PATH=/opt/ParMetis-intel-3.1.1
+
+      and / or
+
+      export PTSCOTCH_INSTALL_PATH=/opt/PT_Scotch-6.0-intel
+
+      export MPI_INSTALL_PATH=/opt/compilers/intel/impi_latest/intel64/
+
+      export HDF5_INSTALL_PATH=/opt/hdf5-1.8.19-intel/
+
+4. Set the LD_LIBRARY_PATHS as required for external libraries
+
+   For example:
+
+      export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+      export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/$LD_LIBRARY_PATH
+      export LD_LIBRARY_PATH=/home/mudalige/hdf5-1.8.19-intel/lib:$LD_LIBRARY_PATH
+
+5. Set environment variable OP2_INSTALL_PATH to the base op2 directory,
+   i.e. the one containing the "c" and "fortran" directories.
+
+   e.g.:  export OP2_INSTALL_PATH=~/OP2-Common/op2/
+
+
+6. Finally type :
+
+   make
+
+   Then the op2 libraries will be built under ~/OP2-Common/op2/c/lib
+
+
+
+
 
 CMake build
 ===========
@@ -143,30 +204,3 @@ later invocations of CMake:
     non-standard layout for your PT-Scotch installation, i.e. the libraries are
     not in lib and headers in include, specify SCOTCH_LIB_DIR and/or
     SCOTCH_INCLUDE_DIR.
-
-Regular Makefile build
-======================
-
-To compile using the regular Makefiles provided, it is required to:
-
-1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.
-   For instance, on under bash, if we want to use cuda,
-   we will have to set it as following:
-
-      export CUDA_INSTALL_PATH=/usr/local/cuda/
-
-2. Set the environment variable OP2_COMPILER to either 'intel', 'pgi',
-   'gnu' or 'cray' to select building with either icc or gcc compilers.
-   Other compilers can also be supported by adding the relevant compilers
-   commands and flags.
-
-3. Set the environment variables MPI_INSTALL_PATH, PARMETIS_INSTALL_PATH and /
-   or PTSCOTCH_INSTALL_PATH, HDF5_INSTALL_PATH to the installation
-   directories of these libraries.
-   For instance:
-
-      export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
-
-      and / or
-
-      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT_Scotch

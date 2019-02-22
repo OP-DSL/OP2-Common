@@ -1,0 +1,41 @@
+#A rough example of environmental variables for compiling with Intel compilers
+
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
+#OP2 specifics
+export OP2_COMPILER=clang
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
+unset OP_AUTO_SOA
+#export OP_AUTO_SOA=1
+
+#External libraries
+export HDF5_INSTALL_PATH=/opt/hdf5-gnu
+export PARMETIS_INSTALL_PATH=/opt/parmetis-gnu
+export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-gnu
+
+
+export PATH=/opt/openmpi-2.1-gnu/bin:/home/ireguly/llvm/build/bin:$PATH
+export LD_LIBRARY_PATH=/opt/openmpi-2.1-gnu/lib:/opt/hdf5-gnu/lib:/home/ireguly/llvm/build/lib:$LD_LIBRARY_PATH
+
+#NVIDIA CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+
+#Clang
+export OMPI_CC=clang
+export OMPI_CXX=clang++
+export OMPTARGET_LIBS=/home/mgiles/ireguly/llvm/build/lib
+export LIBOMP_LIB=$OMPTARGET_LIBS
+export LIBRARY_PATH=$OMPTARGET_LIBS
+export LD_LIBRARY_PATH=$OMPTARGET_LIBS:$LD_LIBRARY_PATH
+export PATH=$OMPTARGET_LIBS/../bin:$PATH
+export CLANG=clang
+export LD_LIBRARY_PATH=$(llvm-config --libdir):$LD_LIBRARY_PATH
+export MPI_INSTALL_PATH=/opt/openmpi-2.1-gnu
+
+
+
