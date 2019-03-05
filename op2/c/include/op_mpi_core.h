@@ -251,9 +251,6 @@ int get_partition(int global_index, int *part_range, int *local_index,
 
 int get_global_index(int local_index, int partition, int *part_range,
                      int comm_size);
-                     
-int get_local_index(int global_index, int partition, int *part_range,
-                     int comm_size);
 
 void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
                         int *ranks_size, int my_rank, int comm_size,

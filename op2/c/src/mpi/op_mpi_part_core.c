@@ -3523,6 +3523,38 @@ void op_partition_inertial(op_dat x_dat) {
     printf("Max total inertial partitioning time = %lf\n", max_time);
 }
 
+int search_local_idx_of_local_global_idx_list(int* loc_glob_list, int loc_glob_list_size, int global_id)    //TODO - make it binary search
+{
+    for (int i=0; i<loc_glob_list_size; i++){
+        if (loc_glob_list[i]==global_id) return i;
+    }
+  //  printf("Error - Can't find global id in local global list.\n");
+    return -1;    
+}
+
+
+//insertionSort_by_global(reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
+void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim) 
+{ 
+   int i, key, j; 
+   for (i = 1; i < row_len; i++) 
+   { 
+       key = orders[i]; 
+       j = i-1; 
+  
+       /* Move elements of orders[0..i-1], that are 
+          greater than key, to one position ahead 
+          of their current position */
+       while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim]) 
+       { 
+           orders[j+1] = orders[j]; 
+           j = j-1; 
+       } 
+       orders[j+1] = key; 
+   } 
+} 
+
+
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
@@ -3723,39 +3755,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         OP_reversed_map_list[m] = NULL;
     } else {
     int original_map_dim = original_map->dim;
-    int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
-    int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
-    int *rev_row_start_idx = (int *)op_malloc((set_to_size + 1) * sizeof(int));
-
-    for (int i=0; i<set_to_size; i++ ) {
-      rev_row_lens[i] = 0;
-      rev_row_start_idx[i] = 0;
-    }
-    rev_row_start_idx[set_to_size]= set_from_size * original_map_dim;
-
-   for ( int i=0; i<set_from_size; i++ ) {
-      for ( int j=0; j<original_map_dim; j++ ) {
-        rev_row_start_idx[original_map->map[i*original_map_dim+j]]++;  // count how many times the to set element indirectly referenced from the from set element
-      }
-    }
-
-    for (int i=set_to_size-1; i>=0; i--){
-        rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i]; // setting up the start index
-    }
-
-    for ( int i=0; i<set_from_size; i++ ) {
-      for ( int j=0; j<original_map_dim; j++ ) {
-        reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
-        (rev_row_lens[original_map->map[i*original_map_dim+j]])++;
-      }
-    }
-
-    /*for ( int i=original_map->from->size; i<set_from_size; i++ ) {
-      for ( int j=0; j<original_map_dim; j++ ) {
-
-      }
-    }*/
-
+    
     
     //share halo orders in reveresed maps with neighbors
     int my_rank, comm_size;
@@ -3764,77 +3764,196 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
     MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
     MPI_Request req;
-
+    MPI_Request* req2 = (MPI_Request*)malloc(1*sizeof(MPI_Request));
+    
     // Compute global partition range information for each set
     int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
     get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
     
-    halo_list imp_exec_list = OP_import_exec_list[original_map->from->index];
-    halo_list exp_exec_list = OP_export_exec_list[original_map->from->index];
-   
-   for (int r=0; r<exp_exec_list->ranks_size; r++)
+    halo_list imp_exec_list_toset = OP_import_exec_list[original_map->to->index];
+    halo_list exp_exec_list_toset = OP_export_exec_list[original_map->to->index];
+    halo_list imp_exec_list_fromset = OP_import_exec_list[original_map->from->index];
+    halo_list exp_exec_list_fromset = OP_export_exec_list[original_map->from->index];    
+    
+   /* halo_list imp_nonexec_list_toset = OP_import_nonexec_list[original_map->to->index];
+    halo_list exp_nonexec_list_toset = OP_export_nonexec_list[original_map->to->index];
+    halo_list imp_nonexec_list_fromset = OP_import_nonexec_list[original_map->from->index];
+    halo_list exp_nonexec_list_fromset = OP_export_nonexec_list[original_map->from->index]; 
+    
+    
+    printf("Map: %d, my_rank: %d, to   set -- core: 0-%d",m,my_rank,original_map->to->core_size);
+    for (int r=0; r<exp_exec_list_toset->ranks_size; r++)
+    {
+        printf(", eeh%d: %d-%d (%4d)",r,original_map->to->core_size+exp_exec_list_toset->disps[r],original_map->to->core_size+exp_exec_list_toset->disps[r]+exp_exec_list_toset->sizes[r],   0-original_map->to->core_size+exp_exec_list_toset->disps[r] + original_map->to->core_size+exp_exec_list_toset->disps[r]+exp_exec_list_toset->sizes[r]);
+        
+    }
+    for (int r=0; r<imp_exec_list_toset->ranks_size; r++)
+    {
+        printf(", ieh%d: %d-%d (%4d)",r,original_map->to->size+imp_exec_list_toset->disps[r],original_map->to->size+imp_exec_list_toset->disps[r]+imp_exec_list_toset->sizes[r],    0-original_map->to->size+imp_exec_list_toset->disps[r]  + original_map->to->size+imp_exec_list_toset->disps[r]+imp_exec_list_toset->sizes[r]);
+        
+    }
+    
+    for (int r=0; r<exp_nonexec_list_toset->ranks_size; r++)
+    {
+        printf(", enh%d: %d-%d (%4d)",r,original_map->to->core_size+imp_exec_list_toset->size+exp_nonexec_list_toset->disps[r],original_map->to->core_size+imp_exec_list_toset->size+exp_nonexec_list_toset->disps[r]+exp_nonexec_list_toset->sizes[r],    0-original_map->to->core_size+imp_exec_list_toset->size+exp_nonexec_list_toset->disps[r] + original_map->to->core_size+imp_exec_list_toset->size+exp_nonexec_list_toset->disps[r]+exp_nonexec_list_toset->sizes[r]);
+        
+    }
+    for (int r=0; r<imp_nonexec_list_toset->ranks_size; r++)
+    {
+        printf(", inh%d: %d-%d (%4d)",r,original_map->to->size+imp_exec_list_toset->size+exp_nonexec_list_toset->size+imp_nonexec_list_toset->disps[r],original_map->to->size+imp_exec_list_toset->size+exp_nonexec_list_toset->size+imp_nonexec_list_toset->disps[r]+imp_nonexec_list_toset->sizes[r],   0-original_map->to->size+imp_exec_list_toset->size+exp_nonexec_list_toset->size+imp_nonexec_list_toset->disps[r] + original_map->to->size+imp_exec_list_toset->size+exp_nonexec_list_toset->size+imp_nonexec_list_toset->disps[r]+imp_nonexec_list_toset->sizes[r]);    
+    }
+    printf("\n");
+    
+    
+    
+    printf("Map: %d, my_rank: %d, from set -- core: 0-%d",m,my_rank,original_map->from->core_size);
+    for (int r=0; r<exp_exec_list_fromset->ranks_size; r++)
+    {
+        printf(", eeh%d: %d-%d (%4d)",r,original_map->from->core_size+exp_exec_list_fromset->disps[r],original_map->from->core_size+exp_exec_list_fromset->disps[r]+exp_exec_list_fromset->sizes[r],     0-original_map->from->core_size+exp_exec_list_fromset->disps[r] + original_map->from->core_size+exp_exec_list_fromset->disps[r]+exp_exec_list_fromset->sizes[r]);
+        
+    }
+    for (int r=0; r<imp_exec_list_fromset->ranks_size; r++)
+    {
+        printf(", ieh%d: %d-%d (%4d)",r,original_map->from->size+imp_exec_list_fromset->disps[r],original_map->from->size+imp_exec_list_fromset->disps[r]+imp_exec_list_fromset->sizes[r],    0-original_map->from->size+imp_exec_list_fromset->disps[r] + original_map->from->size+imp_exec_list_fromset->disps[r]+imp_exec_list_fromset->sizes[r]);
+        
+    }
+    
+    for (int r=0; r<exp_nonexec_list_fromset->ranks_size; r++)
+    {
+        printf(", enh%d: %d-%d (%4d)",r,original_map->from->core_size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->disps[r],original_map->from->core_size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->disps[r]+exp_nonexec_list_fromset->sizes[r],   0-original_map->from->core_size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->disps[r] + original_map->from->core_size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->disps[r]+exp_nonexec_list_fromset->sizes[r]);
+        
+    }
+    for (int r=0; r<imp_nonexec_list_fromset->ranks_size; r++)
+    {
+        printf(", inh%d: %d-%d (%4d)",r,original_map->from->size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->size+imp_nonexec_list_fromset->disps[r],original_map->from->size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->size+imp_nonexec_list_fromset->disps[r]+imp_nonexec_list_fromset->sizes[r],    0-original_map->from->size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->size+imp_nonexec_list_fromset->disps[r] + original_map->from->size+imp_exec_list_fromset->size+exp_nonexec_list_fromset->size+imp_nonexec_list_fromset->disps[r]+imp_nonexec_list_fromset->sizes[r]);    
+    }
+    
+    printf("\n\n");
+    
+    */
+    
+    
+    
+    
+    
+    
+    
+    MPI_Request* exp_toset_req_list = (MPI_Request*)op_malloc(exp_exec_list_toset->ranks_size*sizeof(MPI_Request));
+    MPI_Request* exp_fromset_req_list = (MPI_Request*)op_malloc(exp_exec_list_fromset->ranks_size*sizeof(MPI_Request));
+    MPI_Request* imp_toset_req_list = (MPI_Request*)op_malloc(imp_exec_list_toset->ranks_size*sizeof(MPI_Request));
+    MPI_Request* imp_fromset_req_list = (MPI_Request*)op_malloc(imp_exec_list_fromset->ranks_size*sizeof(MPI_Request));
+    
+    int *exp_toset_buffer_list = (int *)op_malloc( exp_exec_list_toset->size*sizeof(int));
+    int *exp_fromset_buffer_list = (int *)op_malloc( exp_exec_list_fromset->size*sizeof(int));
+    
+    
+    //first, share global eeh indices  
+    for (int r=0; r<exp_exec_list_toset->ranks_size; r++)
     {    
-  
-        for (int i=original_map->to->core_size; i<original_map->to->size; i++){                 //iterate through the local eeh  ( iterate through the local to elements set's eeh part)
-            int *order_share_buff = (int*)op_malloc((rev_row_start_idx[i+1]-rev_row_start_idx[i])*sizeof(int));
-            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){                    //iterate through the referenced from elements of a to element
-                int from_id = reversed_map[j] / original_map_dim;                               //this is the id of the referenced from element
-                int global_index = get_global_index(from_id, my_rank, part_range[original_map->from->index], comm_size); //find the global index of the from element
-                order_share_buff[j-rev_row_start_idx[i]]=global_index;                          //fill up a buffer with the global indices of the main order
-            }
-            int global_index_to_element = get_global_index(i, my_rank, part_range[original_map->to->index], comm_size);
-            
-            if (rev_row_start_idx[i+1]-rev_row_start_idx[i]>0){// && global_index_to_element==361263){       // !!! always should be >0
-            printf("I am going to send %d elements from rank %d to rank %d with the id: %d. Data:",rev_row_start_idx[i+1]-rev_row_start_idx[i], my_rank, exp_exec_list->ranks[r], global_index_to_element);
-            for (int p=0;p<rev_row_start_idx[i+1]-rev_row_start_idx[i];p++) printf(" %d,",order_share_buff);
-            printf("\n");}
-            
-            MPI_Isend(&order_share_buff, rev_row_start_idx[i+1]-rev_row_start_idx[i], MPI_INT, exp_exec_list->ranks[r], global_index_to_element, OP_MPI_WORLD, &req);
-            MPI_Request_free(&req);
-            
+     
+        for (int i=original_map->to->core_size + exp_exec_list_toset->disps[r]; i < original_map->to->core_size + exp_exec_list_toset->disps[r] + exp_exec_list_toset->sizes[r]; i++){                
+             exp_toset_buffer_list[i - original_map->to->core_size] = OP_part_list[original_map->to->index]->g_index[i];   
+            //printf("Send - my_rank: %d, set_id: %d, global: %8d, local: %8d \n",my_rank,original_map->to->index,exp_toset_buffer_list[i - original_map->to->core_size],i);            
+        }
+        MPI_Isend(&exp_toset_buffer_list[exp_exec_list_toset->disps[r]], exp_exec_list_toset->sizes[r], MPI_INT, exp_exec_list_toset->ranks[r], 0 , OP_MPI_WORLD, &exp_toset_req_list[r]);  
+    }
+
+    for (int r=0; r<exp_exec_list_fromset->ranks_size; r++)
+    {    
+        for (int i=original_map->from->core_size + exp_exec_list_fromset->disps[r]; i<original_map->from->core_size + exp_exec_list_fromset->disps[r] + exp_exec_list_fromset->sizes[r]; i++){                 
+             exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[i];                    
+        }
+        MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]], exp_exec_list_fromset->sizes[r], MPI_INT, exp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &exp_fromset_req_list[r]);   
+        
+    }
+    
+    
+    //then, recieve global indices for iehs
+    
+    int* global_idx_of_local_toset_ieh = (int*)op_malloc(imp_exec_list_toset->size*sizeof(int));
+    int* global_idx_of_local_fromset_ieh = (int*)op_malloc(imp_exec_list_fromset->size*sizeof(int));
+    
+    for (int r=0; r<imp_exec_list_toset->ranks_size; r++)
+    {    
+        MPI_Irecv(&global_idx_of_local_toset_ieh[imp_exec_list_toset->disps[r]], imp_exec_list_toset->sizes[r], MPI_INT, imp_exec_list_toset->ranks[r], 0 , OP_MPI_WORLD, &imp_toset_req_list[r]);
+
+    }
+    
+    
+    for (int r=0; r<imp_exec_list_fromset->ranks_size; r++)
+    {    
+        MPI_Irecv(&global_idx_of_local_fromset_ieh[imp_exec_list_fromset->disps[r]], imp_exec_list_fromset->sizes[r], MPI_INT, imp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &imp_fromset_req_list[r]);
+     
+    }
+   
+   
+    MPI_Waitall(exp_exec_list_toset->ranks_size,exp_toset_req_list,MPI_STATUSES_IGNORE);
+    MPI_Waitall(exp_exec_list_fromset->ranks_size,exp_fromset_req_list,MPI_STATUSES_IGNORE);
+    MPI_Waitall(imp_exec_list_toset->ranks_size,imp_toset_req_list,MPI_STATUSES_IGNORE);
+    MPI_Waitall(imp_exec_list_fromset->ranks_size,imp_fromset_req_list,MPI_STATUSES_IGNORE);
+
+    op_free(exp_toset_buffer_list);
+    op_free(exp_fromset_buffer_list);
+    
+  /*  for (int r=0; r<imp_exec_list_toset->ranks_size; r++)
+    {    
+        for (int i=0; i<imp_exec_list_toset->sizes[r]; i++){
+            printf("Recv - my_rank: %d, i: %d, global: %d, local: %d \n",my_rank,i,global_idx_of_local_toset_ieh[i],i + original_map->to->size);
+        }
+    }
+    */
+    op_free(exp_fromset_req_list );
+    op_free(imp_fromset_req_list );
+   
+   
+    int* global_indices_fromset = (int *)op_malloc( (original_map->from->size + imp_exec_list_fromset->size) * sizeof(int));    //TODO put this directly to MPI_recv
+    int* global_indices_toset = (int *)op_malloc( (original_map->to->size + imp_exec_list_toset->size) * sizeof(int));
+    
+    memcpy(&global_indices_fromset[0] , &OP_part_list[original_map->from->index]->g_index[0] ,original_map->from->size);
+    memcpy(&global_indices_fromset[original_map->from->size], &global_idx_of_local_fromset_ieh, imp_exec_list_fromset->size);     
+    
+    memcpy(&global_indices_toset[0] , &OP_part_list[original_map->to->index]->g_index[0] ,original_map->to->size);
+    memcpy(&global_indices_toset[original_map->to->size], &global_idx_of_local_toset_ieh, imp_exec_list_toset->size); 
+   
+   
+    op_free(global_idx_of_local_toset_ieh);
+    op_free(global_idx_of_local_fromset_ieh);
+   
+   
+   
+   
+   
+    int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
+    int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
+    int *rev_row_start_idx = (int *)op_malloc((set_to_size + 1) * sizeof(int));
+
+    for (int i=0; i<set_to_size; i++ ) {
+        rev_row_lens[i] = 0;
+        rev_row_start_idx[i] = 0;
+    }
+    rev_row_start_idx[set_to_size]= set_from_size * original_map_dim;
+    
+    for ( int i=0; i<set_from_size; i++ ) {
+        for ( int j=0; j<original_map_dim; j++ ) {
+            rev_row_start_idx[original_map->map[i*original_map_dim+j]]++;  // count how many times the to set element indirectly referenced from the from set element
         }
     }
 
-    
-    for (int r=0; r<imp_exec_list->ranks_size; r++)
-    {
-        for (int i=original_map->to->size; i< original_map->to->size + original_map->to->exec_size ;i++){   //iterate through the local ieh ( iterate through the local to elements set's ieh part)
-            int *order_share_buff = (int*)op_malloc((rev_row_start_idx[i+1]-rev_row_start_idx[i])*sizeof(int));       
-        
-            int global_index_to_element = get_global_index(i, my_rank, part_range[original_map->to->index], comm_size);
-            MPI_Irecv(&order_share_buff, rev_row_start_idx[i+1]-rev_row_start_idx[i], MPI_INT, imp_exec_list->ranks[r], global_index_to_element, OP_MPI_WORLD, &req);
-            MPI_Request_free(&req);
-            
-            if (rev_row_start_idx[i+1]-rev_row_start_idx[i]>0){// && global_index_to_element==361263){      // !!! always should be >0
-            printf("I want to recieve %d elements to rank %d from rank %d with the id: %d. Data:",rev_row_start_idx[i+1]-rev_row_start_idx[i], my_rank, imp_exec_list->ranks[r], global_index_to_element);
-            for (int p=0;p<rev_row_start_idx[i+1]-rev_row_start_idx[i];p++) printf(" %d,",order_share_buff);
-            printf("\n");}
-        
-            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){                    //iterate through the referenced from elements of a to element  (iterate through the buffer)
-                int local_index_of_from_item = get_local_index(order_share_buff[j-rev_row_start_idx[i]], my_rank, part_range[original_map->from->index], comm_size);           
-                int local_index_of_tmp_incs=0;            
-                
-                //find the index to tmp_inc data from the recieved global index of the from element 
-                for (int k=0; k< rev_row_start_idx[i+1]-rev_row_start_idx[i]; k++){ 
-                    if (local_index_of_from_item * original_map_dim <= reversed_map[j] && reversed_map[j] < (local_index_of_from_item+1) * original_map_dim){   //note: this is about to find the remainder of the division calculating the from_id a few lines above
-                        local_index_of_tmp_incs = reversed_map[j];                        
-                    }
-                }
-                order_share_buff[j-rev_row_start_idx[i]] = local_index_of_tmp_incs;
-            }
-            
-            
-            for (int j=rev_row_start_idx[i]; j<rev_row_start_idx[i+1]; j++){
-                reversed_map[j]=order_share_buff[j-rev_row_start_idx[i]];
-            }
-            
+    for (int i=set_to_size-1; i>=0; i--){
+        rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i]; // setting up the start index
+    }
+    for ( int i=0; i<set_from_size; i++ ) {
+        for ( int j=0; j<original_map_dim; j++ ) {
+            reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
+            (rev_row_lens[original_map->map[i*original_map_dim+j]])++;
         }
     }
     
-    
-    
-    
-    
+    for (int i=0; i<set_to_size; i++){
+        insertionSort_by_global(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
+    }
+   
+   
     
     op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
 
@@ -3842,9 +3961,14 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     rev_map->reversed_map = reversed_map;
     rev_map->row_start_idx = rev_row_start_idx;
 
+    op_free(global_indices_fromset);
+    op_free(global_indices_toset);
+ 
     op_free(rev_row_lens);
     OP_reversed_map_list[m] = rev_map;
     }
+    
+    
   }
     
 #ifdef DEBUG // sanity check to identify if the partitioning results in ophan
