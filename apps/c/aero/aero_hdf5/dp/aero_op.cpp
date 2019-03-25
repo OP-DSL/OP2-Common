@@ -65,6 +65,7 @@ void op_par_loop_res_calc(char const *, op_set,
   op_arg,
   op_arg,
   op_arg,
+  op_arg,
   op_arg );
 
 void op_par_loop_dirichlet(char const *, op_set,
@@ -237,6 +238,7 @@ int main(int argc, char **argv) {
   op_dat p_xm = op_decl_dat_hdf5(nodes, 2, "double", file, "p_x");
   op_dat p_phim = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
   op_dat p_resm = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
+  op_dat p_none = op_decl_dat_hdf5(nodes, 4, "double", file, "p_none");
   op_dat p_K = op_decl_dat_hdf5(cells, 16, "double:soa", file, "p_K");
   op_dat p_V = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
   op_dat p_P = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
@@ -281,8 +283,9 @@ int main(int argc, char **argv) {
     op_par_loop_res_calc("res_calc",cells,
                 op_arg_dat(p_xm,-4,pcell,2,"double",OP_READ),
                 op_arg_dat(p_phim,-4,pcell,1,"double",OP_READ),
-                op_arg_dat(p_K,-1,OP_ID,16,"double:soa",OP_WRITE),
-                op_arg_dat(p_resm,-4,pcell,1,"double",OP_INC));
+                op_opt_arg_dat(1,p_K,-1,OP_ID,16,"double:soa",OP_WRITE),
+                op_opt_arg_dat(1,p_resm,-4,pcell,1,"double",OP_RW),
+                op_opt_arg_dat(0,p_none,-4,pcell,2,"double",OP_INC));
 
     op_par_loop_dirichlet("dirichlet",bnodes,
                 op_arg_dat(p_resm,0,pbnodes,1,"double",OP_WRITE));

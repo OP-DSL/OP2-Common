@@ -48,8 +48,8 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
 op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
                            int staging) {
-  return op_plan_get_stage_upload(name, set, part_size, nargs, args, ninds, inds,
-                           OP_STAGE_ALL,1);
+  return op_plan_get_stage_upload(name, set, part_size, nargs, args, ninds,
+                                  inds, staging, 1);
 }
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,

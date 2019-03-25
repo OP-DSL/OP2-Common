@@ -261,3 +261,132 @@ def evaluate_macro_defs_in_string(macro_defs, string):
         resolved_string = str(res)
 
   return resolved_string
+
+def create_kernel_info(kernel, inc_stage = 0):
+    OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+
+    OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
+    OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
+
+    name  = kernel['name']
+    nargs = kernel['nargs']
+    dims  = kernel['dims']
+    maps  = kernel['maps']
+    var   = kernel['var']
+    typs  = kernel['typs']
+    accs  = kernel['accs']
+    idxs  = kernel['idxs']
+    inds  = kernel['inds']
+    soaflags = kernel['soaflags']
+    optflags = kernel['optflags']
+    decl_filepath = kernel['decl_filepath']
+
+    ninds   = kernel['ninds']
+    inddims = kernel['inddims']
+    indaccs = kernel['indaccs']
+    indtyps = kernel['indtyps']
+    invinds = kernel['invinds']
+    mapnames = kernel['mapnames']
+    invmapinds = kernel['invmapinds']
+    mapinds = kernel['mapinds']
+
+    nmaps = 0
+    if ninds > 0:
+      nmaps = max(mapinds)+1
+    nargs_novec = nargs
+
+    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
+    if len(vec) > 0:
+      unique_args = [1];
+      vec_counter = 1;
+      vectorised = []
+      new_dims = []
+      new_maps = []
+      new_vars = []
+      new_typs = []
+      new_accs = []
+      new_idxs = []
+      new_inds = []
+      new_soaflags = []
+      new_optflags = []
+      new_mapnames = []
+      for m in range(0,nargs):
+          if int(idxs[m])<0 and maps[m] == OP_MAP:
+            if m > 0:
+              unique_args = unique_args + [len(new_dims)+1]
+            temp = [0]*(-1*int(idxs[m]))
+            for i in range(0,-1*int(idxs[m])):
+              temp[i] = var[m]
+            new_vars = new_vars+temp
+            for i in range(0,-1*int(idxs[m])):
+              temp[i] = typs[m]
+            new_typs = new_typs+temp
+            for i in range(0,-1*int(idxs[m])):
+              temp[i] = dims[m]
+            new_dims = new_dims+temp
+            new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
+            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
+            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
+            new_optflags = new_optflags+[optflags[m]]*int(-1*int(idxs[m]))
+            new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
+            for i in range(0,-1*int(idxs[m])):
+              new_idxs = new_idxs+[i]
+            new_inds = new_inds+[inds[m]]*int(-1*int(idxs[m]))
+            vectorised = vectorised + [vec_counter]*int(-1*int(idxs[m]))
+            vec_counter = vec_counter + 1;
+          else:
+            if m > 0:
+              unique_args = unique_args + [len(new_dims)+1]
+            new_dims = new_dims+[dims[m]]
+            new_maps = new_maps+[maps[m]]
+            new_mapnames = new_mapnames+[mapnames[m]]
+            new_accs = new_accs+[int(accs[m])]
+            new_soaflags = new_soaflags+[soaflags[m]]
+            new_optflags = new_optflags+[optflags[m]]
+            new_idxs = new_idxs+[int(idxs[m])]
+            new_inds = new_inds+[inds[m]]
+            new_vars = new_vars+[var[m]]
+            new_typs = new_typs+[typs[m]]
+            vectorised = vectorised+[0]
+      dims = new_dims
+      maps = new_maps
+      mapnames = new_mapnames
+      accs = new_accs
+      idxs = new_idxs
+      inds = new_inds
+      var = new_vars
+      typs = new_typs
+      soaflags = new_soaflags;
+      optflags = new_optflags;
+      nargs = len(vectorised);
+      mapinds = [0]*nargs
+      for i in range(0,nargs):
+        mapinds[i] = i
+        for j in range(0,i):
+          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+            mapinds[i] = mapinds[j]
+
+      for i in range(1,ninds+1):
+        for index in range(0,len(inds)+1):
+          if inds[index] == i:
+            invinds[i-1] = index
+            break
+      invmapinds = invinds[:]
+      for i in range(0,ninds):
+        for j in range(0,i):
+          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
+            invmapinds[i] = invmapinds[j]
+    else:
+      vectorised = [0]*nargs
+      unique_args = range(1,nargs+1)
+
+    cumulative_indirect_index = [-1]*nargs;
+    j = 0;
+    for i in range (0,nargs):
+      if maps[i] == OP_MAP and ((not inc_stage) or accs[i] == OP_INC):
+        cumulative_indirect_index[i] = j
+        j = j + 1
+
+    return name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
+          ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
+          unique_args, vectorised, cumulative_indirect_index

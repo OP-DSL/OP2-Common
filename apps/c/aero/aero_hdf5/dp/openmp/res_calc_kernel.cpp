@@ -10,10 +10,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg4,
   op_arg arg8,
-  op_arg arg9){
+  op_arg arg9,
+  op_arg arg13){
 
-  int nargs = 13;
-  op_arg args[13];
+  int nargs = 17;
+  op_arg args[17];
 
   arg0.idx = 0;
   args[0] = arg0;
@@ -31,7 +32,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_arg_dat(arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_RW);
+  }
+
+  arg13.idx = 0;
+  args[13] = arg13;
+  for ( int v=1; v<4; v++ ){
+    args[13 + v] = op_opt_arg_dat(arg13.opt, arg13.dat, v, arg13.map, 2, "double", OP_INC);
   }
 
 
@@ -40,8 +47,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_timing_realloc(0);
   op_timers_core(&cpu_t1, &wall_t1);
 
-  int  ninds   = 3;
-  int  inds[13] = {0,0,0,0,1,1,1,1,-1,2,2,2,2};
+  int  ninds   = 4;
+  int  inds[17] = {0,0,0,0,1,1,1,1,-1,2,2,2,2,3,3,3,3};
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
@@ -94,12 +101,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
              &((double*)arg9.data)[1 * map1idx],
              &((double*)arg9.data)[1 * map2idx],
              &((double*)arg9.data)[1 * map3idx]};
+          double* arg13_vec[] = {
+             &((double*)arg13.data)[2 * map0idx],
+             &((double*)arg13.data)[2 * map1idx],
+             &((double*)arg13.data)[2 * map2idx],
+             &((double*)arg13.data)[2 * map3idx]};
 
           res_calc(
             arg0_vec,
             arg4_vec,
             &((double*)arg8.data)[16 * n],
-            arg9_vec);
+            arg9_vec,
+            arg13_vec);
         }
       }
 

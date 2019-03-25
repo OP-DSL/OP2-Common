@@ -252,7 +252,7 @@ def get_opt_arg_dat(arg_string, j):
 
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 7:
-    print 'Error parsing op_arg_dat(%s): must have six arguments' \
+    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
           % dat_args_string
     return
 
