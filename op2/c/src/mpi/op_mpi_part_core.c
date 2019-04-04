@@ -3532,8 +3532,7 @@ int search_local_idx_of_local_global_idx_list(int* loc_glob_list, int loc_glob_l
     return -1;    
 }
 
-
-//insertionSort_by_global(reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
+//insertionSort_by_global(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
 void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim) 
 { 
    int i, key, j;    
@@ -3553,6 +3552,7 @@ void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_
        orders[j+1] = key; 
    } 
 } 
+
 
 
 /*******************************************************************************
@@ -3797,26 +3797,70 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         int *exp_fromset_buffer_list = (int *)op_malloc( exp_exec_list_fromset->size*sizeof(int));
         
         //share global eeh indices
+        for (int r=0; r<exp_exec_list_fromset->ranks_size; r++)     //for each export neighbor rank
+        {    
+            int first_eeh_r = original_map->from->core_size + exp_exec_list_fromset->disps[r];                                    //first eeh element for neighbor rank r
+            int first_after_eeh_r  = original_map->from->core_size + exp_exec_list_fromset->disps[r] + exp_exec_list_fromset->sizes[r];  //first element after the eeh for neigbor rank r
+            for (int i = first_eeh_r; i < first_after_eeh_r; i++){                                                                    //for each element of the eeh for neigbor rank r
+                 exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[i];      //put the global_id of element locally indexed by i to buffer
+            }
+            MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]], exp_exec_list_fromset->sizes[r], MPI_INT, exp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &exp_fromset_req_list[r]);   //send the gathered global ids to the neighbor rank r
+            
+        }
+/*
 
+int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  
+        for (int r=0;  r<exp_exec_list_fromset->ranks_size; r++)
+        {
+            for (int i=0; i< exp_exec_list_fromset->sizes[r]; i++)
+            {
+                if (exp_exec_list_fromset->list[exp_exec_list_fromset->disps[r] + i]  != original_map->from->core_size+exp_exec_list_fromset->disps[r]+i ) 
+                {
+                    printf("Exp_exec_list -- my_rank: %d, set_id: %d, size: %4d, ranks_size: %d, r: %d, ranks[r]: %d, disps[r]: %4d, sizes[r]: %4d, i: %8d, list[disp[r]+i]: %8d (%8d), array_id: %8d (%8d)\n",my_rank,exp_exec_list_fromset->set->index, exp_exec_list_fromset->size, exp_exec_list_fromset->ranks_size, r, exp_exec_list_fromset->ranks[r],exp_exec_list_fromset->disps[r], exp_exec_list_fromset->sizes[r], i, exp_exec_list_fromset->list[exp_exec_list_fromset->disps[r]+i], OP_part_list[original_map->from->index]->g_index[  exp_exec_list_fromset->list[exp_exec_list_fromset->disps[r] + i]], original_map->from->core_size+exp_exec_list_fromset->disps[r]+i, OP_part_list[original_map->from->index]->g_index[ original_map->from->core_size+exp_exec_list_fromset->disps[r]+i ]);
+                    break;
+                }
+            }                 
+        }
+
+        
+        for (int r=0;  r<imp_exec_list_fromset->ranks_size; r++)
+        {
+            for (int i=0; i< imp_exec_list_fromset->sizes[r]; i++)
+            {
+                if (imp_exec_list_fromset->list[imp_exec_list_fromset->disps[r]+i] != original_map->from->size+imp_exec_list_fromset->disps[r]+i)
+                {
+                    printf("Imp_exec_list -- my_rank: %d, set_id: %d, size: %4d, ranks_size: %d, r: %d, ranks[r]: %d, disps[r]: %4d, sizes[r]: %4d, i: %8d, list[disp[r]+i]: %8d (xx), array_id: %8d (xx)\n",my_rank, imp_exec_list_fromset->set->index, imp_exec_list_fromset->size, imp_exec_list_fromset->ranks_size, r, imp_exec_list_fromset->ranks[r],imp_exec_list_fromset->disps[r], imp_exec_list_fromset->sizes[r], i, imp_exec_list_fromset->list[imp_exec_list_fromset->disps[r]+i], original_map->from->size+imp_exec_list_fromset->disps[r]+i);
+                    break;
+                }
+            }                     
+        }
+exit(-1);
+*/
+/*
         for (int r=0; r<exp_exec_list_fromset->ranks_size; r++)
         {    
-            for (int i=original_map->from->core_size + exp_exec_list_fromset->disps[r]; i<original_map->from->core_size + exp_exec_list_fromset->disps[r] + exp_exec_list_fromset->sizes[r]; i++){                 
-                 exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[i];                    
+            for (int i=0; i< exp_exec_list_fromset->sizes[r]; i++){                 
+                 exp_fromset_buffer_list[exp_exec_list_fromset->disps[r] + i] = OP_part_list[original_map->from->index]->g_index[  exp_exec_list_fromset->list[exp_exec_list_fromset->disps[r] + i]   ];
+
             }
             MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]], exp_exec_list_fromset->sizes[r], MPI_INT, exp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &exp_fromset_req_list[r]);   
             
         }
+      */  
+        
         
         
         //recieve global indices for iehs        
         int* global_idx_of_local_fromset_ieh = (int*)op_malloc(imp_exec_list_fromset->size*sizeof(int));
         
-        for (int r=0; r<imp_exec_list_fromset->ranks_size; r++)
+        for (int r=0; r<imp_exec_list_fromset->ranks_size; r++)    //for each import neighbor rank
         {    
-            MPI_Irecv(&global_idx_of_local_fromset_ieh[imp_exec_list_fromset->disps[r]], imp_exec_list_fromset->sizes[r], MPI_INT, imp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &imp_fromset_req_list[r]);
+            MPI_Irecv(&global_idx_of_local_fromset_ieh[imp_exec_list_fromset->disps[r]], imp_exec_list_fromset->sizes[r], MPI_INT, imp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &imp_fromset_req_list[r]);    //recieve global ids from from neighbor rank r
          
         }
-       
+    
        
         MPI_Waitall(exp_exec_list_fromset->ranks_size,exp_fromset_req_list,MPI_STATUSES_IGNORE);
         MPI_Waitall(imp_exec_list_fromset->ranks_size,imp_fromset_req_list,MPI_STATUSES_IGNORE);
@@ -3826,11 +3870,12 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         op_free(imp_fromset_req_list );
        
         MPI_Barrier(MPI_COMM_WORLD);
+        
         //create a list for all owned+ieh global indices
         int* global_indices_fromset = (int *)op_malloc( (original_map->from->size + imp_exec_list_fromset->size) * sizeof(int));    //TODO put this directly to MPI_recv
         
-        memcpy(&global_indices_fromset[0] , &(OP_part_list[original_map->from->index]->g_index[0]) ,original_map->from->size);
-        memcpy(&global_indices_fromset[original_map->from->size], &global_idx_of_local_fromset_ieh, imp_exec_list_fromset->size);     
+        memcpy(&global_indices_fromset[0] , &(OP_part_list[original_map->from->index]->g_index[0]) ,original_map->from->size * sizeof(int));        //First part of the global_indices_fromset is the ids for the owned elements
+        memcpy(&global_indices_fromset[original_map->from->size], &global_idx_of_local_fromset_ieh, imp_exec_list_fromset->size * sizeof(int));     //Second part is the ids for the ieh elements
 
         op_free(global_idx_of_local_fromset_ieh);
        
@@ -3839,15 +3884,15 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
        
         //create a reversed mapping to temporary increments with local index ordering
         int original_map_dim = original_map->dim;
-        int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));
-        int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));
-        int *rev_row_start_idx = (int *)op_malloc((set_to_size + 1) * sizeof(int));
+        int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));       //contains ids to the increments for a 'to' element
+        int *rev_row_lens = (int *)op_malloc(set_to_size * sizeof(int));                            //contains how many increments belongs to every 'to' element (temporary, deleted after rev_map is created)
+        int *rev_row_start_idx = (int *)op_malloc((set_to_size + 1) * sizeof(int));                 //contains the id for the first increment which belongs to the corresponding 'to' element
 
         for (int i=0; i<set_to_size; i++ ) {
             rev_row_lens[i] = 0;
             rev_row_start_idx[i] = 0;
         }
-        rev_row_start_idx[set_to_size]= set_from_size * original_map_dim;
+        rev_row_start_idx[set_to_size] = set_from_size * original_map_dim;
         
         for ( int i=0; i<set_from_size; i++ ) {
             for ( int j=0; j<original_map_dim; j++ ) {
@@ -3858,6 +3903,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         for (int i=set_to_size-1; i>=0; i--){
             rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i]; // setting up the start index
         }
+        
         for ( int i=0; i<set_from_size; i++ ) {
             for ( int j=0; j<original_map_dim; j++ ) {
                 reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
