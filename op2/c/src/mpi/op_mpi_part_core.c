@@ -3532,8 +3532,7 @@ int search_local_idx_of_local_global_idx_list(int* loc_glob_list, int loc_glob_l
     return -1;    
 }
 
-
-//insertionSort_by_global(reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
+//insertionSort_by_global(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
 void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim) 
 { 
    int i, key, j;    
@@ -3553,6 +3552,7 @@ void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_
        orders[j+1] = key; 
    } 
 } 
+
 
 
 /*******************************************************************************
