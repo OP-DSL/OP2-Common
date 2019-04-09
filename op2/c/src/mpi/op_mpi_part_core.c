@@ -3523,18 +3523,9 @@ void op_partition_inertial(op_dat x_dat) {
     printf("Max total inertial partitioning time = %lf\n", max_time);
 }
 
-int search_local_idx_of_local_global_idx_list(int* loc_glob_list, int loc_glob_list_size, int global_id)    //TODO - make it binary search
-{
-    for (int i=0; i<loc_glob_list_size; i++){
-        if (loc_glob_list[i]==global_id) return i;
-    }
-  //  printf("Error - Can't find global id in local global list.\n");
-    return -1;    
-}
-
-//insertionSort_by_global(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
-void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim) 
+void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim, int my_rank) 
 { 
+   
    int i, key, j;    
    for (i = 1; i < row_len; i++) 
    { 
@@ -3544,6 +3535,9 @@ void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_
        /* Move elements of orders[0..i-1], that are 
           greater than key, to one position ahead 
           of their current position */
+       int valami=orders[j];
+       valami = global_ids[orders[j]/map_dim];
+       valami = global_ids[key/map_dim];
        while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim]) 
        {  
            orders[j+1] = orders[j]; 
@@ -3551,6 +3545,8 @@ void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_
        } 
        orders[j+1] = key; 
    } 
+   
+
 } 
 
 
