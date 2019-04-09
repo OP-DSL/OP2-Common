@@ -230,12 +230,6 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
 
 
-
-
-
-	if (iter % 10 == 0 )
-		op_printf("Calculating res_calc %d/%d\n",iter,niter);
-
     //  predictor/corrector update loop
     for (int k = 0; k < 2; k++) {
 
@@ -315,7 +309,8 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_res, "file_name_10procs_3rd.h5");
+  op_fetch_data_hdf5_file(p_res, "repr_comp_p_res.h5");
+  op_fetch_data_hdf5_file(p_res, "repr_comp_p_q.h5");
 
   // printf("Root process = %d\n",op_is_root());
 
