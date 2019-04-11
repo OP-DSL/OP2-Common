@@ -68,6 +68,7 @@ nproc_step=3
 
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq"
 cp repr_comp_p_q.h5 repr_comp_p_q_ref.h5
+cp repr_comp_p_res.h5 repr_comp_p_res_ref.h5
 
 for nproc in $(eval echo "{$nproc_from..$nproc_to..$nproc_step}")
 do
@@ -75,8 +76,11 @@ do
     validate "$MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq" 
     h5diff repr_comp_p_q.h5 repr_comp_p_q_ref.h5
     rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
+    h5diff repr_comp_p_res.h5 repr_comp_p_res_ref.h5
+    rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
 done
 
 rm -f repr_comp_p_q.h5 repr_comp_p_q_ref.h5
+rm -f repr_comp_p_res.h5 repr_comp_p_res_ref.h5
 
 echo "All tests Passed !"
