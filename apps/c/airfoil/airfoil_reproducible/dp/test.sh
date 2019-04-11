@@ -39,7 +39,7 @@ echo " "
 echo "**********************************************************************"
 echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
-source /home/sikba/source_intel
+#/home/sikba/source_intel
 cd /home/sikba/warwick/op2/OP2-Common/op2/c/
 #make clean; make mpi_seq;
 make mpi_seq -B
@@ -66,21 +66,18 @@ nproc_from=10
 nproc_to=20
 nproc_step=3
 
-#validate "$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq"
-$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq"
 cp repr_comp_p_q.h5 repr_comp_p_q_ref.h5
 cp repr_comp_p_res.h5 repr_comp_p_res_ref.h5
 
 for nproc in $(eval echo "{$nproc_from..$nproc_to..$nproc_step}")
 do
- #   validate "$MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq"
-    $MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq
+    echo "Testing airfoil's reproducibility feature on $nproc MPI processors"
+    validate "$MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq" 
     h5diff repr_comp_p_q.h5 repr_comp_p_q_ref.h5
     rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
     h5diff repr_comp_p_res.h5 repr_comp_p_res_ref.h5
     rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
-    #h5diff repr_comp_p_res.h5 file_name_10procs_3rd_invalid.h5
-    #rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
 done
 
 rm -f repr_comp_p_q.h5 repr_comp_p_q_ref.h5

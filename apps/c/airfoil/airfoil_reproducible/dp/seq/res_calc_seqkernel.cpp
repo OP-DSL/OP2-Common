@@ -52,7 +52,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
 
-        double *tmp_incs = (double *)malloc(set_from_size * prime_map_dim * arg6.dat->size );
+        double *tmp_incs = (double *)malloc(set_from_size * prime_map_dim * arg6.dat->size );   //TODO reuse this...
 
         for (int i=0; i<set_from_size * prime_map_dim * arg6.dim; i++){
           tmp_incs[i]=0.0;
@@ -68,8 +68,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
           int map2idx = arg2.map_data[n * arg2.map->dim + 0];
           int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
-#define WITH_INCS 1
-
             res_calc(
               &((double*)arg0.data)[2 * map0idx],
               &((double*)arg0.data)[2 * map1idx],
@@ -77,16 +75,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
               &((double*)arg2.data)[4 * map3idx],
               &((double*)arg4.data)[1 * map2idx],
               &((double*)arg4.data)[1 * map3idx],
-#ifdef WITH_INCS
               &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
               &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
-#else
-              &((double*)arg6.data)[4 * map2idx],
-              &((double*)arg6.data)[4 * map3idx]);
-#endif
         }
 
-#ifdef WITH_INCS
         for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg6.dim; d++){
@@ -95,7 +87,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
                 }
             }
         }
-#endif    
+
         free(tmp_incs);
     }
     else printf("Error allocating rev_map *****************************\n");
