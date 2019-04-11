@@ -317,9 +317,6 @@ void op_download_dat(op_dat dat);
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
-int comapre_mpi_halo_check(op_dat dat, char const *debug_msg);
-int forced_exchange(op_dat dat);
-
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);

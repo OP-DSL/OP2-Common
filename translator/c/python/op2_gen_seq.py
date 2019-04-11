@@ -151,56 +151,10 @@ def op2_gen_seq(master, date, consts, kernels):
 
     comm('user function')
 
-#    if FORTRAN:
-#      code('include '+name+'.inc')
-#    elif CPP:
-#      code('#include "../'+decl_filepath+'"')
-    file_name = decl_filepath
-
-    f = open(file_name, 'r')
-    kernel_text = f.read()
-    f.close()
-
-    if CPP:
-      includes = op2_gen_common.extract_includes(kernel_text)
-      if len(includes) > 0:
-        for include in includes:
-          code(include)
-        code("")
-
-    comm('user function')
-    
-    kernel_text = op2_gen_common.comment_remover(kernel_text)
-    kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
-
-    p = re.compile('void\\s+\\b'+name+'\\b')
-    i = p.search(kernel_text).start()
-
-    if(i < 0):
-      print "\n********"
-      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
-      exit(2)
-    i2 = i
-
-    j = kernel_text[i:].find('{')
-    k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
-    signature_text = kernel_text[i:i+j]
-    l = signature_text[0:].find('(')
-    head_text = signature_text[0:l].strip() #save function name
-    m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
-    signature_text = signature_text[l+1:m]
-    body_text = kernel_text[i+j+1:k]
-
-    # check for number of arguments
-    if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments'
-        return
-
-    signature_text = head_text + '_seq( '+signature_text + ') {'
-    file_text += signature_text + body_text + '}\n'
-
-
-
+    if FORTRAN:
+      code('include '+name+'.inc')
+    elif CPP:
+      code('#include "../'+decl_filepath+'"')
 
 ##########################################################################
 # then C++ stub function
@@ -334,7 +288,7 @@ def op2_gen_seq(master, date, consts, kernels):
           code(line)
       code('')
 
-      line = name+'_seq('
+      line = name+'('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
@@ -360,7 +314,7 @@ def op2_gen_seq(master, date, consts, kernels):
 #
     else:
       FOR('n','0','set_size')
-      line = name+'_seq('
+      line = name+'('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
