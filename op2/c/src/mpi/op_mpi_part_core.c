@@ -3523,7 +3523,7 @@ void op_partition_inertial(op_dat x_dat) {
     printf("Max total inertial partitioning time = %lf\n", max_time);
 }
 
-void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_dim, int my_rank) 
+void globalIdSort(int* orders, int row_len, int* global_ids, int map_dim, int my_rank) 
 { 
    
    int i, key, j;    
@@ -3535,17 +3535,13 @@ void insertionSort_by_global(int* orders, int row_len, int* global_ids, int map_
        /* Move elements of orders[0..i-1], that are 
           greater than key, to one position ahead 
           of their current position */
-       int valami=orders[j];
-       valami = global_ids[orders[j]/map_dim];
-       valami = global_ids[key/map_dim];
        while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim]) 
        {  
            orders[j+1] = orders[j]; 
            j = j-1; 
        } 
        orders[j+1] = key; 
-   } 
-   
+   }    
 
 } 
 
@@ -3861,7 +3857,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
         
         //sort increment orders, using the global indices
         for (int i=0; i<set_to_size; i++){
-            insertionSort_by_global(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim, my_rank);
+            globalIdSort(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim, my_rank);
         }
        
        

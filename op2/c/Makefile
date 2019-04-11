@@ -69,11 +69,12 @@ endif
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall
-  CXX      = g++
-  CXXFLAGS = -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   = $(MPICPP_PATH)
-  MPIFLAGS = $(CXXFLAGS)
+  CC       := gcc
+  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+  CXX      := g++
+  CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
+  MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
+  MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG

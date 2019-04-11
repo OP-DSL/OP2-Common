@@ -29,10 +29,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS        = -O0 -xHost -restrict -fno-alias -inline-forceinline -fp-model strict -fp-model source -prec-div -prec-sqrt  
-  #CFLAGS        = -O3 -xHost -restrict -fno-alias -inline-forceinline -fp-model strict -fp-model source -prec-div -prec-sqrt
-  #CCFLAGS	= -O0 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
-#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -fp-model strict -fp-model source -prec-sqrt  #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp 
@@ -42,8 +39,7 @@ ifeq ($(OP2_COMPILER),intel)
 else
 ifeq ($(OP2_COMPILER),xl)
   CPP		= xlc++
-  CCFLAGS	= -O0 -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
-#  CCFLAGS	= -O3 -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
+  CCFLAGS	= -O3 -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qsmp=omp -qthreaded
@@ -53,8 +49,7 @@ ifeq ($(OP2_COMPILER),xl)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CPP       	= pgc++
-  CCFLAGS  	= -O0
-#  CCFLAGS  	= -O3
+  CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
@@ -65,8 +60,7 @@ ifeq ($(OP2_COMPILER),pgi)
 else
 ifeq ($(OP2_COMPILER),cray)
   CPP           = CC
-  CCFLAGS       = -O0 -h fp3 -h ipa5
-#  CCFLAGS       = -O3 -h fp3 -h ipa5
+  CCFLAGS       = -O3 -h fp3 -h ipa5
   CPPFLAGS      = $(CCFLAGS)
   OMPFLAGS      = -h omp
   MPICPP        = CC
@@ -74,8 +68,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++ 
-  CCFLAGS  	= -O0 -ffast-math
-#  CCFLAGS  	= -O3 -ffast-math
+  CCFLAGS  	= -O3 -ffast-math
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
   OMPOFFLOAD 	= $(OMPFLAGS) -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
