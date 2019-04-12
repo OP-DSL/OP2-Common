@@ -46,7 +46,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int set_from_size = prime_map->from->size + prime_map->from->exec_size;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size;// + prime_map->to->nonexec_size;
 
-        double *tmp_incs = (double *)malloc(set_from_size * prime_map_dim * arg4.dat->size );//arg4.dat.size = arg4.dim*sizeof(double)
+        double *tmp_incs = (double *)op_malloc(set_from_size * prime_map_dim * arg4.dat->size );//arg4.dat.size = arg4.dim*sizeof(double)
 
 
         for (int i=0; i<set_from_size * prime_map_dim * arg4.dim; i++){
@@ -80,7 +80,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
                 }
             }
         }
-        free(tmp_incs);
+        op_free(tmp_incs);
 
 
 

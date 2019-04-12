@@ -514,7 +514,12 @@ void op_exit_core() {
   }
 
   // free storage for timing info
-
+  for (int n = 0; n < OP_kern_max; n++) {
+      if (OP_kernels[n].count > 0) {
+        op_free(OP_kernels[n].tmp_incs);
+        OP_kernels[n].tmp_incs_size=0;
+      }
+  }
   free(OP_kernels);
   OP_kernels = NULL;
 
@@ -939,6 +944,8 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].transfer2 = 0.0f;
       OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].name = "unused";
+      OP_kernels[n].tmp_incs = NULL;
+      OP_kernels[n].tmp_incs_size = 0;
     }
     OP_kern_max = OP_kern_max_new;
   }

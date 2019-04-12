@@ -189,7 +189,9 @@ typedef struct {
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  double mpi_time;   /* time spent in MPI calls */
+  float mpi_time;   /* time spent in MPI calls */
+  void *tmp_incs;   /* pointer to temporary increments with reproducible MPI */
+  int tmp_incs_size;/* size of tmp_incs */
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
