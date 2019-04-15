@@ -90,6 +90,14 @@ echo "=======================> Building Airfoil HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 $OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
+
+echo " "
+echo " "
+echo "=======================> Building reproducible Airfoil HDF5 DP with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_reproducible/dp/
+#$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+make clean;make 
+
 echo " "
 echo " "
 echo "=======================> Building Airfoil HDF5 SP with Intel Compilers"
@@ -623,6 +631,56 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
+
+
+
+
+echo " "
+echo " "
+echo "=======================> Running Aero HDF5 DP built with Intel Compilers"
+cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp
+./aero_seq
+./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+export OMP_NUM_THREADS=20
+./aero_openmp OP_PART_SIZE=256
+export OMP_NUM_THREADS=1
+$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
+./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+export OMP_NUM_THREADS=20
+./aero_mpi_openmp OP_PART_SIZE=256
+export OMP_NUM_THREADS=2
+$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
+export OMP_NUM_THREADS=20
+#./aero_mpi_openmp4 OP_PART_SIZE=256
+
+
+echo " "
+echo " "
+echo "=======================> Running reproducible Airfoil HDF5 DP built with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_reproducible/dp/
+
+nproc_from=1
+nproc_to=20
+nproc_step=3
+
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq"
+cp repr_comp_p_q.h5 repr_comp_p_q_ref.h5
+cp repr_comp_p_res.h5 repr_comp_p_res_ref.h5
+
+for nproc in $(eval echo "{$nproc_from..$nproc_to..$nproc_step}")
+do
+    echo "Testing airfoil's reproducibility feature on $nproc MPI processors"
+    validate "$MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq" 
+    h5diff repr_comp_p_q.h5 repr_comp_p_q_ref.h5
+    rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
+    h5diff repr_comp_p_res.h5 repr_comp_p_res_ref.h5
+    rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
+done
+
+rm -f repr_comp_p_q.h5 repr_comp_p_q_ref.h5
+rm -f repr_comp_p_res.h5 repr_comp_p_res_ref.h5
+
 
 echo "All tests Passed !"
 echo "End of Test Script !"
