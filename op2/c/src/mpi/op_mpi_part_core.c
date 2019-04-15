@@ -3523,29 +3523,6 @@ void op_partition_inertial(op_dat x_dat) {
     printf("Max total inertial partitioning time = %lf\n", max_time);
 }
 
-void globalIdSort(int* orders, int row_len, int* global_ids, int map_dim, int my_rank) 
-{ 
-   
-   int i, key, j;    
-   for (i = 1; i < row_len; i++) 
-   { 
-       key = orders[i]; 
-       j = i-1; 
-  
-       /* Move elements of orders[0..i-1], that are 
-          greater than key, to one position ahead 
-          of their current position */
-       while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim]) 
-       {  
-           orders[j+1] = orders[j]; 
-           j = j-1; 
-       } 
-       orders[j+1] = key; 
-   }    
-
-} 
-
-
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
@@ -3734,7 +3711,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
     for (int i = 0; i < OP_map_index; i++)
       OP_map_partial_exchange[i] = 0;
-  }
+  }    
     
 #ifdef DEBUG // sanity check to identify if the partitioning results in ophan
              // elements
@@ -3782,40 +3759,11 @@ void create_reversed_mapping() {
 
     int set_from_size = original_map->from->size  + original_map->from->exec_size;
     int set_to_size = original_map->to->size  + original_map->to->exec_size + original_map->to->nonexec_size;
+
     if (set_from_size==0) {
         OP_reversed_map_list[m] = NULL;
     } else {
-    int original_map_dim = original_map->dim;
-    
-    
-    //share halo orders in reveresed maps with neighbors
-    int my_rank, comm_size;
-    MPI_Comm OP_CHECK_WORLD;
-    MPI_Comm_dup(OP_MPI_WORLD, &OP_CHECK_WORLD);
-    MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
-    MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
-    MPI_Request req;
-    MPI_Request* req2 = (MPI_Request*)malloc(1*sizeof(MPI_Request));
-    
-    // Compute global partition range information for each set
-    int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-    get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
-    
-    halo_list imp_exec_list_toset = OP_import_exec_list[original_map->to->index];
-    halo_list exp_exec_list_toset = OP_export_exec_list[original_map->to->index];
-    halo_list imp_exec_list_fromset = OP_import_exec_list[original_map->from->index];
-    halo_list exp_exec_list_fromset = OP_export_exec_list[original_map->from->index];    
-    
-   /* halo_list imp_nonexec_list_toset = OP_import_nonexec_list[original_map->to->index];
-    halo_list exp_nonexec_list_toset = OP_export_nonexec_list[original_map->to->index];
-    halo_list imp_nonexec_list_fromset = OP_import_nonexec_list[original_map->from->index];
-    halo_list exp_nonexec_list_fromset = OP_export_nonexec_list[original_map->from->index]; 
-    */
-    
-    printf("Map: %d, my_rank: %d, to   set -- core: 0-%d",m,my_rank,original_map->to->core_size);
-    for (int r=0; r<exp_exec_list_toset->ranks_size; r++)
-    {
-        printf(", eeh%d: %d-%d (%4d)",r,original_map->to->core_size+exp_exec_list_toset->disps[r],original_map->to->core_size+exp_exec_list_toset->disps[r]+exp_exec_list_toset->sizes[r],   0-original_map->to->core_size+exp_exec_list_toset->disps[r] + original_map->to->core_size+exp_exec_list_toset->disps[r]+exp_exec_list_toset->sizes[r]);
+
         
         //Fisrt, share global indexing of the owned elements
 
@@ -3951,4 +3899,5 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
       printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
+
 }
