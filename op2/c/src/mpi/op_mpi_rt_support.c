@@ -82,7 +82,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
-       arg->acc == OP_RW || /* good for debug || arg->acc == OP_INC*/) &&
+       arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];

@@ -3711,8 +3711,8 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
     for (int i = 0; i < OP_map_index; i++)
       OP_map_partial_exchange[i] = 0;
-  }    
-    
+  }
+
 #ifdef DEBUG // sanity check to identify if the partitioning results in ophan
              // elements
   int ctr = 0;
@@ -3726,27 +3726,27 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
 }
 
 
-void globalIdSort(int* orders, int row_len, int* global_ids, int map_dim) 
-{ 
-   
-   int i, key, j;    
-   for (i = 1; i < row_len; i++) 
-   { 
-       key = orders[i]; 
-       j = i-1; 
-  
-       /* Move elements of orders[0..i-1], that are 
-          greater than key, to one position ahead 
-          of their current position */
-       while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim]) 
-       {  
-           orders[j+1] = orders[j]; 
-           j = j-1; 
-       } 
-       orders[j+1] = key; 
-   }    
+void globalIdSort(int* orders, int row_len, int* global_ids, int map_dim)
+{
 
-} 
+   int i, key, j;
+   for (i = 1; i < row_len; i++)
+   {
+       key = orders[i];
+       j = i-1;
+
+       /* Move elements of orders[0..i-1], that are
+          greater than key, to one position ahead
+          of their current position */
+       while (j >= 0 && global_ids[orders[j]/map_dim] > global_ids[key/map_dim])
+       {
+           orders[j+1] = orders[j];
+           j = j-1;
+       }
+       orders[j+1] = key;
+   }
+
+}
 
 
 /*******************************************************************************
@@ -3754,7 +3754,7 @@ void globalIdSort(int* orders, int row_len, int* global_ids, int map_dim)
 *******************************************************************************/
 void create_reversed_mapping() {
   //Create reversed mapping for each map
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table  
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map original_map = OP_map_list[m];
 
     int set_from_size = original_map->from->size  + original_map->from->exec_size;
@@ -3764,20 +3764,20 @@ void create_reversed_mapping() {
         OP_reversed_map_list[m] = NULL;
     } else {
 
-        
+
         //Fisrt, share global indexing of the owned elements
 
-        halo_list exp_exec_list_fromset = OP_export_exec_list[original_map->from->index];  
-        halo_list imp_exec_list_fromset = OP_import_exec_list[original_map->from->index];  
-        
+        halo_list exp_exec_list_fromset = OP_export_exec_list[original_map->from->index];
+        halo_list imp_exec_list_fromset = OP_import_exec_list[original_map->from->index];
+
         MPI_Request* exp_fromset_req_list = (MPI_Request*)op_malloc(exp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
         MPI_Request* imp_fromset_req_list = (MPI_Request*)op_malloc(imp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
-        
+
         int *exp_fromset_buffer_list = (int *)op_malloc( exp_exec_list_fromset->size*sizeof(int));
-        
+
         //share global eeh indices
         for (int r=0; r<exp_exec_list_fromset->ranks_size; r++)     //for each export neighbor rank
-        {    
+        {
             int first_eeh_r = original_map->from->core_size + exp_exec_list_fromset->disps[r];                                    //first eeh element for neighbor rank r
             int first_after_eeh_r  = original_map->from->core_size + exp_exec_list_fromset->disps[r] + exp_exec_list_fromset->sizes[r];  //first element after the eeh for neigbor rank r
             for (int i = first_eeh_r; i < first_after_eeh_r; i++){                                                                    //for each element of the eeh for neigbor rank r
@@ -3785,32 +3785,31 @@ void create_reversed_mapping() {
                  exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[set_elem_index];      //put the global_id of element locally indexed by i to buffer
             }
             MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]], exp_exec_list_fromset->sizes[r], MPI_INT, exp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &exp_fromset_req_list[r]);   //send the gathered global ids to the neighbor rank r
-            
+
         }
 
-        
-        
-        //recieve global indices for iehs        
-   
+
+        //recieve global indices for iehs
+
         //create a list for all owned+ieh global indices
-        int* global_indices_fromset = (int *)op_malloc( (original_map->from->size + imp_exec_list_fromset->size) * sizeof(int));           
+        int* global_indices_fromset = (int *)op_malloc( (original_map->from->size + imp_exec_list_fromset->size) * sizeof(int));
         memcpy(&global_indices_fromset[0] , &(OP_part_list[original_map->from->index]->g_index[0]) ,original_map->from->size * sizeof(int));        //First part of the global_indices_fromset is the ids for the owned elements
-        
+
         for (int r=0; r<imp_exec_list_fromset->ranks_size; r++)    //for each import neighbor rank
-        {    
+        {
             MPI_Irecv(&global_indices_fromset[original_map->from->size + imp_exec_list_fromset->disps[r]], imp_exec_list_fromset->sizes[r], MPI_INT, imp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &imp_fromset_req_list[r]);    //recieve global ids from from neighbor rank r
-         
+
         }
-    
-       
+
+
         MPI_Waitall(exp_exec_list_fromset->ranks_size,exp_fromset_req_list,MPI_STATUSES_IGNORE);
         MPI_Waitall(imp_exec_list_fromset->ranks_size,imp_fromset_req_list,MPI_STATUSES_IGNORE);
 
-        op_free(exp_fromset_buffer_list);       
+        op_free(exp_fromset_buffer_list);
         op_free(exp_fromset_req_list );
-        op_free(imp_fromset_req_list ); 
-        
-       
+        op_free(imp_fromset_req_list );
+
+
         //create a reversed mapping to temporary increments with local index ordering
         int original_map_dim = original_map->dim;
         int *reversed_map = (int *)op_malloc(set_from_size * original_map_dim * sizeof(int));       //contains ids to the increments for a 'to' element
@@ -3822,7 +3821,7 @@ void create_reversed_mapping() {
             rev_row_start_idx[i] = 0;
         }
         rev_row_start_idx[set_to_size] = set_from_size * original_map_dim;
-        
+
         for ( int i=0; i<set_from_size; i++ ) {
             for ( int j=0; j<original_map_dim; j++ ) {
                 rev_row_start_idx[original_map->map[i*original_map_dim+j]]++;  // count how many times the to set element indirectly referenced from the from set element
@@ -3832,21 +3831,19 @@ void create_reversed_mapping() {
         for (int i=set_to_size-1; i>=0; i--){
             rev_row_start_idx[i]=  rev_row_start_idx[i+1] - rev_row_start_idx[i]; // setting up the start index
         }
-        
+
         for ( int i=0; i<set_from_size; i++ ) {
             for ( int j=0; j<original_map_dim; j++ ) {
                 reversed_map[rev_row_start_idx[original_map->map[i*original_map_dim+j]] + rev_row_lens[original_map->map[i*original_map_dim+j]]] = i * original_map_dim + j;
                 (rev_row_lens[original_map->map[i*original_map_dim+j]])++;
             }
         }
-        
+
         //sort increment orders, using the global indices
         for (int i=0; i<set_to_size; i++){
             globalIdSort(&reversed_map[rev_row_start_idx[i]],rev_row_lens[i],global_indices_fromset,original_map_dim);
         }
-       
-       
-        
+
         op_reversed_map rev_map = (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
 
         rev_map->index = original_map->index;
@@ -3900,4 +3897,6 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   }
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 
+
+  }
 }
