@@ -117,6 +117,7 @@ extern op_map *OP_map_list;
 extern op_reversed_map *OP_reversed_map_list;
 extern Double_linked_list OP_dat_list;
 extern op_kernel *OP_kernels;
+extern op_repr_inc *op_repr_incs;
 extern double OP_plan_time;
 
 op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);

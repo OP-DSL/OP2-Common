@@ -66,6 +66,7 @@ op_map *OP_map_list;
 op_reversed_map *OP_reversed_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
+op_repr_inc *op_repr_incs;
 
 const char *doublestr = "double";
 const char *floatstr = "float";
@@ -517,14 +518,14 @@ void op_exit_core() {
 
   // free storage for timing info
   for (int n = 0; n < OP_kern_max; n++) {
-      if (OP_kernels[n].count > 0) {
-        op_free(OP_kernels[n].tmp_incs);
-        OP_kernels[n].tmp_incs_size=0;
+      if (OP_kernels[n].count > 0) {        
+        op_free(op_repr_incs[n].tmp_incs);
+        op_repr_incs[n].tmp_incs_size=0;
       }
   }
   free(OP_kernels);
   OP_kernels = NULL;
-
+  
   // reset initial values
 
   OP_set_index = 0;
@@ -928,6 +929,8 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
     OP_kern_max_new = kernel + 10;
     OP_kernels = (op_kernel *)op_realloc(OP_kernels,
                                          OP_kern_max_new * sizeof(op_kernel));
+    op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
+                                         OP_kern_max_new * sizeof(op_repr_inc));
     if (OP_kernels == NULL) {
       printf(" op_timing_realloc error \n");
       exit(-1);
@@ -946,8 +949,8 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].transfer2 = 0.0f;
       OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].name = "unused";
-      OP_kernels[n].tmp_incs = NULL;
-      OP_kernels[n].tmp_incs_size = 0;
+      op_repr_incs[n].tmp_incs = NULL;
+      op_repr_incs[n].tmp_incs_size = 0;
     }
     OP_kern_max = OP_kern_max_new;
   }

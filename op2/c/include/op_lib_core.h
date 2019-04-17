@@ -145,14 +145,6 @@ typedef op_reversed_map_core *op_reversed_map;
 
 typedef struct {
   int index;        /* index */
-  int *reversed_map;    /* reversed mapping */
-  int *row_start_idx;    /* Helper array for indexing reversed_map */
-} op_reversed_map_core;
-
-typedef op_reversed_map_core *op_reversed_map;
-
-typedef struct {
-  int index;        /* index */
   op_set set;       /* set on which data is defined */
   int dim,          /* dimension of data */
       size;         /* size of each element in dataset */
@@ -198,9 +190,12 @@ typedef struct {
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
   float mpi_time;   /* time spent in MPI calls */
-  void *tmp_incs;   /* pointer to temporary increments with reproducible MPI */
-  int tmp_incs_size;/* size of tmp_incs */
 } op_kernel;
+
+typedef struct {
+    void *tmp_incs; /* temporary increment array for reproducible MPI usage */
+    int tmp_incs_size;
+} op_repr_inc;
 
 // struct definition for a double linked list entry to hold an op_dat
 struct op_dat_entry_core {

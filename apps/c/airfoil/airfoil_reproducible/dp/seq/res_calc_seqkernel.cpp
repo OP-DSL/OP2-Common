@@ -37,9 +37,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
     printf(" kernel routine with indirection: res_calc\n");
   }
 
-  int my_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
   if (set->size >0) {
@@ -52,15 +49,17 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
 
-    //    int required_tmp_incs_size = set_from_size * prime_map_dim * arg6.dat->size;
-    //
-    //    if (OP_kernels[2].tmp_incs_size < required_tmp_incs_size){
-    //        op_realloc(OP_kernels[2].tmp_incs, required_tmp_incs_size);
-    //        OP_kernels[2].tmp_incs_size = required_tmp_incs_size;
-    //    }
+        int required_tmp_incs_size = set_from_size * prime_map_dim * arg6.dat->size;
+    
+        if (op_repr_incs[2].tmp_incs == NULL){
+            op_repr_incs[2].tmp_incs = (void *)op_malloc(required_tmp_incs_size);
+            op_repr_incs[2].tmp_incs_size = required_tmp_incs_size;
+        } else if (op_repr_incs[2].tmp_incs_size < required_tmp_incs_size){
+            op_realloc(op_repr_incs[2].tmp_incs, required_tmp_incs_size);
+            op_repr_incs[2].tmp_incs_size = required_tmp_incs_size;
+        }
 
-        double *tmp_incs = (double *)op_malloc(set_from_size * prime_map_dim * arg6.dat->size );   //TODO reuse this...
-    //    double *tmp_incs = (double *)OP_kernels[2].tmp_incs;
+        double *tmp_incs = (double *)op_repr_incs[2].tmp_incs;
 
         for (int i=0; i<set_from_size * prime_map_dim * arg6.dim; i++){
           tmp_incs[i]=0.0;
@@ -96,7 +95,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
             }
         }
 
-        op_free(tmp_incs);
     }
   }
 
