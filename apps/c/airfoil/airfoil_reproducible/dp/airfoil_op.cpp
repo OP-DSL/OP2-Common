@@ -207,12 +207,10 @@ int main(int argc, char **argv) {
 
   // trigger partitioning and halo creation routines
   //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
-
-
   op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
   create_reversed_mapping();
-  
+
 #define PDIM 2
   int g_ncell = op_get_size(cells);
 
@@ -253,7 +251,7 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
                   op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
                   op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
-                  
+
 
       op_par_loop_bres_calc("bres_calc",bedges,
                   op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
@@ -296,17 +294,6 @@ int main(int argc, char **argv) {
   }
 
   op_timers(&cpu_t2, &wall_t2);
-
-    // output the result dat array to files
- // op_print_dat_to_txtfile(p_q, "out_grid_seq.dat"); // ASCI
- // op_print_dat_to_binfile(p_q, "out_grid_seq_reversed_2procs.bin"); // Binary
-
-  // write given op_dat's indicated segment of data to a memory block in the
-  // order it was originally
-  // arranged (i.e. before partitioning and reordering)
-  double *q = (double *)op_malloc(sizeof(double) * op_get_size(cells) * 4);
-  op_fetch_data_idx(p_q, q, 0, op_get_size(cells) - 1);
-  free(q);
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)

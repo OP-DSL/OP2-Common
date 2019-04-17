@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
 
 	if (iter % 10 == 0 )
 		printf("Calculating res_calc %d/%d\n",iter,niter);
-	
+
     for (int k = 0; k < 2; k++) {
 
       //    calculate area/timstep
@@ -245,27 +245,10 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
 
-  op_print_dat_to_binfile(p_q, "out_grid_seq_reference.bin"); // Binary
-  
-  // write given op_dat's indicated segment of data to a memory block in the
-  // order it was originally
-  // arranged (i.e. before partitioning and reordering)
-  double *q = (double *)op_malloc(sizeof(double) * op_get_size(cells) * 4);
-  op_fetch_data_idx(p_q, q, 0, op_get_size(cells) - 1);
-  free(q);
-
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_q, "file_name.h5");
-
-  // printf("Root process = %d\n",op_is_root());
-
-  // output the result dat array to files
-  // op_dump_to_hdf5("new_grid_out.h5"); //writes data as it is held on each
-  // process (under MPI)
-
-  // compress using
-  // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
+  op_fetch_data_hdf5_file(p_res, "repr_comp_p_res.h5");     //naming for automatic test
+  op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);

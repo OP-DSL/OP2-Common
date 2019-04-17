@@ -46,7 +46,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int set_from_size = prime_map->from->size + prime_map->from->exec_size;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size;// + prime_map->to->nonexec_size;
 
-        double *tmp_incs = (double *)op_malloc(set_from_size * prime_map_dim * arg4.dat->size );//arg4.dat.size = arg4.dim*sizeof(double)
+        double *tmp_incs = (double *)op_malloc(set_from_size * prime_map_dim * arg4.dat->size );
 
 
         for (int i=0; i<set_from_size * prime_map_dim * arg4.dim; i++){
@@ -76,7 +76,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg4.dim; d++){
-                    ((double*)arg4.data)[arg4.dim * n + d] += tmp_incs[rev_map->reversed_map[rev_map->row_start_idx[n]+i] * arg4.dim + d];
+                    ((double*)arg4.data)[arg4.dim * n + d] +=
+                    tmp_incs[rev_map->reversed_map[rev_map->row_start_idx[n]+i] * arg4.dim + d];
                 }
             }
         }
