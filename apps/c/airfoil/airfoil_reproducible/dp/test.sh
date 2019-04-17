@@ -47,7 +47,7 @@ make mpi_seq -B
 echo " "
 echo " "
 echo "=======================> Building reproducible Airfoil HDF5 DP with Intel Compilers"
-cd /home/sikba/warwick/op2/OP2-Common/apps/c/airfoil/airfoil_reproducible/airfoil_hdf5/dp/
+cd /home/sikba/warwick/op2/OP2-Common/apps/c/airfoil/airfoil_reproducible/dp/
 #$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make airfoil_mpi_genseq
 
@@ -56,9 +56,9 @@ make clean;make airfoil_mpi_genseq
 echo " "
 echo " "
 echo "=======================> Running reproducible Airfoil HDF5 DP built with Intel Compilers"
-cd /home/sikba/warwick/op2/OP2-Common/apps/c/airfoil/airfoil_reproducible/airfoil_hdf5/dp/
-#validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
-#validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq -renumber"
+cd /home/sikba/warwick/op2/OP2-Common/apps/c/airfoil/airfoil_reproducible/dp/
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_genseq -renumber"
 
 
 
@@ -68,7 +68,6 @@ nproc_step=3
 
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 1 ./airfoil_mpi_genseq"
 cp repr_comp_p_q.h5 repr_comp_p_q_ref.h5
-cp repr_comp_p_res.h5 repr_comp_p_res_ref.h5
 
 for nproc in $(eval echo "{$nproc_from..$nproc_to..$nproc_step}")
 do
@@ -76,11 +75,8 @@ do
     validate "$MPI_INSTALL_PATH/bin/mpirun -np $nproc ./airfoil_mpi_genseq" 
     h5diff repr_comp_p_q.h5 repr_comp_p_q_ref.h5
     rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
-    h5diff repr_comp_p_res.h5 repr_comp_p_res_ref.h5
-    rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;
 done
 
 rm -f repr_comp_p_q.h5 repr_comp_p_q_ref.h5
-rm -f repr_comp_p_res.h5 repr_comp_p_res_ref.h5
 
 echo "All tests Passed !"

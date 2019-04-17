@@ -98,9 +98,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
         op_free(tmp_incs);
     }
-    else printf("Error allocating rev_map *****************************\n");
   }
-  else printf("Set size Zero *****************************\n");
 
   if (set_size == 0 || set_size == set->core_size) {
     op_mpi_wait_all(nargs, args);

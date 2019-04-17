@@ -310,8 +310,7 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_res, "repr_comp_p_res.h5");     //naming for automatic test
-  op_fetch_data_hdf5_file(p_res, "repr_comp_p_q.h5");       //naming for automatic test
+  op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
 
   // printf("Root process = %d\n",op_is_root());
 

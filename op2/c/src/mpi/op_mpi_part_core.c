@@ -3810,7 +3810,8 @@ void create_reversed_mapping() {
             int first_eeh_r = original_map->from->core_size + exp_exec_list_fromset->disps[r];                                    //first eeh element for neighbor rank r
             int first_after_eeh_r  = original_map->from->core_size + exp_exec_list_fromset->disps[r] + exp_exec_list_fromset->sizes[r];  //first element after the eeh for neigbor rank r
             for (int i = first_eeh_r; i < first_after_eeh_r; i++){                                                                    //for each element of the eeh for neigbor rank r
-                 exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[i];      //put the global_id of element locally indexed by i to buffer
+                 int set_elem_index = exp_exec_list_fromset->list[i - original_map->from->core_size];
+                 exp_fromset_buffer_list[i - original_map->from->core_size] = OP_part_list[original_map->from->index]->g_index[set_elem_index];      //put the global_id of element locally indexed by i to buffer
             }
             MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]], exp_exec_list_fromset->sizes[r], MPI_INT, exp_exec_list_fromset->ranks[r], 1 , OP_MPI_WORLD, &exp_fromset_req_list[r]);   //send the gathered global ids to the neighbor rank r
             
