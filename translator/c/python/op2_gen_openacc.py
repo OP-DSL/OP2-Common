@@ -220,6 +220,7 @@ def op2_gen_openacc(master, date, consts, kernels):
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
                     op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
+    head_text += "_openacc"
     signature_text = '//#pragma acc routine\ninline ' + head_text + '( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
@@ -445,7 +446,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           line = line[:-2]+'};'
           code(line)
       code('')
-      line = name+'('
+      line = name+'_openacc('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
@@ -512,7 +513,7 @@ def op2_gen_openacc(master, date, consts, kernels):
               line = line + ' reduction(max:arg'+str(g_m)+'_l)'
       code(line)
       FOR('n','0','set->size')
-      line = name+'('
+      line = name+'_openacc('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID:
