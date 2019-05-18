@@ -13,6 +13,7 @@ import re
 import datetime
 import glob
 import os
+import op2_gen_common
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -704,14 +705,15 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
-    else:
-      if consts[nc]['dim'] > 0:
-        num = str(consts[nc]['dim'])
+    if not consts[nc]['user_declared']:
+      if consts[nc]['dim']==1:
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        num = 'MAX_CONST_SIZE'
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+        if consts[nc]['dim'] > 0:
+          num = str(consts[nc]['dim'])
+        else:
+          num = 'MAX_CONST_SIZE'
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
   code('')
 
   comm(' header                 ')
