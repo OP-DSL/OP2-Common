@@ -153,6 +153,9 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     comm('user function')
 
+    if CPP:
+      code('#include "../'+decl_filepath+'"')
+
     #strides for SoA
     if any_soa:
       if nmaps > 0:

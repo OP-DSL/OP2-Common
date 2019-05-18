@@ -594,6 +594,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
 ##############################################################
     file_text = ''
 
+    if CPP:
+      code('#include "../'+decl_filepath+'"')
+      code('')
+
     code(func_call_signaure_text+params+'){')
     code('')
     depth += 2
