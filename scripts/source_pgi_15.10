@@ -7,16 +7,16 @@ unset LD_LIBRARY_PATH
 
 #OP2 specifics
 export OP2_COMPILER=pgi
-export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
 unset OP_AUTO_SOA
 #export OP_AUTO_SOA=1
 
 #External libraries
-export PARMETIS_INSTALL_PATH=/home/mgiles/mudalige/parmetis-pgi-mpich
-export PTSCOTCH_INSTALL_PATH=/home/mgiles/mudalige/ptscotch-pgi-mpich/
+export PARMETIS_INSTALL_PATH=/home/mudalige/parmetis-pgi-mpich
+export PTSCOTCH_INSTALL_PATH=/home/mudalige/ptscotch-pgi-mpich/
 #export LD_LIBRARY_PATH=/opt/parmetis-pgi/lib:/opt/ptscotch-pgi/lib:$LD_LIBRARY_PATH
-export HDF5_INSTALL_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/
-export LD_LIBRARY_PATH=/home/mgiles/mudalige/hdf5-pgi-mpich/lib:$LD_LIBRARY_PATH
+export HDF5_INSTALL_PATH=/home/mudalige/hdf5-pgi-mpich/
+export LD_LIBRARY_PATH=/home/mudalige/hdf5-pgi-mpich/lib:$LD_LIBRARY_PATH
 
 #NVIDIA CUDA
 export PATH=/usr/local/cuda/bin:$PATH

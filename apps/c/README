@@ -1,9 +1,41 @@
 This directory contains example applications using the C and C++ OP2 library.
 
-CMake build
------------
+Regular Makefile build
+======================
 
-The recommended way of building the examples is using CMake (http://cmake.org).
+The recommended way of building the examples is using the regular Makefiles under
+each aexample pplication directory.
+
+To compile using the regular Makefiles provided, it is required to:
+
+1. Make sure that the OP2 backend libraries have been built under
+   ~/OP2-Common/op2/c/lib
+
+   See ~/OP2-Common/op2/c/README for instructions on building the op2
+   backend libs
+
+2. Use op2 code generator to generate the various paralleizations
+
+   e.g for Airfoil_HDF5  the only file(s) that have OP2 API calls are airfoil.cpp
+
+   ~/OP2-Common/translator/c/python/op2.py airfoil.cpp
+
+   This will generate the variousl paralleizations under seperate directories
+   E.g. CUDA files under ~/OP2-Common/apps/c/airfoil/airfoil_hdf5/dp/CUDA  etc.
+   (see user documentation for more details)
+
+
+3. Change directory to the example application directory
+   e.g. cd ~/OP2-Common/apps/c/airfoil/airfoil_hdf5/dp/
+
+   type:
+
+   make
+
+
+
+CMake build
+===========
 
 For a standard developer build with debugging symbols and all features enabled
 run:
@@ -115,41 +147,6 @@ later invocations of CMake:
   Additional compiler definitions of the form -DFOO=BAR can be specified with
   the OP2_USER_DEFINITIONS variable.
 
-Regular Makefile build
-----------------------
-
-To compile using the regular Makefiles provided, it is required to:
-
-1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.
-   For instance, on CX1 under bash, if we want to use cuda 4.0.11,
-   we will have to set it as following:
-
-      export CUDA_INSTALL_PATH=/apps/cuda/4.0.11
-
-2. Set the environment variable OP2_INSTALL_PATH to the base op2 directory,
-   i.e. the one containing the "c" and "fortran" directories.
-
-   e.g.:  export OP2_INSTALL_PATH=~/OP2-Common/op2/
-
-3. Set the environment variable OP2_COMPILER to either 'intel' or 'gnu' to
-   select building with either icc or gcc compilers.
-
-   e.g.:  export OP2_COMPILER=intel
-
-4. Set the environment variables MPI_INSTALL_PATH, HDF5_INSTALL_PATH,
-   PARMETIS_INSTALL_PATH and/or PTSCOTCH_INSTALL_PATH to the installation
-   directories of these libraries. For instance:
-
-      export PARMETIS_INSTALL_PATH=/home/gihan/ParMetis-3.1.1
-
-      and / or
-
-      export PTSCOTCH_INSTALL_PATH=/home/gihan/PT-Scotch
-
-      export HDF5_INSTALL_PATH=/home/gihan/hdf5/
-
-      export MPI_INSTALL_PATH=/home/gihan/openmpi-intel/
-
 
 Known issues
 ============
@@ -160,7 +157,7 @@ The  most likely cause is that cmake picked an incorrect architecture for your
 device. Use "deviceQuery" from CUDA samples to check your copmute capability
 and change accordingly forcing e.g. for
 
-        ./deviceQuery 
+        ./deviceQuery
         ...
         Device 0: "Quadro K1100M"
          CUDA Driver Version / Runtime Version          9.1 / 9.0

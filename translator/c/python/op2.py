@@ -176,7 +176,33 @@ def get_arg_dat(arg_string, j):
         'map': dat_args_string.split(',')[2].strip(),
         'dim': dat_args_string.split(',')[3].strip(),
         'typ': dat_args_string.split(',')[4].strip(),
-        'acc': dat_args_string.split(',')[5].strip()}
+        'acc': dat_args_string.split(',')[5].strip(),
+        'opt':''}
+
+  return temp_dat
+
+def get_opt_arg_dat(arg_string, j):
+  loc = arg_parse(arg_string, j + 1)
+  dat_args_string = arg_string[arg_string.find('(', j) + 1:loc]
+
+  # remove comments
+  dat_args_string = comment_remover(dat_args_string)
+  # check for syntax errors
+  if len(dat_args_string.split(',')) != 7:
+    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
+        % dat_args_string
+    return
+
+  # split the dat_args_string into  6 and create a struct with the elements
+  # and type as op_arg_dat
+  temp_dat = {'type': 'op_opt_arg_dat',
+        'opt': dat_args_string.split(',')[0].strip(),
+        'dat': dat_args_string.split(',')[1].strip(),
+        'idx': dat_args_string.split(',')[2].strip(),
+        'map': dat_args_string.split(',')[3].strip(),
+        'dim': dat_args_string.split(',')[4].strip(),
+        'typ': dat_args_string.split(',')[5].strip(),
+        'acc': dat_args_string.split(',')[6].strip()}
 
   return temp_dat
 
@@ -200,7 +226,8 @@ def get_arg_gbl(arg_string, k):
         'data': gbl_args_string.split(',')[0].strip(),
         'dim': gbl_args_string.split(',')[1].strip(),
         'typ': gbl_args_string.split(',')[2].strip(),
-        'acc': gbl_args_string.split(',')[3].strip()}
+        'acc': gbl_args_string.split(',')[3].strip(),
+        'opt':''}
 
   return temp_gbl
 
@@ -226,37 +253,33 @@ def op_par_loop_parse(text):
     # parse each op_arg_dat
     search2 = "op_arg_dat"
     search3 = "op_arg_gbl"
+    search4 = "op_opt_arg_dat"
     j = arg_string.find(search2)
     k = arg_string.find(search3)
+    l = arg_string.find(search4)
 
-    while j > -1 or k > -1:
-      if k <= -1:
+    while j > -1 or k > -1 or l > -1:
+      index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint )
+      if index == j:
         temp_dat = get_arg_dat(arg_string, j)
         # append this struct to a temporary list/array
         temp_args.append(temp_dat)
         num_args = num_args + 1
         j = arg_string.find(search2, j + 11)
 
-      elif j <= -1:
+      elif index == k:
         temp_gbl = get_arg_gbl(arg_string, k)
         # append this struct to a temporary list/array
         temp_args.append(temp_gbl)
         num_args = num_args + 1
         k = arg_string.find(search3, k + 11)
 
-      elif j < k:
-        temp_dat = get_arg_dat(arg_string, j)
+      elif index == l:
+        temp_dat = get_opt_arg_dat(arg_string, l)
         # append this struct to a temporary list/array
         temp_args.append(temp_dat)
         num_args = num_args + 1
-        j = arg_string.find(search2, j + 11)
-
-      else:
-        temp_gbl = get_arg_gbl(arg_string, k)
-        # append this struct to a temporary list/array
-        temp_args.append(temp_gbl)
-        num_args = num_args + 1
-        k = arg_string.find(search3, k + 11)
+        l = arg_string.find(search4, l + 15)
 
     temp = {'loc': i,
         'name1': arg_string.split(',')[0].strip(),
@@ -425,6 +448,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       typs = [''] * nargs
       accs = [0] * nargs
       soaflags = [0] * nargs
+      optflags = [0] * nargs
+      any_opt = 0
 
       for m in range(0, nargs):
         argm = loop_args[i]['args'][m]
@@ -433,12 +458,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         arg_type = loop_args[i]['args'][m]['type']
         args = loop_args[i]['args'][m]
 
-        if arg_type.strip() == 'op_arg_dat':
+        if arg_type.strip() == 'op_arg_dat' or arg_type.strip() == 'op_opt_arg_dat':
           argm['idx'] = evaluate_macro_defs_in_string(macro_defs, argm['idx'])
 
-        if arg_type.strip() == 'op_arg_dat':
+        if arg_type.strip() == 'op_arg_dat' or arg_type.strip() == 'op_opt_arg_dat':
           var[m] = args['dat']
           idxs[m] = args['idx']
+          if arg_type.strip() == 'op_opt_arg_dat':
+            any_opt = 1
 
           if str(args['map']).strip() == 'OP_ID':
             maps[m] = OP_ID
@@ -471,11 +498,17 @@ def main(srcFilesAndDirs=sys.argv[1:]):
           else:
             accs[m] = l + 1
 
+        if arg_type.strip() == 'op_opt_arg_dat':
+          optflags[m] = 1
+        else:
+          optflags[m] = 0
+
         if arg_type.strip() == 'op_arg_gbl':
           maps[m] = OP_GBL
           var[m] = args['data']
           dims[m] = args['dim']
           typs[m] = args['typ'][1:-1]
+          optflags[m] = 0
 
           l = -1
           for l in range(0, len(OP_accs_labels)):
@@ -561,6 +594,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               kernels[nk]['accs'][arg] == accs[arg] and \
               kernels[nk]['idxs'][arg] == idxs[arg] and \
               kernels[nk]['soaflags'][arg] == soaflags[arg] and \
+              kernels[nk]['optflags'][arg] == optflags[arg] and \
               kernels[nk]['inds'][arg] == inds[arg]
 
           for arg in range(0, ninds):
@@ -599,6 +633,11 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             print str(arg),
         if ninds > 0:
           print '\n  number of indirect datasets: ' + str(ninds),
+        if any_opt:
+          print '\n  optional arguments:',
+          for arg in range(0, nargs):
+            if optflags[arg] == 1:
+              print str(arg),
 
         print '\n'
 
@@ -616,6 +655,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             'idxs': idxs,
             'inds': inds,
             'soaflags': soaflags,
+            'optflags': optflags,
 
             'ninds': ninds,
             'inddims': inddims,
@@ -740,6 +780,13 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               ',' + elem['idx'] + ',' + elem['map'] + \
               ',' + elem['dim'] + ',' + elem['typ'] + \
               ',' + elem['acc'] + '),\n' + indent
+          elif elem['type'] == 'op_opt_arg_dat':
+            line = line + elem['type'] + '(' \
+                  + elem['opt'] + ',' + elem['dat'] + \
+              ',' + elem['idx'] + ',' + elem['map'] + \
+              ',' + elem['dim'] + ',' + elem['typ'] + \
+              ',' + elem['acc'] + '),\n' + indent
+
           elif elem['type'] == 'op_arg_gbl':
             line = line + elem['type'] + '(' + elem['data'] + \
               ',' + elem['dim'] + ',' + elem['typ'] + \

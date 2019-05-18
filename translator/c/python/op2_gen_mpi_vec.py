@@ -162,108 +162,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
   for nk in range (0,len(kernels)):
 
-    name  = kernels[nk]['name']
-    nargs = kernels[nk]['nargs']
-    dims  = kernels[nk]['dims']
-    maps  = kernels[nk]['maps']
-    var   = kernels[nk]['var']
-    typs  = kernels[nk]['typs']
-    accs  = kernels[nk]['accs']
-    idxs  = kernels[nk]['idxs']
-    inds  = kernels[nk]['inds']
-    soaflags = kernels[nk]['soaflags']
-    decl_filepath = kernels[nk]['decl_filepath']
-
-    ninds   = kernels[nk]['ninds']
-    inddims = kernels[nk]['inddims']
-    indaccs = kernels[nk]['indaccs']
-    indtyps = kernels[nk]['indtyps']
-    invinds = kernels[nk]['invinds']
-    mapnames = kernels[nk]['mapnames']
-    invmapinds = kernels[nk]['invmapinds']
-    mapinds = kernels[nk]['mapinds']
-    nmaps = 0
-    if ninds > 0:
-      nmaps = max(mapinds)+1
-
-    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-
-    if len(vec) > 0:
-      unique_args = [1];
-      vec_counter = 1;
-      vectorised = []
-      new_dims = []
-      new_maps = []
-      new_vars = []
-      new_typs = []
-      new_accs = []
-      new_idxs = []
-      new_inds = []
-      new_soaflags = []
-      for m in range(0,nargs):
-          if int(idxs[m])<0 and maps[m] == OP_MAP:
-            if m > 0:
-              unique_args = unique_args + [len(new_dims)+1]
-            temp = [0]*(-1*int(idxs[m]))
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = var[m]
-            new_vars = new_vars+temp
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = typs[m]
-            new_typs = new_typs+temp
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = dims[m]
-            new_dims = new_dims+temp
-            new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
-            new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
-            for i in range(0,-1*int(idxs[m])):
-              new_idxs = new_idxs+[i]
-            new_inds = new_inds+[inds[m]]*int(-1*int(idxs[m]))
-            vectorised = vectorised + [vec_counter]*int(-1*int(idxs[m]))
-            vec_counter = vec_counter + 1;
-          else:
-            if m > 0:
-              unique_args = unique_args + [len(new_dims)+1]
-            new_dims = new_dims+[dims[m]]
-            new_maps = new_maps+[maps[m]]
-            new_accs = new_accs+[int(accs[m])]
-            new_soaflags = new_soaflags+[soaflags[m]]
-            new_idxs = new_idxs+[int(idxs[m])]
-            new_inds = new_inds+[inds[m]]
-            new_vars = new_vars+[var[m]]
-            new_typs = new_typs+[typs[m]]
-            vectorised = vectorised+[0]
-      dims = new_dims
-      maps = new_maps
-      accs = new_accs
-      idxs = new_idxs
-      inds = new_inds
-      var = new_vars
-      typs = new_typs
-      soaflags = new_soaflags;
-      nargs = len(vectorised);
-
-      for i in range(1,ninds+1):
-        for index in range(0,len(inds)+1):
-          if inds[index] == i:
-            invinds[i-1] = index
-            break
-      invmapinds = invinds[:]
-      for i in range(0,ninds):
-        for j in range(0,i):
-          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
-            invmapinds[i] = invmapinds[j]
-    else:
-      vectorised = [0]*nargs
-      unique_args = range(1,nargs+1)
-
-    cumulative_indirect_index = [-1]*nargs;
-    j = 0;
-    for i in range (0,nargs):
-      if maps[i] == OP_MAP:
-        cumulative_indirect_index[i] = j
-        j = j + 1
+    name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
+            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
+            unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
 #
 # set three logicals
 #
@@ -412,9 +313,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
+        if (optflags[g_m] == 1):
+          argtyp = 'op_opt_arg_dat(arg'+str(first)+'.opt, '
+        else:
+          argtyp = 'op_arg_dat('
 
         FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
         str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
@@ -780,10 +685,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
-  comm(' header                 ')
-  if os.path.exists('./user_types.h'):
-    code('#include "../user_types.h"')
-  code('#include "op_lib_cpp.h"       ')
+
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')
   code('#define int_ALIGN 64')
@@ -798,6 +700,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#define ALIGNED_int')
   code('#endif')
   code('')
+
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
@@ -808,8 +711,15 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
-
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
+
+  comm(' header                 ')
+
+  if os.path.exists('./user_types.h'):
+    code('#include "../user_types.h"')
+  code('#include "op_lib_cpp.h"')
+  code('')
 
   comm(' user kernel files')
 
