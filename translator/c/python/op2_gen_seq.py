@@ -28,14 +28,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line)
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -168,10 +168,10 @@ def op2_gen_seq(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -180,8 +180,8 @@ def op2_gen_seq(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -193,13 +193,13 @@ def op2_gen_seq(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # start timing
@@ -254,9 +254,9 @@ def op2_gen_seq(master, date, consts, kernels):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
         if len(u) > 0 and vectorised[g_m] > 0:
           if accs[g_m] == OP_READ:
-            line = 'const TYP* ARG_vec[] = {\n'
+            line = 'const <TYP>* <ARG>_vec[] = {\n'
           else:
-            line = 'TYP* ARG_vec[] = {\n'
+            line = '<TYP>* <ARG>_vec[] = {\n'
 
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -264,7 +264,7 @@ def op2_gen_seq(master, date, consts, kernels):
         
           indent = ' '*(depth+2)
           for k in range(0,sum(v)):
-            line = line + indent + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
           line = line[:-2]+'};'
           code(line)
       code('')
@@ -324,13 +324,13 @@ def op2_gen_seq(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-#        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
+#        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         if typs[g_m] == 'double': #need for both direct and indirect
-          code('op_mpi_reduce_double(&ARG,('+typs[g_m]+'*)ARG.data);')
+          code('op_mpi_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         elif typs[g_m] == 'float':
-          code('op_mpi_reduce_float(&ARG,('+typs[g_m]+'*)ARG.data);')
+          code('op_mpi_reduce_float(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         elif typs[g_m] == 'int':
-          code('op_mpi_reduce_int(&ARG,('+typs[g_m]+'*)ARG.data);')
+          code('op_mpi_reduce_int(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         else:
           print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
           exit(-1)
@@ -353,12 +353,12 @@ def op2_gen_seq(master, date, consts, kernels):
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
-          IF('ARG.opt')
+          IF('<ARG>.opt')
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
     else:
@@ -381,7 +381,7 @@ def op2_gen_seq(master, date, consts, kernels):
         if not var[g_m] in names:
           names = names + [var[g_m]]
           if optflags[g_m]==1:
-            IF('ARG.opt')
+            IF('<ARG>.opt')
           if maps[g_m] == OP_ID:
             code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
           elif maps[g_m] == OP_GBL:
