@@ -276,6 +276,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
                                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
+    for nc in range(0,len(consts)): 
+      varname = consts[nc]['name']
+      body_text = re.sub('\\b'+varname+'\\b', varname+'_cuda',body_text)
+
     signature_text = '__device__ '+head_text + '_gpu( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
@@ -1178,14 +1182,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
 
-      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda['+num+'];')
   code('')
 
   comm('header')
@@ -1209,7 +1213,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE) {')
       code('printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);')
       ENDIF()
-    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+', dat, dim*size));')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*size));')
     ENDIF()
     code('else ')
 
