@@ -199,6 +199,9 @@ def op2_gen_openmp4(master, date, consts, kernels):
     signature_text = signature_text[l+1:m]
     body_text = kernel_text[i+j+1:k]
 
+    ## Replace occurrences of '#include "<FILE>"' within loop with the contents of <FILE>:
+    body_text = op2_gen_common.replace_local_includes_with_file_contents(body_text, os.path.dirname(master))
+
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
         print 'Error parsing user kernel(%s): must have %d arguments' \
