@@ -273,12 +273,11 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   const char *typ = dset_props.type_str;
   if (!op_type_equivalence(typ, type)) {
-    op_printf("dat.type %s in file %s and type %s do not match\n", typ, file,
+    op_printf("dat.type %s in file %s and type %s do not match, performing automatic conversion\n", typ, file,
               type);
-    exit(2);
   }
 
-  size_t dat_size = dset_props.elem_bytes;
+  size_t type_size;
 
   // Restore previous error handler .. report hdf5 error stack automatically
   H5error_on(old_func, old_client_data);
@@ -292,59 +291,28 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
       strcmp(type, "double precision") == 0 || strcmp(type, "real(8)") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(double));
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-    if (dat_size != dim * sizeof(double)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(double) do not match\n",
-                dat_size, file, dim);
-      exit(2);
-    } else
-      dat_size = sizeof(double);
+    type_size = sizeof(double);
 
   } else if (strcmp(type, "float") == 0 || strcmp(type, "float:soa") == 0 ||
              strcmp(type, "real(4)") == 0 || strcmp(type, "real") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(float));
     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-    if (dat_size != dim * sizeof(float)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(float) do not match\n",
-                dat_size, file, dim);
-      exit(2);
-    } else
-      dat_size = sizeof(float);
-
+    type_size = sizeof(float);
   } else if (strcmp(type, "int") == 0 || strcmp(type, "int:soa") == 0 ||
              strcmp(type, "int(4)") == 0 || strcmp(type, "integer") == 0 ||
              strcmp(type, "integer(4)") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(int));
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-    if (dat_size != dim * sizeof(int)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(int) do not match\n",
-                dat_size, file, dim);
-      exit(2);
-    } else
-      dat_size = sizeof(int);
+    type_size = sizeof(int);
   } else if (strcmp(type, "long") == 0 || strcmp(type, "long:soa") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(long));
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-    if (dat_size != dim * sizeof(long)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(long) do not match\n",
-                dat_size, file, dim);
-      exit(2);
-    } else
-      dat_size = sizeof(long);
+    type_size = sizeof(long);
   } else if (strcmp(type, "long long") == 0 ||
              strcmp(type, "long long:soa") == 0) {
     data = (char *)xmalloc(set->size * dim * sizeof(long long));
     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-    if (dat_size != dim * sizeof(long long)) {
-      op_printf("dat.size %lu in file %s and %d*sizeof(long long) do not match\n",
-                dat_size, file, dim);
-      exit(2);
-    } else
-      dat_size = sizeof(long long);
+    type_size = sizeof(long long);
   } else {
     op_printf("unknown type for dat\n");
     exit(2);
@@ -356,7 +324,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   free((char*)dset_props.type_str);
 
-  op_dat new_dat = op_decl_dat_char(set, dim, type, dat_size, data, name);
+  op_dat new_dat = op_decl_dat_char(set, dim, type, type_size, data, name);
   new_dat->user_managed = 0;
   return new_dat;
 }
@@ -656,9 +624,9 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   H5Dclose(dset_id);
   if (!op_type_equivalence(typ, type)) {
     op_printf(
-        "type of constant %s in file %s and requested type %s do not match\n",
+        "type of constant %s in file %s and requested type %s do not match, performing automatic type conversion\n",
         typ, file_name, type);
-    exit(2);
+    strcpy(typ,type);
   }
 
   // Create the dataset with default properties and close dataspace.

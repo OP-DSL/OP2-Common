@@ -43,7 +43,7 @@ ifeq ($(OP2_COMPILER),xl)
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qsmp=omp -qthreaded
-  OMPOFFLOAD	= -qoffload -Xptxas -v -g1
+  OMPOFFLOAD	= -qsmp=omp -qoffload -Xptxas -v -g1
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
 else
@@ -71,7 +71,7 @@ ifeq ($(OP2_COMPILER),clang)
   CCFLAGS  	= -O3 -ffast-math
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPOFFLOAD 	= $(OMPFLAGS) -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
@@ -145,7 +145,7 @@ HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 #
 # master to make all versions
 #
-ALL_TARGETS = clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh_seq convert_mesh_mpi
+ALL_TARGETS = clean airfoil_mpi airfoil_cuda airfoil_openmp airfoil_seq airfoil_mpi_genseq airfoil_mpi_cuda airfoil_mpi_cuda_hyb airfoil_mpi_openmp convert_mesh_seq #convert_mesh_mpi
 ifeq ($(OP2_COMPILER),pgi)
 	ALL_TARGETS += airfoil_openacc airfoil_mpi_openacc
 endif
@@ -299,11 +299,11 @@ airfoil_openmp4: airfoil_op.cpp openmp4/airfoil_omp4kernels.cpp openmp4/airfoil_
 			openmp4/bres_calc_omp4kernel_func.cpp  bres_calc.h openmp4/bres_calc_omp4kernel.cpp \
 			openmp4/update_omp4kernel_func.cpp     update.h    openmp4/update_omp4kernel.cpp \
 			Makefile
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT) \
 		-Iopenmp4/  -I. -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT) \
 		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
-	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
+	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		airfoil_op.cpp openmp4/airfoil_omp4kernels.o openmp4/airfoil_omp4kernel_funcs.o -o airfoil_openmp4 \
 	   	-lop2_openmp4 -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
 
@@ -315,11 +315,11 @@ airfoil_mpi_openmp4: airfoil_op.cpp openmp4/airfoil_omp4kernels.cpp openmp4/airf
 			openmp4/bres_calc_omp4kernel_func.cpp  bres_calc.h openmp4/bres_calc_omp4kernel.cpp \
 			openmp4/update_omp4kernel_func.cpp     update.h    openmp4/update_omp4kernel.cpp \
 			Makefile
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) \
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) \
 		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) \
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) \
 		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
-	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(CUDA_LIB) -lcudart  \
+	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(CUDA_LIB) -lcudart  \
 		airfoil_op.cpp openmp4/airfoil_omp4kernels.o openmp4/airfoil_omp4kernel_funcs.o -o airfoil_mpi_openmp4 \
 	   	-lop2_mpi_cuda $(HDF5_LIB) $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(CUDA_LIB) -lcudart
 #

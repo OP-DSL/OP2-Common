@@ -82,7 +82,7 @@ void op_par_loop_update(char const *name, op_set set,
   OP_kernels[4].count    += 1;
   OP_kernels[4].time     += wall_t2 - wall_t1;
   OP_kernels[4].transfer += (float)set->size * arg0.size;
-  OP_kernels[4].transfer += (float)set->size * arg1.size;
+  OP_kernels[4].transfer += (float)set->size * arg1.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg3.size;
 }

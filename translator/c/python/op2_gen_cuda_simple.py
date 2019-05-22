@@ -115,119 +115,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   for nk in range (0,len(kernels)):
 
-    name  = kernels[nk]['name']
-    nargs = kernels[nk]['nargs']
-    dims  = kernels[nk]['dims']
-    maps  = kernels[nk]['maps']
-    var   = kernels[nk]['var']
-    typs  = kernels[nk]['typs']
-    accs  = kernels[nk]['accs']
-    idxs  = kernels[nk]['idxs']
-    inds  = kernels[nk]['inds']
-    soaflags = kernels[nk]['soaflags']
-    decl_filepath = kernels[nk]['decl_filepath']
-
-    ninds   = kernels[nk]['ninds']
-    inddims = kernels[nk]['inddims']
-    indaccs = kernels[nk]['indaccs']
-    indtyps = kernels[nk]['indtyps']
-    invinds = kernels[nk]['invinds']
-    mapnames = kernels[nk]['mapnames']
-    invmapinds = kernels[nk]['invmapinds']
-    mapinds = kernels[nk]['mapinds']
-
-    nmaps = 0
-    if ninds > 0:
-      nmaps = max(mapinds)+1
-    nargs_novec = nargs
-
-    vec =  [m for m in range(0,nargs) if int(idxs[m])<0 and maps[m] == OP_MAP]
-    if len(vec) > 0:
-      unique_args = [1];
-      vec_counter = 1;
-      vectorised = []
-      new_dims = []
-      new_maps = []
-      new_vars = []
-      new_typs = []
-      new_accs = []
-      new_idxs = []
-      new_inds = []
-      new_soaflags = []
-      new_mapnames = []
-      for m in range(0,nargs):
-          if int(idxs[m])<0 and maps[m] == OP_MAP:
-            if m > 0:
-              unique_args = unique_args + [len(new_dims)+1]
-            temp = [0]*(-1*int(idxs[m]))
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = var[m]
-            new_vars = new_vars+temp
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = typs[m]
-            new_typs = new_typs+temp
-            for i in range(0,-1*int(idxs[m])):
-              temp[i] = dims[m]
-            new_dims = new_dims+temp
-            new_maps = new_maps+[maps[m]]*int(-1*int(idxs[m]))
-            new_mapnames = new_mapnames+[mapnames[m]]*int(-1*int(idxs[m]))
-            new_soaflags = new_soaflags+[soaflags[m]]*int(-1*int(idxs[m]))
-            new_accs = new_accs+[accs[m]]*int(-1*int(idxs[m]))
-            for i in range(0,-1*int(idxs[m])):
-              new_idxs = new_idxs+[i]
-            new_inds = new_inds+[inds[m]]*int(-1*int(idxs[m]))
-            vectorised = vectorised + [vec_counter]*int(-1*int(idxs[m]))
-            vec_counter = vec_counter + 1;
-          else:
-            if m > 0:
-              unique_args = unique_args + [len(new_dims)+1]
-            new_dims = new_dims+[dims[m]]
-            new_maps = new_maps+[maps[m]]
-            new_mapnames = new_mapnames+[mapnames[m]]
-            new_accs = new_accs+[int(accs[m])]
-            new_soaflags = new_soaflags+[soaflags[m]]
-            new_idxs = new_idxs+[int(idxs[m])]
-            new_inds = new_inds+[inds[m]]
-            new_vars = new_vars+[var[m]]
-            new_typs = new_typs+[typs[m]]
-            vectorised = vectorised+[0]
-      dims = new_dims
-      maps = new_maps
-      mapnames = new_mapnames
-      accs = new_accs
-      idxs = new_idxs
-      inds = new_inds
-      var = new_vars
-      typs = new_typs
-      soaflags = new_soaflags;
-      nargs = len(vectorised);
-      mapinds = [0]*nargs
-      for i in range(0,nargs):
-        mapinds[i] = i
-        for j in range(0,i):
-          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
-            mapinds[i] = mapinds[j]
-
-      for i in range(1,ninds+1):
-        for index in range(0,len(inds)+1):
-          if inds[index] == i:
-            invinds[i-1] = index
-            break
-      invmapinds = invinds[:]
-      for i in range(0,ninds):
-        for j in range(0,i):
-          if (mapnames[invinds[i]] == mapnames[invinds[j]]):
-            invmapinds[i] = invmapinds[j]
-    else:
-      vectorised = [0]*nargs
-      unique_args = range(1,nargs+1)
-
-    cumulative_indirect_index = [-1]*nargs;
-    j = 0;
-    for i in range (0,nargs):
-      if maps[i] == OP_MAP and ((not inc_stage) or accs[i] == OP_INC):
-        cumulative_indirect_index[i] = j
-        j = j + 1
+    name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
+           ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
+           unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk], inc_stage)
 
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
@@ -255,6 +145,20 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     if op_color2:
       inc_stage=0
 
+    optidxs = [0]*nargs
+    indopts = [-1]*nargs
+    nopts = 0
+    for i in range(0,nargs):
+      if optflags[i] == 1 and maps[i] == OP_ID:
+        optidxs[i] = nopts
+        nopts = nopts+1
+      elif optflags[i] == 1 and maps[i] == OP_MAP:
+        if i == invinds[inds[i]-1]: #i.e. I am the first occurence of this dat+map combination
+          optidxs[i] = nopts
+          indopts[inds[i]-1] = i
+          nopts = nopts+1
+        else:
+          optidxs[i] = optidxs[invinds[inds[i]-1]]
 
     j = -1
     for i in range(0,nargs):
@@ -279,8 +183,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if inds_staged[i] >= 0 and invinds_staged[inds_staged[i]] == -1:
           invinds_staged[inds_staged[i]] = i
           inddims_staged[inds_staged[i]] = dims[i]
-#          if optflags[i] == 1:
-#            indopts_staged[inds_staged[i]] = i
+          if optflags[i] == 1:
+            indopts_staged[inds_staged[i]] = i
       for i in range(0,nargs):
         inds_staged[i] = inds_staged[i] + 1
 
@@ -320,7 +224,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     if CPP:
       includes = op2_gen_common.extract_includes(kernel_text)
-      if len(includes) > 1:
+      if len(includes) > 0:
         for include in includes:
           code(include)
         code("")
@@ -351,8 +255,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel(%s): must have %d arguments' \
-              % name, nargs
+        print 'Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments'
         return
 
     for i in range(0,nargs_novec):
@@ -383,6 +286,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     depth = 2
 
+    if nopts > 0:
+      code('int optflags,')
+      
     for g_m in range(0,ninds):
       if (indaccs[g_m]==OP_READ):
         code('const INDTYP *__restrict INDARG,')
@@ -449,7 +355,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2:
         code('TYP ARG_l[DIM];')
 
-    if ninds==0 or not op_color2:
+    if not op_color2:
       for m in range (1,ninds+1):
         g_m = m -1
         v = [int(inds[i]==m) for i in range(len(inds))]
@@ -502,7 +408,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       if inc_stage==1 and ind_inc:
         for g_m in range (0,ninds_staged):
+          if indopts_staged[g_m-1] > 0:
+            IF('optflags & 1<<'+str(optidxs[indopts_staged[g_m-1]]))
           code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_size = ind_arg_sizes['+str(g_m)+'+blockId*'+ str(ninds_staged)+'];')
+          if indopts_staged[g_m-1] > 0:
+            ENDIF()
 
         code('')
         for m in range (1,ninds_staged+1):
@@ -518,7 +428,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         for g_m in range(0,ninds_staged):
           code('ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_s = ('+typs[invinds_staged[g_m]]+' *) &shared[nbytes];')
           if g_m < ninds_staged-1:
+            if indopts_staged[g_m-1] > 0:
+              IF('optflags & 1<<'+str(optidxs[indopts_staged[g_m-1]]))
             code('nbytes    += ROUND_UP(ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_size*sizeof('+typs[invinds_staged[g_m]]+')*'+dims[invinds_staged[g_m]]+');')
+            if indopts_staged[g_m-1] > 0:
+              ENDIF()
 
 
       ENDIF()
@@ -560,14 +474,28 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
 
+      #non-optional maps
       k = []
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-          k = k + [mapinds[g_m]]
+        if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
+          k = k + [(0*nargs+mapinds[g_m])] #non-opt
+          k = k + [(1*nargs+mapinds[g_m])] #opt
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+
+      #whatever didn't come up and is opt
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and ((not (optflags[g_m]*nargs+mapinds[g_m]) in k) and (not mapinds[g_m] in      k)):
+          k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
+          if optflags[g_m]==1:
+            IF('optflags & 1<<'+str(optidxs[g_m]))
+
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+          if optflags[g_m]==1:
+            ENDIF()
+ 
       code('')
       for g_m in range (0,nargs):
-        if accs[g_m] <> OP_INC:
+        if accs[g_m] <> OP_INC: #TODO: add opt handling here
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
             if accs[g_m] == OP_READ:
@@ -595,11 +523,53 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('if(tid + start >= end) return;')
       code('int n = col_reord[tid + start];')
       comm('initialise local variables')
+      #mapidx declarations
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
-          code('int map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('int map'+str(mapinds[g_m])+'idx;')
+
+      #non-optional maps
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
+          k = k + [(0*nargs+mapinds[g_m])] #non-opt
+          k = k + [(1*nargs+mapinds[g_m])] #opt
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+
+      #whatever didn't come up and is opt
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and ((not (optflags[g_m]*nargs+mapinds[g_m]) in k) and (not mapinds[g_m] in      k)):
+          k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
+          if optflags[g_m]==1:
+            IF('optflags & 1<<'+str(optidxs[g_m]))
+
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          if optflags[g_m]==1:
+            ENDIF()
+
+      for g_m in range (0,nargs):
+          u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
+          if len(u) > 0 and vectorised[g_m] > 0:
+            if accs[g_m] == OP_READ:
+              line = 'const TYP* ARG_vec[] = {\n'
+            else:
+              line = 'TYP* ARG_vec[] = {\n'
+
+            v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+            first = [i for i in range(0,len(v)) if v[i] == 1]
+            first = first[0]
+
+            indent = ' '*(depth+2)
+            for k in range(0,sum(v)):
+              if soaflags[g_m]:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+              else:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line[:-2]+'};'
+            code(line)
+
 
 
 
@@ -692,6 +662,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if inc_stage==1:
           for g_m in range(0,nargs):
             if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              if optflags[g_m]==1:
+                IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'_s[ARG_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size];')
@@ -705,9 +677,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                 else:
                   code('ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+ARG_map*DIM] = ARG_l['+str(d)+'];')
                 
+              if optflags[g_m]==1:
+                ENDIF()
         else:
           for g_m in range(0,nargs):
             if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              if optflags[g_m]==1:
+                IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
                   code('ARG_l['+str(d)+'] += ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx];')
@@ -720,6 +696,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                   code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] = ARG_l['+str(d)+'];')
                 else:
                   code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM] = ARG_l['+str(d)+'];')
+              if optflags[g_m]==1:
+                ENDIF()
 
         ENDFOR()
         code('__syncthreads();')
@@ -730,6 +708,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     if inc_stage:
       for g_m in range(0,ninds):
         if indaccs[g_m]==OP_INC:
+          if indopts[g_m] > 0:
+            IF('optflags & 1<<'+str(optidxs[indopts[g_m-1]]))
           if soaflags[invinds[g_m]]:
             FOR_INC('n','threadIdx.x','INDARG_size','blockDim.x')
             for d in range(0,int(dims[invinds[g_m]])):
@@ -741,6 +721,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             FOR_INC('n','threadIdx.x','INDARG_size*INDDIM','blockDim.x')
             code('INDARG[n%INDDIM+INDARG_map[n/INDDIM]*INDDIM] += INDARG_s[n];')
             ENDFOR()
+          if indopts[g_m] > 0:
+            ENDIF()
 
 #
 # global reduction
@@ -802,8 +784,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
+        if (optflags[g_m] == 1):
+          argtyp = 'op_opt_arg_dat(arg'+str(first)+'.opt, '
+        else:
+          argtyp = 'op_arg_dat('
+
         FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
+        code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
         str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
@@ -813,6 +800,15 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('args['+str(g_m)+'] = ARG;')
 
+    if nopts>0:
+      code('int optflags = 0;')
+      for i in range(0,nargs):
+        if optflags[i] == 1:
+          IF('args['+str(i)+'].opt')
+          code('optflags |= 1<<'+str(optidxs[i])+';')
+          ENDIF()
+    if nopts > 30:
+      print 'ERROR: too many optional arguments to store flags in an integer'
 #
 # start timing
 #
@@ -1013,6 +1009,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
 
+      if nopts > 0:
+        code('optflags,')
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
         code('(TYP *)ARG.data_d,')
@@ -1065,6 +1063,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
 
       indent = '  '#*(len(name)+42)
+      if nopts > 0:
+        code(indent+'optflags,')
       for g_m in range(0,nargs):
         if g_m > 0:
           code(indent+'(TYP *) ARG.data_d,')
@@ -1133,12 +1133,15 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
+        if optflags[g_m]==1:
+          IF('ARG.opt')
         if maps[g_m]<>OP_GBL:
-          if accs[g_m]==OP_READ or accs[g_m]==OP_WRITE:
+          if accs[g_m]==OP_READ:
             code(line+' ARG.size;')
           else:
             code(line+' ARG.size * 2.0f;')
-
+        if optflags[g_m]==1:
+          ENDIF()
     depth = depth - 2
     code('}')
 
@@ -1162,16 +1165,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 ##########################################################################
 
   file_text = ''
-  if os.path.exists('./user_types.h'):
-    code('#define OP_FUN_PREFIX __device__ __host__')
-    code('#include "../user_types.h"')
-  comm('header')
-  code('#include "op_lib_cpp.h"')
-  code('')
-  code('#include "op_cuda_rt_support.h"')
-  code('#include "op_cuda_reduction.h"')
-  code('')
+
   comm('global constants')
+
   code('#ifndef MAX_CONST_SIZE')
   code('#define MAX_CONST_SIZE 128')
   code('#endif')
@@ -1187,6 +1183,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         num = 'MAX_CONST_SIZE'
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
+
+  comm('header')
+
+  if os.path.exists('./user_types.h'):
+    code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
+    code('#include "../user_types.h"')
+  code('#include "op_lib_cpp.h"')
+  code('#include "op_cuda_rt_support.h"')
+  code('#include "op_cuda_reduction.h"')
 
   code('')
   code('void op_decl_const_char(int dim, char const *type,')

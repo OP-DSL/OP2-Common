@@ -8,7 +8,7 @@ __constant__ int direct_res_calc_stride_OP2CONSTANT;
 int direct_res_calc_stride_OP2HOST=-1;
 //user function
 __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
-                      double **res) {
+                      double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
       K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
@@ -78,113 +78,56 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
 // CUDA kernel function
 __global__ void op_cuda_res_calc(
+  int optflags,
   const double *__restrict ind_arg0,
   const double *__restrict ind_arg1,
   double *__restrict ind_arg2,
+  double *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   double *arg8,
-  int    block_offset,
-  int   *blkmap,
-  int   *offset,
-  int   *nelems,
-  int   *ncolors,
-  int   *colors,
-  int   nblocks,
+  int start,
+  int end,
+  int *col_reord,
   int   set_size) {
-  double arg9_l[1];
-  double arg10_l[1];
-  double arg11_l[1];
-  double arg12_l[1];
-  double *arg9_vec[4] = {
-    arg9_l,
-    arg10_l,
-    arg11_l,
-    arg12_l,
-  };
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if(tid + start >= end) return;
+  int n = col_reord[tid + start];
+  //initialise local variables
+  int map0idx;
+  int map1idx;
+  int map2idx;
+  int map3idx;
+  map0idx = opDat0Map[n + set_size * 0];
+  map1idx = opDat0Map[n + set_size * 1];
+  map2idx = opDat0Map[n + set_size * 2];
+  map3idx = opDat0Map[n + set_size * 3];
+  const double* arg0_vec[] = {
+     &ind_arg0[2 * map0idx],
+     &ind_arg0[2 * map1idx],
+     &ind_arg0[2 * map2idx],
+     &ind_arg0[2 * map3idx]};
+  const double* arg4_vec[] = {
+     &ind_arg1[1 * map0idx],
+     &ind_arg1[1 * map1idx],
+     &ind_arg1[1 * map2idx],
+     &ind_arg1[1 * map3idx]};
+  double* arg9_vec[] = {
+     &ind_arg2[1 * map0idx],
+     &ind_arg2[1 * map1idx],
+     &ind_arg2[1 * map2idx],
+     &ind_arg2[1 * map3idx]};
+  double* arg13_vec[] = {
+     &ind_arg3[2 * map0idx],
+     &ind_arg3[2 * map1idx],
+     &ind_arg3[2 * map2idx],
+     &ind_arg3[2 * map3idx]};
 
-  __shared__ int    nelems2, ncolor;
-  __shared__ int    nelem, offset_b;
-
-  extern __shared__ char shared[];
-
-  if (blockIdx.x+blockIdx.y*gridDim.x >= nblocks) {
-    return;
-  }
-  if (threadIdx.x==0) {
-
-    //get sizes and shift pointers and direct-mapped data
-
-    int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];
-
-    nelem    = nelems[blockId];
-    offset_b = offset[blockId];
-
-    nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
-    ncolor   = ncolors[blockId];
-
-  }
-  __syncthreads(); // make sure all of above completed
-
-  for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
-    int col2 = -1;
-    int map0idx;
-    int map1idx;
-    int map2idx;
-    int map3idx;
-    if (n<nelem) {
-      //initialise local variables
-      for ( int d=0; d<1; d++ ){
-        arg9_l[d] = ZERO_double;
-      }
-      for ( int d=0; d<1; d++ ){
-        arg10_l[d] = ZERO_double;
-      }
-      for ( int d=0; d<1; d++ ){
-        arg11_l[d] = ZERO_double;
-      }
-      for ( int d=0; d<1; d++ ){
-        arg12_l[d] = ZERO_double;
-      }
-      map0idx = opDat0Map[n + offset_b + set_size * 0];
-      map1idx = opDat0Map[n + offset_b + set_size * 1];
-      map2idx = opDat0Map[n + offset_b + set_size * 2];
-      map3idx = opDat0Map[n + offset_b + set_size * 3];
-
-      const double* arg0_vec[] = {
-         &ind_arg0[2 * map0idx],
-         &ind_arg0[2 * map1idx],
-         &ind_arg0[2 * map2idx],
-         &ind_arg0[2 * map3idx]};
-      const double* arg4_vec[] = {
-         &ind_arg1[1 * map0idx],
-         &ind_arg1[1 * map1idx],
-         &ind_arg1[1 * map2idx],
-         &ind_arg1[1 * map3idx]};
-
-      //user-supplied kernel call
-      res_calc_gpu(arg0_vec,
+  //user-supplied kernel call
+  res_calc_gpu(arg0_vec,
              arg4_vec,
-             arg8+(n+offset_b),
-             arg9_vec);
-      col2 = colors[n+offset_b];
-    }
-
-    //store local variables
-
-    for ( int col=0; col<ncolor; col++ ){
-      if (col2==col) {
-        arg9_l[0] += ind_arg2[0+map0idx*1];
-        ind_arg2[0+map0idx*1] = arg9_l[0];
-        arg10_l[0] += ind_arg2[0+map1idx*1];
-        ind_arg2[0+map1idx*1] = arg10_l[0];
-        arg11_l[0] += ind_arg2[0+map2idx*1];
-        ind_arg2[0+map2idx*1] = arg11_l[0];
-        arg12_l[0] += ind_arg2[0+map3idx*1];
-        ind_arg2[0+map3idx*1] = arg12_l[0];
-      }
-      __syncthreads();
-    }
-  }
+             arg8+n,
+             arg9_vec,
+             arg13_vec);
 }
 
 
@@ -193,10 +136,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
   op_arg arg0,
   op_arg arg4,
   op_arg arg8,
-  op_arg arg9){
+  op_arg arg9,
+  op_arg arg13){
 
-  int nargs = 13;
-  op_arg args[13];
+  int nargs = 17;
+  op_arg args[17];
 
   arg0.idx = 0;
   args[0] = arg0;
@@ -214,9 +158,43 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_arg_dat(arg9.dat, v, arg9.map, 1, "double", OP_INC);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_RW);
   }
 
+  arg13.idx = 0;
+  args[13] = arg13;
+  for ( int v=1; v<4; v++ ){
+    args[13 + v] = op_opt_arg_dat(arg13.opt, arg13.dat, v, arg13.map, 2, "double", OP_INC);
+  }
+
+  int optflags = 0;
+  if (args[8].opt) {
+    optflags |= 1<<0;
+  }
+  if (args[9].opt) {
+    optflags |= 1<<1;
+  }
+  if (args[10].opt) {
+    optflags |= 1<<1;
+  }
+  if (args[11].opt) {
+    optflags |= 1<<1;
+  }
+  if (args[12].opt) {
+    optflags |= 1<<1;
+  }
+  if (args[13].opt) {
+    optflags |= 1<<2;
+  }
+  if (args[14].opt) {
+    optflags |= 1<<2;
+  }
+  if (args[15].opt) {
+    optflags |= 1<<2;
+  }
+  if (args[16].opt) {
+    optflags |= 1<<2;
+  }
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -226,8 +204,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
   OP_kernels[0].count    += 1;
 
 
-  int    ninds   = 3;
-  int    inds[13] = {0,0,0,0,1,1,1,1,-1,2,2,2,2};
+  int    ninds   = 4;
+  int    inds[17] = {0,0,0,0,1,1,1,1,-1,2,2,2,2,3,3,3,3};
 
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
@@ -243,7 +221,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
 
     if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -254,8 +232,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
       cudaMemcpyToSymbol(direct_res_calc_stride_OP2CONSTANT,&direct_res_calc_stride_OP2HOST,sizeof(int));
     }
     //execute plan
-
-    int block_offset = 0;
     for ( int col=0; col<Plan->ncolors; col++ ){
       if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
@@ -266,26 +242,22 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int nthread = OP_block_size;
       #endif
 
-      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
-      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
-      if (Plan->ncolblk[col] > 0) {
-        op_cuda_res_calc<<<nblocks,nthread>>>(
-        (double *)arg0.data_d,
-        (double *)arg4.data_d,
-        (double *)arg9.data_d,
-        arg0.map_data_d,
-        (double*)arg8.data_d,
-        block_offset,
-        Plan->blkmap,
-        Plan->offset,
-        Plan->nelems,
-        Plan->nthrcol,
-        Plan->thrcol,
-        Plan->ncolblk[col],
-        set->size+set->exec_size);
+      int start = Plan->col_offsets[0][col];
+      int end = Plan->col_offsets[0][col+1];
+      int nblocks = (end - start - 1)/nthread + 1;
+      op_cuda_res_calc<<<nblocks,nthread>>>(
+      optflags,
+      (double *)arg0.data_d,
+      (double *)arg4.data_d,
+      (double *)arg9.data_d,
+      (double *)arg13.data_d,
+      arg0.map_data_d,
+      (double*)arg8.data_d,
+      start,
+      end,
+      Plan->col_reord,
+      set->size+set->exec_size);
 
-      }
-      block_offset += Plan->ncolblk[col];
     }
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;
