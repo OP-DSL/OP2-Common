@@ -73,7 +73,6 @@ endif
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
-  CC       := gcc
   CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall
   CXX      := g++
   CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
@@ -81,7 +80,6 @@ ifeq ($(OP2_COMPILER),gnu)
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
-  CC        := icc
   ifdef DEBUG
     CCFLAGS := -O0 -g -pg
   else
@@ -93,7 +91,6 @@ ifeq ($(OP2_COMPILER),intel)
   MPIFLAGS  := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
-  CC        := xlc
   ifdef DEBUG
     CCFLAGS := -O0 -g
   else
@@ -106,7 +103,6 @@ ifeq ($(OP2_COMPILER),xl)
   OMP4FLAGS := -qsmp=omp -qoffload
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CC	   := pgcc
   CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
   ifdef DEBUG
     CCFLAGS := -g -O0
@@ -120,7 +116,6 @@ ifeq ($(OP2_COMPILER),pgi)
   # NVCCFLAGS += -ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),cray)
-  CC       := cc
   CCFLAGS  := -O3
   CXX      := CC
   CXXFLAGS := $(CCFLAGS)
@@ -128,7 +123,6 @@ ifeq ($(OP2_COMPILER),cray)
   MPIFLAGS := $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
-  CC	     := clang
   ifdef DEBUG
     CCFLAGS  := -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
   else
