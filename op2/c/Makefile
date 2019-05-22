@@ -150,6 +150,13 @@ endif
 endif
 endif
 
+ifdef CPP_WRAPPER
+	CXX := $(CPP_WRAPPER)
+endif
+ifdef MPICPP_WRAPPER
+	MPICXX := $(MPICPP_WRAPPER)
+endif
+
 # flags for nvcc
 # set NV_ARCH to select the correct one
 ifndef NV_ARCH
