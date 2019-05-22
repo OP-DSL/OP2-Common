@@ -7,7 +7,7 @@ unset LD_LIBRARY_PATH
 
 #OP2 specifics
 export OP2_COMPILER=intel
-export OP2_INSTALL_PATH=/home/mgiles/mudalige/OP2-GIT/OP2-Common/op2/
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
 unset OP_AUTO_SOA
 #export OP_AUTO_SOA=1
 
@@ -15,10 +15,10 @@ unset OP_AUTO_SOA
 export PARMETIS_INSTALL_PATH=/opt/parmetis-intel/
 export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-intel/
 #export HDF5_INSTALL_PATH=/opt/hdf5-intel/
-#export HDF5_INSTALL_PATH=/home/mgiles/mudalige/hdf5-1.10.1-intel
-export HDF5_INSTALL_PATH=/home/mgiles/mudalige/hdf5-1.8.19-intel
-#export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mgiles/mudalige/hdf5-1.10.1-intel/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mgiles/mudalige/hdf5-1.8.19-intel/lib:$LD_LIBRARY_PATH
+#export HDF5_INSTALL_PATH=/home/mudalige/hdf5-1.10.1-intel
+export HDF5_INSTALL_PATH=/home/mudalige/hdf5-1.8.19-intel
+#export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mudalige/hdf5-1.10.1-intel/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mudalige/hdf5-1.8.19-intel/lib:$LD_LIBRARY_PATH
 
 
 #NVIDIA CUDA

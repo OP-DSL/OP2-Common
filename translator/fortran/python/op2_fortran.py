@@ -252,7 +252,7 @@ def get_opt_arg_dat(arg_string, j):
 
   #check for syntax errors
   if len(dat_args_string.split(',')) <> 7:
-    print 'Error parsing op_arg_dat(%s): must have six arguments' \
+    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
           % dat_args_string
     return
 
@@ -925,7 +925,7 @@ if npart==0 and nhdf5>0:
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
 op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups

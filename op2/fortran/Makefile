@@ -58,7 +58,7 @@ MPI_LIB = $(MPI_INSTALL_PATH)/lib
 # set NV_ARCH to select the correct one
 ifndef NV_ARCH
   MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
-  NV_ARCH=Kepler
+  NV_ARCH=Pascal
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
@@ -489,7 +489,7 @@ clean:
 	-rm -if $(F_OP2_OBJ)/*.o
 	-rm -if $(F_OP2_LIB)/*.a
 	-rm -if $(F_OP2_SRC)/*~
-	-rm -if $(F_OP2_SRC)/*~
+	-rm -if $(F_OP2_OBJ)/*.optrpt
 	-rm -if $(F_OP2_SRC)/op2_for_reference.c
 	-rm -if $(F_OP2_SRC)/op2_cpp_reference.F90
 	-rm -if $(F_OP2_MOD)/*.mod

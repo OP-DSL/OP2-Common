@@ -54,7 +54,7 @@ from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 from op2_gen_openmp4 import op2_gen_openmp4
 
-arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
+from op2_gen_common import *
 
 # from http://stackoverflow.com/a/241506/396967
 def comment_remover(text):
@@ -85,153 +85,6 @@ def op_parse_calls(text):
   hdf5s = len(re.findall('hdf5', text))
 
   return (inits, exits, parts, hdf5s)
-
-def op_parse_macro_defs(text):
-  """Parsing for C macro definitions"""
-
-  defs = {}
-  macro_def_pattern = r'(\n|^)[ ]*(#define[ ]+)([A-Za-z0-9\_]+)[ ]+([0-9A-Za-z\_\.\+\-\*\/\(\) ]+)'
-  for match in re.findall(macro_def_pattern, text):
-    if len(match) < 4:
-      continue
-    elif len(match) > 4:
-      print("Unexpected format for macro definition: " + str(match))
-      continue
-    key = match[2]
-    value = match[3]
-    defs[key] = value
-    # print(key + " -> " + value)
-  return defs
-
-def self_evaluate_macro_defs(macro_defs):
-  """Recursively evaluate C macro definitions that refer to other detected macros"""
-
-  ## First, calculate the expected number of substitutions to perform:
-  num_subs_expected = 0
-  for k in macro_defs.keys():
-    k_val = macro_defs[k]
-    m = re.search(arithmetic_regex_pattern, k_val)
-    if m != None:
-      continue
-
-    pattern = r'' + '([a-zA-Z0-9_]+)'
-    occurences = re.findall(pattern, k_val)
-    for o in occurences:
-      m = re.search(arithmetic_regex_pattern, o)
-      if m == None:
-        if o in macro_defs.keys():
-          num_subs_expected = num_subs_expected + 1
-
-  substitutions_performed = True
-  num_subs_performed = 0
-  while substitutions_performed:
-    substitutions_performed = False
-    for k in macro_defs.keys():
-      k_val = macro_defs[k]
-      m = re.search(arithmetic_regex_pattern, k_val)
-      if m != None:
-        ## This macro definiton is numeric
-        continue
-
-      if k == k_val:
-        del macro_defs[k]
-        continue
-
-      ## If value of key 'k' depends on value of other
-      ## keys, then substitute in value:
-      for k2 in macro_defs.keys():
-        if k == k2:
-          continue
-
-        pattern = r'' + '(^|[^a-zA-Z0-9_])' + k2 + '($|[^a-zA-Z0-9_])'
-        m = re.search(pattern, k_val)
-
-        if m != None:
-          ## The macro "k" refers to macro "k2"
-          k2_val = macro_defs[k2]
-
-          m = re.search(arithmetic_regex_pattern, k2_val)
-          if m == None:
-            # 'k2_val' has not been resolved. Wait for this to occur before
-            # substituting its value into 'k_val', as this minimises the total 
-            # number of substitutions performed across all macros and so 
-            # improves detection of infinite substitution loops.
-            continue
-
-          macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
-          # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
-          substitutions_performed = True
-
-          num_subs_performed = num_subs_performed + 1
-          if num_subs_performed > num_subs_expected:
-            print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
-            return
-
-  ## Evaluate any mathematical expressions:
-  for k in macro_defs.keys():
-    val = macro_defs[k]
-    m = re.search(arithmetic_regex_pattern, val)
-    if m != None:
-      res = ""
-      try:
-        res = eval(val)
-      except:
-        pass
-      if type(res) != type(""):
-        if str(res) != val:
-          # print("Replacing '" + val + "' with '" + str(res) + "'")
-          macro_defs[k] = str(res)
-
-def evaluate_macro_defs_in_string(macro_defs, string):
-  """Recursively evaluate C macro definitions in 'string' """
-
-  ## First, calculate the expected number of substitutions to perform:
-  num_subs_expected = 0
-  m = re.search(arithmetic_regex_pattern, string)
-  if m == None:
-    pattern = r'' + '([a-zA-Z0-9_]+)'
-    occurences = re.findall(pattern, string)
-    for o in occurences:
-      m = re.search(arithmetic_regex_pattern, o)
-      if m == None:
-        if o in macro_defs.keys():
-          num_subs_expected = num_subs_expected + 1
-
-  resolved_string = string
-
-  substitutions_performed = True
-  num_subs_performed = 0
-  while substitutions_performed:
-    substitutions_performed = False
-    for k in macro_defs.keys():
-      k_val = macro_defs[k]
-
-      k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
-      m = re.search(k_pattern, resolved_string)
-      if m != None:
-        ## "string" contains a reference to macro "k", so substitute in its definition:
-        resolved_string_new = re.sub(k_pattern, "\\g<1>"+k_val+"\\g<2>", resolved_string)
-        # print("Performing a substitution of '" + k + "'->'" + k_val + "' into '" + resolved_string + "'' to produce '" + resolved_string_new + "'")
-        resolved_string = resolved_string_new
-        substitutions_performed = True
-
-        num_subs_performed = num_subs_performed + 1
-        if num_subs_performed > num_subs_expected:
-          print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
-          return
-
-
-  if re.search(arithmetic_regex_pattern, resolved_string) != None:
-    res = ""
-    try:
-      res = eval(resolved_string)
-    except:
-      return resolved_string
-    else:
-      if type(res) != type(""):
-        resolved_string = str(res)
-
-  return resolved_string
 
 def op_decl_set_parse(text):
   """Parsing for op_decl_set calls"""
@@ -323,7 +176,33 @@ def get_arg_dat(arg_string, j):
         'map': dat_args_string.split(',')[2].strip(),
         'dim': dat_args_string.split(',')[3].strip(),
         'typ': dat_args_string.split(',')[4].strip(),
-        'acc': dat_args_string.split(',')[5].strip()}
+        'acc': dat_args_string.split(',')[5].strip(),
+        'opt':''}
+
+  return temp_dat
+
+def get_opt_arg_dat(arg_string, j):
+  loc = arg_parse(arg_string, j + 1)
+  dat_args_string = arg_string[arg_string.find('(', j) + 1:loc]
+
+  # remove comments
+  dat_args_string = comment_remover(dat_args_string)
+  # check for syntax errors
+  if len(dat_args_string.split(',')) != 7:
+    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
+        % dat_args_string
+    return
+
+  # split the dat_args_string into  6 and create a struct with the elements
+  # and type as op_arg_dat
+  temp_dat = {'type': 'op_opt_arg_dat',
+        'opt': dat_args_string.split(',')[0].strip(),
+        'dat': dat_args_string.split(',')[1].strip(),
+        'idx': dat_args_string.split(',')[2].strip(),
+        'map': dat_args_string.split(',')[3].strip(),
+        'dim': dat_args_string.split(',')[4].strip(),
+        'typ': dat_args_string.split(',')[5].strip(),
+        'acc': dat_args_string.split(',')[6].strip()}
 
   return temp_dat
 
@@ -347,7 +226,8 @@ def get_arg_gbl(arg_string, k):
         'data': gbl_args_string.split(',')[0].strip(),
         'dim': gbl_args_string.split(',')[1].strip(),
         'typ': gbl_args_string.split(',')[2].strip(),
-        'acc': gbl_args_string.split(',')[3].strip()}
+        'acc': gbl_args_string.split(',')[3].strip(),
+        'opt':''}
 
   return temp_gbl
 
@@ -373,37 +253,33 @@ def op_par_loop_parse(text):
     # parse each op_arg_dat
     search2 = "op_arg_dat"
     search3 = "op_arg_gbl"
+    search4 = "op_opt_arg_dat"
     j = arg_string.find(search2)
     k = arg_string.find(search3)
+    l = arg_string.find(search4)
 
-    while j > -1 or k > -1:
-      if k <= -1:
+    while j > -1 or k > -1 or l > -1:
+      index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint )
+      if index == j:
         temp_dat = get_arg_dat(arg_string, j)
         # append this struct to a temporary list/array
         temp_args.append(temp_dat)
         num_args = num_args + 1
         j = arg_string.find(search2, j + 11)
 
-      elif j <= -1:
+      elif index == k:
         temp_gbl = get_arg_gbl(arg_string, k)
         # append this struct to a temporary list/array
         temp_args.append(temp_gbl)
         num_args = num_args + 1
         k = arg_string.find(search3, k + 11)
 
-      elif j < k:
-        temp_dat = get_arg_dat(arg_string, j)
+      elif index == l:
+        temp_dat = get_opt_arg_dat(arg_string, l)
         # append this struct to a temporary list/array
         temp_args.append(temp_dat)
         num_args = num_args + 1
-        j = arg_string.find(search2, j + 11)
-
-      else:
-        temp_gbl = get_arg_gbl(arg_string, k)
-        # append this struct to a temporary list/array
-        temp_args.append(temp_gbl)
-        num_args = num_args + 1
-        k = arg_string.find(search3, k + 11)
+        l = arg_string.find(search4, l + 15)
 
     temp = {'loc': i,
         'name1': arg_string.split(',')[0].strip(),
@@ -572,6 +448,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       typs = [''] * nargs
       accs = [0] * nargs
       soaflags = [0] * nargs
+      optflags = [0] * nargs
+      any_opt = 0
 
       for m in range(0, nargs):
         argm = loop_args[i]['args'][m]
@@ -580,12 +458,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         arg_type = loop_args[i]['args'][m]['type']
         args = loop_args[i]['args'][m]
 
-        if arg_type.strip() == 'op_arg_dat':
+        if arg_type.strip() == 'op_arg_dat' or arg_type.strip() == 'op_opt_arg_dat':
           argm['idx'] = evaluate_macro_defs_in_string(macro_defs, argm['idx'])
 
-        if arg_type.strip() == 'op_arg_dat':
+        if arg_type.strip() == 'op_arg_dat' or arg_type.strip() == 'op_opt_arg_dat':
           var[m] = args['dat']
           idxs[m] = args['idx']
+          if arg_type.strip() == 'op_opt_arg_dat':
+            any_opt = 1
 
           if str(args['map']).strip() == 'OP_ID':
             maps[m] = OP_ID
@@ -618,11 +498,17 @@ def main(srcFilesAndDirs=sys.argv[1:]):
           else:
             accs[m] = l + 1
 
+        if arg_type.strip() == 'op_opt_arg_dat':
+          optflags[m] = 1
+        else:
+          optflags[m] = 0
+
         if arg_type.strip() == 'op_arg_gbl':
           maps[m] = OP_GBL
           var[m] = args['data']
           dims[m] = args['dim']
           typs[m] = args['typ'][1:-1]
+          optflags[m] = 0
 
           l = -1
           for l in range(0, len(OP_accs_labels)):
@@ -708,6 +594,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               kernels[nk]['accs'][arg] == accs[arg] and \
               kernels[nk]['idxs'][arg] == idxs[arg] and \
               kernels[nk]['soaflags'][arg] == soaflags[arg] and \
+              kernels[nk]['optflags'][arg] == optflags[arg] and \
               kernels[nk]['inds'][arg] == inds[arg]
 
           for arg in range(0, ninds):
@@ -746,6 +633,11 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             print str(arg),
         if ninds > 0:
           print '\n  number of indirect datasets: ' + str(ninds),
+        if any_opt:
+          print '\n  optional arguments:',
+          for arg in range(0, nargs):
+            if optflags[arg] == 1:
+              print str(arg),
 
         print '\n'
 
@@ -763,6 +655,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             'idxs': idxs,
             'inds': inds,
             'soaflags': soaflags,
+            'optflags': optflags,
 
             'ninds': ninds,
             'inddims': inddims,
@@ -887,6 +780,13 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               ',' + elem['idx'] + ',' + elem['map'] + \
               ',' + elem['dim'] + ',' + elem['typ'] + \
               ',' + elem['acc'] + '),\n' + indent
+          elif elem['type'] == 'op_opt_arg_dat':
+            line = line + elem['type'] + '(' \
+                  + elem['opt'] + ',' + elem['dat'] + \
+              ',' + elem['idx'] + ',' + elem['map'] + \
+              ',' + elem['dim'] + ',' + elem['typ'] + \
+              ',' + elem['acc'] + '),\n' + indent
+
           elif elem['type'] == 'op_arg_gbl':
             line = line + elem['type'] + '(' + elem['data'] + \
               ',' + elem['dim'] + ',' + elem['typ'] + \
@@ -1009,7 +909,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   #code generators for NVIDIA GPUs with CUDA
   #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
-  op2_gen_cuda_simple(masterFile, date, consts, kernels, sets) # Optimized for Kepler GPUs
+  op2_gen_cuda_simple(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
 
   # generates openmp code as well as cuda code into the same file
   op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application

@@ -12,7 +12,6 @@
 import re
 import datetime
 import glob
-import os
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -140,7 +139,7 @@ def para_parse(text, j, op_b, cl_b):
                 return loc2
       loc2 = loc2 + 1
 
-def op2_gen_mpi_vec(master, date, consts, kernels):
+def op2_gen_omp_vec(master, date, consts, kernels):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
@@ -161,7 +160,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 ##########################################################################
 
   for nk in range (0,len(kernels)):
-
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
             unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
@@ -212,6 +210,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 # - direct kernels can be vectorised without modification
 #
     if indirect_kernel:
+      if ind_inc:
+        code('#define VECTORIZE')
       code('#ifdef VECTORIZE')
       comm('user function -- modified for vectorisation')
       f = open(file_name, 'r')
@@ -313,6 +313,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
+
         if (optflags[g_m] == 1):
           argtyp = 'op_opt_arg_dat(arg'+str(first)+'.opt, '
         else:
@@ -331,6 +332,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
 # create aligned pointers
 #
+    reduce_clauses = ''
+    aligned_clauses = ''
     comm('create aligned pointers for dats')
     for g_m in range (0,nargs):
         if maps[g_m] <> OP_GBL:
@@ -340,15 +343,28 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             #code('TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
             #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
             code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
+            aligned_clauses = aligned_clauses + 'ptr'+str(g_m)+','
 
           else:
             code('ALIGNED_TYP const TYP * __restrict__ ptr'+\
             str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
             code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
+            aligned_clauses = aligned_clauses + 'ptr'+str(g_m)+','
             #code('const TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
             #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+        elif accs[g_m]==OP_MIN or accs[g_m]==OP_MAX or accs[g_m]==OP_INC:
+          if not dims[g_m].isdigit() or int(dims[g_m])>1:
+            print 'Error reduce dim < 1'
+            exit(2) 
+          code('TYP ARGh = *(TYP *)arg'+str(g_m)+'.data;')
+          if accs[g_m]==OP_MIN:
+            reduce_clauses = reduce_clauses + 'reduction(min:arg'+str(g_m)+'h) '
+          elif accs[g_m]==OP_MAX:
+            reduce_clauses = reduce_clauses + 'reduction(max:arg'+str(g_m)+'h) '
+          elif accs[g_m]==OP_INC:
+            reduce_clauses = reduce_clauses + 'reduction(+:arg'+str(g_m)+'h) '
 
-
+    aligned_clauses = aligned_clauses[:-1]
 
 #
 # start timing
@@ -364,9 +380,23 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #   indirect bits
 #
     if ninds>0:
+      code('int  ninds   = '+str(ninds)+';')
+      line = 'int  inds['+str(nargs)+'] = {'
+      for m in range(0,nargs):
+        line += str(inds[m]-1)+','
+      code(line[:-1]+'};')
+      code('')
+
       IF('OP_diags>2')
       code('printf(" kernel routine with indirection: '+name+'\\n");')
       ENDIF()
+      code('')
+      code('#ifdef OP_PART_SIZE_'+ str(nk))
+      code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
+      code('#else')
+      code('  int part_size = OP_part_size;')
+      code('#endif')
+      code('')
 
 #
 # direct bit
@@ -378,16 +408,37 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    code('int exec_size = op_mpi_halo_exchanges(set, nargs, args);')
+    code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
     code('')
-    IF('exec_size >0')
+    IF('set_size >0')
     code('')
 
 #
 # kernel call for indirect version
 #
     if ninds>0:
+      comm(' get plan')
+      code('op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);')
+
+      code('')
+
+
+      #colored loop
+      comm(' execute plan')
+      code('int block_offset = 0;')
+      FOR('col','0','Plan->ncolors')
+      IF('col==Plan->ncolors_core')
+      code('op_mpi_wait_all(nargs, args);')
+      ENDIF()
+      code('int nblocks = Plan->ncolblk[col];')
+      code('')
+      code('#pragma omp parallel for '+reduce_clauses)
+      FOR('blockIdx','0','nblocks')
+      code('int blockId  = Plan->blkmap[blockIdx + block_offset];')
+      code('int nelem    = Plan->nelems[blockId];')
+      code('int offset_b = Plan->offset[blockId];')
+
       code('#ifdef VECTORIZE')
 
       #initialze globals
@@ -400,8 +451,43 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           elif accs[g_m] == OP_MIN:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
+
+      comm('peel left remainder')
+      FOR('n','offset_b','((offset_b-1)/SIMD_VEC+1)*SIMD_VEC')
+      if nmaps > 0:
+        k = []
+        #print name
+        #print maps
+        #print mapinds
+        for g_m in range(0,nargs):
+          #print g_m
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            k = k + [mapinds[g_m]]
+            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      code('')
+      line = name+'('
+      indent = '\n'+' '*(depth+2)
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * n]'
+        if maps[g_m] == OP_MAP:
+          line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
+        if maps[g_m] == OP_GBL:
+          if accs[g_m] == OP_READ:
+            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          else:
+            line = line + indent + '&arg'+str(g_m)+'h'
+        if g_m < nargs-1:
+          line = line +','
+        else:
+           line = line +');'
+      code(line)
+      ENDFOR()
+
+
+
       code('#pragma novector')
-      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+      FOR2('n','((offset_b-1)/SIMD_VEC+1)*SIMD_VEC','((offset_b+nelem)/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
       IF('n+SIMD_VEC >= set->core_size')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
@@ -412,7 +498,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           code('ALIGNED_TYP TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
 
       #setup gathers
-      code('#pragma simd')
+      code('#pragma omp simd aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
@@ -438,7 +524,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       ENDFOR()
       #kernel call
-      code('#pragma simd')
+      code('#pragma omp simd aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       line = name+'_vec('
       indent = '\n'+' '*(depth+2)
@@ -476,37 +562,32 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       #do reductions
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL:
+        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('ARGh += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('ARGh = MAX(ARGh,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('ARGh = MIN(ARGh,dat'+str(g_m)+'[i]);')
           ENDFOR()
 
 
       ENDFOR()
       code('')
       comm('remainder')
-      FOR('n','(exec_size/SIMD_VEC)*SIMD_VEC','exec_size')
+      FOR('n','((offset_b+nelem)/SIMD_VEC)*SIMD_VEC','offset_b+nelem')
       depth = depth -2
       code('#else')
-      FOR('n','0','exec_size')
+      if not ind_inc:
+        code('#pragma omp simd aligned('+aligned_clauses+') '+reduce_clauses)
+      FOR('n','offset_b','offset_b+nelem')
       depth = depth -2
       code('#endif')
       depth = depth +2
-      IF('n==set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
-      ENDIF()
       if nmaps > 0:
         k = []
-        #print name
-        #print maps
-        #print mapinds
         for g_m in range(0,nargs):
-          #print g_m
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
@@ -519,13 +600,19 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_MAP:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          if accs[g_m] == OP_READ:
+            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          else:
+            line = line + indent + '&arg'+str(g_m)+'h'
         if g_m < nargs-1:
           line = line +','
         else:
            line = line +');'
       code(line)
       ENDFOR()
+      ENDFOR() #REDUCTIONS
+      code('block_offset += nblocks;');
+      ENDFOR() #Block colors
 
 #
 # kernel call for direct version
@@ -533,7 +620,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     else:
       code('#ifdef VECTORIZE')
       code('#pragma novector')
-      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+      code('#pragma omp parallel for '+reduce_clauses)
+      FOR2('n','0','(set_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
       #initialize globals
       for g_m in range(0,nargs):
@@ -545,7 +633,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           elif accs[g_m] == OP_MIN:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
-      code('#pragma simd')
+      code('#pragma omp simd aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       line = name+'('
       indent = '\n'+' '*(depth+2)
@@ -555,7 +643,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_MAP:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'&dat'+str(g_m)+'[i]'
+          if accs[g_m] == OP_READ:
+            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          else:
+            line = line + indent +'&dat'+str(g_m)+'[i]'
         if g_m < nargs-1:
           line = line +','
         else:
@@ -564,22 +655,23 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDFOR()
       #do reductions
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL:
+        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('arg'+str(g_m)+'h += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('arg'+str(g_m)+'h = MAX(arg'+str(g_m)+'h,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('arg'+str(g_m)+'h = MIN(arg'+str(g_m)+'h,dat'+str(g_m)+'[i]);')
           ENDFOR()
       ENDFOR()
 
       comm('remainder')
-      FOR ('n','(exec_size/SIMD_VEC)*SIMD_VEC','exec_size')
+      FOR ('n','(set_size/SIMD_VEC)*SIMD_VEC','set_size')
       depth = depth -2
       code('#else')
-      FOR('n','0','exec_size')
+      code('#pragma omp parallel for simd aligned('+aligned_clauses+') '+reduce_clauses)
+      FOR('n','0','set_size')
       depth = depth -2
       code('#endif')
       depth = depth +2
@@ -589,7 +681,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          if accs[g_m] == OP_READ:
+            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          else:
+            line = line + indent + '&arg'+str(g_m)+'h'
         if g_m < nargs-1:
           line = line +','
         else:
@@ -601,7 +696,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
     #zero set size issues
     if ninds>0:
-      IF('exec_size == 0 || exec_size == set->core_size')
+      IF('set_size == 0 || set_size == set->core_size')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
 
@@ -611,6 +706,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+        code('*(TYP*)ARG.data = ARGh;')
         code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
@@ -663,14 +759,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
     depth -= 2
     code('}')
+    code('#undef VECTORIZE')
 
 
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    if not os.path.exists('vec'):
-        os.makedirs('vec')
-    fid = open('vec/'+name+'_veckernel.cpp','w')
+    fid = open(name+'_ompveckernel.cpp','w')
     date = datetime.datetime.now()
     #fid.write('//\n// auto-generated by op2.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n//\n\n')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
@@ -689,6 +784,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')
   code('#define int_ALIGN 64')
+  code('#define VECTORIZE')
   code('#ifdef VECTORIZE')
   code('#define SIMD_VEC 4')
   code('#define ALIGNED_double __attribute__((aligned(double_ALIGN)))')
@@ -699,6 +795,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#define ALIGNED_float')
   code('#define ALIGNED_int')
   code('#endif')
+  code('#undef VECTORIZE')
   code('')
 
   comm(' global constants       ')
@@ -714,8 +811,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
   code('')
 
-  comm(' header                 ')
+  comm(' header                ')
 
+  code('#include "op_lib_cpp.h"')
   if os.path.exists('./user_types.h'):
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
@@ -724,9 +822,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
-    code('#include "'+kernels[nk]['name']+'_veckernel.cpp"')
+    code('#include "'+kernels[nk]['name']+'_ompveckernel.cpp"')
   master = master.split('.')[0]
-  fid = open('vec/'+master.split('.')[0]+'_veckernels.cpp','w')
+  fid = open(master.split('.')[0]+'_ompveckernels.cpp','w')
   fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()
