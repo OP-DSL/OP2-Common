@@ -22,10 +22,6 @@ INC = include
 LIB = lib
 OBJ = obj
 
-ifdef CUDA_INSTALL_PATH
-  CUDA_INC := -I$(CUDA_INSTALL_PATH)/include
-endif
-
 #
 # compiler settings
 #
@@ -35,108 +31,107 @@ endif
 #
 ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpic++)")
-    MPICPP := $(MPI_INSTALL_PATH)/bin/mpic++
+    MPICPP_PATH = $(MPI_INSTALL_PATH)/bin/mpic++
   else
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
-    MPICPP := $(MPI_INSTALL_PATH)/intel64/bin/mpic++
+    MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
   else
-    MPICPP := mpic++
+    MPICPP_PATH = mpic++
   endif
   endif
 
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicxx)")
-    MPICXX := $(MPI_INSTALL_PATH)/bin/mpicxx
+    MPICXX_PATH = $(MPI_INSTALL_PATH)/bin/mpicxx
   else
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
-    MPICXX := $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
+    MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX := mpicxx
+    MPICXX_PATH = mpicxx
   endif
   endif
 
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicc)")
-    MPICC := $(MPI_INSTALL_PATH)/bin/mpicc
+    MPICC_PATH = $(MPI_INSTALL_PATH)/bin/mpicc
   else
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
-    MPICC := $(MPI_INSTALL_PATH)/intel64/bin/mpicc
+    MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC := mpicc
+    MPICC_PATH = mpicc
   endif
   endif
 else
-  MPICPP := mpic++
-  MPICXX := mpicxx
-  MPICC  := mpicc
+  MPICPP_PATH = mpic++
+  MPICXX_PATH = mpicxx
+  MPICC_PATH  = mpicc
 endif
 
 #
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
-  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall
-  CXX      := g++
-  CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
-  MPICXX   := $(MPICPP)
-  MPIFLAGS := $(CXXFLAGS)
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall
+  CXX      = g++
+  CXXFLAGS = -fPIC -DUNIX -Wall #-g -Wextra
+  MPICXX   = $(MPICPP_PATH)
+  MPIFLAGS = $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
-    CCFLAGS := -O0 -g -pg
+    CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS := -O3 -xHost #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost #-DCOMM_PERF
   endif
-  CXX       := icpc
-  CXXFLAGS  := $(CCFLAGS)
-  MPICXX    := $(MPICXX)
-  MPIFLAGS  := $(CXXFLAGS)
+  CXX       = icpc
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICXX_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
   ifdef DEBUG
-    CCFLAGS := -O0 -g
+    CCFLAGS = -O0 -g
   else
-    CCFLAGS := -qarch=pwr8 -qtune=pwr8 -O3 -qhot
+    CCFLAGS = -qarch=pwr8 -qtune=pwr8 -O3 -qhot
   endif
-  CXX       := xlc++
-  CXXFLAGS  := $(CCFLAGS)
-  MPICXX    := $(MPICXX)
-  MPIFLAGS  := $(CXXFLAGS)
-  OMP4FLAGS := -qsmp=omp -qoffload
+  CXX       = xlc++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICXX_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  OMP4FLAGS = -qsmp=omp -qoffload
 else
 ifeq ($(OP2_COMPILER),pgi)
-  CUDA_ALIGNE_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
+  CUDA_ALIGNE_FLAG = -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
   ifdef DEBUG
-    CCFLAGS := -g -O0
+    CCFLAGS = -g -O0
   else
-    CCFLAGS := -O3
+    CCFLAGS = -O3
   endif
-  CXX	    := pgc++
-  CXXFLAGS  := $(CCFLAGS)
-  MPICXX    := $(MPICPP)
-  MPIFLAGS  := $(CXXFLAGS)
+  CXX	    = pgc++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
   # NVCCFLAGS += -ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),cray)
-  CCFLAGS  := -O3
-  CXX      := CC
-  CXXFLAGS := $(CCFLAGS)
-  MPICXX   := CC
-  MPIFLAGS := $(CXXFLAGS)
+  CCFLAGS  = -O3
+  CXX      = CC
+  CXXFLAGS = $(CCFLAGS)
+  MPICXX   = CC
+  MPIFLAGS = $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
   ifdef DEBUG
-    CCFLAGS  := -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+    CCFLAGS  = -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
   else
-    CCFLAGS  := -x c++ -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+    CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
   endif
-  CXX	    := clang++
-  CXXFLAGS  := $(CCFLAGS)
-  MPICXX    := $(MPICPP)
-  MPICCC    := $(MPICCC)
-  MPIFLAGS  := $(CXXFLAGS)
-  OMP4FLAGS := -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
+  CXX	    = clang++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
 print:
-	@echo "unrecognised value for OP2_COMPILER"
+	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
 endif
 endif
 endif
@@ -145,10 +140,10 @@ endif
 endif
 
 ifdef CPP_WRAPPER
-	CXX := $(CPP_WRAPPER)
+	CXX = $(CPP_WRAPPER)
 endif
 ifdef MPICPP_WRAPPER
-	MPICXX := $(MPICPP_WRAPPER)
+	MPICXX = $(MPICPP_WRAPPER)
 endif
 
 # flags for nvcc
@@ -175,12 +170,14 @@ endif
 
 NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math #-g -G -O0
 
-PARMETIS_VER?=4
+ifdef CUDA_INSTALL_PATH
+  CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
+endif
+
+PARMETIS_VER=4
 ifdef PARMETIS_INSTALL_PATH
-  PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
-  PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
-  PARMETIS_INC := -I$(PARMETIS_INCLUDE_PATH)/include
-  PARMETIS_LIB := -L$(PARMETIS_LIB_PATH)/lib
+  PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include
+  PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib
 endif
 PARMETIS_INC += -DHAVE_PARMETIS
 PARMETIS_LIB += -lparmetis -lmetis
@@ -189,17 +186,15 @@ ifeq ($(PARMETIS_VER),4)
 endif
 
 ifdef PTSCOTCH_INSTALL_PATH
-  PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
-  PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
-  PTSCOTCH_INC := -I$(PTSCOTCH_INCLUDE_PATH)
-  PTSCOTCH_LIB := -L$(PTSCOTCH_LIB_PATH)
+  PTSCOTCH_INC = -I$(PTSCOTCH_INSTALL_PATH)/include
+  PTSCOTCH_LIB = -L$(PTSCOTCH_INSTALL_PATH)/lib
 endif
 PTSCOTCH_INC += -DHAVE_PTSCOTCH
 PTSCOTCH_LIB += -lptscotch -lptscotcherr
 
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC := -I$(HDF5_INSTALL_PATH)/include
-  HDF5_LIB := -L$(HDF5_INSTALL_PATH)/lib
+  HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
+  HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
 
