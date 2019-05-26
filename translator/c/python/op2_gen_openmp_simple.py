@@ -31,14 +31,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line)
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -172,14 +172,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     for g_m in range (0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
-        code('TYP*ARGh = (TYP *)ARG.data;')
+        code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -188,8 +188,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -201,13 +201,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # start timing
@@ -275,15 +275,15 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
-          code('TYP ARG_l[nthreads*64];')
+          code('<TYP> <ARG>_l[nthreads*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
-            FOR('d','0','DIM')
-            code('ARG_l[d+thr*64]=ZERO_TYP;')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d+thr*64]=ZERO_<TYP>;')
             ENDFOR()
           else:
-            FOR('d','0','DIM')
-            code('ARG_l[d+thr*64]=ARGh[d];')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d+thr*64]=<ARG>h[d];')
             ENDFOR()
           ENDFOR()
 
@@ -342,9 +342,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
         if len(u) > 0 and vectorised[g_m] > 0:
           if accs[g_m] == OP_READ:
-            line = 'const TYP* ARG_vec[] = {\n'
+            line = 'const <TYP>* <ARG>_vec[] = {\n'
           else:
-            line = 'TYP* ARG_vec[] = {\n'
+            line = '<TYP>* <ARG>_vec[] = {\n'
 
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -352,7 +352,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
           indent = ' '*(depth+2)
           for k in range(0,sum(v)):
-            line = line + indent + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
           line = line[:-2]+'};'
           code(line)
       code('')
@@ -394,16 +394,16 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           if maps[m] == OP_GBL and accs[m] <> OP_READ:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
-              FOR('d','0','DIM')
-              code('ARGh[d] += ARG_l[d+thr*64];')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d] += <ARG>_l[d+thr*64];')
               ENDFOR()
             elif accs[m]==OP_MIN:
-              FOR('d','0','DIM')
-              code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
               ENDFOR()
             elif  accs[m]==OP_MAX:
-              FOR('d','0','DIM')
-              code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
               ENDFOR()
             else:
               error('internal error: invalid reduction option')
@@ -477,22 +477,22 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
-          FOR('d','0','DIM')
-          code('ARGh[d] += ARG_l[d+thr*64];')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d] += <ARG>_l[d+thr*64];')
           ENDFOR()
         elif accs[g_m]==OP_MIN:
-          FOR('d','0','DIM')
-          code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         elif accs[g_m]==OP_MAX:
-          FOR('d','0','DIM')
-          code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         else:
           print 'internal error: invalid reduction option'
         ENDFOR()
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('op_mpi_reduce(&ARG,ARGh);')
+        code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
@@ -518,12 +518,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
-          IF('ARG.opt')
+          IF('<ARG>.opt')
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
 
@@ -559,15 +559,16 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
-    else:
-      if consts[nc]['dim'] > 0:
-        num = str(consts[nc]['dim'])
+    if not consts[nc]['user_declared']:
+      if consts[nc]['dim']==1:
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        num = 'MAX_CONST_SIZE'
+        if consts[nc]['dim'] > 0:
+          num = str(consts[nc]['dim'])
+        else:
+          num = 'MAX_CONST_SIZE'
 
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
   code('')
 
   comm(' header                 ')
