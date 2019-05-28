@@ -151,6 +151,11 @@ def op2_gen_openacc(master, date, consts, kernels):
     file_text = ''
     depth = 0
 
+    file_name = decl_filepath
+    f = open(file_name, 'r')
+    kernel_text = f.read()
+    f.close()
+
     comm('user function')
 
     if CPP:
@@ -178,11 +183,6 @@ def op2_gen_openacc(master, date, consts, kernels):
           break
 
     comm('user function')
-    file_name = decl_filepath
-
-    f = open(file_name, 'r')
-    kernel_text = f.read()
-    f.close()
 
     kernel_text = op2_gen_common.comment_remover(kernel_text)
     kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
