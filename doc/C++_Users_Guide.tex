@@ -749,7 +749,17 @@ useful for debugging}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_timing\_output}
 \begin{routine} {void op\_timing\_output()}
- {Print OP2 performance performance details to STD out}
+ {Print OP2 performance performance details to STD out. 
+  Details consist of per-kernel walltime and standard deviation across ranks.}
+\item \vspace{-0.3in}
+\end{routine}
+
+\subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_timings\_to\_csv}
+\begin{routine} {void op\_timings\_to\_csv(char const * file\_path)}
+ {Write OP2 performance performance details to csv file. For an MPI code, will contain per-rank times. 
+ For an OpenMP code generated with the environment variable OP\_TIME\_THREADS set, will contain per-thread times. 
+ MPI+OpenMP will contain both per-rank and per-thread times.}
+\item [file\_path] the file to be written to
 \item \vspace{-0.3in}
 \end{routine}
 
