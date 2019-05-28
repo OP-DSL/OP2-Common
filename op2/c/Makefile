@@ -246,10 +246,10 @@ openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
 	$(OBJ)/op_openmp4_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
 openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
