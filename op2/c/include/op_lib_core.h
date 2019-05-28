@@ -182,7 +182,6 @@ typedef struct {
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
   double mpi_time;   /* time spent in MPI calls */
-  double buffer_time;  /* time spent packing/unpacking MPI buffers */
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
