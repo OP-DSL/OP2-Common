@@ -668,7 +668,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       ENDFOR()
 
     if ninds>0:
-      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+      code('op_timing_realloc('+str(nk)+');')
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer; ')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
@@ -712,7 +712,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     code('op_timing_realloc('+str(nk)+');')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].times[0]  += wall_t2 - wall_t1;')
+    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
