@@ -882,7 +882,6 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
       OP_kernels[n].mpi_time = 0.0f;
-      OP_kernels[n].buffer_time = 0.0f;
       OP_kernels[n].name = "unused";
     }
     OP_kern_max = OP_kern_max_new;

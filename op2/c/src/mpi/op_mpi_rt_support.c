@@ -59,9 +59,6 @@ void op_download_dat(op_dat dat) {}
  *******************************************************************************/
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-  double t1, t2, c1, c2;
-  op_timers_core(&c1, &t1);
-
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -190,10 +187,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     dat->dirtybit = 0;
     arg->sent = 1;
   }
-
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].buffer_time += t2 - t1;
 }
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
