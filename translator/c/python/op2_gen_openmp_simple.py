@@ -215,11 +215,15 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    # code('op_timing_realloc('+str(nk)+');')
-    code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    if timing_granularity=="thread":
+      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    else:
+      code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
     if timing_granularity=="thread":
-      code('double process_time = 0.0;')
+      code('double non_thread_walltime = 0.0;')
+    code('double inner_cpu_t1, inner_cpu_t2, inner_wall_t1, inner_wall_t2;')
+    code('double compute_time=0.0, sync_time=0.0;')
     code('')
 
 #
@@ -306,18 +310,19 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('int nblocks = Plan->ncolblk[col];')
       code('')
       if timing_granularity=="thread":
-        code('op_timers_core(&cpu_t2, &wall_t2);')
-        code('process_time += wall_t2 - wall_t1;')
+        # Pause process timing and switch to per-thread timing:
+        code('// Pause process timing and switch to per-thread timing:')
+        code('op_timers_core(&inner_cpu_t1, &inner_wall_t1);')
+        code('non_thread_walltime += inner_wall_t1 - wall_t1;')
 
         code('#pragma omp parallel')
         code('{')
         depth += 2
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
+        code('')
         code('int nthreads = omp_get_max_threads();')
         code('int thr = omp_get_thread_num();')
-
-        code('double thr_wall_t1;')
-        code('op_timers_core(&cpu_t2, &thr_wall_t1);')
-
         code('int thr_start = (nblocks * thr) / nthreads;')
         code('int thr_end = (nblocks * (thr+1)) / nthreads;')
         code('if (thr_end > nblocks) thr_end = nblocks;')
@@ -382,8 +387,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if timing_granularity=="thread":
         depth -= 2
         code('}')
-        code('op_timers_core(&cpu_t2, &wall_t2);')
-        code('OP_kernels[' +str(nk)+ '].times[thr]  += wall_t2 - thr_wall_t1;')
+        code('')
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels[' +str(nk)+ '].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
       code('')
 
@@ -411,7 +417,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         ENDIF()
 
       if timing_granularity=="thread":
-        code('op_timers_core(&cpu_t1, &wall_t1);')
+        code('// Revert to process-level timing:')
+        code('cpu_t1=inner_cpu_t2; wall_t1=inner_wall_t2;')
+        code('')
       code('block_offset += nblocks;');
       ENDIF()
 
@@ -422,8 +430,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       comm(' execute plan')
       if timing_granularity == "thread":
         # Pause process timing, and switch to per-thread timing:
+        code('// Pause process timing, and switch to per-thread timing:')
         code('op_timers_core(&cpu_t2, &wall_t2);')
-        code('process_time += wall_t2 - wall_t1;')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
       if timing_granularity == "thread":
@@ -454,6 +463,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDFOR()
       if timing_granularity=="thread":
         # OpenMP block complete, so switch back to process timing:
+        code('// OpenMP block complete, so switch back to process timing:')
         code('op_timers_core(&cpu_t1, &wall_t1);')
 
     if ninds>0:
@@ -503,15 +513,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
+    if timing_granularity == "thread":
+      code('non_thread_walltime += wall_t2 - wall_t1;')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
     if timing_granularity == "thread":
-        FOR('thr', '0', 'omp_get_max_threads()')
-        code('OP_kernels[' +str(nk)+ '].times[thr] += process_time;')
-        code('OP_kernels[' +str(nk)+ '].times[thr] += wall_t2 - wall_t1;')
-        ENDFOR()
+        code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
     else:
-        code('OP_kernels[' +str(nk)+ '].times[0] += wall_t2 - wall_t1;')
+        code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
