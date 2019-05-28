@@ -15,6 +15,9 @@ import datetime
 import op2_gen_common
 import os
 
+# timing_granularity="thread"
+timing_granularity="process"
+
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
@@ -354,7 +357,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    if timing_granularity=="thread":
+      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    else:
+      code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
@@ -562,8 +568,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
     code('if (OP_diags>1) deviceSync();')
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('OP_kernels[' +str(nk)+ '].times[0] += wall_t2 - wall_t1;')
-
+    if timing_granularity=="thread":
+      code('OP_kernels[' +str(nk)+ '].times[0] += wall_t2 - wall_t1;')
+    else:
+      code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
