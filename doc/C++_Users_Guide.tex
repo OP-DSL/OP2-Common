@@ -9,7 +9,7 @@
 \setlength{\textheight}{9.0in}
 \setlength{\textwidth}{6.5 in}
 
-\date{December 2013}
+\date{May 2019}
 
 %  \topmargin 0.in  \headheight 0pt  \headsep 0pt  \raggedbottom
 %  \oddsidemargin 0.1in
@@ -755,8 +755,8 @@ useful for debugging}
 
 \subsubsection*{}\addcontentsline{toc}{subsubsection}{op\_timings\_to\_csv}
 \begin{routine} {void op\_timings\_to\_csv(char const * file\_path)}
- {Write OP2 performance performance details to csv file. For an MPI code, details broken down by rank. 
- For an OpenMP code generated with the environment variable OP\_TIME\_THREADS set, details broken down by thread.}
+ {Write OP2 performance details to csv file. For an MPI code, details are broken down by rank. 
+ For an OpenMP code generated with the environment variable OP\_TIME\_THREADS set, details are broken down by thread. For MPI+OpenMP codes with  environment variable OP\_TIME\_THREADS set, a breakdown of each thread for each MPI rank will be written to the CSV file.}
 \item [file\_path] the file to be written to
 \item \vspace{-0.3in}
 \end{routine}
@@ -812,9 +812,9 @@ correct MPI process.
 
 GPU direct support for MPI+CUDA, to enable (on the OP2 side) add \textbf{-gpudirect} when running the executable. You
 may also have to use certain environmental flags when using different MPI distributions. For an example of the
-required flags and environmental settings on the EMERALD GPU cluster
+required flags and environmental settings on the Cambridge Wilkes2 GPU cluster
 see: \\
-\url{www.einfrastructuresouth.ac.uk/cfi/emerald/gpu-programming/}
+\url{https://docs.hpc.cam.ac.uk/hpc/user-guide/performance-tips.html}
 
 \newpage
 
