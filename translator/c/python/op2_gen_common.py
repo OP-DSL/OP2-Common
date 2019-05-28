@@ -10,7 +10,6 @@
 import re
 import datetime
 import glob
-import os
 
 def comment_remover(text):
     """Remove comments from text"""
@@ -103,39 +102,6 @@ def para_parse(text, j, op_b, cl_b):
                 return loc2
       loc2 = loc2 + 1
 
-def replace_local_includes_with_file_contents(text, search_dir):
-  ''' Replace occurences of '#include "<FILE>"' with <FILE> contents '''
-  include_rhs_rgx = r'' + "^([\s]*)" + "#include" + "[\s]+" + '"([\w\.]+)"'
-
-  text2 = ''
-  for line in text.split('\n'):
-    if not "#include" in line:
-      text2 += line+'\n'
-    else:
-      include_item_filepath = ""
-      matches = re.findall(include_rhs_rgx, line)[0]
-      if len(matches) != 2:
-        text2 += line+'\n'
-      else:
-        leading_whitespace = matches[0]
-        include_item = matches[1]
-        for r, d, f in os.walk(search_dir):
-          for f_item in f:
-            if f_item == include_item:
-              include_item_filepath = os.path.join(r, f_item)
-              break
-          if include_item_filepath != "":
-            break
-        if include_item_filepath == "":
-          print("Failed to locate file '{0}'".format(include_item))
-          quit()
-        f = open(include_item_filepath, 'r')
-        include_file_text = f.read()
-        f.close()
-        include_file_text = comment_remover(include_file_text)
-        for line in include_file_text.split('\n'):
-          text2 += leading_whitespace + line+'\n'
-  return text2
 
 def get_stride_string(g_m,maps,mapnames,name):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
