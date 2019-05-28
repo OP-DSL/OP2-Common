@@ -139,16 +139,6 @@ def op_decl_const_parse(text):
   return consts
 
 
-def extract_declared_globals(text):
-  """ Parsing for variables that have been declared 'extern' by user """
-
-  globals_found = []
-  global_pattern = r'[\s]*extern[\s]+[\w]+[\s]+([\w]+)'
-  for match in re.findall(global_pattern, text):
-    globals_found.append(match)
-  return globals_found
-
-
 def arg_parse(text, j):
   """Parsing arguments in op_par_loop to find the correct closing brace"""
 
@@ -365,13 +355,6 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         macro_defs[k] = local_defs[k]
   self_evaluate_macro_defs(macro_defs)
 
-  ## Identify global variables already declared as 'extern':
-  declared_globals = []
-  for src_file in src_files:
-    with open(src_file, 'r') as f:
-      text = f.read()
-    declared_globals += extract_declared_globals(text)
-
   ## Loop over all input source files to search for op_par_loop calls
   kernels_in_files = [[] for _ in range(len(srcFilesAndDirs))]
   src_file_num = -1
@@ -445,7 +428,6 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         temp = {'dim': const_args[i]['dim'],
             'type': const_args[i]['type'].strip(),
             'name': const_args[i]['name'].strip()}
-        temp["user_declared"] = temp["name"] in declared_globals
         consts.append(temp)
 
     # parse and process op_par_loop calls
