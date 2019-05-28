@@ -303,7 +303,7 @@ void op_timing_output() {
   mpi_timing_output();
 }
 
-void op_timing_raw_output_2_csv(const char *outputFileName) {
+void op_timings_to_csv(const char *outputFileName) {
   int comm_size, comm_rank;
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
   MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);

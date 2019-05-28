@@ -169,7 +169,7 @@ void op_exit() { op_exit_core(); }
 
 void op_timing_output() { op_timing_output_core(); }
 
-void op_timing_raw_output_2_csv(const char *outputFileName) {
+void op_timings_to_csv(const char *outputFileName) {
   FILE *outputFile = fopen(outputFileName, "w");
   if (outputFile == NULL) {
     printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);

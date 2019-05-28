@@ -265,7 +265,7 @@ void op_timing_output_core(void);
 
 void op_timing_output_2_file(const char *);
 
-void op_timing_raw_output_2_csv(const char *);
+void op_timings_to_csv(const char *);
 
 void op_timing_realloc(int);
 
