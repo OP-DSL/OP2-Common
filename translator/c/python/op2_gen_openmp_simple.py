@@ -221,8 +221,6 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('op_timers_core(&cpu_t1, &wall_t1);')
     if insert_thread_timers:
       code('double non_thread_walltime = 0.0;')
-    code('double inner_cpu_t1, inner_cpu_t2, inner_wall_t1, inner_wall_t2;')
-    code('double compute_time=0.0, sync_time=0.0;')
     code('')
 
 #
@@ -311,8 +309,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if insert_thread_timers:
         # Pause process timing and switch to per-thread timing:
         code('// Pause process timing and switch to per-thread timing:')
-        code('op_timers_core(&inner_cpu_t1, &inner_wall_t1);')
-        code('non_thread_walltime += inner_wall_t1 - wall_t1;')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
 
         code('#pragma omp parallel')
         code('{')
@@ -417,7 +415,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
       if insert_thread_timers:
         code('// Revert to process-level timing:')
-        code('cpu_t1=inner_cpu_t2; wall_t1=inner_wall_t2;')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
         code('')
       code('block_offset += nblocks;');
       ENDIF()
@@ -435,8 +433,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
       if insert_thread_timers:
-        code('double thr_wall_t1;')
-        code('op_timers_core(&cpu_t1, &thr_wall_t1);')
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
       FOR('n','start','finish')
@@ -457,8 +455,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code(line)
       ENDFOR()
       if insert_thread_timers:
-        code('op_timers_core(&cpu_t2, &wall_t2);')
-        code('OP_kernels['+str(nk)+'].times[thr]  += wall_t2 - thr_wall_t1;')
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels['+str(nk)+'].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
       if insert_thread_timers:
         # OpenMP block complete, so switch back to process timing:
