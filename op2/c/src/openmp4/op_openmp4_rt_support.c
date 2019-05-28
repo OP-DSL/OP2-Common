@@ -317,12 +317,6 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 
 void op_mpi_barrier() {}
 
-int op_mpi_comm_size() { return 1; }
-
-int op_mpi_comm_rank() { return 0; }
-
-int op_num_threads() { return omp_get_max_threads(); }
-
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;
@@ -393,5 +387,4 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 }
 
 int op_is_root() { return 1; }
-
 #endif

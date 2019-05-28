@@ -42,7 +42,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -444,12 +443,6 @@ void op_mpi_reset_halos(int nargs, op_arg *args) {
 }
 
 void op_mpi_barrier() {}
-
-int op_mpi_comm_size() {  return 1; }
-
-int op_mpi_comm_rank() { return 0; }
-
-int op_num_threads() { return 1; }
 
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;

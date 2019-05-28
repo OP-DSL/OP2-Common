@@ -165,8 +165,6 @@ void op_timers(double *cpu, double *et) { op_timers_core(cpu, et); }
 
 void op_exit() { op_exit_core(); }
 
-// void op_rank(int *rank) { *rank = 0; }
-
 void op_timing_output() { op_timing_output_core(); }
 
 void op_timings_to_csv(const char *outputFileName) {
@@ -216,4 +214,3 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
-

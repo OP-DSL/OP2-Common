@@ -38,8 +38,6 @@
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
-#include <omp.h>
-
 /*
  * Routines called by user code and kernels
  * these wrappers are used by non-CUDA versions
@@ -231,4 +229,3 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
-
