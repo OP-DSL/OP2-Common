@@ -153,6 +153,13 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     comm('user function')
 
+    if CPP:
+      includes = op2_gen_common.extract_includes(kernel_text)
+      if len(includes) > 0:
+        for include in includes:
+          code(include)
+        code("")
+
     #strides for SoA
     if any_soa:
       if nmaps > 0:
