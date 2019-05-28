@@ -320,7 +320,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
         code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
         code('')
-        code('int nthreads = omp_get_max_threads();')
+        code('int nthreads = omp_get_num_threads();')
         code('int thr = omp_get_thread_num();')
         code('int thr_start = (nblocks * thr) / nthreads;')
         code('int thr_end = (nblocks * (thr+1)) / nthreads;')
