@@ -316,7 +316,6 @@ void op_timings_to_csv(const char *outputFileName) {
     }
     else {
       fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-      // fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,buffer time,GB used,GB total,kernel name\n");
     }
   }
 
@@ -359,15 +358,22 @@ void op_timings_to_csv(const char *outputFileName) {
           for (int p=0 ; p<comm_size ; p++) {
             for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
               double kern_time = times[p*OP_kernels[n].ntimes + thr];
-
-              fprintf(outputFile, 
-                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                      // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
-                      p, thr, comm_size, OP_kernels[n].ntimes, 
-                      OP_kernels[n].count, kern_time, plan_times[p], 
-                      mpi_times[p], 
-                      transfers[p]/1e9f, transfers2[p]/1e9f, 
-                      OP_kernels[n].name);
+              if (thr==0)
+                fprintf(outputFile, 
+                        "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                        p, thr, comm_size, OP_kernels[n].ntimes, 
+                        OP_kernels[n].count, kern_time, plan_times[p], 
+                        mpi_times[p], 
+                        transfers[p]/1e9f, transfers2[p]/1e9f, 
+                        OP_kernels[n].name);
+              else
+                fprintf(outputFile, 
+                        "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                        p, thr, comm_size, OP_kernels[n].ntimes, 
+                        OP_kernels[n].count, kern_time, 0.0f, 
+                        0.0f, 
+                        0.0f, 0.0f, 
+                        OP_kernels[n].name);
             }
           }
         }
