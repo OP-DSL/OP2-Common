@@ -48,7 +48,9 @@
 
 template <op_access reduction, class T>
 __inline__ __device__ void op_reduction(volatile T *dat_g, T dat_l) {
-  extern __shared__ volatile T temp[];
+  extern __shared__ volatile double temp2[];
+  __shared__ volatile T *temp;
+  temp = (T *)temp2;
   T dat_t;
 
   __syncthreads(); /* important to finish all previous activity */
@@ -164,7 +166,9 @@ __inline__ __device__ void op_reduction(volatile T *dat_g, T dat_l) {
 
 template <op_access reduction, class T>
 __inline__ __device__ void op_reduction_alt(volatile T *dat_g, T dat_l) {
-  extern __shared__ volatile T temp[];
+  extern __shared__ volatile double temp2[];
+  __shared__ volatile T *temp;
+  temp = (T *)temp2;
   T dat_t;
 
   __syncthreads(); /* important to finish all previous activity */
