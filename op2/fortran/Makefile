@@ -23,32 +23,82 @@ F_OP2_OBJ = $(F_OP2)/obj
 F_OP2_LIB = $(F_OP2)/lib
 F_OP2_MOD = $(F_OP2)/mod
 
-PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
-PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
+ifdef PARMETIS_INSTALL_PATH
+	PARMETIS_INCLUDE_PATH ?= $(PARMETIS_INSTALL_PATH)
+	PARMETIS_LIB_PATH ?= $(PARMETIS_INSTALL_PATH)
 
-PARMETIS_VER?=4
-ifeq ($(PARMETIS_VER),4)
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
-  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
+	PARMETIS_VER?=4
+	ifeq ($(PARMETIS_VER),4)
+	  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
+	else
+	  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
+	endif
+	PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
 else
-  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
-  PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/ -lparmetis -lmetis
+	PARMETIS_LIB = -lparmetis -lmetis
 endif
 
-PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
-PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
-PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH) -DHAVE_PTSCOTCH
-PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
+ifdef PTSCOTCH_INSTALL_PATH
+	PTSCOTCH_INCLUDE_PATH ?= $(PTSCOTCH_INSTALL_PATH)/include
+	PTSCOTCH_LIB_PATH ?= $(PTSCOTCH_INSTALL_PATH)/lib
+	PTSCOTCH_INC = -I$(PTSCOTCH_INCLUDE_PATH) -DHAVE_PTSCOTCH
+	PTSCOTCH_LIB = -L$(PTSCOTCH_LIB_PATH) -lptscotch -lptscotcherr
+else
+	PTSCOTCH_LIB = -lptscotch -lptscotcherr
+endif
 
-HDF5_INCLUDE_PATH ?= $(HDF5_INSTALL_PATH)/include
-HDF5_INCLUDE =  -I$(HDF5_INCLUDE_PATH)
-HDF5_LIB_PATH ?= $(HDF5_INSTALL_PATH)/lib
-HDF5_LIB =  -L$(HDF5_LIB_PATH) -lhdf5
+ifdef HDF5_INSTALL_PATH
+	HDF5_INCLUDE_PATH ?= $(HDF5_INSTALL_PATH)/include
+	HDF5_INCLUDE =  -I$(HDF5_INCLUDE_PATH)
+	HDF5_LIB_PATH ?= $(HDF5_INSTALL_PATH)/lib
+	HDF5_LIB =  -L$(HDF5_LIB_PATH) -lhdf5
+endif
 
-CUDA_INC = $(CUDA_INSTALL_PATH)/include
+ifdef CUDA_INSTALL_PATH
+	CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
+endif
 
-MPI_INC = $(MPI_INSTALL_PATH)/include
-MPI_LIB = $(MPI_INSTALL_PATH)/lib
+ifdef MPI_INSTALL_PATH
+	MPI_INC = $(MPI_INSTALL_PATH)/include
+	MPI_LIB = $(MPI_INSTALL_PATH)/lib
+endif
+
+# Locate MPI compilers:
+ifdef MPI_INSTALL_PATH
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpif90)")
+    MPIF90_PATH = $(MPI_INSTALL_PATH)/bin/mpif90
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpif90)")
+    MPIF90_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpif90
+  else
+    MPIF90_PATH = mpif90
+  endif
+  endif
+
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicxx)")
+    MPICXX_PATH = $(MPI_INSTALL_PATH)/bin/mpicxx
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
+    MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
+  else
+    MPICXX_PATH = mpicxx
+  endif
+  endif
+
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicc)")
+    MPICC_PATH = $(MPI_INSTALL_PATH)/bin/mpicc
+  else
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
+    MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
+  else
+    MPICC_PATH = mpicc
+  endif
+  endif
+else
+  MPIF90_PATH = mpif90
+  MPICXX_PATH = mpicxx
+  MPICC_PATH = mpicc
+endif
 
 #
 # compiler settings
@@ -125,9 +175,9 @@ ifeq ($(OP2_COMPILER),pgi)
   MPIF90          = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   NO_MPI_MACRO    = -DNO_MPI
   CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
-  CUDA_INC = $(CUDA_INSTALL_PATH)/include $(CUDA_ALIGN_FLAG)
+  CUDA_INC = -I$(CUDA_INSTALL_PATH)/include $(CUDA_ALIGN_FLAG)
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq f_cuda f_mpi_cuda f_mpi_cuda
-  NVCCFLAGS	  = #-ccbin=$(MPICXX)
+  # NVCCFLAGS	  = -ccbin=$(MPICXX)
 else
 ifeq ($(OP2_COMPILER),xl)
   F_INC_MOD       = $(F_OP2_MOD)/xl
@@ -169,9 +219,9 @@ ifeq ($(OP2_COMPILER),intel)
   FC              = ifort $(OPT)
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
-  MPICC           = $(MPI_INSTALL_PATH)/bin/mpicc $(OPT)
-  MPICXX          = $(MPI_INSTALL_PATH)/bin/mpicxx $(OPT)
-  MPIF90          = $(MPI_INSTALL_PATH)/bin/mpif90 $(OPT)
+  MPICC           = $(MPICC_PATH) $(OPT)
+  MPICXX          = $(MPICXX_PATH) $(OPT)
+  MPIF90          = $(MPIF90_PATH) $(OPT)
   NO_MPI_MACRO    = -D NO_MPI
   ALLTARGETS      = clean core hdf5 f_seq f_openmp f_mpi_seq
 else
@@ -199,7 +249,7 @@ endif
 endif
 endif
 
-NVCCFLAGS       := $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 .PHONY: clean directories
 
@@ -305,15 +355,15 @@ f_cuda: directories core $(C_OP2_SRC)/core/op_lib_core.c \
 	$(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c \
 	$(F_OP2_SRC)/op2_hdf5_dummy.c directories
 	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_lib_core.c -o $(F_OP2_OBJ)/op_lib_core.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
+	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_decl.c -o $(F_OP2_OBJ)/op_cuda_decl.o
+	$(CC) $(CCFLAGS) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
 	$(CC) $(CCFLAGS) $(NO_MPI_MACRO) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_C_wrappers.c -o $(F_OP2_OBJ)/op2_for_C_wrappers.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_declarations.F90 -o $(F_OP2_OBJ)/op2_for_declarations.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(PGFC) $(PGFFLAGS) -c $(F_OP2_SRC)/cudaConfigurationParams.F90 -o $(F_OP2_OBJ)/cudaConfigurationParams.o
 	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
 	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/core/op_rt_support.c -o $(F_OP2_OBJ)/op_rt_support.o
-	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(F_OP2_SRC)/ -I$(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
+	$(CC) $(CCFLAGS) -I$(C_OP2_INC) -I$(F_OP2_SRC)/ $(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	ar -r $(F_OP2_LIB)/libop2_for_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
@@ -398,9 +448,9 @@ f_mpi_seq: directories core \
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) \
 	-c $(C_OP2_SRC)/mpi/op_mpi_part_core.c -o $(F_OP2_OBJ)/op_mpi_part_core.o
 	$(MPICC) $(CFLAGS) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_rt_support.c -o $(F_OP2_OBJ)/op_mpi_rt_support.o
-	$(CC) $(CFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC)  -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) \
+	$(CC) $(CFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC)  $(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) \
 	$(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
@@ -449,20 +499,20 @@ f_mpi_cuda: directories core \
 	$(FC) $(FMPI_FLAGS) -c $(F_OP2_SRC)/op2_for_hdf5_declarations.F90 -o $(F_OP2_OBJ)/op2_for_hdf5_declarations.o
 	$(PGFC) $(PGMPI_FFLAGS) -c $(F_OP2_SRC)/op2_for_rt_support.F90 -o $(F_OP2_OBJ)/op2_for_rt_support.o
 	$(CC) $(PGCFLAGS) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers.o
-	$(CC) $(PGCFLAGS) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
+	$(CC) $(PGCFLAGS) -I$(C_OP2_INC) $(CUDA_INC) -c $(F_OP2_SRC)/op2_for_rt_wrappers_cuda.c -o $(F_OP2_OBJ)/op2_for_rt_wrappers_cuda.o
 	$(shell cp $(F_OP2_SRC)/op2_for_reference.F90 $(F_OP2_SRC)/op2_for_reference.c)
 	$(shell cpp $(F_OP2_SRC)/op2_for_reference.c | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" > $(F_OP2_SRC)/op2_cpp_reference.F90)
 	$(PGFC) -c $(PGFFLAGS) $(F_OP2_SRC)/op2_cpp_reference.F90 -o $(F_OP2_OBJ)/op2_for_reference.o
 	$(CC) $(CFLAGS_SLOW) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	$(CC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_core.c -o $(F_OP2_OBJ)/op_mpi_core.o
-	$(CC) $(PGCFLAGS) -I$(MPI_INC) -I$(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_decl.c -o $(F_OP2_OBJ)/op_mpi_cuda_decl.o
-	$(CC) $(PGCFLAGS) -I$(MPI_INC) -I$(CUDA_INC) -I$(C_OP2_INC) -DOPMPI -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
+	$(CC) $(PGCFLAGS) -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_decl.c -o $(F_OP2_OBJ)/op_mpi_cuda_decl.o
+	$(CC) $(PGCFLAGS) -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -DOPMPI -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
 	$(CC) $(PGCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/mpi/op_mpi_part_core.c -o $(F_OP2_OBJ)/op_mpi_part_core.o
-	$(CC) $(PGCFLAGS) -I$(MPI_INC) -I$(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_rt_support.c -o $(F_OP2_OBJ)/op_mpi_cuda_rt_support.o
+	$(CC) $(PGCFLAGS) -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_rt_support.c -o $(F_OP2_OBJ)/op_mpi_cuda_rt_support.o
 	$(NVCC) $(NVCCFLAGS) -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_kernels.cu -o $(F_OP2_OBJ)/op_mpi_cuda_kernels.o
-	$(CC) $(PGCFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
-	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) -I$(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
+	$(CC) $(PGCFLAGS) -I$(MPI_INC) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_hdf5.c -o $(F_OP2_OBJ)/op_mpi_hdf5.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_util.cpp -o $(F_OP2_OBJ)/op_mpi_util.o
+	$(MPICXX) $(CFLAGS) $(HDF5_INCLUDE) -I$(C_OP2_INC) $(CUDA_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/externlib/op_renumber.cpp -o $(F_OP2_OBJ)/op_renumber.o
 	ar -r $(F_OP2_LIB)/libop2_for_mpi_cuda.a \
 	$(F_OP2_OBJ)/op_lib_core.o \
 	$(F_OP2_OBJ)/op_rt_support.o \
