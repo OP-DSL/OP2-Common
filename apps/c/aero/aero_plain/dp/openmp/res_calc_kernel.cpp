@@ -39,8 +39,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(0);
   op_timers_core(&cpu_t1, &wall_t1);
-  double inner_cpu_t1, inner_cpu_t2, inner_wall_t1, inner_wall_t2;
-  double compute_time = 0.0, sync_time = 0.0;
 
   int  ninds   = 3;
   int  inds[13] = {0,0,0,0,1,1,1,1,-1,2,2,2,2};
