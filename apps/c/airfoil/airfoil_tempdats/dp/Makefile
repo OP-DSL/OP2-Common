@@ -1,25 +1,30 @@
 #
 # The following environment variables should be predefined:
 #
-# OP2_COMPILER (gnu,intel,etc)
-#
-# ... and optionally the following. If not defined, then 
-# they must be locatable via PATH variables:
-#
-# OP2_INSTALL_PATH
 # CUDA_INSTALL_PATH
 # PARMETIS_INSTALL_PATH
 # PTSCOTCH_INSTALL_PATH
 # HDF5_INSTALL_PATH
 #
+# OP2_INSTALL_PATH
+# OP2_COMPILER (gnu,intel,etc)
+#
 
-include ../../../../make-common.inc
+#
+# set paths for header files and libraries
+#
+OP2_INC		= -I$(OP2_INSTALL_PATH)/c/include
+OP2_LIB		= -L$(OP2_INSTALL_PATH)/c/lib
+
+CUDA_INC	= -I$(CUDA_INSTALL_PATH)/include
+CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
+
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
   CPPFLAGS	= -arch x86_64 -g -fPIC -DUNIX -Wall #-Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= $(MPICXX_PATH)
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
@@ -27,8 +32,8 @@ ifeq ($(OP2_COMPILER),intel)
   CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
-  MPICPP	= $(MPICXX_PATH)
-  # NVCCFLAGS	= -ccbin=$(MPICPP)
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -36,7 +41,7 @@ ifeq ($(OP2_COMPILER),pgi)
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
-  MPICPP   	= $(MPICXX_PATH)
+  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS 	= $(CPPFLAGS)
   NVCCFLAGS	= -ccbin=$(MPICPP)
 else
@@ -70,10 +75,26 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
+
+#
+# partitioning software for MPI versions
+#
+PARMETIS_VER=4
+ifeq ($(PARMETIS_VER),4)
+  PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
+  PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
+else
+  PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/ -DHAVE_PARMETIS
+  PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/ -lparmetis -lmetis
+endif
+
+PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
+PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
+                -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
 
 #
