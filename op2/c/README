@@ -12,7 +12,7 @@ Third party
 Regular Makefile build
 ======================
 
-The recommended way of building the examples is by using the regular Makefile build.
+The recommended way of building OP2 is by using the regular Makefile build.
 To compile using the regular Makefiles provided, it is required to:
 
 1. Set the environment variable CUDA_INSTALL_PATH to the appropriate path.
@@ -63,9 +63,6 @@ To compile using the regular Makefiles provided, it is required to:
    make
 
    Then the op2 libraries will be built under ~/OP2-Common/op2/c/lib
-
-
-
 
 
 CMake build
