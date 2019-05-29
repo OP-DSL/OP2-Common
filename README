@@ -13,7 +13,7 @@ and the preprocessor, and is structured as follows:
 |  the target code an OP2 preprocessor should produce to correctly
 |  use the OP2 run-time library.
 |
-`- scripts: simple basj scripts for quickly testing OP2 backends and applications
+`- scripts: simple bash scripts for testing OP2 backends and applications
 |
 `- translator: MATLAB and Pyton OP2 preprocessor for C and Fortran
 |
@@ -21,3 +21,10 @@ and the preprocessor, and is structured as follows:
 
 For build instructions see README files located under op2/c (for C/C++ backend libs), 
 op2/fortran (for Fortran backend libs) and apps/c (for C/C++ API based examples).
+
+How to cite:
+G.R. Mudalige, I. Reguly, M.B. Giles, C. Bertolli and P.H.J. Kelly. 
+OP2: An Active Library Framework for Solving Unstructured Mesh-based Applications 
+on Multi-Core and Many-Core Architectures. In Proceedings of Innovative Parallel 
+Computing (InPar), 2012, pp.1-12, 13-14 May 2012. 
+(https://doi.org/10.1109/InPar.2012.6339594)
