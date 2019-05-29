@@ -513,5 +513,4 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 }
 
 int op_is_root() { return 1; }
-
 #endif
