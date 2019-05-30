@@ -14,6 +14,8 @@ import datetime
 import os
 import op2_gen_common
 
+insert_thread_timers = os.getenv('OP_TIME_THREADS', False);
+
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
@@ -212,8 +214,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code('op_timing_realloc('+str(nk)+');')
+    if insert_thread_timers:
+      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    else:
+      code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
+    if insert_thread_timers:
+      code('double non_thread_walltime = 0.0;')
     code('')
 
 #
@@ -299,8 +306,28 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
       code('int nblocks = Plan->ncolblk[col];')
       code('')
-      code('#pragma omp parallel for')
-      FOR('blockIdx','0','nblocks')
+      if insert_thread_timers:
+        # Pause process timing and switch to per-thread timing:
+        code('// Pause process timing and switch to per-thread timing:')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
+
+        code('#pragma omp parallel')
+        code('{')
+        depth += 2
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
+        code('')
+        code('int nthreads = omp_get_num_threads();')
+        code('int thr = omp_get_thread_num();')
+        code('int thr_start = (nblocks * thr) / nthreads;')
+        code('int thr_end = (nblocks * (thr+1)) / nthreads;')
+        code('if (thr_end > nblocks) thr_end = nblocks;')
+        FOR('blockIdx','thr_start','thr_end')
+      else:
+        code('#pragma omp parallel for')
+        FOR('blockIdx','0','nblocks')
+
       code('int blockId  = Plan->blkmap[blockIdx + block_offset];')
       code('int nelem    = Plan->nelems[blockId];')
       code('int offset_b = Plan->offset[blockId];')
@@ -354,6 +381,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if insert_thread_timers:
+        depth -= 2
+        code('}')
+        code('')
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels[' +str(nk)+ '].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
       code('')
 
@@ -379,6 +412,11 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
               error('internal error: invalid reduction option')
             ENDFOR()
         ENDIF()
+
+      if insert_thread_timers:
+        code('// Revert to process-level timing:')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
+        code('')
       code('block_offset += nblocks;');
       ENDIF()
 
@@ -387,8 +425,16 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
     else:
       comm(' execute plan')
+      if insert_thread_timers:
+        # Pause process timing, and switch to per-thread timing:
+        code('// Pause process timing, and switch to per-thread timing:')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
+      if insert_thread_timers:
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
       FOR('n','start','finish')
@@ -408,7 +454,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if insert_thread_timers:
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels['+str(nk)+'].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
+      if insert_thread_timers:
+        # OpenMP block complete, so switch back to process timing:
+        code('// OpenMP block complete, so switch back to process timing:')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
 
     if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
@@ -457,9 +510,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
+    if insert_thread_timers:
+      code('non_thread_walltime += wall_t2 - wall_t1;')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    if insert_thread_timers:
+        code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
+    else:
+        code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
@@ -498,6 +556,11 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
+
+  code('#ifdef _OPENMP')
+  code('  #include <omp.h>')
+  code('#endif')
+  code('')
 
   comm(' global constants       ')
 
