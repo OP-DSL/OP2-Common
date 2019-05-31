@@ -873,11 +873,8 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
     for (int n = OP_kern_max; n < OP_kern_max_new; n++) {
       OP_kernels[n].count = 0;
       OP_kernels[n].time = 0.0f;
-      OP_kernels[n].times = (double*)op_malloc(num_timers * sizeof(double));
-      for (int t = 0; t < num_timers; t++) {
-        OP_kernels[n].times[t] = 0.0f;
-      }
-      OP_kernels[n].ntimes = num_timers;
+      OP_kernels[n].times = NULL;
+      OP_kernels[n].ntimes = 0;
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
@@ -885,6 +882,14 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].name = "unused";
     }
     OP_kern_max = OP_kern_max_new;
+  }
+
+  if (OP_kernels[kernel].times == NULL) {
+    OP_kernels[kernel].times = (double*)op_malloc(num_timers * sizeof(double));
+    for (int t = 0; t < num_timers; t++) {
+      OP_kernels[kernel].times[t] = 0.0f;
+    }
+    OP_kernels[kernel].ntimes = num_timers;
   }
 }
 
