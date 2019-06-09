@@ -10,6 +10,7 @@
 import re
 import datetime
 import glob
+import os
 
 def comment_remover(text):
     """Remove comments from text"""
