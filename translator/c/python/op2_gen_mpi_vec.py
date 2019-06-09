@@ -498,6 +498,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
             code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+          if accs[g_m] == OP_READ:
+            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {*arg'+str(g_m)+'.data};')
 
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')
