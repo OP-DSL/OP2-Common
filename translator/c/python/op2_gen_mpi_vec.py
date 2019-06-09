@@ -29,14 +29,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line)
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -248,10 +248,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -260,8 +260,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -273,13 +273,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # create aligned pointers
@@ -288,18 +288,18 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for g_m in range (0,nargs):
         if maps[g_m] <> OP_GBL:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-            code('ALIGNED_TYP       TYP * __restrict__ ptr'+\
-            str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            #code('TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
-            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
+            code('ALIGNED_<TYP>       <TYP> * __restrict__ ptr'+\
+            str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            #code('<TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
+            #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
 
           else:
-            code('ALIGNED_TYP const TYP * __restrict__ ptr'+\
-            str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
-            #code('const TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
-            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+            code('ALIGNED_<TYP> const <TYP> * __restrict__ ptr'+\
+            str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            #code('const <TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
+            #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
 
 
 
@@ -347,11 +347,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
 
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -362,7 +362,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
           or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE \
           or accs[g_m] == OP_INC):
-          code('ALIGNED_TYP TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
+          code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
 
       #setup gathers
       code('#pragma simd')
@@ -371,13 +371,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
               for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'];')
+                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'];')
               code('')
             elif (accs[g_m] == OP_INC):
               for d in range(0,int(dims[g_m])):
@@ -414,17 +414,17 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_INC ):
               for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
             if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
               for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
       ENDFOR()
 
@@ -433,11 +433,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_GBL:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('*(<TYP>*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MAX(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MIN(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           ENDFOR()
 
 
@@ -493,13 +493,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
           if accs[g_m] == OP_INC:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
           if accs[g_m] == OP_READ:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {*arg'+str(g_m)+'.data};')
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {*arg'+str(g_m)+'.data};')
 
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')
@@ -523,11 +523,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_GBL:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('*(<TYP>*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MAX(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MIN(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           ENDFOR()
       ENDFOR()
 
@@ -567,7 +567,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
+        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
@@ -588,9 +588,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
     else:
       names = []
       for g_m in range(0,ninds):

@@ -29,14 +29,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line) 
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line) 
   return line
 
 def code(text):
@@ -260,19 +260,19 @@ def op2_gen_openmp4(master, date, consts, kernels):
     k = []
     for g_m in range(0, nargs):
       if maps[g_m] == OP_GBL:
-        params += indent + rep('TYP *ARG,',g_m)
+        params += indent + rep('<TYP> *<ARG>,',g_m)
       if maps[g_m] == OP_MAP and (not invmapinds[inds[g_m]-1] in k):
         k = k + [invmapinds[inds[g_m]-1]]
         params += indent +  'int *map'+str(mapinds[g_m])+','
         if maptype == 'map':
           params += indent +  'int map'+str(mapinds[g_m])+'size,'
       if maps[g_m] == OP_ID:
-        params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+        params += indent + rep('<TYP> *data'+str(g_m)+',', g_m)
         if maptype == 'map':
           params += indent +  'int dat'+str(g_m)+'size,'
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
-      params += indent + rep('TYP *data'+str(g_m)+',', g_m)
+      params += indent + rep('<TYP> *data'+str(g_m)+',', g_m)
       if maptype == 'map':
         params += indent +  'int dat'+str(g_m)+'size,'
     if ninds>0:
@@ -308,14 +308,14 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     for g_m in range (0,nargs):
       if maps[g_m]==OP_GBL: #and accs[g_m] <> OP_READ:
-        code('TYP*ARGh = (TYP *)ARG.data;')
+        code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -324,8 +324,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -337,13 +337,13 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # start timing
@@ -407,7 +407,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
         if not dims[g_m].isdigit() or int(dims[g_m]) > 1:
           print 'ERROR: OpenMP 4 does not support multi-dimensional variables'
           exit(-1)
-        code('TYP ARG_l = ARGh[0];')
+        code('<TYP> <ARG>_l = <ARG>h[0];')
 
     if ninds > 0:
       code('')
@@ -455,7 +455,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
     for m in range(1,ninds+1):
       g_m = invinds[m-1]
-      code('TYP *data'+str(g_m)+' = (TYP *)ARG.data_d;')
+      code('<TYP> *data'+str(g_m)+' = (<TYP> *)<ARG>.data_d;')
       if maptype == 'map':
         if optflags[g_m]:
             code('int dat'+str(g_m)+'size = (arg'+str(g_m)+'.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
@@ -502,11 +502,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
             if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
-              code('ARGh[0] = ARG_l;')
+              code('<ARG>h[0] = <ARG>_l;')
             elif accs[g_m]==OP_MIN:
-              code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
+              code('<ARG>h[0]  = MIN(<ARG>h[0],<ARG>_l);')
             elif  accs[g_m]==OP_MAX:
-              code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
+              code('<ARG>h[0]  = MAX(<ARG>h[0],<ARG>_l);')
             else:
               error('internal error: invalid reduction option')
         ENDIF()
@@ -531,19 +531,19 @@ def op2_gen_openmp4(master, date, consts, kernels):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
         if ninds==0: #direct version only
           if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
-            code('ARGh[0] = ARG_l;')
+            code('<ARG>h[0] = <ARG>_l;')
           elif accs[g_m]==OP_MIN:
-            code('ARGh[0]  = MIN(ARGh[0],ARG_l);')
+            code('<ARG>h[0]  = MIN(<ARG>h[0],<ARG>_l);')
           elif accs[g_m]==OP_MAX:
-            code('ARGh[0]  = MAX(ARGh[0],ARG_l);')
+            code('<ARG>h[0]  = MAX(<ARG>h[0],<ARG>_l);')
           else:
             print 'internal error: invalid reduction option'
         if typs[g_m] == 'double': #need for both direct and indirect
-          code('op_mpi_reduce_double(&ARG,ARGh);')
+          code('op_mpi_reduce_double(&<ARG>,<ARG>h);')
         elif typs[g_m] == 'float':
-          code('op_mpi_reduce_float(&ARG,ARGh);')
+          code('op_mpi_reduce_float(&<ARG>,<ARG>h);')
         elif typs[g_m] == 'int':
-          code('op_mpi_reduce_int(&ARG,ARGh);')
+          code('op_mpi_reduce_int(&<ARG>,<ARG>h);')
         else:
           print 'Type '+typs[g_m]+' not supported in OpenMP4 code generator, please add it'
           exit(-1)
@@ -566,12 +566,12 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
-          IF('ARG.opt')
+          IF('<ARG>.opt')
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
 
@@ -606,7 +606,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     depth += 2
     for g_m in range(0, nargs):
       if maps[g_m] == OP_GBL:
-        code('TYP ARG_l = *ARG;')
+        code('<TYP> <ARG>_l = *<ARG>;')
     line = '#pragma omp target teams'
     if op2_compiler == 'clang':
       line +=' distribute parallel for schedule(static,1)\\\n' + (depth+2)*' '
@@ -707,9 +707,9 @@ def op2_gen_openmp4(master, date, consts, kernels):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
         if len(u) > 0 and vectorised[g_m] > 0:
           if accs[g_m] == OP_READ:
-            line = 'const TYP* ARG_vec[] = {\n'
+            line = 'const <TYP>* <ARG>_vec[] = {\n'
           else:
-            line = 'TYP* ARG_vec[] = {\n'
+            line = '<TYP>* <ARG>_vec[] = {\n'
 
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -720,7 +720,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
             if soaflags[g_m]:
               line = line + indent + ' &data'+str(first)+'[map'+str(mapinds[g_m+k])+'idx],\n'
             else:
-              line = line + indent + ' &data'+str(first)+'[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+              line = line + indent + ' &data'+str(first)+'[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
           line = line[:-2]+'};'
           code(line)
 #
@@ -773,7 +773,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     # end kernel function
     for g_m in range(0, nargs):
       if maps[g_m] == OP_GBL:
-        code('*ARG = ARG_l;')
+        code('*<ARG> = <ARG>_l;')
     depth -= 2;
     code('}')
 
