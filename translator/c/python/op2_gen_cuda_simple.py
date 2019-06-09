@@ -273,6 +273,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
                                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
+    for nc in range(0,len(consts)): 
+      varname = consts[nc]['name']
+      body_text = re.sub('\\b'+varname+'\\b', varname+'_cuda',body_text)
+
     signature_text = '__device__ '+head_text + '_gpu( '+signature_text + ') {'
     file_text += signature_text + body_text + '}\n'
 
