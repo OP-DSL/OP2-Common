@@ -385,9 +385,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               code('')
           else: #globals
             if (accs[g_m] == OP_INC):
-              for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'[i] = 0.0;')
-              code('')
+              # for d in range(0,int(dims[g_m])):
+              #   code('dat'+str(g_m)+'[i] = 0.0;')
+              # code('')
+              pass
 
       ENDFOR()
       #kernel call
