@@ -217,8 +217,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r'('+var2+'\[[A-Za-z0-9]*\]'+')', r'\1'+'[idx]', body_text)
-
+          body_text = re.sub(r'('+var2+'\[[\w\(\)\+\-\*\s\\\\]*\]'+')', r'\1'+'[idx]', body_text)
 
           var = var + '[*][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
