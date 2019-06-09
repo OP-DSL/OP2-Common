@@ -182,7 +182,7 @@ def self_evaluate_macro_defs(macro_defs):
       m = re.search(arithmetic_regex_pattern, o)
       if m == None:
         if o in macro_defs.keys():
-          num_subs_expected = num_subs_expected + 1
+          num_subs_expected += 1
 
   substitutions_performed = True
   num_subs_performed = 0
@@ -198,6 +198,8 @@ def self_evaluate_macro_defs(macro_defs):
       if k == k_val:
         del macro_defs[k]
         continue
+
+      # print("Processing '{0}' -> '{1}'".format(k, k_val))
 
       ## If value of key 'k' depends on value of other
       ## keys, then substitute in value:
@@ -221,10 +223,11 @@ def self_evaluate_macro_defs(macro_defs):
             continue
 
           macro_defs[k] = re.sub(pattern, "\\g<1>"+k2_val+"\\g<2>", k_val)
-          # print("Performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
+          # print("- performing a substitution of '" + k2 + "'->'" + k2_val + "' into '" + k_val + "' to produce '" + macro_defs[k] + "'")
+          k_val = macro_defs[k]
           substitutions_performed = True
 
-          num_subs_performed = num_subs_performed + 1
+          num_subs_performed += 1
           if num_subs_performed > num_subs_expected:
             print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
             return
