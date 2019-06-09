@@ -13,6 +13,7 @@ import re
 import datetime
 import glob
 import os
+import op2_gen_common
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -92,54 +93,6 @@ def ENDIF():
   elif CPP:
     code('}')
 
-def comment_remover(text):
-    """Remove comments from text"""
-
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith('/'):
-            return ''
-        else:
-            return s
-    pattern = re.compile(
-        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-        re.DOTALL | re.MULTILINE
-    )
-    return re.sub(pattern, replacer, text)
-
-def remove_trailing_w_space(text):
-  text = text+' '
-  line_start = 0
-  line = ""
-  line_end = 0
-  striped_test = ''
-  count = 0
-  while 1:
-    line_end =  text.find("\n",line_start+1)
-    line = text[line_start:line_end]
-    line = line.rstrip()
-    striped_test = striped_test + line +'\n'
-    line_start = line_end + 1
-    line = ""
-    if line_end < 0:
-      return striped_test[:-1]
-
-def para_parse(text, j, op_b, cl_b):
-    """Parsing code block, i.e. text to find the correct closing brace"""
-
-    depth = 0
-    loc2 = j
-
-    while 1:
-      if text[loc2] == op_b:
-            depth = depth + 1
-
-      elif text[loc2] == cl_b:
-            depth = depth - 1
-            if depth == 0:
-                return loc2
-      loc2 = loc2 + 1
-
 def op2_gen_mpi_vec(master, date, consts, kernels):
 
   global dims, idxs, typs, indtyps, inddims
@@ -218,8 +171,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       kernel_text = f.read()
       f.close()
 
-      kernel_text = comment_remover(kernel_text)
-      kernel_text = remove_trailing_w_space(kernel_text)
+      kernel_text = op2_gen_common.comment_remover(kernel_text)
+      kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
 
       p = re.compile('void\\s+\\b'+name+'\\b')
       i = p.search(kernel_text).start()
@@ -232,11 +185,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       #i = kernel_text[0:i].rfind('\n') #reverse find
       j = kernel_text[i:].find('{')
-      k = para_parse(kernel_text, i+j, '{', '}')
+      k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
       signature_text = kernel_text[i:i+j]
       l = signature_text[0:].find('(')
       head_text = signature_text[0:l] #save function name
-      m = para_parse(signature_text, 0, '(', ')')
+      m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
       signature_text = signature_text[l+1:m]
       body_text = kernel_text[i+j+1:k]
 
