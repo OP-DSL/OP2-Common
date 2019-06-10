@@ -447,9 +447,9 @@ def op2_gen_omp_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          elif accs[g_m] == OP_MIN:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+          elif accs[g_m] == OP_MIN:
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
 
 
       comm('peel left remainder')
@@ -629,9 +629,9 @@ def op2_gen_omp_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          elif accs[g_m] == OP_MIN:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+          elif accs[g_m] == OP_MIN:
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
 
       code('#pragma omp simd aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')

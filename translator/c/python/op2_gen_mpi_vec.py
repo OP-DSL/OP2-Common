@@ -351,9 +351,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          elif accs[g_m] == OP_MIN:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+          elif accs[g_m] == OP_MIN:
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
 
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -497,9 +497,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if accs[g_m] == OP_INC:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          elif accs[g_m] == OP_MIN:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+          elif accs[g_m] == OP_MIN:
+            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
           if accs[g_m] == OP_READ:
             code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {*arg'+str(g_m)+'.data};')
 
