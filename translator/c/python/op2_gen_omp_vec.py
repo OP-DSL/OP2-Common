@@ -502,7 +502,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
           code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
 
       #setup gathers
-      code('#pragma omp simd aligned('+aligned_clauses+')')
+      code('#pragma omp simd simdlen(SIMD_VEC) aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
@@ -528,7 +528,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
 
       ENDFOR()
       #kernel call
-      code('#pragma omp simd aligned('+aligned_clauses+')')
+      code('#pragma omp simd simdlen(SIMD_VEC) aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       line = name+'_vec('
       indent = '\n'+' '*(depth+2)
@@ -584,7 +584,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       depth = depth -2
       code('#else')
       if not ind_inc:
-        code('#pragma omp simd aligned('+aligned_clauses+') '+reduce_clauses)
+        code('#pragma omp simd simdlen(SIMD_VEC) aligned('+aligned_clauses+') '+reduce_clauses)
       FOR('n','offset_b','offset_b+nelem')
       depth = depth -2
       code('#endif')
@@ -643,7 +643,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       code('#pragma omp parallel for '+reduce_clauses)
       FOR2('n','0','(set_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
-      code('#pragma omp simd aligned('+aligned_clauses+')')
+      code('#pragma  simdlen(SIMD_VEC) aligned('+aligned_clauses+')')
       FOR('i','0','SIMD_VEC')
       line = name+'('
       indent = '\n'+' '*(depth+2)
