@@ -38,7 +38,11 @@ inline void res_calc(const double *x1, const double *x2, const double *q1,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC], const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC], int idx ) {
+inline void res_calc_vec( const double x1[*][SIMD_VEC],
+  const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC],
+  const double q2[*][SIMD_VEC], const double adt1[*][SIMD_VEC],
+  const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC],
+  double res2[*][SIMD_VEC], int idx ) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];

@@ -33,7 +33,7 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void adt_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC], const double x4[*][SIMD_VEC], const double *q, double *adt, int idx ) {
+inline void adt_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC], const double x4[*][SIMD_VEC], const double *q, double *adt, int idx ) {
   double dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0];
