@@ -372,7 +372,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
 
       #setup gathers
-      code('#pragma simd simdlen(SIMD_VEC)')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
@@ -399,7 +399,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       ENDFOR()
       #kernel call
-      code('#pragma simd simdlen(SIMD_VEC)')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       line = name+'_vec('
       indent = '\n'+' '*(depth+2)
@@ -512,7 +512,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
-      code('#pragma simd simdlen(SIMD_VEC)')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       line = name+'('
       indent = '\n'+' '*(depth+2)
