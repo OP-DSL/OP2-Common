@@ -198,9 +198,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
 
       # check for number of arguments
-      if len(signature_text.split(',')) != nargs:
-          print 'Error parsing user kernel(%s): must have %d arguments' \
-                % name, nargs
+      nargs_actual = len(signature_text.split(','))
+      if nargs_actual != nargs:
+          print('Error parsing user kernel({0}): must have {1} arguments (instead it has {2})'.format(name, nargs, nargs_actual))
           return
 
       new_signature_text = ''
