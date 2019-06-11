@@ -345,15 +345,20 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     if ninds>0:
       code('#ifdef VECTORIZE')
 
-      #initialze globals
+      #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
+          code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
+          FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+            code('dat{0}[i] = 0.0;'.format(g_m))
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+            code('dat{0}[i] = -INFINITY;'.format(g_m))
           elif accs[g_m] == OP_MIN:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
+            code('dat{0}[i] = INFINITY;'.format(g_m))
+          elif accs[g_m] == OP_READ:
+            code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
+          ENDFOR()
 
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
@@ -488,20 +493,24 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     else:
       code('#ifdef VECTORIZE')
-      code('#pragma novector')
-      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
       #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
+          code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
+          FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+            code('dat{0}[i] = 0.0;'.format(g_m))
           elif accs[g_m] == OP_MAX:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+            code('dat{0}[i] = -INFINITY;'.format(g_m))
           elif accs[g_m] == OP_MIN:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          if accs[g_m] == OP_READ:
-            code('<TYP> dat'+str(g_m)+'[SIMD_VEC] = {*arg'+str(g_m)+'.data};')
+            code('dat{0}[i] = INFINITY;'.format(g_m))
+          elif accs[g_m] == OP_READ:
+            code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
+          ENDFOR()
+
+      code('#pragma novector')
+      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
       code('#pragma simd')
       FOR('i','0','SIMD_VEC')
