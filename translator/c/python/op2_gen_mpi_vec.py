@@ -233,7 +233,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       #print signature_text
       #print  body_text
 
-      file_text += 'inline '+signature_text + body_text + '}\n'
+      file_text += signature_text + body_text + '}\n'
       code('#endif');
 
 
