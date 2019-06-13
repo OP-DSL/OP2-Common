@@ -5,6 +5,7 @@
 //user function
 __device__ void updateP_gpu( const double *r, double *p, const double *beta) {
   *p = (*beta) * (*p) + (*r);
+
 }
 
 // CUDA kernel function

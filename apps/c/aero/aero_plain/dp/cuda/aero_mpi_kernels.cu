@@ -7,22 +7,22 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ double gam;
-__constant__ double gm1;
-__constant__ double gm1i;
-__constant__ double m2;
-__constant__ double wtg1[2];
-__constant__ double xi1[2];
-__constant__ double Ng1[4];
-__constant__ double Ng1_xi[4];
-__constant__ double wtg2[4];
-__constant__ double Ng2[16];
-__constant__ double Ng2_xi[32];
-__constant__ double minf;
-__constant__ double freq;
-__constant__ double kappa;
-__constant__ double nmode;
-__constant__ double mfan;
+__constant__ double gam_cuda;
+__constant__ double gm1_cuda;
+__constant__ double gm1i_cuda;
+__constant__ double m2_cuda;
+__constant__ double wtg1_cuda[2];
+__constant__ double xi1_cuda[2];
+__constant__ double Ng1_cuda[4];
+__constant__ double Ng1_xi_cuda[4];
+__constant__ double wtg2_cuda[4];
+__constant__ double Ng2_cuda[16];
+__constant__ double Ng2_xi_cuda[32];
+__constant__ double minf_cuda;
+__constant__ double freq_cuda;
+__constant__ double kappa_cuda;
+__constant__ double nmode_cuda;
+__constant__ double mfan_cuda;
 
 //header
 #include "op_lib_cpp.h"
@@ -33,67 +33,67 @@ void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;
   if (!strcmp(name,"gam")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gam, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(gam_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"gm1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gm1, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(gm1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"gm1i")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gm1i, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(gm1i_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"m2")) {
-    cutilSafeCall(cudaMemcpyToSymbol(m2, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(m2_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"wtg1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(wtg1, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(wtg1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"xi1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(xi1, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(xi1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(Ng1, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(Ng1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng1_xi")) {
-    cutilSafeCall(cudaMemcpyToSymbol(Ng1_xi, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(Ng1_xi_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"wtg2")) {
-    cutilSafeCall(cudaMemcpyToSymbol(wtg2, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(wtg2_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng2")) {
-    cutilSafeCall(cudaMemcpyToSymbol(Ng2, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(Ng2_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng2_xi")) {
-    cutilSafeCall(cudaMemcpyToSymbol(Ng2_xi, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(Ng2_xi_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"minf")) {
-    cutilSafeCall(cudaMemcpyToSymbol(minf, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(minf_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"freq")) {
-    cutilSafeCall(cudaMemcpyToSymbol(freq, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(freq_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"kappa")) {
-    cutilSafeCall(cudaMemcpyToSymbol(kappa, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(kappa_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"nmode")) {
-    cutilSafeCall(cudaMemcpyToSymbol(nmode, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(nmode_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"mfan")) {
-    cutilSafeCall(cudaMemcpyToSymbol(mfan, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(mfan_cuda, dat, dim*size));
   }
   else
   {

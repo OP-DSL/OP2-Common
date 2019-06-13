@@ -7,6 +7,7 @@ __device__ void update_gpu( double *phim, double *res, const double *u, double *
   *phim -= *u;
   *res = 0.0;
   *rms += (*u) * (*u);
+
 }
 
 // CUDA kernel function
