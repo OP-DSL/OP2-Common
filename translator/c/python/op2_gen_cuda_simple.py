@@ -520,7 +520,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
     elif ninds>0:
       code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
-      code('if(tid + start >= end) return;')
+      IF('tid + start < end')
       code('int n = col_reord[tid + start];')
       comm('initialise local variables')
       #mapidx declarations
@@ -702,8 +702,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR()
         code('__syncthreads();')
         ENDFOR()
-    if ninds == 0 or not op_color2:
-      ENDFOR()
+    ENDFOR()
 
     if inc_stage:
       for g_m in range(0,ninds):
