@@ -3141,7 +3141,7 @@ void op_partition_inertial(op_dat x_dat) {
   for (int level = 0; level < nlevel; level++) {
     // op_inert begin
     if (comm_size != 1) {
-      dist = (double *)xmalloc(current_part_size * sizeof(double));
+      dist = (double *)xmalloc((current_part_size==0?1:current_part_size) * sizeof(double));
       double x_local = 0.0;
       double y_local = 0.0;
       double z_local = 0.0;
