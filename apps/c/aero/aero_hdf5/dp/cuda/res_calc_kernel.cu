@@ -90,44 +90,45 @@ __global__ void op_cuda_res_calc(
   int *col_reord,
   int   set_size) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if(tid + start >= end) return;
-  int n = col_reord[tid + start];
-  //initialise local variables
-  int map0idx;
-  int map1idx;
-  int map2idx;
-  int map3idx;
-  map0idx = opDat0Map[n + set_size * 0];
-  map1idx = opDat0Map[n + set_size * 1];
-  map2idx = opDat0Map[n + set_size * 2];
-  map3idx = opDat0Map[n + set_size * 3];
-  const double* arg0_vec[] = {
-     &ind_arg0[2 * map0idx],
-     &ind_arg0[2 * map1idx],
-     &ind_arg0[2 * map2idx],
-     &ind_arg0[2 * map3idx]};
-  const double* arg4_vec[] = {
-     &ind_arg1[1 * map0idx],
-     &ind_arg1[1 * map1idx],
-     &ind_arg1[1 * map2idx],
-     &ind_arg1[1 * map3idx]};
-  double* arg9_vec[] = {
-     &ind_arg2[1 * map0idx],
-     &ind_arg2[1 * map1idx],
-     &ind_arg2[1 * map2idx],
-     &ind_arg2[1 * map3idx]};
-  double* arg13_vec[] = {
-     &ind_arg3[2 * map0idx],
-     &ind_arg3[2 * map1idx],
-     &ind_arg3[2 * map2idx],
-     &ind_arg3[2 * map3idx]};
+  if (tid + start < end) {
+    int n = col_reord[tid + start];
+    //initialise local variables
+    int map0idx;
+    int map1idx;
+    int map2idx;
+    int map3idx;
+    map0idx = opDat0Map[n + set_size * 0];
+    map1idx = opDat0Map[n + set_size * 1];
+    map2idx = opDat0Map[n + set_size * 2];
+    map3idx = opDat0Map[n + set_size * 3];
+    const double* arg0_vec[] = {
+       &ind_arg0[2 * map0idx],
+       &ind_arg0[2 * map1idx],
+       &ind_arg0[2 * map2idx],
+       &ind_arg0[2 * map3idx]};
+    const double* arg4_vec[] = {
+       &ind_arg1[1 * map0idx],
+       &ind_arg1[1 * map1idx],
+       &ind_arg1[1 * map2idx],
+       &ind_arg1[1 * map3idx]};
+    double* arg9_vec[] = {
+       &ind_arg2[1 * map0idx],
+       &ind_arg2[1 * map1idx],
+       &ind_arg2[1 * map2idx],
+       &ind_arg2[1 * map3idx]};
+    double* arg13_vec[] = {
+       &ind_arg3[2 * map0idx],
+       &ind_arg3[2 * map1idx],
+       &ind_arg3[2 * map2idx],
+       &ind_arg3[2 * map3idx]};
 
-  //user-supplied kernel call
-  res_calc_gpu(arg0_vec,
+    //user-supplied kernel call
+    res_calc_gpu(arg0_vec,
              arg4_vec,
              arg8+n,
              arg9_vec,
              arg13_vec);
+  }
 }
 
 
