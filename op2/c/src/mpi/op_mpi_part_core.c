@@ -3106,7 +3106,7 @@ void op_partition_inertial(op_dat x_dat) {
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
+    int *g_index = (int *)xmalloc(sizeof(int) * (set->size > 0 ? set->size: 1));
     for (int i = 0; i < set->size; i++)
       g_index[i] =
           get_global_index(i, my_rank, part_range[set->index], comm_size);
@@ -3120,7 +3120,7 @@ void op_partition_inertial(op_dat x_dat) {
   int block_upper = part_range[x_dat->set->index][2 * my_rank + 1]; // losg2
   int block_size = block_upper - block_lower + 1;                   // losgd
 
-  int *global_indices = (int *)xmalloc(block_size * sizeof(int));
+  int *global_indices = (int *)xmalloc((block_size>0?block_size:1) * sizeof(int));
   for (int i = 0; i < block_size; i++)
     global_indices[i] = block_lower + i;
   int nlevel = 0;
@@ -3267,11 +3267,11 @@ void op_partition_inertial(op_dat x_dat) {
       int current_group_upper = current_group_size - nlower_g;
 
       double *x_keep =
-          (double *)xmalloc(3 * current_part_size * sizeof(double));
+          (double *)xmalloc(3 * (current_part_size>0?current_part_size:1) * sizeof(double));
       int *idx_gbl_keep = (int *)xmalloc(current_part_size * sizeof(int));
       double *x_send =
-          (double *)xmalloc(3 * current_part_size * sizeof(double));
-      int *idx_gbl_send = (int *)xmalloc(current_part_size * sizeof(int));
+          (double *)xmalloc(3 * (current_part_size>0?current_part_size:1) * sizeof(double));
+      int *idx_gbl_send = (int *)xmalloc((current_part_size>1?current_part_size:1) * sizeof(int));
       int keep_ctr = 0;
       int send_ctr = 0;
       if (my_rank <= comm_size / 2 - 1) {
