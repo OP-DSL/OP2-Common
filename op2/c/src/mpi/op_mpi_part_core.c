@@ -69,6 +69,9 @@ typedef int idx_t;
 
 #include <op_lib_mpi.h>
 
+// double min/max
+#include <float.h>
+
 extern int *OP_map_partial_exchange; // flag for each map ..
 // used for checking if partial halo exchanges
 // are to be performed
@@ -3222,10 +3225,10 @@ void op_partition_inertial(op_dat x_dat) {
       // op_inert end
 
       // op_sort begin
-      double distmin = dist[0];
-      double distmax = dist[0];
-      double distavg = dist[0];
-      for (int i = 1; i < current_part_size; i++) {
+      double distmin = DBL_MAX;
+      double distmax = DBL_MIN;
+      double distavg = 0.0;
+      for (int i = 0; i < current_part_size; i++) {
         distmin = distmin < dist[i] ? distmin : dist[i];
         distmax = distmax > dist[i] ? distmax : dist[i];
         distavg += dist[i];
