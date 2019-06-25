@@ -122,7 +122,7 @@ END SUBROUTINE
     INTEGER(kind=4), VALUE :: setSize
     INTEGER(kind=4) :: i1
     INTEGER(kind=4) :: i2
-    REAL(kind=8), DIMENSION(0:*), SHARED :: redFloat8
+    REAL(kind=8), DIMENSION(0:*), SHARED :: reductionFloat8
 
     opGblDat5Deviceupdate = 0
 
@@ -141,7 +141,7 @@ END SUBROUTINE
 
     do i1=0,2-1,8
     i2 = MIN(i1+8,2)
-      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
+      CALL ReductionFloat8Mdim(reductionFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
     end do
 
   END SUBROUTINE
