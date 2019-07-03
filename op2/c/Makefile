@@ -130,8 +130,22 @@ ifeq ($(OP2_COMPILER),clang)
   MPIFLAGS  = $(CXXFLAGS)
   OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
+ifeq ($(OP2_COMPILER),sycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -g -O3
+  endif
+  CXX	    = g++
+	SYCLCXX = compute++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
+endif
 endif
 endif
 endif
@@ -232,6 +246,17 @@ cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
+
+sycl: mklib $(INC)/op_sycl_rt_support.h $(INC)/op_sycl_reduction.h $(SRC)/sycl/op_sycl_decl.cpp \
+	$(SRC)/sycl/op_sycl_rt_support.cpp $(OBJ)/op_lib_core.o
+	$(SYCLCXX) $(CCFLAGS) $(SYCL_FLAGS) -I$(INC) \
+		-c $(SRC)/sycl/op_sycl_decl.cpp -o $(OBJ)/op_sycl_decl.o
+	$(SYCLCXX) $(CXXFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/sycl/op_sycl_rt_support.cpp \
+		-o $(OBJ)/op_sycl_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	ar -r $(LIB)/libop2_sycl.a $(OBJ)/op_sycl_rt_support.o \
+		$(OBJ)/op_sycl_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
+
 
 openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
 	$(SRC)/openmp4/op_openmp4_rt_support.c $(OBJ)/op_lib_core.o
