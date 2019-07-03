@@ -52,9 +52,15 @@ void op_par_loop_update(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      float dat3[SIMD_VEC] = {0.0};
-      float dat4[SIMD_VEC] = {INFINITY};
-      #pragma simd
+      float dat3[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat3[i] = 0.0;
+      }
+      float dat4[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat4[i] = -INFINITY;
+      }
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         update(
           &(ptr0)[1 * (n+i)],
