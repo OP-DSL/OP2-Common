@@ -345,6 +345,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     if ninds>0:
       code('#ifdef VECTORIZE')
 
+      code('#pragma novector')
+      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
       #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
@@ -360,8 +362,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
 
-      code('#pragma novector')
-      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
       IF('n+SIMD_VEC >= set->core_size')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
@@ -494,7 +494,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     else:
       code('#ifdef VECTORIZE')
 
-      #initialize globals
+      code('#pragma novector')
+      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+
+	  #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
           code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
@@ -508,9 +511,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           elif accs[g_m] == OP_READ:
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
-
-      code('#pragma novector')
-      FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
       code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
