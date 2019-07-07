@@ -33,7 +33,7 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void adt_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC], const double x4[*][SIMD_VEC], const double *q, double *adt, int idx ) {
+inline void adt_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double x3[*][SIMD_VEC], const double x4[*][SIMD_VEC], const double *q, double *adt, int idx ) {
   double dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0];
@@ -58,6 +58,7 @@ void adt_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], c
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   *adt = (*adt) * (1.0f / cfl);
+
 }
 #endif
 
@@ -116,7 +117,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       ALIGNED_double double dat1[2][SIMD_VEC];
       ALIGNED_double double dat2[2][SIMD_VEC];
       ALIGNED_double double dat3[2][SIMD_VEC];
-      #pragma simd
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -136,7 +137,7 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         dat3[1][i] = (ptr3)[idx3_2 + 1];
 
       }
-      #pragma simd
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         adt_calc_vec(
           dat0,

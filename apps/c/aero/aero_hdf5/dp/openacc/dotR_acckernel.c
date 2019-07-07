@@ -5,7 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void dotR( const double *r, double *c) { *c += (*r) * (*r); }
+inline void dotR_openacc(const double *r, double *c) { *c += (*r) * (*r); }
 
 // host stub function
 void op_par_loop_dotR(char const *name, op_set set,
@@ -43,9 +43,7 @@ void op_par_loop_dotR(char const *name, op_set set,
     double* data0 = (double*)arg0.data_d;
     #pragma acc parallel loop independent deviceptr(data0) reduction(+:arg1_l)
     for ( int n=0; n<set->size; n++ ){
-      dotR(
-        &data0[1*n],
-        &arg1_l);
+      dotR_openacc(&data0[1 * n], &arg1_l);
     }
   }
 

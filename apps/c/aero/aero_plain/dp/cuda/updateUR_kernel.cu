@@ -8,6 +8,7 @@ __device__ void updateUR_gpu( double *u, double *r, const double *p, double *v,
   *u += (*alpha) * (*p);
   *r -= (*alpha) * (*v);
   *v = 0.0f;
+
 }
 
 // CUDA kernel function

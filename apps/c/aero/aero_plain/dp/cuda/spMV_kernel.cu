@@ -39,6 +39,7 @@ __device__ void spMV_gpu( double **v, const double *K, const double **p) {
   v[2][0] += K[8 + 3] * p[3][0];
   v[3][0] += K[8 + 3] * p[2][0];
   v[3][0] += K[15] * p[3][0];
+
 }
 
 // CUDA kernel function

@@ -3,7 +3,7 @@
 #
 # OP2_COMPILER (gnu,intel,etc)
 #
-# ... and optionally the following. If not defined, then 
+# ... and optionally the following. If not defined, then
 # they must be locatable via PATH variables:
 #
 # OP2_INSTALL_PATH
@@ -24,7 +24,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O0 -g -vec-report -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O0 -g -vec-report -xHost -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
   MPICPP	= $(MPICXX_PATH)

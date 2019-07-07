@@ -7,7 +7,7 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ double alpha;
+__constant__ double alpha_cuda;
 
 //header
 #ifndef OP_FUN_PREFIX
@@ -22,7 +22,7 @@ void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;
   if (!strcmp(name,"alpha")) {
-    cutilSafeCall(cudaMemcpyToSymbol(alpha, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*size));
   }
   else
   {

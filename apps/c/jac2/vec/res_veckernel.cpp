@@ -8,7 +8,8 @@ inline void res(const double *A, const float *u, float *du, const float *beta) {
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void res_vec( const double *A, const float u[*][SIMD_VEC], float du[*][SIMD_VEC], const float *beta, int idx ) {
+inline void res_vec(const double *A, const float u[*][SIMD_VEC],
+                    float du[*][SIMD_VEC], const float *beta, int idx) {
   du[0][idx]+= (float)((*beta) * (*A) * (u[0][idx]));
 }
 #endif
@@ -51,34 +52,36 @@ void op_par_loop_res(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+      float dat3[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat3[i] = *((float *)arg3.data);
+      }
       if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      ALIGNED_float float dat1[1][SIMD_VEC];
-      ALIGNED_float float dat2[1][SIMD_VEC];
-      #pragma simd
+      ALIGNED_float float dat1[2][SIMD_VEC];
+      ALIGNED_float float dat2[3][SIMD_VEC];
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        int idx1_1 = 1 * arg1.map_data[(n+i) * arg1.map->dim + 1];
+        int idx1_2 = 2 * arg1.map_data[(n + i) * arg1.map->dim + 1];
 
-        dat1[0][i] = (ptr1)[idx1_1 + 0];
+        dat1[0][i] = (ptr1)[idx1_2 + 0];
+        dat1[1][i] = (ptr1)[idx1_2 + 1];
 
         dat2[0][i] = 0.0;
-
+        dat2[1][i] = 0.0;
+        dat2[2][i] = 0.0;
       }
-      #pragma simd
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        res_vec(
-          &(ptr0)[1 * (n+i)],
-          dat1,
-          dat2,
-          (float*)arg3.data,
-          i);
+        res_vec(&(ptr0)[3 * (n + i)], dat1, dat2, (float *)arg3.data, i);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
-        int idx2_1 = 1 * arg1.map_data[(n+i) * arg1.map->dim + 0];
+        int idx2_3 = 3 * arg1.map_data[(n + i) * arg1.map->dim + 0];
 
-        (ptr2)[idx2_1 + 0] += dat2[0][i];
-
+        (ptr2)[idx2_3 + 0] += dat2[0][i];
+        (ptr2)[idx2_3 + 1] += dat2[1][i];
+        (ptr2)[idx2_3 + 2] += dat2[2][i];
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
       }
@@ -95,11 +98,8 @@ void op_par_loop_res(char const *name, op_set set,
       int map1idx = arg1.map_data[n * arg1.map->dim + 1];
       int map2idx = arg1.map_data[n * arg1.map->dim + 0];
 
-      res(
-        &(ptr0)[1 * n],
-        &(ptr1)[1 * map1idx],
-        &(ptr2)[1 * map2idx],
-        (float*)arg3.data);
+      res(&(ptr0)[3 * n], &(ptr1)[2 * map1idx], &(ptr2)[3 * map2idx],
+          (float *)arg3.data);
     }
   }
 

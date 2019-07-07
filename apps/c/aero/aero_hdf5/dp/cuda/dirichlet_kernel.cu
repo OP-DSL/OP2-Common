@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void dirichlet_gpu( double *res) { *res = 0.0; }
+__device__ void dirichlet_gpu( double *res) { *res = 0.0; 
+}
 
 // CUDA kernel function
 __global__ void op_cuda_dirichlet(

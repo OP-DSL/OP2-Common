@@ -5,8 +5,8 @@
 //user function
 //user function
 //#pragma acc routine
-inline void updateUR( double *u, double *r, const double *p, double *v,
-                     const double *alpha) {
+inline void updateUR_openacc(double *u, double *r, const double *p, double *v,
+                             const double *alpha) {
   *u += (*alpha) * (*p);
   *r -= (*alpha) * (*v);
   *v = 0.0f;
@@ -57,12 +57,8 @@ void op_par_loop_updateUR(char const *name, op_set set,
     double* data3 = (double*)arg3.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1,data2,data3)
     for ( int n=0; n<set->size; n++ ){
-      updateUR(
-        &data0[1*n],
-        &data1[1*n],
-        &data2[1*n],
-        &data3[1*n],
-        &arg4_l);
+      updateUR_openacc(&data0[1 * n], &data1[1 * n], &data2[1 * n],
+                       &data3[1 * n], &arg4_l);
     }
   }
 

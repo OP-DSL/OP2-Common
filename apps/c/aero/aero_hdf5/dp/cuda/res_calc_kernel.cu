@@ -20,36 +20,36 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][1];
+      det_x_xi += Ng2_xi_cuda[4 * i + 16 + m] * x[m][1];
     for (int m = 0; m < 4; m++)
-      N_x[m] = det_x_xi * Ng2_xi[4 * i + m];
+      N_x[m] = det_x_xi * Ng2_xi_cuda[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][0];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][0];
     for (int m = 0; m < 4; m++)
-      N_x[4 + m] = a * Ng2_xi[4 * i + 16 + m];
+      N_x[4 + m] = a * Ng2_xi_cuda[4 * i + 16 + m];
 
     det_x_xi *= a;
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][1];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][1];
     for (int m = 0; m < 4; m++)
-      N_x[m] -= a * Ng2_xi[4 * i + 16 + m];
+      N_x[m] -= a * Ng2_xi_cuda[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi[4 * i + 16 + m] * x[m][0];
+      b += Ng2_xi_cuda[4 * i + 16 + m] * x[m][0];
     for (int m = 0; m < 4; m++)
-      N_x[4 + m] -= b * Ng2_xi[4 * i + m];
+      N_x[4 + m] -= b * Ng2_xi_cuda[4 * i + m];
 
     det_x_xi -= a * b;
 
     for (int j = 0; j < 8; j++)
       N_x[j] /= det_x_xi;
 
-    double wt1 = wtg2[i] * det_x_xi;
+    double wt1 = wtg2_cuda[i] * det_x_xi;
 
 
     double u[2] = {0.0, 0.0};
@@ -58,8 +58,8 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
       u[1] += N_x[4 + j] * phim[j][0];
     }
 
-    double Dk = 1.0 + 0.5 * gm1 * (m2 - (u[0] * u[0] + u[1] * u[1]));
-    double rho = pow(Dk, gm1i);
+    double Dk = 1.0 + 0.5 * gm1_cuda * (m2_cuda - (u[0] * u[0] + u[1] * u[1]));
+    double rho = pow(Dk, gm1i_cuda);
     double rc2 = rho / Dk;
 
     for (int j = 0; j < 4; j++) {
@@ -74,6 +74,7 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
       }
     }
   }
+
 }
 
 // CUDA kernel function

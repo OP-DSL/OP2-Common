@@ -5,7 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void save_soln( const double *q, double *qold) {
+inline void save_soln_openacc(const double *q, double *qold) {
   for (int n = 0; n < 4; n++)
     qold[n] = q[n];
 }
@@ -45,7 +45,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
     double* data1 = (double*)arg1.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1)
     for ( int n=0; n<set->size; n++ ){
-      save_soln(&data0[4 * n], &data1[4 * n]);
+      save_soln_openacc(&data0[4 * n], &data1[4 * n]);
     }
   }
 

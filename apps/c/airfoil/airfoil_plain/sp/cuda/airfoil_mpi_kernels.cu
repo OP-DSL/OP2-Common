@@ -7,13 +7,13 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ float gam;
-__constant__ float gm1;
-__constant__ float cfl;
-__constant__ float eps;
-__constant__ float mach;
-__constant__ float alpha;
-__constant__ float qinf[4];
+__constant__ float gam_cuda;
+__constant__ float gm1_cuda;
+__constant__ float cfl_cuda;
+__constant__ float eps_cuda;
+__constant__ float mach_cuda;
+__constant__ float alpha_cuda;
+__constant__ float qinf_cuda[4];
 
 //header
 #include "op_lib_cpp.h"
@@ -24,31 +24,31 @@ void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;
   if (!strcmp(name,"gam")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gam, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(gam_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"gm1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gm1, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(gm1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"cfl")) {
-    cutilSafeCall(cudaMemcpyToSymbol(cfl, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(cfl_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"eps")) {
-    cutilSafeCall(cudaMemcpyToSymbol(eps, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(eps_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"mach")) {
-    cutilSafeCall(cudaMemcpyToSymbol(mach, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(mach_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"alpha")) {
-    cutilSafeCall(cudaMemcpyToSymbol(alpha, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"qinf")) {
-    cutilSafeCall(cudaMemcpyToSymbol(qinf, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(qinf_cuda, dat, dim*size));
   }
   else
   {

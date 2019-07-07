@@ -52,16 +52,18 @@ void op_par_loop_update(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      float dat3[SIMD_VEC] = {0.0};
-      float dat4[SIMD_VEC] = {INFINITY};
-      #pragma simd
+      float dat3[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat3[i] = 0.0;
+      }
+      float dat4[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat4[i] = -INFINITY;
+      }
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        update(
-          &(ptr0)[1 * (n+i)],
-          &(ptr1)[1 * (n+i)],
-          &(ptr2)[1 * (n+i)],
-          &dat3[i],
-          &dat4[i]);
+        update(&(ptr0)[2 * (n + i)], &(ptr1)[3 * (n + i)], &(ptr2)[2 * (n + i)],
+               &dat3[i], &dat4[i]);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
         *(float*)arg3.data += dat3[i];
@@ -75,12 +77,8 @@ void op_par_loop_update(char const *name, op_set set,
     #else
     for ( int n=0; n<exec_size; n++ ){
     #endif
-      update(
-        &(ptr0)[1*n],
-        &(ptr1)[1*n],
-        &(ptr2)[1*n],
-        (float*)arg3.data,
-        (float*)arg4.data);
+      update(&(ptr0)[2 * n], &(ptr1)[3 * n], &(ptr2)[2 * n], (float *)arg3.data,
+             (float *)arg4.data);
     }
   }
 
