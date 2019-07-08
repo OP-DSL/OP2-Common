@@ -87,11 +87,15 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
           cl::sycl::range<1>(dat->size * set->size));
     free(temp_data);
   } else {
-    // Here, we just use the dat->data ptr as host buffer
+    // Here, we just use the dat->data ptr as input
     dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((char *)dat->data,
           cl::sycl::range<1>(dat->size * set->size));
 
   }
+
+  //Annoyingly, SYCL still reallocates the host buffer if I do it this way, so I need to update dat->data
+  auto temp_data = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d)).get_access<cl::sycl::access::mode::write>();
+  dat->data = &temp_data[0];
 
   return dat;
 }

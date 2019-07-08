@@ -30,8 +30,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OP_CUDA_REDUCTION_H
-#define __OP_CUDA_REDUCTION_H
+#ifndef __OP_SYCL_REDUCTION_H
+#define __OP_SYCL_REDUCTION_H
 
 /*
  * This file provides an optimised implementation for reduction of OP2 global
@@ -40,5 +40,53 @@
  * is based on C++ templates, while the other file only includes C routines.
  */
 
+template <op_access reduction, class T, class out_acc, class local_acc>
+void op_reduction(out_acc dat_g, int offset, T dat_l, local_acc temp, cl::sycl::nd_item<1> &item_id) {
+  T dat_t;
 
-#endif /* __OP_CUDA_REDUCTION_H */
+  item_id.barrier(cl::sycl::access::fence_space::local_space); /* important to finish all previous activity */
+
+  size_t tid = item_id.get_local_id(0);
+  temp[tid] = dat_l;
+
+  for (size_t d = item_id.get_local_range(0) / 2; d > 0; d >>= 1) {
+    item_id.barrier(cl::sycl::access::fence_space::local_space);
+    if (tid < d) {
+      dat_t = temp[tid + d];
+
+      switch (reduction) {
+        case OP_INC:
+          dat_l = dat_l + dat_t;
+          break;
+        case OP_MIN:
+          if (dat_t < dat_l)
+            dat_l = dat_t;
+          break;
+        case OP_MAX:
+          if (dat_t > dat_l)
+            dat_l = dat_t;
+          break;
+      }
+      temp[tid] = dat_l;
+    }
+  }
+
+  if (tid == 0) {
+    switch (reduction) {
+      case OP_INC:
+        dat_g[offset] = dat_g[offset] + dat_l;
+        break;
+      case OP_MIN:
+        if (dat_l < dat_g[offset])
+          dat_g[offset] = dat_l;
+        break;
+      case OP_MAX:
+        if (dat_l > dat_g[offset])
+          dat_g[offset] = dat_l;
+        break;
+    }
+  }
+}
+
+
+#endif /* __OP_SYCL_REDUCTION_H */

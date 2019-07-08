@@ -52,7 +52,7 @@ extern "C" {
 /*
  * Global variables actually defined in the corresponding c file
  */
-//extern char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+extern char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 
 
 void syclDeviceInit(int argc, char **argv);

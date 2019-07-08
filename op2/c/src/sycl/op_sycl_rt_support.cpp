@@ -54,9 +54,9 @@
 
 // arrays for global constants and reductions
 
-//int OP_consts_bytes = 0, OP_reduct_bytes = 0;
+int OP_consts_bytes = 0, OP_reduct_bytes = 0;
 
-//char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 
 cl::sycl::queue *op2_queue=NULL;
 
@@ -100,8 +100,10 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       offsets[m + 1] = offsets[m] + count;
     }
     int *tmp = plan->ind_map;
-    plan->ind_map = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_map,
+    if (offsets[plan->ninds_staged]>0)
+      plan->ind_map = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_map,
           cl::sycl::range<1>(offsets[plan->ninds_staged] * set_size));
+    else plan->ind_map = NULL;
     free(tmp);
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = NULL; // &plan->ind_map[set_size * offsets[m]];
@@ -113,9 +115,11 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       if (plan->loc_maps[m] != NULL)
         counter++;
     short *tmp2 = plan->loc_map;
-    plan->loc_map = (short*)(void*)new cl::sycl::buffer<short, 1>(
+    if (counter > 0)
+      plan->loc_map = (short*)(void*)new cl::sycl::buffer<short, 1>(
               (const short *)plan->loc_map,
               cl::sycl::range<1>(counter * set_size));
+    else plan->loc_map = NULL;
     free(tmp2);
     counter = 0;
     for (int m = 0; m < nargs; m++)
@@ -125,12 +129,16 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       }
 
     tmp = plan->ind_sizes;
-    plan->ind_sizes = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_sizes,
+    if (plan->ninds_staged>0)
+      plan->ind_sizes = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_sizes,
            cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
+    else plan->ind_sizes = NULL;
     free(tmp);
     tmp = plan->ind_offs;
-    plan->ind_offs = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_offs,
+    if (plan->ninds_staged>0)
+      plan->ind_offs = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_offs,
            cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
+    else plan->ind_offs = NULL;
     free(tmp);
     tmp = plan->nthrcol;
     plan->nthrcol = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->nthrcol,
@@ -176,16 +184,22 @@ void op_sycl_exit() {
     delete static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_map_list[i]->map_d);
 
   for (int ip = 0; ip < OP_plan_index; ip++) {
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_map);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].loc_map);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_sizes);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_offs);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].nthrcol);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].thrcol);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].col_reord);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].offset);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].nelems);
-    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].blkmap);
+    if (OP_plans[ip].ind_map!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_map);
+    if (OP_plans[ip].loc_map!= NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].loc_map);
+    if (OP_plans[ip].ind_sizes!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_sizes);
+    if (OP_plans[ip].ind_offs!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_offs);
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].nthrcol); OP_plans[ip].nthrcol = NULL;
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].thrcol); OP_plans[ip].thrcol = NULL;
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].col_reord); OP_plans[ip].col_reord = NULL;
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].offset); OP_plans[ip].offset = NULL;
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].nelems); OP_plans[ip].nelems = NULL;
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].blkmap); OP_plans[ip].blkmap = NULL;
+  }
+  if (OP_consts_bytes > 0) {
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+  }
+  if (OP_reduct_bytes > 0) {
+    delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
   }
 
   delete op2_queue;
@@ -196,27 +210,29 @@ void op_sycl_exit() {
 //
 
 void reallocConstArrays(int consts_bytes) {
-/*  if (consts_bytes > OP_consts_bytes) {
+  if (consts_bytes > OP_consts_bytes) {
     if (OP_consts_bytes > 0) {
-      free(OP_consts_h);
-      cutilSafeCall(cudaFree(OP_consts_d));
+      delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
     }
     OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
-    OP_consts_h = (char *)malloc(OP_consts_bytes);
-    cutilSafeCall(cudaMalloc((void **)&OP_consts_d, OP_consts_bytes));
-  }*/
+    OP_consts_d = (char*)(void*)new cl::sycl::buffer<char, 1>(
+            cl::sycl::range<1>(OP_consts_bytes));
+    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::write>();
+    OP_consts_h = &temp[0];
+  }
 }
 
 void reallocReductArrays(int reduct_bytes) {
-/*  if (reduct_bytes > OP_reduct_bytes) {
+  if (reduct_bytes > OP_reduct_bytes) {
     if (OP_reduct_bytes > 0) {
-      free(OP_reduct_h);
-      cutilSafeCall(cudaFree(OP_reduct_d));
+      delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
     }
     OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
-    OP_reduct_h = (char *)malloc(OP_reduct_bytes);
-    cutilSafeCall(cudaMalloc((void **)&OP_reduct_d, OP_reduct_bytes));
-  }*/
+    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<char, 1>(
+            cl::sycl::range<1>(OP_reduct_bytes));
+    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::write>();
+    OP_reduct_h = &temp[0];
+  }
 }
 
 //
@@ -224,27 +240,23 @@ void reallocReductArrays(int reduct_bytes) {
 //
 
 void mvConstArraysToDevice(int consts_bytes) {
-/*  cutilSafeCall(cudaMemcpy(OP_consts_d, OP_consts_h, consts_bytes,
-                           cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());*/
+  auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::write>();
+  if (consts_bytes == -1) temp[0] = 1; //Do I need this? Maybe compiler optimises this out if not here...
 }
 
 void mvConstArraysToHost(int consts_bytes) {
-/*  cutilSafeCall(cudaMemcpy(OP_consts_h, OP_consts_d, consts_bytes,
-                           cudaMemcpyDeviceToHost));
-  cutilSafeCall(cudaDeviceSynchronize());*/
+    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::read>();
+    if (consts_bytes == -1) printf("%d\n",temp[0]); //Do I need this? Maybe compiler optimises this out if not here...
 }
 
 void mvReductArraysToDevice(int reduct_bytes) {
-/*  cutilSafeCall(cudaMemcpy(OP_reduct_d, OP_reduct_h, reduct_bytes,
-                           cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());*/
+    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::write>();
+    if (reduct_bytes == -1) temp[0] = 1; //Do I need this? Maybe compiler optimises this out if not here...
 }
 
 void mvReductArraysToHost(int reduct_bytes) {
-/*  cutilSafeCall(cudaMemcpy(OP_reduct_h, OP_reduct_d, reduct_bytes,
-                           cudaMemcpyDeviceToHost));
-  cutilSafeCall(cudaDeviceSynchronize());*/
+    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::read>();
+    if (reduct_bytes == -1) printf("%d\n",temp[0]); //Do I need this? Maybe compiler optimises this out if not here...
 }
 
 //
@@ -286,7 +298,8 @@ void deviceSync() {
 void syclDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  cl::sycl::default_selector device_selector;
+  //cl::sycl::default_selector device_selector;
+  cl::sycl::host_selector device_selector;
   op2_queue = new cl::sycl::queue(device_selector);
   OP_hybrid_gpu = 1;
   std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
@@ -296,8 +309,9 @@ void op_upload_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
   int set_size = dat->set->size;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::write, cl::sycl::access::target::host_buffer>
-      temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
+  //cl::sycl::accessor<char, 1, cl::sycl::access::mode::write, cl::sycl::access::target::host_buffer>
+  //    temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
+  auto temp_data = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d)).get_access<cl::sycl::access::mode::write>();
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
@@ -318,8 +332,8 @@ void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
   int set_size = dat->set->size;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
-      temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
+  cl::sycl::accessor<double, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
+      temp_data(*static_cast<cl::sycl::buffer<double, 1> *>((void*)dat->data_d));
   // transpose data
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     int element_size = dat->size / dat->dim;
