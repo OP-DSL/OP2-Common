@@ -69,7 +69,6 @@ void op_par_loop_update(char const *name, op_set set,
     reallocReductArrays(reduct_bytes);
     reduct_bytes = 0;
     arg3.data   = OP_reduct_h + reduct_bytes;
-    arg3.data_d = OP_reduct_d + reduct_bytes;
     int arg3_offset = reduct_bytes/sizeof(double);
     for ( int b=0; b<maxblocks; b++ ){
       for ( int d=0; d<1; d++ ){
@@ -78,7 +77,6 @@ void op_par_loop_update(char const *name, op_set set,
     }
     reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
     arg4.data   = OP_reduct_h + reduct_bytes;
-    arg4.data_d = OP_reduct_d + reduct_bytes;
     int arg4_offset = reduct_bytes/sizeof(double);
     for ( int b=0; b<maxblocks; b++ ){
       for ( int d=0; d<1; d++ ){
@@ -136,6 +134,7 @@ void op_par_loop_update(char const *name, op_set set,
           //cgh.parallel_for<class res>(cl::sycl::range<1>(end-start), kern);
           });
 
+    //op2_queue->wait();
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     for ( int b=0; b<maxblocks; b++ ){

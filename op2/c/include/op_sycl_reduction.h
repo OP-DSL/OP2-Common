@@ -33,6 +33,8 @@
 #ifndef __OP_SYCL_REDUCTION_H
 #define __OP_SYCL_REDUCTION_H
 
+#include <op_sycl_rt_support.h>
+
 /*
  * This file provides an optimised implementation for reduction of OP2 global
  * variables.

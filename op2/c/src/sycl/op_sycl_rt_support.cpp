@@ -213,12 +213,12 @@ void reallocConstArrays(int consts_bytes) {
   if (consts_bytes > OP_consts_bytes) {
     if (OP_consts_bytes > 0) {
       delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+      free(OP_consts_h);
     }
     OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
     OP_consts_d = (char*)(void*)new cl::sycl::buffer<char, 1>(
             cl::sycl::range<1>(OP_consts_bytes));
-    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::write>();
-    OP_consts_h = &temp[0];
+    OP_consts_h = (char*)op_malloc(OP_consts_bytes);
   }
 }
 
@@ -226,12 +226,12 @@ void reallocReductArrays(int reduct_bytes) {
   if (reduct_bytes > OP_reduct_bytes) {
     if (OP_reduct_bytes > 0) {
       delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
+      free(OP_reduct_h);
     }
     OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
     OP_reduct_d = (char*)(void*)new cl::sycl::buffer<char, 1>(
             cl::sycl::range<1>(OP_reduct_bytes));
-    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::write>();
-    OP_reduct_h = &temp[0];
+    OP_reduct_h = (char*)op_malloc(OP_reduct_bytes);
   }
 }
 
@@ -240,23 +240,37 @@ void reallocReductArrays(int reduct_bytes) {
 //
 
 void mvConstArraysToDevice(int consts_bytes) {
-  auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::write>();
-  if (consts_bytes == -1) temp[0] = 1; //Do I need this? Maybe compiler optimises this out if not here...
+  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.copy(OP_consts_h, acc);
+      });
 }
 
 void mvConstArraysToHost(int consts_bytes) {
-    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d)).get_access<cl::sycl::access::mode::read>();
-    if (consts_bytes == -1) printf("%d\n",temp[0]); //Do I need this? Maybe compiler optimises this out if not here...
+  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+      cgh.copy(acc,OP_consts_h);
+      });
+    op2_queue->wait();
 }
 
 void mvReductArraysToDevice(int reduct_bytes) {
-    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::write>();
-    if (reduct_bytes == -1) temp[0] = 1; //Do I need this? Maybe compiler optimises this out if not here...
+  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.copy(OP_reduct_h, acc);
+      });
 }
 
 void mvReductArraysToHost(int reduct_bytes) {
-    auto temp = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d)).get_access<cl::sycl::access::mode::read>();
-    if (reduct_bytes == -1) printf("%d\n",temp[0]); //Do I need this? Maybe compiler optimises this out if not here...
+  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+      cgh.copy(acc,OP_reduct_h);
+      });
+    op2_queue->wait();
 }
 
 //
@@ -270,10 +284,10 @@ void op_sycl_get_data(op_dat dat) {
     dat->dirty_hd = 0;
   else
     return;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
-      temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
   // transpose data
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
+      temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < dat->set->size; j++) {
@@ -285,12 +299,17 @@ void op_sycl_get_data(op_dat dat) {
       }
     }
   } else {
-    //Do I need to do anything here?
+    cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+    op2_queue->submit([&](cl::sycl::handler &cgh) {
+        auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+      cgh.copy(acc,dat->data);
+      });
+    op2_queue->wait();
   }
 }
 
 void deviceSync() {
-  //cutilSafeCall(cudaDeviceSynchronize());
+  op2_queue->wait(); 
 }
 
 #ifndef OPMPI
@@ -298,8 +317,8 @@ void deviceSync() {
 void syclDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  //cl::sycl::default_selector device_selector;
-  cl::sycl::host_selector device_selector;
+  cl::sycl::default_selector device_selector;
+  //cl::sycl::host_selector device_selector;
   op2_queue = new cl::sycl::queue(device_selector);
   OP_hybrid_gpu = 1;
   std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
@@ -309,11 +328,9 @@ void op_upload_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
   int set_size = dat->set->size;
-  //cl::sycl::accessor<char, 1, cl::sycl::access::mode::write, cl::sycl::access::target::host_buffer>
-  //    temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
-  auto temp_data = (*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d)).get_access<cl::sycl::access::mode::write>();
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    cl::sycl::accessor<char, 1, cl::sycl::access::mode::write, cl::sycl::access::target::host_buffer>
+      temp_data(*static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -324,7 +341,11 @@ void op_upload_dat(op_dat dat) {
       }
     }
   } else {
-    //What do I need to do here? Nothing?
+    cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+    op2_queue->submit([&](cl::sycl::handler &cgh) {
+        auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.copy(dat->data,acc);
+      });
   }
 }
 
@@ -332,10 +353,10 @@ void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
   int set_size = dat->set->size;
-  cl::sycl::accessor<double, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
-      temp_data(*static_cast<cl::sycl::buffer<double, 1> *>((void*)dat->data_d));
   // transpose data
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    cl::sycl::accessor<double, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer>
+      temp_data(*static_cast<cl::sycl::buffer<double, 1> *>((void*)dat->data_d));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -347,7 +368,12 @@ void op_download_dat(op_dat dat) {
       }
     }
   } else {
-    //Do I need to do anything here?
+    cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+    op2_queue->submit([&](cl::sycl::handler &cgh) {
+        auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+      cgh.copy(acc,dat->data);
+      });
+    op2_queue->wait();
   }
 }
 

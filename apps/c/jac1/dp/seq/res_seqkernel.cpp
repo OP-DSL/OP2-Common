@@ -71,9 +71,9 @@ void op_par_loop_res(char const *name, op_set set,
     mvConstArraysToDevice(consts_bytes);
     cl::sycl::buffer<double, 1> *consts = static_cast<cl::sycl::buffer<double, 1>*>((void*)OP_consts_d);
 
-    cl::sycl::buffer<double, 1> *arg0data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg0.data_d);
-    cl::sycl::buffer<double, 1> *arg1data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg1.data_d);
-    cl::sycl::buffer<double, 1> *arg2data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg2.data_d);
+    cl::sycl::buffer<double, 1> *arg0data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg0.dat->data_d);
+    cl::sycl::buffer<double, 1> *arg1data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg1.dat->data_d);
+    cl::sycl::buffer<double, 1> *arg2data = static_cast<cl::sycl::buffer<double, 1>*>((void*)arg2.dat->data_d);
     cl::sycl::buffer<int, 1> *map1data = static_cast<cl::sycl::buffer<int, 1>*>((void*)arg1.map_data_d);
     cl::sycl::buffer<int, 1> *pcol_reord = static_cast<cl::sycl::buffer<int, 1>*>((void*)Plan->col_reord);
 
@@ -118,6 +118,9 @@ void op_par_loop_res(char const *name, op_set set,
                   &accessor1[map1idx*1],
                   &accessor2[map2idx*1],
                   &accessor3[arg3_offset]);
+            
+              //accessor2[map2idx] = 666;
+              //out << "HERE " << n << " " << accessor0[tid] << " " << accessor1[map1idx*1] << " " << accessor3[arg3_offset] << " " << accessor2[0] << cl::sycl::endl;
             }
           };
           cgh.parallel_for<class res>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);
@@ -128,6 +131,7 @@ void op_par_loop_res(char const *name, op_set set,
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;
   }
+  op2_queue->wait();
   op_mpi_set_dirtybit_cuda(nargs, args);
   //update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
