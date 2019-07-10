@@ -39,6 +39,7 @@
  */
 
 #include <CL/sycl.hpp>
+#include <iostream>
 
 #include <op_lib_core.h>
 #include <op_rt_support.h>

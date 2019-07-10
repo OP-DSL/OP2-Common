@@ -203,21 +203,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     file_text = ''
     depth = 0
 
-
-    #strides for SoA
     if any_soa:
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-            k = k + [mapnames[g_m]]
-            code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT;')
-            code('int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST=-1;')
       dir_soa = -1
       for g_m in range(0,nargs):
         if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
-          code('__constant__ int direct_'+name+'_stride_OP2CONSTANT;')
-          code('int direct_'+name+'_stride_OP2HOST=-1;')
           dir_soa = g_m
           break
 
@@ -444,15 +433,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
-            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
-            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
-            ENDIF()
+            code('const int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg'+str(g_m)+');')
       if dir_soa<>-1:
-          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
-          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
-          code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
-          ENDIF()
+          code('const int direct_'+name+'_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
 
 #
 # transfer global reduction initial data
@@ -596,7 +579,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if indaccs[g_m] == OP_INC:
             code('INDARG_size = need a value for the overall kernel Plan->ind_arg_sizes['+str(g_m)+'];')
 
-
+    code('try {')
     code('op2_queue->submit([&](cl::sycl::handler& cgh) {')
     depth += 2
       
@@ -665,6 +648,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     code('')
     comm('user fun as lambda')
+    body_text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',body_text)
     kernel_text = depth*' ' + 'auto '+head_text + '_gpu = [=]( '+signature_text + ') {' + body_text + '};\n'
     kernel_text = re.sub('\n','\n'+(depth+2)*' ',kernel_text)
     file_text += kernel_text
@@ -1056,6 +1040,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
     depth -= 2
     code('});')
+    code('}catch(cl::sycl::exception const &e) {')
+    code('std::cout << e.what() << std::endl;exit(-1);')
+    code('}')
 
     if ninds>0:
       code('')
