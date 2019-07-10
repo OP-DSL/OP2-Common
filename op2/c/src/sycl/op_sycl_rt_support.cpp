@@ -172,6 +172,8 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
   return plan;
 }
 
+std::vector<void*> op_sycl_consts;
+
 void op_sycl_exit() {
   if (!OP_hybrid_gpu)
     return;
@@ -201,10 +203,24 @@ void op_sycl_exit() {
   if (OP_reduct_bytes > 0) {
     delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
   }
+  for (size_t i = 0; i < op_sycl_consts.size(); i++)
+    delete static_cast<cl::sycl::buffer<char,1>*>(op_sycl_consts[i]);
 
   delete op2_queue;
 }
 
+
+void *op_sycl_register_const(void *old_p, void *new_p) {
+  if (old_p == NULL) op_sycl_consts.push_back(new_p);
+  else {
+    for (size_t i = 0; i < op_sycl_consts.size(); i++)
+      if (op_sycl_consts[i]==old_p) {
+        delete static_cast<cl::sycl::buffer<char,1>*>(op_sycl_consts[i]);
+        op_sycl_consts[i]=new_p;
+      }
+  }
+  return new_p;
+}
 //
 // routines to resize constant/reduct arrays, if necessary
 //

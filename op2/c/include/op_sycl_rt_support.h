@@ -107,6 +107,7 @@ void mvReductArraysToDevice(int reduct_bytes);
 
 void mvReductArraysToHost(int reduct_bytes);
 
+void *op_sycl_register_const(void *old_p, void *new_p);
 #ifdef __cplusplus
 }
 #endif

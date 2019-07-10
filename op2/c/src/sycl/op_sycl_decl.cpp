@@ -139,15 +139,6 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   return map;
 }
 
-void op_decl_const_char(int dim, char const *type, int typeSize, char *data,
-                        char const *name) {
-  (void)dim;
-  (void)type;
-  (void)typeSize;
-  (void)data;
-  (void)name;
-}
-
 op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
                   op_access acc) {
   return op_arg_dat_core(dat, idx, map, dim, type, acc);
