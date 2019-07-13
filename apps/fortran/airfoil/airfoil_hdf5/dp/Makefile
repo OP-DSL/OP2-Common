@@ -71,13 +71,13 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgc++
-  FC = pgfortran 
+  FC = pgfortran
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = $(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g 
-  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape 
-  OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA),$(PGI_REG_COUNT),lineinfo -Mcuda=fastmath,ptxinfo -Minfo=accel #-Minline=reshape 
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g
+  OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
+  OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA),$(PGI_REG_COUNT),lineinfo -Mcuda=fastmath,ptxinfo -Minfo=accel #-Minline=reshape
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
@@ -88,11 +88,11 @@ else
 ifeq ($(OP2_COMPILER),xl)
   CC = xlc++_r
   #FC = pgfortran -fast -Mcuda=cuda5.0,cc35,fastmath,ptxinfo -Mx,189,0x40 #-Munroll -Minline=save_soln,res_calc,bres_calc,adt_calc -Mipa=fast -Mx,189,0x40
-  FC = xlf_r 
+  FC = xlf_r
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = #$(MPI_INSTALL_PATH)/include
   MPIF90 = mpif90 #$(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot 
+  OPT = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qarch=pwr8 -qtune=pwr8 -qhot
   OPT_CUDA = -WF,-DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -qcuda -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -WF,-DOP2_WITH_CUDAFOR -Xptxas -v ${OMP4_REG_COUNT} -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0 -g1
   OPT_ACC = -O2 -qarch=pwr8 -qtune=pwr8 -qhot -qsmp=omp -qoffload -WF,DOP2_WITH_OPENACC
   OPENMP = -qsmp=omp -qthreaded
@@ -111,7 +111,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
   OPENMP = -openmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xAVX -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xHost -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_vec airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq airfoil_hdf5_mpi_vec\
@@ -258,10 +258,11 @@ clean:
 	rm -f *.mod *.optrpt
 	rm -f $(EXEC)
 	rm -f *~
-	rm -f airfoil_hdf5_seq
+	rm -f airfoil_hdf5_seq airfoil_hdf5_vec
 	rm -f airfoil_hdf5_mpi
 	rm -f airfoil_hdf5_openacc
 	rm -f airfoil_hdf5_openmp airfoil_hdf5_mpi_openmp airfoil_hdf5_openmp_* airfoil_hdf5_mpi_openmp_*
 	rm -f airfoil_hdf5_mpi_genseq
 	rm -f airfoil_hdf5_mpi_vec
 	rm -f airfoil_hdf5_cuda airfoil_hdf5_mpi_cuda
+	rm -f airfoil_hdf5_openacc airfoil_hdf5_mpi_openacc

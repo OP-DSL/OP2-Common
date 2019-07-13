@@ -24,12 +24,12 @@ real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice5update
 CONTAINS
 
 ! Multidimensional reduction cuda kernel
-  attributes (device) SUBROUTINE ReductionFloat8Mdim(reductionResult,inputValue,reductionOperation,dim)
+  attributes (device) SUBROUTINE ReductionFloat8Mdim(sharedDouble8, reductionResult,inputValue,reductionOperation,dim)
   REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult
   REAL(kind=8), DIMENSION(:) :: inputValue
   INTEGER(kind=4), VALUE :: reductionOperation
   INTEGER(kind=4), VALUE :: dim
-  REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8
+  REAL(kind=8), DIMENSION(0:*) :: sharedDouble8
   INTEGER(kind=4) :: i1
   INTEGER(kind=4) :: d
   INTEGER(kind=4) :: threadID
@@ -122,6 +122,7 @@ END SUBROUTINE
     INTEGER(kind=4), VALUE :: setSize
     INTEGER(kind=4) :: i1
     INTEGER(kind=4) :: i2
+    REAL(kind=8), DIMENSION(0:*), SHARED :: redFloat8
 
     opGblDat5Deviceupdate = 0
 
@@ -140,7 +141,7 @@ END SUBROUTINE
 
     do i1=0,2-1,8
     i2 = MIN(i1+8,2)
-      CALL ReductionFloat8Mdim(reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
+      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
     end do
 
   END SUBROUTINE

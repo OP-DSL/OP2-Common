@@ -14,6 +14,8 @@ import datetime
 import os
 import op2_gen_common
 
+insert_thread_timers = os.getenv('OP_TIME_THREADS', False);
+
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
@@ -28,14 +30,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line)
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -169,14 +171,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     for g_m in range (0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
-        code('TYP*ARGh = (TYP *)ARG.data;')
+        code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -185,8 +187,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -198,13 +200,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # start timing
@@ -212,8 +214,13 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code('op_timing_realloc('+str(nk)+');')
+    if insert_thread_timers:
+      code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
+    else:
+      code('op_timing_realloc('+str(nk)+');')
     code('op_timers_core(&cpu_t1, &wall_t1);')
+    if insert_thread_timers:
+      code('double non_thread_walltime = 0.0;')
     code('')
 
 #
@@ -269,15 +276,15 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
-          code('TYP ARG_l[nthreads*64];')
+          code('<TYP> <ARG>_l[nthreads*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
-            FOR('d','0','DIM')
-            code('ARG_l[d+thr*64]=ZERO_TYP;')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d+thr*64]=ZERO_<TYP>;')
             ENDFOR()
           else:
-            FOR('d','0','DIM')
-            code('ARG_l[d+thr*64]=ARGh[d];')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d+thr*64]=<ARG>h[d];')
             ENDFOR()
           ENDFOR()
 
@@ -299,8 +306,28 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
       code('int nblocks = Plan->ncolblk[col];')
       code('')
-      code('#pragma omp parallel for')
-      FOR('blockIdx','0','nblocks')
+      if insert_thread_timers:
+        # Pause process timing and switch to per-thread timing:
+        code('// Pause process timing and switch to per-thread timing:')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
+
+        code('#pragma omp parallel')
+        code('{')
+        depth += 2
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
+        code('')
+        code('int nthreads = omp_get_num_threads();')
+        code('int thr = omp_get_thread_num();')
+        code('int thr_start = (nblocks * thr) / nthreads;')
+        code('int thr_end = (nblocks * (thr+1)) / nthreads;')
+        code('if (thr_end > nblocks) thr_end = nblocks;')
+        FOR('blockIdx','thr_start','thr_end')
+      else:
+        code('#pragma omp parallel for')
+        FOR('blockIdx','0','nblocks')
+
       code('int blockId  = Plan->blkmap[blockIdx + block_offset];')
       code('int nelem    = Plan->nelems[blockId];')
       code('int offset_b = Plan->offset[blockId];')
@@ -317,9 +344,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
         if len(u) > 0 and vectorised[g_m] > 0:
           if accs[g_m] == OP_READ:
-            line = 'const TYP* ARG_vec[] = {\n'
+            line = 'const <TYP>* <ARG>_vec[] = {\n'
           else:
-            line = 'TYP* ARG_vec[] = {\n'
+            line = '<TYP>* <ARG>_vec[] = {\n'
 
           v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
           first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -327,7 +354,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
           indent = ' '*(depth+2)
           for k in range(0,sum(v)):
-            line = line + indent + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
           line = line[:-2]+'};'
           code(line)
       code('')
@@ -354,6 +381,12 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if insert_thread_timers:
+        depth -= 2
+        code('}')
+        code('')
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels[' +str(nk)+ '].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
       code('')
 
@@ -364,21 +397,26 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           if maps[m] == OP_GBL and accs[m] <> OP_READ:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
-              FOR('d','0','DIM')
-              code('ARGh[d] += ARG_l[d+thr*64];')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d] += <ARG>_l[d+thr*64];')
               ENDFOR()
             elif accs[m]==OP_MIN:
-              FOR('d','0','DIM')
-              code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
               ENDFOR()
             elif  accs[m]==OP_MAX:
-              FOR('d','0','DIM')
-              code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+              FOR('d','0','<DIM>')
+              code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
               ENDFOR()
             else:
               error('internal error: invalid reduction option')
             ENDFOR()
         ENDIF()
+
+      if insert_thread_timers:
+        code('// Revert to process-level timing:')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
+        code('')
       code('block_offset += nblocks;');
       ENDIF()
 
@@ -387,8 +425,16 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
     else:
       comm(' execute plan')
+      if insert_thread_timers:
+        # Pause process timing, and switch to per-thread timing:
+        code('// Pause process timing, and switch to per-thread timing:')
+        code('op_timers_core(&cpu_t2, &wall_t2);')
+        code('non_thread_walltime += wall_t2 - wall_t1;')
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
+      if insert_thread_timers:
+        code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
+        code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
       code('int start  = (set->size* thr)/nthreads;')
       code('int finish = (set->size*(thr+1))/nthreads;')
       FOR('n','start','finish')
@@ -408,7 +454,14 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
            line = line +');'
       code(line)
       ENDFOR()
+      if insert_thread_timers:
+        code('op_timers_core(&thr_cpu_t2, &thr_wall_t2);')
+        code('OP_kernels['+str(nk)+'].times[thr]  += thr_wall_t2 - thr_wall_t1;')
       ENDFOR()
+      if insert_thread_timers:
+        # OpenMP block complete, so switch back to process timing:
+        code('// OpenMP block complete, so switch back to process timing:')
+        code('op_timers_core(&cpu_t1, &wall_t1);')
 
     if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
@@ -431,22 +484,22 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
-          FOR('d','0','DIM')
-          code('ARGh[d] += ARG_l[d+thr*64];')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d] += <ARG>_l[d+thr*64];')
           ENDFOR()
         elif accs[g_m]==OP_MIN:
-          FOR('d','0','DIM')
-          code('ARGh[d]  = MIN(ARGh[d],ARG_l[d+thr*64]);')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         elif accs[g_m]==OP_MAX:
-          FOR('d','0','DIM')
-          code('ARGh[d]  = MAX(ARGh[d],ARG_l[d+thr*64]);')
+          FOR('d','0','<DIM>')
+          code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         else:
           print 'internal error: invalid reduction option'
         ENDFOR()
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('op_mpi_reduce(&ARG,ARGh);')
+        code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
@@ -457,21 +510,26 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
+    if insert_thread_timers:
+      code('non_thread_walltime += wall_t2 - wall_t1;')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    if insert_thread_timers:
+        code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
+    else:
+        code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
-          IF('ARG.opt')
+          IF('<ARG>.opt')
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
 
@@ -499,18 +557,24 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
   file_text =''
 
+  code('#ifdef _OPENMP')
+  code('  #include <omp.h>')
+  code('#endif')
+  code('')
+
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
-    else:
-      if consts[nc]['dim'] > 0:
-        num = str(consts[nc]['dim'])
+    if not consts[nc]['user_declared']:
+      if consts[nc]['dim']==1:
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        num = 'MAX_CONST_SIZE'
+        if consts[nc]['dim'] > 0:
+          num = str(consts[nc]['dim'])
+        else:
+          num = 'MAX_CONST_SIZE'
 
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
   code('')
 
   comm(' header                 ')

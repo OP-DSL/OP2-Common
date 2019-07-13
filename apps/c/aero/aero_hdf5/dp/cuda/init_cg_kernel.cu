@@ -8,6 +8,7 @@ __device__ void init_cg_gpu( const double *r, double *c, double *u, double *v, d
   *p = *r;
   *u = 0;
   *v = 0;
+
 }
 
 // CUDA kernel function

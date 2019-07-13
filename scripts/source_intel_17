@@ -1,0 +1,46 @@
+#A rough example of environmental variables for compiling with Intel compilers
+
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
+#OP2 specifics
+export OP2_COMPILER=intel
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
+unset OP_AUTO_SOA
+#export OP_AUTO_SOA=1
+
+#External libraries
+export PARMETIS_INSTALL_PATH=/opt/parmetis-intel/
+export PTSCOTCH_INSTALL_PATH=/opt/ptscotch-intel/
+#export HDF5_INSTALL_PATH=/opt/hdf5-intel/
+#export HDF5_INSTALL_PATH=/home/mudalige/hdf5-1.10.1-intel
+export HDF5_INSTALL_PATH=/home/mudalige/hdf5-1.8.19-intel
+#export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mudalige/hdf5-1.10.1-intel/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/parmetis-intel/lib:/opt/ptscotch-intel/lib:/home/mudalige/hdf5-1.8.19-intel/lib:$LD_LIBRARY_PATH
+
+
+#NVIDIA CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+#export PATH=/usr/local/cuda-6.5.14/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
+
+#export PATH=/usr/local/cuda-7.5.7_rc/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-7.5.7_rc/lib64:$LD_LIBRARY_PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda-7.5.7_rc
+
+
+#Intel MPI and Compilers
+export MPI_INSTALL_PATH=/opt/intel/compilers_and_libraries_2017.2.174/linux/mpi/intel64/
+
+source /opt/intel/compilers_and_libraries_2017.2.174/linux/bin/compilervars.sh intel64
+source /opt/intel/compilers_and_libraries_2017.2.174/linux/mpi/intel64/bin/mpivars.sh intel64
+
+export INTEL_PATH=/opt/intel/compilers_and_libraries_2017.2.174/linux/
+export MPICH_CXX=/opt/intel/compilers_and_libraries_2017.2.174/linux/bin/intel64/icpc
+export MPICH_CC=/opt/intel/compilers_and_libraries_2017.2.174/linux/bin/intel64/icc
+export MPICH_F90=/opt/intel/compilers_and_libraries_2017.2.174/linux/bin/intel64/ifort

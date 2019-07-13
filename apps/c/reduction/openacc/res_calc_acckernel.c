@@ -5,7 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void res_calc( double *data, int *count) {
+inline void res_calc_openacc(double *data, int *count) {
   data[0] = 0.0;
   (*count)++;
 }
@@ -75,7 +75,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int n = col_reord[e];
         int map0idx = map0[n + set_size1 * 0];
 
-        res_calc(&data0[4 * map0idx], &arg1_l);
+        res_calc_openacc(&data0[4 * map0idx], &arg1_l);
       }
 
       // combine reduction data

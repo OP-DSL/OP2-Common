@@ -7,7 +7,7 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ float alpha;
+__constant__ float alpha_cuda;
 
 //header
 #include "op_lib_cpp.h"
@@ -18,7 +18,7 @@ void op_decl_const_char(int dim, char const *type,
 int size, char *dat, char const *name){
   if (!OP_hybrid_gpu) return;
   if (!strcmp(name,"alpha")) {
-    cutilSafeCall(cudaMemcpyToSymbol(alpha, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*size));
   }
   else
   {

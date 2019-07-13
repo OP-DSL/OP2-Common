@@ -33,6 +33,7 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
+#<<COMMENT0
 
 
 echo " "
@@ -198,7 +199,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_mpi_vec"
 validate "./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
-#validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 
 export OMP_NUM_THREADS=20
 validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
@@ -413,7 +413,7 @@ echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_15.10
+. $CURRENT_DIR/source_pgi_19
 pwd
 
 make clean; make
@@ -454,6 +454,7 @@ validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
+
 
 echo " "
 echo " "

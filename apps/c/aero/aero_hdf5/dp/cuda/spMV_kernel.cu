@@ -43,6 +43,7 @@ __device__ void spMV_gpu( double **v, const double *K, const double **p) {
   v[2][0] += K[(8 + 3)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
   v[3][0] += K[(8 + 3)*direct_spMV_stride_OP2CONSTANT] * p[2][0];
   v[3][0] += K[(15)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
+
 }
 
 // CUDA kernel function

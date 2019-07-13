@@ -13,6 +13,7 @@ import re
 import datetime
 import glob
 import os
+import op2_gen_common
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -28,14 +29,14 @@ def comm(line):
 def rep(line,m):
   global dims, idxs, typs, indtyps, inddims
   if m < len(inddims):
-    line = re.sub('INDDIM',str(inddims[m]),line)
-    line = re.sub('INDTYP',str(indtyps[m]),line)
+    line = re.sub('<INDDIM>',str(inddims[m]),line)
+    line = re.sub('<INDTYP>',str(indtyps[m]),line)
 
-  line = re.sub('INDARG','ind_arg'+str(m),line)
-  line = re.sub('DIM',str(dims[m]),line)
-  line = re.sub('ARG','arg'+str(m),line)
-  line = re.sub('TYP',typs[m],line)
-  line = re.sub('IDX',str(int(idxs[m])),line)
+  line = re.sub('<INDARG>','ind_arg'+str(m),line)
+  line = re.sub('<DIM>',str(dims[m]),line)
+  line = re.sub('<ARG>','arg'+str(m),line)
+  line = re.sub('<TYP>',typs[m],line)
+  line = re.sub('<IDX>',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -91,54 +92,6 @@ def ENDIF():
     code('endif')
   elif CPP:
     code('}')
-
-def comment_remover(text):
-    """Remove comments from text"""
-
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith('/'):
-            return ''
-        else:
-            return s
-    pattern = re.compile(
-        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-        re.DOTALL | re.MULTILINE
-    )
-    return re.sub(pattern, replacer, text)
-
-def remove_trailing_w_space(text):
-  text = text+' '
-  line_start = 0
-  line = ""
-  line_end = 0
-  striped_test = ''
-  count = 0
-  while 1:
-    line_end =  text.find("\n",line_start+1)
-    line = text[line_start:line_end]
-    line = line.rstrip()
-    striped_test = striped_test + line +'\n'
-    line_start = line_end + 1
-    line = ""
-    if line_end < 0:
-      return striped_test[:-1]
-
-def para_parse(text, j, op_b, cl_b):
-    """Parsing code block, i.e. text to find the correct closing brace"""
-
-    depth = 0
-    loc2 = j
-
-    while 1:
-      if text[loc2] == op_b:
-            depth = depth + 1
-
-      elif text[loc2] == cl_b:
-            depth = depth - 1
-            if depth == 0:
-                return loc2
-      loc2 = loc2 + 1
 
 def op2_gen_mpi_vec(master, date, consts, kernels):
 
@@ -218,8 +171,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       kernel_text = f.read()
       f.close()
 
-      kernel_text = comment_remover(kernel_text)
-      kernel_text = remove_trailing_w_space(kernel_text)
+      kernel_text = op2_gen_common.comment_remover(kernel_text)
+      kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
 
       p = re.compile('void\\s+\\b'+name+'\\b')
       i = p.search(kernel_text).start()
@@ -232,19 +185,22 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       #i = kernel_text[0:i].rfind('\n') #reverse find
       j = kernel_text[i:].find('{')
-      k = para_parse(kernel_text, i+j, '{', '}')
+      k = op2_gen_common.para_parse(kernel_text, i+j, '{', '}')
       signature_text = kernel_text[i:i+j]
       l = signature_text[0:].find('(')
       head_text = signature_text[0:l] #save function name
-      m = para_parse(signature_text, 0, '(', ')')
+      m = op2_gen_common.para_parse(signature_text, 0, '(', ')')
       signature_text = signature_text[l+1:m]
       body_text = kernel_text[i+j+1:k]
 
+      ## Replace occurrences of '#include "<FILE>"' within loop with the contents of <FILE>:
+      body_text = op2_gen_common.replace_local_includes_with_file_contents(body_text, os.path.dirname(master))
+
 
       # check for number of arguments
-      if len(signature_text.split(',')) != nargs:
-          print 'Error parsing user kernel(%s): must have %d arguments' \
-                % name, nargs
+      nargs_actual = len(signature_text.split(','))
+      if nargs_actual != nargs:
+          print('Error parsing user kernel({0}): must have {1} arguments (instead it has {2})'.format(name, nargs, nargs_actual))
           return
 
       new_signature_text = ''
@@ -261,8 +217,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r'('+var2+'\[[A-Za-z0-9]*\]'+')', r'\1'+'[idx]', body_text)
-
+          body_text = re.sub(r'('+var2+'\[[\w\(\)\+\-\*\s\\\\]*\]'+')', r'\1'+'[idx]', body_text)
 
           var = var + '[*][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
@@ -270,7 +225,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
 
       #add ( , idx and )
-      signature_text = head_text + '( '+new_signature_text + 'int idx ) {'
+      signature_text = "inline " + head_text + '( '+new_signature_text + 'int idx ) {'
       #finally update name
       signature_text = signature_text.replace(name,name+'_vec')
 
@@ -295,10 +250,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for m in unique_args:
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+        code('op_arg <ARG>){');
         code('')
       else:
-        code('op_arg ARG,')
+        code('op_arg <ARG>,')
 
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
@@ -307,8 +262,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
+        code('<ARG>.idx = 0;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
         v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
@@ -320,13 +275,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = '+argtyp+'arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
+        str(first)+'.map, <DIM>, "<TYP>", '+accsstring[accs[g_m]-1]+');')
         ENDFOR()
         code('')
       elif vectorised[g_m]>0:
         pass
       else:
-        code('args['+str(g_m)+'] = ARG;')
+        code('args['+str(g_m)+'] = <ARG>;')
 
 #
 # create aligned pointers
@@ -335,18 +290,18 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     for g_m in range (0,nargs):
         if maps[g_m] <> OP_GBL:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
-            code('ALIGNED_TYP       TYP * __restrict__ ptr'+\
-            str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            #code('TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
-            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
+            code('ALIGNED_<TYP>       <TYP> * __restrict__ ptr'+\
+            str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            #code('<TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
+            #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
 
           else:
-            code('ALIGNED_TYP const TYP * __restrict__ ptr'+\
-            str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',TYP_ALIGN);')
-            #code('const TYP* __restrict__ __attribute__((align_value (TYP_ALIGN)))  ptr'+\
-            #str(g_m)+' = (TYP *) arg'+str(g_m)+'.data;')
+            code('ALIGNED_<TYP> const <TYP> * __restrict__ ptr'+\
+            str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
+            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            #code('const <TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
+            #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
 
 
 
@@ -390,18 +345,23 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     if ninds>0:
       code('#ifdef VECTORIZE')
 
-      #initialze globals
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL:
-          if accs[g_m] == OP_INC:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
-          elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
-          elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
-
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
+      #initialize globals
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
+          FOR('i','0','SIMD_VEC')
+          if accs[g_m] == OP_INC:
+            code('dat{0}[i] = 0.0;'.format(g_m))
+          elif accs[g_m] == OP_MAX:
+            code('dat{0}[i] = -INFINITY;'.format(g_m))
+          elif accs[g_m] == OP_MIN:
+            code('dat{0}[i] = INFINITY;'.format(g_m))
+          elif accs[g_m] == OP_READ:
+            code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
+          ENDFOR()
+
       IF('n+SIMD_VEC >= set->core_size')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
@@ -409,22 +369,22 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
           or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE \
           or accs[g_m] == OP_INC):
-          code('ALIGNED_TYP TYP dat'+str(g_m)+'[DIM][SIMD_VEC];')
+          code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
 
       #setup gathers
-      code('#pragma simd')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
               for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'];')
+                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'];')
               code('')
             elif (accs[g_m] == OP_INC):
               for d in range(0,int(dims[g_m])):
@@ -432,13 +392,14 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
               code('')
           else: #globals
             if (accs[g_m] == OP_INC):
-              for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'[i] = 0.0;')
-              code('')
+              # for d in range(0,int(dims[g_m])):
+              #   code('dat'+str(g_m)+'[i] = 0.0;')
+              # code('')
+              pass
 
       ENDFOR()
       #kernel call
-      code('#pragma simd')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       line = name+'_vec('
       indent = '\n'+' '*(depth+2)
@@ -460,17 +421,17 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_DIM = DIM * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
       code('')
       for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] == OP_INC ):
               for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
             if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
               for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_DIM + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
+                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
               code('')
       ENDFOR()
 
@@ -479,11 +440,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_GBL:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('*(<TYP>*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MAX(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MIN(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           ENDFOR()
 
 
@@ -532,20 +493,26 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     else:
       code('#ifdef VECTORIZE')
+
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
-      #initialize globals
+	  #initialize globals
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL:
+          code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
+          FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {0.0};')
+            code('dat{0}[i] = 0.0;'.format(g_m))
           elif accs[g_m] == OP_MAX:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {INFINITY};')
+            code('dat{0}[i] = -INFINITY;'.format(g_m))
           elif accs[g_m] == OP_MIN:
-            code('TYP dat'+str(g_m)+'[SIMD_VEC] = {-INFINITY};')
+            code('dat{0}[i] = INFINITY;'.format(g_m))
+          elif accs[g_m] == OP_READ:
+            code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
+          ENDFOR()
 
-      code('#pragma simd')
+      code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       line = name+'('
       indent = '\n'+' '*(depth+2)
@@ -567,11 +534,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if maps[g_m] == OP_GBL:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
-            code('*(TYP*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
+            code('*(<TYP>*)arg'+str(g_m)+'.data += dat'+str(g_m)+'[i];')
           elif accs[g_m] == OP_MAX:
-            code('*(TYP*)arg'+str(g_m)+'.data = MAX(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MAX(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           elif accs[g_m] == OP_MIN:
-            code('*(TYP*)arg'+str(g_m)+'.data = MIN(*(TYP*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
+            code('*(<TYP>*)arg'+str(g_m)+'.data = MIN(*(<TYP>*)arg'+str(g_m)+'.data,dat'+str(g_m)+'[i]);')
           ENDFOR()
       ENDFOR()
 
@@ -611,7 +578,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     comm(' combine reduction data')
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
+        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
     code('')
@@ -632,9 +599,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
+            code(line+' <ARG>.size;')
           else:
-            code(line+' ARG.size * 2.0f;')
+            code(line+' <ARG>.size * 2.0f;')
     else:
       names = []
       for g_m in range(0,ninds):
@@ -704,14 +671,15 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   comm(' global constants       ')
 
   for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
-    else:
-      if consts[nc]['dim'] > 0:
-        num = str(consts[nc]['dim'])
+    if not consts[nc]['user_declared']:
+      if consts[nc]['dim']==1:
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        num = 'MAX_CONST_SIZE'
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+        if consts[nc]['dim'] > 0:
+          num = str(consts[nc]['dim'])
+        else:
+          num = 'MAX_CONST_SIZE'
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
   code('')
 
   comm(' header                 ')

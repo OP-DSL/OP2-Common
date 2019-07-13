@@ -17,6 +17,7 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
     rmsl += del * del;
   }
   *rms += rmsl;
+
 }
 
 // CUDA kernel function

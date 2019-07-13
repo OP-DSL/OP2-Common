@@ -175,11 +175,13 @@ typedef struct {
 typedef struct {
   char const *name; /* name of kernel function */
   int count;        /* number of times called */
-  float time;       /* total execution time */
+  double time;      /* total execution time */
+  double* times;    /* total execution time of each thread */
+  int ntimes;       /* number of thread-level times */
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  float mpi_time;   /* time spent in MPI calls */
+  double mpi_time;   /* time spent in MPI calls */
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
@@ -262,7 +264,11 @@ void op_timing_output_core(void);
 
 void op_timing_output_2_file(const char *);
 
+void op_timings_to_csv(const char *);
+
 void op_timing_realloc(int);
+
+void op_timing_realloc_manytime(int kernel, int num_timers);
 
 void op_timers_core(double *cpu, double *et);
 
@@ -273,6 +279,8 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name);
 
 void op_compute_moment(double t, double *first, double *second);
+
+void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros, double *first, double *second);
 
 int op_size_of_set(const char *);
 

@@ -418,11 +418,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
     if reduct_1dim or unknown_reduction_size:
       comm('Reduction cuda kernel'); depth = depth +2;
-      code('attributes (device) SUBROUTINE ReductionFloat8(reductionResult,inputValue,reductionOperation)')
+      code('attributes (device) SUBROUTINE ReductionFloat8(sharedDouble8, reductionResult,inputValue,reductionOperation)')
       code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
       code('REAL(kind=8) :: inputValue')
       code('INTEGER(kind=4), VALUE :: reductionOperation')
-      code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8')
+      code('REAL(kind=8), DIMENSION(0:*) :: sharedDouble8')
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: threadID')
       code('threadID = threadIdx%x - 1')
@@ -470,11 +470,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('END SUBROUTINE')
       code('')
 
-      code('attributes (device) SUBROUTINE ReductionInt4(reductionResult,inputValue,reductionOperation)')
+      code('attributes (device) SUBROUTINE ReductionInt4(sharedInt4, reductionResult,inputValue,reductionOperation)')
       code('INTEGER(kind=4), DIMENSION(:), DEVICE :: reductionResult')
       code('INTEGER(kind=4) :: inputValue')
       code('INTEGER(kind=4), VALUE :: reductionOperation')
-      code('INTEGER(kind=4), DIMENSION(0:*), SHARED :: sharedInt4')
+      code('INTEGER(kind=4), DIMENSION(0:*) :: sharedInt4')
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: threadID')
       code('threadID = threadIdx%x - 1')
@@ -523,12 +523,12 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('')
     if reduct_mdim:
       comm('Multidimensional reduction cuda kernel'); depth = depth +2;
-      code('attributes (device) SUBROUTINE ReductionFloat8Mdim(reductionResult,inputValue,reductionOperation,dim)')
+      code('attributes (device) SUBROUTINE ReductionFloat8Mdim(sharedDouble8, reductionResult,inputValue,reductionOperation,dim)')
       code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
       code('REAL(kind=8), DIMENSION(:) :: inputValue')
       code('INTEGER(kind=4), VALUE :: reductionOperation')
       code('INTEGER(kind=4), VALUE :: dim')
-      code('REAL(kind=8), DIMENSION(0:*), SHARED :: sharedDouble8')
+      code('REAL(kind=8), DIMENSION(0:*) :: sharedDouble8')
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: d')
       code('INTEGER(kind=4) :: threadID')
@@ -883,6 +883,20 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     code('INTEGER(kind=4) :: i2')
     if unknown_reduction_size:
       code('INTEGER(kind=4) :: thrIdx')
+
+    if reduct:
+        add_real = 0
+        add_int = 0
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
+            if 'real' in typs[g_m].lower():
+              add_real = 1
+            elif 'integer' in typs[g_m].lower():
+              add_int = 1
+        if add_real:
+          code('REAL(kind=8), DIMENSION(0:*), SHARED :: redFloat8')
+        if add_int:
+          code('INTEGER(kind=4), DIMENSION(0:*), SHARED :: redInt4')
 
 
     for g_m in range(0,nargs):
@@ -1365,27 +1379,27 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           op = '2'
         if 'real' in typs[g_m].lower():
           if dims[g_m].isdigit() and int(dims[g_m])==1:
-            code('CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
+            code('CALL ReductionFloat8(redFloat8, reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
           else:
             if g_m in needDimList:
               code('do i1=0,'+dims[g_m]+'-1,1')
-              code('  CALL ReductionFloat8(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
+              code('  CALL ReductionFloat8(redFloat8, reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
             else:
               code('do i1=0,'+dims[g_m]+'-1,8')
               code('i2 = MIN(i1+8,'+dims[g_m]+')')
-              code('  CALL ReductionFloat8Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
+              code('  CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
             code('end do')
         elif 'integer' in typs[g_m].lower():
           if dims[g_m].isdigit() and int(dims[g_m])==1:
-            code('CALL ReductionInt4(reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
+            code('CALL ReductionInt4(redInt4, reductionArrayDevice'+str(g_m+1)+'(blockIdx%x - 1 + 1:),opGblDat'+str(g_m+1)+'Device'+name+','+op+')')
           else:
             if g_m in needDimList:
               code('do i1=0,'+dims[g_m]+'-1,1')
-              code('  CALL ReductionInt4(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
+              code('  CALL ReductionInt4(redInt4, reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),scratchDevice'+str(g_m+1)+'(thrIdx+1+i1*(blockDim%x*gridDim%x)),'+op+')')
             else:
               code('do i1=0,'+dims[g_m]+'-1,8')
               code('i2 = MIN(i1+8,'+dims[g_m]+')')
-              code('  CALL ReductionInt4Mdim(reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
+              code('  CALL ReductionInt4Mdim(redInt4, reductionArrayDevice'+str(g_m+1)+'((blockIdx%x - 1)*('+dims[g_m]+') + 1+i1:),opGblDat'+str(g_m+1)+'Device'+name+'(i1:),'+op+',i2-i1)')
             code('end do')
     code('')
 

@@ -1,38 +1,33 @@
 #
 # The following environment variables should be predefined:
 #
+# OP2_COMPILER (gnu,intel,etc)
+#
+# ... and optionally the following. If not defined, then
+# they must be locatable via PATH variables:
+#
+# OP2_INSTALL_PATH
 # CUDA_INSTALL_PATH
 # PARMETIS_INSTALL_PATH
 # PTSCOTCH_INSTALL_PATH
 # HDF5_INSTALL_PATH
 #
-# OP2_INSTALL_PATH
-# OP2_COMPILER (gnu,intel,etc)
-#
 
-#
-# set paths for header files and libraries
-#
-OP2_INC		= -I$(OP2_INSTALL_PATH)/c/include
-OP2_LIB		= -L$(OP2_INSTALL_PATH)/c/lib
-
-CUDA_INC	= -I$(CUDA_INSTALL_PATH)/include
-CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
-
+include ../../../../make-common.inc
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
   CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O0 -g -vec-report -xAVX -parallel -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
+  CCFLAGS	= -O0 -g -vec-report -xHost -DMPICH_IGNORE_CXX_SEEK #-DCOMM_PERF #-DDEBUG
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -openmp -openmp-report2
-  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),pgi)
@@ -40,7 +35,7 @@ ifeq ($(OP2_COMPILER),pgi)
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -mp
-  MPICPP   	= $(MPI_INSTALL_PATH)/bin/mpicxx
+  MPICPP   	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),cray)
@@ -75,29 +70,9 @@ ifeq ($(NV_ARCH),Kepler)
 endif
 endif
 
-NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
-
-#
-# partitioning software for MPI versions
-#
-PARMETIS_VER=4
-ifeq ($(PARMETIS_VER),4)
-  PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
-  PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
-else
-  PARMETIS_INC = -I$(PARMETIS_INSTALL_PATH)/ -DHAVE_PARMETIS
-  PARMETIS_LIB = -L$(PARMETIS_INSTALL_PATH)/ -lparmetis -lmetis
-endif
-
-PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
-PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
-
-HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
-HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
-
 
 #
 # master to make all versions

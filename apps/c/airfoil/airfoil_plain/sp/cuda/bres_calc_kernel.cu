@@ -11,7 +11,7 @@ __device__ void bres_calc_gpu( const float *x1, const float *x2, const float *q1
   dy = x1[1] - x2[1];
 
   ri = 1.0f / q1[0];
-  p1 = gm1 * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
+  p1 = gm1_cuda * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
 
   if (*bound == 1) {
     res1[1] += +p1 * dy;
@@ -19,24 +19,25 @@ __device__ void bres_calc_gpu( const float *x1, const float *x2, const float *q1
   } else {
     vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-    ri = 1.0f / qinf[0];
-    p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
-    vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
+    ri = 1.0f / qinf_cuda[0];
+    p2 = gm1_cuda * (qinf_cuda[3] - 0.5f * ri * (qinf_cuda[1] * qinf_cuda[1] + qinf_cuda[2] * qinf_cuda[2]));
+    vol2 = ri * (qinf_cuda[1] * dy - qinf_cuda[2] * dx);
 
-    mu = (*adt1) * eps;
+    mu = (*adt1) * eps_cuda;
 
-    f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
+    f = 0.5f * (vol1 * q1[0] + vol2 * qinf_cuda[0]) + mu * (q1[0] - qinf_cuda[0]);
     res1[0] += f;
-    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
-        mu * (q1[1] - qinf[1]);
+    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_cuda[1] + p2 * dy) +
+        mu * (q1[1] - qinf_cuda[1]);
     res1[1] += f;
-    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
-        mu * (q1[2] - qinf[2]);
+    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf_cuda[2] - p2 * dx) +
+        mu * (q1[2] - qinf_cuda[2]);
     res1[2] += f;
-    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
-        mu * (q1[3] - qinf[3]);
+    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_cuda[3] + p2)) +
+        mu * (q1[3] - qinf_cuda[3]);
     res1[3] += f;
   }
+
 }
 
 // CUDA kernel function
