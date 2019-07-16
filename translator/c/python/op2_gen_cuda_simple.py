@@ -109,6 +109,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   inc_stage=0
   op_color2=0
   op_color2_force=0
+  atomics=1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -330,7 +331,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int   *ind_arg_offs, ')
 
     if ninds>0:
-      if not op_color2:
+      if op_color2:
+        code('int start,           ')
+        code('int end,             ')
+        code('int *col_reord,      ')
+      elif not atomics:
         code('int    block_offset, ')
         code('int   *blkmap,       ')
         code('int   *offset,       ')
@@ -341,7 +346,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
-        code('int *col_reord,      ')
       code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
@@ -380,7 +384,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # lengthy code for general case with indirection
 #
-    if ninds>0 and not op_color2:
+    if ninds>0 and not op_color2 and not atomics:
       code('')
       if inc_stage==1:
         for g_m in range (0,ninds):
@@ -523,13 +527,23 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line = line[:-2]+'};'
             code(line)
 #
-# simple version for global coloring
+# simple version for atomics/global coloring
 #
     elif ninds>0:
       code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
       IF('tid + start < end')
-      code('int n = col_reord[tid + start];')
+      if atomics:
+        code('int n = tid + start;')
+      else:
+        code('int n = col_reord[tid + start];')
       comm('initialise local variables')
+
+      for g_m in range(0,nargs):
+        if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+          FOR('d','0','DIM')
+          code('ARG_l[d] = ZERO_TYP;')
+          ENDFOR()
+
       #mapidx declarations
       k = []
       for g_m in range(0,nargs):
@@ -568,6 +582,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             first = [i for i in range(0,len(v)) if v[i] == 1]
             first = first[0]
 
+#TODO: atomics OP_INC
             indent = ' '*(depth+2)
             for k in range(0,sum(v)):
               if soaflags[g_m]:
@@ -625,7 +640,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*<DIM>,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0 and not op_color2:
+        if ninds>0 and not op_color2 and not atomics:
           if soaflags[m]:
             line += rep(indent+'<ARG>+(n+offset_b),\n',m)
           else:
@@ -645,7 +660,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # updating for indirect kernels ...
 #
-    if ninds>0 and not op_color2:
+    if ninds>0 and not op_color2 and not atomics:
       if ind_inc:
         code('col2 = colors[n+offset_b];')
         ENDIF()
@@ -709,6 +724,20 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR()
         code('__syncthreads();')
         ENDFOR()
+    if ninds>0 and atomics:
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+              if optflags[g_m]==1:
+                IF('optflags & 1<<'+str(optidxs[g_m]))
+              for d in range(0,int(dims[g_m])):
+                if soaflags[g_m]:
+                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],ARG_l['+str(d)+']);')
+                else:
+                  code('atomicsAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM],ARG_l['+str(d)+']);')
+              if optflags[g_m]==1:
+                ENDIF()
+
+
     ENDFOR()
 
     if inc_stage:
@@ -843,14 +872,15 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('printf(" kernel routine with indirection: '+name+'\\n");')
       ENDIF()
 
-      code('')
-      comm('get plan')
-      code('#ifdef OP_PART_SIZE_'+ str(nk))
-      code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
-      code('#else')
-      code('  int part_size = OP_part_size;')
-      code('#endif')
-      code('')
+      if not atomics:
+        code('')
+        comm('get plan')
+        code('#ifdef OP_PART_SIZE_'+ str(nk))
+        code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
+        code('#else')
+        code('  int part_size = OP_part_size;')
+        code('#endif')
+        code('')
       code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
@@ -870,7 +900,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # kernel call for indirect version
 #
-    if ninds>0:
+    if ninds>0 and not atomics:
       if inc_stage==1 and ind_inc:
         code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);')
       elif op_color2:
@@ -928,25 +958,27 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 # transfer global reduction initial data
 #
 
-    if ninds == 0:
+    if ninds == 0 or atomics:
       comm('set CUDA execution parameters')
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('  int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
       code('#else')
       code('  int nthread = OP_block_size;')
-      comm('  int nthread = 128;')
       code('#endif')
       code('')
-      code('int nblocks = 200;')
-      code('')
+      if ninds==0:
+        code('int nblocks = 200;')
+        code('')
 
     if reduct:
       comm('transfer global reduction data to GPU')
-      if ninds>0:
+      if ninds>0 and not atomics:
         code('int maxblocks = 0;')
         FOR('col','0','Plan->ncolors')
         code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
         ENDFOR()
+      if atomics and ninds>0:
+        code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
       else:
         code('int maxblocks = nblocks;')
 
@@ -980,7 +1012,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # kernel call for indirect version
 #
-    if ninds>0:
+    if ninds>0 and not atomics:
       comm('execute plan')
       if not op_color2:
         code('')
@@ -1058,6 +1090,51 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR() #TODO sztem ez forditva van...
         code('block_offset += Plan->ncolblk[col];')
       ENDIF()
+
+#
+#
+#
+    elif ninds>0 and atomics:
+      if reduct:
+        FOR('round','0','3')
+      else:
+        FOR('round','0','2')
+      IF('round==1')
+      code('op_mpi_wait_all_cuda(nargs, args);')
+      ENDIF()
+      if reduct:
+        code('int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);')
+        code('int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);')
+      else:
+        code('int start = round==0 ? 0 : set->core_size;')
+        code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
+      IF('end-start>0')
+      code('int nblocks = (end-start-1)/nthread+1;')
+      if reduct:
+        code('int nshared = reduct_size*nthread;')
+        code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
+      else:
+        code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
+      if nopts > 0:
+        code('optflags,')
+      for m in range(1,ninds+1):
+        g_m = invinds[m-1]
+        code('(TYP *)ARG.data_d,')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('arg'+str(g_m)+'.map_data_d, ')
+      for g_m in range(0,nargs):
+        if inds[g_m]==0:
+          code('(TYP*)ARG.data_d,')
+      code('start,end,set->size+set->exec_size);')
+      ENDIF()
+      if reduct:
+        code('if (round==1) mvReductArraysToHost(reduct_bytes);')
+
+      ENDFOR()
 #
 # kernel call for direct version
 #
@@ -1079,7 +1156,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       code(indent+'set->size );')
 
-    if ninds>0:
+    if ninds>0 and not atomics:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
