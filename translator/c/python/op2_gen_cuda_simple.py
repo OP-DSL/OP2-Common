@@ -733,7 +733,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                 if soaflags[g_m]:
                   code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],ARG_l['+str(d)+']);')
                 else:
-                  code('atomicsAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM],ARG_l['+str(d)+']);')
+                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM],ARG_l['+str(d)+']);')
               if optflags[g_m]==1:
                 ENDIF()
 
