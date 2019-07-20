@@ -57,8 +57,8 @@ __global__ void op_cuda_bres_calc(
   if (tid + start < end) {
     int n = tid + start;
     //initialise local variables
-    for ( int d=0; d<DIM; d++ ){
-      ARG_l[d] = ZERO_TYP;
+    for ( int d=0; d<4; d++ ){
+      arg4_l[d] = ZERO_double;
     }
     int map0idx;
     int map1idx;
@@ -74,10 +74,10 @@ __global__ void op_cuda_bres_calc(
               ind_arg2+map2idx*1,
               arg4_l,
               arg5+n*1);
-    atomicsAdd(&ind_arg3[0+map2idx*DIM],ARG_l[0]);
-    atomicsAdd(&ind_arg3[1+map2idx*DIM],ARG_l[1]);
-    atomicsAdd(&ind_arg3[2+map2idx*DIM],ARG_l[2]);
-    atomicsAdd(&ind_arg3[3+map2idx*DIM],ARG_l[3]);
+    atomicAdd(&ind_arg3[0+map2idx*4],arg4_l[0]);
+    atomicAdd(&ind_arg3[1+map2idx*4],arg4_l[1]);
+    atomicAdd(&ind_arg3[2+map2idx*4],arg4_l[2]);
+    atomicAdd(&ind_arg3[3+map2idx*4],arg4_l[3]);
   }
 }
 
@@ -134,13 +134,13 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       if (end-start>0) {
         int nblocks = (end-start-1)/nthread+1;
         op_cuda_bres_calc<<<nblocks,nthread>>>(
-        (TYP *)ARG.data_d,
-        (TYP *)ARG.data_d,
-        (TYP *)ARG.data_d,
-        (TYP *)ARG.data_d,
+        (double *)arg0.data_d,
+        (double *)arg2.data_d,
+        (double *)arg3.data_d,
+        (double *)arg4.data_d,
         arg0.map_data_d,
         arg2.map_data_d,
-        (TYP*)ARG.data_d,
+        (int*)arg5.data_d,
         start,end,set->size+set->exec_size);
       }
     }

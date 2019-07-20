@@ -117,10 +117,10 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       if (end-start>0) {
         int nblocks = (end-start-1)/nthread+1;
         op_cuda_adt_calc<<<nblocks,nthread>>>(
-        (TYP *)ARG.data_d,
+        (double *)arg0.data_d,
         arg0.map_data_d,
-        (TYP*)ARG.data_d,
-        (TYP*)ARG.data_d,
+        (double*)arg4.data_d,
+        (double*)arg5.data_d,
         start,end,set->size+set->exec_size);
       }
     }

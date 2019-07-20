@@ -231,7 +231,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code("")
 
     comm('user function')
-    
+
     kernel_text = op2_gen_common.comment_remover(kernel_text)
     kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
 
@@ -277,7 +277,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
                                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
-    for nc in range(0,len(consts)): 
+    for nc in range(0,len(consts)):
       varname = consts[nc]['name']
       body_text = re.sub('\\b'+varname+'\\b', varname+'_cuda',body_text)
 
@@ -296,7 +296,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     if nopts > 0:
       code('int optflags,')
-      
+
     for g_m in range(0,ninds):
       if (indaccs[g_m]==OP_READ):
         code('const <INDTYP> *__restrict <INDARG>,')
@@ -453,8 +453,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if inc_stage==1:
         for g_m in range(0,ninds):
           if indaccs[g_m] == OP_INC:
-            FOR_INC('n','threadIdx.x','ind_ARG_size*<INDDIM>','blockDim.x')
-            code('ind_ARG_s[n] = ZERO_<INDTYP>;')
+            FOR_INC('n','threadIdx.x','<INDARG>_size*<INDDIM>','blockDim.x')
+            code('<INDARG>_s[n] = ZERO_<INDTYP>;')
             ENDFOR()
         if ind_inc:
           code('')
@@ -503,7 +503,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
- 
+
       code('')
       for g_m in range (0,nargs):
         if accs[g_m] <> OP_INC: #TODO: add opt handling here
@@ -540,8 +540,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       for g_m in range(0,nargs):
         if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-          FOR('d','0','DIM')
-          code('ARG_l[d] = ZERO_TYP;')
+          FOR('d','0','<DIM>')
+          code('<ARG>_l[d] = ZERO_<TYP>;')
           ENDFOR()
 
       #mapidx declarations
@@ -698,7 +698,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                   code('ind_arg'+str(inds[g_m]-1)+'_s[<ARG>_map+'+str(d)+'*ind_arg'+str(inds[g_m]-1)+'_size] = <ARG>_l['+str(d)+'];')
                 else:
                   code('ind_arg'+str(inds[g_m]-1)+'_s['+str(d)+'+<ARG>_map*<DIM>] = <ARG>_l['+str(d)+'];')
-                
+
               if optflags[g_m]==1:
                 ENDIF()
         else:
@@ -731,9 +731,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                 IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
-                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],ARG_l['+str(d)+']);')
+                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],<ARG>_l['+str(d)+']);')
                 else:
-                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*DIM],ARG_l['+str(d)+']);')
+                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
               if optflags[g_m]==1:
                 ENDIF()
 
@@ -1119,7 +1119,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('optflags,')
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
-        code('(TYP *)ARG.data_d,')
+        code('(<TYP> *)<ARG>.data_d,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -1128,7 +1128,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
         if inds[g_m]==0:
-          code('(TYP*)ARG.data_d,')
+          code('(<TYP>*)<ARG>.data_d,')
       code('start,end,set->size+set->exec_size);')
       ENDIF()
       if reduct:
@@ -1185,7 +1185,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
           code('<ARG>.data = (char *)<ARG>h;')
           code('op_mpi_reduce(&<ARG>,<ARG>h);')
-          
+
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
         code('')
@@ -1195,7 +1195,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
         FOR('d','0','<DIM>')
-        code('<ARG>h[d] = ((<TYP> *)<ARG>.data)[d];') 
+        code('<ARG>h[d] = ((<TYP> *)<ARG>.data)[d];')
         ENDFOR()
         code('<ARG>.data = (char *)<ARG>h;')
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
