@@ -64,8 +64,13 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
 endif
 endif
+endif
+
 
 NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
 

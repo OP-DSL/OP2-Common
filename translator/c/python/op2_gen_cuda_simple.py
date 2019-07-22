@@ -137,7 +137,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         j = i
     ind_rw = j >= 0
 
-    if ind_rw or op_color2_force:
+    if not atomics and (ind_rw or op_color2_force):
         op_color2 = 1
     else:
         op_color2 = 0
@@ -540,6 +540,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       for g_m in range(0,nargs):
         if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+          code('<TYP> <ARG>_l[<DIM>];')
           FOR('d','0','<DIM>')
           code('<ARG>_l[d] = ZERO_<TYP>;')
           ENDFOR()

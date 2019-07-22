@@ -82,42 +82,56 @@ void op_par_loop_res(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
       int nblocks = (end - start - 1)/nthread + 1;
-      op2_queue->submit([&](cl::sycl::handler& cgh) {
-        auto ind_arg0 = (*arg1_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto ind_arg1 = (*arg2_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto opDat1Map =  (*map1_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
-        auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+      try {
+        op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto ind_arg0 =
+              (*arg1_buffer)
+                  .template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto ind_arg1 =
+              (*arg2_buffer)
+                  .template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto opDat1Map =
+              (*map1_buffer)
+                  .template get_access<cl::sycl::access::mode::read>(cgh);
+          auto col_reord =
+              (*col_reord_buffer)
+                  .template get_access<cl::sycl::access::mode::read>(cgh);
 
-        auto arg0 = (*arg0_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto consts_d = (*consts).template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto arg0 =
+              (*arg0_buffer)
+                  .template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto consts_d =
+              (*consts).template get_access<cl::sycl::access::mode::read_write>(
+                  cgh);
 
-        //user fun as lambda
-        auto res_gpu = [=]( const double *A, const double *u, double *du,
-                          const double *beta) {
+          // user fun as lambda
+          auto res_gpu = [=](const double *A, const double *u, double *du,
+                             const double *beta) {
             *du += (*beta) * (*A) * (*u);
           };
-          
-        auto kern = [=](cl::sycl::nd_item<1> item) {
-          int tid = item.get_global_linear_id();
-          if (tid + start < end) {
-            int n = col_reord[tid + start];
-            //initialise local variables
-            int map1idx;
-            int map2idx;
-            map1idx = opDat1Map[n + set_size * 1];
-            map2idx = opDat1Map[n + set_size * 0];
 
-            //user-supplied kernel call
-            res_gpu(&arg0[n*1],
-        &ind_arg0[map1idx*1],
-        &ind_arg1[map2idx*1],
-        &consts_d[arg3_offset]);
-          }
+          auto kern = [=](cl::sycl::nd_item<1> item) {
+            int tid = item.get_global_linear_id();
+            if (tid + start < end) {
+              int n = col_reord[tid + start];
+              // initialise local variables
+              int map1idx;
+              int map2idx;
+              map1idx = opDat1Map[n + set_size * 1];
+              map2idx = opDat1Map[n + set_size * 0];
 
-        };
-        cgh.parallel_for<class res_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);
-      });
-
+              // user-supplied kernel call
+              res_gpu(&arg0[n * 1], &ind_arg0[map1idx * 1],
+                      &ind_arg1[map2idx * 1], &consts_d[arg3_offset]);
+            }
+          };
+          cgh.parallel_for<class res_kernel>(
+              cl::sycl::nd_range<1>(nthread * nblocks, nthread), kern);
+        });
+      } catch (cl::sycl::exception const &e) {
+        std::cout << e.what() << std::endl;
+        exit(-1);
+      }
     }
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;

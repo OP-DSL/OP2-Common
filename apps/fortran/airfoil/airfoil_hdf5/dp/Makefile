@@ -109,7 +109,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
-  OPENMP = -openmp
+  OPENMP = -qopenmp
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xHost -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++

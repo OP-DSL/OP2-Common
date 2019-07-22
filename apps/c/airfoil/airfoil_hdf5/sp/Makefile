@@ -238,7 +238,7 @@ airfoil_mpi_vec: airfoil_op.cpp vec/airfoil_veckernels.cpp \
                 vec/bres_calc_veckernel.cpp  bres_calc.h \
                 vec/update_veckernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) $(OMPFLAGS) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
                 $(PARMETIS_INC) $(PTSCOTCH_INC) -Ivec  -I. \
                 airfoil_op.cpp -lm vec/airfoil_veckernels.cpp $(OP2_LIB) -lop2_mpi \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_vec

@@ -55,9 +55,11 @@ __global__ void op_cuda_res_calc(
   if (tid + start < end) {
     int n = tid + start;
     //initialise local variables
+    double arg6_l[4];
     for ( int d=0; d<4; d++ ){
       arg6_l[d] = ZERO_double;
     }
+    double arg7_l[4];
     for ( int d=0; d<4; d++ ){
       arg7_l[d] = ZERO_double;
     }

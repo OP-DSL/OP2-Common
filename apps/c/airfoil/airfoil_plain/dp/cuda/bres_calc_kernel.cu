@@ -57,6 +57,7 @@ __global__ void op_cuda_bres_calc(
   if (tid + start < end) {
     int n = tid + start;
     //initialise local variables
+    double arg4_l[4];
     for ( int d=0; d<4; d++ ){
       arg4_l[d] = ZERO_double;
     }

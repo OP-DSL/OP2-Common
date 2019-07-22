@@ -82,58 +82,78 @@ void op_par_loop_update(char const *name, op_set set,
     cl::sycl::buffer<double,1> *arg1_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg1.data_d);
     cl::sycl::buffer<double,1> *arg2_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg2.data_d);
     int set_size = set->size+set->exec_size;
-    op2_queue->submit([&](cl::sycl::handler& cgh) {
-      auto arg0 = (*arg0_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-      auto arg1 = (*arg1_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-      auto arg2 = (*arg2_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-      auto reduct3 = (*reduct).template get_access<cl::sycl::access::mode::read_write>(cgh);
-      auto reduct4 = (*reduct).template get_access<cl::sycl::access::mode::read_write>(cgh);
-      cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,
-         cl::sycl::access::target::local> red_double(nthread, cgh);
-      auto alpha= (*alpha_p).template get_access<cl::sycl::access::mode::read>(cgh);
+    try {
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+        auto arg0 =
+            (*arg0_buffer)
+                .template get_access<cl::sycl::access::mode::read_write>(cgh);
+        auto arg1 =
+            (*arg1_buffer)
+                .template get_access<cl::sycl::access::mode::read_write>(cgh);
+        auto arg2 =
+            (*arg2_buffer)
+                .template get_access<cl::sycl::access::mode::read_write>(cgh);
+        auto reduct3 =
+            (*reduct).template get_access<cl::sycl::access::mode::read_write>(
+                cgh);
+        auto reduct4 =
+            (*reduct).template get_access<cl::sycl::access::mode::read_write>(
+                cgh);
+        cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,
+                           cl::sycl::access::target::local>
+            red_double(nthread, cgh);
+        auto alpha =
+            (*alpha_p).template get_access<cl::sycl::access::mode::read>(cgh);
 
-      //user fun as lambda
-      auto update_gpu = [=]( const double *r, double *du, double *u, double *u_sum,
-                           double *u_max) {
+        // user fun as lambda
+        auto update_gpu = [=](const double *r, double *du, double *u,
+                              double *u_sum, double *u_max) {
           *u += *du + alpha[0] * (*r);
           *du = 0.0f;
           *u_sum += (*u) * (*u);
           *u_max = maxfun(*u_max, *u);
         };
-        
-      auto kern = [=](cl::sycl::nd_item<1> item) {
-        double arg3_l[1];
-        for ( int d=0; d<1; d++ ){
-          arg3_l[d]=ZERO_double;
-        }
-        double arg4_l[1];
-        for ( int d=0; d<1; d++ ){
-          arg4_l[d]=reduct4[arg4_offset+d+item.get_group_linear_id()*1];
-        }
 
-        //process set elements
-        for ( int n=item.get_global_linear_id(); n<set_size; n+=item.get_global_range()[0] ){
+        auto kern = [=](cl::sycl::nd_item<1> item) {
+          double arg3_l[1];
+          for (int d = 0; d < 1; d++) {
+            arg3_l[d] = ZERO_double;
+          }
+          double arg4_l[1];
+          for (int d = 0; d < 1; d++) {
+            arg4_l[d] =
+                reduct4[arg4_offset + d + item.get_group_linear_id() * 1];
+          }
 
-          //user-supplied kernel call
-          update_gpu(&arg0[n*1],
-           &arg1[n*1],
-           &arg2[n*1],
-           arg3_l,
-           arg4_l);
-        }
+          // process set elements
+          for (int n = item.get_global_linear_id(); n < set_size;
+               n += item.get_global_range()[0]) {
 
-        //global reductions
+            // user-supplied kernel call
+            update_gpu(&arg0[n * 1], &arg1[n * 1], &arg2[n * 1], arg3_l,
+                       arg4_l);
+          }
 
-        for ( int d=0; d<1; d++ ){
-          op_reduction<OP_INC>(reduct3,arg3_offset+d+item.get_group_linear_id()*1,arg3_l[d],red_double,item);
-        }
-        for ( int d=0; d<1; d++ ){
-          op_reduction<OP_MAX>(reduct4,arg4_offset+d+item.get_group_linear_id()*1,arg4_l[d],red_double,item);
-        }
+          // global reductions
 
-      };
-      cgh.parallel_for<class update_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);
-    });
+          for (int d = 0; d < 1; d++) {
+            op_reduction<OP_INC>(
+                reduct3, arg3_offset + d + item.get_group_linear_id() * 1,
+                arg3_l[d], red_double, item);
+          }
+          for (int d = 0; d < 1; d++) {
+            op_reduction<OP_MAX>(
+                reduct4, arg4_offset + d + item.get_group_linear_id() * 1,
+                arg4_l[d], red_double, item);
+          }
+        };
+        cgh.parallel_for<class update_kernel>(
+            cl::sycl::nd_range<1>(nthread * nblocks, nthread), kern);
+      });
+    } catch (cl::sycl::exception const &e) {
+      std::cout << e.what() << std::endl;
+      exit(-1);
+    }
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     for ( int b=0; b<maxblocks; b++ ){
