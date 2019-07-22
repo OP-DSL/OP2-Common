@@ -108,8 +108,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0
   op_color2=0
-  op_color2_force=0
-  atomics=1
+  op_color2_force=1
+  atomics=0
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -633,7 +633,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('auto nelems    = (*nelems_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
         code('auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
         code('auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      else:
+      elif op_color2:
         code('auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
       code('')
 
@@ -673,6 +673,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('auto '+consts[nc]['name']+'_sycl = (*'+consts[nc]['name']+'_p).template get_access<cl::sycl::access::mode::read>(cgh);')
         if int(consts[nc]['dim'])==1:
             body_text = re.sub(r'\b'+const+r'\b',const+'_sycl[0]',body_text)
+        else:
+            body_text = re.sub(r'\b'+const+r'\b',const+'_sycl',body_text)
 
     code('')
     comm('user fun as lambda')
@@ -1027,9 +1029,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             IF('optflags & 1<<'+str(optidxs[g_m]))
           for d in range(0,int(dims[g_m])):
             if soaflags[g_m]:
-              code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx] += <ARG>_l['+str(d)+'];')
+                code('cl::sycl::atomic_fetch_add(ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx], <ARG>_l['+str(d)+']);')
             else:
-              code('ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>] += <ARG>_l['+str(d)+'];')
+                code('cl::sycl::atomic_fetch_add(ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>], <ARG>_l['+str(d)+']);')
 
     ENDFOR()
 
