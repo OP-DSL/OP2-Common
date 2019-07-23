@@ -42,6 +42,12 @@
 // mpi header
 #include <mpi.h>
 
+// headers for reproducible MPI reduce
+extern "C" {
+#include <binned.h>
+#include <binnedMPI.h>
+}
+
 //#include <op_lib_core.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
@@ -2362,6 +2368,141 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
+
+/*void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
+    (void)data;
+  if (arg->data == NULL)
+    return;
+  op_timers_core(&c1, &t1);
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+    double *result = (double *)calloc(arg->dim, sizeof(double));    
+    
+    double_binned *send_buf = (double_binned*)op_malloc(arg->dim * binned_dbsize(3));
+    for (int i=0; i<arg->dim; i++){
+    //    send_buf[i * binned_dbnum(3)] = binned_dballoc(3);
+        binned_dbsetzero(3,&send_buf[i * binned_dbnum(3)]);
+        binned_dbdconv(3,arg->data[i],&send_buf[i * binned_dbnum(3)]);        
+    }
+    
+    double_binned *binned_result = (double_binned *)op_malloc(arg->dim * binned_dbsize(3));
+    for (int i=0; i<arg->dim; i++){
+    //    binned_result[i * binned_dbnum(3)] = binned_dballoc(3);
+        binned_dbsetzero(3,&binned_result[i * binned_dbnum(3)]);        
+    }
+  
+    if (arg->acc == OP_INC) // global reduction
+    {
+//      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE, MPI_SUM,
+//                    OP_MPI_WORLD);
+//      memcpy(arg->data, result, sizeof(double) * arg->dim);
+      MPI_Allreduce(send_buf, binned_result, arg->dim, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3),
+                    OP_MPI_WORLD);
+
+      for (int i=0; i<arg->dim; i++){
+          result[i] = binned_ddbconv(3,&binned_result[i * binned_dbnum(3)]);
+          
+      }
+                    
+      memcpy(arg->data, result, sizeof(double) * arg->dim);
+      op_free(binned_result);//TODO free within...
+      op_free(send_buf);
+    } 
+     
+    
+    if (arg->dim > 1)
+      op_free(result);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+}
+*/
+
+void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
+  (void)data;
+  if (arg->data == NULL)
+    return;
+  op_timers_core(&c1, &t1);
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+    double result_static;
+    double *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE)
+      result = (double *)calloc(arg->dim, sizeof(double));
+    else
+      result = &result_static;
+
+/*    //original original
+    if (arg->acc == OP_INC) // global reduction
+    {
+      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE, MPI_SUM,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(double) * arg->dim);
+      printf("reduced original original data: ");
+      for (int i=0; i<arg->dim; i++){
+            printf("%10.5e, ",((double*)(arg->data))[i]);
+      }
+      printf("\n");
+    }
+   */ 
+    //original scattered
+ /*   if (arg->acc == OP_INC) // global reduction
+    {
+      for (int i=0; i<arg->dim; i++) {
+        MPI_Allreduce((double*)(arg->data)+i, result + i, 1, MPI_DOUBLE, MPI_SUM, OP_MPI_WORLD);                      
+      }
+      memcpy(arg->data, result, sizeof(double) * arg->dim);      
+      
+      printf("reduced original scattered data: ");
+      for (int i=0; i<arg->dim; i++){
+            printf("%10.5e, ",((double*)(arg->data))[i]);
+      }
+      printf("\n");
+    }  
+    */
+ 
+  //binned scattered 
+    if (arg->acc == OP_INC) // global reduction
+    {
+      double_binned* binned_result = (double_binned *)op_malloc(binned_dbsize(3));
+      double_binned* binned_data   = (double_binned *)op_malloc(binned_dbsize(3));
+      for (int i=0; i<arg->dim; i++) {
+
+          binned_dbsetzero(3,binned_result);
+          binned_dbsetzero(3,binned_data);
+          binned_dbdconv(3,((double*)arg->data)[i],binned_data);
+          
+          MPI_Allreduce(binned_data, binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
+                    
+          result[i]=binned_ddbconv(3,binned_result);   
+          
+      }
+      op_free(binned_result);
+      op_free(binned_data);
+      memcpy(arg->data, result, sizeof(double) * arg->dim);
+      
+    //  printf("reduced binned scattered data: ");
+    //  for (int i=0; i<arg->dim; i++){
+    //        printf("%10.5e, ",((double*)(arg->data))[i]);
+    //  }
+    //  printf("\n");
+    } 
+ 
+    
+    if (arg->dim > 1)
+      op_free(result);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+}
+
+
+
+
+
+
+
+
 
 void op_mpi_reduce_int(op_arg *arg, int *data) {
   (void)data;

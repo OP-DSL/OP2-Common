@@ -47,7 +47,8 @@ void op_par_loop_update(char const *name, op_set set,
   }
 
   // combine reduction data
-  op_mpi_reduce_double(&arg4,(double*)arg4.data);
+  op_mpi_repr_inc_reduce_double(&arg4,(double*)arg4.data);
+  //op_mpi_reduce_double(&arg4,(double*)arg4.data);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
