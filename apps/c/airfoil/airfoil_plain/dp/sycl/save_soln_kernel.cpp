@@ -36,7 +36,6 @@ void op_par_loop_save_soln(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_0;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -53,6 +52,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
       auto save_soln_gpu = [=]( const double *q, double *qold) {
           for (int n = 0; n < 4; n++)
             qold[n] = q[n];
+        
         };
         
       auto kern = [=](cl::sycl::nd_item<1> item) {

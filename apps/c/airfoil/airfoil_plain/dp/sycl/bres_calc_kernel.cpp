@@ -49,7 +49,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
-    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
 
     cl::sycl::buffer<double,1> *arg0_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg0.data_d);
     cl::sycl::buffer<double,1> *arg2_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg2.data_d);
@@ -58,9 +58,19 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     cl::sycl::buffer<int,1> *map0_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)arg0.map_data_d);
     cl::sycl::buffer<int,1> *map2_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)arg2.map_data_d);
     cl::sycl::buffer<int,1> *arg5_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)arg5.data_d);
-    cl::sycl::buffer<int,1> *col_reord_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->col_reord);
+    cl::sycl::buffer<int,1> *ind_map_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_map);
+    cl::sycl::buffer<short,1> *arg_map_buffer = static_cast<cl::sycl::buffer<short,1>*>((void*)Plan->loc_map);
+    cl::sycl::buffer<int,1> *ind_arg_sizes_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_sizes);
+    cl::sycl::buffer<int,1> *ind_arg_offs_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_offs);
+    cl::sycl::buffer<int,1> *blkmap_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->blkmap);
+    cl::sycl::buffer<int,1> *offset_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->offset);
+    cl::sycl::buffer<int,1> *nelems_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nelems);
+    cl::sycl::buffer<int,1> *ncolors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nthrcol);
+    cl::sycl::buffer<int,1> *colors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->thrcol);
     int set_size = set->size+set->exec_size;
     //execute plan
+
+    int block_offset = 0;
     for ( int col=0; col<Plan->ncolors; col++ ){
       if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
@@ -71,89 +81,159 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       int nthread = OP_block_size;
       #endif
 
-      int start = Plan->col_offsets[0][col];
-      int end = Plan->col_offsets[0][col+1];
-      int nblocks = (end - start - 1)/nthread + 1;
-      try {
-      op2_queue->submit([&](cl::sycl::handler& cgh) {
-        auto ind_arg0 = (*arg0_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto ind_arg1 = (*arg2_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto ind_arg2 = (*arg3_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto ind_arg3 = (*arg4_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto opDat0Map =  (*map0_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
-        auto opDat2Map =  (*map2_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
-        auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+      int nblocks = Plan->ncolblk[col];
+      if (Plan->ncolblk[col] > 0) {
 
-        auto arg5 = (*arg5_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto gm1= (*gm1_p).template get_access<cl::sycl::access::mode::read>(cgh);
-        auto eps= (*eps_p).template get_access<cl::sycl::access::mode::read>(cgh);
-        auto qinf= (*qinf_p).template get_access<cl::sycl::access::mode::read>(cgh);
+        int ind_arg3_shmem = Plan->nsharedColInd[col+Plan->ncolors*0];
+        try {
+        op2_queue->submit([&](cl::sycl::handler& cgh) {
+          auto ind_arg0 = (*arg0_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto ind_arg1 = (*arg2_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto ind_arg2 = (*arg3_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto ind_arg3 = (*arg4_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
+          auto opDat0Map =  (*map0_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto opDat2Map =  (*map2_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto ind_map = (*ind_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto arg_map = (*arg_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto ind_arg_sizes = (*ind_arg_sizes_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto ind_arg_offs = (*ind_arg_offs_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto blkmap    = (*blkmap_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto offset    = (*offset_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto nelems    = (*nelems_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);
 
-        //user fun as lambda
-        auto bres_calc_gpu = [=]( const double *x1, const double *x2, const double *q1,
-                                const double *adt1, double *res1, const int *bound) {
-            double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
-          
-            dx = x1[0] - x2[0];
-            dy = x1[1] - x2[1];
-          
-            ri = 1.0f / q1[0];
-            p1 = gm1[0] * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
-          
-            if (*bound == 1) {
-              res1[1] += +p1 * dy;
-              res1[2] += -p1 * dx;
-            } else {
-              vol1 = ri * (q1[1] * dy - q1[2] * dx);
-          
-              ri = 1.0f / qinf[0];
-              p2 = gm1[0] * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
-              vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
-          
-              mu = (*adt1) * eps[0];
-          
-              f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
-              res1[0] += f;
-              f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
-                  mu * (q1[1] - qinf[1]);
-              res1[1] += f;
-              f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
-                  mu * (q1[2] - qinf[2]);
-              res1[2] += f;
-              f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
-                  mu * (q1[3] - qinf[3]);
-              res1[3] += f;
+          auto arg5 = (*arg5_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);
+
+          cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,
+             cl::sycl::access::target::local> ind_arg3_s(ind_arg3_shmem, cgh);
+
+          auto gm1_sycl = (*gm1_p).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto eps_sycl = (*eps_p).template get_access<cl::sycl::access::mode::read>(cgh);
+          auto qinf_sycl = (*qinf_p).template get_access<cl::sycl::access::mode::read>(cgh);
+
+          //user fun as lambda
+          auto bres_calc_gpu = [=]( const double *x1, const double *x2, const double *q1,
+                                  const double *adt1, double *res1, const int *bound) {
+              double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
+            
+              dx = x1[0] - x2[0];
+              dy = x1[1] - x2[1];
+            
+              ri = 1.0f / q1[0];
+              p1 = gm1_sycl[0] * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
+            
+              if (*bound == 1) {
+                res1[1] += +p1 * dy;
+                res1[2] += -p1 * dx;
+              } else {
+                vol1 = ri * (q1[1] * dy - q1[2] * dx);
+            
+                ri = 1.0f / qinf_sycl[0];
+                p2 = gm1_sycl[0] * (qinf_sycl[3] - 0.5f * ri * (qinf_sycl[1] * qinf_sycl[1] + qinf_sycl[2] * qinf_sycl[2]));
+                vol2 = ri * (qinf_sycl[1] * dy - qinf_sycl[2] * dx);
+            
+                mu = (*adt1) * eps_sycl[0];
+            
+                f = 0.5f * (vol1 * q1[0] + vol2 * qinf_sycl[0]) + mu * (q1[0] - qinf_sycl[0]);
+                res1[0] += f;
+                f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_sycl[1] + p2 * dy) +
+                    mu * (q1[1] - qinf_sycl[1]);
+                res1[1] += f;
+                f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf_sycl[2] - p2 * dx) +
+                    mu * (q1[2] - qinf_sycl[2]);
+                res1[2] += f;
+                f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_sycl[3] + p2)) +
+                    mu * (q1[3] - qinf_sycl[3]);
+                res1[3] += f;
+              }
+            
+            };
+            
+          auto kern = [=](cl::sycl::nd_item<1> item) {
+            double arg4_l[4];
+
+
+            //get sizes and shift pointers and direct-mapped data
+
+            int blockId = blkmap[item.get_group_linear_id()  + block_offset];
+
+            int nelem    = nelems[blockId];
+            int offset_b = offset[blockId];
+
+            int nelems2  = item.get_local_range()[0]*(1+(nelem-1)/item.get_local_range()[0]);
+            int ncolor   = ncolors[blockId];
+
+            int ind_arg3_size = ind_arg_sizes[0+blockId*1];
+
+            int ind_arg3_map = 0*set_size + ind_arg_offs[0+blockId*1];
+
+
+            for ( int n=item.get_local_id(0); n<ind_arg3_size*4; n+=item.get_local_range()[0] ){
+              ind_arg3_s[n] = ZERO_double;
             }
-          };
-          
-        auto kern = [=](cl::sycl::nd_item<1> item) {
-          int tid = item.get_global_linear_id();
-          if (tid + start < end) {
-            int n = col_reord[tid + start];
-            //initialise local variables
-            int map0idx;
-            int map1idx;
-            int map2idx;
-            map0idx = opDat0Map[n + set_size * 0];
-            map1idx = opDat0Map[n + set_size * 1];
-            map2idx = opDat2Map[n + set_size * 0];
 
-            //user-supplied kernel call
-            bres_calc_gpu(&ind_arg0[map0idx*2],
+            item.barrier(cl::sycl::access::fence_space::local_space);
+
+            for ( int n=item.get_local_id(0); n<nelems2; n+=item.get_local_range()[0] ){
+              int col2 = -1;
+              int map0idx;
+              int map1idx;
+              int map2idx;
+              if (n<nelem) {
+                //initialise local variables
+                for ( int d=0; d<4; d++ ){
+                  arg4_l[d] = ZERO_double;
+                }
+                map0idx = opDat0Map[n + offset_b + set_size * 0];
+                map1idx = opDat0Map[n + offset_b + set_size * 1];
+                map2idx = opDat2Map[n + offset_b + set_size * 0];
+
+
+                //user-supplied kernel call
+                bres_calc_gpu(&ind_arg0[map0idx*2],
               &ind_arg0[map1idx*2],
               &ind_arg1[map2idx*4],
               &ind_arg2[map2idx*1],
-              &ind_arg3[map2idx*4],
-              &arg5[n*1]);
-          }
+              arg4_l,
+              &arg5[(n+offset_b)*1]);
+                col2 = colors[n+offset_b];
+              }
 
-        };
-        cgh.parallel_for<class bres_calc_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);
-      });
-      }catch(cl::sycl::exception const &e) {
-      std::cout << e.what() << std::endl;exit(-1);
+              //store local variables
+
+              int arg4_map;
+              if (col2>=0) {
+                arg4_map = arg_map[0*set_size+n+offset_b];
+              }
+
+              for ( int col=0; col<ncolor; col++ ){
+                if (col2==col) {
+                  arg4_l[0] += ind_arg3_s[0+arg4_map*4];
+                  arg4_l[1] += ind_arg3_s[1+arg4_map*4];
+                  arg4_l[2] += ind_arg3_s[2+arg4_map*4];
+                  arg4_l[3] += ind_arg3_s[3+arg4_map*4];
+                  ind_arg3_s[0+arg4_map*4] = arg4_l[0];
+                  ind_arg3_s[1+arg4_map*4] = arg4_l[1];
+                  ind_arg3_s[2+arg4_map*4] = arg4_l[2];
+                  ind_arg3_s[3+arg4_map*4] = arg4_l[3];
+                }
+                item.barrier(cl::sycl::access::fence_space::local_space);
+              }
+            }
+            for ( int n=item.get_local_id(0); n<ind_arg3_size*4; n+=item.get_local_range()[0] ){
+              ind_arg3[n%4+ind_map[ind_arg3_map+n/4]*4] += ind_arg3_s[n];
+            }
+
+          };
+          cgh.parallel_for<class bres_calc_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);
+        });
+        }catch(cl::sycl::exception const &e) {
+        std::cout << e.what() << std::endl;exit(-1);
+        }
+
       }
-
+      block_offset += Plan->ncolblk[col];
     }
     OP_kernels[3].transfer  += Plan->transfer;
     OP_kernels[3].transfer2 += Plan->transfer2;

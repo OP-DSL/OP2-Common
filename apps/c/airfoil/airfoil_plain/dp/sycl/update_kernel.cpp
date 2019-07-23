@@ -43,7 +43,6 @@ void op_par_loop_update(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_4;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -95,6 +94,7 @@ void op_par_loop_update(char const *name, op_set set,
             res[n] = 0.0f;
             *rms += del * del;
           }
+        
         };
         
       auto kern = [=](cl::sycl::nd_item<1> item) {

@@ -106,7 +106,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0
+  inc_stage=1
   op_color2=0
   op_color2_force=0
   atomics=0
@@ -522,8 +522,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if inc_stage==1 and ind_inc:
           code('cl::sycl::buffer<int,1> *ind_map_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_map);')
           code('cl::sycl::buffer<short,1> *arg_map_buffer = static_cast<cl::sycl::buffer<short,1>*>((void*)Plan->loc_map);')
-          code('cl::sycl::buffer<int,1> *ind_sizes_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_sizes);')
-          code('cl::sycl::buffer<int,1> *ind_offs_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_offs);')
+          code('cl::sycl::buffer<int,1> *ind_arg_sizes_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_sizes);')
+          code('cl::sycl::buffer<int,1> *ind_arg_offs_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_offs);')
       if op_color2:
           code('cl::sycl::buffer<int,1> *col_reord_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->col_reord);')
       else:
@@ -581,11 +581,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
 
     if ninds>0 and not op_color2 and not atomics:
-      code('')
-      if inc_stage==1:
-        for g_m in range (0,ninds):
-          if indaccs[g_m] == OP_INC:
-            code('<INDARG>_size = need a value for the overall kernel Plan->ind_arg_sizes['+str(g_m)+'];')
+      if inc_stage==1 and ind_inc:
+        code('')
+        for m in range (1,ninds_staged+1):
+          g_m = m - 1
+          c = [i for i in range(nargs) if inds_staged[i]==m]
+          code('int ind_arg'+str(inds[invinds_staged[g_m]]-1)+'_shmem = Plan->nsharedColInd[col+Plan->ncolors*'+str(cumulative_indirect_index[c[0]])+'];')
 
     if ninds > 0 and atomics:
       if reduct:
@@ -660,7 +661,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         for g_m in range (0,ninds):
           if indaccs[g_m] == OP_INC:
             code('cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,')
-            code('   cl::sycl::access::target::local> <INDARG>_s(<INDARG>_size, cgh);')
+            code('   cl::sycl::access::target::local> <INDARG>_s(<INDARG>_shmem, cgh);')
         code('')
 
 
@@ -765,12 +766,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if inc_stage==1:
         for g_m in range(0,ninds):
           if indaccs[g_m] == OP_INC:
-            FOR_INC('n','item.get_local_id(0)','ind_ARG_size*<INDDIM>','item.get_local_range()[0]')
-            code('ind_ARG_s[n] = ZERO_<INDTYP>;')
+            FOR_INC('n','item.get_local_id(0)','<INDARG>_size*<INDDIM>','item.get_local_range()[0]')
+            code('<INDARG>_s[n] = ZERO_<INDTYP>;')
             ENDFOR()
         if ind_inc:
           code('')
-          code('item_id.barrier(cl::sycl::access::fence_space::local_space);')
+          code('item.barrier(cl::sycl::access::fence_space::local_space);')
           code('')
       if ind_inc:
         FOR_INC('n','item.get_local_id(0)','nelems2','item.get_local_range()[0]')
@@ -1041,14 +1042,14 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if indopts[g_m] > 0:
             IF('optflags & 1<<'+str(optidxs[indopts[g_m-1]]))
           if soaflags[invinds[g_m]]:
-            FOR_INC('n','threadIdx.x','<INDARG>_size','blockDim.x')
+            FOR_INC('n','item.get_local_id(0)','<INDARG>_size','item.get_local_range()[0]')
             for d in range(0,int(dims[invinds[g_m]])):
               code('arg'+str(invinds[g_m])+'_l['+str(d)+'] = <INDARG>_s[n+'+str(d)+'*<INDARG>_size] + <INDARG>[ind_map[<INDARG>_map+n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'];')
             for d in range(0,int(dims[invinds[g_m]])):
               code('<INDARG>[ind_map[<INDARG>_map+n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'] = arg'+str(invinds[g_m])+'_l['+str(d)+'];')
             ENDFOR()
           else:
-            FOR_INC('n','threadIdx.x','<INDARG>_size*<INDDIM>','blockDim.x')
+            FOR_INC('n','item.get_local_id(0)','<INDARG>_size*<INDDIM>','item.get_local_range()[0]')
             code('<INDARG>[n%<INDDIM>+ind_map[<INDARG>_map+n/<INDDIM>]*<INDDIM>] += <INDARG>_s[n];')
             ENDFOR()
           if indopts[g_m] > 0:
