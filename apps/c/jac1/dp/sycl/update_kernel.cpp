@@ -137,15 +137,16 @@ void op_par_loop_update(char const *name, op_set set,
           // global reductions
 
           for (int d = 0; d < 1; d++) {
-            op_reduction<OP_INC>(
-                reduct3, arg3_offset + d + item.get_group_linear_id() * 1,
-                arg3_l[d], red_double, item);
+            op_reduction<OP_INC>(reduct3, arg3_offset + d +
+                                              item.get_group_linear_id() * 1,
+                                 arg3_l[d], red_double, item);
           }
           for (int d = 0; d < 1; d++) {
-            op_reduction<OP_MAX>(
-                reduct4, arg4_offset + d + item.get_group_linear_id() * 1,
-                arg4_l[d], red_double, item);
+            op_reduction<OP_MAX>(reduct4, arg4_offset + d +
+                                              item.get_group_linear_id() * 1,
+                                 arg4_l[d], red_double, item);
           }
+
         };
         cgh.parallel_for<class update_kernel>(
             cl::sycl::nd_range<1>(nthread * nblocks, nthread), kern);

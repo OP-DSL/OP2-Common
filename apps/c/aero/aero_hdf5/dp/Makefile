@@ -164,4 +164,4 @@ write_hdf5: write_hdf5.cpp
 #
 
 clean:
-		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 aero_mpi_openmp aero_mpi_cuda aero_openmp4 *.o
+		rm -f aero_seq aero_openmp aero_cuda aero_mpi write_hdf5 aero_mpi_openmp aero_mpi_cuda aero_openmp4 *.o cuda/*.o openmp4/*.o

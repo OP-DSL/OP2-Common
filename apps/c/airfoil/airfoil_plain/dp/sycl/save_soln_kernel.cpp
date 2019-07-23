@@ -31,6 +31,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
   op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
+    const int direct_save_soln_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg0);
     //set SYCL execution parameters
     #ifdef OP_BLOCK_SIZE_0
       int nthread = OP_BLOCK_SIZE_0;
@@ -52,7 +53,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
       //user fun as lambda
       auto save_soln_gpu = [=]( const double *q, double *qold) {
           for (int n = 0; n < 4; n++)
-            qold[n] = q[n];
+            qold[(n)*direct_save_soln_stride_OP2CONSTANT] =
+                q[(n)*direct_save_soln_stride_OP2CONSTANT];
         };
         
       auto kern = [=](cl::sycl::nd_item<1> item) {
@@ -61,8 +63,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
         for ( int n=item.get_global_linear_id(); n<set_size; n+=item.get_global_range()[0] ){
 
           //user-supplied kernel call
-          save_soln_gpu(&arg0[n*4],
-              &arg1[n*4]);
+          save_soln_gpu(&arg0[n], &arg1[n]);
         }
 
       };

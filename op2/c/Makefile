@@ -120,15 +120,18 @@ ifeq ($(OP2_COMPILER),cray)
 else
 ifeq ($(OP2_COMPILER),clang)
   ifdef DEBUG
-    CCFLAGS  = -g -O0 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+    CCFLAGS  = -g -O0 -I$(OMPTARGET_LIBS)/../include
   else
-    CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/
+    CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../include
   endif
   CXX	    = clang++
-  CXXFLAGS  = $(CCFLAGS)
+  CXXFLAGS  = $(CCFLAGS) 
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
-  OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+#-ccbin=$(MPICXX)
+  OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda 
+#-I/usr/lib/gcc/x86_64-linux-gnu/6.3.0/include/
 else
 ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG

@@ -51,6 +51,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
 
+    const int opDat0_bres_calc_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg0);
+    const int opDat2_bres_calc_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg2);
     cl::sycl::buffer<double,1> *arg0_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg0.data_d);
     cl::sycl::buffer<double,1> *arg2_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg2.data_d);
     cl::sycl::buffer<double,1> *arg3_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg3.data_d);
@@ -93,36 +95,56 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         auto bres_calc_gpu = [=]( const double *x1, const double *x2, const double *q1,
                                 const double *adt1, double *res1, const int *bound) {
             double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
-          
-            dx = x1[0] - x2[0];
-            dy = x1[1] - x2[1];
-          
-            ri = 1.0f / q1[0];
-            p1 = gm1[0] * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
-          
+
+            dx = x1[(0) * opDat0_bres_calc_stride_OP2CONSTANT] -
+                 x2[(0) * opDat0_bres_calc_stride_OP2CONSTANT];
+            dy = x1[(1) * opDat0_bres_calc_stride_OP2CONSTANT] -
+                 x2[(1) * opDat0_bres_calc_stride_OP2CONSTANT];
+
+            ri = 1.0f / q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT];
+            p1 = gm1[0] *
+                 (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] -
+                  0.5f * ri *
+                      (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                           q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                       q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                           q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT]));
+
             if (*bound == 1) {
-              res1[1] += +p1 * dy;
-              res1[2] += -p1 * dx;
+              res1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] += +p1 * dy;
+              res1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] += -p1 * dx;
             } else {
-              vol1 = ri * (q1[1] * dy - q1[2] * dx);
-          
+              vol1 = ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] * dy -
+                           q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] * dx);
+
               ri = 1.0f / qinf[0];
               p2 = gm1[0] * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
               vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
           
               mu = (*adt1) * eps[0];
-          
-              f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
-              res1[0] += f;
-              f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
-                  mu * (q1[1] - qinf[1]);
-              res1[1] += f;
-              f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
-                  mu * (q1[2] - qinf[2]);
-              res1[2] += f;
-              f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
-                  mu * (q1[3] - qinf[3]);
-              res1[3] += f;
+
+              f = 0.5f * (vol1 * q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                          vol2 * qinf[0]) +
+                  mu *
+                      (q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[0]);
+              res1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] += f;
+              f = 0.5f * (vol1 * q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                          p1 * dy + vol2 * qinf[1] + p2 * dy) +
+                  mu *
+                      (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[1]);
+              res1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] += f;
+              f = 0.5f * (vol1 * q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] -
+                          p1 * dx + vol2 * qinf[2] - p2 * dx) +
+                  mu *
+                      (q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[2]);
+              res1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] += f;
+              f = 0.5f *
+                      (vol1 * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                               p1) +
+                       vol2 * (qinf[3] + p2)) +
+                  mu *
+                      (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[3]);
+              res1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] += f;
             }
           };
           
@@ -139,12 +161,9 @@ void op_par_loop_bres_calc(char const *name, op_set set,
             map2idx = opDat2Map[n + set_size * 0];
 
             //user-supplied kernel call
-            bres_calc_gpu(&ind_arg0[map0idx*2],
-              &ind_arg0[map1idx*2],
-              &ind_arg1[map2idx*4],
-              &ind_arg2[map2idx*1],
-              &ind_arg3[map2idx*4],
-              &arg5[n*1]);
+            bres_calc_gpu(&ind_arg0[map0idx], &ind_arg0[map1idx],
+                          &ind_arg1[map2idx], &ind_arg2[map2idx * 1],
+                          &ind_arg3[map2idx], &arg5[n * 1]);
           }
 
         };

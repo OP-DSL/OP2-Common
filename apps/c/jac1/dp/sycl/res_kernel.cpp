@@ -124,6 +124,7 @@ void op_par_loop_res(char const *name, op_set set,
               res_gpu(&arg0[n * 1], &ind_arg0[map1idx * 1],
                       &ind_arg1[map2idx * 1], &consts_d[arg3_offset]);
             }
+
           };
           cgh.parallel_for<class res_kernel>(
               cl::sycl::nd_range<1>(nthread * nblocks, nthread), kern);

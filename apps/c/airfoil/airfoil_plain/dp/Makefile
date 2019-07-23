@@ -48,8 +48,19 @@ ifeq ($(OP2_COMPILER),cray)
   MPICPP        = CC
   MPIFLAGS      = $(CPPFLAGS)
 else
+ifeq ($(OP2_COMPILER),clang)
+  CPP           = clang++
+  CCFLAGS       = -O3 #-ffast-math
+  CPPFLAGS      = $(CCFLAGS)
+  OMPFLAGS      = -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD    = -fopenmp-targets=nvptx64-nvidia-cuda  -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35 -fopenmp-nonaliased-maps
+  MPICC         = $(MPICC_PATH)
+  MPICPP        = $(MPICXX_PATH)
+  MPIFLAGS      = $(CPPFLAGS)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif

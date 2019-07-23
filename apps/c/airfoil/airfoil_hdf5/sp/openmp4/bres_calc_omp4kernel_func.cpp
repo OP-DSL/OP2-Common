@@ -7,7 +7,9 @@ void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
                            float *data2, int dat2size, float *data3,
                            int dat3size, float *data4, int dat4size,
                            int *col_reord, int set_size1, int start, int end,
-                           int num_teams, int nthread) {
+                           int num_teams, int nthread,
+                           int opDat0_bres_calc_stride_OP2CONSTANT,
+                           int opDat2_bres_calc_stride_OP2CONSTANT) {
 
 #pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
     map(to : data5[0 : dat5size])                                              \
@@ -27,24 +29,32 @@ void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
     int map2idx = map2[n_op + set_size1 * 0];
 
     //variable mapping
-    const float *x1 = &data0[2 * map0idx];
-    const float *x2 = &data0[2 * map1idx];
-    const float *q1 = &data2[4 * map2idx];
+    const float *x1 = &data0[map0idx];
+    const float *x2 = &data0[map1idx];
+    const float *q1 = &data2[map2idx];
     const float *adt1 = &data3[1 * map2idx];
-    float *res1 = &data4[4 * map2idx];
+    float *res1 = &data4[map2idx];
     const int *bound = &data5[1*n_op];
 
     //inline function
     
     float dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
-    dx = x1[0] - x2[0];
-    dy = x1[1] - x2[1];
+    dx = x1[(0) * opDat0_bres_calc_stride_OP2CONSTANT] -
+         x2[(0) * opDat0_bres_calc_stride_OP2CONSTANT];
+    dy = x1[(1) * opDat0_bres_calc_stride_OP2CONSTANT] -
+         x2[(1) * opDat0_bres_calc_stride_OP2CONSTANT];
 
-    ri = 1.0f / q1[0];
-    p1 = gm1_ompkernel * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
+    ri = 1.0f / q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT];
+    p1 = gm1_ompkernel *
+         (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] -
+          0.5f * ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                           q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                       q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                           q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT]));
 
-    vol1 = ri * (q1[1] * dy - q1[2] * dx);
+    vol1 = ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] * dy -
+                 q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] * dx);
 
     ri = 1.0f / qinf_ompkernel[0];
     p2 = gm1_ompkernel * (qinf_ompkernel[3] - 0.5f * ri * (qinf_ompkernel[1] * qinf_ompkernel[1] + qinf_ompkernel[2] * qinf_ompkernel[2]));
@@ -52,18 +62,28 @@ void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
 
     mu = (*adt1) * eps_ompkernel;
 
-    f = 0.5f * (vol1 * q1[0] + vol2 * qinf_ompkernel[0]) +
-        mu * (q1[0] - qinf_ompkernel[0]);
-    res1[0] += *bound == 1 ? 0.0f : f;
-    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_ompkernel[1] + p2 * dy) +
-        mu * (q1[1] - qinf_ompkernel[1]);
-    res1[1] += *bound == 1 ? p1 * dy : f;
-    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf_ompkernel[2] - p2 * dx) +
-        mu * (q1[2] - qinf_ompkernel[2]);
-    res1[2] += *bound == 1 ? -p1 * dx : f;
-    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_ompkernel[3] + p2)) +
-        mu * (q1[3] - qinf_ompkernel[3]);
-    res1[3] += *bound == 1 ? 0.0f : f;
+    f = 0.5f * (vol1 * q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                vol2 * qinf_ompkernel[0]) +
+        mu *
+            (q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[0]);
+    res1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? 0.0f : f;
+    f = 0.5f * (vol1 * q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] + p1 * dy +
+                vol2 * qinf_ompkernel[1] + p2 * dy) +
+        mu *
+            (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[1]);
+    res1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +=
+        *bound == 1 ? p1 * dy : f;
+    f = 0.5f * (vol1 * q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] - p1 * dx +
+                vol2 * qinf_ompkernel[2] - p2 * dx) +
+        mu *
+            (q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[2]);
+    res1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] +=
+        *bound == 1 ? -p1 * dx : f;
+    f = 0.5f * (vol1 * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] + p1) +
+                vol2 * (qinf_ompkernel[3] + p2)) +
+        mu *
+            (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf_ompkernel[3]);
+    res1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? 0.0f : f;
     //end inline func
   }
 

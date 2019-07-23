@@ -3,26 +3,30 @@
 //
 
 //user function
+int opDat0_spMV_stride_OP2CONSTANT;
+int opDat0_spMV_stride_OP2HOST = -1;
+int direct_spMV_stride_OP2CONSTANT;
+int direct_spMV_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void spMV_openacc(double **v, const double *K, const double **p) {
 
-  v[0][0] += K[0] * p[0][0];
-  v[0][0] += K[1] * p[1][0];
-  v[1][0] += K[1] * p[0][0];
-  v[0][0] += K[2] * p[2][0];
-  v[2][0] += K[2] * p[0][0];
-  v[0][0] += K[3] * p[3][0];
-  v[3][0] += K[3] * p[0][0];
-  v[1][0] += K[4 + 1] * p[1][0];
-  v[1][0] += K[4 + 2] * p[2][0];
-  v[2][0] += K[4 + 2] * p[1][0];
-  v[1][0] += K[4 + 3] * p[3][0];
-  v[3][0] += K[4 + 3] * p[1][0];
-  v[2][0] += K[8 + 2] * p[2][0];
-  v[2][0] += K[8 + 3] * p[3][0];
-  v[3][0] += K[8 + 3] * p[2][0];
-  v[3][0] += K[15] * p[3][0];
+  v[0][0] += K[(0) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(1) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(1) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(2) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(3) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[1][0] += K[(4 + 1) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(4 + 2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(4 + 2) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(4 + 3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(4 + 3) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[2][0] += K[(8 + 2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(8 + 3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(8 + 3) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[3][0] += K[(15) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
 }
 
 // host stub function
@@ -76,6 +80,16 @@ void op_par_loop_spMV(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[3].count == 1) ||
+        (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      opDat0_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      opDat0_spMV_stride_OP2CONSTANT = opDat0_spMV_stride_OP2HOST;
+    }
+    if ((OP_kernels[3].count == 1) ||
+        (direct_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
+      direct_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg4);
+      direct_spMV_stride_OP2CONSTANT = direct_spMV_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
     int *map0 = arg0.map_data_d;
@@ -116,7 +130,7 @@ void op_par_loop_spMV(char const *name, op_set set,
            &data5[1 * map2idx],
            &data5[1 * map3idx]};
 
-        spMV_openacc(arg0_vec, &data4[16 * n], arg5_vec);
+        spMV_openacc(arg0_vec, &data4[n], arg5_vec);
       }
 
     }

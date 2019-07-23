@@ -38,6 +38,106 @@ cd $OP2_INSTALL_PATH/c
 
 #<<COMMENT0
 
+echo " "
+echo " "
+echo "**********************************************************************"
+echo "***********************> Code Generation of All C/C++ test apps"
+echo "**********************************************************************"
+. $CURRENT_DIR/source_intel_18
+
+echo " "
+echo " "
+echo "=======================> Code gen Airfoil Plain DP"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Airfoil Plain SP"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Airfoil HDF5 DP"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Airfoil HDF5 SP"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/sp
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Airfoil TEMPDATS DP"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
+$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
+$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Aero Plain DP"
+cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
+$OP2_C_CODEGEN_DIR/op2.py aero.cpp
+$OP2_C_CODEGEN_DIR/op2.py aero_mpi.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Aero HDF5 DP"
+cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
+$OP2_C_CODEGEN_DIR/op2.py aero.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Jac1 Plain DP"
+cd $OP2_APPS_DIR/c/jac1/dp/
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Jac1 Plain SP"
+cd $OP2_APPS_DIR/c/jac1/sp/
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Jac2"
+cd $OP2_APPS_DIR/c/jac2
+$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+
+echo " "
+echo " "
+echo "=======================> Code gen Reduction"
+cd $OP2_APPS_DIR/c/reduction
+$OP2_C_CODEGEN_DIR/op2.py reduction.cpp
+$OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
+
+
+echo " "
+echo " "
+echo "**********************************************************************"
+echo "***********************> Code Generation of All Fortran test apps"
+echo "**********************************************************************"
+
+echo " "
+echo " "
+echo "=======================> Building Airfoil Fortran Plain DP with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
+
+echo " "
+echo " "
+echo "=======================> Building Airfoil Fortran HDF5 DP with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
+
+
+<<COMMENT0
 
 echo " "
 echo " "
@@ -51,85 +151,68 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
 make clean;make
-
-
 
 echo " "
 echo " "
 echo "=======================> Building Airfoil Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
 make clean;make
+
 echo " "
 echo " "
 echo "=======================> Building Airfoil HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
+
 echo " "
 echo " "
 echo "=======================> Building Airfoil HDF5 SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/sp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
+
 echo " "
 echo " "
 echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
 make clean;make
-
 
 echo " "
 echo " "
 echo "=======================> Building Aero Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
-$OP2_C_CODEGEN_DIR/op2.py aero_mpi.cpp
 make clean;make
+
 echo " "
 echo " "
 echo "=======================> Building Aero HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
 make clean;make; make write_hdf5;
-
-
 
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/dp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
+
 echo " "
 echo " "
 echo "=======================> Building Jac1 Plain SP with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac1/sp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
+
 make clean;make
 echo " "
 echo " "
 echo "=======================> Building Jac2 with Intel Compilers"
 cd $OP2_APPS_DIR/c/jac2
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
 make clean;make
-
 
 echo " "
 echo " "
 echo "=======================> Building Reduction with Intel Compilers"
 cd $OP2_APPS_DIR/c/reduction
-$OP2_C_CODEGEN_DIR/op2.py reduction.cpp
-$OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
 make clean;make
 
-<<COMMENT0
 #<<COMMENT1
 
 
@@ -249,7 +332,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np $HALF_PROCS ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-#COMMENT1
+#COMMENT0
 
 
 echo " "
@@ -272,7 +355,7 @@ $MPI_INSTALL_PATH/bin/mpirun -np $HALF_PROCS ./aero_mpi_openmp OP_PART_SIZE=256
 
 echo " "
 echo " "
-echo "=======================> Running Aero Plain DP built with Intel Compilers"
+echo "=======================> Running Aero HDF5 DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp
 ./aero_seq
 ./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
@@ -287,7 +370,7 @@ export OMP_NUM_THREADS=$PROCS
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 
-
+exit
 
 echo " "
 echo " "
@@ -336,6 +419,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./reduction_mpi_cuda"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np $HALF_PROCS ./reduction_mpi_openmp"
 
+
 ################################################################################
 ################################################################################
 echo " "
@@ -352,7 +436,6 @@ echo " "
 echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with Intel Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
-$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
@@ -362,7 +445,6 @@ echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with Intel Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
-$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
 
@@ -412,7 +494,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np $HALF_PROCS ./airfoil_hdf5_mpi OP_MAP
 ###################################################################################
 ###################################################################################
 
-#COMMENT0
 
 echo " "
 echo " "
@@ -430,7 +511,6 @@ echo " "
 echo "=======================> Building Airfoil Fortran Plain DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 pwd
-$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
@@ -440,7 +520,6 @@ echo " "
 echo "=======================> Building Airfoil Fortran HDF5 DP with PGI Compilers"
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
-$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
 
@@ -500,7 +579,7 @@ echo "**********************************************************************"
 echo "********************* Building C/C++ back-end libs with Clang Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/c
-. $CURRENT_DIR/source_clang
+. $CURRENT_DIR/source_clang_kos
 pwd
 
 make clean; make
@@ -509,14 +588,11 @@ echo " "
 echo " "
 echo "=======================> Building Aero Plain DP with Clang Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
-$OP2_C_CODEGEN_DIR/op2.py aero_mpi.cpp
 make clean;make; make aero_openmp4;
 echo " "
 echo " "
 echo "=======================> Building Aero HDF5 DP with Clang Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
 make clean;make;make aero_openmp4; make write_hdf5;
 
 
