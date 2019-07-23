@@ -57,6 +57,7 @@ ifeq ($(OP2_COMPILER),clang)
   MPICC         = $(MPICC_PATH)
   MPICPP        = $(MPICXX_PATH)
   MPIFLAGS      = $(CPPFLAGS)
+  NVCCFLAGS     = -ccbin=$(NVCC_HOST_COMPILER)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"

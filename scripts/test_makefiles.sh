@@ -37,6 +37,7 @@ cd $OP2_INSTALL_PATH/c
 
 
 #<<COMMENT0
+<<COMMENT0
 
 echo " "
 echo " "
@@ -136,8 +137,6 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 
-
-<<COMMENT0
 
 echo " "
 echo " "
@@ -584,58 +583,31 @@ pwd
 
 make clean; make
 
-echo " "
-echo " "
-echo "=======================> Building Aero Plain DP with Clang Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
-make clean;make; make aero_openmp4;
-echo " "
-echo " "
-echo "=======================> Building Aero HDF5 DP with Clang Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
-make clean;make;make aero_openmp4; make write_hdf5;
-
-
 
 echo " "
 echo " "
-echo "=======================> Running Aero Plain DP built with Clang Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_plain/dp
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-export OMP_NUM_THREADS=$PROCS
-./aero_openmp OP_PART_SIZE=256
-export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np $PROCS ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2  ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-export OMP_NUM_THREADS=$PROCS
-./aero_mpi_openmp OP_PART_SIZE=256
-export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np $HALF_PROCS ./aero_mpi_openmp OP_PART_SIZE=256
-export OMP_NUM_THREADS=$PROCS
-#./aero_mpi_openmp4 OP_PART_SIZE=256
-
-#COMMENT0
+echo "=======================> Building Airfoil HDF5 DP with Clang Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp/
+make clean;make;make airfoil_openmp4; make write_hdf5;
 
 echo " "
 echo " "
-echo "=======================> Running Aero HDF5 DP built with Intel Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp
+echo "=======================> Running Airfoil HDF5 DP built with Intel Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 ./write_hdf5; mv FE_grid_out.h5 FE_grid.h5;
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+./airfoil_seq
+./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=$PROCS
-./aero_openmp OP_PART_SIZE=256
+./airfoil_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np $PROCS ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2  ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np $PROCS ./airfoil_mpi
+./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2  ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=$PROCS
-./aero_mpi_openmp OP_PART_SIZE=256
+./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
+$MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=$PROCS
-#./aero_mpi_openmp4 OP_PART_SIZE=256
+#./airfoil_mpi_openmp4 OP_PART_SIZE=256
 
 echo "All tests Passed !"

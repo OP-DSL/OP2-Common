@@ -81,6 +81,7 @@ typedef struct {
   int *blkmap;       /* block mapping */
   int *blkmap_d;     /* block mapping on the GPU (Fortran) */
   int *nsharedCol;   /* bytes of shared memory required per block colour */
+  int *nsharedColInd;/* bytes of shared memory required per block colour per indirect dataset */
   int nshared;       /* bytes of shared memory required */
   float transfer;    /* bytes of data transfer per kernel call */
   float transfer2;   /* bytes of cache line per kernel call */

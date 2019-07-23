@@ -140,11 +140,13 @@ ifeq ($(OP2_COMPILER),sycl)
     CCFLAGS  = -g -O3
   endif
   CXX	    = g++
-	SYCLCXX = compute++
+	#SYCLCXX = compute++
+	SYCLCXX = syclcc-clang
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
-  SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
+	#SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
   #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
 else
 print:
