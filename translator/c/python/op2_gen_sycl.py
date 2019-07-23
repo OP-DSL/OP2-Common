@@ -108,7 +108,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0
   op_color2=0
-  op_color2_force=1
+  op_color2_force=0
   atomics=0
 ##########################################################################
 #  create new kernel file
@@ -399,7 +399,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       elif op_color2:
         code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
       else:
-        code('op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);')
+        code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL);') #TODO: NONE
       code('')
 
 
@@ -737,7 +737,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('')
 
       if ind_inc:
-        code('int nelems2  = item.get_local_range()*(1+(nelem-1)/item.get_local_range());')
+        code('int nelems2  = item.get_local_range()[0]*(1+(nelem-1)/item.get_local_range()[0]);')
         code('int ncolor   = ncolors[blockId];')
         code('')
 
@@ -765,7 +765,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if inc_stage==1:
         for g_m in range(0,ninds):
           if indaccs[g_m] == OP_INC:
-            FOR_INC('n','item.get_local_id()','ind_ARG_size*<INDDIM>','item.get_local_range()')
+            FOR_INC('n','item.get_local_id(0)','ind_ARG_size*<INDDIM>','item.get_local_range()[0]')
             code('ind_ARG_s[n] = ZERO_<INDTYP>;')
             ENDFOR()
         if ind_inc:
@@ -773,7 +773,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('item_id.barrier(cl::sycl::access::fence_space::local_space);')
           code('')
       if ind_inc:
-        FOR_INC('n','item.get_local_id()','nelems2','item.get_local_range()')
+        FOR_INC('n','item.get_local_id(0)','nelems2','item.get_local_range()[0]')
         code('int col2 = -1;')
         k = []
         for g_m in range(0,nargs):
@@ -789,7 +789,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             code('<ARG>_l[d] = ZERO_<TYP>;')
             ENDFOR()
       else:
-        FOR_INC('n','item.get_local_id()','nelem','item.get_local_range()')
+        FOR_INC('n','item.get_local_id(0)','nelem','item.get_local_range()[0]')
         k = []
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
@@ -1020,7 +1020,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
                 ENDIF()
 
         ENDFOR()
-        code('item_id.barrier(cl::sycl::access::fence_space::local_space);')
+        code('item.barrier(cl::sycl::access::fence_space::local_space);')
         ENDFOR()
     if ninds>0 and atomics:
       for g_m in range(0,nargs):

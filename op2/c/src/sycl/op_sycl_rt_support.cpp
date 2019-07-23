@@ -186,10 +186,10 @@ void op_sycl_exit() {
     delete static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_map_list[i]->map_d);
 
   for (int ip = 0; ip < OP_plan_index; ip++) {
-    if (OP_plans[ip].ind_map!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_map);
-    if (OP_plans[ip].loc_map!= NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].loc_map);
-    if (OP_plans[ip].ind_sizes!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_sizes);
-    if (OP_plans[ip].ind_offs!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_offs);
+    if (OP_plans[ip].ind_map!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_map); OP_plans[ip].ind_map = NULL;
+    if (OP_plans[ip].loc_map!= NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].loc_map); OP_plans[ip].loc_map = NULL;
+    if (OP_plans[ip].ind_sizes!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_sizes); OP_plans[ip].ind_sizes = NULL;
+    if (OP_plans[ip].ind_offs!=NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].ind_offs); OP_plans[ip].ind_offs = NULL;
     delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].nthrcol); OP_plans[ip].nthrcol = NULL;
     delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].thrcol); OP_plans[ip].thrcol = NULL;
     delete static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_plans[ip].col_reord); OP_plans[ip].col_reord = NULL;
