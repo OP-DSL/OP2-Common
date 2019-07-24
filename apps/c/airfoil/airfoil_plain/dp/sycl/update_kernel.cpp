@@ -38,6 +38,7 @@ void op_par_loop_update(char const *name, op_set set,
   op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
+    const int direct_update_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg0);
     //set SYCL execution parameters
     #ifdef OP_BLOCK_SIZE_4
       int nthread = OP_BLOCK_SIZE_4;
@@ -89,9 +90,10 @@ void op_par_loop_update(char const *name, op_set set,
           adti = 1.0f / (*adt);
         
           for (int n = 0; n < 4; n++) {
-            del = adti * res[n];
-            q[n] = qold[n] - del;
-            res[n] = 0.0f;
+            del = adti * res[(n)*direct_update_stride_OP2CONSTANT];
+            q[(n)*direct_update_stride_OP2CONSTANT] =
+                qold[(n)*direct_update_stride_OP2CONSTANT] - del;
+            res[(n)*direct_update_stride_OP2CONSTANT] = 0.0f;
             *rms += del * del;
           }
         
@@ -107,11 +109,7 @@ void op_par_loop_update(char const *name, op_set set,
         for ( int n=item.get_global_linear_id(); n<set_size; n+=item.get_global_range()[0] ){
 
           //user-supplied kernel call
-          update_gpu(&arg0[n*4],
-           &arg1[n*4],
-           &arg2[n*4],
-           &arg3[n*1],
-           arg4_l);
+          update_gpu(&arg0[n], &arg1[n], &arg2[n], &arg3[n * 1], arg4_l);
         }
 
         //global reductions

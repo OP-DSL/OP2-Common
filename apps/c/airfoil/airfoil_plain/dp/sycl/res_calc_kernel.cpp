@@ -55,6 +55,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
 
+    const int opDat0_res_calc_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg0);
+    const int opDat2_res_calc_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg2);
     cl::sycl::buffer<double,1> *arg0_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg0.data_d);
     cl::sycl::buffer<double,1> *arg2_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg2.data_d);
     cl::sycl::buffer<double,1> *arg4_buffer = static_cast<cl::sycl::buffer<double,1>*>((void*)arg4.data_d);
@@ -118,32 +120,64 @@ void op_par_loop_res_calc(char const *name, op_set set,
                                  const double *q2, const double *adt1, const double *adt2,
                                  double *res1, double *res2) {
               double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
-            
-              dx = x1[0] - x2[0];
-              dy = x1[1] - x2[1];
-            
-              ri = 1.0f / q1[0];
-              p1 = gm1_sycl[0] * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
-              vol1 = ri * (q1[1] * dy - q1[2] * dx);
-            
-              ri = 1.0f / q2[0];
-              p2 = gm1_sycl[0] * (q2[3] - 0.5f * ri * (q2[1] * q2[1] + q2[2] * q2[2]));
-              vol2 = ri * (q2[1] * dy - q2[2] * dx);
-            
+
+              dx = x1[(0) * opDat0_res_calc_stride_OP2CONSTANT] -
+                   x2[(0) * opDat0_res_calc_stride_OP2CONSTANT];
+              dy = x1[(1) * opDat0_res_calc_stride_OP2CONSTANT] -
+                   x2[(1) * opDat0_res_calc_stride_OP2CONSTANT];
+
+              ri = 1.0f / q1[(0) * opDat2_res_calc_stride_OP2CONSTANT];
+              p1 = gm1_sycl[0] *
+                   (q1[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
+                    0.5f * ri *
+                        (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                             q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                         q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                             q1[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+              vol1 = ri * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
+                           q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
+
+              ri = 1.0f / q2[(0) * opDat2_res_calc_stride_OP2CONSTANT];
+              p2 = gm1_sycl[0] *
+                   (q2[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
+                    0.5f * ri *
+                        (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                             q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                         q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                             q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+              vol2 = ri * (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
+                           q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
+
               mu = 0.5f * ((*adt1) + (*adt2)) * eps_sycl[0];
-            
-              f = 0.5f * (vol1 * q1[0] + vol2 * q2[0]) + mu * (q1[0] - q2[0]);
+
+              f = 0.5f * (vol1 * q1[(0) * opDat2_res_calc_stride_OP2CONSTANT] +
+                          vol2 * q2[(0) * opDat2_res_calc_stride_OP2CONSTANT]) +
+                  mu * (q1[(0) * opDat2_res_calc_stride_OP2CONSTANT] -
+                        q2[(0) * opDat2_res_calc_stride_OP2CONSTANT]);
               res1[0] += f;
               res2[0] -= f;
-              f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * q2[1] + p2 * dy) +
-                  mu * (q1[1] - q2[1]);
+              f = 0.5f * (vol1 * q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                          p1 * dy +
+                          vol2 * q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                          p2 * dy) +
+                  mu * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] -
+                        q2[(1) * opDat2_res_calc_stride_OP2CONSTANT]);
               res1[1] += f;
               res2[1] -= f;
-              f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * q2[2] - p2 * dx) +
-                  mu * (q1[2] - q2[2]);
+              f = 0.5f * (vol1 * q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] -
+                          p1 * dx +
+                          vol2 * q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] -
+                          p2 * dx) +
+                  mu * (q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] -
+                        q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]);
               res1[2] += f;
               res2[2] -= f;
-              f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (q2[3] + p2)) + mu * (q1[3] - q2[3]);
+              f = 0.5f * (vol1 * (q1[(3) * opDat2_res_calc_stride_OP2CONSTANT] +
+                                  p1) +
+                          vol2 * (q2[(3) * opDat2_res_calc_stride_OP2CONSTANT] +
+                                  p2)) +
+                  mu * (q1[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
+                        q2[(3) * opDat2_res_calc_stride_OP2CONSTANT]);
               res1[3] += f;
               res2[3] -= f;
             
@@ -196,14 +230,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
 
                 //user-supplied kernel call
-                res_calc_gpu(&ind_arg0[map0idx*2],
-             &ind_arg0[map1idx*2],
-             &ind_arg1[map2idx*4],
-             &ind_arg1[map3idx*4],
-             &ind_arg2[map2idx*1],
-             &ind_arg2[map3idx*1],
-             arg6_l,
-             arg7_l);
+                res_calc_gpu(&ind_arg0[map0idx], &ind_arg0[map1idx],
+                             &ind_arg1[map2idx], &ind_arg1[map3idx],
+                             &ind_arg2[map2idx * 1], &ind_arg2[map3idx * 1],
+                             arg6_l, arg7_l);
                 col2 = colors[n+offset_b];
               }
 
@@ -218,28 +248,48 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
               for ( int col=0; col<ncolor; col++ ){
                 if (col2==col) {
-                  arg6_l[0] += ind_arg3_s[0+arg6_map*4];
-                  arg6_l[1] += ind_arg3_s[1+arg6_map*4];
-                  arg6_l[2] += ind_arg3_s[2+arg6_map*4];
-                  arg6_l[3] += ind_arg3_s[3+arg6_map*4];
-                  ind_arg3_s[0+arg6_map*4] = arg6_l[0];
-                  ind_arg3_s[1+arg6_map*4] = arg6_l[1];
-                  ind_arg3_s[2+arg6_map*4] = arg6_l[2];
-                  ind_arg3_s[3+arg6_map*4] = arg6_l[3];
-                  arg7_l[0] += ind_arg3_s[0+arg7_map*4];
-                  arg7_l[1] += ind_arg3_s[1+arg7_map*4];
-                  arg7_l[2] += ind_arg3_s[2+arg7_map*4];
-                  arg7_l[3] += ind_arg3_s[3+arg7_map*4];
-                  ind_arg3_s[0+arg7_map*4] = arg7_l[0];
-                  ind_arg3_s[1+arg7_map*4] = arg7_l[1];
-                  ind_arg3_s[2+arg7_map*4] = arg7_l[2];
-                  ind_arg3_s[3+arg7_map*4] = arg7_l[3];
+                  arg6_l[0] += ind_arg3_s[arg6_map + 0 * ind_arg3_size];
+                  arg6_l[1] += ind_arg3_s[arg6_map + 1 * ind_arg3_size];
+                  arg6_l[2] += ind_arg3_s[arg6_map + 2 * ind_arg3_size];
+                  arg6_l[3] += ind_arg3_s[arg6_map + 3 * ind_arg3_size];
+                  ind_arg3_s[arg6_map + 0 * ind_arg3_size] = arg6_l[0];
+                  ind_arg3_s[arg6_map + 1 * ind_arg3_size] = arg6_l[1];
+                  ind_arg3_s[arg6_map + 2 * ind_arg3_size] = arg6_l[2];
+                  ind_arg3_s[arg6_map + 3 * ind_arg3_size] = arg6_l[3];
+                  arg7_l[0] += ind_arg3_s[arg7_map + 0 * ind_arg3_size];
+                  arg7_l[1] += ind_arg3_s[arg7_map + 1 * ind_arg3_size];
+                  arg7_l[2] += ind_arg3_s[arg7_map + 2 * ind_arg3_size];
+                  arg7_l[3] += ind_arg3_s[arg7_map + 3 * ind_arg3_size];
+                  ind_arg3_s[arg7_map + 0 * ind_arg3_size] = arg7_l[0];
+                  ind_arg3_s[arg7_map + 1 * ind_arg3_size] = arg7_l[1];
+                  ind_arg3_s[arg7_map + 2 * ind_arg3_size] = arg7_l[2];
+                  ind_arg3_s[arg7_map + 3 * ind_arg3_size] = arg7_l[3];
                 }
                 item.barrier(cl::sycl::access::fence_space::local_space);
               }
             }
-            for ( int n=item.get_local_id(0); n<ind_arg3_size*4; n+=item.get_local_range()[0] ){
-              ind_arg3[n%4+ind_map[ind_arg3_map+n/4]*4] += ind_arg3_s[n];
+            for (int n = item.get_local_id(0); n < ind_arg3_size;
+                 n += item.get_local_range()[0]) {
+              arg6_l[0] = ind_arg3_s[n + 0 * ind_arg3_size] +
+                          ind_arg3[ind_map[ind_arg3_map + n] +
+                                   0 * opDat2_res_calc_stride_OP2CONSTANT];
+              arg6_l[1] = ind_arg3_s[n + 1 * ind_arg3_size] +
+                          ind_arg3[ind_map[ind_arg3_map + n] +
+                                   1 * opDat2_res_calc_stride_OP2CONSTANT];
+              arg6_l[2] = ind_arg3_s[n + 2 * ind_arg3_size] +
+                          ind_arg3[ind_map[ind_arg3_map + n] +
+                                   2 * opDat2_res_calc_stride_OP2CONSTANT];
+              arg6_l[3] = ind_arg3_s[n + 3 * ind_arg3_size] +
+                          ind_arg3[ind_map[ind_arg3_map + n] +
+                                   3 * opDat2_res_calc_stride_OP2CONSTANT];
+              ind_arg3[ind_map[ind_arg3_map + n] +
+                       0 * opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[0];
+              ind_arg3[ind_map[ind_arg3_map + n] +
+                       1 * opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[1];
+              ind_arg3[ind_map[ind_arg3_map + n] +
+                       2 * opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[2];
+              ind_arg3[ind_map[ind_arg3_map + n] +
+                       3 * opDat2_res_calc_stride_OP2CONSTANT] = arg6_l[3];
             }
 
           };

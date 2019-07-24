@@ -36,8 +36,8 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
-#<<COMMENT0
 <<COMMENT0
+
 
 echo " "
 echo " "
@@ -138,12 +138,17 @@ pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 
 
+git clang-format-3.8 -f
+
+
 echo " "
 echo " "
 echo "**********************************************************************"
 echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
+cd $CURRENT_DIR
 . $CURRENT_DIR/source_intel_18
+cd $OP2_INSTALL_PATH/c
 make clean; make
 
 echo " "
@@ -369,7 +374,6 @@ export OMP_NUM_THREADS=$PROCS
 export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
 
-exit
 
 echo " "
 echo " "
@@ -569,8 +573,9 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 
 ###################################################################################
 ###################################################################################
-
 COMMENT0
+
+#COMMENT0
 
 echo " "
 echo " "
@@ -609,5 +614,7 @@ export OMP_NUM_THREADS=2
 $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=$PROCS
 #./airfoil_mpi_openmp4 OP_PART_SIZE=256
+
+#COMMENT0
 
 echo "All tests Passed !"

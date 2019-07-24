@@ -44,7 +44,6 @@ void op_par_loop_update(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_1;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -102,16 +101,17 @@ void op_par_loop_update(char const *name, op_set set,
         cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,
                            cl::sycl::access::target::local>
             red_double(nthread, cgh);
-        auto alpha =
+        auto alpha_sycl =
             (*alpha_p).template get_access<cl::sycl::access::mode::read>(cgh);
 
         // user fun as lambda
         auto update_gpu = [=](const double *r, double *du, double *u,
                               double *u_sum, double *u_max) {
-          *u += *du + alpha[0] * (*r);
+          *u += *du + alpha_sycl[0] * (*r);
           *du = 0.0f;
           *u_sum += (*u) * (*u);
           *u_max = maxfun(*u_max, *u);
+
         };
 
         auto kern = [=](cl::sycl::nd_item<1> item) {
