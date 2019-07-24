@@ -45,7 +45,7 @@
 #include <iostream>
 
 #include <CL/sycl.hpp>
-#include <math_constants.h>
+//#include <math_constants.h>
 
 #include <op_sycl_rt_support.h>
 #include <op_lib_c.h>
@@ -333,7 +333,8 @@ void deviceSync() {
 void syclDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  cl::sycl::default_selector device_selector;
+//  cl::sycl::default_selector device_selector;
+  cl::sycl::cpu_selector device_selector;
   //cl::sycl::host_selector device_selector;
   op2_queue = new cl::sycl::queue(device_selector);
   OP_hybrid_gpu = 1;
