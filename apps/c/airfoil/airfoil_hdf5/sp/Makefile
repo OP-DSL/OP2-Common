@@ -21,10 +21,10 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
-#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xHOST -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+#  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS	= -qopenmp 
+  OMPFLAGS	= -qopenmp
   MPICPP	= $(MPICXX_PATH)
   # NVCCFLAGS	= -ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
@@ -32,7 +32,6 @@ else
 ifeq ($(OP2_COMPILER),xl)
   CPP		= xlc++
   CCFLAGS	= -O3 -qarch=pwr8 -qtune=pwr8 -qhot -qxflag=nrcptpo -qinline=level=10 -Wx,-nvvm-compile-options=-ftz=1 -Wx,-nvvm-compile-options=-prec-div=0 -Wx,-nvvm-compile-options=-prec-sqrt=0
-#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qsmp=omp -qthreaded
   OMPOFFLOAD	= -qsmp=omp -qoffload -Xptxas -v -g1
@@ -59,7 +58,7 @@ ifeq ($(OP2_COMPILER),cray)
   MPIFLAGS      = $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
-  CPP       	= clang++ 
+  CPP       	= clang++
   CCFLAGS  	= -O3 -ffast-math
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis

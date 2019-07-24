@@ -139,6 +139,16 @@ def op_decl_const_parse(text):
   return consts
 
 
+def extract_declared_globals(text):
+  """ Parsing for variables that have been declared 'extern' by user """
+
+  globals_found = []
+  global_pattern = r'[\s]*extern[\s]+[\w]+[\s]+([\w]+)'
+  for match in re.findall(global_pattern, text):
+    globals_found.append(match)
+  return globals_found
+
+
 def arg_parse(text, j):
   """Parsing arguments in op_par_loop to find the correct closing brace"""
 
@@ -355,6 +365,13 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         macro_defs[k] = local_defs[k]
   self_evaluate_macro_defs(macro_defs)
 
+  ## Identify global variables already declared as 'extern':
+  declared_globals = []
+  for src_file in src_files:
+    with open(src_file, 'r') as f:
+      text = f.read()
+    declared_globals += extract_declared_globals(text)
+
   ## Loop over all input source files to search for op_par_loop calls
   kernels_in_files = [[] for _ in range(len(srcFilesAndDirs))]
   src_file_num = -1
@@ -428,6 +445,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         temp = {'dim': const_args[i]['dim'],
             'type': const_args[i]['type'].strip(),
             'name': const_args[i]['name'].strip()}
+        temp["user_declared"] = temp["name"] in declared_globals
         consts.append(temp)
 
     # parse and process op_par_loop calls
@@ -812,8 +830,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     fid.close()
   # end of loop over input source files
 
-  ## Loop over kernels, looking for a header file named after each 
-  ## kernel in either working directory or one of the input-supplied 
+  ## Loop over kernels, looking for a header file named after each
+  ## kernel in either working directory or one of the input-supplied
   ## directories:
   for nk in xrange(0, len(kernels)):
     k_data = kernels[nk]
@@ -836,9 +854,9 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             k_data["decl_filepath"] = filepath
             break
 
-  ## Any kernel declarations still not found must exist in files 
-  ## not named after the kernel. Search through content of all 
-  ## input-supplied files, and through all files of input-supplied 
+  ## Any kernel declarations still not found must exist in files
+  ## not named after the kernel. Search through content of all
+  ## input-supplied files, and through all files of input-supplied
   ## directories:
   for nk in xrange(0, len(kernels)):
     if not "decl_filepath" in kernels[nk].keys():
@@ -900,7 +918,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   masterFile = str(srcFilesAndDirs[0])
 
   op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
-  #op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+  # Vec translator is not yet ready for release, eg it cannot translate the 'aero' app.
+  op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
   #code generators for OpenMP parallelisation with MPI
   #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator

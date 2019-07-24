@@ -9,7 +9,8 @@ inline void res(const double *A, const double *u, double *du,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void res_vec( const double *A, const double u[*][SIMD_VEC], double du[*][SIMD_VEC], const double *beta, int idx ) {
+inline void res_vec(const double *A, const double u[*][SIMD_VEC],
+                    double du[*][SIMD_VEC], const double *beta, int idx) {
   du[0][idx]+= (*beta) * (*A) * (u[0][idx]);
 }
 #endif
@@ -52,12 +53,16 @@ void op_par_loop_res(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+      double dat3[SIMD_VEC];
+      for (int i = 0; i < SIMD_VEC; i++) {
+        dat3[i] = *((double *)arg3.data);
+      }
       if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat1[1][SIMD_VEC];
       ALIGNED_double double dat2[1][SIMD_VEC];
-      #pragma simd
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx1_1 = 1 * arg1.map_data[(n+i) * arg1.map->dim + 1];
 
@@ -66,7 +71,7 @@ void op_par_loop_res(char const *name, op_set set,
         dat2[0][i] = 0.0;
 
       }
-      #pragma simd
+#pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         res_vec(
           &(ptr0)[1 * (n+i)],

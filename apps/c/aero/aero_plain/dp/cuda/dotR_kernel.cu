@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void dotR_gpu( const double *r, double *c) { *c += (*r) * (*r); }
+__device__ void dotR_gpu( const double *r, double *c) { *c += (*r) * (*r); 
+}
 
 // CUDA kernel function
 __global__ void op_cuda_dotR(

@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void dotPV_gpu( const double *p, const double *v, double *c) { *c += (*p) * (*v); }
+__device__ void dotPV_gpu( const double *p, const double *v, double *c) { *c += (*p) * (*v); 
+}
 
 // CUDA kernel function
 __global__ void op_cuda_dotPV(

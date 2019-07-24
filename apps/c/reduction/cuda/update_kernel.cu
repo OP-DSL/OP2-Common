@@ -6,6 +6,7 @@
 __device__ void update_gpu( double *data, int *count) {
   data[0] = 0.0;
   (*count)++;
+
 }
 
 // CUDA kernel function

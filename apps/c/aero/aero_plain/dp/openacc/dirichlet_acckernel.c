@@ -5,7 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void dirichlet( double *res) { *res = 0.0; }
+inline void dirichlet_openacc(double *res) { *res = 0.0; }
 
 // host stub function
 void op_par_loop_dirichlet(char const *name, op_set set,
@@ -68,9 +68,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
         int n = col_reord[e];
         int map0idx = map0[n + set_size1 * 0];
 
-
-        dirichlet(
-          &data0[1 * map0idx]);
+        dirichlet_openacc(&data0[1 * map0idx]);
       }
 
     }

@@ -108,7 +108,7 @@ reduction_vec: reduction_op.cpp vec/reduction_veckernels.cpp \
                 vec/res_calc_veckernel.cpp   res_calc.h  \
                 vec/update_veckernel.cpp     update.h    \
                 Makefile
-		$(CPP) $(VAR) $(CPPFLAGS) reduction_op.cpp vec/reduction_veckernels.cpp -Ivec -I. \
+		$(CPP) $(VAR) $(OMPFLAGS) $(CPPFLAGS) reduction_op.cpp vec/reduction_veckernels.cpp -Ivec -I. \
                 $(OP2_INC) $(OP2_LIB) -lop2_seq -o reduction_vec
 
 

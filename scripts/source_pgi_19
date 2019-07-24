@@ -1,0 +1,41 @@
+#A rough example of environmental variables for compiling with PGI compilers
+
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
+#OP2 specifics
+export OP2_COMPILER=pgi
+export OP2_INSTALL_PATH=/home/mudalige/OP2-GIT/OP2-Common/op2/
+unset OP_AUTO_SOA
+#export OP_AUTO_SOA=1
+
+#External libraries
+export PARMETIS_INSTALL_PATH=/home/mudalige/parmetis-pgi-openmpi/
+export PTSCOTCH_INSTALL_PATH=/home/mudalige/ptscotch-pgi-openmpi/
+export HDF5_INSTALL_PATH=/home/mgiles/ireguly/hdf5-pgi-ompi
+export LD_LIBRARY_PATH=/home/mgiles/ireguly/hdf5-pgi-ompi/lib:$LD_LIBRARY_PATH
+
+
+#NVIDIA CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+#export PATH=/usr/local/cuda-6.5.14/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-6.5.14/lib64:$LD_LIBRARY_PATH
+#export CUDA_INSTALL_PATH=/usr/local/cuda-6.5.14/
+export NV_ARCH=Kepler
+
+#PGI MPI and Compilers
+module load pgi/19.4
+export MPI_INSTALL_PATH=/opt/openmpi-pgi194/
+export PATH=/opt/pgi/linux86-64/19/bin/:$PATH
+export PATH=/opt/openmpi-pgi194/bin/:$PATH
+export LD_LIBRARY_PATH=/opt/pgi/linux86-64/19/lib/:/opt/openmpi-pgi194/lib/:$LD_LIBRARY_PATH
+
+export MPICH_CXX=/opt/pgi/linux86-64/2019/bin/pgc++
+export MPICH_CC=/opt/pgi/linux86-64/2019/bin/pgcc
+export MPICH_F90=/opt/pgi/linux86-64/2019/bin/pgfortran
+export MPIF90_F90=/opt/pgi/linux86-64/2019/bin/pgfortran
+export MPICH_FC=/opt/pgi/linux86-64/2019/bin/pgfortran

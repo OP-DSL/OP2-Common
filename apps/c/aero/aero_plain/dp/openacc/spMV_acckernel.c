@@ -5,7 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void spMV( double **v, const double *K, const double **p) {
+inline void spMV_openacc(double **v, const double *K, const double **p) {
 
   v[0][0] += K[0] * p[0][0];
   v[0][0] += K[1] * p[1][0];
@@ -116,7 +116,7 @@ void op_par_loop_spMV(char const *name, op_set set,
            &data5[1 * map2idx],
            &data5[1 * map3idx]};
 
-        spMV(arg0_vec, &data4[16 * n], arg5_vec);
+        spMV_openacc(arg0_vec, &data4[16 * n], arg5_vec);
       }
 
     }

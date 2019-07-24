@@ -5,7 +5,9 @@
 //user function
 //user function
 //#pragma acc routine
-inline void dotPV( const double *p, const double *v, double *c) { *c += (*p) * (*v); }
+inline void dotPV_openacc(const double *p, const double *v, double *c) {
+  *c += (*p) * (*v);
+}
 
 // host stub function
 void op_par_loop_dotPV(char const *name, op_set set,
@@ -46,10 +48,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
     double* data1 = (double*)arg1.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1) reduction(+:arg2_l)
     for ( int n=0; n<set->size; n++ ){
-      dotPV(
-        &data0[1*n],
-        &data1[1*n],
-        &arg2_l);
+      dotPV_openacc(&data0[1 * n], &data1[1 * n], &arg2_l);
     }
   }
 

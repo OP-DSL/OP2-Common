@@ -10,7 +10,7 @@ __device__ void adt_calc_gpu( const float *x1, const float *x2, const float *x3,
   ri = 1.0f / q[0];
   u = ri * q[1];
   v = ri * q[2];
-  c = sqrt(gam * gm1 * (ri * q[3] - 0.5f * (u * u + v * v)));
+  c = sqrt(gam_cuda * gm1_cuda * (ri * q[3] - 0.5f * (u * u + v * v)));
 
   dx = x2[0] - x1[0];
   dy = x2[1] - x1[1];
@@ -28,7 +28,8 @@ __device__ void adt_calc_gpu( const float *x1, const float *x2, const float *x3,
   dy = x1[1] - x4[1];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  *adt = (*adt) / cfl;
+  *adt = (*adt) / cfl_cuda;
+
 }
 
 // CUDA kernel function

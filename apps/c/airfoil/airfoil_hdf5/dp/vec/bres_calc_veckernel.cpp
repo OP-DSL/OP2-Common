@@ -40,7 +40,7 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-void bres_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC], const int *bound, int idx ) {
+inline void bres_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double adt1[*][SIMD_VEC], double res1[*][SIMD_VEC], const int *bound, int idx ) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -73,6 +73,7 @@ void bres_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], 
         mu * (q1[3][idx] - qinf[3]);
     res1[3][idx] += f;
   }
+
 }
 #endif
 
@@ -132,7 +133,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       ALIGNED_double double dat2[4][SIMD_VEC];
       ALIGNED_double double dat3[1][SIMD_VEC];
       ALIGNED_double double dat4[4][SIMD_VEC];
-      #pragma simd
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -158,7 +159,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         dat4[3][i] = 0.0;
 
       }
-      #pragma simd
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         bres_calc_vec(
           dat0,

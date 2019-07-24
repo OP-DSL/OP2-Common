@@ -105,7 +105,7 @@ jac_genseq:     jac_op.cpp update.h res.h seq/jac_seqkernels.cpp seq/res_seqkern
 
 jac_vec:     jac_op.cpp update.h res.h vec/jac_veckernels.cpp vec/res_veckernel.cpp \
              vec/update_veckernel.cpp Makefile
-		$(CPP) $(CPPFLAGS) jac_op.cpp vec/jac_veckernels.cpp -Ivec -I. \
+		$(CPP) $(CPPFLAGS) $(OMPFLAGS) jac_op.cpp vec/jac_veckernels.cpp -Ivec -I. \
                 $(OP2_INC) $(OP2_LIB) -lop2_seq -o jac_vec
 
 
