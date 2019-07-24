@@ -611,7 +611,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       
     for g_m in range(0,ninds):
       if indaccs[g_m] == OP_INC and atomics:
-        code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::atomic>(cgh);')
+        code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
       else:
         code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
 
@@ -1030,9 +1030,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             IF('optflags & 1<<'+str(optidxs[g_m]))
           for d in range(0,int(dims[g_m])):
             if soaflags[g_m]:
-                code('cl::sycl::atomic_fetch_add(ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx], <ARG>_l['+str(d)+']);')
+                code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
             else:
-                code('cl::sycl::atomic_fetch_add(ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>], <ARG>_l['+str(d)+']);')
+                code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
 
     ENDFOR()
 
