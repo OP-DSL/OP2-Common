@@ -47,12 +47,12 @@ ifeq ($(OP2_COMPILER),pgi)
   ACCFLAGS      = -acc -Minfo=acc -ta=tesla:cc35 -DOPENACC
 else
 ifeq ($(OP2_COMPILER),sycl)
-  CPP           = clang++
-  CC           = clang
+  CPP           = syclcc-clang
+  CC            = syclcc-clang
   CCFLAGS       = -O3 -g
   CPPFLAGS      = $(CCFLAGS)
-  SYCL_FLAGS      = -fsycl
-
+  #SYCL_FLAGS      = -fsycl
+  SYCL_FLAGS    = --hipsycl-gpu-arch=sm_60
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"

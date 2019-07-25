@@ -106,9 +106,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0
+  inc_stage=1
   op_color2=0
-  op_color2_force=1
+  op_color2_force=0
   atomics=0
 ##########################################################################
 #  create new kernel file
@@ -680,6 +680,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     code('')
     comm('user fun as lambda')
     body_text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',body_text)
+    body_text = re.sub(r'\bcbrt\b','cl::sycl::cbrt',body_text)
     kernel_text = depth*' ' + 'auto '+head_text + '_gpu = [=]( '+signature_text + ') {' + body_text + '};\n'
     kernel_text = re.sub('\n','\n'+(depth+2)*' ',kernel_text)
     file_text += kernel_text
@@ -917,7 +918,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
       if maps[m] == OP_GBL:
         if accs[m] == OP_READ or accs[m] == OP_WRITE:
-          line += rep(indent+'&consts_d[arg3_offset],\n',m)
+          line += rep(indent+'&consts_d[<ARG>_offset],\n',m)
         else:
           line += rep(indent+'<ARG>_l,\n',m);
         a =a+1

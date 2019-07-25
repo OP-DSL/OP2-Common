@@ -1,0 +1,37 @@
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+module purge
+. ~/.bashrc
+
+#OP2 specifics
+export OP2_COMPILER=sycl
+export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
+unset OP_AUTO_SOA
+#export OP_AUTO_SOA=1
+
+#External libraries
+export HDF5_INSTALL_PATH=/rr-home/gihan/HDF5-Clang-6
+export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Clang-6/
+export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-Clang-6/
+export LD_LIBRARY_PATH=/rr-home/gihan/ParMetis-Clang-6/lib:/rr-home/gihan/PTScotch-Clang-6/lib:/rr-home/gihan/HDF5-Clang-6/lib:$LD_LIBRARY_PATH
+
+#NVIDIA CUDA
+module load cuda/toolkit-9.2.88
+export CUDA_INSTALL_PATH=/opt/cuda/9.2.88/toolkit/
+export LD_LIBRARY_PATH=$CUDA_INSTALL_PATH/lib64:$LD_LIBRARY_PATH
+export NV_ARCH=Pascal
+export CUDA_VISIBLE_DEVICES=1
+export NVCC_HOST_COMPILER=/rr-home/gihan/MPICH-Clang/bin/mpic++
+
+
+#MPICH compiled with Clang
+export MPI_INSTALL_PATH=/rr-home/gihan/MPICH-Clang
+export LD_LIBRARY_PATH=$MPI_INSTALL_PATH/lib::$LD_LIBRARY_PATH
+export PATH=$MPI_INSTALL_PATH/bin::$PATH
+
+
+#Sycl Compilers
+export PATH=/rr-home/istvan/hipSYCL/install/bin:/rr-home/istvan/llvm/install-release/bin:$PATH
+export LD_LIBRARY_PATH=/rr-home/istvan/hipSYCL/install/lib:/rr-home/istvan/llvm/install-release/lib:$LD_LIBRARY_PATH
+
+

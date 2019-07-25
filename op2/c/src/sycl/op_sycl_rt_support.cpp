@@ -333,9 +333,9 @@ void deviceSync() {
 void syclDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-//  cl::sycl::default_selector device_selector;
-  cl::sycl::cpu_selector device_selector;
-  //cl::sycl::host_selector device_selector;
+  cl::sycl::default_selector device_selector;
+  // cl::sycl::cpu_selector device_selector;
+  // cl::sycl::host_selector device_selector;
   op2_queue = new cl::sycl::queue(device_selector);
   OP_hybrid_gpu = 1;
   std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
