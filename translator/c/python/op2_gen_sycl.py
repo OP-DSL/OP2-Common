@@ -1215,6 +1215,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   comm('header')
 
+  if atomics:
+    code('#define HIPSYCL_EXT_FP_ATOMICS')
   if os.path.exists('./user_types.h'):
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
