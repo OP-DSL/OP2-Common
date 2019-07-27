@@ -31,7 +31,12 @@ export PATH=$MPI_INSTALL_PATH/bin::$PATH
 
 
 #Sycl Compilers
-export PATH=/rr-home/istvan/hipSYCL/install/bin:/rr-home/istvan/llvm/install-release/bin:$PATH
-export LD_LIBRARY_PATH=/rr-home/istvan/hipSYCL/install/lib:/rr-home/istvan/llvm/install-release/lib:$LD_LIBRARY_PATH
+
+export PATH=/rr-home/shared/istvan/hipSYCL/install/bin:/rr-home/shared/istvan/clang_10/install-release/bin:$PATH
+export LD_LIBRARY_PATH=/rr-home/shared/istvan/hipSYCL/install/lib:/rr-home/shared/istvan/clang_10/install-release/lib:$LD_LIBRARY_PATH
+
+
+#export PATH=/rr-home/istvan/hipSYCL/install/bin:/rr-home/istvan/llvm/install-release/bin:$PATH
+#export LD_LIBRARY_PATH=/rr-home/istvan/hipSYCL/install/lib:/rr-home/istvan/llvm/install-release/lib:$LD_LIBRARY_PATH
 
 
