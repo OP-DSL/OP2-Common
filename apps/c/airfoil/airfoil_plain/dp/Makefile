@@ -59,8 +59,41 @@ ifeq ($(OP2_COMPILER),clang)
   MPIFLAGS      = $(CPPFLAGS)
   NVCCFLAGS     = -ccbin=$(NVCC_HOST_COMPILER)
 else
+ifeq ($(OP2_COMPILER),sycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -g -O3
+  endif
+  CXX	    = g++
+	SYCLCXX = clang++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_FLAGS = -std=c++11 -fsycl
+else
+ifeq ($(OP2_COMPILER),hipsycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -g -O3
+  endif
+  CXX	    = g++
+	#SYCLCXX = compute++
+	SYCLCXX = syclcc-clang
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
+endif
 endif
 endif
 endif
@@ -79,14 +112,32 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_35
+endif
+else
+ifeq ($(NV_ARCH),Maxwell)
+  CODE_GEN_CUDA=-gencode arch=compute_50,code=sm_50
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_60
+endif
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
+endif
+endif
+endif
 endif
 endif
 endif
 
-NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+
+NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math #--Xptxas -dlcm=ca g -G -O0
 
 #VAR		= -DOP_PART_SIZE_1=512 -DOP_PART_SIZE_2=1024 -DOP_PART_SIZE_3=64
 #-DOP_BLOCK_SIZE_0=512 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
@@ -180,6 +231,23 @@ cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) \
 		-Icuda -I. -c -o cuda/airfoil_kernels_cu.o \
 		cuda/airfoil_kernels.cu
+
+#
+# codegenerated SYCL version
+#
+
+airfoil_sycl: airfoil_op.cpp sycl/airfoil_kernels.cpp \
+                sycl/save_soln_kernel.cpp  save_soln.h \
+                sycl/adt_calc_kernel.cpp   adt_calc.h  \
+                sycl/res_calc_kernel.cpp   res_calc.h  \
+                sycl/bres_calc_kernel.cpp  bres_calc.h \
+                sycl/update_kernel.cpp     update.h    \
+                Makefile
+		$(SYCLCXX) $(VAR) $(CPPFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
+                -Isycl -I. airfoil_op.cpp -lm sycl/airfoil_kernels.cpp $(OP2_LIB) -lop2_sycl \
+                -o airfoil_sycl
+
+
 
 #
 # mpi with sequential-nodes version

@@ -44,6 +44,7 @@ void op_par_loop_update(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_1;
     #else
       int nthread = OP_block_size;
+    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -101,17 +102,16 @@ void op_par_loop_update(char const *name, op_set set,
         cl::sycl::accessor<double, 1, cl::sycl::access::mode::read_write,
                            cl::sycl::access::target::local>
             red_double(nthread, cgh);
-        auto alpha_sycl =
+        auto alpha =
             (*alpha_p).template get_access<cl::sycl::access::mode::read>(cgh);
 
         // user fun as lambda
         auto update_gpu = [=](const double *r, double *du, double *u,
                               double *u_sum, double *u_max) {
-          *u += *du + alpha_sycl[0] * (*r);
+          *u += *du + alpha[0] * (*r);
           *du = 0.0f;
           *u_sum += (*u) * (*u);
           *u_max = maxfun(*u_max, *u);
-
         };
 
         auto kern = [=](cl::sycl::nd_item<1> item) {
@@ -137,16 +137,15 @@ void op_par_loop_update(char const *name, op_set set,
           // global reductions
 
           for (int d = 0; d < 1; d++) {
-            op_reduction<OP_INC>(reduct3, arg3_offset + d +
-                                              item.get_group_linear_id() * 1,
-                                 arg3_l[d], red_double, item);
+            op_reduction<OP_INC>(
+                reduct3, arg3_offset + d + item.get_group_linear_id() * 1,
+                arg3_l[d], red_double, item);
           }
           for (int d = 0; d < 1; d++) {
-            op_reduction<OP_MAX>(reduct4, arg4_offset + d +
-                                              item.get_group_linear_id() * 1,
-                                 arg4_l[d], red_double, item);
+            op_reduction<OP_MAX>(
+                reduct4, arg4_offset + d + item.get_group_linear_id() * 1,
+                arg4_l[d], red_double, item);
           }
-
         };
         cgh.parallel_for<class update_kernel>(
             cl::sycl::nd_range<1>(nthread * nblocks, nthread), kern);
