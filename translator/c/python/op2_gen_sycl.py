@@ -106,10 +106,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0
-  op_color2=0
-  op_color2_force=0
-  atomics=1
+  inc_stage=0 # shared memory stages coloring (on/off)
+  op_color2=0 #
+  op_color2_force=0 #global coloring
+  atomics=1 # atomics
 ##########################################################################
 #  create new kernel file
 ##########################################################################

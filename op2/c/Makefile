@@ -137,7 +137,7 @@ ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
   else
-    CCFLAGS  = -g -O3
+    CCFLAGS  = -O3
   endif
   CXX	    = g++
 	SYCLCXX = clang++
@@ -151,7 +151,7 @@ ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
   else
-    CCFLAGS  = -g -O3
+    CCFLAGS  = -O3
   endif
   CXX	    = g++
 	#SYCLCXX = compute++

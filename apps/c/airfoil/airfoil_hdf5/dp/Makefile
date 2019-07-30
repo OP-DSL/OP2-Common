@@ -70,15 +70,38 @@ ifeq ($(OP2_COMPILER),clang)
   NVCCFLAGS     = -ccbin=$(NVCC_HOST_COMPILER)
 else
 ifeq ($(OP2_COMPILER),sycl)
-  CPP           = syclcc-clang
-  CC            = syclcc-clang
-  CCFLAGS       = -O3 -g
-  CPPFLAGS      = $(CCFLAGS)
-  #SYCL_FLAGS      = -fsycl
-  SYCL_FLAGS    = --hipsycl-gpu-arch=sm_60
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CPP       = g++
+  SYCLCXX = clang++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_FLAGS = -std=c++11 -fsycl
+else
+ifeq ($(OP2_COMPILER),hipsycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CPP       = g++
+  #SYCLCXX = compute++
+  SYCLCXX = syclcc-clang
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -101,16 +124,30 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_35
+endif
 else
 ifeq ($(NV_ARCH),Maxwell)
   CODE_GEN_CUDA=-gencode arch=compute_50,code=sm_50
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_60
+endif
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+ifeq ($(OP2_COMPILER),hipsycl)
+  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
 endif
 endif
 endif
 endif
+endif
+endif
+
 
 ifdef MAX_REG_COUNT
   REG_COUNT = --maxrregcount $(MAX_REG_COUNT)
@@ -161,7 +198,8 @@ airfoil_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp
 #
 
 airfoil_sycl: airfoil_op.cpp seq/airfoil_seqkernels.cpp
-	     $(CPP) $(CPPFLAGS) $(SYCL_FLAGS) airfoil_op.cpp sycl/airfoil_kernels.cpp -Isycl -I. \
+	     $(SYCLCXX) $(VAR) $(CXXFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
+	     -Isycl -I. airfoil_op.cpp sycl/airfoil_kernels.cpp  \
 	     $(OP2_INC) $(OP2_LIB) -lop2_sycl -lop2_hdf5 \
 	     $(HDF5_LIB) \
 	     -o airfoil_sycl

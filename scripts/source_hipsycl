@@ -4,7 +4,7 @@ module purge
 . ~/.bashrc
 
 #OP2 specifics
-export OP2_COMPILER=sycl
+export OP2_COMPILER=hipsycl
 export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
 unset OP_AUTO_SOA
 #export OP_AUTO_SOA=1
@@ -20,7 +20,7 @@ module load cuda/toolkit-9.2.88
 export CUDA_INSTALL_PATH=/opt/cuda/9.2.88/toolkit/
 export LD_LIBRARY_PATH=$CUDA_INSTALL_PATH/lib64:$LD_LIBRARY_PATH
 export NV_ARCH=Pascal
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=1 
 export NVCC_HOST_COMPILER=/rr-home/gihan/MPICH-Clang/bin/mpic++
 
 
