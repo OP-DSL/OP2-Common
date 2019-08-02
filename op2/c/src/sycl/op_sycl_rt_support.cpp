@@ -329,14 +329,30 @@ void deviceSync() {
 }
 
 #ifndef OPMPI
-
+extern int OP_sycl_device;
 void syclDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  cl::sycl::default_selector device_selector;
-  // cl::sycl::cpu_selector device_selector;
-  // cl::sycl::host_selector device_selector;
-  op2_queue = new cl::sycl::queue(device_selector);
+  cl::sycl::device_selector *selector;
+  switch (OP_sycl_device) {
+    case 0:
+      selector = new cl::sycl::host_selector();
+      break;
+    case 1:
+      selector = new cl::sycl::cpu_selector();
+      break;
+    case 2:
+      selector = new cl::sycl::gpu_selector();
+      break;
+    case 3:
+      selector = new cl::sycl::default_selector();
+      break;
+    default:
+      op_printf("Error, unrecognised SYCL device selection\n");
+      exit(-1);
+  }
+  op2_queue = new cl::sycl::queue(*selector);
+  delete selector;
   OP_hybrid_gpu = 1;
   std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
 }
