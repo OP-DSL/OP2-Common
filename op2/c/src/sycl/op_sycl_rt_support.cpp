@@ -104,11 +104,11 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       plan->ind_map = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_map,
           cl::sycl::range<1>(offsets[plan->ninds_staged] * set_size));
     else plan->ind_map = NULL;
-    free(tmp);
+    // free(tmp);
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = NULL; // &plan->ind_map[set_size * offsets[m]];
     }
-    free(offsets);
+    //free(offsets);
 
     int counter = 0;
     for (int m = 0; m < nargs; m++)
@@ -120,7 +120,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
               (const short *)plan->loc_map,
               cl::sycl::range<1>(counter * set_size));
     else plan->loc_map = NULL;
-    free(tmp2);
+    //free(tmp2);
     counter = 0;
     for (int m = 0; m < nargs; m++)
       if (plan->loc_maps[m] != NULL) {
@@ -133,39 +133,39 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       plan->ind_sizes = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_sizes,
            cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
     else plan->ind_sizes = NULL;
-    free(tmp);
+    //free(tmp);
     tmp = plan->ind_offs;
     if (plan->ninds_staged>0)
       plan->ind_offs = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_offs,
            cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
     else plan->ind_offs = NULL;
-    free(tmp);
+    //free(tmp);
     tmp = plan->nthrcol;
     plan->nthrcol = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->nthrcol,
            cl::sycl::range<1>(plan->nblocks));
-    free(tmp);
+    //free(tmp);
     tmp = plan->thrcol;
     plan->thrcol = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->thrcol,
            cl::sycl::range<1>(set_size));
-    free(tmp);
+    //free(tmp);
     tmp = plan->col_reord;
     plan->col_reord = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->col_reord,
            cl::sycl::range<1>(set_size));
-    free(tmp);
+    //free(tmp);
     tmp = plan->offset;
     plan->offset = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->offset,
            cl::sycl::range<1>(plan->nblocks));
-    free(tmp);
+    //free(tmp);
     plan->offset_d = plan->offset;
     tmp = plan->nelems;
     plan->nelems = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->nelems,
            cl::sycl::range<1>(plan->nblocks));
-    free(tmp);
+    //free(tmp);
     plan->nelems_d = plan->nelems;
     tmp = plan->blkmap;
     plan->blkmap = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->blkmap,
            cl::sycl::range<1>(plan->nblocks));
-    free(tmp);
+    //free(tmp);
     plan->blkmap_d = plan->blkmap;
   }
 

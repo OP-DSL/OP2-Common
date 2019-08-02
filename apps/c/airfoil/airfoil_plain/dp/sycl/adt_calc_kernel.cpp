@@ -95,19 +95,19 @@ void op_par_loop_adt_calc(char const *name, op_set set,
           
             dx = x2[0] - x1[0];
             dy = x2[1] - x1[1];
-            *adt = fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
+            *adt = cl::sycl::fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
           
             dx = x3[0] - x2[0];
             dy = x3[1] - x2[1];
-            *adt += fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
+            *adt += cl::sycl::fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
           
             dx = x4[0] - x3[0];
             dy = x4[1] - x3[1];
-            *adt += fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
+            *adt += cl::sycl::fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
           
             dx = x1[0] - x4[0];
             dy = x1[1] - x4[1];
-            *adt += fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
+            *adt += cl::sycl::fabs(u * dy - v * dx) + c * cl::sycl::sqrt(dx * dx + dy * dy);
           
             *adt = (*adt) / cfl_sycl[0];
           

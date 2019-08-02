@@ -85,7 +85,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
     //sycl will create a temporary host buffer, and I don't need to keep this one around
     dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((const char *)temp_data,
           cl::sycl::range<1>(dat->size * set->size));
-    free(temp_data);
+    //free(temp_data);
   } else {
     // Here, we just use the dat->data ptr as input
     dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((const char *)dat->data,
@@ -135,7 +135,7 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   }
   map->map_d = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)temp_map,
           cl::sycl::range<1>(map->dim * set_size));
-  free(temp_map);
+  //free(temp_map);
   return map;
 }
 

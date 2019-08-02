@@ -71,7 +71,7 @@ ifeq ($(OP2_COMPILER),sycl)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -std=c++11 -fsycl
+  SYCL_FLAGS = -std=c++11 -fsycl #-foffload-static-lib=asf
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
