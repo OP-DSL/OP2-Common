@@ -107,8 +107,11 @@ void op_par_loop_update(char const *name, op_set set,
         for ( int n=item.get_global_linear_id(); n<set_size; n+=item.get_global_range()[0] ){
 
           //user-supplied kernel call
-          update_gpu(&arg0[n * 4], &arg1[n * 4], &arg2[n * 4], &arg3[n * 1],
-                     arg4_l);
+          update_gpu(&arg0[n*4],
+           &arg1[n*4],
+           &arg2[n*4],
+           &arg3[n*1],
+           arg4_l);
         }
 
         //global reductions

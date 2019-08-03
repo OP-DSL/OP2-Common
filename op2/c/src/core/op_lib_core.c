@@ -55,6 +55,7 @@ int OP_maps_base_index = 0;
 int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
 
+int OP_sycl_device = 3;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -183,6 +184,17 @@ void op_set_args(int argc, char *argv) {
                 OP_maps_base_index);
     }
   }
+  pch = strstr(argv, "SYCL_DEVICE=");
+  if (pch != NULL) {
+    strncpy(temp, pch, 25);
+    if (strcmp(temp + strlen("SYCL_DEVICE="),"host"))
+      OP_sycl_device = 0;
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"cpu"))
+      OP_sycl_device = 1;
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"gpu"))
+      OP_sycl_device = 2;
+  }
+
 }
 
 /*

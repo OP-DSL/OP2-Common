@@ -61,7 +61,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
         for ( int n=item.get_global_linear_id(); n<set_size; n+=item.get_global_range()[0] ){
 
           //user-supplied kernel call
-          save_soln_gpu(&arg0[n * 4], &arg1[n * 4]);
+          save_soln_gpu(&arg0[n*4],
+              &arg1[n*4]);
         }
 
       };
