@@ -129,9 +129,7 @@ ifeq ($(OP2_COMPILER),clang)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-#-ccbin=$(MPICXX)
   OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda 
-#-I/usr/lib/gcc/x86_64-linux-gnu/6.3.0/include/
 else
 ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG
@@ -140,12 +138,31 @@ ifeq ($(OP2_COMPILER),sycl)
     CCFLAGS  = -O3
   endif
   CXX	    = g++
-	SYCLCXX = clang++
+  #SYCLCXX = clang++
+  SYCLCXX = compute++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -std=c++11 -fsycl
+  #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
+  SYCL_FLAGS = -std=c++11 -I$(SYCL_INSTALL_PATH)/include #computecpp sycl
+  SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL  #ptx64 for NVIDIA GPUs
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+else
+ifeq ($(OP2_COMPILER),intel-sycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CXX       = g++
+  SYCLCXX   = $(SYCL_INSTALL_PATH)/bin/clang++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
@@ -154,18 +171,15 @@ ifeq ($(OP2_COMPILER),hipsycl)
     CCFLAGS  = -O3
   endif
   CXX	    = g++
-	#SYCLCXX = compute++
-	SYCLCXX = syclcc-clang
+  SYCLCXX = syclcc-clang
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
-
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
+endif
 endif
 endif
 endif

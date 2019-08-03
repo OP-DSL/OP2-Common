@@ -66,12 +66,31 @@ ifeq ($(OP2_COMPILER),sycl)
     CCFLAGS  = -g -O3
   endif
   CXX	    = g++
-	SYCLCXX = clang++
+  SYCLCXX = compute++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -std=c++11 -fsycl
+  SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL
+  #SYCL_FLAGS = -sycl-driver -sycl-target ptx64 -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL 
+  SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lComputeCpp -L$(CUDA_INSTALL_PATH)/lib64 -lOpenCL
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+else
+ifeq ($(OP2_COMPILER),intel-sycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CXX       = g++
+  SYCLCXX = clang++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
+  #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
@@ -80,18 +99,17 @@ ifeq ($(OP2_COMPILER),hipsycl)
     CCFLAGS  = -O3
   endif
   CXX	    = g++
-	#SYCLCXX = compute++
-	SYCLCXX = syclcc-clang
+  SYCLCXX = syclcc-clang
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  SYCL_LIB   = 
 
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -244,7 +262,8 @@ airfoil_sycl: airfoil_op.cpp sycl/airfoil_kernels.cpp \
                 sycl/update_kernel.cpp     update.h    \
                 Makefile
 		$(SYCLCXX) $(VAR) $(CPPFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
-                -Isycl -I. airfoil_op.cpp -lm sycl/airfoil_kernels.cpp $(OP2_LIB) -lop2_sycl \
+                -Isycl -I. airfoil_op.cpp -lm sycl/airfoil_kernels.cpp $(OP2_LIB) \
+		-lop2_sycl $(SYCL_LIB) -lOpenCL \
                 -o airfoil_sycl
 
 
@@ -335,4 +354,5 @@ cuda/airfoil_kernels_mpi_cu.o:	cuda/airfoil_mpi_kernels.cu      \
 
 clean:
 		rm -f airfoil_seq airfoil_vec airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_vec \
-		airfoil_mpi_cuda airfoil_mpi_openmp airfoil_genseq airfoil_mpi_genseq airfoil_mpi_cuda_hyb *.o cuda/*.o
+		airfoil_mpi_cuda airfoil_mpi_openmp airfoil_genseq airfoil_mpi_genseq airfoil_mpi_cuda_hyb \
+		airfoil_sycl *.o cuda/*.o
