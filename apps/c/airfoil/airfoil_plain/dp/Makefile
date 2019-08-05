@@ -72,6 +72,7 @@ ifeq ($(OP2_COMPILER),sycl)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_FLAGS = -std=c++11 -fsycl #-foffload-static-lib=asf
+	SYCL_LINK_SEQ	= -foffload-static-lib=$(OP2_INSTALL_PATH)/c/lib/libop2_sycl.a
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
@@ -245,7 +246,7 @@ airfoil_sycl: airfoil_op.cpp sycl/airfoil_kernels.cpp \
                 Makefile
 		$(SYCLCXX) $(VAR) $(CPPFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
                 -Isycl -I. airfoil_op.cpp -lm sycl/airfoil_kernels.cpp $(OP2_LIB) -lop2_sycl \
-                -o airfoil_sycl
+                $(SYCL_LINK_SEQ) -o airfoil_sycl
 
 
 
