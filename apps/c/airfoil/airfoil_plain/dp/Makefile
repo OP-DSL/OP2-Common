@@ -84,10 +84,11 @@ ifeq ($(OP2_COMPILER),intel-sycl)
     CCFLAGS  = -O3
   endif
   CXX       = g++
-  SYCLCXX = clang++
+  SYCLCXX   = clang++ -O3
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
+  SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lOpenCL
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
   #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
@@ -263,7 +264,7 @@ airfoil_sycl: airfoil_op.cpp sycl/airfoil_kernels.cpp \
                 Makefile
 		$(SYCLCXX) $(VAR) $(CPPFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
                 -Isycl -I. airfoil_op.cpp -lm sycl/airfoil_kernels.cpp $(OP2_LIB) \
-		-lop2_sycl $(SYCL_LIB) -lOpenCL \
+		-lop2_sycl $(SYCL_LIB)  \
                 -o airfoil_sycl
 
 

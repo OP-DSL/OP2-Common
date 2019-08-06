@@ -83,6 +83,22 @@ ifeq ($(OP2_COMPILER),sycl)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_FLAGS = -std=c++11 -fsycl
 else
+ifeq ($(OP2_COMPILER),intel-sycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CXX       = g++
+  SYCLCXX   = clang++ 
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lOpenCL
+  SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
+  #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
+else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
@@ -101,6 +117,7 @@ ifeq ($(OP2_COMPILER),hipsycl)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
@@ -200,11 +217,9 @@ airfoil_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp
 airfoil_sycl: airfoil_op.cpp seq/airfoil_seqkernels.cpp
 	     $(SYCLCXX) $(VAR) $(CXXFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
 	     -Isycl -I. airfoil_op.cpp sycl/airfoil_kernels.cpp  \
-	     $(OP2_INC) $(OP2_LIB) -lop2_sycl -lop2_hdf5 \
+	     $(OP2_INC) $(OP2_LIB) -lop2_sycl -lop2_hdf5 $(SYCL_LIB) -lOpenCL \
 	     $(HDF5_LIB) \
 	     -o airfoil_sycl
-
-
 
 
 #
