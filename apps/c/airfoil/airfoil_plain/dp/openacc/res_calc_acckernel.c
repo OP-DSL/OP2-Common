@@ -121,10 +121,16 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int map2idx = map2[n + set_size1 * 0];
         int map3idx = map2[n + set_size1 * 1];
 
-        res_calc_openacc(&data0[2 * map0idx], &data0[2 * map1idx],
-                         &data2[4 * map2idx], &data2[4 * map3idx],
-                         &data4[1 * map2idx], &data4[1 * map3idx],
-                         &data6[4 * map2idx], &data6[4 * map3idx]);
+
+        res_calc_openacc(
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data2[4 * map2idx],
+          &data2[4 * map3idx],
+          &data4[1 * map2idx],
+          &data4[1 * map3idx],
+          &data6[4 * map2idx],
+          &data6[4 * map3idx]);
       }
 
     }

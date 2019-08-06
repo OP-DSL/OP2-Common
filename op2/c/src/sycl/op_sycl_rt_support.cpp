@@ -60,6 +60,35 @@ char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 
 cl::sycl::queue *op2_queue=NULL;
 
+void op_mvHostToDevice(void **map, int size) {
+  if (!OP_hybrid_gpu)
+    return;
+  auto *temp = new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
+  void *tmp = (void*) temp;
+  char *data = (char*)(*map);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.copy(data, acc);
+      });
+  op2_queue->wait();
+  free(*map);
+  *map = tmp;
+}
+
+void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+  if (!OP_hybrid_gpu)
+    return;
+  if (*data_d != NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)*data_d);
+  auto *buf =  new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
+  *data_d = (void*)buf;
+  char *data = (char*)(*data_h);
+  op2_queue->submit([&](cl::sycl::handler &cgh) {
+      auto acc = (*buf).template get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.copy(data, acc);
+      });
+  op2_queue->wait();
+}
+
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
                      op_arg *args, int ninds, int *inds) {
   return op_plan_get_stage(name, set, part_size, nargs, args, ninds, inds,
@@ -99,16 +128,13 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
           count++;
       offsets[m + 1] = offsets[m] + count;
     }
-    int *tmp = plan->ind_map;
     if (offsets[plan->ninds_staged]>0)
-      plan->ind_map = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_map,
-          cl::sycl::range<1>(offsets[plan->ninds_staged] * set_size));
+      op_mvHostToDevice((void **)&(plan->ind_map),
+                                offsets[plan->ninds_staged] * set_size * sizeof(int));
     else plan->ind_map = NULL;
-    // free(tmp);
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = NULL; // &plan->ind_map[set_size * offsets[m]];
     }
-    //free(offsets);
 
     int counter = 0;
     for (int m = 0; m < nargs; m++)
@@ -116,11 +142,9 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
         counter++;
     short *tmp2 = plan->loc_map;
     if (counter > 0)
-      plan->loc_map = (short*)(void*)new cl::sycl::buffer<short, 1>(
-              (const short *)plan->loc_map,
-              cl::sycl::range<1>(counter * set_size));
+      op_mvHostToDevice((void **)&(plan->loc_map),
+                                sizeof(short) * counter * set_size);
     else plan->loc_map = NULL;
-    //free(tmp2);
     counter = 0;
     for (int m = 0; m < nargs; m++)
       if (plan->loc_maps[m] != NULL) {
@@ -128,44 +152,22 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
         counter++;
       }
 
-    tmp = plan->ind_sizes;
     if (plan->ninds_staged>0)
-      plan->ind_sizes = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_sizes,
-           cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
+      op_mvHostToDevice((void **)&(plan->ind_sizes),
+          sizeof(int) * plan->nblocks * plan->ninds_staged);
     else plan->ind_sizes = NULL;
-    //free(tmp);
-    tmp = plan->ind_offs;
     if (plan->ninds_staged>0)
-      plan->ind_offs = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->ind_offs,
-           cl::sycl::range<1>(plan->nblocks * plan->ninds_staged));
+      op_mvHostToDevice((void **)&(plan->ind_offs),
+                                sizeof(int) * plan->nblocks * plan->ninds_staged);
     else plan->ind_offs = NULL;
-    //free(tmp);
-    tmp = plan->nthrcol;
-    plan->nthrcol = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->nthrcol,
-           cl::sycl::range<1>(plan->nblocks));
-    //free(tmp);
-    tmp = plan->thrcol;
-    plan->thrcol = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->thrcol,
-           cl::sycl::range<1>(set_size));
-    //free(tmp);
-    tmp = plan->col_reord;
-    plan->col_reord = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->col_reord,
-           cl::sycl::range<1>(set_size));
-    //free(tmp);
-    tmp = plan->offset;
-    plan->offset = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->offset,
-           cl::sycl::range<1>(plan->nblocks));
-    //free(tmp);
+    op_mvHostToDevice((void **)&(plan->nthrcol), sizeof(int) * plan->nblocks);
+    op_mvHostToDevice((void **)&(plan->thrcol), sizeof(int) * set_size);
+    op_mvHostToDevice((void **)&(plan->col_reord), sizeof(int) * set_size);
+    op_mvHostToDevice((void **)&(plan->offset), sizeof(int) * plan->nblocks);
     plan->offset_d = plan->offset;
-    tmp = plan->nelems;
-    plan->nelems = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->nelems,
-           cl::sycl::range<1>(plan->nblocks));
-    //free(tmp);
+    op_mvHostToDevice((void **)&(plan->nelems), sizeof(int) * plan->nblocks);
     plan->nelems_d = plan->nelems;
-    tmp = plan->blkmap;
-    plan->blkmap = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)plan->blkmap,
-           cl::sycl::range<1>(plan->nblocks));
-    //free(tmp);
+    op_mvHostToDevice((void **)&(plan->blkmap), sizeof(int) * plan->nblocks);
     plan->blkmap_d = plan->blkmap;
   }
 

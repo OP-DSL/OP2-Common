@@ -88,6 +88,9 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
 
 void op_sycl_exit();
 
+void op_cpHostToDevice(void **data_d, void **data_h, int size);
+void op_mvHostToDevice(void **map, int size);
+
 /*
  * routines to resize constant/reduct arrays, if necessary
  */

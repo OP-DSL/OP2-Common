@@ -81,15 +81,12 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
         }
       }
     }
-    //We pass the temp_data as a const pointer, so when I need to download,
-    //sycl will create a temporary host buffer, and I don't need to keep this one around
-    dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((const char *)temp_data,
-          cl::sycl::range<1>(dat->size * set->size));
-    //free(temp_data);
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
+        dat->size * set->size);
+    free(temp_data);
   } else {
-    // Here, we just use the dat->data ptr as input
-    dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((const char *)dat->data,
-          cl::sycl::range<1>(dat->size * set->size));//, cl::sycl::property_list{cl::sycl::property::buffer::use_host_ptr()});
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                              dat->size * set->size);
 
   }
 
@@ -105,9 +102,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
       (char *)calloc(set->size * dim * size, 1); // initialize data bits to 0
   dat->user_managed = 0;
 
-  // Here, we just use the dat->data ptr as host buffer
-  dat->data_d = (char*)(void*)new cl::sycl::buffer<char, 1>((const char *)dat->data,
-        cl::sycl::range<1>(dat->size * set->size));//, cl::sycl::property_list{cl::sycl::property::buffer::use_host_ptr()});
+  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+      dat->size * set->size);
 
   return dat;
 }
@@ -133,9 +129,9 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
       temp_map[i * set_size + j] = map->map[map->dim * j + i];
     }
   }
-  map->map_d = (int*)(void*)new cl::sycl::buffer<int, 1>((const int *)temp_map,
-          cl::sycl::range<1>(map->dim * set_size));
-  //free(temp_map);
+  op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
+                          map->dim * set_size * sizeof(int));
+  free(temp_map);
   return map;
 }
 
