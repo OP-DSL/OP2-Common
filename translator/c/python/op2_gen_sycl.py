@@ -108,8 +108,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=1 #global coloring
-  atomics=0 # atomics
+  op_color2_force=0 #global coloring
+  atomics=1 # atomics
 ##########################################################################
 #  create new kernel file
 ##########################################################################
