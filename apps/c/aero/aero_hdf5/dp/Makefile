@@ -34,8 +34,8 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++
   CCFLAGS  	= -O3 #-ffast-math
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPICC_PATH)
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)

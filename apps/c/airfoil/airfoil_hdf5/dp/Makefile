@@ -62,8 +62,8 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++
   CCFLAGS  	= -O3 -ffast-math
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= $(OMPFLAGS) -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= $(OMPFLAGS) -fopenmp-targets=nvptx64-nvidia-cuda -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPICC_PATH)
   MPICPP   	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)
@@ -287,7 +287,7 @@ airfoil_openmp4: airfoil_op.cpp openmp4/airfoil_omp4kernels.cpp openmp4/airfoil_
 		-Iopenmp4/  -I. -c openmp4/airfoil_omp4kernel_funcs.cpp  -o openmp4/airfoil_omp4kernel_funcs.o
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT) \
 		-Iopenmp4/ -I. -c openmp4/airfoil_omp4kernels.cpp -o openmp4/airfoil_omp4kernels.o
-	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		airfoil_op.cpp openmp4/airfoil_omp4kernels.o openmp4/airfoil_omp4kernel_funcs.o -o airfoil_openmp4 \
 	   	-lop2_openmp4 -lop2_hdf5 $(HDF5_LIB) -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
 
@@ -385,4 +385,4 @@ convert_mesh_mpi: convert_mesh_mpi.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt
+		rm -f airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc airfoil_openmp4 airfoil_mpi_openmp4 *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt

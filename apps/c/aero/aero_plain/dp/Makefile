@@ -45,8 +45,8 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++
   CCFLAGS  	= -O3 #-ffast-math
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPICC_PATH)
   MPICPP   	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)
@@ -121,7 +121,7 @@ aero_openacc: aero_op.cpp openacc/aero_acckernels.c \
 
 aero_cuda:	aero_op.cpp cuda/aero_kernels_cu.o Makefile
 		$(CPP) $(CPPFLAGS) $(CUDA_INC) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
-		aero_op.cpp cuda/aero_kernels_cu.o -lcudart -lop2_cuda -o aero_cuda -DCUDA
+		aero_op.cpp cuda/aero_kernels_cu.o -lcudart -lop2_cuda -lm -o aero_cuda -DCUDA
 
 cuda/aero_kernels_cu.o:	cuda/aero_kernels.cu      \
                 Makefile
@@ -135,21 +135,21 @@ cuda/aero_kernels_cu.o:	cuda/aero_kernels.cu      \
 
 aero_mpi: aero_mpi.cpp Makefile
 	$(MPICPP) $(MPIFLAGS) aero_mpi.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
-	$(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o aero_mpi
+	$(OP2_LIB) -lop2_mpi -lm $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o aero_mpi
 
 aero_mpi_genseq: aero_mpi_op.cpp seq/aero_seqkernels.cpp \
                 Makefile
 		$(MPICPP) $(MPIFLAGS) $(OP2_INC) $(OP2_INC) \
 		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq -I. \
-		aero_mpi_op.cpp -lm seq/aero_seqkernels.cpp $(OP2_LIB) -lop2_mpi \
+		aero_mpi_op.cpp seq/aero_seqkernels.cpp $(OP2_LIB) -lop2_mpi -lm \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o aero_mpi_genseq
 #
 # mpi with openmp-nodes version
 #
 
-aero_mpi_openmp:	aero_mpi_op.cpp openmp/aero_kernels.cpp Makefile
+aero_mpi_openmp: aero_mpi_op.cpp openmp/aero_kernels.cpp Makefile
 		$(MPICPP) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) -Iopenmp -I. \
-		aero_mpi_op.cpp openmp/aero_kernels.cpp -lm $(OP2_LIB) -lop2_mpi $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		aero_mpi_op.cpp openmp/aero_kernels.cpp $(OP2_LIB) -lop2_mpi -lm $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		-o aero_mpi_openmp
 
 
@@ -161,7 +161,7 @@ aero_mpi_cuda:	aero_mpi_op.cpp cuda/aero_kernels_mpi_cu.o Makefile
 		$(MPICPP) $(MPIFLAGS) aero_mpi_op.cpp cuda/aero_kernels_mpi_cu.o  \
 		$(CUDA_INC) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 		$(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		$(CUDA_LIB) -lcudart  -o aero_mpi_cuda
+		$(CUDA_LIB) -lcudart -lm -o aero_mpi_cuda
 
 cuda/aero_kernels_mpi_cu.o:	cuda/aero_kernels.cu      \
                 Makefile
@@ -177,7 +177,7 @@ aero_mpi_cuda_hyb: aero_op.cpp cuda/aero_hybkernels.o Makefile
 		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) -DOP_HYBRID_GPU aero_op.cpp -lm cuda/aero_hybkernels.o cuda/aero_hybkernels2.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o aero_mpi_cuda_hyb
+		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -lm -o aero_mpi_cuda_hyb
 
 cuda/aero_hybkernels.o: cuda/aero_hybkernels.cu \
                 cuda/aero_kernels.cu openmp/aero_kernels.cpp Makefile
