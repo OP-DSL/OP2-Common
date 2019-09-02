@@ -10,15 +10,14 @@ void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
                            int start, int end, int num_teams, int nthread) {
 
 #pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
-    map(to : data5[0 : dat5size])                                              \
-        map(to : gm1_ompkernel, eps_ompkernel, qinf_ompkernel[ : 4]) map(      \
-            to : col_reord[0 : set_size1],                                     \
-                           map0[0 : map0size],                                 \
-                                map2[0 : map2size],                            \
-                                     data0[0 : dat0size],                      \
-                                           data2[0 : dat2size],                \
-                                                 data3[0 : dat3size],          \
-                                                       data4[0 : dat4size])
+    map(to                                                                     \
+        : data5 [0:dat5size])                                                  \
+        map(to                                                                 \
+            : gm1_ompkernel, eps_ompkernel, qinf_ompkernel[:4])                \
+            map(to                                                             \
+                : col_reord [0:set_size1], map0 [0:map0size],                  \
+                  map2 [0:map2size], data0 [0:dat0size], data2 [0:dat2size],   \
+                  data3 [0:dat3size], data4 [0:dat4size])
 #pragma omp distribute parallel for schedule(static, 1)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
@@ -71,5 +70,4 @@ void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
     }
     //end inline func
   }
-
 }
