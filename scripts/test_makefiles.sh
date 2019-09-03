@@ -483,6 +483,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 ###################################################################################
 ###################################################################################
 
+#COMMENT0
 
 echo " "
 echo " "
@@ -494,7 +495,6 @@ cd $OP2_INSTALL_PATH/c
 pwd
 
 make clean; make
-#COMMENT0
 
 echo " "
 echo " "

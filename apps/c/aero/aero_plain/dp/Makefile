@@ -195,7 +195,7 @@ aero_openmp4: aero_op.cpp openmp4/aero_omp4kernels.cpp openmp4/aero_omp4kernel_f
 			Makefile
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernel_funcs.cpp  -o openmp4/aero_omp4kernel_funcs.o
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC) $(HDF5_LIB) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernels.cpp -o openmp4/aero_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		aero_op.cpp openmp4/aero_omp4kernels.o openmp4/aero_omp4kernel_funcs.o -o aero_openmp4 \
