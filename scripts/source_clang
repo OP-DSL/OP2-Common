@@ -24,6 +24,7 @@ export LD_LIBRARY_PATH=/opt/openmpi-2.1-gnu/lib:/opt/hdf5-gnu/lib:/home/ireguly/
 export PATH=/usr/local/cuda/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 export CUDA_INSTALL_PATH=/usr/local/cuda
+export NVCC_HOST_COMPILER=clang++
 
 #Clang
 export OMPI_CC=clang

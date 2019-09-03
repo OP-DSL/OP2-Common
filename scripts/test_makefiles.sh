@@ -16,8 +16,11 @@ function validate {
   rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
 }
 
-export NV_ARCH=Pascal
+export NV_ARCH=Kepler
 export CUDA_VISIBLE_DEVICES=1,2
+export INTEL_SOURCE=source_intel
+export PGI_SOURCE=source_pgi_19
+export CLANG_SOURCE=source_clang
 
 export CURRENT_DIR=$PWD
 cd ../op2
@@ -33,7 +36,7 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
-#<<COMMENT0
+<<COMMENT0
 
 
 echo " "
@@ -41,7 +44,7 @@ echo " "
 echo "**********************************************************************"
 echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
-. $CURRENT_DIR/source_intel_18
+. $CURRENT_DIR/$INTEL_SOURCE
 make clean; make
 
 echo " "
@@ -338,7 +341,7 @@ echo "******************* Building Fortan back-end libs with Intel Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
 pwd
-. $CURRENT_DIR/source_intel_18
+. $CURRENT_DIR/$INTEL_SOURCE
 make clean; make
 
 echo " "
@@ -411,7 +414,7 @@ echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_kos
+. $CURRENT_DIR/$PGI_SOURCE
 pwd
 
 make clean; make
@@ -482,6 +485,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 
 ###################################################################################
 ###################################################################################
+COMMENT0
 
 #COMMENT0
 
@@ -491,7 +495,7 @@ echo "**********************************************************************"
 echo "********************* Building C/C++ back-end libs with Clang Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/c
-. $CURRENT_DIR/source_clang_kos
+. $CURRENT_DIR/$CLANG_SOURCE
 pwd
 
 make clean; make
