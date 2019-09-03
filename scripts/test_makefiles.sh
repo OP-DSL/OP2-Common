@@ -16,11 +16,19 @@ function validate {
   rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
 }
 
-export NV_ARCH=Kepler
+#Octon
+#export NV_ARCH=Kepler
+#export CUDA_VISIBLE_DEVICES=1,2
+#export INTEL_SOURCE=source_intel
+#export PGI_SOURCE=source_pgi_19
+#export CLANG_SOURCE=source_clang
+
+#Kos
+export NV_ARCH=Pascal
 export CUDA_VISIBLE_DEVICES=1,2
-export INTEL_SOURCE=source_intel
-export PGI_SOURCE=source_pgi_19
-export CLANG_SOURCE=source_clang
+export INTEL_SOURCE=source_intel_18
+export PGI_SOURCE=source_pgi_kos
+export CLANG_SOURCE=source_clang_kos
 
 export CURRENT_DIR=$PWD
 cd ../op2
@@ -36,7 +44,7 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
-<<COMMENT0
+#<<COMMENT0
 
 
 echo " "
@@ -485,7 +493,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 
 ###################################################################################
 ###################################################################################
-COMMENT0
 
 #COMMENT0
 
