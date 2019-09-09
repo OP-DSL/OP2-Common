@@ -129,9 +129,7 @@ ifeq ($(OP2_COMPILER),clang)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-#-ccbin=$(MPICXX)
   OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda 
-#-I/usr/lib/gcc/x86_64-linux-gnu/6.3.0/include/
 else
 ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG
@@ -141,31 +139,47 @@ ifeq ($(OP2_COMPILER),sycl)
   endif
   CXX	    = clang++
 	SYCLCXX = clang++
+  SYCLCXX = compute++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -std=c++11 -fsycl
+  #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
+  #SYCL_FLAGS = -std=c++11 -I$(SYCL_INSTALL_PATH)/include  #computecpp sycl
+  SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include #compute++ SYCL  #ptx64 for NVIDIA GPUs
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
+  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
 else
-ifeq ($(OP2_COMPILER),hipsycl)
+ifeq ($(OP2_COMPILER),intel-sycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
   else
     CCFLAGS  = -g -O3
   endif
-  CXX	    = g++
-	#SYCLCXX = compute++
-	SYCLCXX = syclcc-clang
+  CXX       = clang++
+  SYCLCXX   = clang++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
-  #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
-
+  SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
+else
+ifeq ($(OP2_COMPILER),hipsycl)
+  ifdef DEBUG
+    CCFLAGS  = -g -O0
+  else
+    CCFLAGS  = -O3
+  endif
+  CXX	    = g++
+  SYCLCXX = syclcc-clang
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
+endif
 endif
 endif
 endif
@@ -288,7 +302,7 @@ sycl: mklib $(INC)/op_sycl_rt_support.h $(INC)/op_sycl_reduction.h $(SRC)/sycl/o
 		-c $(SRC)/sycl/op_sycl_decl.cpp -o $(OBJ)/op_sycl_decl.o
 	$(SYCLCXX) $(CXXFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/sycl/op_sycl_rt_support.cpp \
 		-o $(OBJ)/op_sycl_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(SYCLCXX) $(CXXFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_sycl.a $(OBJ)/op_sycl_rt_support.o \
 		$(OBJ)/op_sycl_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 

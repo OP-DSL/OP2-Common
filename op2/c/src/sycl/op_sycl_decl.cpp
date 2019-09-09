@@ -31,7 +31,7 @@
  */
 
 //
-// This file implements the OP2 user-level functions for the CUDA backend
+// This file implements the OP2 user-level functions for the SYCL backend
 //
 
 #include <CL/sycl.hpp>
@@ -41,7 +41,7 @@
 #include <op_rt_support.h>
 
 //
-// CUDA-specific OP2 functions
+// SYCL-specific OP2 functions
 //
 
 void op_init_soa(int argc, char **argv, int diags, int soa) {
@@ -210,13 +210,13 @@ void op_timings_to_csv(const char *outputFileName) {
   if (outputFile != NULL) {
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older 
+          // This library is being used by an OP2 translation made with the older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
-        
+
         for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
           double kern_time = OP_kernels[n].times[thr];
           if (kern_time == 0.0) {
@@ -224,11 +224,11 @@ void op_timings_to_csv(const char *outputFileName) {
           }
           double plan_time = OP_kernels[n].plan_time;
           double mpi_time = OP_kernels[n].mpi_time;
-          fprintf(outputFile, 
+          fprintf(outputFile,
                   "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                  0, thr, 1, OP_kernels[n].ntimes, 
-                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
-                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
+                  0, thr, 1, OP_kernels[n].ntimes,
+                  OP_kernels[n].count, kern_time, plan_time, mpi_time,
+                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f,
                   OP_kernels[n].name);
         }
       }
