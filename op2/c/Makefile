@@ -145,8 +145,8 @@ ifeq ($(OP2_COMPILER),sycl)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
-  SYCL_FLAGS = -std=c++11 -I$(SYCL_INSTALL_PATH)/include #computecpp sycl
-  SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL  #ptx64 for NVIDIA GPUs
+  SYCL_FLAGS = -std=c++11 -I$(SYCL_INSTALL_PATH)/include  #computecpp sycl
+  SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include #compute++ SYCL  #ptx64 for NVIDIA GPUs
   #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
   #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
 else
@@ -302,7 +302,7 @@ sycl: mklib $(INC)/op_sycl_rt_support.h $(INC)/op_sycl_reduction.h $(SRC)/sycl/o
 		-c $(SRC)/sycl/op_sycl_decl.cpp -o $(OBJ)/op_sycl_decl.o
 	$(SYCLCXX) $(CXXFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/sycl/op_sycl_rt_support.cpp \
 		-o $(OBJ)/op_sycl_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(SYCLCXX) $(CXXFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
 	ar -r $(LIB)/libop2_sycl.a $(OBJ)/op_sycl_rt_support.o \
 		$(OBJ)/op_sycl_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 

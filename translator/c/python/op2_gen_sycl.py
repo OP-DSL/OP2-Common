@@ -108,8 +108,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=0 #global coloring
-  atomics=1 # atomics
+  op_color2_force=1 #global coloring
+  atomics=0 # atomics
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -682,6 +682,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     body_text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',body_text)
     body_text = re.sub(r'\bcbrt\b','cl::sycl::cbrt',body_text)
     body_text = re.sub(r'\bfabs\b','cl::sycl::fabs',body_text)
+    body_text = re.sub(r'\bisnan\b','cl::sycl::isnan',body_text)
+    body_text = re.sub(r'\bisinf\b','cl::sycl::isinf',body_text)
     kernel_text = depth*' ' + 'auto '+head_text + '_gpu = [=]( '+signature_text + ') {' + body_text + '};\n'
     kernel_text = re.sub('\n','\n'+(depth+2)*' ',kernel_text)
     file_text += kernel_text

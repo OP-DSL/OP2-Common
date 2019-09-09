@@ -73,7 +73,7 @@ ifeq ($(OP2_COMPILER),sycl)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_FLAGS = -sycl-driver -sycl-target spir -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL
   #SYCL_FLAGS = -sycl-driver -sycl-target ptx64 -no-serial-memop  -I$(SYCL_INSTALL_PATH)/include  #compute++ SYCL 
-  SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lComputeCpp -L$(CUDA_INSTALL_PATH)/lib64 -lOpenCL
+  SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lComputeCpp #-L$(CUDA_INSTALL_PATH)/lib64 -lOpenCL
   #SYCL_FLAGS = -mllvm -inline-threshold=1000 -sycl-driver -sycl-target ptx64 -no-serial-memop -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
   #SYCL_FLAGS = -mllvm -inline-threshold=1000 -I$(SYCL_INSTALL_PATH)/include -I$(CUDA_INSTALL_PATH)/include -std=c++11
 else
@@ -91,8 +91,7 @@ ifeq ($(OP2_COMPILER),intel-sycl)
   SYCL_LIB   = -L$(SYCL_INSTALL_PATH)/lib -lOpenCL
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
-  #SYCL_FLAGS = -std=c++11 -fsycl #intel sycl
-  SYCL_FLAGS = -std=c++11 -fsycl #-foffload-static-lib=asf
+  #SYCL_FLAGS = -std=c++11 -fsycl #-foffload-static-lib=asf
   SYCL_LINK_SEQ	= -foffload-static-lib=$(OP2_INSTALL_PATH)/c/lib/libop2_sycl.a
 else
 ifeq ($(OP2_COMPILER),hipsycl)
