@@ -187,11 +187,11 @@ void op_set_args(int argc, char *argv) {
   pch = strstr(argv, "SYCL_DEVICE=");
   if (pch != NULL) {
     strncpy(temp, pch, 25);
-    if (strcmp(temp + strlen("SYCL_DEVICE="),"host"))
+    if (strcmp(temp + strlen("SYCL_DEVICE="),"host")==0)
       OP_sycl_device = 0;
-    else if (strcmp(temp + strlen("SYCL_DEVICE="),"cpu"))
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"cpu")==0)
       OP_sycl_device = 1;
-    else if (strcmp(temp + strlen("SYCL_DEVICE="),"gpu"))
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"gpu")==0)
       OP_sycl_device = 2;
   }
 

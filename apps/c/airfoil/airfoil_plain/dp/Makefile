@@ -68,6 +68,7 @@ ifeq ($(OP2_COMPILER),sycl)
   CXX	    = g++
 	SYCLCXX = clang++
   CXXFLAGS  = $(CCFLAGS)
+  CPPFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
@@ -84,6 +85,7 @@ ifeq ($(OP2_COMPILER),hipsycl)
 	#SYCLCXX = compute++
 	SYCLCXX = syclcc-clang
   CXXFLAGS  = $(CCFLAGS)
+  CPPFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)

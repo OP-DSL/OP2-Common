@@ -137,9 +137,9 @@ ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
   else
-    CCFLAGS  = -g -O3
+    CCFLAGS  = -g -O3 -fPIC
   endif
-  CXX	    = g++
+  CXX	    = clang++
 	SYCLCXX = clang++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
