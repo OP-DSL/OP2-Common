@@ -3747,6 +3747,18 @@ void globalIdSort(int *orders, int row_len, int *global_ids, int map_dim) {
 * Create reversed mapping for reproducible MPI execution
 *******************************************************************************/
 void create_reversed_mapping() {
+    
+  op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
+                                         OP_dat_index * sizeof(op_repr_inc));
+    
+  for (int d = 0; d < OP_dat_index; d++) {
+    op_repr_incs[d].tmp_incs = NULL;
+    op_repr_incs[d].tmp_incs_size = 0;
+  }
+    
+    
+    
+    
   // Create reversed mapping for each map
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map original_map = OP_map_list[m];

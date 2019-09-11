@@ -268,6 +268,19 @@ void op_exit() {
 
 void op_rank(int *rank) { MPI_Comm_rank(OP_MPI_WORLD, rank); }
 
+
+void reallocReductArrays(int reduct_bytes){
+  if (reduct_bytes > OP_reduct_bytes) {
+    if (OP_reduct_bytes > 0) {
+        OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
+        (char *)op_realloc(OP_reduct_h, OP_reduct_bytes);
+    } else {
+        OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
+        OP_reduct_h = (char *)op_malloc(OP_reduct_bytes);    
+    }
+  }
+}
+
 /*
  * Wrappers of core lib
  */

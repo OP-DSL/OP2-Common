@@ -116,7 +116,6 @@ void op_cuda_exit();
 
 void reallocConstArrays(int consts_bytes);
 
-void reallocReductArrays(int reduct_bytes);
 
 /*
  * routines to move constant/reduct arrays

@@ -48,15 +48,15 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
         int required_tmp_incs_size = set_from_size * prime_map_dim * arg4.dat->size;
         
-        if (op_repr_incs[3].tmp_incs == NULL){
-            op_repr_incs[3].tmp_incs = (void *)op_malloc(required_tmp_incs_size);
-            op_repr_incs[3].tmp_incs_size = required_tmp_incs_size;
-        } else if (op_repr_incs[3].tmp_incs_size < required_tmp_incs_size){
-            op_realloc(op_repr_incs[3].tmp_incs, required_tmp_incs_size);
-            op_repr_incs[3].tmp_incs_size = required_tmp_incs_size;
+        if (op_repr_incs[arg4.dat->index].tmp_incs == NULL){
+            op_repr_incs[arg4.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size);
+            op_repr_incs[arg4.dat->index].tmp_incs_size = required_tmp_incs_size;
+        } else if (op_repr_incs[arg4.dat->index].tmp_incs_size < required_tmp_incs_size){
+            op_realloc(op_repr_incs[arg4.dat->index].tmp_incs, required_tmp_incs_size);
+            op_repr_incs[arg4.dat->index].tmp_incs_size = required_tmp_incs_size;
         }
         
-        double *tmp_incs = (double *)op_repr_incs[3].tmp_incs;
+        double *tmp_incs = (double *)op_repr_incs[arg4.dat->index].tmp_incs;
 
 
         for (int i=0; i<set_from_size * prime_map_dim * arg4.dim; i++){

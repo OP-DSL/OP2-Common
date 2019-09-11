@@ -59,6 +59,7 @@ extern int OP_set_index, OP_set_max, OP_map_index, OP_map_max, OP_dat_index,
 extern op_set *OP_set_list;
 extern op_map *OP_map_list;
 extern op_reversed_map *OP_reversed_map_list;
+extern op_repr_inc *op_repr_incs;
 extern Double_linked_list OP_dat_list;
 extern op_kernel *OP_kernels;
 extern double OP_plan_time;

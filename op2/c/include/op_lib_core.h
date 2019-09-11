@@ -49,6 +49,12 @@
 #include <strings.h>
 #include <sys/queue.h> //contains double linked list implementation
 
+extern "C" {
+#include "binned.h"
+#include "reproBLAS.h"
+#include "binnedBLAS.h"
+}
+
 #ifndef OP2_ALIGNMENT
 #define OP2_ALIGNMENT 64
 #endif
@@ -81,6 +87,11 @@ extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
+
+    
+extern int OP_reduct_bytes;
+extern char *OP_reduct_h;
+
 
 /*
  * enum list for op_par_loop
@@ -178,6 +189,7 @@ typedef struct {
   int sent; /* flag to indicate if this argument has
                data in flight under non-blocking MPI comms*/
   int opt;  /* flag to indicate if this argument is in use */
+  double_binned *local_sum; /*Local sum for reproducible incs*/
 } op_arg;
 
 typedef struct {
@@ -305,6 +317,7 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 void op_upload_dat(op_dat dat);
 
 void op_download_dat(op_dat dat);
+void reprLocalSum(op_arg *arg, int set_size, double *red);
 
 /*******************************************************************************
 * Core MPI lib function prototypes
@@ -329,6 +342,8 @@ void op_mpi_reduce_combined(op_arg *args, int nargs);
 void op_mpi_reduce_float(op_arg *args, float *data);
 
 void op_mpi_reduce_double(op_arg *args, double *data);
+
+void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data);
 
 void op_mpi_reduce_int(op_arg *args, int *data);
 
@@ -375,6 +390,9 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+
+
+void reallocReductArrays(int reduct_bytes);
 
 #ifdef __cplusplus
 }

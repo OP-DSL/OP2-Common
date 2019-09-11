@@ -141,7 +141,8 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
-REPRO_MPI_LIB   = -L$(REPRO_MPI_INSTALL_PATH)lib -lbinned -lbinnedmpi -lm
+REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)inc
+REPRO_MPI_LIB   = -L$(REPRO_MPI_LIB_PATH) -lbinned -lbinnedblas -lreproblas -lbinnedmpi -lm
 #
 # master to make all versions
 #
@@ -251,7 +252,7 @@ airfoil_mpi_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp \
                 seq/update_seqkernel.cpp     update.h    \
                 Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. \
+		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. $(REPRO_MPI_INC) \
 		airfoil_op.cpp -lm seq/airfoil_seqkernels.cpp -Wl,--start-group $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB)  $(HDF5_LIB) $(REPRO_MPI_LIB) -Wl,--end-group -g -o airfoil_mpi_genseq
 

@@ -34,6 +34,19 @@ void op_par_loop_update(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
+  int reduct_bytes = 0;
+  reduct_bytes = ROUND_UP(arg4.dim*sizeof(double)*set_size);  
+  reallocReductArrays(reduct_bytes);
+  
+  reduct_bytes=0;
+  double* red4 = (double*)(OP_reduct_h+reduct_bytes);
+  reduct_bytes+=arg4.dim*sizeof(double)*set_size;
+  
+  for (int i=0; i<arg4.dim*set_size; i++){
+      red4[i]=0;
+  }
+  
+  
   if (set->size >0) {
 
     for ( int n=0; n<set_size; n++ ){
@@ -42,10 +55,13 @@ void op_par_loop_update(char const *name, op_set set,
         &((double*)arg1.data)[4*n],
         &((double*)arg2.data)[4*n],
         &((double*)arg3.data)[1*n],
-        (double*)arg4.data);
+        //(double*)arg4.data);
+        &red4[1*n]);
     }
   }
-
+  
+  reprLocalSum(&arg4,set_size,red4);
+    
   // combine reduction data
   op_mpi_repr_inc_reduce_double(&arg4,(double*)arg4.data);
   //op_mpi_reduce_double(&arg4,(double*)arg4.data);

@@ -59,9 +59,9 @@ typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 // arrays for global constants and reductions
 
-int OP_consts_bytes = 0, OP_reduct_bytes = 0;
+int OP_consts_bytes = 0;
 
-char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+char *OP_consts_h, *OP_consts_d,  *OP_reduct_d;
 
 //
 // CUDA utility functions
