@@ -1051,3 +1051,25 @@ void op_free(void *ptr) {
   free(ptr);
 #endif
 }
+
+op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
+
+op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
+                  op_access acc) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->dat->data == dat) item_dat = item->dat;
+  }
+  op_map item_map = NULL;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_list[i]->map == map) item_map = OP_map_list[i];
+  }
+  if (item_map == NULL && idx == -2) idx = -1;
+
+  return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
+}
+
+
