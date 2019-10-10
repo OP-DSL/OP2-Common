@@ -293,6 +293,18 @@ module OP2_Fortran_Declarations
 
     end subroutine op_exit_c
 
+    subroutine op_register_set_c (idx, set) BIND(C,name='op_register_set')
+      use, intrinsic :: ISO_C_BINDING
+      integer(kind=c_int), intent(in), value :: idx
+      type(c_ptr), value, intent(in)           :: set
+    end subroutine op_register_set_c
+
+    type(c_ptr) function op_get_set_c ( idx ) BIND(C,name='op_get_set')
+      use, intrinsic :: ISO_C_BINDING
+      import :: op_set_core
+      integer(kind=c_int), intent(in), value :: idx
+    end function op_get_set_c
+
     type(c_ptr) function op_decl_set_c ( setsize, name ) BIND(C,name='op_decl_set')
 
       use, intrinsic :: ISO_C_BINDING
@@ -875,6 +887,21 @@ contains
     call op_exit_c (  )
 
   end subroutine op_exit
+
+  subroutine op_register_set(idx, set)
+    integer(kind=c_int), value, intent(in) :: idx
+    type(op_set) :: set
+
+    call op_register_set_c(idx, set%setCPtr)
+  end subroutine op_register_set
+
+  type(op_set) function op_get_set( idx )
+    integer(kind=c_int), value, intent(in) :: idx
+    type(op_set) :: set
+    set%setCPtr = op_get_set_c(idx)
+    call c_f_pointer ( set%setCPtr, set%setPtr )
+    op_get_set = set
+  end function op_get_set
 
 
   subroutine op_decl_set ( setsize, set, opname )

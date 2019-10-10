@@ -40,6 +40,7 @@ program AIRFOIL
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, q_part
   real(8), dimension(1:2) :: rms
 
+  integer(4) :: snode, scell, sedge, sbedge
   integer(4) :: debugiter, retDebug
   real(8) :: datad
 
@@ -51,6 +52,10 @@ program AIRFOIL
   ! fortran 90)
   print *, "Getting set sizes"
   call getSetSizes ( nnode, ncell, nedge, nbedge )
+  snode = 2
+  scell = 1
+  sedge = 5
+  sbedge = 7
 
   print *, ncell
   ! allocate sets (cannot allocate in subroutine in F90)
@@ -85,6 +90,12 @@ program AIRFOIL
   call op_decl_set ( nedge, edges, 'edges' )
   call op_decl_set ( nbedge, bedges, 'bedges' )
   call op_decl_set ( ncell, cells, 'cells' )
+
+  call op_register_set(snode, nodes)
+  call op_register_set(scell, cells)
+  call op_register_set(sedge, edges)
+  call op_register_set(sbedge, bedges)
+
 
   print *, "Declaring OP2 maps"
   call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
@@ -126,7 +137,7 @@ program AIRFOIL
 
   do niter = 1, iterationNumber
 
-     call op_par_loop_2 ( save_soln, cells, &
+     call op_par_loop_2 ( save_soln, op_get_set(scell), &
                        & op_arg_dat (q,    -1, OP_ID, 4,"real(8)", OP_READ), &
                        & op_arg_dat (qold, -1, OP_ID, 4,"real(8)", OP_WRITE))
 

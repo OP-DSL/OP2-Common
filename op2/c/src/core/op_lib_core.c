@@ -1072,4 +1072,19 @@ op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
   return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
 }
 
+int *op_set_registry=NULL;
+int op_set_registry_size = 0;
+void op_register_set(int idx, op_set set) {
+  if (idx>=op_set_registry_size) {
+    op_set_registry_size = idx+10;
+    op_set_registry = (int*)op_realloc(op_set_registry, op_set_registry_size*sizeof(int));
+  }
+  op_set_registry[idx] = set->index;
+}
+
+op_set op_get_set(int idx) {
+  if (idx < op_set_registry_size)
+    return OP_set_list[op_set_registry[idx]];
+  else return NULL;
+}
 
