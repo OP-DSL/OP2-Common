@@ -156,7 +156,12 @@ module OP2_Fortran_Declarations
   end type op_arg
 
   ! declaration of identity and global mapping
-  type(op_map) :: OP_ID, OP_GBL
+#ifdef OP2_ARG_POINTERS
+  integer(4) :: OP_ID(2)
+#else
+  type(op_map) :: OP_ID
+#endif
+  type(op_map) :: OP_GBL
 
   type, BIND(C) :: op_export_core
 
@@ -355,6 +360,23 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: acc
 
     end function op_arg_dat_c
+
+    function op_arg_dat_ptr_c ( dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_arg
+
+      type(op_arg) :: op_arg_dat_ptr_c
+
+      type(c_ptr), value, intent(in) :: dat
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+      integer(kind=c_int), value :: dim
+      character(kind=c_char,len=1) :: type(*)
+      integer(kind=c_int), value :: acc
+
+    end function op_arg_dat_ptr_c
 
     function op_opt_arg_dat_c ( opt, dat, idx, map, dim, type, acc ) BIND(C,name='op_opt_arg_dat')
 
@@ -689,7 +711,9 @@ module OP2_Fortran_Declarations
   end interface op_decl_const
 
   interface op_arg_dat
-    module procedure op_arg_dat_python
+    module procedure op_arg_dat_python, op_arg_dat_real_8, op_arg_dat_integer_4, &
+                     op_arg_dat_real_8_2, op_arg_dat_integer_4_2, &
+                     op_arg_dat_real_8_3, op_arg_dat_integer_4_3
   end interface op_arg_dat
 
   interface op_opt_arg_dat
@@ -726,21 +750,31 @@ contains
     type(cudadeviceprop) :: deviceProperties
 #endif
 
+#ifndef OP2_ARG_POINTERS
     type (op_map_core), pointer :: idPtr
+#endif
     type (op_map_core), pointer :: gblPtr
 
     ! calling C function
+#ifndef OP2_ARG_POINTERS
     OP_ID%mapCPtr = op_decl_null_map ()
+#endif
     OP_GBL%mapCPtr = op_decl_null_map ()
 
     ! idptr and gblPtr are required because of a gfortran compiler internal error
+#ifndef OP2_ARG_POINTERS
     call c_f_pointer ( OP_ID%mapCPtr, idPtr )
+#endif
     call c_f_pointer ( OP_GBL%mapCPtr, gblPtr )
 
+#ifndef OP2_ARG_POINTERS
     idPtr%dim = 0 ! OP_ID code used in arg_set
+#endif
     gblPtr%dim = -1 ! OP_GBL code used in arg_set
 
+#ifndef OP2_ARG_POINTERS
     OP_ID%mapPtr => idPtr
+#endif
     OP_GBL%mapPtr => gblPtr
     call set_maps_base_c(base_idx)
 
@@ -795,22 +829,32 @@ contains
     type(cudadeviceprop) :: deviceProperties
 #endif
 
+#ifndef OP2_ARG_POINTERS
     type (op_map_core), pointer :: idPtr
+#endif
     type (op_map_core), pointer :: gblPtr
 
 
     ! calling C function
+#ifndef OP2_ARG_POINTERS
     OP_ID%mapCPtr = op_decl_null_map ()
+#endif
     OP_GBL%mapCPtr = op_decl_null_map ()
 
     ! idptr and gblPtr are required because of a gfortran compiler internal error
+#ifndef OP2_ARG_POINTERS
     call c_f_pointer ( OP_ID%mapCPtr, idPtr )
+#endif
     call c_f_pointer ( OP_GBL%mapCPtr, gblPtr )
 
+#ifndef OP2_ARG_POINTERS
     idPtr%dim = 0 ! OP_ID code used in arg_set
+#endif
     gblPtr%dim = -1 ! OP_GBL code used in arg_set
 
+#ifndef OP2_ARG_POINTERS
     OP_ID%mapPtr => idPtr
+#endif
     OP_GBL%mapPtr => gblPtr
     call set_maps_base_c(1)
 
@@ -1088,6 +1132,68 @@ contains
     opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_logical
+
+  type(op_arg) function op_arg_dat_real_8 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8
+
+  type(op_arg) function op_arg_dat_real_8_2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_2
+
+  type(op_arg) function op_arg_dat_real_8_3 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_3
+
+  type(op_arg) function op_arg_dat_integer_4 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4
+
+  type(op_arg) function op_arg_dat_integer_4_2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4_2
+
+  type(op_arg) function op_arg_dat_integer_4_3 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4_3
+
+
 
   type(op_arg) function op_arg_dat_python (dat, idx, map, dim, type, access)
 
