@@ -34,8 +34,8 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++
   CCFLAGS  	= -O3 #-ffast-math
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPICC_PATH)
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)
@@ -142,7 +142,7 @@ cuda/aero_kernels_mpi_cu.o:	cuda/aero_kernels.cu \
 aero_openmp4: aero_op.cpp openmp4/aero_omp4kernels.cpp openmp4/aero_omp4kernel_funcs.cpp Makefile
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernel_funcs.cpp  -o openmp4/aero_omp4kernel_funcs.o
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernels.cpp -o openmp4/aero_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		aero_op.cpp openmp4/aero_omp4kernels.o openmp4/aero_omp4kernel_funcs.o -o aero_openmp4 \

@@ -83,7 +83,7 @@ program AIRFOIL
   call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
-  call op_init_base (0,0)
+  call op_init_base_soa(0,0,1)
 
   print *, "Initialising constants"
   call initialise_flow_field ( ncell, q, res )
