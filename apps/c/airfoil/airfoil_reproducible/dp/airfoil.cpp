@@ -173,10 +173,6 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
 
     //  predictor/corrector update loop
-
-	if (iter % 10 == 0 )
-		printf("Calculating res_calc %d/%d\n",iter,niter);
-
     for (int k = 0; k < 2; k++) {
 
       //    calculate area/timstep

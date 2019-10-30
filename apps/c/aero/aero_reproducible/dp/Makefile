@@ -149,8 +149,8 @@ aero_mpi_genseq: aero_op.cpp seq/aero_seqkernels.cpp Makefile
 #
 aero_mpi_openmp:	aero_op.cpp openmp/aero_kernels.cpp \
                 Makefile
-		$(MPICPP) $(VAR) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) -Iopenmp -I. \
-		$(OP2_LIB) aero_op.cpp openmp/aero_kernels.cpp -lm -lop2_mpi $(HDF5_LIB) $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
+		$(MPICPP) $(VAR) $(MPIFLAGS) $(OMPFLAGS) $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) -Iopenmp -I. $(REPRO_MPI_INC) \
+		$(OP2_LIB) aero_op.cpp openmp/aero_kernels.cpp -lm -lop2_mpi $(HDF5_LIB) $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(REPRO_MPI_LIB) \
 		-o aero_mpi_openmp
 
 #

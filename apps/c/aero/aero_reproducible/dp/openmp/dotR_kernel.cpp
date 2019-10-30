@@ -27,7 +27,7 @@ void op_par_loop_dotR(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  dotR");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
   // set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
@@ -43,6 +43,20 @@ void op_par_loop_dotR(char const *name, op_set set,
     }
   }
 
+  
+  int reduct_bytes = 0;
+  reduct_bytes = ROUND_UP(arg1.dim*sizeof(double)*set_size);  
+  reallocReductArrays(reduct_bytes);
+  
+  reduct_bytes=0;
+  double* red1 = (double*)(OP_reduct_h+reduct_bytes);
+  reduct_bytes+=arg1.dim*sizeof(double)*set_size;
+  
+  for (int i=0; i<arg1.dim*set_size; i++){
+      red1[i]=0;
+  }
+  
+  
   if (set->size >0) {
 
     // execute plan
@@ -53,18 +67,21 @@ void op_par_loop_dotR(char const *name, op_set set,
       for ( int n=start; n<finish; n++ ){
         dotR(
           &((double*)arg0.data)[1*n],
-          &arg1_l[64*omp_get_thread_num()]);
+      //    &arg1_l[64*omp_get_thread_num()]);
+          &red1[1*n]);
       }
     }
   }
 
+  reprLocalSum(&arg1,set_size,red1);
   // combine reduction data
   for ( int thr=0; thr<nthreads; thr++ ){
     for ( int d=0; d<1; d++ ){
       arg1h[d] += arg1_l[d+thr*64];
     }
   }
-  op_mpi_reduce(&arg1,arg1h);
+  //op_mpi_reduce(&arg1,arg1h);
+  op_mpi_repr_inc_reduce_double(&arg1,arg1h);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record
