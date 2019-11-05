@@ -97,6 +97,10 @@ ifeq ($(NV_ARCH),Maxwell)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+endif
 endif
 endif
 endif

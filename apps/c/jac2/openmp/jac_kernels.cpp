@@ -3,7 +3,7 @@
 //
 
 #ifdef _OPENMP
-#include <omp.h>
+  #include <omp.h>
 #endif
 
 // global constants

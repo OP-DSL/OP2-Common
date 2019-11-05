@@ -5,9 +5,9 @@
 //user function
 //user function
 //#pragma acc routine
-inline void res_calc_openacc(const float *x1, const float *x2, const float *q1,
-                             const float *q2, const float *adt1,
-                             const float *adt2, float *res1, float *res2) {
+inline void res_calc_openacc( const float *x1, const float *x2, const float *q1,
+                     const float *q2, const float *adt1, const float *adt2,
+                     float *res1, float *res2) {
   float dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -121,10 +121,16 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int map2idx = map2[n + set_size1 * 0];
         int map3idx = map2[n + set_size1 * 1];
 
-        res_calc_openacc(&data0[2 * map0idx], &data0[2 * map1idx],
-                         &data2[4 * map2idx], &data2[4 * map3idx],
-                         &data4[1 * map2idx], &data4[1 * map3idx],
-                         &data6[4 * map2idx], &data6[4 * map3idx]);
+
+        res_calc_openacc(
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data2[4 * map2idx],
+          &data2[4 * map3idx],
+          &data4[1 * map2idx],
+          &data4[1 * map3idx],
+          &data6[4 * map2idx],
+          &data6[4 * map3idx]);
       }
 
     }

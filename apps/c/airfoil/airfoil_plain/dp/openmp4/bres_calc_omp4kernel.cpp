@@ -5,12 +5,27 @@
 //user function
 //user function
 
-void bres_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
-                           int *data5, int dat5size, double *data0,
-                           int dat0size, double *data2, int dat2size,
-                           double *data3, int dat3size, double *data4,
-                           int dat4size, int *col_reord, int set_size1,
-                           int start, int end, int num_teams, int nthread);
+void bres_calc_omp4_kernel(
+  int *map0,
+  int map0size,
+  int *map2,
+  int map2size,
+  int *data5,
+  int dat5size,
+  double *data0,
+  int dat0size,
+  double *data2,
+  int dat2size,
+  double *data3,
+  int dat3size,
+  double *data4,
+  int dat4size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_bres_calc(char const *name, op_set set,
@@ -94,12 +109,28 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      bres_calc_omp4_kernel(map0, map0size, map2, map2size, data5, dat5size,
-                            data0, dat0size, data2, dat2size, data3, dat3size,
-                            data4, dat4size, col_reord, set_size1, start, end,
-                            part_size != 0 ? (end - start - 1) / part_size + 1
-                                           : (end - start - 1) / nthread,
-                            nthread);
+      bres_calc_omp4_kernel(
+        map0,
+        map0size,
+        map2,
+        map2size,
+        data5,
+        dat5size,
+        data0,
+        dat0size,
+        data2,
+        dat2size,
+        data3,
+        dat3size,
+        data4,
+        dat4size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread);
+
     }
     OP_kernels[3].transfer  += Plan->transfer;
     OP_kernels[3].transfer2 += Plan->transfer2;

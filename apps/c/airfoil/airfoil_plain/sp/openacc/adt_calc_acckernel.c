@@ -5,8 +5,8 @@
 //user function
 //user function
 //#pragma acc routine
-inline void adt_calc_openacc(const float *x1, const float *x2, const float *x3,
-                             const float *x4, const float *q, float *adt) {
+inline void adt_calc_openacc( const float *x1, const float *x2, const float *x3,
+                     const float *x4, const float *q, float *adt) {
   float dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0];
@@ -109,9 +109,14 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         int map2idx = map0[n + set_size1 * 2];
         int map3idx = map0[n + set_size1 * 3];
 
-        adt_calc_openacc(&data0[2 * map0idx], &data0[2 * map1idx],
-                         &data0[2 * map2idx], &data0[2 * map3idx],
-                         &data4[4 * n], &data5[1 * n]);
+
+        adt_calc_openacc(
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data0[2 * map2idx],
+          &data0[2 * map3idx],
+          &data4[4 * n],
+          &data5[1 * n]);
       }
 
     }

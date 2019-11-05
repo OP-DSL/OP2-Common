@@ -5,8 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void init_cg_openacc(const double *r, double *c, double *u, double *v,
-                            double *p) {
+inline void init_cg_openacc( const double *r, double *c, double *u, double *v, double *p) {
   *c += (*r) * (*r);
   *p = *r;
   *u = 0;
@@ -58,8 +57,12 @@ void op_par_loop_init_cg(char const *name, op_set set,
     double* data4 = (double*)arg4.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data2,data3,data4) reduction(+:arg1_l)
     for ( int n=0; n<set->size; n++ ){
-      init_cg_openacc(&data0[1 * n], &arg1_l, &data2[1 * n], &data3[1 * n],
-                      &data4[1 * n]);
+      init_cg_openacc(
+        &data0[1*n],
+        &arg1_l,
+        &data2[1*n],
+        &data3[1*n],
+        &data4[1*n]);
     }
   }
 

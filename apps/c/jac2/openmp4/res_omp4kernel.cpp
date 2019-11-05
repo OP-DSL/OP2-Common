@@ -5,10 +5,22 @@
 //user function
 //user function
 
-void res_omp4_kernel(double *data0, int dat0size, int *map1, int map1size,
-                     float *arg3, float *data1, int dat1size, float *data2,
-                     int dat2size, int *col_reord, int set_size1, int start,
-                     int end, int num_teams, int nthread);
+void res_omp4_kernel(
+  double *data0,
+  int dat0size,
+  int *map1,
+  int map1size,
+  float *arg3,
+  float *data1,
+  int dat1size,
+  float *data2,
+  int dat2size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_res(char const *name, op_set set,
@@ -84,11 +96,23 @@ void op_par_loop_res(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      res_omp4_kernel(data0, dat0size, map1, map1size, &arg3_l, data1, dat1size,
-                      data2, dat2size, col_reord, set_size1, start, end,
-                      part_size != 0 ? (end - start - 1) / part_size + 1
-                                     : (end - start - 1) / nthread,
-                      nthread);
+      res_omp4_kernel(
+        data0,
+        dat0size,
+        map1,
+        map1size,
+        &arg3_l,
+        data1,
+        dat1size,
+        data2,
+        dat2size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread);
+
     }
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;
