@@ -5,8 +5,13 @@
 //user function
 //user function
 
-void update_omp4_kernel(double *data0, int dat0size, int *arg1, int count,
-                        int num_teams, int nthread);
+void update_omp4_kernel(
+  double *data0,
+  int dat0size,
+  int *arg1,
+  int count,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_update(char const *name, op_set set,
@@ -53,10 +58,14 @@ void op_par_loop_update(char const *name, op_set set,
 
     double* data0 = (double*)arg0.data_d;
     int dat0size = getSetSizeFromOpArg(&arg0) * arg0.dat->dim;
-    update_omp4_kernel(data0, dat0size, &arg1_l, set->size,
-                       part_size != 0 ? (set->size - 1) / part_size + 1
-                                      : (set->size - 1) / nthread,
-                       nthread);
+    update_omp4_kernel(
+      data0,
+      dat0size,
+      &arg1_l,
+      set->size,
+      part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
+      nthread);
+
   }
 
   // combine reduction data

@@ -57,7 +57,6 @@ void op_par_loop_save_soln(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_0;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;

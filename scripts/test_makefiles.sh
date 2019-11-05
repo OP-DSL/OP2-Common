@@ -25,7 +25,7 @@ function validate {
 
 #Kos
 export NV_ARCH=Pascal
-export CUDA_VISIBLE_DEVICES=1,2
+export CUDA_VISIBLE_DEVICES=0,1
 export INTEL_SOURCE=source_intel_18
 export PGI_SOURCE=source_pgi_kos
 export CLANG_SOURCE=source_clang_kos

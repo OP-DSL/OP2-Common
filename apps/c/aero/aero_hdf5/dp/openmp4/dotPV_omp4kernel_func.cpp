@@ -13,7 +13,7 @@ void dotPV_omp4_kernel(
   int nthread){
 
   double arg2_l = *arg2;
-#pragma omp target teams distribute parallel for schedule(static,1)\
+  #pragma omp target teams distribute parallel for schedule(static,1)\
      num_teams(num_teams) thread_limit(nthread) map(to:data0[0:dat0size],data1[0:dat1size])\
     map(tofrom: arg2_l) reduction(+:arg2_l)
   for ( int n_op=0; n_op<count; n_op++ ){

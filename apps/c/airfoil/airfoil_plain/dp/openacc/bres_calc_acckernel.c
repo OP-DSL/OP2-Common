@@ -5,9 +5,8 @@
 //user function
 //user function
 //#pragma acc routine
-inline void bres_calc_openacc(const double *x1, const double *x2,
-                              const double *q1, const double *adt1,
-                              double *res1, const int *bound) {
+inline void bres_calc_openacc( const double *x1, const double *x2, const double *q1,
+                      const double *adt1, double *res1, const int *bound) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -120,9 +119,14 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int map1idx = map0[n + set_size1 * 1];
         int map2idx = map2[n + set_size1 * 0];
 
-        bres_calc_openacc(&data0[2 * map0idx], &data0[2 * map1idx],
-                          &data2[4 * map2idx], &data3[1 * map2idx],
-                          &data4[4 * map2idx], &data5[1 * n]);
+
+        bres_calc_openacc(
+          &data0[2 * map0idx],
+          &data0[2 * map1idx],
+          &data2[4 * map2idx],
+          &data3[1 * map2idx],
+          &data4[4 * map2idx],
+          &data5[1 * n]);
       }
 
     }

@@ -38,11 +38,7 @@ inline void res_calc(const double *x1, const double *x2, const double *q1,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void
-res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC],
-             const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC],
-             const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC],
-             double res1[*][SIMD_VEC], double res2[*][SIMD_VEC], int idx) {
+inline void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC], const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC], int idx ) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -72,6 +68,7 @@ res_calc_vec(const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC],
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
   res1[3][idx] += f;
   res2[3][idx] -= f;
+
 }
 #endif
 
@@ -142,7 +139,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
       ALIGNED_double double dat5[1][SIMD_VEC];
       ALIGNED_double double dat6[4][SIMD_VEC];
       ALIGNED_double double dat7[4][SIMD_VEC];
-#pragma omp simd simdlen(SIMD_VEC)
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
@@ -182,7 +179,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         dat7[3][i] = 0.0;
 
       }
-#pragma omp simd simdlen(SIMD_VEC)
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         res_calc_vec(
           dat0,

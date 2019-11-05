@@ -9,8 +9,8 @@ int direct_res_calc_stride_OP2CONSTANT;
 int direct_res_calc_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
-inline void res_calc_openacc(const double **x, const double **phim, double *K,
-                             double **res, double **none) {
+inline void res_calc_openacc( const double **x, const double **phim, double *K,
+                      double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
       K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
@@ -203,7 +203,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
            &data13[2 * map2idx],
            &data13[2 * map3idx]};
 
-        res_calc_openacc(arg0_vec, arg4_vec, &data8[n], arg9_vec, arg13_vec);
+        res_calc_openacc(
+          arg0_vec,
+          arg4_vec,
+          &data8[n],
+          arg9_vec,
+          arg13_vec);
       }
 
     }
