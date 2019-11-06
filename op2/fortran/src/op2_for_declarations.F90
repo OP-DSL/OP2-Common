@@ -725,7 +725,10 @@ module OP2_Fortran_Declarations
   interface op_arg_dat
     module procedure op_arg_dat_python, op_arg_dat_real_8, op_arg_dat_integer_4, &
                      op_arg_dat_real_8_2, op_arg_dat_integer_4_2, &
-                     op_arg_dat_real_8_3, op_arg_dat_integer_4_3
+                     op_arg_dat_real_8_3, op_arg_dat_integer_4_3, &
+                     op_arg_dat_real_8_m2, op_arg_dat_integer_4_m2, &
+                     op_arg_dat_real_8_2_m2, op_arg_dat_integer_4_2_m2, &
+                     op_arg_dat_real_8_3_m2, op_arg_dat_integer_4_3_m2
   end interface op_arg_dat
 
   interface op_opt_arg_dat
@@ -1170,6 +1173,16 @@ contains
     op_arg_dat_real_8 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8
 
+  type(op_arg) function op_arg_dat_real_8_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_m2
+
   type(op_arg) function op_arg_dat_real_8_2 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
     implicit none
@@ -1179,6 +1192,16 @@ contains
     character(kind=c_char,len=*) :: type
     op_arg_dat_real_8_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_2
+
+  type(op_arg) function op_arg_dat_real_8_2_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8_2_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_2_m2
 
   type(op_arg) function op_arg_dat_real_8_3 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
@@ -1190,6 +1213,16 @@ contains
     op_arg_dat_real_8_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_3
 
+  type(op_arg) function op_arg_dat_real_8_3_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_real_8_3_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_3_m2
+
   type(op_arg) function op_arg_dat_integer_4 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
     implicit none
@@ -1199,6 +1232,16 @@ contains
     character(kind=c_char,len=*) :: type
     op_arg_dat_integer_4 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4
+
+  type(op_arg) function op_arg_dat_integer_4_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4_m2
 
   type(op_arg) function op_arg_dat_integer_4_2 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
@@ -1210,6 +1253,16 @@ contains
     op_arg_dat_integer_4_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_2
 
+  type(op_arg) function op_arg_dat_integer_4_2_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4_2_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4_2_m2
+
   type(op_arg) function op_arg_dat_integer_4_3 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
     implicit none
@@ -1219,6 +1272,16 @@ contains
     character(kind=c_char,len=*) :: type
     op_arg_dat_integer_4_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_3
+
+  type(op_arg) function op_arg_dat_integer_4_3_m2 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map 
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    op_arg_dat_integer_4_3_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_integer_4_3_m2
 
 
 
