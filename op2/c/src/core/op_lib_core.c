@@ -60,7 +60,8 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
  */
 
 op_set *OP_set_list;
-op_map *OP_map_list;
+op_map *OP_map_list = NULL;
+int **OP_map_ptr_list = NULL;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
 
@@ -327,8 +328,9 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     OP_map_max += 10;
     OP_map_list =
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
-
-    if (OP_map_list == NULL) {
+    OP_map_ptr_list =
+        (int **)op_realloc(OP_map_list, OP_map_max * sizeof(int*));
+    if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
@@ -354,6 +356,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
+  OP_map_ptr_list[OP_map_index-1] = imap;
 
   return map;
 }
@@ -375,6 +378,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->set = set;
   dat->dim = dim;
   dat->data = data;
+  printf("DATASET %s, ptr %p\n", name, data);
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -477,7 +481,9 @@ void op_exit_core() {
     free(OP_map_list[i]);
   }
   free(OP_map_list);
+  if (OP_map_ptr_list != NULL) free(OP_map_ptr_list);
   OP_map_list = NULL;
+  OP_map_ptr_list = NULL;
 
   /*free doubl linked list holding the op_dats */
   op_dat_entry *item;
@@ -1065,20 +1071,29 @@ op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
 
 op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
                   op_access acc) {
+//  printf("op_arg_dat_ptr with %p\n", dat);
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
-    if (item->dat->data == dat) item_dat = item->dat;
+    //printf("%s(%p), ", item->dat->name, item->dat->data);
+    if (item->dat->data == dat) {item_dat = item->dat; break;}
+  }
+  //printf("\n");
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for %p pointer\n", dat);
   }
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_list[i]->map == map) item_map = OP_map_list[i];
+    if (OP_map_ptr_list[i] == map) item_map = OP_map_list[i];
   }
   if (item_map == NULL && idx == -2) idx = -1;
+  if (item_dat == NULL) {
+    printf("ERROR: op_mao not found for %p pointer\n", map);
+  }
 
-  printf("incomming %p, dat->data %p\n", dat, item->dat->data);
+  printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
 
   return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
 }
