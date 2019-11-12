@@ -315,6 +315,14 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }*/
 
+  int *m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int) );
+  if (m == NULL) {
+    printf(" op_decl_map_core error -- error allocating memory to map\n");
+    exit(-1);
+  }
+  memcpy(m, imap, sizeof(int) * from->size * dim );
+
+
   if (OP_map_index == OP_map_max) {
     OP_map_max += 10;
     OP_map_list =
@@ -329,7 +337,8 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   if (OP_maps_base_index == 1) {
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
     for (int i = 0; i < from->size * dim; i++)
-      imap[i]--;
+      //imap[i]--;
+      m[i]--; // modify op2's copy
   }
   // else OP_maps_base_index == 0
   // do nothing -- aready in C style indexing
@@ -339,7 +348,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->from = from;
   map->to = to;
   map->dim = dim;
-  map->map = imap;
+  map->map = m; //use op2's copy instead of imap;
   map->map_d = NULL;
   map->name = copy_str(name);
   map->user_managed = 1;
@@ -743,9 +752,9 @@ void op_timing_output_core() {
              "--------------------------\n");
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older 
+          // This library is being used by an OP2 translation made with the older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
@@ -755,7 +764,7 @@ void op_timing_output_core() {
           if (OP_kernels[n].times[i] > kern_time)
             kern_time = OP_kernels[n].times[i];
         }
-        
+
         double moments_mpi_time[2];
         double moments_time[2];
         op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true, &moments_time[0],
@@ -1068,6 +1077,8 @@ op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
     if (OP_map_list[i]->map == map) item_map = OP_map_list[i];
   }
   if (item_map == NULL && idx == -2) idx = -1;
+
+  printf("incomming %p, dat->data %p\n", dat, item->dat->data);
 
   return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
 }
