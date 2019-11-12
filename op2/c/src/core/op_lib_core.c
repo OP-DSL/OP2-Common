@@ -329,7 +329,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     OP_map_list =
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
-        (int **)op_realloc(OP_map_list, OP_map_max * sizeof(int*));
+        (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int*));
     if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
@@ -357,6 +357,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
 
   OP_map_list[OP_map_index++] = map;
   OP_map_ptr_list[OP_map_index-1] = imap;
+  printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
 
   return map;
 }
@@ -1086,14 +1087,16 @@ op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
   }
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) item_map = OP_map_list[i];
+    if (OP_map_ptr_list[i] == map) {item_map = OP_map_list[i]; break;}
   }
   if (item_map == NULL && idx == -2) idx = -1;
-  if (item_dat == NULL) {
-    printf("ERROR: op_mao not found for %p pointer\n", map);
+  if (item_map == NULL && idx != -1) {
+    printf("ERROR: op_map not found for %p pointer\n", map);
+    for (int i = 0; i < OP_map_index; i++) printf("%s (%p) ",OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
 
   printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
+  if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
 
   return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
 }
