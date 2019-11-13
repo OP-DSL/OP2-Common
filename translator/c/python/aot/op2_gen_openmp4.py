@@ -460,16 +460,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
       g_m = invinds[m-1]
       code('<TYP> *data'+str(g_m)+' = (<TYP> *)<ARG>.data_d;')
       if maptype == 'map':
-<<<<<<< HEAD:translator/c/python/op2_gen_openmp4.py
         if optflags[g_m]:
             code('int dat'+str(g_m)+'size = (arg'+str(g_m)+'.opt?1:0) * getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
         else:
           code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
     
-=======
-        code('int dat'+str(g_m)+'size = getSetSizeFromOpArg(&arg'+str(g_m)+') * arg'+str(g_m)+'.dat->dim;')
-
->>>>>>> Restructuring codegenerators with new directories seperating them out for just in time (jit) and ahead of time (aot) compilation:translator/c/python/aot/op2_gen_openmp4.py
 #
 # prepare kernel params for indirect version
 #
