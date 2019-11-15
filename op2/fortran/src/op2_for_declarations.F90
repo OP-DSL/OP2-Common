@@ -373,7 +373,7 @@ module OP2_Fortran_Declarations
 
     end function op_arg_dat_c
 
-    function op_arg_dat_ptr_c ( dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat_ptr')
+    function op_arg_dat_ptr_c ( opt, dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat_ptr')
 
       use, intrinsic :: ISO_C_BINDING
 
@@ -381,6 +381,7 @@ module OP2_Fortran_Declarations
 
       type(op_arg) :: op_arg_dat_ptr_c
 
+      integer(kind=c_int), value :: opt
       type(c_ptr), value, intent(in) :: dat
       integer(kind=c_int), value :: idx
       type(c_ptr), value, intent(in) :: map
@@ -1176,7 +1177,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8
 
   type(op_arg) function op_arg_dat_real_8_m2 (dat, idx, map, dim, type, access)
@@ -1186,7 +1189,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_m2
 
   type(op_arg) function op_arg_dat_real_8_2 (dat, idx, map, dim, type, access)
@@ -1196,7 +1201,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_2
 
   type(op_arg) function op_arg_dat_real_8_2_m2 (dat, idx, map, dim, type, access)
@@ -1206,7 +1213,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8_2_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_2_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_2_m2
 
   type(op_arg) function op_arg_dat_real_8_3 (dat, idx, map, dim, type, access)
@@ -1216,7 +1225,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_3 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_3
 
   type(op_arg) function op_arg_dat_real_8_3_m2 (dat, idx, map, dim, type, access)
@@ -1226,7 +1237,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_real_8_3_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_3_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_3_m2
 
   type(op_arg) function op_arg_dat_integer_4 (dat, idx, map, dim, type, access)
@@ -1236,7 +1249,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4
 
   type(op_arg) function op_arg_dat_integer_4_m2 (dat, idx, map, dim, type, access)
@@ -1246,7 +1261,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_m2
 
   type(op_arg) function op_arg_dat_integer_4_2 (dat, idx, map, dim, type, access)
@@ -1256,7 +1273,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4_2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4_2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_2
 
   type(op_arg) function op_arg_dat_integer_4_2_m2 (dat, idx, map, dim, type, access)
@@ -1266,7 +1285,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4_2_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4_2_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_2_m2
 
   type(op_arg) function op_arg_dat_integer_4_3 (dat, idx, map, dim, type, access)
@@ -1276,7 +1297,9 @@ contains
     integer(4), dimension(*), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4_3 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4_3 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_3
 
   type(op_arg) function op_arg_dat_integer_4_3_m2 (dat, idx, map, dim, type, access)
@@ -1286,7 +1309,9 @@ contains
     integer(4), dimension(:,:), intent(in), target :: map
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char,len=*) :: type
-    op_arg_dat_integer_4_3_m2 = op_arg_dat_ptr_c ( c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_integer_4_3_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_integer_4_3_m2
 
 
@@ -1349,7 +1374,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8
 
   type(op_arg) function op_opt_arg_dat_real_8_m2 (opt, dat, idx, map, dim, type, access)
@@ -1368,7 +1393,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8_m2
 
   type(op_arg) function op_opt_arg_dat_real_8_2 (opt, dat, idx, map, dim, type, access)
@@ -1387,7 +1412,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8_2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8_2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8_2
 
   type(op_arg) function op_opt_arg_dat_real_8_2_m2 (opt, dat, idx, map, dim, type, access)
@@ -1406,7 +1431,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8_2_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8_2_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8_2_m2
 
   type(op_arg) function op_opt_arg_dat_real_8_3 (opt, dat, idx, map, dim, type, access)
@@ -1425,7 +1450,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8_3 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8_3 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8_3
 
   type(op_arg) function op_opt_arg_dat_real_8_3_m2 (opt, dat, idx, map, dim, type, access)
@@ -1444,7 +1469,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_real_8_3_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_real_8_3_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_real_8_3_m2
 
   type(op_arg) function op_opt_arg_dat_integer_4 (opt, dat, idx, map, dim, type, access)
@@ -1463,7 +1488,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4
 
   type(op_arg) function op_opt_arg_dat_integer_4_m2 (opt, dat, idx, map, dim, type, access)
@@ -1482,7 +1507,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4_m2
 
   type(op_arg) function op_opt_arg_dat_integer_4_2 (opt, dat, idx, map, dim, type, access)
@@ -1501,7 +1526,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4_2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4_2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4_2
 
   type(op_arg) function op_opt_arg_dat_integer_4_2_m2 (opt, dat, idx, map, dim, type, access)
@@ -1520,7 +1545,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4_2_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4_2_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4_2_m2
 
   type(op_arg) function op_opt_arg_dat_integer_4_3 (opt, dat, idx, map, dim, type, access)
@@ -1539,7 +1564,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4_3 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4_3 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4_3
 
   type(op_arg) function op_opt_arg_dat_integer_4_3_m2 (opt, dat, idx, map, dim, type, access)
@@ -1558,7 +1583,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
         opt_int = 0
     endif
 
-    op_opt_arg_dat_integer_4_3_m2 = op_opt_arg_dat_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+    op_opt_arg_dat_integer_4_3_m2 = op_arg_dat_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_opt_arg_dat_integer_4_3_m2
 
   type(op_arg) function op_opt_arg_dat_python (opt, dat, idx, map, dim, type, access)

@@ -166,7 +166,7 @@ program AIRFOIL
                          & op_arg_dat (res,  2, ecell, 4,"real(8)", OP_INC))
 
       call op_par_loop_6 ( bres_calc, bedges, &
-                         & op_arg_dat (x,      1, bedge, 2,"real(8)",  OP_READ), &
+                         & op_opt_arg_dat (.true., x,      1, bedge, 2,"real(8)",  OP_READ), &
                          & op_arg_dat (x,      2, bedge, 2,"real(8)",  OP_READ), &
                          & op_arg_dat (q,      1, becell, 4,"real(8)", OP_READ), &
                          & op_arg_dat (adt,    1, becell, 1,"real(8)", OP_READ), &
