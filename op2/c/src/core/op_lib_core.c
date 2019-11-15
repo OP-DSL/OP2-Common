@@ -1075,9 +1075,11 @@ void op_free(void *ptr) {
 }
 
 op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
+op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
 
-op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
+op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const *type,
                   op_access acc) {
+  if (opt == 0) return op_opt_arg_dat(opt, NULL, idx, NULL, dim, type, acc);
 //  printf("op_arg_dat_ptr with %p\n", dat);
   op_dat_entry *item;
   op_dat_entry *tmp_item;
