@@ -357,7 +357,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
 
   OP_map_list[OP_map_index++] = map;
   OP_map_ptr_list[OP_map_index-1] = imap;
-  printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
+  //printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
 
   return map;
 }
@@ -379,7 +379,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->set = set;
   dat->dim = dim;
   dat->data = data;
-  printf("DATASET %s, ptr %p\n", name, data);
+  //printf("DATASET %s, ptr %p\n", name, data);
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -531,12 +531,18 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (set == NULL)
       op_err_print("invalid set", m, name);
 
-    if (arg.map == NULL && arg.dat->set != set)
-      op_err_print("dataset set does not match loop set", m, name);
+    if (arg.map == NULL && arg.dat->set != set){
+      //op_err_print("dataset set does not match loop set", m, name);
+      if (arg.dat->set != set)
+        //printf("dataset set %s does not match loop set %s\n", set->name, arg.dat->set->name);
+        printf("dataset set %p does not match loop set %p\n", set, arg.dat->set);
+    }
 
     if (arg.map != NULL &&
-        (arg.map->from != set || arg.map->to != arg.dat->set))
+        (arg.map->from != set || arg.map->to != arg.dat->set)){
       op_err_print("mapping error", m, name);
+      printf("map from set %s does not match dat %s set %s\n", arg.map->to->name, arg.dat->name, arg.dat->set->name);
+    }
 
     if ((arg.map == NULL && arg.idx != -1) ||
         (arg.map != NULL &&
@@ -1083,7 +1089,7 @@ op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
   }
   //printf("\n");
   if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for %p pointer\n", dat);
+    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
   }
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
@@ -1095,8 +1101,8 @@ op_arg op_arg_dat_ptr(char* dat, int idx, int *map, int dim, char const *type,
     for (int i = 0; i < OP_map_index; i++) printf("%s (%p) ",OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
 
-  printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
-  if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
+  //printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
+  //if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
 
   return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
 }
