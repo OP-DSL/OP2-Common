@@ -100,7 +100,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
 #define CHARP2(x) char* ptr##x
 
 #define ARG_SET_LIST(N) SEMI_LIST(N,ARGSET)
-#define ARGSET(x) if (args[x-1].idx < -1) op_arg_copy_in (n, args[x-1], (char **) p_a[x-1]); else {op_arg_set(n,args[x-1],&p_a[x-1],halo);}
+#define ARGSET(x) if (args[x-1].idx < -1 && args[x-1].opt != 0 ) op_arg_copy_in (n, args[x-1], (char **) p_a[x-1]); else {op_arg_set(n,args[x-1],&p_a[x-1],halo);}
 
 #define PTR_LIST(N) COMMA_LIST(N,PTRL)
 #define PTRL(x) p_a[x-1]

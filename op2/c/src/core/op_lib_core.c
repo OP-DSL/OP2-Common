@@ -534,14 +534,18 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set){
       //op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        //printf("dataset set %s does not match loop set %s\n", set->name, arg.dat->set->name);
         printf("dataset set %p does not match loop set %p\n", set, arg.dat->set);
     }
 
-    if (arg.map != NULL &&
-        (arg.map->from != set || arg.map->to != arg.dat->set)){
-      op_err_print("mapping error", m, name);
-      printf("map from set %s does not match dat %s set %s\n", arg.map->to->name, arg.dat->name, arg.dat->set->name);
+    if (arg.map != NULL) {
+        if (arg.map->from != set){
+          op_err_print("mapping error", m, name);
+          printf("map from set %s does not match set \n", arg.map->from->name);
+        }
+        if (arg.map->to != arg.dat->set) {
+          op_err_print("mapping error", m, name);
+          printf("map to set %s does not match dat %s set %s\n", arg.map->to->name, arg.dat->name, arg.dat->set->name);
+        }
     }
 
     if ((arg.map == NULL && arg.idx != -1) ||
@@ -1086,8 +1090,10 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   op_dat item_dat = NULL;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
-    //printf("%s(%p), ", item->dat->name, item->dat->data);
-    if (item->dat->data == dat) {item_dat = item->dat; break;}
+    if (item->dat->data == dat) {
+      //printf("%s(%p), ", item->dat->name, item->dat->data);
+      item_dat = item->dat; break;
+    }
   }
   //printf("\n");
   if (item_dat == NULL) {
