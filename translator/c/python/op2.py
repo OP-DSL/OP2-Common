@@ -63,6 +63,8 @@ from op2_gen_common import *
 # import JIT code generation versions
 from jit.op2_gen_seq_jit import op2_gen_seq_jit
 
+from jit.op2_gen_cuda_jit import op2_gen_cuda_jit
+
 arithmetic_regex_pattern = r'^[ \(\)\+\-\*\\\.\%0-9]+$'
 
 # from http://stackoverflow.com/a/241506/396967
@@ -1079,6 +1081,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     #code generator for sequential execution on a CPU (+MPI)
     op2_gen_seq_jit(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
 
+    op2_gen_cuda_jit(masterFile, date, consts, kernels)
   else:
     print "Generating regular (non-JIT) version of parallelizations"
 

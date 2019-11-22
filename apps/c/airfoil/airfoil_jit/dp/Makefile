@@ -1,3 +1,5 @@
+# TODO add airfoil_cuda_jit
+#
 #
 # The following environment variables should be predefined:
 #
