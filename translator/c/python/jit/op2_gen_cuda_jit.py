@@ -147,400 +147,84 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     file_text = ''
     depth = 0
 
-
 ##########################################################################
-# C++ stub function - non-JIT Header
-##########################################################################
-
-    comm('user function')
-    code('#include "../'+decl_filepath+'"')
-
-    code('')
-    comm('host stub function')
-    code('void op_par_loop_'+name+'_execute(op_kernel_descriptor *desc) {')
-    depth += 2
-
-    code('op_set set = desc->set;')
-    code('char const *name = desc->name;')
-    code('int nargs = '+str(nargs)+';')
-
-    code('')
-
-    for g_m in range (0,nargs):
-      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
-      if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
-
-        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
-        first = [i for i in range(0,len(v)) if v[i] == 1]
-        first = first[0]
-
-        FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
-        ENDFOR()
-        code('')
-      elif vectorised[g_m]>0:
-        pass
-      else:
-        code('op_arg ARG = desc->args['+str(g_m)+'];')
-
-    code('')
-    code('op_arg args['+str(nargs)+'] = {')
-    for m in unique_args:
-      g_m = m - 1
-      if m == unique_args[len(unique_args)-1]:
-        code('ARG};');
-        code('')
-      else:
-        code('ARG,')
-
-
-#
-# JIT compilation
-#
-
-    code('#ifdef OP2_JIT')
-    IF('!jit_compiled')
-    code('jit_compile();')
-    ENDIF()
-    code('(*'+name+'_function)(desc);')
-    code('return;')
-    code('#endif')
-
-    #
-    # Save header
-    #
-
-    header = file_text
-    file_text = ''
-    depth -= 2
-
-##########################################################################
-# C++ stub function - JIT Header
+#  JIT Includes - const file and op_lib
 ##########################################################################
 
     code('#include "op_lib_cpp.h"')
-    comm('global constants - values #defined by JIT')
-    code('#include "jit_const.h"')
-
-    code('')
-    comm('user function')
-    code('#include "../'+decl_filepath+'"')
-    code('')
-
-    code('extern "C" {')
-    code('void op_par_loop_'+name+'_rec_execute(op_kernel_descriptor *desc);')
-    code('')
-
-    comm('host stub function')
-    code('void op_par_loop_'+name+'_rec_execute(op_kernel_descriptor *desc) {')
-    depth += 2
-
-    code('op_set set = desc->set;')
-    code('char const *name = desc->name;')
-    code('int nargs = '+str(nargs)+';')
-
-    code('')
-
-    for g_m in range (0,nargs):
-      u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
-      if len(u) > 0 and vectorised[g_m] > 0:
-        code('ARG.idx = 0;')
-        code('args['+str(g_m)+'] = ARG;')
-
-        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
-        first = [i for i in range(0,len(v)) if v[i] == 1]
-        first = first[0]
-
-        FOR('v','1',str(sum(v)))
-        code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+\
-        str(first)+'.map, DIM, "TYP", '+accsstring[accs[g_m]-1]+');')
-        ENDFOR()
-        code('')
-      elif vectorised[g_m]>0:
-        pass
-      else:
-        code('op_arg ARG = desc->args['+str(g_m)+'];')
-
-    code('')
-    code('op_arg args['+str(nargs)+'] = {')
-    for m in unique_args:
-      g_m = m - 1
-      if m == unique_args[len(unique_args)-1]:
-        code('ARG};');
-        code('')
-      else:
-        code('ARG,')
-
-
-    #
-    # Save jit header
-    #
-    jit_header = file_text
+    comm('global_constants - values #defined by JIT')
+    code('#include "jit_const.h')
+    code('')   
+ 
+    jit_include = file_text
     file_text = ''
 
-
 ##########################################################################
-# C++ stub function - Common Body
-##########################################################################
-
-#
-# start timing
-#
-    code('')
-    comm(' initialise timers')
-    code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    code('op_timing_realloc('+str(nk)+');')
-    code('op_timers_core(&cpu_t1, &wall_t1);')
-    code('')
-
-#
-#   indirect bits
-#
-    if ninds>0:
-      IF('OP_diags>2')
-      code('printf(" kernel routine with indirection: '+name+'\\n");')
-      ENDIF()
-
-#
-# direct bit
-#
-    else:
-      code('')
-      IF('OP_diags>2')
-      code('printf(" kernel routine w/o indirection:  '+ name + '");')
-      ENDIF()
-
-    code('')
-    code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
-
-    code('')
-    IF('set->size >0')
-    code('')
-
-#
-# kernel call for indirect version
-#
-    if ninds>0:
-      FOR('n','0','set_size')
-      IF('n==set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
-      ENDIF()
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-            k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
-      code('')
-      for g_m in range (0,nargs):
-        u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
-        if len(u) > 0 and vectorised[g_m] > 0:
-          if accs[g_m] == OP_READ:
-            line = 'const TYP* ARG_vec[] = {\n'
-          else:
-            line = 'TYP* ARG_vec[] = {\n'
-
-          v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
-          first = [i for i in range(0,len(v)) if v[i] == 1]
-          first = first[0]
-
-          indent = ' '*(depth+2)
-          for k in range(0,sum(v)):
-            line = line + indent + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
-          line = line[:-2]+'};'
-          code(line)
-      code('')
-
-      line = name+'('
-      indent = '\n'+' '*(depth+2)
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+' * n]'
-        if maps[g_m] == OP_MAP:
-          if vectorised[g_m]:
-            if g_m+1 in unique_args:
-                line = line + indent + 'arg'+str(g_m)+'_vec'
-          else:
-            line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
-        if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
-        if g_m < nargs-1:
-          if g_m+1 in unique_args and not g_m+1 == unique_args[-1]:
-            line = line +','
-        else:
-           line = line +');'
-      code(line)
-      ENDFOR()
-
-#
-# kernel call for direct version
-#
-    else:
-      FOR('n','0','set_size')
-      line = name+'('
-      indent = '\n'+' '*(depth+2)
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
-        if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
-        if g_m < nargs-1:
-          line = line +','
-        else:
-           line = line +');'
-      code(line)
-      ENDFOR()
-
-    ENDIF()
-    code('')
-
-    #zero set size issues
-    if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
-      ENDIF()
-
-#
-# combine reduction data from multiple OpenMP threads
-#
-    comm(' combine reduction data')
-    for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-#        code('op_mpi_reduce(&ARG,('+typs[g_m]+'*)ARG.data);')
-        if typs[g_m] == 'double': #need for both direct and indirect
-          code('op_mpi_reduce_double(&ARG,('+typs[g_m]+'*)ARG.data);')
-        elif typs[g_m] == 'float':
-          code('op_mpi_reduce_float(&ARG,('+typs[g_m]+'*)ARG.data);')
-        elif typs[g_m] == 'int':
-          code('op_mpi_reduce_int(&ARG,('+typs[g_m]+'*)ARG.data);')
-        else:
-          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
-          exit(-1)
-
-    code('op_mpi_set_dirtybit(nargs, args);')
-    code('')
-
-#
-# update kernel record
-#
-
-    comm(' update kernel record')
-    code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
-
-    if ninds == 0:
-      line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
-
-      for g_m in range (0,nargs):
-        if maps[g_m]<>OP_GBL:
-          if accs[g_m]==OP_READ:
-            code(line+' ARG.size;')
-          else:
-            code(line+' ARG.size * 2.0f;')
-    else:
-      names = []
-      for g_m in range(0,ninds):
-        mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
-          mult = ' * 2.0f'
-        if not var[invinds[g_m]] in names:
-          code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[g_m])+'.size'+mult+';')
-          names = names + [var[invinds[g_m]]]
-      for g_m in range(0,nargs):
-        mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
-          mult = ' * 2.0f'
-        if not var[g_m] in names:
-          names = names + [var[g_m]]
-          if maps[g_m] == OP_ID:
-            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
-          elif maps[g_m] == OP_GBL:
-            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(g_m)+'.size'+mult+';')
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-            k = k + [mapnames[g_m]]
-            code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[inds[g_m]-1])+'.map->dim * 4.0f;')
-
-    depth -= 2
-    code('}')
-
-
-    #
-    # Save common body
-    #
-    body = file_text
-    file_text = ''
-
-
-##########################################################################
-# The C++ stub function that is actualyl called
+#  User Function - Executed on device
 ##########################################################################
 
-    code('')
-    comm('host stub function')
-    code('void op_par_loop_'+name+'(char const *name, op_set set,')
-    depth += 2
+    f = open(decl_filepath, 'r')
+    kernel_text = f.read()
+    f.close()
 
-    for m in unique_args:
-      g_m = m - 1
-      if m == unique_args[len(unique_args)-1]:
-        code('op_arg ARG){');
+    if CPP:
+      #Get include statements from kernel file
+      includes = op2_gen_common.extract_includes(kernel_text)
+      if len(includes) > 0:
+        for include in includes:
+          code(include)
         code('')
-      else:
-        code('op_arg ARG,')
 
-    code('int nargs = '+str(nargs)+';')
-    code('op_arg args['+str(nargs)+'];')
-    code('')
+    kernel_text = op2_gen_common.comment_remover(kernel_text)
+    kernel_text = op2_gen_common.remove_trailing_w_space(kernel_text)
 
-    code('op_kernel_descriptor *desc = ')
-    code('(op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));')
-    code('desc->name = name;')
-    code('desc->set = set;')
-    code('desc->device = 1;')
-    code('desc->index = '+str(nk)+';')
-    code('desc->hash = 5381;')
-    code('desc->hash = ((desc->hash << 5) + desc->hash) + '+str(nk)+';')
-    code('')
+    #find void, any whitespace and then the name with no extra alphanumeric chars either side
+    p = re.compile('void\\s+\\b'+name+'\\b')
+    i = p.search(kernel_text).start()
 
-    comm('save the arguments')
-    code('desc->nargs = '+str(nargs)+';')
-    code('desc->args = (op_arg *)malloc('+str(nargs)+' * sizeof(op_arg));')
+    if (i < 0):
+      print "\n********"
+      print "Error: cannot locate user kernel function: "+name+" - Aborting code generation"
+      exit(2)
 
-    declared = 0
-    for n in range (0, nargs):
-      code('desc->args['+str(n)+'] = arg'+str(n)+';')
-      if maps[n] <> OP_GBL:
-        code('desc->hash = ((desc->hash << 5) + desc->hash) + arg'+str(n)+'.dat->index;')
-      if maps[n] == OP_GBL and accs[n] == OP_READ:
-        if declared == 0:
-          code('char *tmp = (char*)malloc('+dims[n]+'*sizeof('+typs[n]+'));')
-          declared = 1
+    lbra = i + kernel_text[i:].find('{')
+    rbra = op2_gen_common.para_parse(kernel_text, lbra, '{', '}')
+    signature_text = kernel_text[i:lbra]
+    lpar = signature_text.find('(')
+    rpar = op2_gen_common.para_parse(signature_text, 0, '(', ')')
+  
+    signature_text = signature_text[lpar+1:rpar]
+    body_text = kernel_text[lbra+1:rbra]
+
+    #Replace "#include <FILE>" with contents of file
+    body_text = op2_gen_common.replace_local_includes_with_file_contents(body_text, os.path.dirname(master))
+  
+    params = signature_text.split(',')
+   
+    #check number of arguments
+    if len(params) != nargs_novec:
+      print "Error parsing user kernel ("+name+"): must have "+str(nargs)+" arguments"
+      return
+  
+    for i in range(0,nargs_novec):
+      var = params[i].strip()
+      #StructOfArrays and ID/GBL or READ, MAX, or MIN
+      if kernels[nk]['soaflags'][i] and ( not(kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
+        var = var.replace('*','')
+        sp = re.compile('\\s+\\b').split(var)
+        var2 = sp[len(sp)-1].strip()
+        
+        stride = op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)
+
+        if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
+        #Multiple second index by stride
+          body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+stride+']', body_text) 
         else:
-          code('tmp = (char*)malloc('+dims[n]+'*sizeof('+typs[n]+'));')
-        code('memcpy(tmp, arg'+str(n)+'.data,'+dims[n]+'*sizeof('+typs[n]+'));')
-        code('desc->args['+str(n)+'].data = tmp;')
-    code('desc->function = op_par_loop_'+name+'_execute;')
+          body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
+          body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+stride+']', body_text)
 
-    code('')
-    code('op_enqueue_kernel(desc);')
-    depth -= 2
-    code('}')
-
-
-    #
-    # Save host stub code -final bit thats actualyl called
-    #
-    body_end = file_text
-    file_text = ''
-
+        
+    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"        
 
 ##########################################################################
 #  output individual kernel file
@@ -548,9 +232,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     if not os.path.exists('cuda'):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel.cu','w')
-    date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(header+body+body_end)
+    fid.write(user_function)
     fid.close()
 
 ##########################################################################
@@ -559,9 +242,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     if not os.path.exists('cuda'):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel_rec.cu','w')
-    date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(jit_header+body + '\n} //end extern c')
+    fid.write(jit_include+user_function)# '\n} //end extern c')
     fid.close()
 
 

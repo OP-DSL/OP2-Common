@@ -3,126 +3,40 @@
 //
 
 //user function
-#include "../bres_calc.h"
+__device__ void bres_calc_gpu( const double *x1, const double *x2, const double *q1,
+                      const double *adt1, double *res1, const int *bound)
+{
+  double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
-//host stub function
-void op_par_loop_bres_calc_execute(op_kernel_descriptor *desc) {
-  op_set set = desc->set;
-  char const *name = desc->name;
-  int nargs = 6;
+  dx = x1[0] - x2[0];
+  dy = x1[1] - x2[1];
 
-  op_arg arg0 = desc->args[0];
-  op_arg arg1 = desc->args[1];
-  op_arg arg2 = desc->args[2];
-  op_arg arg3 = desc->args[3];
-  op_arg arg4 = desc->args[4];
-  op_arg arg5 = desc->args[5];
+  ri = 1.0f / q1[0];
+  p1 = gm1 * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
 
-  op_arg args[6] = {
-  arg0,
-  arg1,
-  arg2,
-  arg3,
-  arg4,
-  arg5};
+  if (*bound == 1) {
+    res1[1] += +p1 * dy;
+    res1[2] += -p1 * dx;
+  } else {
+    vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-  #ifdef OP2_JIT
-  if (!jit_compiled) {
-    jit_compile();
-  }
-  (*bres_calc_function)(desc);
-  return;
-  #endif
+    ri = 1.0f / qinf[0];
+    p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
+    vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
 
-  // initialise timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timing_realloc(3);
-  op_timers_core(&cpu_t1, &wall_t1);
+    mu = (*adt1) * eps;
 
-  if (OP_diags>2) {
-    printf(" kernel routine with indirection: bres_calc\n");
+    f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
+    res1[0] += f;
+    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
+        mu * (q1[1] - qinf[1]);
+    res1[1] += f;
+    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
+        mu * (q1[2] - qinf[2]);
+    res1[2] += f;
+    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
+        mu * (q1[3] - qinf[3]);
+    res1[3] += f;
   }
 
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
-
-  if (set->size >0) {
-
-    for ( int n=0; n<set_size; n++ ){
-      if (n==set->core_size) {
-        op_mpi_wait_all(nargs, args);
-      }
-      int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-      int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-      int map2idx = arg2.map_data[n * arg2.map->dim + 0];
-
-
-      bres_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg2.data)[4 * map2idx],
-        &((double*)arg3.data)[1 * map2idx],
-        &((double*)arg4.data)[4 * map2idx],
-        &((int*)arg5.data)[1 * n]);
-    }
-  }
-
-  if (set_size == 0 || set_size == set->core_size) {
-    op_mpi_wait_all(nargs, args);
-  }
-  // combine reduction data
-  op_mpi_set_dirtybit(nargs, args);
-
-  // update kernel record
-  op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[3].name      = name;
-  OP_kernels[3].count    += 1;
-  OP_kernels[3].time     += wall_t2 - wall_t1;
-  OP_kernels[3].transfer += (float)set->size * arg0.size;
-  OP_kernels[3].transfer += (float)set->size * arg2.size;
-  OP_kernels[3].transfer += (float)set->size * arg3.size;
-  OP_kernels[3].transfer += (float)set->size * arg4.size * 2.0f;
-  OP_kernels[3].transfer += (float)set->size * arg5.size;
-  OP_kernels[3].transfer += (float)set->size * arg0.map->dim * 4.0f;
-  OP_kernels[3].transfer += (float)set->size * arg2.map->dim * 4.0f;
-}
-
-//host stub function
-void op_par_loop_bres_calc(char const *name, op_set set,
-  op_arg arg0,
-  op_arg arg1,
-  op_arg arg2,
-  op_arg arg3,
-  op_arg arg4,
-  op_arg arg5){
-
-  int nargs = 6;
-  op_arg args[6];
-
-  op_kernel_descriptor *desc =
-  (op_kernel_descriptor *)malloc(sizeof(op_kernel_descriptor));
-  desc->name = name;
-  desc->set = set;
-  desc->device = 1;
-  desc->index = 3;
-  desc->hash = 5381;
-  desc->hash = ((desc->hash << 5) + desc->hash) + 3;
-
-  //save the arguments
-  desc->nargs = 6;
-  desc->args = (op_arg *)malloc(6 * sizeof(op_arg));
-  desc->args[0] = arg0;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg0.dat->index;
-  desc->args[1] = arg1;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg1.dat->index;
-  desc->args[2] = arg2;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg2.dat->index;
-  desc->args[3] = arg3;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg3.dat->index;
-  desc->args[4] = arg4;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg4.dat->index;
-  desc->args[5] = arg5;
-  desc->hash = ((desc->hash << 5) + desc->hash) + arg5.dat->index;
-  desc->function = op_par_loop_bres_calc_execute;
-
-  op_enqueue_kernel(desc);
 }

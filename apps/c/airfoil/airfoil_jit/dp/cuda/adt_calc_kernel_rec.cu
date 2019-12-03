@@ -3,85 +3,36 @@
 //
 
 #include "op_lib_cpp.h"
-//global constants - values #defined by JIT
-#include "jit_const.h"
+//global_constants - values #defined by JIT
+#include "jit_const.h
 
 //user function
-#include "../adt_calc.h"
+__device__ void adt_calc_gpu( const double *x1, const double *x2, const double *x3,
+                     const double *x4, const double *q, double *adt)
+{
+  double dx, dy, ri, u, v, c;
 
-extern "C" {
-void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor *desc);
+  ri = 1.0f / q[0];
+  u = ri * q[1];
+  v = ri * q[2];
+  c = sqrt(gam * gm1 * (ri * q[3] - 0.5f * (u * u + v * v)));
 
-//host stub function
-void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor *desc) {
-  op_set set = desc->set;
-  char const *name = desc->name;
-  int nargs = 6;
+  dx = x2[0] - x1[0];
+  dy = x2[1] - x1[1];
+  *adt = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  op_arg arg0 = desc->args[0];
-  op_arg arg1 = desc->args[1];
-  op_arg arg2 = desc->args[2];
-  op_arg arg3 = desc->args[3];
-  op_arg arg4 = desc->args[4];
-  op_arg arg5 = desc->args[5];
+  dx = x3[0] - x2[0];
+  dy = x3[1] - x2[1];
+  *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  op_arg args[6] = {
-  arg0,
-  arg1,
-  arg2,
-  arg3,
-  arg4,
-  arg5};
+  dx = x4[0] - x3[0];
+  dy = x4[1] - x3[1];
+  *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
+  dx = x1[0] - x4[0];
+  dy = x1[1] - x4[1];
+  *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  // initialise timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timing_realloc(1);
-  op_timers_core(&cpu_t1, &wall_t1);
+  *adt = (*adt) * (1.0f / cfl);
 
-  if (OP_diags>2) {
-    printf(" kernel routine with indirection: adt_calc\n");
-  }
-
-  int set_size = op_mpi_halo_exchanges(set, nargs, args);
-
-  if (set->size >0) {
-
-    for ( int n=0; n<set_size; n++ ){
-      if (n==set->core_size) {
-        op_mpi_wait_all(nargs, args);
-      }
-      int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-      int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-      int map2idx = arg0.map_data[n * arg0.map->dim + 2];
-      int map3idx = arg0.map_data[n * arg0.map->dim + 3];
-
-
-      adt_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg0.data)[2 * map2idx],
-        &((double*)arg0.data)[2 * map3idx],
-        &((double*)arg4.data)[4 * n],
-        &((double*)arg5.data)[1 * n]);
-    }
-  }
-
-  if (set_size == 0 || set_size == set->core_size) {
-    op_mpi_wait_all(nargs, args);
-  }
-  // combine reduction data
-  op_mpi_set_dirtybit(nargs, args);
-
-  // update kernel record
-  op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[1].name      = name;
-  OP_kernels[1].count    += 1;
-  OP_kernels[1].time     += wall_t2 - wall_t1;
-  OP_kernels[1].transfer += (float)set->size * arg0.size;
-  OP_kernels[1].transfer += (float)set->size * arg4.size;
-  OP_kernels[1].transfer += (float)set->size * arg5.size;
-  OP_kernels[1].transfer += (float)set->size * arg0.map->dim * 4.0f;
 }
-
-} //end extern c
