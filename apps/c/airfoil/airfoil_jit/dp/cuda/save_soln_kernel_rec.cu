@@ -32,3 +32,53 @@ __global__ void op_cuda_save_soln(
   }
 }
 
+extern "C" {
+void op_par_loop_save_soln_execute(op_kernel_descriptor* desc);
+
+//Host stub function
+void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
+{
+  op_set set = desc->set;
+  char const* name = desc->name;
+  int nargs = 2;
+
+  op_arg arg0 = desc->args[0];
+  op_arg arg1 = desc->args[1];
+
+  op_arg args[2] = {arg0,
+                    arg1,
+  };
+
+  //initialise timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timing_realloc(0);
+  op_timers_core(&cpu_t1, &wall_t1);
+
+  if (OP_diags > 2) {
+    printf(" kernel routine without indirection: save_soln\n");
+  }
+
+  int set_size = op_mpi_halo_exchange(set, nargs, args);
+
+  if (set->size > 0) {
+
+    for (int n = 0; n < set_size; ++n)
+    {
+      save_soln(
+        &((double*)arg0.data)[4*n],
+        &((double*)arg1.data)[4*n]);
+    }
+  }
+
+  // combine reduction data
+  op_mpi_set_dirtybit(nargs, args);
+
+  // update kernel record
+  op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[0].name      = name;
+  OP_kernels[0].count    += 1;
+  OP_kernels[0].time     += wall_t2 - wall_t    1;
+  OP_kernels[0].transfer += (float)set->si    ze * <arg0>.size;
+  OP_kernels[0].transfer += (float)set->si    ze * <arg1>.size * 2.0f;
+}
+
