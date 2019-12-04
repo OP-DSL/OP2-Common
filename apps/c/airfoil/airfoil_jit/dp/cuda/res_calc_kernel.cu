@@ -38,3 +38,61 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
   res2[3] -= f;
 
 }
+
+//C CUDA kernel function
+__global__ void op_cuda_res_calc(
+ const double* __restrict ind_arg0,
+ const double* __restrict ind_arg1,
+ const double* __restrict ind_arg2,
+ double* __restrict ind_arg3,
+ const int* __restrict opDat2Map,
+ const int* __restrict opDat4Map,
+ int start
+ int end
+ int set_size)
+{
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tid + start < end) {
+    int n = tid + start;
+    //Initialise locals
+    double arg6_1[4]
+    for (int d = 0; d < 4; ++d)
+    {
+      arg6_1[d]=ZERO_double;
+    }
+    double arg7_1[4]
+    for (int d = 0; d < 4; ++d)
+    {
+      arg7_1[d]=ZERO_double;
+    }
+    int map0idx;
+    map0idx = opDat0Map[n + set_size * 0];
+    int map1idx;
+    map1idx = opDat0Map[n + set_size * 1];
+    int map2idx;
+    map2idx = opDat2Map[n + set_size * 0];
+    int map3idx;
+    map3idx = opDat2Map[n + set_size * 1];
+
+    //user function call
+    res_calc_gpu(ind_arg0+map0idx*2,
+                 ind_arg0+map1idx*2,
+                 ind_arg1+map2idx*4,
+                 ind_arg1+map3idx*4,
+                 ind_arg2+map2idx*1,
+                 ind_arg2+map3idx*1,
+                 arg6_1,
+                 arg7_1
+    );
+
+    atomicAdd(&ind_arg3[0+map2idx*4],arg6_1[0]);
+    atomicAdd(&ind_arg3[1+map2idx*4],arg6_1[1]);
+    atomicAdd(&ind_arg3[2+map2idx*4],arg6_1[2]);
+    atomicAdd(&ind_arg3[3+map2idx*4],arg6_1[3]);
+    atomicAdd(&ind_arg3[0+map3idx*4],arg7_1[0]);
+    atomicAdd(&ind_arg3[1+map3idx*4],arg7_1[1]);
+    atomicAdd(&ind_arg3[2+map3idx*4],arg7_1[2]);
+    atomicAdd(&ind_arg3[3+map3idx*4],arg7_1[3]);
+  }
+}
+

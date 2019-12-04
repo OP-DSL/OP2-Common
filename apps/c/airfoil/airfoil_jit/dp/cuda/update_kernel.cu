@@ -20,3 +20,35 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
   *rms += rmsl;
 
 }
+
+//C CUDA kernel function
+__global__ void op_cuda_update(
+ const double* __restrict arg0,
+ double* __restrict arg1,
+ double* __restrict arg2,
+ const double* __restrict arg3,
+ double* arg4,
+ int set_size)
+{
+  //Process set elements
+  for (int n = threadIdx.x+blockIdx.x*blockDim.x; n < set_size; n += blockDim.x*gridDim.x)
+  {
+
+    //user function call
+    update_gpu(arg0+n*4,
+               arg1+n*4,
+               arg2+n*4,
+               arg3+n*1,
+               arg4_1
+    );
+
+  }
+
+  //global reductions
+
+  for (int d = 0; d < 1; ++d)
+  {
+    op_reduction<OP_INC>(&arg4[d+blockIdx.x*1],arg4_1[d];
+  }
+}
+

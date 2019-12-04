@@ -36,3 +36,39 @@ __device__ void adt_calc_gpu( const double *x1, const double *x2, const double *
   *adt = (*adt) * (1.0f / cfl);
 
 }
+
+//C CUDA kernel function
+__global__ void op_cuda_adt_calc(
+ const double* __restrict ind_arg0,
+ const int* __restrict opDat0Map,
+ const double* __restrict arg4,
+ double* __restrict arg5,
+ int start
+ int end
+ int set_size)
+{
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tid + start < end) {
+    int n = tid + start;
+    //Initialise locals
+    int map0idx;
+    map0idx = opDat0Map[n + set_size * 0];
+    int map1idx;
+    map1idx = opDat0Map[n + set_size * 1];
+    int map2idx;
+    map2idx = opDat0Map[n + set_size * 2];
+    int map3idx;
+    map3idx = opDat0Map[n + set_size * 3];
+
+    //user function call
+    adt_calc_gpu(ind_arg0+map0idx*2,
+                 ind_arg0+map1idx*2,
+                 ind_arg0+map2idx*2,
+                 ind_arg0+map3idx*2,
+                 arg4+n*4,
+                 arg5+n*1
+    );
+
+  }
+}
+

@@ -53,7 +53,18 @@ def FOR(i,start,finish):
   if FORTRAN:
     code('do '+i+' = '+start+', '+finish+'-1')
   elif CPP:
-    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
+    code('for (int '+i+' = '+start+'; '+i+' < '+finish+'; ++'+i+')')
+    code('{') 
+  depth += 2
+
+def FOR_INC(i,start,finish,inc):
+  global file_text,FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('do '+i+' = '+start+', '+finish+'-1')
+  elif CPP:
+    code('for (int '+i+' = '+start+'; '+i+' < '+finish+'; '+i+' += '+inc+')') 
+    code('{') 
   depth += 2
 
 def ENDFOR():
@@ -139,8 +150,6 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         j = i
     reduct = j > 0
 
-
-
     FORTRAN = 0;
     CPP     = 1;
     g_m = 0;
@@ -224,7 +233,224 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
           body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+stride+']', body_text)
 
         
-    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"        
+    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"
+
+##########################################################################
+#  Kernel Function - Calls user function
+##########################################################################
+
+    code('') 
+    comm('C CUDA kernel function')
+    
+    #Function head 
+
+    if FORTRAN:
+      code('subroutine op_cuda_'+name+'(')
+    elif CPP:
+      code('__global__ void op_cuda_'+name+'(')
+  
+    depth = 1
+  
+    if nopts > 0: #Has optional arguments
+      code('int optflags,')
+ 
+    for g_m in range(0, ninds):
+      is_const = ''
+      if indaccs[g_m] == OP_READ:
+        is_const = 'const '
+      code(is_const + 'INDTYP* __restrict INDARG,')
+
+    if nmaps > 0:
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and not (mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('const int* __restrict opDat'+str(invinds[inds[g_m]])+'Map, ')
+ 
+    for g_m in range(0,nargs):
+      is_const = ''
+      if accs[g_m] == OP_READ:
+        is_const = 'const '
+      if maps[g_m] == OP_ID:
+        code(is_const + 'TYP* __restrict ARG,')
+      elif maps[g_m] == OP_GBL:
+        code(is_const + 'TYP* ARG,')
+
+    if ninds > 0:
+      code('int start')
+      code('int end')
+    
+    code('int set_size)')
+    depth = 0
+    code('{')
+
+    #Function Body
+    depth = 2
+
+    for m in range(1,ninds+1):
+      g_m = m-1;
+      v = [int(inds[i] == m) for i in range(len(inds))]
+      v_i = [vectorised[i] for i in range(len(inds)) if inds[i] == m]
+      if sum(v) > 1 and sum(v_i) > 0:
+        if indaccs[m-1] == OP_INC:
+          ind = int(max([idxs[i] for i in range(len(inds)) if inds[i] == m])) + 1
+          code('INDTYP* arg'+str(invinds[m-1])+'_vec['+str(ind)+'] = {')
+       
+          #Fill list
+          depth += 2
+          for n in range(0,nargs):
+            if ind[n] == m:
+              g_m = n
+              code('ARG_1,')
+          depth -= 2
+          code('};')
+#
+# Has indirection
+#
+    if ninds > 0:          
+      code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
+      IF('tid + start < end')
+      code('int n = tid + start;')
+ 
+      comm('Initialise locals')
+      for g_m in range(0,nargs):
+        if (maps[g_m] == OP_GBL or maps[g_m] == OP_MAP) and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+          code('TYP ARG_1[DIM]')
+          if accs[g_m] == OP_INC:
+            FOR('d','0','DIM')
+            code('ARG_1[d]=ZERO_TYP;')
+            ENDFOR()
+          elif maps[g_m] == OP_GBL:
+            FOR('d','0','DIM')
+            code('ARG_1[d]=ARG[d+blockIdx.x*DIM];')
+            ENDFOR()
+
+      #mapIdx decls
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and not(mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('int map'+str(mapinds[g_m])+'idx;')
+
+          # Check optional map has been passed
+          if optflags[g_m] == 1:
+            IF('optflags & 1 << '+str(optidxs[g_m]))
+
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+
+          # Close IF for optional map
+          if optflags[g_m] == 1:
+            ENDIF()
+
+  ## SKIPPED op2_gen_cuda_simple.py lines 574 - 594 
+
+#
+# No indirection
+#
+    else:
+      comm('Process set elements')
+      FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
+
+#
+# User Function call
+#
+
+    code('')
+    comm('user function call')
+    func_name = name + '_gpu('
+    indent = ' '*(len(func_name))
+    for g_m in range(0,nargs):
+      start = indent
+      end = ','
+      if g_m == 0:
+        start = func_name
+      if g_m == (nargs-1):
+        end = ''
+
+      if maps[g_m] == OP_GBL:
+        if accs[g_m] == OP_READ or accs[m] == OP_WRITE:
+          code(start + 'ARG' + end)
+        else:
+          code(start + 'ARG_1' + end)
+
+      elif maps[g_m] == OP_MAP:
+        if vectorised[g_m]:
+          if m+1 in unique_args: 
+            code(start + 'ARG_vec' + end)
+        elif accs[g_m] == OP_INC:
+          code(start + 'ARG_1' + end)
+        else:
+          is_soa = '*DIM'
+          if soaflags[g_m]:
+            is_soa = ''
+          code(start + 'ind_arg'+str(inds[g_m]-1)+'+map'+str(mapinds[g_m])+'idx'+is_soa + end)
+      elif maps[g_m] == OP_ID:
+        is_soa = '*DIM'
+        if soaflags[g_m]:
+          is_soa = ''
+        code(start + 'ARG+n' + is_soa + end)
+      else:
+        print 'internal error 1'
+     
+    code(');') 
+    code('')
+
+#    
+# updating for indirect kernels
+#
+    if ninds > 0:
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+          if optflags[g_m] == 1:
+            IF('optflags & 1<<'+str(optidxs[g_m]))
+          for d in range(0,int(dims[g_m])):
+            stride = ''
+            dim = '*DIM'
+            if soaflags[g_m]:
+              stride = '*' + op2_gen_common.get_stride_string(g_m,maps,mapnames,name)
+              dim = ''
+            code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+stride+'+map'+str(mapinds[g_m])+'idx'+dim+'],ARG_1['+str(d)+']);')
+          if optflags[g_m] == 1:
+            ENDIF()
+    
+      ENDIF()
+    else:
+      ENDFOR()
+
+#
+# global reduction
+#
+    if reduct:
+      code('')
+      comm('global reductions')
+      code('')
+    
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+          op = ''
+          if accs[m]   == OP_INC:  
+            op = 'OP_INC'
+          elif accs[m] == OP_MIN:
+            op = 'OP_MIN'
+          elif accs[m] == OP_MAX: 
+            op = 'OP_MAX'
+          else:
+            print 'internal error: invalid reduction option'
+            sys.exit(2)  
+          
+          FOR('d','0','DIM')
+          code('op_reduction<'+op+'>(&ARG[d+blockIdx.x*DIM],ARG_1[d];')
+          ENDFOR()
+    
+#
+# end function
+#    
+    depth -= 2
+    code('}')
+    code('')
+  
+    kernel_function = file_text
+    file_text = ''
 
 ##########################################################################
 #  output individual kernel file
@@ -233,7 +459,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(user_function)
+    fid.write(user_function+kernel_function)
     fid.close()
 
 ##########################################################################
@@ -243,7 +469,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel_rec.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(jit_include+user_function)# '\n} //end extern c')
+    fid.write(jit_include+user_function+kernel_function)# '\n} //end extern c')
     fid.close()
 
 
