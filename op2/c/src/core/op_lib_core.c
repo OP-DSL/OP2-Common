@@ -380,6 +380,9 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->dim = dim;
   dat->data = data;
   //printf("DATASET %s, ptr %p\n", name, data);
+  /*char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
+  memcpy(new_data, data, dim * size * set->size * sizeof(char));
+  dat->data = new_data;*/
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -401,6 +404,10 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     exit(-1);
   }
   item->dat = dat;
+  if (data == NULL) {
+    printf("WARNING data pointer is NULL for %s!\n", name);
+  }
+  item->orig_ptr = data;
 
   // add item to the end of the list
   if (TAILQ_EMPTY(&OP_dat_list)) {
@@ -618,11 +625,11 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.map_data = NULL;
   }
 
-  if (strcmp(typ, "double") == 0)
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0)
     arg.type = doublestr;
   else if (strcmp(typ, "float") == 0)
     arg.type = floatstr;
-  else if (strcmp(typ, "int") == 0)
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0)
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -1090,7 +1097,7 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   op_dat item_dat = NULL;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
-    if (item->dat->data == dat) {
+    if (item->orig_ptr == dat) {
       //printf("%s(%p), ", item->dat->name, item->dat->data);
       item_dat = item->dat; break;
     }
@@ -1131,3 +1138,13 @@ op_set op_get_set(int idx) {
   else return NULL;
 }
 
+void op_dat_write_index(op_set set, int* dat) {
+  op_arg arg = op_arg_dat_ptr(1, (char*)dat, -2, NULL, 1, "int", OP_WRITE);
+  if (set != arg.dat->set) {
+    op_printf("Error: op_dat_write_index set and arg.dat->set do not match\n");
+    exit(-1);
+  }
+  for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
+    ((int*)arg.dat->data)[i] = i+1;
+  }
+}

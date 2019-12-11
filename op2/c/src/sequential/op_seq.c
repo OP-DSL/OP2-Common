@@ -68,7 +68,9 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
-  return op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+  //free(data);
+  return dat;
 }
 
 int op_free_dat_temp_char(op_dat dat) { return op_free_dat_temp_core(dat); }
