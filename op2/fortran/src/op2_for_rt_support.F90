@@ -149,6 +149,13 @@ module OP2_Fortran_RT_Support
 
     end function FortranPlanCaller
 
+    subroutine op_dat_write_index_c(set, dat) BIND(C,name='op_dat_write_index')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+      type(c_ptr), value ::         set,dat
+    end subroutine
+
+
     integer(kind=c_int) function getSetSizeFromOpArg (arg) BIND(C,name='getSetSizeFromOpArg')
 
       use, intrinsic :: ISO_C_BINDING
@@ -413,6 +420,17 @@ module OP2_Fortran_RT_Support
 
     call op_renumber_c (base_map%mapPtr)
 
+  end subroutine
+
+  subroutine op_dat_write_index(set, dat)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    type(op_set) :: set
+    integer(4), dimension(*), target :: dat
+
+    call op_dat_write_index_c(set%setCPtr, c_loc(dat))
   end subroutine
 
 end module OP2_Fortran_RT_Support

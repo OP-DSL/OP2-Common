@@ -187,6 +187,7 @@ typedef struct {
 // struct definition for a double linked list entry to hold an op_dat
 struct op_dat_entry_core {
   op_dat dat;
+  void *orig_ptr;
   TAILQ_ENTRY(op_dat_entry_core)
   entries; /*holds pointers to next and
            previous entries in the list*/
