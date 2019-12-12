@@ -727,7 +727,7 @@ module OP2_Fortran_Declarations
     module procedure op_arg_dat_python, op_arg_dat_real_8, op_arg_dat_integer_4, &
                      op_arg_dat_real_8_2, op_arg_dat_integer_4_2, &
                      op_arg_dat_real_8_3, op_arg_dat_integer_4_3, &
-                     op_arg_dat_real_8_4, op_arg_dat_integer_4_4, &
+                     op_arg_dat_real_8_4, op_arg_dat_real_8_4_m2, &
                      op_arg_dat_real_8_m2, op_arg_dat_integer_4_m2, &
                      op_arg_dat_real_8_2_m2, op_arg_dat_integer_4_2_m2, &
                      op_arg_dat_real_8_3_m2, op_arg_dat_integer_4_3_m2, &
@@ -735,14 +735,14 @@ module OP2_Fortran_Declarations
   end interface op_arg_dat
 
   interface op_opt_arg_dat
-    module procedure op_opt_arg_dat_python, op_opt_arg_dat_real_8, op_opt_arg_dat_real_8_m2, &
-                     op_opt_arg_dat_real_8_2, op_opt_arg_dat_real_8_2_m2, &
-                     op_opt_arg_dat_real_8_3, op_opt_arg_dat_real_8_3_m2, &
-                     op_opt_arg_dat_real_8_4, op_opt_arg_dat_real_8_4_m2, &
-                     op_opt_arg_dat_integer_4, op_opt_arg_dat_integer_4_m2, &
-                     op_opt_arg_dat_integer_4_2, op_opt_arg_dat_integer_4_2_m2, &
-                     op_opt_arg_dat_integer_4_3, op_opt_arg_dat_integer_4_3_m2, &
-                     op_opt_arg_dat_integer_4_4, op_opt_arg_dat_integer_4_4_m2
+    module procedure op_opt_arg_dat_python, op_opt_arg_dat_real_8, &
+                     op_opt_arg_dat_real_8_m2, op_opt_arg_dat_real_8_2, &
+                     op_opt_arg_dat_real_8_2_m2, op_opt_arg_dat_real_8_3, &
+                     op_opt_arg_dat_real_8_4_m2, op_opt_arg_dat_real_8_4, &
+                     op_opt_arg_dat_real_8_3_m2, op_opt_arg_dat_integer_4, &
+                     op_opt_arg_dat_integer_4_m2, op_opt_arg_dat_integer_4_2, &
+                     op_opt_arg_dat_integer_4_2_m2, op_opt_arg_dat_integer_4_3, &
+                     op_opt_arg_dat_integer_4_3_m2
   end interface op_opt_arg_dat
 
   interface op_fetch_data
@@ -1245,18 +1245,6 @@ contains
     op_arg_dat_real_8_3_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_3_m2
 
-type(op_arg) function op_arg_dat_real_8_4 (dat, idx, map, dim, type, access)
-    use, intrinsic :: ISO_C_BINDING
-    implicit none
-    real(8), dimension(:,:,:,:), intent(in), target :: dat
-    integer(4), dimension(*), intent(in), target :: map
-    integer(kind=c_int) :: idx, dim, access
-    character(kind=c_char,len=*) :: type
-    integer(kind=c_int) :: opt
-    opt = 1
-    op_arg_dat_real_8_4 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
-  end function op_arg_dat_real_8_4
-
   type(op_arg) function op_arg_dat_real_8_4_m2 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
     implicit none
@@ -1268,6 +1256,19 @@ type(op_arg) function op_arg_dat_real_8_4 (dat, idx, map, dim, type, access)
     opt = 1
     op_arg_dat_real_8_4_m2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_4_m2
+
+  type(op_arg) function op_arg_dat_real_8_4 (dat, idx, map, dim, type, access)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+    integer(kind=c_int) :: idx, dim, access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_real_8_4 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
+  end function op_arg_dat_real_8_4
+
 
   type(op_arg) function op_arg_dat_integer_4 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
@@ -1736,9 +1737,11 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     if (opt) then
       if ( map%mapPtr%dim .eq. 0 ) then
         ! OP_ID case (does not decrement idx)
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,   &
+          & dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       else
-        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+        op_opt_arg_dat_python = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr, &
+          &  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
       endif
     else
       if ( map%mapPtr%dim .eq. 0 ) then
@@ -1889,7 +1892,8 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( c_loc (real_ptr(dat)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( c_loc (dat(1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+    !op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( c_loc (real_ptr(dat)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
     !op_arg_gbl_python_r8_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_r8_2dim
@@ -1945,7 +1949,8 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     character(kind=c_char,len=*) :: type
 
     ! warning: access is in FORTRAN style, while the C style is required here
-    op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (int_ptr(dat)), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
+    !op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (int_ptr(dat)), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
+    op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( c_loc (dat(1,1)), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
     !op_arg_gbl_python_i4_2dim = op_arg_gbl_c ( dat%dataCPtr, dat%dataPtr%dim, dat%dataPtr%type, access-1 )
 
   end function op_arg_gbl_python_i4_2dim
@@ -2213,7 +2218,8 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     type(op_dat)                  :: mark
     type(op_export_handle)        :: handle
 
-    handle%exportCptr = op_export_init_c ( nprocs, c_loc(proclist_ptr), cells2Nodes%mapPtr, sp_nodes%setPtr, coords%dataPtr, mark%dataPtr)
+    handle%exportCptr = op_export_init_c ( nprocs, c_loc(proclist_ptr), cells2Nodes%mapPtr, &
+     &   sp_nodes%setPtr, coords%dataPtr, mark%dataPtr)
 
     call c_f_pointer ( handle%exportCPtr, handle%exportPtr )
 

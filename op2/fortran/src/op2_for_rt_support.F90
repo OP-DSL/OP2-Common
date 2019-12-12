@@ -149,6 +149,13 @@ module OP2_Fortran_RT_Support
 
     end function FortranPlanCaller
 
+    subroutine op_dat_write_index_c(set, dat) BIND(C,name='op_dat_write_index')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+      type(c_ptr), value ::         set,dat
+    end subroutine
+
+
     integer(kind=c_int) function getSetSizeFromOpArg (arg) BIND(C,name='getSetSizeFromOpArg')
 
       use, intrinsic :: ISO_C_BINDING
@@ -210,6 +217,21 @@ module OP2_Fortran_RT_Support
       type(op_dat_core) :: coords
 
     end subroutine
+
+    subroutine op_partition_ptr_c (lib_name, lib_routine, prime_set, prime_map, coords) BIND(C,name='op_partition_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      character(kind=c_char) :: lib_name(*)
+      character(kind=c_char) :: lib_routine(*)
+
+      type(op_set_core) :: prime_set
+      type(c_ptr), value, intent(in) :: prime_map
+      type(c_ptr), value, intent(in) :: coords
+
+    end subroutine
+
 
     subroutine op_renumber_c (base) BIND(C,name='op_renumber')
 
@@ -402,6 +424,24 @@ module OP2_Fortran_RT_Support
 
   end subroutine
 
+  subroutine op_partition2 (lib_name, lib_routine, prime_set, prime_map, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    character(kind=c_char,len=*) :: lib_name
+    character(kind=c_char,len=*) :: lib_routine
+
+    type(op_set) :: prime_set
+    integer*4, dimension(*), target :: prime_map
+    real*8, dimension(*), target :: coords
+
+    call op_partition_ptr_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, c_loc(prime_map), c_loc(coords))
+
+  end subroutine
+
   subroutine op_renumber (base_map)
 
     use, intrinsic :: ISO_C_BINDING
@@ -413,6 +453,17 @@ module OP2_Fortran_RT_Support
 
     call op_renumber_c (base_map%mapPtr)
 
+  end subroutine
+
+  subroutine op_dat_write_index(set, dat)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    type(op_set) :: set
+    integer(4), dimension(*), target :: dat
+
+    call op_dat_write_index_c(set%setCPtr, c_loc(dat))
   end subroutine
 
 end module OP2_Fortran_RT_Support

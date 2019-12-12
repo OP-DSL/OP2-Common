@@ -143,10 +143,10 @@ ifeq ($(OP2_COMPILER),gnu)
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   CC              = gcc
   CXX             = g++
-  CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  CFLAGS_SLOW     = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  FC              = gfortran
-  FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS          = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS_SLOW     = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FC              = gfortran  -DOP2_ARG_POINTERS
+  FFLAGS          = -g -O0 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   MPICC           = mpicc
   MPICXX          = mpicxx
@@ -211,7 +211,7 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -g -xHOST -vec-report
+  OPT             = -O0 -g -xHOST -vec-report
   CC              = icc
   CXX             = icpc 
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
