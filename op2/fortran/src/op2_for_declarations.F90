@@ -730,8 +730,7 @@ module OP2_Fortran_Declarations
                      op_arg_dat_real_8_4, op_arg_dat_real_8_4_m2, &
                      op_arg_dat_real_8_m2, op_arg_dat_integer_4_m2, &
                      op_arg_dat_real_8_2_m2, op_arg_dat_integer_4_2_m2, &
-                     op_arg_dat_real_8_3_m2, op_arg_dat_integer_4_3_m2, &
-                     op_arg_dat_real_8_4_m2, op_arg_dat_integer_4_4_m2
+                     op_arg_dat_real_8_3_m2, op_arg_dat_integer_4_3_m2
   end interface op_arg_dat
 
   interface op_opt_arg_dat
