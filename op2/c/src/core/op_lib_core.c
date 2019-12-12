@@ -534,7 +534,7 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set){
       //op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset set %p does not match loop set %p\n", set, arg.dat->set);
+        printf("dataset set %p (%s) does not match loop set %p (%s)\n", arg.dat->set, arg.dat->set->name, set, set->name );
     }
 
     if (arg.map != NULL) {
@@ -544,7 +544,7 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
         }
         if (arg.map->to != arg.dat->set) {
           op_err_print("mapping error", m, name);
-          printf("map to set %s does not match dat %s set %s\n", arg.map->to->name, arg.dat->name, arg.dat->set->name);
+          printf("map %s to set %s does not match dat %s set %s\n", arg.map->name, arg.map->to->name, arg.dat->name, arg.dat->set->name);
         }
     }
 
