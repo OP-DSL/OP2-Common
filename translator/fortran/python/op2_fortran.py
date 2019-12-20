@@ -176,6 +176,35 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
+def arg_parse2(text, j):
+    """Parsing arguments in op_par_loop to find the correct closing brace"""
+
+    depth = 0
+    loc2 = j
+    arglist = []
+    prev_start = j
+    while 1:
+        if text[loc2] == '(':
+            if depth == 0:
+                prev_start = loc2+1
+            depth = depth + 1
+
+        elif text[loc2] == ')':
+            depth = depth - 1
+            if depth == 0:
+                arglist.append(text[prev_start:loc2].strip())
+                return arglist
+
+        elif text[loc2] == ',':
+            if depth == 1:
+                arglist.append(text[prev_start:loc2].strip())
+                prev_start = loc2+1
+        elif text[loc2] == '{':
+            depth = depth + 1
+        elif text[loc2] == '}':
+            depth = depth - 1
+        loc2 = loc2 + 1
+
 def typechange(text):
   if '"INTEGER(kind=4)"' in text:
     return '"i4"'
@@ -218,22 +247,22 @@ def get_arg_dat(arg_string, j):
   'acc':dat_args_string.split(',')[5].strip(),
   'opt':''}
 
-  if 'DNPDE' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
-  if 'npdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
-  if 'nfcrow' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
-  if 'ntqmu' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
-  if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'#'1*1'
-  if 'mpdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
-  if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'#'1*1'
+#  if 'DNPDE' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+#  if 'npdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+#  if 'nfcrow' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+#  if 'ntqmu' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+#  if temp_dat['dim']=='njaca':
+#    temp_dat['dim']='1'#'1*1'
+#  if 'mpdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
+#  if temp_dat['dim']=='njacs':
+#    temp_dat['dim']='1'#'1*1'
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
@@ -267,22 +296,22 @@ def get_opt_arg_dat(arg_string, j):
   'typ':dat_args_string.split(',')[5].strip(),
   'acc':dat_args_string.split(',')[6].strip()}
 
-  if 'DNPDE' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
-  if 'npdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
-  if 'ntqmu' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
-  if 'nfcrow' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
-  if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'#'1*1'
-  if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'#'1*1'
-  if 'mpdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
+#  if 'DNPDE' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+#  if 'npdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+#  if 'nfcrow' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+#  if temp_dat['dim']=='njaca':
+#    temp_dat['dim']='1'#'1*1'
+#  if temp_dat['dim']=='njacs':
+#    temp_dat['dim']='1'#'1*1'
+#  if 'mpdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
@@ -300,8 +329,9 @@ def get_arg_gbl(arg_string, k):
   gbl_args_string = comment_remover(gbl_args_string)
   gbl_args_string = gbl_args_string.replace('&','')
 
+  gbl_args = arg_parse2('('+gbl_args_string+')',0)
   #check for syntax errors
-  if len(gbl_args_string.split(',')) != 4:
+  if len(gbl_args) != 4:
     print 'Error parsing op_arg_gbl(%s): must have four arguments' \
           % gbl_args_string
     return
@@ -309,26 +339,26 @@ def get_arg_gbl(arg_string, k):
   # split the gbl_args_string into  4 and create a struct with the elements
   # and type as op_arg_gbl
   temp_gbl = {'type':'op_arg_gbl',
-  'data':gbl_args_string.split(',')[0].strip(),
-  'dim':gbl_args_string.split(',')[1].strip(),
-  'typ':gbl_args_string.split(',')[2].strip(),
-  'acc':gbl_args_string.split(',')[3].strip(),
+  'data':gbl_args[0].strip(),
+  'dim':gbl_args[1].strip(),
+  'typ':gbl_args[2].strip(),
+  'acc':gbl_args[3].strip(),
   'opt':''}
 
-  if 'DNPDE' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
-  if 'nfcrow' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
-  if 'npdes' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
-  if 'ntqmu' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
-  if 'maxzone' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
-  if 'mpdes' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
+#  if 'DNPDE' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+#  if 'nfcrow' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+#  if 'npdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+#  if 'maxzone' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
+#  if 'mpdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
   if temp_gbl['typ']=='"r8"':
     temp_gbl['typ']='"REAL(kind=8)"'
   if temp_gbl['typ']=='"i4"':
@@ -510,6 +540,7 @@ for a in range(init_ctr,len(sys.argv)):
     name = loop_args[i]['name1']
     set_name = loop_args[i]['set']
     nargs = loop_args[i]['nargs']
+    code_loc = loop_args[i]['loc']
     print '\nprocessing kernel '+name+' with '+str(nargs)+' arguments',
 
 #
@@ -731,17 +762,10 @@ for a in range(init_ctr,len(sys.argv)):
 
       if hydra==1:
         temp['master_file'] = src_file.split('.')[0].replace('mod_','')
-        search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name+'\n'
-        i = text.rfind(search)
-        if i > -1:
-          temp['mod_file'] = search.strip()
-        else:
-          search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name[:-1]
-          i = text.rfind(search)
-          if i > -1:
-            temp['mod_file'] = search.strip()
-          else:
-            print'  ERROR: no module file found!  '
+        temp['mod_file'] = 'use '+name+'_module'
+        i = text[0:code_loc].rfind(temp['mod_file'])
+        if i < 0:
+          print'  ERROR: no module use statement ('+temp['mod_file']+') found!  '
       if bookleaf==1:
         file_part = src_file.split('/')
         file_part = file_part[len(file_part)-1]
@@ -887,6 +911,7 @@ for a in range(init_ctr,len(sys.argv)):
       text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
       replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+      print kernels[nk]['mod_file']
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     fid = open(src_file.replace('.','_op.'), 'w')
