@@ -229,7 +229,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #  Generate Header
 ##########################################################################
     if hydra:
-      code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
@@ -292,6 +292,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
 #
       file_text += text
+      file_text += '\n#undef MIN\n'
       #code(kernels[nk]['mod_file'])
     elif bookleaf == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'

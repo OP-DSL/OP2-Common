@@ -707,6 +707,7 @@ for a in range(init_ctr,len(sys.argv)):
            repeat = True
          else:
            print 'repeated kernel with incompatible arguments: ERROR'
+           sys.exit(-1)
            break
 
 #
@@ -910,8 +911,7 @@ for a in range(init_ctr,len(sys.argv)):
       master_file = file_part.split('.')[0]
       text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
-      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
-      print kernels[nk]['mod_file']
+      replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
 
     fid = open(src_file.replace('.','_op.'), 'w')
