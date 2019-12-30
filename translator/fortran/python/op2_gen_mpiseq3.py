@@ -12,6 +12,7 @@
 import re
 import datetime
 import os
+import glob
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -221,14 +222,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     needDimList = []
     for g_m in range(0,nargs):
-      if (not dims[g_m].isdigit()) and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
+      if (not dims[g_m].isdigit()):# and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
         needDimList = needDimList + [g_m]
 
 ##########################################################################
 #  Generate Header
 ##########################################################################
     if hydra:
-      code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
@@ -252,13 +253,20 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     if hydra == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
       modfile = kernels[nk]['mod_file'][4:]
-      modfile = modfile.replace('INIT_INIT','INIT')
-      name2 = name.replace('INIT_INIT','INIT')
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
+      filename = 'kernels/'+kernels[nk]['master_file']+'_'+name+'.inc'
       if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
-      if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2[:-1] + '.F95'
+        files = [f for f in glob.glob('kernels/*'+name+'.inc')]
+        if len(files)>0:
+          filename = files[0]
+        else:
+          print 'kernel for '+name+' not found'
+#      modfile = modfile.replace('INIT_INIT','INIT')
+#      name2 = name.replace('INIT_INIT','INIT')
+#      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
+#      if not os.path.isfile(filename):
+#        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+#      if not os.path.isfile(filename):
+#        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2[:-1] + '.F95'
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
@@ -270,20 +278,21 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       #
       # substitute npdes with DNPDE
       #
-      using_npdes = 0
-      for g_m in range(0,nargs):
-        if var[g_m] == 'npdes':
-          using_npdes = 1
-      if using_npdes:
-        i = re.search('\\bnpdes\\b',text)
-        j = i.start()
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
-
+#      using_npdes = 0
+#      for g_m in range(0,nargs):
+#        if var[g_m] == 'npdes':
+#          using_npdes = 1
+#      if using_npdes:
+#        i = re.search('\\bnpdes\\b',text)
+#        j = i.start()
+#        i = re.search('\\bnpdes\\b',text[j:])
+#        j = j + i.start()+5
+#        i = re.search('\\bnpdes\\b',text[j:])
+#        j = j + i.start()+5
+#        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
+#
       file_text += text
+      file_text += '\n#undef MIN\n'
       #code(kernels[nk]['mod_file'])
     elif bookleaf == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
@@ -619,8 +628,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #  output individual kernel file
 ##########################################################################
     if hydra:
-      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_seqkernel.F95','w')
+      name = 'kernels/'+kernels[nk]['master_file']+'_'+name
+      fid = open(name+'_seqkernel.F90','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_seqkernel.f90','w')
     else:
