@@ -3724,6 +3724,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   op_dat item_dat = NULL;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
+    //printf("Available op_dat %s with pointer %p\n", item->dat->name, item->dat->data);
     if (item->orig_ptr == coords) {
       //printf("%s(%p), ", item->dat->name, item->dat->data);
       item_dat = item->dat; break;
