@@ -408,7 +408,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     printf("WARNING data pointer is NULL for %s!\n", name);
   }
   item->orig_ptr = data;
-
+  // printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
   if (TAILQ_EMPTY(&OP_dat_list)) {
     TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);
