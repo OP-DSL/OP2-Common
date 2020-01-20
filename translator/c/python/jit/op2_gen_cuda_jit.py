@@ -1,13 +1,17 @@
 ##########################################################################
 #
-# MPI Sequential code generator
+# CUDA JIT code generator
 #
 # This routine is called by op2 which parses the input files
 #
-# It produces a file xxx_kernel.cpp for each kernel,
+# It produces files xxx_kernel.cu & xx_kernel_rec.cu for each kernel,
 # plus a master kernel file
 #
 ##########################################################################
+
+##TODO
+# normal cuda build fails, wrong header file?
+# fix other build errors
 
 import re
 import datetime
@@ -265,7 +269,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and not (mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          code('const int* __restrict opDat'+str(invinds[inds[g_m]])+'Map, ')
+          code('const int* __restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
  
     for g_m in range(0,nargs):
       is_const = ''
@@ -277,8 +281,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         code(is_const + 'TYP* ARG,')
 
     if ninds > 0:
-      code('int start')
-      code('int end')
+      code('int start,')
+      code('int end,')
     
     code('int set_size)')
     depth = 0
@@ -286,6 +290,17 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
     #Function Body
     depth = 2
+
+    for g_m in range(0,nargs):
+      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        code('TYP ARG_1[DIM];');
+        FOR('d','0','DIM');
+        if accs[g_m]==OP_INC:
+          code('ARG_1[d]=ZERO_TYP');
+        else:
+          code('ARG_1[d]=ARG[d+blockIdx.x*DIM];');
+        ENDFOR();
+    code('');
 
     for m in range(1,ninds+1):
       g_m = m-1;
@@ -315,7 +330,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       comm('Initialise locals')
       for g_m in range(0,nargs):
         if (maps[g_m] == OP_GBL or maps[g_m] == OP_MAP) and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
-          code('TYP ARG_1[DIM]')
+          code('TYP ARG_1[DIM];')
           if accs[g_m] == OP_INC:
             FOR('d','0','DIM')
             code('ARG_1[d]=ZERO_TYP;')
@@ -439,7 +454,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
             sys.exit(2)  
           
           FOR('d','0','DIM')
-          code('op_reduction<'+op+'>(&ARG[d+blockIdx.x*DIM],ARG_1[d];')
+          code('op_reduction<'+op+'>(&ARG[d+blockIdx.x*DIM],ARG_1[d]);')
           ENDFOR()
     
 #
@@ -544,6 +559,11 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('};')       
     code('')
 
+    for g_m in range(0,nargs):
+      if maps[g_m]==OP_GBL:
+        code('TYP *ARGh = (TYP *)ARG.data;')
+    code('')
+
 #
 # start timing
 #
@@ -565,171 +585,202 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 # Halo exchange
 #
     code('')
-    code('int set_size = op_mpi_halo_exchange(set, nargs, args);')
+    code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 #
 # Kernel calls
 #
     code('')
     IF('set->size > 0')
     code('')
+
+#
+# transfer global reduction initial data 
+#
+
+    comm('set CUDA execution parameters')
+    envStr = 'OP_BLOCK_SIZE_' + str(nk)
+    code('#ifdef ' + envStr)
+    depth += 2
+    code('int nthread = ' + envStr + ';')
+    depth -= 2
+    
+    code('#else')
+    depth += 2
+    code('int nthread = OP_block_size;')
+    depth -=2 
+    code('#endif')
+    code('')
+    if ninds == 0:
+      code('int nblocks = 200;')
+      code('')
+
+    if reduct:
+      comm('transfer global reduction data to GPU')
+      if ninds > 0:
+        code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1/nthread+1;')
+      else:
+        code('int maxblocks = nblocks;')
+
+      code('int reduct_bytes = 0;')
+      code('int reduct_size = 0;')
+     
+      for g_m in range (0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+          code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
+          code('reduct_size   = MAX(reduct_size, sizeof(TYP));')
+
+      code('reallocReductArrays(reduct_bytes);')
+      code('');
+      code('reduct_bytes = 0;')
+     
+      for g_m in range(0,nargs):
+ 
+        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+          code('ARG.data   = OP_reduct_h + reduct_bytes;')
+          code('ARG.data_d = OP_reduct_d + reduct_bytes;')
+          FOR('b','0','maxblocks')
+          FOR('d','0','DIM')
+          if accs[g_m]==OP_INC:
+            code('((TYP *)ARG.data)[d+b*DIM] = ZERO_TYP;')
+          else:
+            code('((TYP *)ARG.data)[d+b*DIM] = ARGh[d];')
+          ENDFOR()
+          ENDFOR()
+          code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
+  
+      code('mvReductArraysToDevice(reduct_bytes);')
+      code('')
  #
  # indirect
  #
-    if ninds > 0:
-      FOR('n','0','set_size')
-      IF('n == set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
-      ENDIF()
-      
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and not (mapinds[g_m] in k):
-            k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
-      code('')
-
-      for g_m in range(0,nargs):
-        u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
-        if len(u) > 0 and vectorised[g_m] > 0:
-          line = ''
-          if accs[g_m] == OP_READ:
-            line = 'const '
-          line += 'TYP* ARG_vec[] = {\n'
-
-          v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
-          first = [i for i in range(0,len(v)) if v[i] == 1]
-          first = first[0]
-
-          ident = ' '*(depth+2)
-          for k in range(0,sum(v)):
-            line = line + ident + ' &((TYP*)arg'+str(first)+'.data)[DIM * map'+str(mapinds[g_m+k])+'idx],\n'
-          code(line[:-2])
-          code('}') 
-        code('')
-
-        line = name+'('
-        indent = '\n'+' '*(depth+2)
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_ID:
-            line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m    )+'.data)['+str(dims[g_m])+' * n]'
-          if maps[g_m] == OP_MAP:
-            if vectorised[g_m]:
-              if g_m+1 in unique_args:
-                line = line + indent + 'arg'+str(g_m)+'_vec'
-            else:
-              line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
-          if maps[g_m] == OP_GBL:
-            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'    .data'
-          if g_m < nargs-1:
-            if g_m+1 in unique_args and not g_m+1 == unique_args[-    1]:
-              line = line +','
-          else:
-             line = line +');'
-        code(line)
-        ENDFOR()        
- #
- # direct
- #
-    else:
-      FOR('n','0','set_size')
-      line = name+'('
-      indent = '\n'+' '*(depth+2)
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
-          line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m    )+'.data)['+str(dims[g_m])+'*n]'
-        if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'    .data'
-        if g_m < nargs-1:
-          line = line +','
-        else:
-           line = line +');'
-      code(line)
-      ENDFOR()
-      ENDIF()
-    code('')
- 
-    #zero set size issues
     if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
+      if reduct:
+        FOR('round','0','3')
+      else:
+        FOR('round','0','2')
+      IF('round==1')
+      code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
-
-#
-# combine reduction data from multiple OpenMP threads
-#
-    comm(' combine reduction data')
-    for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
-        if typs[g_m] == 'double': #need for both direct and indi    rect
-          code('op_mpi_reduce_double(&ARG,('+typs[g_m]+'*)<ARG    >.data);')
-        elif typs[g_m] == 'float':
-          code('op_mpi_reduce_float(&ARG,('+typs[g_m]+'*)ARG    .data);')
-        elif typs[g_m] == 'int':
-          code('op_mpi_reduce_int(&ARG,('+typs[g_m]+'*)ARG.d    ata);')
-        else:
-          print 'Type '+typs[g_m]+' not supported in OpenACC cod    e generator, please add it'
-          exit(-1)
-
-    code('op_mpi_set_dirtybit(nargs, args);')
-    code('')
-#
-# update kernel record
-#
-
-    comm(' update kernel record')
-    code('op_timers_core(&cpu_t2, &wall_t2);')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
-    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t    1;')
-
-    if ninds == 0:
-      line = 'OP_kernels['+str(nk)+'].transfer += (float)set->si    ze *'
-
-      for g_m in range (0,nargs):
-        if optflags[g_m]==1:
-          IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
-          if accs[g_m]==OP_READ:
-            code(line+' <ARG>.size;')
-          else:
-            code(line+' <ARG>.size * 2.0f;')
-        if optflags[g_m]==1:
-          ENDIF()
-    else:
-      names = []
-      for g_m in range(0,ninds):
-        mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
-          mult = ' * 2.0f'
-        if not var[invinds[g_m]] in names:
-          if optflags[g_m]==1:
-            IF('arg'+str(invinds[g_m])+'.opt')
-          code('OP_kernels['+str(nk)+'].transfer += (float)set->    size * arg'+str(invinds[g_m])+'.size'+mult+';')
-          if optflags[g_m]==1:
-            ENDIF()
-          names = names + [var[invinds[g_m]]]
-      for g_m in range(0,nargs):
-        mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
-          mult = ' * 2.0f'
-        if not var[g_m] in names:
-          names = names + [var[g_m]]
-          if optflags[g_m]==1:
-            IF('<ARG>.opt')
-          if maps[g_m] == OP_ID:
-            code('OP_kernels['+str(nk)+'].transfer += (float)set    ->size * arg'+str(g_m)+'.size'+mult+';')
-          elif maps[g_m] == OP_GBL:
-            code('OP_kernels['+str(nk)+'].transfer += (float)set    ->size * arg'+str(g_m)+'.size'+mult+';')
-          if optflags[g_m]==1:
-            ENDIF()
+      if reduct:
+        code('int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);')
+        code('int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);')
+      else:
+        code('int start = round==0 ? 0 : set->core_size;')
+        code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
+      IF('end-start>0')
+      code('int nblocks = (end-start-1)/nthread+1;')
+      if reduct:
+        code('int nshared = reduct_size*nthread;')
+        code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
+      else:
+        code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
+      if nopts > 0:
+        code('optflags,')
+      for m in range(1,ninds+1):
+        g_m = invinds[m-1]
+        code('(TYP *)ARG.data_d,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            code('OP_kernels['+str(nk)+'].transfer += (float)set    ->size * arg'+str(invinds[inds[g_m]-1])+'.map->dim * 4.0f;')
+            code('arg'+str(g_m)+'.map_data_d, ')
+      for g_m in range(0,nargs):
+        if inds[g_m]==0:
+          code('(TYP*)ARG.data_d,')
+      code('start,end,set->size+set->exec_size);')
+      ENDIF()
+      if reduct:
+        code('if (round==1) mvReductArraysToHost(reduct_bytes);')
 
+      ENDFOR()
+
+ #
+ # direct
+ # 
+    else:
+      if reduct:
+        code('int nshared = reduct_size*nthread;')
+        func_name = 'op_cuda_'+name+'<<<nblocks,nthread,nshared>>>('
+      else:
+        func_name = 'op_cuda_'+name+'<<<nblocks,nthread>>>('
+
+      indent = ' '*(len(func_name))
+  
+      if nopts > 0:
+        code (func_name + 'optflags,')
+      for g_m in range(0,nargs):
+        start = indent
+        end = ','
+        if nopts == 0 and g_m == 0:
+          start = func_name
+        code(start+'(TYP*) ARG.data_d'+end)
+ 
+      code(indent+'set->size') 
+      code(');') 
+
+#
+# transfer global reduction initial data
+#
+
+    if reduct:
+      if ninds == 0:
+        comm('transfer global reduction data back to CPU')
+        code('mvReductArraysToHost(reduct_bytes);');
+
+      for m in range(0,nargs):
+        g_m = m
+        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+          FOR('b','0','maxblocks')
+          FOR('d','0','DIM')
+          if accs[m]==OP_INC:
+            code('ARGh[d] = ARGh[d] + ((TYP *)ARG.data)[d+b*DIM];')
+          elif accs[m]==OP_MIN:
+            code('ARGh[d] = MIN(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);')
+          elif accs[m]==OP_MAX:
+            code('ARGh[d] = MAX(ARGh[d],((TYP *)ARG.data)[d+b*DIM]);')
+          ENDFOR()
+          ENDFOR()
+
+          code('ARG.data = (char *)ARGh;')
+          code('op_mpi_reduce(&ARG,ARGh);')
+
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_GBL and accs[g_m] == OP_WRITE:
+        FOR('d','0','DIM')
+        code('ARGh[d] = ((TYP *)ARG.data)[d];')
+        ENDFOR()
+        code('ARG.data = (char *)ARGh;')
+        code('op_mpi_reduce(&ARG,ARGh);')
+
+    ENDIF()
+    code('op_mpi_set_dirtybit_cuda(nargs, args);')
+    code('')
+
+#
+# update kernel record
+#
+ 
+    code('cutilSafeCall(cudaDeviceSynchronize());')
+    comm(' update kernel record')
+    code('op_timers_core(&cpu_t2, &wall_t2);')
+    #code('OP_kernels[' +str(nk)+ '].name      = name;')
+    #code('OP_kernels[' +str(nk)+ '].count    += 1;')
+    code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+
+    if ninds == 0:
+      line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
+
+      for g_m in range (0,nargs):
+        if optflags[g_m]==1:
+          IF('ARG.opt')
+        if maps[g_m]<>OP_GBL:
+          if accs[g_m]==OP_READ:
+            code(line+' ARG.size;')
+          else:
+            code(line+' ARG.size * 2.0f;')
+        if optflags[g_m]==1:
+          ENDIF()
     depth -= 2
     code('}')
 
@@ -844,6 +895,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('#include "../user_types.h"')
   comm(' header                 ')
   code('#include "op_lib_cpp.h"       ')
+  code('#include "op_cuda_rt_support.h"')
+  code('#include "op_cuda_reduction.h"')
   code('')
   comm(' global constants       ')
 
