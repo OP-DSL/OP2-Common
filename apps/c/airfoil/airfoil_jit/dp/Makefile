@@ -1,6 +1,3 @@
-# TODO add airfoil_cuda_jit
-#
-#
 # The following environment variables should be predefined:
 #
 # CUDA_INSTALL_PATH
@@ -94,7 +91,7 @@ endif
 #
 ifndef NV_ARCH
   MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
-  NV_ARCH=Kepler
+  NV_ARCH=Pascal
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
@@ -120,7 +117,9 @@ ifdef MAX_REG_COUNT
   endif
 endif
 
-NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo  #-g -G -O0
+NVCCFLAGS := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo -DOP2_JIT#-g -G -O0
+
+NVCC_COPTS := --compiler-options -fPIC
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -212,6 +211,21 @@ cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
                 Makefile
 		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -Icuda -I. \
 		-c -o cuda/airfoil_kernels_cu.o cuda/airfoil_kernels.cu
+
+airfoil_cuda_jit: jit_const.h
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
+		./cuda/adt_calc_kernel_rec.cu -o ./cuda/adt_calc_kernel_rec.o 		
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
+		./cuda/bres_calc_kernel_rec.cu -o ./cuda/bres_calc_kernel_rec.o		
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
+		./cuda/res_calc_kernel_rec.cu -o ./cuda/res_calc_kernel_rec.o 		
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
+		./cuda/save_soln_kernel_rec.cu -o ./cuda/save_soln_kernel_rec.o		
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
+		./cuda/update_kernel_rec.cu -o ./cuda/update_kernel_rec.o 		
+		nvcc cuda/adt_calc_kernel_rec.o cuda/bres_calc_kernel_rec.o \
+    cuda/res_calc_kernel_rec.o cuda/save_soln_kernel_rec.o \
+    cuda/update_kernel_rec.o -shared -o ./cuda/airfoil_kernel_rec.so
 
 #
 #  CUDA with clang
@@ -418,4 +432,4 @@ convert_mesh_mpi: convert_mesh_mpi.cpp
 #
 
 clean:
-		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt seq/*.o seq/*.so seq/*.optrpt
+		rm -f airfoil_seq airfoil_openmp airfoil_cuda airfoil_mpi airfoil_mpi_genseq airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt seq/*.o seq/*.so seq/*.optrpt cuda/*.o cuda/*.so cuda/*.optrpt

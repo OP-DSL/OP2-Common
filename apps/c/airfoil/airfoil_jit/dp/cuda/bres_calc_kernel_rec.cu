@@ -3,13 +3,17 @@
 //
 
 #include "op_lib_cpp.h"
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
 //global_constants - values #defined by JIT
-#include "jit_const.h
+#include "jit_const.h"
 
 //user function
 __device__ void bres_calc_gpu( const double *x1, const double *x2, const double *q1,
                       const double *adt1, double *res1, const int *bound)
 {
+  extern __shared__ double qinf_cuda[4];
+
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -24,25 +28,36 @@ __device__ void bres_calc_gpu( const double *x1, const double *x2, const double 
   } else {
     vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-    ri = 1.0f / qinf[0];
-    p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
-    vol2 = ri * (qinf[1] * dy - qinf[2] * dx);
+    ri = 1.0f / qinf_cuda[0];
+    p2 = gm1 * (qinf_cuda[3] - 0.5f * ri * (qinf_cuda[1] * qinf_cuda[1] + qinf_cuda[2] * qinf_cuda[2]));
+    vol2 = ri * (qinf_cuda[1] * dy - qinf_cuda[2] * dx);
 
     mu = (*adt1) * eps;
 
-    f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
+    f = 0.5f * (vol1 * q1[0] + vol2 * qinf_cuda[0]) + mu * (q1[0] - qinf_cuda[0]);
     res1[0] += f;
-    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
-        mu * (q1[1] - qinf[1]);
+    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_cuda[1] + p2 * dy) +
+        mu * (q1[1] - qinf_cuda[1]);
     res1[1] += f;
-    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
-        mu * (q1[2] - qinf[2]);
+    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf_cuda[2] - p2 * dx) +
+        mu * (q1[2] - qinf_cuda[2]);
     res1[2] += f;
-    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
-        mu * (q1[3] - qinf[3]);
+    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_cuda[3] + p2)) +
+        mu * (q1[3] - qinf_cuda[3]);
     res1[3] += f;
   }
 
+  printf("bres_calc-gam: %1.17e\n",gam);
+  printf("bres_calc-gm1: %1.17e\n",gm1);
+  printf("bres_calc-cfl: %1.17e\n",cfl);
+  printf("bres_calc-eps: %1.17e\n",eps);
+  printf("bres_calc-mach: %1.17e\n",mach);
+  printf("bres_calc-alpha: %1.17e\n",alpha);
+  printf("bres_calc-qinf_cuda:\n");
+  for (int i = 0; i < 4; ++i)
+  {
+    printf("  %1.17e\n", qinf_cuda[i]);
+  }
 }
 
 //C CUDA kernel function
@@ -51,18 +66,19 @@ __global__ void op_cuda_bres_calc(
  const double* __restrict ind_arg1,
  const double* __restrict ind_arg2,
  double* __restrict ind_arg3,
+ const int* __restrict opDat0Map,
  const int* __restrict opDat2Map,
- const int* __restrict opDat3Map,
  const int* __restrict arg5,
- int start
- int end
+ int start,
+ int end,
  int set_size)
 {
+
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
     //Initialise locals
-    double arg4_1[4]
+    double arg4_1[4];
     for (int d = 0; d < 4; ++d)
     {
       arg4_1[d]=ZERO_double;
@@ -91,13 +107,12 @@ __global__ void op_cuda_bres_calc(
 }
 
 extern "C" {
-void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc);
+void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc);
 
-//Host stub function
-void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
+//Recompiled host stub function
+void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
 {
   op_set set = desc->set;
-  char const* name = desc->name;
   int nargs = 6;
 
   op_arg arg0 = desc->args[0];
@@ -115,6 +130,7 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
                     arg5,
   };
 
+
   //initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(3);
@@ -124,91 +140,47 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
     printf(" kernel routine with indirection: bres_calc\n");
   }
 
-  int set_size = op_mpi_halo_exchange(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   if (set->size > 0) {
 
-    for (int n = 0; n < set_size; ++n)
+    //set CUDA execution parameters
+    #ifdef OP_BLOCK_SIZE_3
+      int nthread = OP_BLOCK_SIZE_3;
+    #else
+      int nthread = OP_block_size;
+    #endif
+
+    for (int round = 0; round < 2; ++round)
     {
-      if (n == set->core_size) {
-        op_mpi_wait_all(nargs, args);
+      printf("  round: %d\n", round);
+      if (round==1) {
+        op_mpi_wait_all_cuda(nargs, args);
       }
-      int map0idx = arg0.map->dim + 0];
-      int map1idx = arg0.map->dim + 1];
-      int map2idx = arg2.map->dim + 0];
-
-
-      bres_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg2.data)[4 * map2idx],
-        &((double*)arg3.data)[1 * map2idx],
-        &((double*)arg4.data)[4 * map2idx],
-        &((int*)arg5.data)[1 * n]);
+      int start = round==0 ? 0 : set->core_size;
+      int end = round==0 ? set->core_size : set->size + set->exec_size;
+      if (end - start>0) {
+        int nblocks = (end-start-1)/nthread+1;
+        op_cuda_bres_calc<<<nblocks,nthread>>>(
+          (double *)arg0.data_d,
+          (double *)arg2.data_d,
+          (double *)arg3.data_d,
+          (double *)arg4.data_d,
+          arg0.map_data_d,
+          arg2.map_data_d,
+          (int*)arg5.data_d,
+          start,end,set->size+set->exec_size);
+      }
+      printf("  end: %d\n", round);
     }
-
-    bres_calc(
-      &((double*)arg0.data)[2 * map0idx],
-      &((double*)arg0.data)[2 * map1idx],
-      &((double*)arg2.data)[4 * map2idx],
-      &((double*)arg3.data)[1 * map2idx],
-      &((double*)arg4.data)[4 * map2idx],
-      &((int*)arg5.data)[1 * n]);
   }
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
-  bres_calc(
-    &((double*)arg0.data)[2 * map0idx],
-    &((double*)arg0.data)[2 * map1idx],
-    &((double*)arg2.data)[4 * map2idx],
-    &((double*)arg3.data)[1 * map2idx],
-    &((double*)arg4.data)[4 * map2idx],
-    &((int*)arg5.data)[1 * n]);
+  cutilSafeCall(cudaDeviceSynchronize());
+  // update kernel record
+  op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[3].time     += wall_t2 - wall_t1;
+  printf("  End\n");
 }
 
-bres_calc(
-  &((double*)arg0.data)[2 * map0idx],
-  &((double*)arg0.data)[2 * map1idx],
-  &((double*)arg2.data)[4 * map2idx],
-  &((double*)arg3.data)[1 * map2idx],
-  &((double*)arg4.data)[4 * map2idx],
-  &((int*)arg5.data)[1 * n]);
-}
-
-bres_calc(
-&((double*)arg0.data)[2 * map0idx],
-&((double*)arg0.data)[2 * map1idx],
-&((double*)arg2.data)[4 * map2idx],
-&((double*)arg3.data)[1 * map2idx],
-&((double*)arg4.data)[4 * map2idx],
-&((int*)arg5.data)[1 * n]);
-}
-
-bres_calc(
-&((double*)arg0.data)[2 * map0idx],
-&((double*)arg0.data)[2 * map1idx],
-&((double*)arg2.data)[4 * map2idx],
-&((double*)arg3.data)[1 * map2idx],
-&((double*)arg4.data)[4 * map2idx],
-&((int*)arg5.data)[1 * n]);
-}
-
-if (set_size == 0 || set_size == set->core_size) {
-op_mpi_wait_all(nargs, args);
-}
-// combine reduction data
-op_mpi_set_dirtybit(nargs, args);
-
-// update kernel record
-op_timers_core(&cpu_t2, &wall_t2);
-OP_kernels[3].name      = name;
-OP_kernels[3].count    += 1;
-OP_kernels[3].time     += wall_t2 - wall_t    1;
-OP_kernels[3].transfer += (float)set->    size * arg0.size;
-OP_kernels[3].transfer += (float)set->    size * arg2.size;
-OP_kernels[3].transfer += (float)set->    size * arg3.size;
-OP_kernels[3].transfer += (float)set->    size * arg4.size * 2.0f;
-OP_kernels[3].transfer += (float)set    ->size * arg5.size;
-OP_kernels[3].transfer += (float)set    ->size * arg0.map->dim * 4.0f;
-OP_kernels[3].transfer += (float)set    ->size * arg2.map->dim * 4.0f;
-}
-
+} //end extern c

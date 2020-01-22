@@ -8,6 +8,17 @@ __device__ void save_soln_gpu( const double *q, double *qold)
   for (int n = 0; n < 4; n++)
     qold[n] = q[n];
 
+  printf("save_soln-gam_cuda: %1.17e\n",gam_cuda);
+  printf("save_soln-gm1_cuda: %1.17e\n",gm1_cuda);
+  printf("save_soln-cfl_cuda: %1.17e\n",cfl_cuda);
+  printf("save_soln-eps_cuda: %1.17e\n",eps_cuda);
+  printf("save_soln-mach_cuda: %1.17e\n",mach_cuda);
+  printf("save_soln-alpha_cuda: %1.17e\n",alpha_cuda);
+  printf("save_soln-qinf_cuda:\n");
+  for (int i = 0; i < 4; ++i)
+  {
+    printf("  %1.17e\n", qinf_cuda[i]);
+  }
 }
 
 //C CUDA kernel function
@@ -16,6 +27,7 @@ __global__ void op_cuda_save_soln(
  double* __restrict arg1,
  int set_size)
 {
+
   //Process set elements
   for (int n = threadIdx.x+blockIdx.x*blockDim.x; n < set_size; n += blockDim.x*gridDim.x)
   {
@@ -35,12 +47,12 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
     if (!jit_compiled) {
       jit_compile();
     }
+    printf("call to recompiled save_soln\n");
     (*save_soln_function)(desc);
     return;
   #endif
 
   op_set set = desc->set;
-  char const* name = desc->name;
   int nargs = 2;
 
   op_arg arg0 = desc->args[0];
@@ -49,6 +61,7 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
   op_arg args[2] = {arg0,
                     arg1,
   };
+
 
   //initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -59,28 +72,33 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
     printf(" kernel routine without indirection: save_soln\n");
   }
 
-  int set_size = op_mpi_halo_exchange(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   if (set->size > 0) {
 
-    for (int n = 0; n < set_size; ++n)
-    {
-      save_soln(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n]);
-    }
+    //set CUDA execution parameters
+    #ifdef OP_BLOCK_SIZE_0
+      int nthread = OP_BLOCK_SIZE_0;
+    #else
+      int nthread = OP_block_size;
+    #endif
+
+    int nblocks = 200;
+
+    op_cuda_save_soln<<<nblocks,nthread>>>((double*) arg0.data_d,
+                                           (double*) arg1.data_d,
+                                           set->size
+    );
   }
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
-  // combine reduction data
-  op_mpi_set_dirtybit(nargs, args);
-
+  cutilSafeCall(cudaDeviceSynchronize());
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[0].name      = name;
-  OP_kernels[0].count    += 1;
-  OP_kernels[0].time     += wall_t2 - wall_t    1;
-  OP_kernels[0].transfer += (float)set->si    ze * <arg0>.size;
-  OP_kernels[0].transfer += (float)set->si    ze * <arg1>.size * 2.0f;
+  OP_kernels[0].time     += wall_t2 - wall_t1;
+  OP_kernels[0].transfer += (float)set->size * arg0.size;
+  OP_kernels[0].transfer += (float)set->size * arg1.size * 2.0f;
+  printf("  End\n");
 }
 
 //Function called from modified source

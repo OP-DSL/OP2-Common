@@ -3,13 +3,17 @@
 //
 
 #include "op_lib_cpp.h"
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
 //global_constants - values #defined by JIT
-#include "jit_const.h
+#include "jit_const.h"
 
 //user function
 __device__ void adt_calc_gpu( const double *x1, const double *x2, const double *x3,
                      const double *x4, const double *q, double *adt)
 {
+  extern __shared__ double qinf_cuda[4];
+
   double dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0];
@@ -35,6 +39,17 @@ __device__ void adt_calc_gpu( const double *x1, const double *x2, const double *
 
   *adt = (*adt) * (1.0f / cfl);
 
+  printf("adt_calc-gam: %1.17e\n",gam);
+  printf("adt_calc-gm1: %1.17e\n",gm1);
+  printf("adt_calc-cfl: %1.17e\n",cfl);
+  printf("adt_calc-eps: %1.17e\n",eps);
+  printf("adt_calc-mach: %1.17e\n",mach);
+  printf("adt_calc-alpha: %1.17e\n",alpha);
+  printf("adt_calc-qinf_cuda:\n");
+  for (int i = 0; i < 4; ++i)
+  {
+    printf("  %1.17e\n", qinf_cuda[i]);
+  }
 }
 
 //C CUDA kernel function
@@ -43,10 +58,11 @@ __global__ void op_cuda_adt_calc(
  const int* __restrict opDat0Map,
  const double* __restrict arg4,
  double* __restrict arg5,
- int start
- int end
+ int start,
+ int end,
  int set_size)
 {
+
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
@@ -73,13 +89,12 @@ __global__ void op_cuda_adt_calc(
 }
 
 extern "C" {
-void op_par_loop_adt_calc_execute(op_kernel_descriptor* desc);
+void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor* desc);
 
-//Host stub function
-void op_par_loop_adt_calc_execute(op_kernel_descriptor* desc)
+//Recompiled host stub function
+void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor* desc)
 {
   op_set set = desc->set;
-  char const* name = desc->name;
   int nargs = 6;
 
   op_arg arg0 = desc->args[0];
@@ -97,6 +112,7 @@ void op_par_loop_adt_calc_execute(op_kernel_descriptor* desc)
                     arg5,
   };
 
+
   //initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(1);
@@ -106,89 +122,45 @@ void op_par_loop_adt_calc_execute(op_kernel_descriptor* desc)
     printf(" kernel routine with indirection: adt_calc\n");
   }
 
-  int set_size = op_mpi_halo_exchange(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   if (set->size > 0) {
 
-    for (int n = 0; n < set_size; ++n)
+    //set CUDA execution parameters
+    #ifdef OP_BLOCK_SIZE_1
+      int nthread = OP_BLOCK_SIZE_1;
+    #else
+      int nthread = OP_block_size;
+    #endif
+
+    for (int round = 0; round < 2; ++round)
     {
-      if (n == set->core_size) {
-        op_mpi_wait_all(nargs, args);
+      printf("  round: %d\n", round);
+      if (round==1) {
+        op_mpi_wait_all_cuda(nargs, args);
       }
-      int map0idx = arg0.map->dim + 0];
-      int map1idx = arg0.map->dim + 1];
-      int map2idx = arg0.map->dim + 2];
-      int map3idx = arg0.map->dim + 3];
-
-
-      adt_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg0.data)[2 * map2idx],
-        &((double*)arg0.data)[2 * map3idx],
-        &((double*)arg4.data)[4 * n],
-        &((double*)arg5.data)[1 * n]);
+      int start = round==0 ? 0 : set->core_size;
+      int end = round==0 ? set->core_size : set->size + set->exec_size;
+      if (end - start>0) {
+        int nblocks = (end-start-1)/nthread+1;
+        printf("blocks:%d threads:%d\n", nblocks, nthread);
+        op_cuda_adt_calc<<<nblocks,nthread>>>(
+          (double *)arg0.data_d,
+          arg0.map_data_d,
+          (double*)arg4.data_d,
+          (double*)arg5.data_d,
+          start,end,set->size+set->exec_size);
+      }
+      printf("  end: %d\n", round);
     }
-
-    adt_calc(
-      &((double*)arg0.data)[2 * map0idx],
-      &((double*)arg0.data)[2 * map1idx],
-      &((double*)arg0.data)[2 * map2idx],
-      &((double*)arg0.data)[2 * map3idx],
-      &((double*)arg4.data)[4 * n],
-      &((double*)arg5.data)[1 * n]);
   }
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
-  adt_calc(
-    &((double*)arg0.data)[2 * map0idx],
-    &((double*)arg0.data)[2 * map1idx],
-    &((double*)arg0.data)[2 * map2idx],
-    &((double*)arg0.data)[2 * map3idx],
-    &((double*)arg4.data)[4 * n],
-    &((double*)arg5.data)[1 * n]);
+  cutilSafeCall(cudaDeviceSynchronize());
+  // update kernel record
+  op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[1].time     += wall_t2 - wall_t1;
+  printf("  End\n");
 }
 
-adt_calc(
-  &((double*)arg0.data)[2 * map0idx],
-  &((double*)arg0.data)[2 * map1idx],
-  &((double*)arg0.data)[2 * map2idx],
-  &((double*)arg0.data)[2 * map3idx],
-  &((double*)arg4.data)[4 * n],
-  &((double*)arg5.data)[1 * n]);
-}
-
-adt_calc(
-&((double*)arg0.data)[2 * map0idx],
-&((double*)arg0.data)[2 * map1idx],
-&((double*)arg0.data)[2 * map2idx],
-&((double*)arg0.data)[2 * map3idx],
-&((double*)arg4.data)[4 * n],
-&((double*)arg5.data)[1 * n]);
-}
-
-adt_calc(
-&((double*)arg0.data)[2 * map0idx],
-&((double*)arg0.data)[2 * map1idx],
-&((double*)arg0.data)[2 * map2idx],
-&((double*)arg0.data)[2 * map3idx],
-&((double*)arg4.data)[4 * n],
-&((double*)arg5.data)[1 * n]);
-}
-
-if (set_size == 0 || set_size == set->core_size) {
-op_mpi_wait_all(nargs, args);
-}
-// combine reduction data
-op_mpi_set_dirtybit(nargs, args);
-
-// update kernel record
-op_timers_core(&cpu_t2, &wall_t2);
-OP_kernels[1].name      = name;
-OP_kernels[1].count    += 1;
-OP_kernels[1].time     += wall_t2 - wall_t    1;
-OP_kernels[1].transfer += (float)set->    size * arg0.size;
-OP_kernels[1].transfer += (float)set    ->size * arg4.size;
-OP_kernels[1].transfer += (float)set    ->size * arg5.size;
-OP_kernels[1].transfer += (float)set    ->size * arg0.map->dim * 4.0f;
-}
-
+} //end extern c

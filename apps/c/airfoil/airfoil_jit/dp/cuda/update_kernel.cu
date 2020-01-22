@@ -19,6 +19,17 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
   }
   *rms += rmsl;
 
+  printf("update-gam_cuda: %1.17e\n",gam_cuda);
+  printf("update-gm1_cuda: %1.17e\n",gm1_cuda);
+  printf("update-cfl_cuda: %1.17e\n",cfl_cuda);
+  printf("update-eps_cuda: %1.17e\n",eps_cuda);
+  printf("update-mach_cuda: %1.17e\n",mach_cuda);
+  printf("update-alpha_cuda: %1.17e\n",alpha_cuda);
+  printf("update-qinf_cuda:\n");
+  for (int i = 0; i < 4; ++i)
+  {
+    printf("  %1.17e\n", qinf_cuda[i]);
+  }
 }
 
 //C CUDA kernel function
@@ -30,6 +41,12 @@ __global__ void op_cuda_update(
  double* arg4,
  int set_size)
 {
+  double arg4_1[1];
+  for (int d = 0; d < 1; ++d)
+  {
+    arg4_1[d]=ZERO_double
+  }
+
   //Process set elements
   for (int n = threadIdx.x+blockIdx.x*blockDim.x; n < set_size; n += blockDim.x*gridDim.x)
   {
@@ -48,7 +65,7 @@ __global__ void op_cuda_update(
 
   for (int d = 0; d < 1; ++d)
   {
-    op_reduction<OP_INC>(&arg4[d+blockIdx.x*1],arg4_1[d];
+    op_reduction<OP_INC>(&arg4[d+blockIdx.x*1],arg4_1[d]);
   }
 }
 
@@ -59,12 +76,12 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
     if (!jit_compiled) {
       jit_compile();
     }
+    printf("call to recompiled update\n");
     (*update_function)(desc);
     return;
   #endif
 
   op_set set = desc->set;
-  char const* name = desc->name;
   int nargs = 5;
 
   op_arg arg0 = desc->args[0];
@@ -80,6 +97,8 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
                     arg4,
   };
 
+  double *arg4h = (double *)arg4.data;
+
   //initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(4);
@@ -89,34 +108,71 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
     printf(" kernel routine without indirection: update\n");
   }
 
-  int set_size = op_mpi_halo_exchange(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   if (set->size > 0) {
 
-    for (int n = 0; n < set_size; ++n)
+    //set CUDA execution parameters
+    #ifdef OP_BLOCK_SIZE_4
+      int nthread = OP_BLOCK_SIZE_4;
+    #else
+      int nthread = OP_block_size;
+    #endif
+
+    int nblocks = 200;
+
+    //transfer global reduction data to GPU
+    int maxblocks = nblocks;
+    int reduct_bytes = 0;
+    int reduct_size = 0;
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
+    reduct_size   = MAX(reduct_size, sizeof(double));
+    reallocReductArrays(reduct_bytes);
+
+    reduct_bytes = 0;
+    arg4.data   = OP_reduct_h + reduct_bytes;
+    arg4.data_d = OP_reduct_d + reduct_bytes;
+    for (int b = 0; b < maxblocks; ++b)
     {
-      update(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n],
-        &((double*)arg2.data)[4*n],
-        &((double*)arg3.data)[1*n],
-        (double*)arg4    .data);
+      for (int d = 0; d < 1; ++d)
+      {
+        ((double *)arg4.data)[d+b*1] = ZERO_double;
+      }
     }
+    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
+    mvReductArraysToDevice(reduct_bytes);
+
+    int nshared = reduct_size*nthread;
+    op_cuda_update<<<nblocks,nthread,nshared>>>((double*) arg0.data_d,
+                                                (double*) arg1.data_d,
+                                                (double*) arg2.data_d,
+                                                (double*) arg3.data_d,
+                                                (double*) arg4.data_d,
+                                                set->size
+    );
+    //transfer global reduction data back to CPU
+    mvReductArraysToHost(reduct_bytes);
+    for (int b = 0; b < maxblocks; ++b)
+    {
+      for (int d = 0; d < 1; ++d)
+      {
+        arg4h[d] = arg4h[d] + ((double *)arg4.data)[d+b*1];
+      }
+    }
+    arg4.data = (char *)arg4h;
+    op_mpi_reduce(&arg4,arg4h);
   }
+  op_mpi_set_dirtybit_cuda(nargs, args);
 
-  // combine reduction data
-  op_mpi_reduce_double(&arg4,(double*)<arg4    >.data);
-  op_mpi_set_dirtybit(nargs, args);
-
+  cutilSafeCall(cudaDeviceSynchronize());
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[4].name      = name;
-  OP_kernels[4].count    += 1;
-  OP_kernels[4].time     += wall_t2 - wall_t    1;
-  OP_kernels[4].transfer += (float)set->si    ze * <arg0>.size;
-  OP_kernels[4].transfer += (float)set->si    ze * <arg1>.size * 2.0f;
-  OP_kernels[4].transfer += (float)set->si    ze * <arg2>.size * 2.0f;
-  OP_kernels[4].transfer += (float)set->si    ze * <arg3>.size;
+  OP_kernels[4].time     += wall_t2 - wall_t1;
+  OP_kernels[4].transfer += (float)set->size * arg0.size;
+  OP_kernels[4].transfer += (float)set->size * arg1.size * 2.0f;
+  OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
+  OP_kernels[4].transfer += (float)set->size * arg3.size;
+  printf("  End\n");
 }
 
 //Function called from modified source

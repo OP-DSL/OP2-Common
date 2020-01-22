@@ -4,18 +4,81 @@
 
 // header
 #include "op_lib_cpp.h"
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
 
 // global constants
-extern double gam;
-extern double gm1;
-extern double cfl;
-extern double eps;
-extern double mach;
-extern double alpha;
-extern double qinf[4];
+__constant__ double gam_cuda;
+__constant__ double gm1_cuda;
+__constant__ double cfl_cuda;
+__constant__ double eps_cuda;
+__constant__ double mach_cuda;
+__constant__ double alpha_cuda;
+extern __shared__ double qinf_cuda[4];
 
-#ifdef OP2_JIT
+#ifndef OP2_JIT
 
+void op_decl_const_char(int dim, char const *type,
+                        int size, char *dat,
+                        char const *name)
+{
+  // copy value to device constant
+  if (!strcmp(name,"gam")) {
+    cutilSafeCall(cudaMemcpyToSymbol(gam_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"gm1")) {
+    cutilSafeCall(cudaMemcpyToSymbol(gm1_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"cfl")) {
+    cutilSafeCall(cudaMemcpyToSymbol(cfl_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"eps")) {
+    cutilSafeCall(cudaMemcpyToSymbol(eps_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"mach")) {
+    cutilSafeCall(cudaMemcpyToSymbol(mach_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"alpha")) {
+    cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*size));
+  }
+  else
+  if (!strcmp(name,"qinf")) {
+    cutilSafeCall(cudaMemcpyToSymbol(qinf_cuda, dat, dim*size));
+  }
+  else
+  {
+    printf("error: unknown const name\n");
+    exit(1);
+  }
+}
+
+#else
+
+void op_decl_const_char(int dim, char const *type,
+                        int size, char *dat,
+                        char const *name)
+{
+  // lazy const adds to jit_const.h
+  op_lazy_const(dim, type, size, dat, name);
+  // copy value to device constant
+  if (dim != 1) {
+    if (!strcmp(name,"qinf")) {
+      cudaMemcpy(qinf_cuda, dat, dim*size, cudaMemcpyHostToDevice);
+    }
+    else
+    {
+      printf("error: unknown const name\n");
+      exit(1);
+    }
+  }
+}
+
+// pointers to recompiled functions
 void (*save_soln_function)(struct op_kernel_descriptor *desc) = NULL;
 void (*adt_calc_function)(struct op_kernel_descriptor *desc) = NULL;
 void (*res_calc_function)(struct op_kernel_descriptor *desc) = NULL;

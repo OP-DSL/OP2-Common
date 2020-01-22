@@ -167,6 +167,8 @@ int main(int argc, char **argv) {
 
   for (int iter = 1; iter <= niter; iter++) {
 
+    op_printf("iterations %d\n", iter);
+
     //  save old flow solution
 
     op_par_loop(save_soln, "save_soln", cells,

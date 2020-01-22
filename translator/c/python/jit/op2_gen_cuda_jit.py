@@ -165,8 +165,10 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 ##########################################################################
 
     code('#include "op_lib_cpp.h"')
+    code('#include "op_cuda_rt_support.h"')
+    code('#include "op_cuda_reduction.h"')
     comm('global_constants - values #defined by JIT')
-    code('#include "jit_const.h')
+    code('#include "jit_const.h"')
     code('')   
  
     jit_include = file_text
@@ -236,8 +238,40 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+stride+']', body_text)
 
-        
-    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"
+    old_file = file_text
+    file_text = ''
+
+    depth+=2
+    # Check constant values    
+    for nc in range (0,len(consts)):
+      if consts[nc]['dim']==1:
+        code('printf("'+name+'-'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
+      else:
+        code('printf("'+name+'-'+consts[nc]['name']+':\\n");')
+        FOR('i','0',consts[nc]['dim'])
+        code('printf("  %1.17e\\n", '+consts[nc]['name']+'[i]);') 
+        ENDFOR()
+    depth-=2  
+  
+    body_text += file_text
+    file_text = old_file
+
+    body_text_aot = body_text
+    body_text_jit = body_text
+       
+    for nc in range(0,len(consts)):
+      varname = consts[nc]['name']
+      if consts[nc]['dim'] != 1:
+        jit_body = re.sub('\\b'+varname+'\\b',varname+'_cuda',body_text_jit)
+        if jit_body != body_text_jit:
+          body_text_jit = "\n  extern __shared__ "+consts[nc]['type'][1:-1]+" "+consts[nc]['name']+\
+          "_cuda["+consts[nc]['dim']+"];\n"+jit_body
+      body_text_aot = re.sub('\\b'+varname+'\\b',varname+'_cuda',body_text_aot)
+ 
+    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{"
+
+    user_function_aot = user_function + body_text_aot + "}\n"
+    user_function_jit = user_function + body_text_jit + "}\n"
 
 ##########################################################################
 #  Kernel Function - Calls user function
@@ -468,22 +502,41 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     file_text = ''
 
 ##########################################################################
-#  Host stub function 
+#  Host stub 
 ##########################################################################
 
-    decl = 'void op_par_loop_'+name+'_execute(op_kernel_descriptor* desc)'
+    decl     = 'void op_par_loop_'+name
+    decl_end = '_execute(op_kernel_descriptor* desc)'
+    decl_rec = decl + "_rec" + decl_end
+    decl     = decl + decl_end
 
 ##########################################################################
-#  JIT prelude 
+#  Recompiled Host stub decl 
 ##########################################################################
-   
+
     code('extern "C" {')
-    code(decl + ';')
+    code(decl_rec + ';')
     code('')   
  
-    jit_prelude = file_text
-    file_text = ''
+    comm('Recompiled host stub function')
+    code(decl_rec)
+    code('{')
 
+    # Check constant values    
+#    depth += 2
+#    for nc in range (0,len(consts)):
+#      if consts[nc]['dim']==1:
+#        code('printf("'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
+#      else:
+#        code('printf("'+consts[nc]['name']+':\\n");')
+#        FOR('i','0',consts[nc]['dim'])
+#        code('printf("  %1.17e\\n", '+consts[nc]['name']+'[i]);') 
+#        ENDFOR()
+#    depth -= 2
+
+    host_decl_rec = file_text
+    file_text = ''
+ 
 ##########################################################################
 #  Host stub decl 
 ##########################################################################
@@ -492,34 +545,32 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code(decl)
     code('{')
 
-    host_stub_decl = file_text
-    file_text = ''
-    depth += 2
-
 ##########################################################################
 #  JIT compile call
 ##########################################################################
-   
+
+    depth += 2  
     code('#ifdef OP2_JIT')
     depth += 2
     IF("!jit_compiled")
     code('jit_compile();')
     ENDIF()
+    code('printf("call to recompiled ' +name+'\\n");')
     code('(*'+name+'_function)(desc);')
     code('return;')
     depth -= 2
     code('#endif')
     code('')
 
-    jit_call = file_text
-    file_text = ''   
-    
+    host_decl = file_text
+    file_text = ''
+
 ##########################################################################
 #  Common function body
 ##########################################################################
 
     code('op_set set = desc->set;')
-    code('char const* name = desc->name;')
+    #code('char const* name = desc->name;')
     code('int nargs = '+str(nargs)+';')
    
     code('')
@@ -658,6 +709,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         FOR('round','0','3')
       else:
         FOR('round','0','2')
+      code('printf("  round: %d\\n", round);')
       IF('round==1')
       code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
@@ -667,13 +719,16 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       else:
         code('int start = round==0 ? 0 : set->core_size;')
         code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
-      IF('end-start>0')
+      IF('end - start>0')
       code('int nblocks = (end-start-1)/nthread+1;')
+      
       if reduct:
         code('int nshared = reduct_size*nthread;')
         code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
       else:
         code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
+      depth += 2
+
       if nopts > 0:
         code('optflags,')
       for m in range(1,ninds+1):
@@ -689,10 +744,12 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         if inds[g_m]==0:
           code('(TYP*)ARG.data_d,')
       code('start,end,set->size+set->exec_size);')
+      depth -= 2;
       ENDIF()
       if reduct:
         code('if (round==1) mvReductArraysToHost(reduct_bytes);')
 
+      code('printf("  end: %d\\n", round);')
       ENDFOR()
 
  #
@@ -760,7 +817,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #
 # update kernel record
 #
- 
+
     code('cutilSafeCall(cudaDeviceSynchronize());')
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
@@ -781,6 +838,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
             code(line+' ARG.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
+    
+    code('printf("  End\\n");')
     depth -= 2
     code('}')
 
@@ -857,11 +916,10 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(user_function   +
-              kernel_function +
-              host_stub_decl  +
-              jit_call        +
-              body            +
+    fid.write(user_function_aot +
+              kernel_function   +
+              host_decl         +
+              body              +
               body_end 
     )
     fid.close()
@@ -873,13 +931,13 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel_rec.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    fid.write(jit_include     +
-              user_function   +
-              kernel_function +
-              jit_prelude     +
-              host_stub_decl  +
-              body
-    )# '\n} //end extern c')
+    fid.write(jit_include       +
+              user_function_jit +
+              kernel_function   +
+              host_decl_rec     +
+              body              +
+              '} //end extern c'
+    );
     fid.close()
 
 
@@ -891,32 +949,107 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 ##########################################################################
 
   file_text =''
+  comm(' header')
   if os.path.exists('./user_types.h'):
     code('#include "../user_types.h"')
-  comm(' header                 ')
   code('#include "op_lib_cpp.h"       ')
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
   code('')
-  comm(' global constants       ')
+  comm(' global constants')
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
+      code('extern __shared__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda'+'['+num+'];')
 
-      code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  #  
+  # JIT DISABLED 
+  #
 
-  code('\n#ifdef OP2_JIT')
+  code('\n#ifndef OP2_JIT');
+  code('');
+  # op_decl_const_char
+  code('void op_decl_const_char(int dim, char const *type,')
+  code('                        int size, char *dat,')
+  code('                        char const *name)')
+  code('{')
+  depth += 2;
+  comm(' copy value to device constant')
+ 
+  for nc in range (0, len(consts)):
+    IF('!strcmp(name,"'+consts[nc]['name']+'")')
+    if(consts[nc]['dim'] < 0):
+      IF('size>MAX_CONST_SIZE')
+      code('printf("error: MAX_CONST_SIZE not big enough\\n");')
+      code('exit(1);');
+      ENDIF()
+    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*size));')
+    ENDIF()
+    code('else') 
+  code('{')
+  depth += 2
+  code('printf("error: unknown const name\\n");')
+  code('exit(1);')
+  ENDIF()
+
+  depth -= 2
+  code('}')  
+  
+  #
+  # JIT ENABLED
+  #
+
+  code('\n#else')
+  code('');
+  
+  # op_decl_const_char
+  code('void op_decl_const_char(int dim, char const *type,')
+  code('                        int size, char *dat,')
+  code('                        char const *name)')
+  code('{')
+  depth += 2;
+  comm(' lazy const adds to jit_const.h')
+  code('op_lazy_const(dim, type, size, dat, name);')
+  comm(' copy value to device constant')
+  
+  IF('dim != 1')
+  for nc in range (0, len(consts)):
+    if(consts[nc]['dim'] != 1):
+      IF('!strcmp(name,"'+consts[nc]['name']+'")')
+      if(consts[nc]['dim'] < 0):
+        IF('size>MAX_CONST_SIZE')
+        code('printf("error: MAX_CONST_SIZE not big enough\\n");')
+        code('exit(1);');
+        ENDIF()
+      code('cudaMemcpy('+consts[nc]['name']+'_cuda, dat, dim*size, cudaMemcpyHostToDevice);')
+      ENDIF()
+      code('else') 
+  
+  # else
+  code('{')
+  depth += 2
+  code('printf("error: unknown const name\\n");')
+  code('exit(1);')
+  ENDIF()
+  
+  ENDIF() # end dim != 1
+
+  depth -= 2;
+  code('}')
+
   code('')
+  comm(' pointers to recompiled functions')
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     code('void (*'+name+'_function)(struct op_kernel_descriptor *desc) = NULL;')
 
+  # do compiliation and linking using makefile
   code('')
   code('void jit_compile() {')
   depth += 2
