@@ -63,17 +63,16 @@ void op_decl_const_char(int dim, char const *type,
                         int size, char *dat,
                         char const *name)
 {
-  // lazy const adds to jit_const.h
-  op_lazy_const(dim, type, size, dat, name);
-  // copy value to device constant
-  if (dim != 1) {
-    if (!strcmp(name,"qinf")) {
-      cudaMemcpy(qinf_cuda, dat, dim*size, cudaMemcpyHostToDevice);
-    }
-    else
+  if (dim == 1) {
+    op_lazy_const(dim, type, size, dat, name);
+  }
+  else {
+    for (int d = 0; d < dim; ++d)
     {
-      printf("error: unknown const name\n");
-      exit(1);
+      char name2[32];
+      sprintf(name2, "op_const_%s_%d\0", name, d);
+      printf("%s|\n", name2);
+      op_lazy_const(1, type, size, dat+(d*size), name2);
     }
   }
 }

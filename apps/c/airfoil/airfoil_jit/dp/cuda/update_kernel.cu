@@ -19,17 +19,6 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
   }
   *rms += rmsl;
 
-  printf("update-gam_cuda: %1.17e\n",gam_cuda);
-  printf("update-gm1_cuda: %1.17e\n",gm1_cuda);
-  printf("update-cfl_cuda: %1.17e\n",cfl_cuda);
-  printf("update-eps_cuda: %1.17e\n",eps_cuda);
-  printf("update-mach_cuda: %1.17e\n",mach_cuda);
-  printf("update-alpha_cuda: %1.17e\n",alpha_cuda);
-  printf("update-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
@@ -76,7 +65,6 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
     if (!jit_compiled) {
       jit_compile();
     }
-    printf("call to recompiled update\n");
     (*update_function)(desc);
     return;
   #endif
@@ -150,6 +138,11 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
                                                 (double*) arg4.data_d,
                                                 set->size
     );
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("CUDA error: %s\n", cudaGetErrorString(err));
+      exit(1);
+    }
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     for (int b = 0; b < maxblocks; ++b)
@@ -172,7 +165,6 @@ void op_par_loop_update_execute(op_kernel_descriptor* desc)
   OP_kernels[4].transfer += (float)set->size * arg1.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg3.size;
-  printf("  End\n");
 }
 
 //Function called from modified source

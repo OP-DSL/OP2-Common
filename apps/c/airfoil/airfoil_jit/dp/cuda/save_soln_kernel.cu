@@ -8,17 +8,6 @@ __device__ void save_soln_gpu( const double *q, double *qold)
   for (int n = 0; n < 4; n++)
     qold[n] = q[n];
 
-  printf("save_soln-gam_cuda: %1.17e\n",gam_cuda);
-  printf("save_soln-gm1_cuda: %1.17e\n",gm1_cuda);
-  printf("save_soln-cfl_cuda: %1.17e\n",cfl_cuda);
-  printf("save_soln-eps_cuda: %1.17e\n",eps_cuda);
-  printf("save_soln-mach_cuda: %1.17e\n",mach_cuda);
-  printf("save_soln-alpha_cuda: %1.17e\n",alpha_cuda);
-  printf("save_soln-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
@@ -47,7 +36,6 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
     if (!jit_compiled) {
       jit_compile();
     }
-    printf("call to recompiled save_soln\n");
     (*save_soln_function)(desc);
     return;
   #endif
@@ -89,6 +77,11 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
                                            (double*) arg1.data_d,
                                            set->size
     );
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("CUDA error: %s\n", cudaGetErrorString(err));
+      exit(1);
+    }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
 
@@ -98,7 +91,6 @@ void op_par_loop_save_soln_execute(op_kernel_descriptor* desc)
   OP_kernels[0].time     += wall_t2 - wall_t1;
   OP_kernels[0].transfer += (float)set->size * arg0.size;
   OP_kernels[0].transfer += (float)set->size * arg1.size * 2.0f;
-  printf("  End\n");
 }
 
 //Function called from modified source

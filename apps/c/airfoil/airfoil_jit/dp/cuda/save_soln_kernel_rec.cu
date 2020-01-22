@@ -11,26 +11,13 @@
 //user function
 __device__ void save_soln_gpu( const double *q, double *qold)
 {
-  extern __shared__ double qinf_cuda[4];
-
   for (int n = 0; n < 4; n++)
     qold[n] = q[n];
 
-  printf("save_soln-gam: %1.17e\n",gam);
-  printf("save_soln-gm1: %1.17e\n",gm1);
-  printf("save_soln-cfl: %1.17e\n",cfl);
-  printf("save_soln-eps: %1.17e\n",eps);
-  printf("save_soln-mach: %1.17e\n",mach);
-  printf("save_soln-alpha: %1.17e\n",alpha);
-  printf("save_soln-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
-__global__ void op_cuda_save_soln(
+__global__ void op_cuda_save_soln_rec(
  const double* __restrict arg0,
  double* __restrict arg1,
  int set_size)
@@ -87,10 +74,15 @@ void op_par_loop_save_soln_rec_execute(op_kernel_descriptor* desc)
 
     int nblocks = 200;
 
-    op_cuda_save_soln<<<nblocks,nthread>>>((double*) arg0.data_d,
+    op_cuda_save_soln_rec<<<nblocks,nthread>>>((double*) arg0.data_d,
                                            (double*) arg1.data_d,
                                            set->size
     );
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("CUDA error: %s\n", cudaGetErrorString(err));
+      exit(1);
+    }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
 
@@ -100,7 +92,6 @@ void op_par_loop_save_soln_rec_execute(op_kernel_descriptor* desc)
   OP_kernels[0].time     += wall_t2 - wall_t1;
   OP_kernels[0].transfer += (float)set->size * arg0.size;
   OP_kernels[0].transfer += (float)set->size * arg1.size * 2.0f;
-  printf("  End\n");
 }
 
 } //end extern c

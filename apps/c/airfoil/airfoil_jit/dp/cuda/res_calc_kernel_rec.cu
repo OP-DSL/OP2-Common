@@ -13,8 +13,6 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
                      const double *q2, const double *adt1, const double *adt2,
                      double *res1, double *res2)
 {
-  extern __shared__ double qinf_cuda[4];
-
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -45,21 +43,10 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
   res1[3] += f;
   res2[3] -= f;
 
-  printf("res_calc-gam: %1.17e\n",gam);
-  printf("res_calc-gm1: %1.17e\n",gm1);
-  printf("res_calc-cfl: %1.17e\n",cfl);
-  printf("res_calc-eps: %1.17e\n",eps);
-  printf("res_calc-mach: %1.17e\n",mach);
-  printf("res_calc-alpha: %1.17e\n",alpha);
-  printf("res_calc-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
-__global__ void op_cuda_res_calc(
+__global__ void op_cuda_res_calc_rec(
  const double* __restrict ind_arg0,
  const double* __restrict ind_arg1,
  const double* __restrict ind_arg2,
@@ -167,7 +154,6 @@ void op_par_loop_res_calc_rec_execute(op_kernel_descriptor* desc)
 
     for (int round = 0; round < 2; ++round)
     {
-      printf("  round: %d\n", round);
       if (round==1) {
         op_mpi_wait_all_cuda(nargs, args);
       }
@@ -175,7 +161,7 @@ void op_par_loop_res_calc_rec_execute(op_kernel_descriptor* desc)
       int end = round==0 ? set->core_size : set->size + set->exec_size;
       if (end - start>0) {
         int nblocks = (end-start-1)/nthread+1;
-        op_cuda_res_calc<<<nblocks,nthread>>>(
+        op_cuda_res_calc_rec<<<nblocks,nthread>>>(
           (double *)arg0.data_d,
           (double *)arg2.data_d,
           (double *)arg4.data_d,
@@ -183,8 +169,12 @@ void op_par_loop_res_calc_rec_execute(op_kernel_descriptor* desc)
           arg0.map_data_d,
           arg2.map_data_d,
           start,end,set->size+set->exec_size);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+          printf("CUDA error: %s\n", cudaGetErrorString(err));
+          exit(1);
+        }
       }
-      printf("  end: %d\n", round);
     }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
@@ -193,7 +183,6 @@ void op_par_loop_res_calc_rec_execute(op_kernel_descriptor* desc)
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[2].time     += wall_t2 - wall_t1;
-  printf("  End\n");
 }
 
 } //end extern c

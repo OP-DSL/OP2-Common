@@ -12,8 +12,6 @@
 __device__ void bres_calc_gpu( const double *x1, const double *x2, const double *q1,
                       const double *adt1, double *res1, const int *bound)
 {
-  extern __shared__ double qinf_cuda[4];
-
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -28,40 +26,29 @@ __device__ void bres_calc_gpu( const double *x1, const double *x2, const double 
   } else {
     vol1 = ri * (q1[1] * dy - q1[2] * dx);
 
-    ri = 1.0f / qinf_cuda[0];
-    p2 = gm1 * (qinf_cuda[3] - 0.5f * ri * (qinf_cuda[1] * qinf_cuda[1] + qinf_cuda[2] * qinf_cuda[2]));
-    vol2 = ri * (qinf_cuda[1] * dy - qinf_cuda[2] * dx);
+    ri = 1.0f / op_const_qinf_0;
+    p2 = gm1 * (op_const_qinf_3 - 0.5f * ri * (op_const_qinf_1 * op_const_qinf_1 + op_const_qinf_2 * op_const_qinf_2));
+    vol2 = ri * (op_const_qinf_1 * dy - op_const_qinf_2 * dx);
 
     mu = (*adt1) * eps;
 
-    f = 0.5f * (vol1 * q1[0] + vol2 * qinf_cuda[0]) + mu * (q1[0] - qinf_cuda[0]);
+    f = 0.5f * (vol1 * q1[0] + vol2 * op_const_qinf_0) + mu * (q1[0] - op_const_qinf_0);
     res1[0] += f;
-    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf_cuda[1] + p2 * dy) +
-        mu * (q1[1] - qinf_cuda[1]);
+    f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * op_const_qinf_1 + p2 * dy) +
+        mu * (q1[1] - op_const_qinf_1);
     res1[1] += f;
-    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf_cuda[2] - p2 * dx) +
-        mu * (q1[2] - qinf_cuda[2]);
+    f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * op_const_qinf_2 - p2 * dx) +
+        mu * (q1[2] - op_const_qinf_2);
     res1[2] += f;
-    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf_cuda[3] + p2)) +
-        mu * (q1[3] - qinf_cuda[3]);
+    f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (op_const_qinf_3 + p2)) +
+        mu * (q1[3] - op_const_qinf_3);
     res1[3] += f;
   }
 
-  printf("bres_calc-gam: %1.17e\n",gam);
-  printf("bres_calc-gm1: %1.17e\n",gm1);
-  printf("bres_calc-cfl: %1.17e\n",cfl);
-  printf("bres_calc-eps: %1.17e\n",eps);
-  printf("bres_calc-mach: %1.17e\n",mach);
-  printf("bres_calc-alpha: %1.17e\n",alpha);
-  printf("bres_calc-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
-__global__ void op_cuda_bres_calc(
+__global__ void op_cuda_bres_calc_rec(
  const double* __restrict ind_arg0,
  const double* __restrict ind_arg1,
  const double* __restrict ind_arg2,
@@ -153,7 +140,6 @@ void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
 
     for (int round = 0; round < 2; ++round)
     {
-      printf("  round: %d\n", round);
       if (round==1) {
         op_mpi_wait_all_cuda(nargs, args);
       }
@@ -161,7 +147,7 @@ void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
       int end = round==0 ? set->core_size : set->size + set->exec_size;
       if (end - start>0) {
         int nblocks = (end-start-1)/nthread+1;
-        op_cuda_bres_calc<<<nblocks,nthread>>>(
+        op_cuda_bres_calc_rec<<<nblocks,nthread>>>(
           (double *)arg0.data_d,
           (double *)arg2.data_d,
           (double *)arg3.data_d,
@@ -170,8 +156,12 @@ void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
           arg2.map_data_d,
           (int*)arg5.data_d,
           start,end,set->size+set->exec_size);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+          printf("CUDA error: %s\n", cudaGetErrorString(err));
+          exit(1);
+        }
       }
-      printf("  end: %d\n", round);
     }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
@@ -180,7 +170,6 @@ void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[3].time     += wall_t2 - wall_t1;
-  printf("  End\n");
 }
 
 } //end extern c

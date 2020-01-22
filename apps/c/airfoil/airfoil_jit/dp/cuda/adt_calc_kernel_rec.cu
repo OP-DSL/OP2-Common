@@ -12,8 +12,6 @@
 __device__ void adt_calc_gpu( const double *x1, const double *x2, const double *x3,
                      const double *x4, const double *q, double *adt)
 {
-  extern __shared__ double qinf_cuda[4];
-
   double dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0];
@@ -39,21 +37,10 @@ __device__ void adt_calc_gpu( const double *x1, const double *x2, const double *
 
   *adt = (*adt) * (1.0f / cfl);
 
-  printf("adt_calc-gam: %1.17e\n",gam);
-  printf("adt_calc-gm1: %1.17e\n",gm1);
-  printf("adt_calc-cfl: %1.17e\n",cfl);
-  printf("adt_calc-eps: %1.17e\n",eps);
-  printf("adt_calc-mach: %1.17e\n",mach);
-  printf("adt_calc-alpha: %1.17e\n",alpha);
-  printf("adt_calc-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
-__global__ void op_cuda_adt_calc(
+__global__ void op_cuda_adt_calc_rec(
  const double* __restrict ind_arg0,
  const int* __restrict opDat0Map,
  const double* __restrict arg4,
@@ -135,7 +122,6 @@ void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor* desc)
 
     for (int round = 0; round < 2; ++round)
     {
-      printf("  round: %d\n", round);
       if (round==1) {
         op_mpi_wait_all_cuda(nargs, args);
       }
@@ -143,15 +129,18 @@ void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor* desc)
       int end = round==0 ? set->core_size : set->size + set->exec_size;
       if (end - start>0) {
         int nblocks = (end-start-1)/nthread+1;
-        printf("blocks:%d threads:%d\n", nblocks, nthread);
-        op_cuda_adt_calc<<<nblocks,nthread>>>(
+        op_cuda_adt_calc_rec<<<nblocks,nthread>>>(
           (double *)arg0.data_d,
           arg0.map_data_d,
           (double*)arg4.data_d,
           (double*)arg5.data_d,
           start,end,set->size+set->exec_size);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+          printf("CUDA error: %s\n", cudaGetErrorString(err));
+          exit(1);
+        }
       }
-      printf("  end: %d\n", round);
     }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
@@ -160,7 +149,6 @@ void op_par_loop_adt_calc_rec_execute(op_kernel_descriptor* desc)
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[1].time     += wall_t2 - wall_t1;
-  printf("  End\n");
 }
 
 } //end extern c

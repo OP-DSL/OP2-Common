@@ -39,17 +39,6 @@ __device__ void bres_calc_gpu( const double *x1, const double *x2, const double 
     res1[3] += f;
   }
 
-  printf("bres_calc-gam_cuda: %1.17e\n",gam_cuda);
-  printf("bres_calc-gm1_cuda: %1.17e\n",gm1_cuda);
-  printf("bres_calc-cfl_cuda: %1.17e\n",cfl_cuda);
-  printf("bres_calc-eps_cuda: %1.17e\n",eps_cuda);
-  printf("bres_calc-mach_cuda: %1.17e\n",mach_cuda);
-  printf("bres_calc-alpha_cuda: %1.17e\n",alpha_cuda);
-  printf("bres_calc-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
@@ -105,7 +94,6 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
     if (!jit_compiled) {
       jit_compile();
     }
-    printf("call to recompiled bres_calc\n");
     (*bres_calc_function)(desc);
     return;
   #endif
@@ -151,7 +139,6 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
 
     for (int round = 0; round < 2; ++round)
     {
-      printf("  round: %d\n", round);
       if (round==1) {
         op_mpi_wait_all_cuda(nargs, args);
       }
@@ -168,8 +155,12 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
           arg2.map_data_d,
           (int*)arg5.data_d,
           start,end,set->size+set->exec_size);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+          printf("CUDA error: %s\n", cudaGetErrorString(err));
+          exit(1);
+        }
       }
-      printf("  end: %d\n", round);
     }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
@@ -178,7 +169,6 @@ void op_par_loop_bres_calc_execute(op_kernel_descriptor* desc)
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[3].time     += wall_t2 - wall_t1;
-  printf("  End\n");
 }
 
 //Function called from modified source

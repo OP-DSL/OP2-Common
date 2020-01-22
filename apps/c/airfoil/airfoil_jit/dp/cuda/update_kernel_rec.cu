@@ -12,8 +12,6 @@
 __device__ void update_gpu( const double *qold, double *q, double *res,
                    const double *adt, double *rms)
 {
-  extern __shared__ double qinf_cuda[4];
-
   double del, adti, rmsl;
 
   rmsl = 0.0f;
@@ -27,21 +25,10 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
   }
   *rms += rmsl;
 
-  printf("update-gam: %1.17e\n",gam);
-  printf("update-gm1: %1.17e\n",gm1);
-  printf("update-cfl: %1.17e\n",cfl);
-  printf("update-eps: %1.17e\n",eps);
-  printf("update-mach: %1.17e\n",mach);
-  printf("update-alpha: %1.17e\n",alpha);
-  printf("update-qinf_cuda:\n");
-  for (int i = 0; i < 4; ++i)
-  {
-    printf("  %1.17e\n", qinf_cuda[i]);
-  }
 }
 
 //C CUDA kernel function
-__global__ void op_cuda_update(
+__global__ void op_cuda_update_rec(
  const double* __restrict arg0,
  double* __restrict arg1,
  double* __restrict arg2,
@@ -145,13 +132,18 @@ void op_par_loop_update_rec_execute(op_kernel_descriptor* desc)
     mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
-    op_cuda_update<<<nblocks,nthread,nshared>>>((double*) arg0.data_d,
+    op_cuda_update_rec<<<nblocks,nthread,nshared>>>((double*) arg0.data_d,
                                                 (double*) arg1.data_d,
                                                 (double*) arg2.data_d,
                                                 (double*) arg3.data_d,
                                                 (double*) arg4.data_d,
                                                 set->size
     );
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("CUDA error: %s\n", cudaGetErrorString(err));
+      exit(1);
+    }
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     for (int b = 0; b < maxblocks; ++b)
@@ -174,7 +166,6 @@ void op_par_loop_update_rec_execute(op_kernel_descriptor* desc)
   OP_kernels[4].transfer += (float)set->size * arg1.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg2.size * 2.0f;
   OP_kernels[4].transfer += (float)set->size * arg3.size;
-  printf("  End\n");
 }
 
 } //end extern c
