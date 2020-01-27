@@ -18,6 +18,7 @@ OP2_LIB		= -L$(OP2_INSTALL_PATH)/c/lib
 CUDA_INC	= -I$(CUDA_INSTALL_PATH)/include
 CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
+JIT = TRUE
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
@@ -28,8 +29,13 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -rdynamic -DOP2_JIT #-DCOMM_PERF #-DDEBUG
-#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -rdynamic
+	ifeq ($(JIT), TRUE)
+		CCFLAGS	:= $(CCFLAGS) -DOP2_JIT 
+	endif
+	ifeq ($(DEBUG), TRUE)
+		CCFLAGS := $(CCFLAGS) -DDEBUG
+ 	endif
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
@@ -117,7 +123,13 @@ ifdef MAX_REG_COUNT
   endif
 endif
 
-NVCCFLAGS := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo -DOP2_JIT#-g -G -O0
+NVCCFLAGS := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo #  -O0
+ifeq ($(JIT), TRUE)
+	NVCCFLAGS	:= $(NVCCFLAGS) -DOP2_JIT 
+endif
+ifeq ($(DEBUG), TRUE)
+	NVCCFLAGS := $(NVCCFLAGS) -g -G
+ endif
 
 NVCC_COPTS := --compiler-options -fPIC
 
