@@ -169,6 +169,8 @@ void op_par_loop_bres_calc_rec_execute(op_kernel_descriptor* desc)
   cutilSafeCall(cudaDeviceSynchronize());
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[3].name      = desc->name;
+  OP_kernels[3].count    += 1;
   OP_kernels[3].time     += wall_t2 - wall_t1;
 }
 

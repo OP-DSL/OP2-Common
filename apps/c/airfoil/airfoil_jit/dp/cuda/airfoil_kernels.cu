@@ -14,7 +14,7 @@ __constant__ double cfl_cuda;
 __constant__ double eps_cuda;
 __constant__ double mach_cuda;
 __constant__ double alpha_cuda;
-extern __shared__ double qinf_cuda[4];
+__constant__ double qinf_cuda[4];
 
 #ifndef OP2_JIT
 

@@ -10,8 +10,8 @@
 ##########################################################################
 
 ##TODO
-# normal cuda build fails, wrong header file?
-# fix other build errors
+# iterating over const array: macro type and local list?
+# benchmark
 
 import re
 import datetime
@@ -815,8 +815,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('cutilSafeCall(cudaDeviceSynchronize());')
     comm(' update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
-    #code('OP_kernels[' +str(nk)+ '].name      = name;')
-    #code('OP_kernels[' +str(nk)+ '].count    += 1;')
+    code('OP_kernels[' +str(nk)+ '].name      = desc->name;')
+    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
     if ninds == 0:
@@ -915,8 +915,6 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
               body            +\
               body_end 
     
-    ## TODO move this back where it was and write cuda specific jit_const gen
-
     for nc in range(0,len(consts)):
       varname = consts[nc]['name']
       outfile = re.sub('\\b'+varname+'\\b',varname+'_cuda',outfile)
@@ -972,7 +970,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
-      code('extern __shared__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda'+'['+num+'];')
+      code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda'+'['+num+'];')
 
   #  
   # JIT DISABLED 
