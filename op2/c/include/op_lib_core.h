@@ -134,6 +134,14 @@ typedef struct {
 typedef op_set_core *op_set;
 
 typedef struct {
+    int index;
+    int *global_ids;
+    
+} op_set_global_ids_core;
+
+typedef op_set_global_ids_core *op_set_global_ids;
+
+typedef struct {
   int index;        /* index */
   op_set from,      /* set pointed from */
       to;           /* set pointed to */
@@ -150,6 +158,12 @@ typedef struct {
   int index;            /* index */
   int *reversed_map;    /* reversed mapping */
   int *row_start_idx;   /* Helper array for indexing reversed_map */
+  int number_of_colors;
+  
+  int *reproducible_coloring;
+  int *color_based_exec_row_starts;
+  int *color_based_exec;
+  
 } op_reversed_map_core;
 
 typedef op_reversed_map_core *op_reversed_map;

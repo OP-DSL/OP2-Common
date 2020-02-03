@@ -141,7 +141,7 @@ PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
-REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)inc
+REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)/include
 REPRO_MPI_LIB   = -L$(REPRO_MPI_LIB_PATH) -lbinned -lbinnedblas -lreproblas -lbinnedmpi -lm
 #
 # master to make all versions
@@ -342,7 +342,7 @@ cuda/minimal_hybkernels.o: cuda/minimal_hybkernels.cu \
 
 convert_mesh_seq: convert_mesh.cpp
 	$(MPICPP) $(MPIFLAGS) $(REPRO_MPI_INC) convert_mesh.cpp $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
-	$(OP2_LIB) -lop2_seq -lop2_hdf5 $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o convert_mesh_seq
+	$(OP2_LIB) -lop2_seq -lop2_hdf5 $(PARMETIS_LIB) $(REPRO_MPI_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o convert_mesh_seq
 
 
 

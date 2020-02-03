@@ -199,7 +199,7 @@ ifdef HDF5_INSTALL_PATH
   HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
-REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)inc
+REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)/include
 
 .PHONY: clean mklib
 

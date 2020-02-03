@@ -68,6 +68,7 @@ char *OP_reduct_h;
 op_set *OP_set_list;
 op_map *OP_map_list = NULL;
 int **OP_map_ptr_list = NULL;
+op_set_global_ids *OP_set_global_ids_list;
 op_map *OP_map_list;
 op_reversed_map *OP_reversed_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
@@ -274,6 +275,8 @@ op_set op_decl_set_core(int size, char const *name) {
     OP_set_max += 10;
     OP_set_list =
         (op_set *)op_realloc(OP_set_list, OP_set_max * sizeof(op_set));
+    OP_set_global_ids_list =
+        (op_set_global_ids *)op_realloc(OP_set_global_ids_list, OP_set_max * sizeof(op_set_global_ids));
 
     if (OP_set_list == NULL) {
       printf(" op_decl_set error -- error reallocating memory\n");
@@ -289,7 +292,12 @@ op_set op_decl_set_core(int size, char const *name) {
   set->exec_size = 0;
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
-
+  
+  op_set_global_ids glbl_ids = (op_set_global_ids)op_malloc(sizeof(op_set_global_ids_core));
+  glbl_ids->index = OP_set_index;
+  glbl_ids->global_ids = NULL;
+  OP_set_global_ids_list[OP_set_index - 1] = glbl_ids;   
+  
   return set;
 }
 
@@ -494,9 +502,12 @@ void op_exit_core() {
   for (int i = 0; i < OP_set_index; i++) {
     free((char *)OP_set_list[i]->name);
     free(OP_set_list[i]);
+    free(OP_set_global_ids_list[i]->global_ids);
   }
   free(OP_set_list);
+  free(OP_set_global_ids_list);
   OP_set_list = NULL;
+  OP_set_global_ids_list = NULL;
 
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_list[i]->user_managed)

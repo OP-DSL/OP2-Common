@@ -51,6 +51,8 @@
 #include <op_lib_core.h>
 #include <op_util.h>
 
+#include <set>
+
 // ptscotch header
 #ifdef HAVE_PTSCOTCH
 #include <ptscotch.h>
@@ -3743,6 +3745,188 @@ void globalIdSort(int *orders, int row_len, int *global_ids, int map_dim) {
   }
 }
 
+void globalIdSort2(int *orders, int row_len, int *global_ids) {
+
+  int i, key, j;
+  for (i = 1; i < row_len; i++) {
+    key = orders[i];
+    j = i - 1;
+
+    /* Move elements of orders[0..i-1], that are
+       greater than key, to one position ahead
+       of their current position */
+    while (j >= 0 &&
+           global_ids[orders[j]] > global_ids[key]) {
+      orders[j + 1] = orders[j];
+      j = j - 1;
+    }
+    orders[j + 1] = key;
+  }
+}
+
+void exchange_global_ids(){
+    
+    for (int s=0; s<OP_set_index; s++){
+        
+        
+      // First, share global indexing of the owned elements
+
+      halo_list exp_exec_list_fromset =
+          OP_export_exec_list[OP_set_list[s]->index];
+      halo_list imp_exec_list_fromset =
+          OP_import_exec_list[OP_set_list[s]->index];
+          
+      halo_list exp_nonexec_list_fromset =
+          OP_export_nonexec_list[OP_set_list[s]->index];
+      halo_list imp_nonexec_list_fromset =
+          OP_import_nonexec_list[OP_set_list[s]->index];
+
+      MPI_Request *exp_fromset_req_list = (MPI_Request *)op_malloc(
+          exp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
+      MPI_Request *imp_fromset_req_list = (MPI_Request *)op_malloc(
+          imp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
+
+      MPI_Request *exp_nonexec_fromset_req_list = (MPI_Request *)op_malloc(
+          exp_nonexec_list_fromset->ranks_size * sizeof(MPI_Request));
+      MPI_Request *imp_nonexec_fromset_req_list = (MPI_Request *)op_malloc(
+          imp_nonexec_list_fromset->ranks_size * sizeof(MPI_Request));
+
+      int *exp_fromset_buffer_list =
+          (int *)op_malloc(exp_exec_list_fromset->size * sizeof(int));
+      int *exp_nonexec_fromset_buffer_list =
+          (int *)op_malloc(exp_nonexec_list_fromset->size * sizeof(int));
+
+      // share global eeh indices
+      for (int r = 0; r < exp_exec_list_fromset->ranks_size;
+           r++) // for each export neighbor rank
+      {
+        // first eeh element for neighbor rank r
+        int first_eeh_r =
+            OP_set_list[s]->core_size +
+            exp_exec_list_fromset->disps[r];
+        // first element after the eeh for neigbor rank r
+        int first_after_eeh_r =
+            OP_set_list[s]->core_size +
+            exp_exec_list_fromset->disps[r] +
+            exp_exec_list_fromset->sizes[r];
+        for (int i = first_eeh_r; i < first_after_eeh_r; i++) {
+          // for each element of the eeh for neigbor rank r
+          int set_elem_index = 
+              exp_exec_list_fromset->list[i - OP_set_list[s]->core_size];
+          // put the global_id of element locally indexed by i to buffer
+          exp_fromset_buffer_list[i - OP_set_list[s]->core_size] =
+              OP_part_list[OP_set_list[s]->index]->g_index[set_elem_index];
+        }
+        MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]],
+                  exp_exec_list_fromset->sizes[r], MPI_INT,
+                  exp_exec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
+                  &exp_fromset_req_list[r]); // send the gathered global ids to
+                                             // the neighbor rank r
+      }
+      
+      
+      // share global enh indices
+      for (int r = 0; r < exp_nonexec_list_fromset->ranks_size;
+           r++) // for each export neighbor rank
+      {
+        // first enh element for neighbor rank r
+        int first_enh_r =
+            OP_set_list[s]->core_size +
+            exp_nonexec_list_fromset->disps[r];
+        // first element after the enh for neigbor rank r
+        int first_after_enh_r =
+            OP_set_list[s]->core_size +
+            exp_nonexec_list_fromset->disps[r] +
+            exp_nonexec_list_fromset->sizes[r];
+        for (int i = first_enh_r; i < first_after_enh_r; i++) {
+          // for each element of the enh for neigbor rank r
+          int set_elem_index = 
+              exp_nonexec_list_fromset->list[i - OP_set_list[s]->core_size];
+          // put the global_id of element locally indexed by i to buffer
+          exp_nonexec_fromset_buffer_list[i - OP_set_list[s]->core_size] =
+              OP_part_list[OP_set_list[s]->index]->g_index[set_elem_index];
+        }
+        MPI_Isend(&exp_nonexec_fromset_buffer_list[exp_nonexec_list_fromset->disps[r]],
+                  exp_nonexec_list_fromset->sizes[r], MPI_INT,
+                  exp_nonexec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
+                  &exp_nonexec_fromset_req_list[r]); // send the gathered global ids to
+                                             // the neighbor rank r
+      }
+      
+
+      // recieve global indices for iehs
+
+      // create a list for all owned+ieh+inh global indices
+      OP_set_global_ids_list[s]->global_ids = (int *)op_malloc(
+          (OP_set_list[s]->size + imp_exec_list_fromset->size + imp_nonexec_list_fromset->size) *
+          sizeof(int));
+      memcpy(&OP_set_global_ids_list[s]->global_ids[0],
+             &(OP_part_list[OP_set_list[s]->index]->g_index[0]),
+             OP_set_list[s]->size * sizeof(int)); // First part of the
+                                                      // OP_set_global_ids_list[s]->global_ids
+                                                      // is the ids for the
+                                                      // owned elements
+
+      for (int r = 0; r < imp_exec_list_fromset->ranks_size;
+           r++) // for each import neighbor rank
+      {
+        MPI_Irecv(&OP_set_global_ids_list[s]->global_ids[OP_set_list[s]->size +
+                                          imp_exec_list_fromset->disps[r]],
+                  imp_exec_list_fromset->sizes[r], MPI_INT,
+                  imp_exec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
+                  &imp_fromset_req_list[r]); // recieve global ids from from
+                                             // neighbor rank r
+      }
+
+      for (int r = 0; r < imp_nonexec_list_fromset->ranks_size;
+           r++) // for each import neighbor rank
+      {
+        MPI_Irecv(&OP_set_global_ids_list[s]->global_ids[OP_set_list[s]->size +
+                                          imp_nonexec_list_fromset->disps[r]],
+                  imp_nonexec_list_fromset->sizes[r], MPI_INT,
+                  imp_nonexec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
+                  &imp_nonexec_fromset_req_list[r]); // recieve global ids from from
+                                             // neighbor rank r
+      }
+
+      MPI_Waitall(exp_exec_list_fromset->ranks_size, exp_fromset_req_list,
+                  MPI_STATUSES_IGNORE);
+      MPI_Waitall(imp_exec_list_fromset->ranks_size, imp_fromset_req_list,
+                  MPI_STATUSES_IGNORE);
+
+      MPI_Waitall(exp_nonexec_list_fromset->ranks_size, exp_nonexec_fromset_req_list,
+                  MPI_STATUSES_IGNORE);
+      MPI_Waitall(imp_nonexec_list_fromset->ranks_size, imp_nonexec_fromset_req_list,
+                  MPI_STATUSES_IGNORE);
+
+      op_free(exp_fromset_buffer_list);
+      op_free(exp_nonexec_fromset_buffer_list);
+      op_free(exp_fromset_req_list);
+      op_free(exp_nonexec_fromset_req_list);
+      op_free(imp_fromset_req_list);
+      op_free(imp_nonexec_fromset_req_list);
+        
+        
+      //OP_set_global_ids_list[s]->global_ids=global_indices_fromset;              
+        
+    }
+    
+}
+
+int contains(int* tmp_neigh_list,int from, int to,int potential_neighbor){
+    
+    for (int i=from; i<to; i++){
+        if (tmp_neigh_list[i]==potential_neighbor) return 1;
+    }
+    return 0;    
+}
+
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+     
 /*******************************************************************************
 * Create reversed mapping for reproducible MPI execution
 *******************************************************************************/
@@ -3758,93 +3942,25 @@ void create_reversed_mapping() {
     
     
     
+  exchange_global_ids();
     
   // Create reversed mapping for each map
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map original_map = OP_map_list[m];
+    printf("Reverse map creating and coloring for map %s\n",original_map->name);
 
+    
+    
+    
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
     int set_to_size = original_map->to->size + original_map->to->exec_size +
                       original_map->to->nonexec_size;
 
+    
     if (set_from_size == 0) {
       OP_reversed_map_list[m] = NULL;
     } else {
-
-      // Fisrt, share global indexing of the owned elements
-
-      halo_list exp_exec_list_fromset =
-          OP_export_exec_list[original_map->from->index];
-      halo_list imp_exec_list_fromset =
-          OP_import_exec_list[original_map->from->index];
-
-      MPI_Request *exp_fromset_req_list = (MPI_Request *)op_malloc(
-          exp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
-      MPI_Request *imp_fromset_req_list = (MPI_Request *)op_malloc(
-          imp_exec_list_fromset->ranks_size * sizeof(MPI_Request));
-
-      int *exp_fromset_buffer_list =
-          (int *)op_malloc(exp_exec_list_fromset->size * sizeof(int));
-
-      // share global eeh indices
-      for (int r = 0; r < exp_exec_list_fromset->ranks_size;
-           r++) // for each export neighbor rank
-      {
-        // first eeh element for neighbor rank r
-        int first_eeh_r =
-            original_map->from->core_size +
-            exp_exec_list_fromset->disps[r];
-        // first element after the eeh for neigbor rank r
-        int first_after_eeh_r =
-            original_map->from->core_size +
-            exp_exec_list_fromset->disps[r] +
-            exp_exec_list_fromset->sizes[r];
-        for (int i = first_eeh_r; i < first_after_eeh_r; i++) {
-          // for each element of the eeh for neigbor rank r
-          // put the global_id of element locally indexed by i to buffer
-          exp_fromset_buffer_list[i - original_map->from->core_size] =
-              OP_part_list[original_map->from->index]->g_index[i];
-        }
-        MPI_Isend(&exp_fromset_buffer_list[exp_exec_list_fromset->disps[r]],
-                  exp_exec_list_fromset->sizes[r], MPI_INT,
-                  exp_exec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
-                  &exp_fromset_req_list[r]); // send the gathered global ids to
-                                             // the neighbor rank r
-      }
-
-      // recieve global indices for iehs
-
-      // create a list for all owned+ieh global indices
-      int *global_indices_fromset = (int *)op_malloc(
-          (original_map->from->size + imp_exec_list_fromset->size) *
-          sizeof(int));
-      memcpy(&global_indices_fromset[0],
-             &(OP_part_list[original_map->from->index]->g_index[0]),
-             original_map->from->size * sizeof(int)); // First part of the
-                                                      // global_indices_fromset
-                                                      // is the ids for the
-                                                      // owned elements
-
-      for (int r = 0; r < imp_exec_list_fromset->ranks_size;
-           r++) // for each import neighbor rank
-      {
-        MPI_Irecv(&global_indices_fromset[original_map->from->size +
-                                          imp_exec_list_fromset->disps[r]],
-                  imp_exec_list_fromset->sizes[r], MPI_INT,
-                  imp_exec_list_fromset->ranks[r], 1, OP_MPI_WORLD,
-                  &imp_fromset_req_list[r]); // recieve global ids from from
-                                             // neighbor rank r
-      }
-
-      MPI_Waitall(exp_exec_list_fromset->ranks_size, exp_fromset_req_list,
-                  MPI_STATUSES_IGNORE);
-      MPI_Waitall(imp_exec_list_fromset->ranks_size, imp_fromset_req_list,
-                  MPI_STATUSES_IGNORE);
-
-      op_free(exp_fromset_buffer_list);
-      op_free(exp_fromset_req_list);
-      op_free(imp_fromset_req_list);
 
       // create a reversed mapping to temporary increments with local index
       // ordering
@@ -3894,20 +4010,186 @@ void create_reversed_mapping() {
       // sort increment orders, using the global indices
       for (int i = 0; i < set_to_size; i++) {
         globalIdSort(&reversed_map[rev_row_start_idx[i]], rev_row_lens[i],
-                     global_indices_fromset, original_map_dim);
+                     OP_set_global_ids_list[original_map->from->index]->global_ids, original_map_dim);
       }
-
+    
       op_reversed_map rev_map =
           (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
 
       rev_map->index = original_map->index;
       rev_map->reversed_map = reversed_map;
       rev_map->row_start_idx = rev_row_start_idx;
+      
 
-      op_free(global_indices_fromset);
+      //op_free(global_indices_fromset);
 
       op_free(rev_row_lens);
       OP_reversed_map_list[m] = rev_map;
+      
+//      } 
+   
+        
+ //   } //end of reverse mapping creating
+    
+   //  MPI_Barrier(OP_MPI_WORLD);
+
+  int myrank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+ //   if (set_from_size > 0) 
+ //   {
+        
+          // Create coloring for reprudicble execution
+ //     for (int m = 0; m < OP_map_index; m++) { // for each maping table
+        op_map original_map = OP_map_list[m];
+     //   op_reversed_map rev_map = OP_reversed_map_list[m];
+     //   int* reversed_map = OP_reversed_map_list[m];    
+            
+        int set_from_size =
+            original_map->from->size + original_map->from->exec_size;
+        int set_to_size = original_map->to->size + original_map->to->exec_size +
+                          original_map->to->nonexec_size;
+                          
+
+          // Create a mapping of neighbors for coloring
+          int neighbors_size=0;      
+          std::set<int> neighbors_sets[set_to_size];
+          int *neighbors_start_idxs = (int *)op_malloc((set_to_size+1) * sizeof(int));
+          neighbors_start_idxs[0]=0;
+          
+          //create neighbours map. For every node, iterate through the edges connected to it, and check what other nodes can be found at the other end of those edges. This should apply for higher dimensions too. (e.g. C->N mappings)
+          for (int i=0;i<set_to_size;i++){    //for each nodes          
+              for (int j=rev_map->row_start_idx[i];j<rev_map->row_start_idx[i+1];j++){    //for each edges starting from node i    
+                int from_element=rev_map->reversed_map[j]/original_map->dim;
+                int loop_element=0;     //check whether it is an element connecting i to i 
+                for (int d=0;d<original_map->dim;d++){
+                    int potential_neighbor=original_map->map[from_element*original_map->dim+d];
+                    if (potential_neighbor!=i | loop_element==1) {
+                        neighbors_sets[i].insert(potential_neighbor);
+                    } else {
+                        loop_element=1;
+                    }                    
+                }        
+              }
+              neighbors_size+=neighbors_sets[i].size();
+              neighbors_start_idxs[i+1]=neighbors_start_idxs[i]+neighbors_sets[i].size();
+          }
+          
+          int* neighbors = (int*)op_malloc(neighbors_size*sizeof(int));          
+          for (int i=0;i<set_to_size;i++){
+              int act_id=neighbors_start_idxs[i];
+              for (int n : neighbors_sets[i]){
+                  neighbors[act_id++]=n;
+              }
+              globalIdSort2(&neighbors[neighbors_start_idxs[i]], neighbors_start_idxs[i+1]-neighbors_start_idxs[i], OP_set_global_ids_list[original_map->to->index]->global_ids);
+          }        
+          
+          int *repr_colors = (int *)op_malloc(set_from_size * sizeof(int)); //TODO free??
+          for (int i=0; i<set_from_size; i++){ repr_colors[i]=-1; } 
+          int max_color=0;
+          
+          int* to_elements_sorted_by_global_id = (int*)op_malloc(set_to_size*sizeof(int));
+          for (int i=0; i<set_to_size; i++){
+              to_elements_sorted_by_global_id[i]=i;
+          }
+          globalIdSort2(&to_elements_sorted_by_global_id[0],set_to_size,OP_set_global_ids_list[original_map->to->index]->global_ids);
+          for (int i2=0; i2<set_to_size; i2++){    
+            int i=to_elements_sorted_by_global_id[i2];
+            
+            for (int j=neighbors_start_idxs[i]; j<neighbors_start_idxs[i+1]; j++){    //neighbor nodes                
+                int next_color=-1;
+                for (int k=rev_map->row_start_idx[i]; k<rev_map->row_start_idx[i+1]; k++){
+                    next_color=max(next_color,max(0,repr_colors[rev_map->reversed_map[k]/original_map->dim]+1));
+                }
+                for (int k=rev_map->row_start_idx[neighbors[j]]; k<rev_map->row_start_idx[neighbors[j]+1]; k++){
+                    next_color=max(next_color,max(0,repr_colors[rev_map->reversed_map[k]/original_map->dim]+1));
+                }
+                if (next_color==-1){
+                    printf("Reproducible coloring ERROR - next_color=-1, i: %d, neigh[j]: %d\n", i, neighbors[j]);
+                }                
+                
+                //find element(s) between i and j , order them by global_id and assign the next available color to each of them.
+                  int size_of_possible_connections=0; //TODO size_of_poss_conn=1 
+                  int* possible_connections = (int *)op_malloc(size_of_possible_connections*sizeof(int));
+                  for (int from_element_id_in_rev_map=rev_map->row_start_idx[i]; from_element_id_in_rev_map<rev_map->row_start_idx[i+1]; from_element_id_in_rev_map++){
+                      int from_element=rev_map->reversed_map[from_element_id_in_rev_map]/original_map->dim;     //an edge from node i                        
+                        int i_is_seen=0;        //check the direction of a mapping. Assign color only, if the connecting from_element is starting from i and heads to j.                      
+                        for (int d=0; d<original_map->dim; d++)
+                        {
+                          int to_element=original_map->map[from_element*original_map->dim+d]; //node at the other end of edge from_element 
+                          if (i_is_seen==0 && to_element==i) { 
+                            i_is_seen=1;
+                          } else if (to_element==neighbors[j] && i_is_seen==1) {
+                        //      if (first_reference==0){
+                                  size_of_possible_connections++;
+                                  possible_connections = (int *)op_realloc(possible_connections, size_of_possible_connections*sizeof(int));
+                                  possible_connections[size_of_possible_connections-1]=from_element;
+
+                          }
+                        }
+                  }
+                  
+                  globalIdSort2(&possible_connections[0],size_of_possible_connections,OP_set_global_ids_list[original_map->from->index]->global_ids);
+         //         printf("possible_connections from node %d to node %d: ",i,neighbors[j]);
+                  for (int k=0; k<size_of_possible_connections; k++){
+                      
+                      if(repr_colors[possible_connections[k]]==-1){
+                          repr_colors[possible_connections[k]]=next_color;
+                       //   printf("%d[%d]; ",possible_connections[k],repr_colors[possible_connections[k]]);
+                    //      printf("LOG!   repr_colors[%d]=%d\n",possible_connections[k],repr_colors[possible_connections[k]]);
+                          next_color++;
+                      } else {
+        //                  printf("%d(%d); ",possible_connections[k],repr_colors[possible_connections[k]]);
+                      }
+                  }
+       //           printf("\n");
+                
+                
+                max_color=max(max_color,next_color);
+                op_free(possible_connections);
+                
+            }
+            
+          }
+          
+          if (original_map->dim==1){
+              for (int i=0; i<set_to_size; i++){
+                   for (int offset=0; offset < rev_map->row_start_idx[i+1] - rev_map->row_start_idx[i]; offset++){
+                       int from_element=rev_map->reversed_map[rev_map->row_start_idx[i]+offset];                       
+                       repr_colors[from_element]+=(offset+1);
+                   }
+              }
+          } 
+          
+          //create a map to optimize color based execution. For every colors, there should be a list containing the executed elements with the given color
+          std::set<int> color_based_exec_sets[max_color];
+          
+          for (int i=0; i<set_from_size; i++){
+              color_based_exec_sets[repr_colors[i]].insert(i);
+          }
+          
+          int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
+          int* color_based_exec_row_starts = (int*) op_malloc((max_color+1)*sizeof(int));
+          color_based_exec_row_starts[0]=0;
+          for (int i=0; i<max_color; i++){
+              color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
+              int act_id=color_based_exec_row_starts[i];
+              for (int e : color_based_exec_sets[i]){
+                  color_based_exec[act_id++]=e;
+              }               
+          } 
+          
+          
+          op_free(neighbors_start_idxs);
+          op_free(neighbors);     
+          
+          OP_reversed_map_list[m]->reproducible_coloring = repr_colors;   
+          OP_reversed_map_list[m]->number_of_colors = max_color;   
+          OP_reversed_map_list[m]->color_based_exec = color_based_exec;   
+          OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;   
+    
+      }
+  
     }
     
     

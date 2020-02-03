@@ -4,6 +4,7 @@
 
 //user function
 #include "../increment_log.h"
+#include <mpi.h>
 
 // host stub function
 void op_par_loop_increment_log(char const *name, op_set set,
@@ -29,20 +30,39 @@ void op_par_loop_increment_log(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set->size >0) {
+  int myrank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+  
+  if (set->size >0) {     
+      
+      
+    op_map prime_map = arg1.map; //TODO works only with arg1...
+    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
+    
+    
+    for (int c=0; c<rev_map->number_of_colors;c++){
 
-    for ( int n=0; n<set_size; n++ ){
-      if (n==set->core_size) {
-        op_mpi_wait_all(nargs, args);
-      }
-      int map1idx = arg1.map_data[n * arg1.map->dim + 0];
-      int map2idx = arg1.map_data[n * arg1.map->dim + 1];
+ //       for ( int n=0; n<set_size; n++ ){
+        for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+            int n=rev_map->color_based_exec[i];
+//          if (rev_map->reproducible_coloring[n]==c){
+              if (n==set->core_size) {
+                op_mpi_wait_all(nargs, args);
+              }
+              int map1idx = arg1.map_data[n * arg1.map->dim + 0];
+              int map2idx = arg1.map_data[n * arg1.map->dim + 1];
 
-
-      increment_log(
-        &((double*)arg0.data)[1 * n],
-        &((double*)arg1.data)[1 * map1idx],
-        &((double*)arg1.data)[1 * map2idx]);
+        //      printf("edge %03d (global: %03d) with color: %02d is executed. on proc: %d\n",n,OP_set_global_ids_list[prime_map->from->index]->global_ids[n],c,myrank);
+              
+         //     if (myrank==0){ printf("%d;%d;%d;",n,OP_set_global_ids_list[prime_map->from->index]->global_ids[n],myrank);}
+              increment_log(
+                &((double*)arg0.data)[1 * n],
+                &((double*)arg1.data)[1 * map1idx],
+                &((double*)arg1.data)[1 * map2idx]);
+         //     if (myrank==0){ printf("\n");}
+     //     }
+        }
+        
     }
   }
 
