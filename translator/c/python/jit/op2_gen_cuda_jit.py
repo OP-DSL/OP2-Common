@@ -238,9 +238,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+stride+']', body_text)
 
-    old_file = file_text
-    file_text = ''
-
+#    old_file = file_text
+#    file_text = ''
+#
 #    depth+=2
 #    # Check constant values 
 #    IF('blockIdx.x == 0 && threadIdx.x == 0')
@@ -255,12 +255,14 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #        ENDFOR()
 #    ENDIF()
 #    depth-=2  
-  
-    body_text += file_text
-    file_text = old_file
+#  
+#    body_text += file_text
+#    file_text = old_file
 
  
-    user_function = "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"
+    user_function = file_text + "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"
+
+    file_text = ''
 
 ##########################################################################
 #  Kernel Function - Calls user function
