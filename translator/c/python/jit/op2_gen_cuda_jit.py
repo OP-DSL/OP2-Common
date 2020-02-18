@@ -1049,9 +1049,18 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   code('op_printf("JIT compiling op_par_loops\\n");')
   code('')
 
+#
+# start timing
+#
+  comm('initialise timers')
+  code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
+  code('op_timing_realloc('+str(nk)+');')
+  code('op_timers_core(&cpu_t1, &wall_t1);')
+  code('')
+
   comm('Write constants to header file')
   IF('op_is_root()')
-  code('int ret = system("make -j '+master.split('.')[0]+'_cuda_jit");')
+  code('int ret = system("make -j '+master.split('.')[0]+'_cuda_jit &> /dev/null");')
   ENDIF()
   code('op_mpi_barrier();')
 
@@ -1080,6 +1089,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
   code('op_mpi_barrier();')
   code('jit_compiled = 1;')
+
+  code('op_timers_core(&cpu_t2, &wall_t2);')
+  code('op_printf(" Completed: %fs\\n", wall_t2 - wall_t1);')
 
   depth -= 2
   code('}')

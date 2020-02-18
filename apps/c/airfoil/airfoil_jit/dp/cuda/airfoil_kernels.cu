@@ -87,9 +87,14 @@ void (*update_function)(struct op_kernel_descriptor *desc) = NULL;
 void jit_compile() {
   op_printf("JIT compiling op_par_loops\n");
 
+  //initialise timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timing_realloc(4);
+  op_timers_core(&cpu_t1, &wall_t1);
+
   //Write constants to header file
   if (op_is_root()) {
-    int ret = system("make -j airfoil_cuda_jit");
+    int ret = system("make -j airfoil_cuda_jit &> /dev/null");
   }
   op_mpi_barrier();
   void *handle;
@@ -135,6 +140,8 @@ void jit_compile() {
   }
   op_mpi_barrier();
   jit_compiled = 1;
+  op_timers_core(&cpu_t2, &wall_t2);
+  op_printf(" Completed: %fs\n", wall_t2 - wall_t1);
 }
 
 #endif
