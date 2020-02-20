@@ -66,11 +66,17 @@ void op_mvHostToDevice(void **map, int size) {
   auto *temp = new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
   void *tmp = (void*) temp;
   char *data = (char*)(*map);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.copy(data, acc);
       });
   op2_queue->wait();
+#else
+  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+  for (size_t i = 0; i < size; i++)
+    HostAccessor[i] = data[i];
+#endif
   free(*map);
   *map = tmp;
 }
@@ -82,11 +88,17 @@ void op_cpHostToDevice(void **data_d, void **data_h, int size) {
   auto *buf =  new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
   *data_d = (void*)buf;
   char *data = (char*)(*data_h);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*buf).template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.copy(data, acc);
       });
   op2_queue->wait();
+#else
+  auto HostAccessor = (*buf).get_access<cl::sycl::access::mode::write>();
+  for (size_t i = 0; i < size; i++)
+    HostAccessor[i] = data[i];
+#endif
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
@@ -259,36 +271,60 @@ void reallocReductArrays(int reduct_bytes) {
 
 void mvConstArraysToDevice(int consts_bytes) {
   cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.copy(OP_consts_h, acc);
       });
+#else
+  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+  for (size_t i = 0; i < consts_bytes; i++)
+    HostAccessor[i] = OP_consts_h[i];
+#endif
 }
 
 void mvConstArraysToHost(int consts_bytes) {
   cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
       cgh.copy(acc,OP_consts_h);
       });
     op2_queue->wait();
+#else
+  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i < consts_bytes; i++)
+    OP_consts_h[i] = HostAccessor[i];
+#endif
 }
 
 void mvReductArraysToDevice(int reduct_bytes) {
   cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.copy(OP_reduct_h, acc);
       });
+#else
+  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+  for (size_t i = 0; i < reduct_bytes; i++)
+    HostAccessor[i] = OP_reduct_h[i];
+#endif
 }
 
 void mvReductArraysToHost(int reduct_bytes) {
   cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
+#ifdef SYCL_COPY
   op2_queue->submit([&](cl::sycl::handler &cgh) {
       auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
       cgh.copy(acc,OP_reduct_h);
       });
     op2_queue->wait();
+#else
+  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i < reduct_bytes; i++)
+    OP_reduct_h[i] = HostAccessor[i];
+#endif
 }
 
 //
@@ -318,11 +354,17 @@ void op_sycl_get_data(op_dat dat) {
     }
   } else {
     cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+#ifdef SYCL_COPY
     op2_queue->submit([&](cl::sycl::handler &cgh) {
         auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
       cgh.copy(acc,dat->data);
       });
     op2_queue->wait();
+#else
+  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i < dat->set->size*dat->size; i++)
+    dat->data[i] = HostAccessor[i];
+#endif
   }
 }
 
@@ -356,7 +398,7 @@ void syclDeviceInit(int argc, char **argv) {
   op2_queue = new cl::sycl::queue(*selector);
   delete selector;
   OP_hybrid_gpu = 1;
-  std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
+//  std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
 }
 
 void op_upload_dat(op_dat dat) {
@@ -377,10 +419,16 @@ void op_upload_dat(op_dat dat) {
     }
   } else {
     cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+#ifdef SYCL_COPY
     op2_queue->submit([&](cl::sycl::handler &cgh) {
         auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.copy(dat->data,acc);
       });
+#else
+  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+  for (size_t i = 0; i < set_size * dat->size; i++)
+    HostAccessor[i] = dat->data[i];
+#endif
   }
 }
 
@@ -404,11 +452,17 @@ void op_download_dat(op_dat dat) {
     }
   } else {
     cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+#ifdef SYCL_COPY
     op2_queue->submit([&](cl::sycl::handler &cgh) {
         auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
       cgh.copy(acc,dat->data);
       });
     op2_queue->wait();
+#else
+  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i < dat->set->size*dat->size; i++)
+    dat->data[i] = HostAccessor[i];
+#endif
   }
 }
 

@@ -458,6 +458,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if ninds==0:
         code('int nblocks = 200;')
         code('')
+      if op_color2 and reduct:
+        IF('op2_queue->get_device().is_cpu()')
+        code('nthread = 8;')
+        code('nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
+        ENDIF()
 
     if reduct:
       comm('transfer global reduction data to GPU')
@@ -689,8 +694,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     file_text += kernel_text
     code('')
 
-
-    code('auto kern = [=](cl::sycl::nd_item<1> item) {')
+    if op_color2 and not reduct:
+      code('auto kern = [=](cl::sycl::item<1> item) {')
+    else:
+      code('auto kern = [=](cl::sycl::nd_item<1> item) {')
     depth += 2
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
@@ -845,7 +852,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 # simple version for global coloring
 #
     elif ninds>0:
-      code('int tid = item.get_global_linear_id();')
+      if op_color2 and not reduct:
+        code('int tid = item.get_id(0);')
+      else:
+        code('int tid = item.get_global_linear_id();')
       IF('tid + start < end')
       if atomics:
         code('int n = tid+start;')
@@ -904,7 +914,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     else:
       code('')
       comm('process set elements')
-      FOR_INC('n','item.get_global_linear_id()','set_size','item.get_global_range()[0]')
+      if not reduct:
+        code('int n = item.get_id(0);')
+        IF('n < set_size')
+      else:
+        FOR_INC('n','item.get_global_linear_id()','set_size','item.get_global_range()[0]')
+
 
 #
 # kernel call
@@ -1091,7 +1106,13 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     depth -= 2
     code('};')
-    code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
+    if op_color2 and not reduct:
+      if ninds==0:
+        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(set_size), kern);')
+      else:
+        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(nthread*nblocks), kern);')
+    else:
+      code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
     depth -= 2
     code('});')
     code('}catch(cl::sycl::exception const &e) {')
