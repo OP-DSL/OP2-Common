@@ -694,7 +694,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     file_text += kernel_text
     code('')
 
-    if op_color2 and not reduct:
+    if (op_color2 or ninds==0) and not reduct:
       code('auto kern = [=](cl::sycl::item<1> item) {')
     else:
       code('auto kern = [=](cl::sycl::nd_item<1> item) {')
@@ -1106,7 +1106,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     depth -= 2
     code('};')
-    if op_color2 and not reduct:
+    if (op_color2 or ninds==0) and not reduct:
       if ninds==0:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(set_size), kern);')
       else:
