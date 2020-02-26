@@ -271,7 +271,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       text = fid.read()
       fid.close()
       text = text.replace('recursive subroutine','subroutine')
-      text = text.replace('module','!module')
+      #text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
 
