@@ -9,6 +9,7 @@
 *.lai
 *.la
 *.a
+*_jit
 *_seq
 *_openmp
 *_openmp4

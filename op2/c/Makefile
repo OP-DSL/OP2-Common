@@ -119,7 +119,6 @@ ifeq ($(OP2_COMPILER),cray)
   MPIFLAGS = $(CXXFLAGS)
 else
 ifeq ($(OP2_COMPILER),clang)
-<<<<<<< HEAD
   ifdef DEBUG
     CCFLAGS  = -x c++ -O0 -I$(OMPTARGET_LIBS)/../include
   else
