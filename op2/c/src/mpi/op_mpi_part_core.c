@@ -52,6 +52,8 @@
 #include <op_util.h>
 
 #include <set>
+#include <vector>
+#include <algorithm>
 
 // ptscotch header
 #ifdef HAVE_PTSCOTCH
@@ -3765,17 +3767,16 @@ void globalIdSort2(int *orders, int row_len, int *global_ids) {
 }
 
 void exchange_global_ids(){
-    
+
     for (int s=0; s<OP_set_index; s++){
-        
-        
+
       // First, share global indexing of the owned elements
 
       halo_list exp_exec_list_fromset =
           OP_export_exec_list[OP_set_list[s]->index];
       halo_list imp_exec_list_fromset =
           OP_import_exec_list[OP_set_list[s]->index];
-          
+
       halo_list exp_nonexec_list_fromset =
           OP_export_nonexec_list[OP_set_list[s]->index];
       halo_list imp_nonexec_list_fromset =
@@ -3811,7 +3812,7 @@ void exchange_global_ids(){
             exp_exec_list_fromset->sizes[r];
         for (int i = first_eeh_r; i < first_after_eeh_r; i++) {
           // for each element of the eeh for neigbor rank r
-          int set_elem_index = 
+          int set_elem_index =
               exp_exec_list_fromset->list[i - OP_set_list[s]->core_size];
           // put the global_id of element locally indexed by i to buffer
           exp_fromset_buffer_list[i - OP_set_list[s]->core_size] =
@@ -3823,8 +3824,7 @@ void exchange_global_ids(){
                   &exp_fromset_req_list[r]); // send the gathered global ids to
                                              // the neighbor rank r
       }
-      
-      
+
       // share global enh indices
       for (int r = 0; r < exp_nonexec_list_fromset->ranks_size;
            r++) // for each export neighbor rank
@@ -3840,7 +3840,7 @@ void exchange_global_ids(){
             exp_nonexec_list_fromset->sizes[r];
         for (int i = first_enh_r; i < first_after_enh_r; i++) {
           // for each element of the enh for neigbor rank r
-          int set_elem_index = 
+          int set_elem_index =
               exp_nonexec_list_fromset->list[i - OP_set_list[s]->core_size];
           // put the global_id of element locally indexed by i to buffer
           exp_nonexec_fromset_buffer_list[i - OP_set_list[s]->core_size] =
@@ -3852,7 +3852,6 @@ void exchange_global_ids(){
                   &exp_nonexec_fromset_req_list[r]); // send the gathered global ids to
                                              // the neighbor rank r
       }
-      
 
       // recieve global indices for iehs
 
@@ -3905,20 +3904,19 @@ void exchange_global_ids(){
       op_free(exp_nonexec_fromset_req_list);
       op_free(imp_fromset_req_list);
       op_free(imp_nonexec_fromset_req_list);
-        
-        
-      //OP_set_global_ids_list[s]->global_ids=global_indices_fromset;              
-        
+
+      //OP_set_global_ids_list[s]->global_ids=global_indices_fromset;
+
     }
-    
+
 }
 
 int contains(int* tmp_neigh_list,int from, int to,int potential_neighbor){
-    
+
     for (int i=from; i<to; i++){
         if (tmp_neigh_list[i]==potential_neighbor) return 1;
     }
-    return 0;    
+    return 0;
 }
 
 #define max(a,b) \
@@ -3926,38 +3924,52 @@ int contains(int* tmp_neigh_list,int from, int to,int potential_neighbor){
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-     
+struct MyComparator
+{
+    int* value_vector;
+
+    MyComparator(int* val_vec):
+        value_vector(val_vec) {}
+
+    bool operator()(int i1, int i2)
+    {
+        return value_vector[i1] < value_vector[i2];
+    }
+};
+
+
 /*******************************************************************************
 * Create reversed mapping for reproducible MPI execution
 *******************************************************************************/
 void create_reversed_mapping() {
-    
+
   op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
                                          OP_dat_index * sizeof(op_repr_inc));
-    
+
   for (int d = 0; d < OP_dat_index; d++) {
     op_repr_incs[d].tmp_incs = NULL;
     op_repr_incs[d].tmp_incs_size = 0;
   }
-    
-    
-    
+
+
+
   exchange_global_ids();
-    
+
   // Create reversed mapping for each map
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
+
     op_map original_map = OP_map_list[m];
     printf("Reverse map creating and coloring for map %s\n",original_map->name);
 
-    
-    
-    
+
+
+
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
     int set_to_size = original_map->to->size + original_map->to->exec_size +
                       original_map->to->nonexec_size;
 
-    
+
     if (set_from_size == 0) {
       OP_reversed_map_list[m] = NULL;
     } else {
@@ -4012,91 +4024,91 @@ void create_reversed_mapping() {
         globalIdSort(&reversed_map[rev_row_start_idx[i]], rev_row_lens[i],
                      OP_set_global_ids_list[original_map->from->index]->global_ids, original_map_dim);
       }
-    
+
       op_reversed_map rev_map =
           (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
 
       rev_map->index = original_map->index;
       rev_map->reversed_map = reversed_map;
       rev_map->row_start_idx = rev_row_start_idx;
-      
+
 
       //op_free(global_indices_fromset);
 
       op_free(rev_row_lens);
       OP_reversed_map_list[m] = rev_map;
-      
-//      } 
-   
-        
- //   } //end of reverse mapping creating
-    
+
+      } //end of else
+
+
+    } //end of reverse mapping creating
+
    //  MPI_Barrier(OP_MPI_WORLD);
 
   int myrank;
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
- //   if (set_from_size > 0) 
- //   {
-        
-          // Create coloring for reprudicble execution
- //     for (int m = 0; m < OP_map_index; m++) { // for each maping table
-        op_map original_map = OP_map_list[m];
-     //   op_reversed_map rev_map = OP_reversed_map_list[m];
-     //   int* reversed_map = OP_reversed_map_list[m];    
-            
-        int set_from_size =
-            original_map->from->size + original_map->from->exec_size;
-        int set_to_size = original_map->to->size + original_map->to->exec_size +
-                          original_map->to->nonexec_size;
-                          
 
+
+      // Create coloring for reprudicble execution
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map original_map = OP_map_list[m];
+    op_reversed_map rev_map = OP_reversed_map_list[m];
+ //   int* reversed_map = OP_reversed_map_list[m];
+
+    int set_from_size =
+        original_map->from->size + original_map->from->exec_size;
+    int set_to_size = original_map->to->size + original_map->to->exec_size +
+                      original_map->to->nonexec_size;
+
+        if (set_from_size > 0)
+        {
           // Create a mapping of neighbors for coloring
-          int neighbors_size=0;      
-          std::set<int> neighbors_sets[set_to_size];
+          int neighbors_size=0;
+          std::vector<std::set<int>> neighbors_sets(set_to_size+1);
           int *neighbors_start_idxs = (int *)op_malloc((set_to_size+1) * sizeof(int));
           neighbors_start_idxs[0]=0;
-          
+
           //create neighbours map. For every node, iterate through the edges connected to it, and check what other nodes can be found at the other end of those edges. This should apply for higher dimensions too. (e.g. C->N mappings)
-          for (int i=0;i<set_to_size;i++){    //for each nodes          
-              for (int j=rev_map->row_start_idx[i];j<rev_map->row_start_idx[i+1];j++){    //for each edges starting from node i    
+          for (int i=0;i<set_to_size;i++){    //for each nodes
+              for (int j=rev_map->row_start_idx[i];j<rev_map->row_start_idx[i+1];j++){    //for each edges starting from node i
                 int from_element=rev_map->reversed_map[j]/original_map->dim;
-                int loop_element=0;     //check whether it is an element connecting i to i 
+                int loop_element=0;     //check whether it is an element connecting i to i
                 for (int d=0;d<original_map->dim;d++){
                     int potential_neighbor=original_map->map[from_element*original_map->dim+d];
-                    if (potential_neighbor!=i | loop_element==1) {
+                    if (potential_neighbor!=i || loop_element==1) {
                         neighbors_sets[i].insert(potential_neighbor);
                     } else {
                         loop_element=1;
-                    }                    
-                }        
+                    }
+                }
               }
               neighbors_size+=neighbors_sets[i].size();
               neighbors_start_idxs[i+1]=neighbors_start_idxs[i]+neighbors_sets[i].size();
           }
-          
-          int* neighbors = (int*)op_malloc(neighbors_size*sizeof(int));          
+
+          int* neighbors = (int*)op_malloc(neighbors_size*sizeof(int));
           for (int i=0;i<set_to_size;i++){
               int act_id=neighbors_start_idxs[i];
               for (int n : neighbors_sets[i]){
                   neighbors[act_id++]=n;
               }
               globalIdSort2(&neighbors[neighbors_start_idxs[i]], neighbors_start_idxs[i+1]-neighbors_start_idxs[i], OP_set_global_ids_list[original_map->to->index]->global_ids);
-          }        
-          
+          }
+
           int *repr_colors = (int *)op_malloc(set_from_size * sizeof(int)); //TODO free??
-          for (int i=0; i<set_from_size; i++){ repr_colors[i]=-1; } 
-          int max_color=0;
-          
+          for (int i=0; i<set_from_size; i++){ repr_colors[i]=-1; }
+          int max_color=-1;
+
           int* to_elements_sorted_by_global_id = (int*)op_malloc(set_to_size*sizeof(int));
           for (int i=0; i<set_to_size; i++){
               to_elements_sorted_by_global_id[i]=i;
           }
           globalIdSort2(&to_elements_sorted_by_global_id[0],set_to_size,OP_set_global_ids_list[original_map->to->index]->global_ids);
-          for (int i2=0; i2<set_to_size; i2++){    
+          for (int i2=0; i2<set_to_size; i2++){
             int i=to_elements_sorted_by_global_id[i2];
-            
-            for (int j=neighbors_start_idxs[i]; j<neighbors_start_idxs[i+1]; j++){    //neighbor nodes                
+
+            for (int j=neighbors_start_idxs[i]; j<neighbors_start_idxs[i+1]; j++){    //neighbor nodes
                 int next_color=-1;
                 for (int k=rev_map->row_start_idx[i]; k<rev_map->row_start_idx[i+1]; k++){
                     next_color=max(next_color,max(0,repr_colors[rev_map->reversed_map[k]/original_map->dim]+1));
@@ -4106,18 +4118,18 @@ void create_reversed_mapping() {
                 }
                 if (next_color==-1){
                     printf("Reproducible coloring ERROR - next_color=-1, i: %d, neigh[j]: %d\n", i, neighbors[j]);
-                }                
-                
+                }
+
                 //find element(s) between i and j , order them by global_id and assign the next available color to each of them.
-                  int size_of_possible_connections=0; //TODO size_of_poss_conn=1 
+                  int size_of_possible_connections=0; //TODO size_of_poss_conn=1
                   int* possible_connections = (int *)op_malloc(size_of_possible_connections*sizeof(int));
                   for (int from_element_id_in_rev_map=rev_map->row_start_idx[i]; from_element_id_in_rev_map<rev_map->row_start_idx[i+1]; from_element_id_in_rev_map++){
-                      int from_element=rev_map->reversed_map[from_element_id_in_rev_map]/original_map->dim;     //an edge from node i                        
-                        int i_is_seen=0;        //check the direction of a mapping. Assign color only, if the connecting from_element is starting from i and heads to j.                      
+                      int from_element=rev_map->reversed_map[from_element_id_in_rev_map]/original_map->dim;     //an edge from node i
+                        int i_is_seen=0;        //check the direction of a mapping. Assign color only, if the connecting from_element is starting from i and heads to j.
                         for (int d=0; d<original_map->dim; d++)
                         {
-                          int to_element=original_map->map[from_element*original_map->dim+d]; //node at the other end of edge from_element 
-                          if (i_is_seen==0 && to_element==i) { 
+                          int to_element=original_map->map[from_element*original_map->dim+d]; //node at the other end of edge from_element
+                          if (i_is_seen==0 && to_element==i) {
                             i_is_seen=1;
                           } else if (to_element==neighbors[j] && i_is_seen==1) {
                         //      if (first_reference==0){
@@ -4128,11 +4140,11 @@ void create_reversed_mapping() {
                           }
                         }
                   }
-                  
+
                   globalIdSort2(&possible_connections[0],size_of_possible_connections,OP_set_global_ids_list[original_map->from->index]->global_ids);
          //         printf("possible_connections from node %d to node %d: ",i,neighbors[j]);
                   for (int k=0; k<size_of_possible_connections; k++){
-                      
+
                       if(repr_colors[possible_connections[k]]==-1){
                           repr_colors[possible_connections[k]]=next_color;
                        //   printf("%d[%d]; ",possible_connections[k],repr_colors[possible_connections[k]]);
@@ -4143,59 +4155,105 @@ void create_reversed_mapping() {
                       }
                   }
        //           printf("\n");
-                
-                
+
                 max_color=max(max_color,next_color);
                 op_free(possible_connections);
-                
+
             }
-            
+
           }
-          
+
           if (original_map->dim==1){
               for (int i=0; i<set_to_size; i++){
                    for (int offset=0; offset < rev_map->row_start_idx[i+1] - rev_map->row_start_idx[i]; offset++){
-                       int from_element=rev_map->reversed_map[rev_map->row_start_idx[i]+offset];                       
-                       repr_colors[from_element]+=(offset+1);
+                       int from_element=rev_map->reversed_map[rev_map->row_start_idx[i]+offset];
+                       //repr_colors[from_element]+=(offset+1);
+                       repr_colors[from_element]+=1;
+                       max_color=max(max_color,repr_colors[from_element]);
                    }
               }
-          } 
-          
+          }
+
           //create a map to optimize color based execution. For every colors, there should be a list containing the executed elements with the given color
-          std::set<int> color_based_exec_sets[max_color];
-          
+          std::vector<std::set<int>> color_based_exec_sets(max_color+1);
+          //std::set<int> color_based_exec_sets[max_color+1];
+
           for (int i=0; i<set_from_size; i++){
               color_based_exec_sets[repr_colors[i]].insert(i);
           }
-          
+
           int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
-          int* color_based_exec_row_starts = (int*) op_malloc((max_color+1)*sizeof(int));
+          int* color_based_exec_row_starts = (int*) op_malloc((max_color+1+1)*sizeof(int));
           color_based_exec_row_starts[0]=0;
-          for (int i=0; i<max_color; i++){
+          for (int i=0; i<max_color+1; i++){
               color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
               int act_id=color_based_exec_row_starts[i];
               for (int e : color_based_exec_sets[i]){
                   color_based_exec[act_id++]=e;
-              }               
-          } 
-          
-          
+              }
+          }
+
           op_free(neighbors_start_idxs);
-          op_free(neighbors);     
-          
-          OP_reversed_map_list[m]->reproducible_coloring = repr_colors;   
-          OP_reversed_map_list[m]->number_of_colors = max_color;   
-          OP_reversed_map_list[m]->color_based_exec = color_based_exec;   
-          OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;   
+          op_free(neighbors);
+
+
+          for (int i=0;i<set_from_size;i++) {
+            if (repr_colors[i]<0) {
+              printf("BRUHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: %d\n",i);
+            }
+          }
+
+    /*
+          for (int i=0; i<set_from_size; i++){
+              for (int j_id=rev_map->row_start_idx[i]; j_id<rev_map->row_start_idx[i+1]; j_id++){
+                  int j=rev_map->reversed_map[j_id]/original_map->dim;
+                  for (int k_id=rev_map->row_start_idx[i]; k_id<rev_map->row_start_idx[i+1]; k_id++){
+                      int k=rev_map->reversed_map[k_id]/original_map->dim;
+                      if (j==k) continue;
+                      if (OP_set_global_ids_list[original_map->from->index]->global_ids[j] < OP_set_global_ids_list[original_map->from->index]->global_ids[k]  && !(repr_colors[j]<repr_colors[k])){
+                 //         printf("HAJJJJAAJ!!!!! map:%s, i:%d, j:%d, k:%d, color(j):%d, color(k):%d   \n",original_map->name,i,j,k,repr_colors[j],repr_colors[k]);
+                      }
+
+                  }
+
+              }
+
+          }
+          */
+
+          int* from_elements_sorted_by_global_id = (int*)op_malloc(set_from_size*sizeof(int));
+          for (int i=0; i<set_from_size; i++){
+              from_elements_sorted_by_global_id[i]=i;
+          }
+          //globalIdSort2(&from_elements_sorted_by_global_id[0],set_from_size,OP_set_global_ids_list[original_map->from->index]->global_ids);
+          std::sort(&from_elements_sorted_by_global_id[0], &from_elements_sorted_by_global_id[set_from_size-1], MyComparator(OP_set_global_ids_list[original_map->from->index]->global_ids));
+
+          OP_reversed_map_list[m]->reproducible_coloring = repr_colors;
+         // op_free(OP_reversed_map_list[m]->reproducible_coloring);
+          OP_reversed_map_list[m]->number_of_colors = max_color+1;
+          OP_reversed_map_list[m]->color_based_exec = color_based_exec;
+          OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;
+          OP_reversed_map_list[m]->from_elements_sorted_by_global_id = from_elements_sorted_by_global_id;
+
+          double avg_col_size=0;
+          int max_col_size=0;
+          int min_col_size=set_from_size;
+
+          for (int c=0; c<max_color+1; c++){
+              int act_col_size=color_based_exec_sets[c].size();
+              avg_col_size+=act_col_size;
+              if (max_col_size<act_col_size) max_col_size=act_col_size;
+              if (min_col_size>act_col_size) min_col_size=act_col_size;
+          }
+          avg_col_size/=(max_color+1);
+
+          printf("For map %s, from_size: %d, to_size: %d, number of used colors: %d, max_color_length: %d, min_color_length: %d, avg_color_length: %f\n",original_map->name,set_from_size,set_to_size,max_color+1,max_col_size,min_col_size,avg_col_size);
+
+      } //end of if (set_from_size > 0)
+    } //end of coloring for each map
     
-      }
-  
-    }
-    
-    
-  }
-  }
 }
+
 
 extern int **OP_map_ptr_list;
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
@@ -4235,4 +4293,3 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 
 
   }
-}

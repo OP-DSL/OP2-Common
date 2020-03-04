@@ -19,13 +19,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int nargs = 8;
   op_arg args[8];
 
-  args[0] = arg0;
+  args[0] = arg0;   //p_x
   args[1] = arg1;
-  args[2] = arg2;
+  args[2] = arg2;   //p_q
   args[3] = arg3;
-  args[4] = arg4;
+  args[4] = arg4;   //p_adt
   args[5] = arg5;
-  args[6] = arg6;
+  args[6] = arg6;   //p_res
   args[7] = arg7;
 
   // initialise timers
@@ -45,7 +45,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
     if (rev_map != NULL) {
-        int prime_map_dim = prime_map->dim;
+     /*   int prime_map_dim = prime_map->dim;
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
 
@@ -65,28 +65,42 @@ void op_par_loop_res_calc(char const *name, op_set set,
           tmp_incs[i]=0.0;
         }
 
-        for ( int n=0; n<set_size; n++ ){
+     */
+     int my_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+     
+    op_mpi_wait_all(nargs, args);
+        for ( int i=0; i<set_size; i++ ){
+            
+ //       for (int c=0; c<rev_map->number_of_colors;c++){
+   //         for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+        //        int n=rev_map->color_based_exec[i];
+                int n=rev_map->from_elements_sorted_by_global_id[i];
+              //  printf("%d;%d;%d;%d\n",n,OP_set_global_ids_list[prime_map->from->index]->global_ids[n],c,my_rank);
+    /*              if (n==set->core_size) {
+                    op_mpi_wait_all(nargs, args);
+                  }*/
+                  int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+                  int map1idx = arg0.map_data[n * arg0.map->dim + 1];
+                  int map2idx = arg2.map_data[n * arg2.map->dim + 0];
+                  int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
-          if (n==set->core_size) {
-            op_mpi_wait_all(nargs, args);
-          }
-          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-          int map2idx = arg2.map_data[n * arg2.map->dim + 0];
-          int map3idx = arg2.map_data[n * arg2.map->dim + 1];
-
-            res_calc(
-              &((double*)arg0.data)[2 * map0idx],
-              &((double*)arg0.data)[2 * map1idx],
-              &((double*)arg2.data)[4 * map2idx],
-              &((double*)arg2.data)[4 * map3idx],
-              &((double*)arg4.data)[1 * map2idx],
-              &((double*)arg4.data)[1 * map3idx],
-              &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
-              &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
+                    res_calc(
+                      &((double*)arg0.data)[2 * map0idx],
+                      &((double*)arg0.data)[2 * map1idx],
+                      &((double*)arg2.data)[4 * map2idx],
+                      &((double*)arg2.data)[4 * map3idx],
+                      &((double*)arg4.data)[1 * map2idx],
+                      &((double*)arg4.data)[1 * map3idx],
+                      &((double*)arg6.data)[4 * map2idx],
+                      &((double*)arg6.data)[4 * map3idx]);
+              //        &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
+              //        &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
+      //      }
         }
 
-        for ( int n=0; n<set_to_size; n++ ){
+               
+    /*    for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg6.dim; d++){
                     ((double*)arg6.data)[arg6.dim * n + d] +=
@@ -94,6 +108,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
                 }
             }
         }
+    */
 
     }
   }

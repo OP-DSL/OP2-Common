@@ -163,6 +163,7 @@ typedef struct {
   int *reproducible_coloring;
   int *color_based_exec_row_starts;
   int *color_based_exec;
+  int *from_elements_sorted_by_global_id;
   
 } op_reversed_map_core;
 
