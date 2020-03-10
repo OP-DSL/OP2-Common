@@ -95,7 +95,9 @@ def op2_gen_seq(master, date, consts, kernels):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
-
+  
+  reproducible = 1
+  repr_temp_array = 1
   any_soa = 0
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
@@ -231,9 +233,95 @@ def op2_gen_seq(master, date, consts, kernels):
     code('')
     code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
+#
+# Prepare reduction arrays for reproducible global reduction 
+#
+    if reproducible:
+      first_reduct = 1
+      for g_m in range (0,nargs):
+        if maps[g_m] == OP_GBL:
+          line = ''
+          if first_reduct == 1:
+            code('int reduct_bytes = 0;\n')
+            first_reduct = 0
+          code(line)
+          code('reduct_bytes += ROUND_UP(ARG.dim*sizeof(TYP)*set_size);\n')
+      
+      if first_reduct ==0:
+        code('reallocReductArrays(reduct_bytes);\n')
+        code('')
+        code('reduct_bytes=0;\n')
+        for g_m in range (0,nargs):
+          if maps[g_m] == OP_GBL:
+            code('TYP* red'+str(g_m)+' = (TYP*)(OP_reduct_h+reduct_bytes);\n')
+            code('reduct_bytes+=ARG.dim*sizeof(TYP)*set_size;\n')
+            FOR('i','0','ARG.dim*set_size')
+            code('red'+str(g_m)+'[i]=0;\n')
+            ENDFOR()
+
     code('')
     IF('set_size > 0')
     code('')
+
+#
+# prepare reproducible temp_arrays for indirect args
+#
+    repro_if=0
+    if reproducible:
+      if repr_temp_array:
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            line=''
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+                k = k + [mapnames[g_m]]
+                code('op_map prime_map_'+str(mapnames[g_m])+' = ARG.map;\n')
+                code('op_reversed_map rev_map_'+str(mapnames[g_m])+' = OP_reversed_map_list[prime_map_'+str(mapnames[g_m])+'->index];\n')
+                line = line + 'rev_map_'+str(mapnames[g_m])+' != NULL && '
+                code('')
+                repro_if=1
+            
+            if repro_if:
+              IF(line[:-3])
+            
+            for g_map in k:
+              code('int prime_map_{0}_dim = prime_map_{0}->dim;\n'.format(g_map))
+              code('int set_from_size_{0} = prime_map_{0}->from->size + prime_map_{0}->from->exec_size;\n'.format(g_map))
+              code('int set_to_size_{0} = prime_map_{0}->to->size + prime_map_{0}->to->exec_size + prime_map_{0}->to->nonexec_size;\n'.format(g_map))
+              code('')
+            
+            k=[]
+            for g_m in range(0,nargs):              
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+                first=0
+                for i in range(0,g_m+1):
+                  if maps[g_m]==maps[i] and var[g_m]==var[i]:
+                    first=i
+                    break
+                
+                if not first in k:
+                  k = k + [first] 
+                  code('int required_tmp_incs_size{0} = set_from_size_{1} * prime_map_{1}_dim * arg{0}.dat->size;\n'.format(first,mapnames[first]))
+                  
+                  IF('op_repr_incs[arg{0}.dat->index].tmp_incs == NULL'.format(first))
+                  code('op_repr_incs[arg{0}.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size{0});\n'.format(first))
+                  code('op_repr_incs[arg{0}.dat->index].tmp_incs_size = required_tmp_incs_size{0};\n'.format(first))
+                  
+                  ENDIF()
+                  code('else')
+                  IF('op_repr_incs[arg{0}.dat->index].tmp_incs_size < required_tmp_incs_size{0}'.format(first))
+                  code('op_realloc(op_repr_incs[arg{0}.dat->index].tmp_incs, required_tmp_incs_size{0});\n'.format(first))
+                  code('op_repr_incs[arg{0}.dat->index].tmp_incs_size = required_tmp_incs_size{0};\n'.format(first))
+                  ENDIF()
+                  code('double *tmp_incs{0} = (double *)op_repr_incs[arg{0}.dat->index].tmp_incs;\n'.format(first))
+                  FOR('i','0','set_from_size_{0} * prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
+                  code('tmp_incs{0}[i]=0.0;\n'.format(first))
+                  ENDFOR()
+                  code('')
+
+
+
 
 #
 # kernel call for indirect version
@@ -294,7 +382,17 @@ def op2_gen_seq(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+' * n]'
         if maps[g_m] == OP_MAP: 
-          if vectorised[g_m]:
+          if reproducible and repr_temp_array and accs[g_m]==OP_INC:
+            first=0
+            nth=-1
+            for i in range(0,g_m+1):
+              if maps[g_m]==maps[i] and var[g_m]==var[i]:
+                if first==0:
+                  first=i
+                nth=nth+1
+            
+            line = line + indent + '&tmp_incs{0}[(n*prime_map_{2}_dim+{1})*arg{0}.dim]'.format(first,nth,mapnames[first])
+          elif vectorised[g_m]:
             if g_m+1 in unique_args:
                 line = line + indent + 'arg'+str(g_m)+'_vec'
           else:
@@ -320,14 +418,48 @@ def op2_gen_seq(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
-          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          if reproducible:
+            line = line + indent +'&red'+str(g_m)+'['+str(dims[g_m])+'*n]'
+          else: 
+            line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+          
         if g_m < nargs-1:
           line = line +','
         else:
            line = line +');'
       code(line)
       ENDFOR()
-
+      
+    #apply increments to actual data
+    if reproducible and repr_temp_array:    
+      if ninds>0:
+        if nmaps > 0:
+        
+          k=[]
+          for g_m in range(0,nargs):              
+            if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+              first=0
+              for i in range(0,g_m+1):
+                if maps[g_m]==maps[i] and var[g_m]==var[i]:
+                  first=i
+                  break
+              
+              if not first in k:   
+                code('')
+                k = k + [first]
+                FOR('n','0','set_to_size_'+str(mapnames[first]))
+                FOR('i','0','rev_map_{0}->row_start_idx[n+1] - rev_map_{0}->row_start_idx[n]'.format(mapnames[first]))
+                FOR('d','0','arg{0}.dim'.format(first))
+                code('((double*)arg{0}.data)[arg{0}.dim * n + d] += \n'.format(first)+' '*(depth+2)+'tmp_incs{0}[rev_map_{1}->reversed_map[rev_map_{1}->row_start_idx[n]+i] * arg{0}.dim + d];'.format(first,mapnames[first]))
+                ENDFOR()
+                
+                ENDFOR()
+                
+                ENDFOR()
+      
+    
+    if repro_if:
+      ENDIF() #endif rev_map(g_m)!=NULL
     ENDIF()
     code('')
 
@@ -337,6 +469,15 @@ def op2_gen_seq(master, date, consts, kernels):
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
 
+
+    if reproducible:
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_GBL:
+          code('reprLocalSum(&ARG,set_size,red'+str(g_m)+');\n')
+
+
+
+
 #
 # combine reduction data from multiple OpenMP threads
 #
@@ -345,7 +486,10 @@ def op2_gen_seq(master, date, consts, kernels):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
 #        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         if typs[g_m] == 'double': #need for both direct and indirect
-          code('op_mpi_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
+          if reproducible:
+            code('op_mpi_repr_inc_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
+          else:
+            code('op_mpi_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         elif typs[g_m] == 'float':
           code('op_mpi_reduce_float(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         elif typs[g_m] == 'int':
