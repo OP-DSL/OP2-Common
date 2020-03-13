@@ -763,7 +763,7 @@ for a in range(init_ctr,len(sys.argv)):
 
       if hydra==1:
         temp['master_file'] = src_file.split('.')[0].replace('mod_','')
-        temp['mod_file'] = 'use '+name+'_module'
+        temp['mod_file'] = 'external '+name
         i = text[0:code_loc].rfind(temp['mod_file'])
         if i < 0:
           print'  ERROR: no module use statement ('+temp['mod_file']+') found!  '
@@ -911,8 +911,20 @@ for a in range(init_ctr,len(sys.argv)):
       master_file = file_part.split('.')[0]
       text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
-      replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE'+'\n'
+      if hydra:
+        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE'+'\n'
+      else:
+        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
+    if hydra:
+       pattern = re.compile(r'(\n\s*implicit\s*none\s*)(\n\s*use .*)',re.IGNORECASE)
+       count = 1
+       while count>0:
+         res = re.subn(pattern, r'\2\1', text)
+         text = res[0]
+         count = res[1]
+            #do nothing
+         #   x=1
 
     fid = open(src_file.replace('.','_op.'), 'w')
     #if file_format == 90:
@@ -950,7 +962,7 @@ if npart==0 and nhdf5>0:
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
 op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
@@ -960,15 +972,15 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 #CUDA
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
 #op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
-op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+#op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
 #OpenACC
-op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #OpenMP4 offload
-op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features
