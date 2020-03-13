@@ -229,7 +229,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #  Generate Header
 ##########################################################################
     if hydra:
-      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE')
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
@@ -252,7 +252,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     if hydra == 1:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
-      modfile = kernels[nk]['mod_file'][4:]
+      modfile = kernels[nk]['mod_file'][9:]+'_module'
       filename = 'kernels/'+kernels[nk]['master_file']+'_'+name+'.inc'
       if not os.path.isfile(filename):
         files = [f for f in glob.glob('kernels/*'+name+'.inc')]
@@ -271,7 +271,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       text = fid.read()
       fid.close()
       text = text.replace('recursive subroutine','subroutine')
-      text = text.replace('module','!module')
+      text = text.replace(' module',' !module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
 
