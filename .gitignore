@@ -11,8 +11,16 @@
 *.a
 *_seq
 *_openmp
+*_openmp4
 *_cuda
 *_mpi
+*_vec
+*_genseq
+*_cuda_hyb
+*.dat
+*_sycl
+*_openacc
+source_*
 #*.txt
 #*.dat
 *_mpi

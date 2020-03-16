@@ -9,9 +9,10 @@ inline void res_calc(double *data, int *count) {
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void res_calc_vec(double data[*][SIMD_VEC], int *count, int idx) {
+inline void res_calc_vec( double data[*][SIMD_VEC], int *count, int idx ) {
   data[0][idx] = 0.0;
   (*count)++;
+
 }
 #endif
 
@@ -46,14 +47,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
       int dat1[SIMD_VEC];
-      for (int i = 0; i < SIMD_VEC; i++) {
+      for ( int i=0; i<SIMD_VEC; i++ ){
         dat1[i] = 0.0;
       }
       if (n+SIMD_VEC >= set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[4][SIMD_VEC];
-#pragma omp simd simdlen(SIMD_VEC)
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
 
         dat0[0][i] = 0.0;
@@ -62,7 +63,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         dat0[3][i] = 0.0;
 
       }
-#pragma omp simd simdlen(SIMD_VEC)
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         res_calc_vec(
           dat0,

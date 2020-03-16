@@ -16,8 +16,19 @@ function validate {
   rc=$?; if [[ $rc != 0 ]]; then echo "TEST FAILED";exit $rc; fi;rm perf_out
 }
 
-export NV_ARCH=Kepler
+#Octon
+#export NV_ARCH=Kepler
+#export CUDA_VISIBLE_DEVICES=1,2
+#export INTEL_SOURCE=source_intel
+#export PGI_SOURCE=source_pgi_19
+#export CLANG_SOURCE=source_clang
 
+#Kos
+export NV_ARCH=Pascal
+export CUDA_VISIBLE_DEVICES=0,1
+export INTEL_SOURCE=source_intel_18
+export PGI_SOURCE=source_pgi_kos
+export CLANG_SOURCE=source_clang_kos
 
 export CURRENT_DIR=$PWD
 cd ../op2
@@ -41,7 +52,7 @@ echo " "
 echo "**********************************************************************"
 echo "***********************> Building C back-end libs with Intel Compilers"
 echo "**********************************************************************"
-. $CURRENT_DIR/source_intel
+. $CURRENT_DIR/$INTEL_SOURCE
 make clean; make
 
 echo " "
@@ -127,7 +138,6 @@ $OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
 make clean;make
 
 #<<COMMENT0
-#<<COMMENT1
 
 
 echo " "
@@ -180,7 +190,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-#COMMENT1
+#COMMENT0
 
 echo " "
 echo " "
@@ -242,7 +252,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
-#COMMENT1
+#COMMENT0
 
 
 echo " "
@@ -256,7 +266,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -274,7 +284,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2  ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -329,6 +339,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./reduction_mpi_cuda"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./reduction_mpi_openmp"
 
+
 ################################################################################
 ################################################################################
 echo " "
@@ -338,7 +349,7 @@ echo "******************* Building Fortan back-end libs with Intel Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
 pwd
-. $CURRENT_DIR/source_intel
+. $CURRENT_DIR/$INTEL_SOURCE
 make clean; make
 
 echo " "
@@ -405,15 +416,13 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_IN
 ###################################################################################
 ###################################################################################
 
-#COMMENT0
-
 echo " "
 echo " "
 echo "**********************************************************************"
 echo "********************* Building Fortan back-end libs with PGI Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/fortran
-. $CURRENT_DIR/source_pgi_19
+. $CURRENT_DIR/$PGI_SOURCE
 pwd
 
 make clean; make
@@ -485,6 +494,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 ###################################################################################
 ###################################################################################
 
+#COMMENT0
 
 echo " "
 echo " "
@@ -492,7 +502,7 @@ echo "**********************************************************************"
 echo "********************* Building C/C++ back-end libs with Clang Compilers"
 echo "**********************************************************************"
 cd $OP2_INSTALL_PATH/c
-. $CURRENT_DIR/source_clang
+. $CURRENT_DIR/$CLANG_SOURCE
 pwd
 
 make clean; make
@@ -524,7 +534,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2
@@ -545,7 +555,7 @@ export OMP_NUM_THREADS=20
 export OMP_NUM_THREADS=1
 $MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./numawrap20 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 export OMP_NUM_THREADS=20
 ./aero_mpi_openmp OP_PART_SIZE=256
 export OMP_NUM_THREADS=2

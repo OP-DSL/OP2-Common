@@ -5,8 +5,8 @@
 //user function
 //user function
 //#pragma acc routine
-inline void update_openacc(const float *qold, float *q, float *res,
-                           const float *adt, float *rms) {
+inline void update_openacc( const float *qold, float *q, float *res, const float *adt,
+                   float *rms) {
   float del, adti;
   float rmsl = 0.0f;
   adti = 1.0f / (*adt);
@@ -65,8 +65,12 @@ void op_par_loop_update(char const *name, op_set set,
     float* data3 = (float*)arg3.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1,data2,data3) reduction(+:arg4_l)
     for ( int n=0; n<set->size; n++ ){
-      update_openacc(&data0[4 * n], &data1[4 * n], &data2[4 * n], &data3[1 * n],
-                     &arg4_l);
+      update_openacc(
+        &data0[4*n],
+        &data1[4*n],
+        &data2[4*n],
+        &data3[1*n],
+        &arg4_l);
     }
   }
 

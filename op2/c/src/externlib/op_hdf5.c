@@ -699,7 +699,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
   file_id = H5Fopen(file_name, H5F_ACC_RDWR, H5P_DEFAULT);
 
   // Create the dataspace for the dataset.
-  hsize_t dims_of_const = {dim};
+  hsize_t dims_of_const = {(hsize_t)dim};
   dataspace = H5Screate_simple(1, &dims_of_const, NULL);
 
   // Create the dataset with default properties

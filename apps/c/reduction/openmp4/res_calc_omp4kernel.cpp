@@ -5,9 +5,18 @@
 //user function
 //user function
 
-void res_calc_omp4_kernel(int *map0, int map0size, int *arg1, double *data0,
-                          int dat0size, int *col_reord, int set_size1,
-                          int start, int end, int num_teams, int nthread);
+void res_calc_omp4_kernel(
+  int *map0,
+  int map0size,
+  int *arg1,
+  double *data0,
+  int dat0size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread);
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
@@ -75,11 +84,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      res_calc_omp4_kernel(map0, map0size, &arg1_l, data0, dat0size, col_reord,
-                           set_size1, start, end,
-                           part_size != 0 ? (end - start - 1) / part_size + 1
-                                          : (end - start - 1) / nthread,
-                           nthread);
+      res_calc_omp4_kernel(
+        map0,
+        map0size,
+        &arg1_l,
+        data0,
+        dat0size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread);
 
       // combine reduction data
       if (col == Plan->ncolors_owned-1) {

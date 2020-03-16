@@ -61,10 +61,10 @@ void op_par_loop_update(char const *name, op_set set,
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
       double dat4[SIMD_VEC];
-      for (int i = 0; i < SIMD_VEC; i++) {
+      for ( int i=0; i<SIMD_VEC; i++ ){
         dat4[i] = 0.0;
       }
-#pragma omp simd simdlen(SIMD_VEC)
+      #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         update(
           &(ptr0)[4 * (n+i)],

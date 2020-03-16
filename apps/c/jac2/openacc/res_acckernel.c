@@ -5,8 +5,7 @@
 //user function
 //user function
 //#pragma acc routine
-inline void res_openacc(const double *A, const float *u, float *du,
-                        const float *beta) {
+inline void res_openacc( const double *A, const float *u, float *du, const float *beta) {
   *du += (float)((*beta) * (*A) * (*u));
 }
 
@@ -82,8 +81,12 @@ void op_par_loop_res(char const *name, op_set set,
         int map1idx = map1[n + set_size1 * 1];
         int map2idx = map1[n + set_size1 * 0];
 
-        res_openacc(&data0[3 * n], &data1[2 * map1idx], &data2[3 * map2idx],
-                    &arg3_l);
+
+        res_openacc(
+          &data0[3 * n],
+          &data1[2 * map1idx],
+          &data2[3 * map2idx],
+          &arg3_l);
       }
 
     }

@@ -34,8 +34,8 @@ ifeq ($(OP2_COMPILER),clang)
   CPP       	= clang++
   CCFLAGS  	= -O3 #-ffast-math
   CPPFLAGS 	= $(CCFLAGS)
-  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../tools/openmp/runtime/src/ -fopenmp=libomp -Rpass-analysis
-  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -fopenmp-nonaliased-maps -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
+  OMPFLAGS 	= -I$(OMPTARGET_LIBS)/../include -fopenmp=libomp -Rpass-analysis
+  OMPOFFLOAD 	= -fopenmp-targets=nvptx64-nvidia-cuda -ffp-contract=fast -Xcuda-ptxas -v #-Xclang -target-feature -Xclang +ptx35
   MPICC   	= $(MPICC_PATH)
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS 	= $(CPPFLAGS)
@@ -49,7 +49,6 @@ endif
 #
 # set flags for NVCC compilation and linking
 #
-
 ifndef NV_ARCH
   MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
   NV_ARCH=Kepler
@@ -59,6 +58,18 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+else
+ifeq ($(NV_ARCH),Maxwell)
+  CODE_GEN_CUDA=-gencode arch=compute_50,code=sm_50
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+endif
+endif
+endif
 endif
 endif
 
@@ -142,7 +153,7 @@ cuda/aero_kernels_mpi_cu.o:	cuda/aero_kernels.cu \
 aero_openmp4: aero_op.cpp openmp4/aero_omp4kernels.cpp openmp4/aero_omp4kernel_funcs.cpp Makefile
 	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernel_funcs.cpp  -o openmp4/aero_omp4kernel_funcs.o
-	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
+	$(CPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(HDF5_INC) $(OMP4_REG_COUNT)\
 		-Iopenmp4 -I. -c openmp4/aero_omp4kernels.cpp -o openmp4/aero_omp4kernels.o
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OMPOFFLOAD) $(OP2_INC) $(OP2_LIB) $(HDF5_INC)  \
 		aero_op.cpp openmp4/aero_omp4kernels.o openmp4/aero_omp4kernel_funcs.o -o aero_openmp4 \
