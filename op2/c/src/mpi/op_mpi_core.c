@@ -3207,7 +3207,7 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-    OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
+    OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
@@ -3218,7 +3218,7 @@ void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-    OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
+    OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {
