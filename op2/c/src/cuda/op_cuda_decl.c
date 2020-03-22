@@ -253,7 +253,8 @@ void op_timings_to_csv(const char *outputFileName) {
     printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
   }
   else {
-    fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+    // fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+    fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi stencil time,mpi collectives time,GB used,GB total,kernel name\n");
   }
 
   if (outputFile != NULL) {

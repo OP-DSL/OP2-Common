@@ -316,7 +316,7 @@ void op_timings_to_csv(const char *outputFileName) {
     }
     else {
       // fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi stencil,mpi collectives,GB used,GB total,kernel name\n");
+      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi stencil time,mpi collectives time,GB used,GB total,kernel name\n");
     }
   }
 
