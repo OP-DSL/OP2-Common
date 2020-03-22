@@ -760,12 +760,15 @@ void op_timing_output_core() {
         double moments_time[2];
         op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true, &moments_time[0],
                           &moments_time[1]);
-        op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
+        // op_compute_moment(OP_kernels[n].mpi_time, 
+        double mpi_time = OP_kernels[n].mpi_stencil + OP_kernels[n].mpi_collectives;
+        op_compute_moment(mpi_time, 
+                          &moments_mpi_time[0],
                           &moments_mpi_time[1]);
         if (OP_kernels[n].transfer2 < 1e-8f) {
           float transfer =
               MAX(0.0f, OP_kernels[n].transfer / (1e9f * kern_time -
-                                                  OP_kernels[n].mpi_time));
+                                                  mpi_time));
 
           if (op_is_root())
             printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;        "
@@ -781,11 +784,11 @@ void op_timing_output_core() {
           float transfer =
               MAX(0.0f, OP_kernels[n].transfer /
                             (1e9f * kern_time -
-                             OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+                             OP_kernels[n].plan_time - mpi_time));
           float transfer2 =
               MAX(0.0f, OP_kernels[n].transfer2 /
                             (1e9f * kern_time -
-                             OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
+                             OP_kernels[n].plan_time - mpi_time));
           if (op_is_root())
             printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;  "
                    " %s \n",
@@ -878,7 +881,9 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
-      OP_kernels[n].mpi_time = 0.0f;
+      // OP_kernels[n].mpi_time = 0.0f;
+      OP_kernels[n].mpi_stencil = 0.0f;
+      OP_kernels[n].mpi_collectives = 0.0f;
       OP_kernels[n].name = "unused";
     }
     OP_kern_max = OP_kern_max_new;

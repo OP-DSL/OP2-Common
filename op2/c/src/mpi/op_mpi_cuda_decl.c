@@ -493,9 +493,17 @@ void op_timings_to_csv(const char *outputFileName) {
           for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
           MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          double mpi_times[comm_size];
-          for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          // double mpi_times[comm_size];
+          // for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
+          // MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          double mpi_stencils[comm_size];
+          for (int i=0; i<comm_size; i++) mpi_stencils[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].mpi_stencil), 1, MPI_DOUBLE, mpi_stencils, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+
+          double mpi_collectivess[comm_size];
+          for (int i=0; i<comm_size; i++) mpi_collectivess[i] = 0.0f;
+          MPI_Gather(&(OP_kernels[n].mpi_collectives), 1, MPI_DOUBLE, mpi_collectivess, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
           float transfers[comm_size];
           for (int i=0; i<comm_size; i++) transfers[i] = 0.0f;
@@ -511,9 +519,12 @@ void op_timings_to_csv(const char *outputFileName) {
               double kern_time = times[p*OP_kernels[n].ntimes + thr];
 
               fprintf(outputFile, 
-                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                      // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
                       p, thr, comm_size, OP_kernels[n].ntimes, 
-                      OP_kernels[n].count, kern_time, plan_times[p], mpi_times[p], 
+                      OP_kernels[n].count, kern_time, plan_times[p], 
+                      // mpi_times[p], 
+                      mpi_stencils[p], mpi_collectivess[p], 
                       transfers[p]/1e9f, transfers2[p]/1e9f, 
                       OP_kernels[n].name);
             }
@@ -524,7 +535,9 @@ void op_timings_to_csv(const char *outputFileName) {
 
           MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          // MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(&(OP_kernels[n].mpi_stencil), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(&(OP_kernels[n].mpi_collectives), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
           MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 

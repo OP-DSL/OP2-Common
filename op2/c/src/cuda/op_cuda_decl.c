@@ -272,11 +272,14 @@ void op_timings_to_csv(const char *outputFileName) {
             continue;
           }
           double plan_time = OP_kernels[n].plan_time;
-          double mpi_time = OP_kernels[n].mpi_time;
+          // double mpi_time = OP_kernels[n].mpi_time;
           fprintf(outputFile, 
-                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                  // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
+                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
                   0, thr, 1, OP_kernels[n].ntimes, 
-                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
+                  OP_kernels[n].count, kern_time, plan_time, 
+                  // mpi_time, 
+                  OP_kernels[n].mpi_stencil, OP_kernels[n].mpi_collectives, 
                   OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
                   OP_kernels[n].name);
         }
