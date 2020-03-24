@@ -70,12 +70,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
      
     op_mpi_wait_all(nargs, args);
-        for ( int i=0; i<set_size; i++ ){
+  //      for ( int i=0; i<set_size; i++ ){
             
- //       for (int c=0; c<rev_map->number_of_colors;c++){
-   //         for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
-        //        int n=rev_map->color_based_exec[i];
-                int n=rev_map->from_elements_sorted_by_global_id[i];
+        for (int c=0; c<rev_map->number_of_colors;c++){
+            for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+                int n=rev_map->color_based_exec[i];
+        //        int n=rev_map->from_elements_sorted_by_global_id[i];
               //  printf("%d;%d;%d;%d\n",n,OP_set_global_ids_list[prime_map->from->index]->global_ids[n],c,my_rank);
     /*              if (n==set->core_size) {
                     op_mpi_wait_all(nargs, args);
@@ -96,7 +96,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
                       &((double*)arg6.data)[4 * map3idx]);
               //        &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
               //        &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
-      //      }
+            }
         }
 
                
