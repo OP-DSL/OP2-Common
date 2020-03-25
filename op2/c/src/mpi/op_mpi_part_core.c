@@ -4347,60 +4347,65 @@ void greedy_global_coloring(){
 
   for (int m = 0; m < OP_map_index; m++) { 
     op_map original_map = OP_map_list[m];
-    
-    char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
-    strcpy(dat_map_name,original_map->name);
-    strcat(dat_map_name,"_coloring");
-    strcat(dat_map_name,".h5");
-    
-    char dat_map_name2[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
-    strcpy(dat_map_name2,original_map->name);
-    strcat(dat_map_name2,"_coloring");
-          
-    op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
-    
-    
     op_reversed_map rev_map = OP_reversed_map_list[m];
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
     int set_to_size = original_map->to->size + original_map->to->exec_size +
                       original_map->to->nonexec_size;
+                      
+    if (set_from_size>0){
+    
+      char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+      strcpy(dat_map_name,original_map->name);
+      strcat(dat_map_name,"_coloring");
+      strcat(dat_map_name,".h5");
+      
+      char dat_map_name2[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+      strcpy(dat_map_name2,original_map->name);
+      strcat(dat_map_name2,"_coloring");
+            
+      op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
 
-    int *repr_colors = (int *)op_malloc(set_from_size * sizeof(int));
-    //memcpy(color_dat->data,repr_colors,set_from_size * sizeof(int));
-    op_fetch_data(color_dat,repr_colors);
-    
-    int max_color=0;
-    for (int i=0; i<set_from_size; i++) {
-        if (repr_colors[i]>max_color){
-          max_color=repr_colors[i];
-        }
-    }
-    
-    std::vector<std::set<int>> color_based_exec_sets(max_color+1);
-    //std::set<int> color_based_exec_sets[max_color+1];
 
-    for (int i=0; i<set_from_size; i++){
-        color_based_exec_sets[repr_colors[i]].insert(i);
-    }
 
-    int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
-    int* color_based_exec_row_starts = (int*) op_malloc((max_color+1+1)*sizeof(int));
-    color_based_exec_row_starts[0]=0;
-    for (int i=0; i<max_color+1; i++){
-        color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
-        int act_id=color_based_exec_row_starts[i];
-        for (int e : color_based_exec_sets[i]){
-            color_based_exec[act_id++]=e;
-        }
+
+      //int *repr_colors =  (int*)color_dat->data;
+      //int *repr_colors = (int *)op_malloc(set_from_size * sizeof(int));
+      //memcpy(color_dat->data,repr_colors,set_from_size * sizeof(int));
+      //op_fetch_data(color_dat,repr_colors);
+      
+      
+      int max_color=0;
+      for (int i=0; i<set_from_size; i++) {
+          if ((int)color_dat->data[i]>max_color){
+            max_color=(int)color_dat->data[i];
+          }
+      }
+      
+      std::vector<std::set<int>> color_based_exec_sets(max_color+1);
+      //std::set<int> color_based_exec_sets[max_color+1];
+
+      for (int i=0; i<set_from_size; i++){
+          color_based_exec_sets[(int)color_dat->data[i]].insert(i);
+      }
+
+      int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
+      int* color_based_exec_row_starts = (int*) op_malloc((max_color+1+1)*sizeof(int));
+      color_based_exec_row_starts[0]=0;
+      for (int i=0; i<max_color+1; i++){
+          color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
+          int act_id=color_based_exec_row_starts[i];
+          for (int e : color_based_exec_sets[i]){
+              color_based_exec[act_id++]=e;
+          }
+      }
+      
+      OP_reversed_map_list[m]->reproducible_coloring = (int*)color_dat->data;
+     // op_free(OP_reversed_map_list[m]->reproducible_coloring);
+      OP_reversed_map_list[m]->number_of_colors = max_color+1;
+      OP_reversed_map_list[m]->color_based_exec = color_based_exec;
+      OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;    
     }
-    
-    OP_reversed_map_list[m]->reproducible_coloring = repr_colors;
-   // op_free(OP_reversed_map_list[m]->reproducible_coloring);
-    OP_reversed_map_list[m]->number_of_colors = max_color+1;
-    OP_reversed_map_list[m]->color_based_exec = color_based_exec;
-    OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;    
-    
   }
   
     
