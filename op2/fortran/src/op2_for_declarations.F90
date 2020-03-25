@@ -425,6 +425,23 @@ module OP2_Fortran_Declarations
 
     end function op_arg_gbl_c
 
+    function op_arg_gbl_ptr_c ( opt, dat, dim, type, size, acc ) BIND(C,name='op_opt_arg_gbl_copy')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_arg
+
+      type(op_arg) :: op_arg_gbl_ptr_c
+
+      integer(kind=c_int), value :: opt
+      type(c_ptr), value :: dat
+      integer(kind=c_int), value :: dim
+      character(kind=c_char), dimension(*) :: type
+      integer(kind=c_int), value :: size
+      integer(kind=c_int), value :: acc
+
+    end function op_arg_gbl_ptr_c
+
     subroutine print_type (type) BIND(C,name='print_type')
 
       use, intrinsic :: ISO_C_BINDING
@@ -592,6 +609,14 @@ module OP2_Fortran_Declarations
 
     end subroutine op_print_dat_to_txtfile_c
 
+    subroutine op_print_dat_to_txtfile2_c (dat, fileName) BIND(C,name='op_print_dat_to_txtfile2')
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value ::    dat
+      character(len=1,kind=c_char) :: fileName(*)
+
+    end subroutine op_print_dat_to_txtfile2_c
+
     logical(kind=c_bool) function isCNullPointer_c (ptr) BIND(C,name='isCNullPointer')
       use, intrinsic :: ISO_C_BINDING
 
@@ -744,6 +769,14 @@ module OP2_Fortran_Declarations
                      op_opt_arg_dat_integer_4_3_m2
   end interface op_opt_arg_dat
 
+  interface op_opt_arg_gbl
+    module procedure op_opt_arg_gbl_python_r8_scalar, op_opt_arg_gbl_python_i4_scalar, &
+        & op_opt_arg_gbl_python_logical_scalar, op_opt_arg_gbl_python_r8_1dim,  &
+        & op_opt_arg_gbl_python_i4_1dim, op_opt_arg_gbl_python_logical_1dim, &
+        & op_opt_arg_gbl_python_r8_2dim, op_opt_arg_gbl_python_r8_3dim, &
+        & op_opt_arg_gbl_python_i4_2dim, op_opt_arg_gbl_python_logical_2dim
+  end interface op_opt_arg_gbl
+
   interface op_fetch_data
     module procedure op_fetch_data_real_8, op_fetch_data_real_4, &
     op_fetch_data_integer_4
@@ -753,6 +786,12 @@ module OP2_Fortran_Declarations
     module procedure op_fetch_data_idx_real_8, op_fetch_data_idx_real_4, &
     op_fetch_data_idx_integer_4
   end interface op_fetch_data_idx
+
+  interface op_print_dat_to_txtfile2
+    module procedure op_print_dat_to_txtfile2_real_8, op_print_dat_to_txtfile2_integer_4
+  end interface op_print_dat_to_txtfile2
+
+
 
 contains
 
@@ -1970,6 +2009,266 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_arg_gbl_python_logical_2dim
 
+  type(op_arg) function op_opt_arg_gbl_python_r8_scalar (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    real(8), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_r8_scalar = op_arg_gbl_ptr_c (opt_int, c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+
+
+  end function op_opt_arg_gbl_python_r8_scalar
+
+  type(op_arg) function op_opt_arg_gbl_python_i4_scalar (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    integer(4), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_i4_scalar = op_arg_gbl_ptr_c (opt_int, c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
+
+
+  end function op_opt_arg_gbl_python_i4_scalar
+
+  type(op_arg) function op_opt_arg_gbl_python_logical_scalar (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    logical, target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_logical_scalar = op_arg_gbl_ptr_c (opt_int, c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
+
+
+  end function op_opt_arg_gbl_python_logical_scalar
+
+  type(op_arg) function op_opt_arg_gbl_python_r8_1dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    real(8), dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_r8_1dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+
+
+  end function op_opt_arg_gbl_python_r8_1dim
+
+  type(op_arg) function op_opt_arg_gbl_python_i4_1dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    integer(4), dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_i4_1dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
+
+
+  end function op_opt_arg_gbl_python_i4_1dim
+
+  type(op_arg) function op_opt_arg_gbl_python_logical_1dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    logical, dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_logical_1dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat(1)), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
+
+
+  end function op_opt_arg_gbl_python_logical_1dim
+
+  type(op_arg) function op_opt_arg_gbl_python_r8_2dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    real(8), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_r8_2dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat(1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+
+  end function op_opt_arg_gbl_python_r8_2dim
+
+  type(op_arg) function op_opt_arg_gbl_python_r8_3dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    real(8), dimension(:,:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_r8_3dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat(1,1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, access-1 )
+
+
+  end function op_opt_arg_gbl_python_r8_3dim
+
+#ifdef __GFORTRAN__
+  function int_ptr ( arg )
+    integer(4), dimension(:,:), target :: arg
+    integer(4), target :: int_ptr
+
+    int_ptr = arg(1, 1)
+  end function
+#else
+#define int_ptr(arg) arg
+#endif
+
+  type(op_arg) function op_opt_arg_gbl_python_i4_2dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    integer(4), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_i4_2dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat(1,1)), dim, C_CHAR_'int'//C_NULL_CHAR, 4, access-1 )
+
+
+  end function op_opt_arg_gbl_python_i4_2dim
+
+  type(op_arg) function op_opt_arg_gbl_python_logical_2dim (opt, dat, dim, type, access )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    logical opt
+
+    logical, dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: access
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if(opt) then
+      opt_int = 1
+    else
+      opt_int = 0
+    endif
+
+    ! warning: access is in FORTRAN style, while the C style is required here
+    op_opt_arg_gbl_python_logical_2dim = op_arg_gbl_ptr_c (opt_int, c_loc (dat(1, 1)), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, access-1 )
+
+
+  end function op_opt_arg_gbl_python_logical_2dim
+
   subroutine op_get_dat ( opdat )
 
     type(op_dat) :: opdat
@@ -2087,6 +2386,30 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     call op_print_dat_to_txtfile_c (dat%dataPtr, fileName)
 
   end subroutine op_print_dat_to_txtfile
+
+  subroutine op_print_dat_to_txtfile2_real_8 (dat, fileName)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(len=*) :: fileName
+    real*8, dimension(*), target :: dat
+
+    call op_print_dat_to_txtfile2_c (c_loc(dat), fileName)
+
+  end subroutine
+
+  subroutine op_print_dat_to_txtfile2_integer_4 (dat, fileName)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(len=*) :: fileName
+    integer*4, dimension(*), target :: dat
+
+    call op_print_dat_to_txtfile2_c (c_loc(dat), fileName)
+
+  end subroutine
 
   subroutine op_mpi_rank (rank)
 

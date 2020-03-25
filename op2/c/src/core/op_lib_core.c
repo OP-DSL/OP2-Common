@@ -625,11 +625,14 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.map_data = NULL;
   }
 
-  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0)
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
+      strcmp(typ, "real*8") == 0)
     arg.type = doublestr;
-  else if (strcmp(typ, "float") == 0)
+  else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
+           strcmp(typ, "real*4") == 0)
     arg.type = floatstr;
-  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0)
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
+           strcmp(typ, "integer*4") == 0)
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -673,11 +676,14 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
     arg.map_data = (map == NULL ? NULL : map->map);
   }
 
-  if (strcmp(typ, "double") == 0)
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
+      strcmp(typ, "real*8") == 0)
     arg.type = doublestr;
-  else if (strcmp(typ, "float") == 0)
+  else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
+           strcmp(typ, "real*4") == 0)
     arg.type = floatstr;
-  else if (strcmp(typ, "int") == 0)
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
+           strcmp(typ, "integer*4") == 0)
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -692,24 +698,27 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   return arg;
 }
 
-op_arg op_arg_gbl_core(char *data, int dim, const char *typ, int size,
+op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
                        op_access acc) {
   op_arg arg;
 
   arg.argtype = OP_ARG_GBL;
 
   arg.dat = NULL;
-  arg.opt = 1;
+  arg.opt = opt;
   arg.map = NULL;
   arg.dim = dim;
   arg.idx = -1;
   arg.size = dim * size;
   arg.data = data;
-  if (strcmp(typ, "double") == 0)
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
+      strcmp(typ, "real*8") == 0)
     arg.type = doublestr;
-  else if (strcmp(typ, "float") == 0)
+  else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
+           strcmp(typ, "real*4") == 0)
     arg.type = floatstr;
-  else if (strcmp(typ, "int") == 0)
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
+           strcmp(typ, "integer*4") == 0)
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -984,7 +993,8 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
           strcmp(dat->type, "double:soa") == 0 ||
           strcmp(dat->type, "double precision") == 0 ||
           strcmp(dat->type, "real(8)") == 0) {
-        if (fprintf(fp, "%lf ", ((double *)dat->data)[i * dat->dim + j]) < 0) {
+        if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j]) <
+            0) {
           printf("error writing to %s\n", file_name);
           exit(2);
         }
@@ -1147,4 +1157,9 @@ void op_dat_write_index(op_set set, int* dat) {
   for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
     ((int*)arg.dat->data)[i] = i+1;
   }
+}
+
+void op_print_dat_to_txtfile2(int *dat, const char *file_name) {
+  op_arg arg = op_arg_dat_ptr(1, (char *)dat, -2, NULL, 1, "int", OP_WRITE);
+  op_print_dat_to_txtfile_core(arg.dat, file_name);
 }

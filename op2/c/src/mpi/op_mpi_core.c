@@ -2135,7 +2135,8 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
       }
     }
     if (strcmp(arg_list[i].type, "float") == 0 ||
-        strcmp(arg_list[i].type, "r4") == 0) {
+        strcmp(arg_list[i].type, "r4") == 0 ||
+        strcmp(arg_list[i].type, "real*4") == 0) {
       float *output = (float *)arg_list[i].data;
       for (int rank = 0; rank < comm_size; rank++) {
         if (rank != comm_rank) {
@@ -2172,7 +2173,8 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
       }
     }
     if (strcmp(arg_list[i].type, "int") == 0 ||
-        strcmp(arg_list[i].type, "i4") == 0) {
+        strcmp(arg_list[i].type, "i4") == 0 ||
+        strcmp(arg_list[i].type, "integer*4") == 0) {
       int *output = (int *)arg_list[i].data;
       for (int rank = 0; rank < comm_size; rank++) {
         if (rank != comm_rank) {
