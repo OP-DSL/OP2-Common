@@ -46,6 +46,7 @@
 int OP_plan_index = 0, OP_plan_max = 0;
 op_plan *OP_plans;
 double OP_plan_time = 0;
+double OP_hdf5_write_time = 0.0;
 
 extern op_kernel *OP_kernels;
 extern int OP_kern_max;

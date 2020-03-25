@@ -1107,6 +1107,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   // letting know that writing is happening ...
   op_printf("Writing '%s' to file '%s'\n", path_name, file_name);
 
+  // declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timers(&cpu_t1, &wall_t1); // timer start for hdf5 file write
+
   // fetch data based on the backend
   op_dat dat = op_fetch_data_file_char(data);
 
@@ -1289,6 +1293,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       op_free(dat);
 
       MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+
+      op_timers(&cpu_t2, &wall_t2); // timer stop for hdf5 file write
+      OP_hdf5_write_time += wall_t2 - wall_t1;
+  
       return;
     } else {
       if (OP_diags > 3) {
@@ -1429,6 +1437,9 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   op_free(dat);
 
   MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+
+  op_timers(&cpu_t2, &wall_t2); // timer stop for hdf5 file write
+  OP_hdf5_write_time += wall_t2 - wall_t1;
 }
 
 /*******************************************************************************
