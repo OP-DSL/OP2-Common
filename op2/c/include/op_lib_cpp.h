@@ -162,6 +162,15 @@ op_arg op_arg_gbl(T *data, int dim, char const *type, op_access acc) {
     return op_arg_gbl_char((char *)data, dim, type, sizeof(T), acc);
 }
 
+template <class T>
+op_arg op_opt_arg_gbl(int opt, T *data, int dim, char const *type,
+                      op_access acc) {
+  if (type_error(data, type))
+    return op_opt_arg_gbl_char(opt, (char *)data, dim, "error", sizeof(T), acc);
+  else
+    return op_opt_arg_gbl_char(opt, (char *)data, dim, type, sizeof(T), acc);
+}
+
 //
 // temporary dats
 //
