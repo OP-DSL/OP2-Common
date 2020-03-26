@@ -121,8 +121,31 @@ void op_args_check(op_set set, int nargs, op_arg *args,
 #define FREE(x) if (arg##x->idx < -1) {free (p_a[x-1]);}
 
 #define REDUCE_LIST(N) SEMI_LIST(N,REDUCE)
-#define REDUCE(x) if (arg##x->argtype == OP_ARG_GBL ) { if ( arg##x->acc == OP_INC || arg##x->acc == OP_MAX || arg##x->acc == OP_MIN ) { {if (strncmp (arg##x->type, "double", 6) == 0) {op_mpi_reduce_double(arg##x,(double *)p_a[x-1]);} else if (strncmp (arg##x->type, "float", 5) == 0) op_mpi_reduce_float(arg##x,(float *)p_a[x-1]); else if ( strncmp (arg##x->type, "int", 3) == 0 ){op_mpi_reduce_int(arg##x,(int *)p_a[x-1]);} else if ( strncmp (arg##x->type, "bool", 4) == 0 ) op_mpi_reduce_bool(arg##x,(bool *)p_a[x-1]); else { printf ("OP2 error: unrecognised type for reduction, type %s\n",arg##x->type); exit (0);}}}}
-
+#define REDUCE(x)                                                              \
+  if (arg##x->argtype == OP_ARG_GBL) {                                         \
+    if (arg##x->opt == 1) {                                                    \
+      if (arg##x->acc == OP_INC || arg##x->acc == OP_MAX ||                    \
+          arg##x->acc == OP_MIN) {                                             \
+        {                                                                      \
+          if (strncmp(arg##x->type, "double", 6) == 0) {                       \
+            op_mpi_reduce_double(arg##x, (double *)p_a[x - 1]);                \
+          } else if (strncmp(arg##x->type, "real*8", 6) == 0)                  \
+            op_mpi_reduce_double(arg##x, (double *)p_a[x - 1]);                \
+          else if (strncmp(arg##x->type, "float", 5) == 0)                     \
+            op_mpi_reduce_float(arg##x, (float *)p_a[x - 1]);                  \
+          else if (strncmp(arg##x->type, "int", 3) == 0) {                     \
+            op_mpi_reduce_int(arg##x, (int *)p_a[x - 1]);                      \
+          } else if (strncmp(arg##x->type, "bool", 4) == 0)                    \
+            op_mpi_reduce_bool(arg##x, (bool *)p_a[x - 1]);                    \
+          else {                                                               \
+            printf("OP2 error: unrecognised type for reduction, type %s\n",    \
+                   arg##x->type);                                              \
+            exit(0);                                                           \
+          }                                                                    \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  }
 
 #define OP_LOOP(N) \
   void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set_core * set, ARG_LIST_POINTERS(N)) { \

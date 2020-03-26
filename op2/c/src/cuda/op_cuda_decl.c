@@ -196,7 +196,12 @@ op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
                        op_access acc) {
-  return op_arg_gbl_core(data, dim, type, size, acc);
+  return op_arg_gbl_core(1, data, dim, type, size, acc);
+}
+
+op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
+                           int size, op_access acc) {
+  return op_arg_gbl_core(opt, data, dim, type, size, acc);
 }
 
 //
@@ -259,13 +264,14 @@ void op_timings_to_csv(const char *outputFileName) {
   if (outputFile != NULL) {
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older 
+          // This library is being used by an OP2 translation made with the
+          // older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
-        
+
         for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
           double kern_time = OP_kernels[n].times[thr];
           if (kern_time == 0.0) {
@@ -273,12 +279,10 @@ void op_timings_to_csv(const char *outputFileName) {
           }
           double plan_time = OP_kernels[n].plan_time;
           double mpi_time = OP_kernels[n].mpi_time;
-          fprintf(outputFile, 
-                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                  0, thr, 1, OP_kernels[n].ntimes, 
-                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
-                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
-                  OP_kernels[n].name);
+          fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", 0, thr, 1,
+                  OP_kernels[n].ntimes, OP_kernels[n].count, kern_time,
+                  plan_time, mpi_time, OP_kernels[n].transfer / 1e9f,
+                  OP_kernels[n].transfer2 / 1e9f, OP_kernels[n].name);
         }
       }
     }

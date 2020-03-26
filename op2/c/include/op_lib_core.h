@@ -257,7 +257,7 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
 op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
                            const char *typ, op_access acc);
 
-op_arg op_arg_gbl_core(char *, int, const char *, int, op_access);
+op_arg op_arg_gbl_core(int, char *, int, const char *, int, op_access);
 
 void op_diagnostic_output(void);
 
