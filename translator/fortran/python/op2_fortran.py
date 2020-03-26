@@ -268,7 +268,7 @@ def get_arg_dat(arg_string, j):
   if '"i4' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
-    temp_dat['typ']='"logical*1"'
+    temp_dat['typ']='"logical"'
   return temp_dat
 
 def get_opt_arg_dat(arg_string, j):
@@ -317,7 +317,7 @@ def get_opt_arg_dat(arg_string, j):
   if '"i4' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
-    temp_dat['typ']='"logical*1"'
+    temp_dat['typ']='"logical"'
 
   return temp_dat
 
@@ -364,7 +364,7 @@ def get_arg_gbl(arg_string, k):
   if temp_gbl['typ']=='"i4"':
     temp_gbl['typ']='"INTEGER(kind=4)"'
   if temp_gbl['typ']=='"logical"':
-    temp_gbl['typ']='"logical*1"'
+    temp_gbl['typ']='"logical"'
 
   return temp_gbl
 
