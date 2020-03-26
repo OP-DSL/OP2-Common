@@ -159,13 +159,13 @@ ifeq ($(OP2_COMPILER),pgi)
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   CC              = nvcc -g -Xcompiler=-std=c99
   CXX             = nvcc -g -Xcompiler=-std=c99
-  FC              = pgfortran -g
+  FC              = pgfortran -g -DOP2_ARG_POINTERS
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS      = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc -Xcompiler=""
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
-  PGFC            = pgfortran
+  PGFC            = pgfortran -DOP2_ARG_POINTERS
   PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
