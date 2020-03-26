@@ -368,6 +368,53 @@ def get_arg_gbl(arg_string, k):
 
   return temp_gbl
 
+def get_opt_arg_gbl(arg_string, k):
+  loc = arg_parse(arg_string,k+1)
+  gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+
+  #remove comments
+  gbl_args_string = comment_remover(gbl_args_string)
+  gbl_args_string = gbl_args_string.replace('&','')
+
+  gbl_args = arg_parse2('('+gbl_args_string+')',0)
+  #check for syntax errors
+  if len(gbl_args) != 5:
+    print 'Error parsing op_arg_gbl(%s): must have five arguments' \
+          % gbl_args_string
+    return
+
+  # split the gbl_args_string into  4 and create a struct with the elements
+  # and type as op_arg_gbl
+  temp_gbl = {'type':'op_opt_arg_gbl',
+  'opt' :gbl_args[0].strip(),
+  'data':gbl_args[1].strip(),
+  'dim' :gbl_args[2].strip(),
+  'typ' :gbl_args[3].strip(),
+  'acc' :gbl_args[4].strip()}
+
+#  if 'DNPDE' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+#  if 'nfcrow' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+#  if 'npdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+#  if 'maxzone' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
+#  if 'mpdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
+  if temp_gbl['typ']=='"r8"':
+    temp_gbl['typ']='"REAL(kind=8)"'
+  if temp_gbl['typ']=='"i4"':
+    temp_gbl['typ']='"INTEGER(kind=4)"'
+  if temp_gbl['typ']=='"logical"':
+    temp_gbl['typ']='"logical*1"'
+
+  return temp_gbl
+
 def append_init_soa(text):
   text = re.sub('\\bop_init(\\w*)\\b\\s*\((.*)\)','op_init\\1_soa(\\2,1)', text)
   text = re.sub('\\bop_mpi_init(\\w*)\\b\\s*\((.*)\)','op_mpi_init\\1_soa(\\2,1)', text)
@@ -393,12 +440,14 @@ def op_par_loop_parse(text):
       search2 = "op_arg_dat"
       search3 = "op_arg_gbl"
       search4 = "op_opt_arg_dat"
+      search5 = "op_opt_arg_gbl"
       j = arg_string.find(search2)
       k = arg_string.find(search3)
       l = arg_string.find(search4)
+      p = arg_string.find(search5)
 
-      while j > -1 or k > -1 or l > -1:
-        index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint)
+      while j > -1 or k > -1 or l > -1 or p > -1:
+        index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint, p if (p > -1) else sys.maxint)
 
         if index == j:
           temp_dat = get_arg_dat(arg_string,j)
@@ -418,6 +467,12 @@ def op_par_loop_parse(text):
           temp_args.append(temp_dat)
           num_args = num_args + 1
           l = arg_string.find(search4, l+15)
+        elif  index == p :
+          temp_dat = get_opt_arg_gbl(arg_string,p)
+          #append this struct to a temporary list/array
+          temp_args.append(temp_dat)
+          num_args = num_args + 1
+          p = arg_string.find(search5, p+15)
 
       temp = {'loc':i,
               'name1':arg_string.split(',')[0].strip(),
@@ -604,12 +659,15 @@ for a in range(init_ctr,len(sys.argv)):
         else:
           optflags[m] = 0
 
-      if arg_type.strip() == 'op_arg_gbl':
+      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl':
         maps[m] = OP_GBL
         var[m] = args['data']
         dims[m] = args['dim']
         typs[m] = args['typ'][1:-1]
-        optflags[m] = 0
+        if arg_type.strip() == 'op_opt_arg_gbl':
+          optflags[m] = 1
+        else:
+          optflags[m] = 0
 
         l = -1
         for l in range(0,len(OP_accs_labels)):
@@ -873,6 +931,9 @@ for a in range(init_ctr,len(sys.argv)):
              + ','+ elem['map'] + ','+ elem['dim']+ ','+ typechange(elem['typ']) +','+ elem['acc']
          elif elem['type'] == 'op_arg_gbl':
             line = line + indent + cont + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] \
+            +','+ typechange(elem['typ'])+','+ elem['acc']
+         elif elem['type'] == 'op_opt_arg_gbl':
+            line = line + indent + cont + elem['type'] + '(' + elem['opt']+','+ elem['data'] + ','+ elem['dim'] \
             +','+ typechange(elem['typ'])+','+ elem['acc']
 
          if arguments <> loop_args[curr_loop]['nargs'] - 1:
