@@ -105,7 +105,7 @@ ifeq ($(OP2_COMPILER),xl)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC = icc
-  FC = ifort
+  FC = ifort -warn interfaces -gen-interfaces
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)

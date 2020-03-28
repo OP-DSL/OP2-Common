@@ -487,6 +487,15 @@ void op_partition(const char *lib_name, const char *lib_routine,
   (void)coords;
 }
 
+void op_partition_ptr(const char *lib_name, const char *lib_routine,
+                      op_set prime_set, int *prime_map, double *coords) {
+  (void)lib_name;
+  (void)lib_routine;
+  (void)prime_set;
+  (void)prime_map;
+  (void)coords;
+}
+
 void op_partition_reverse() {}
 
 void op_compute_moment(double t, double *first, double *second) {

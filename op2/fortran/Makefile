@@ -211,14 +211,14 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -g -xHOST -vec-report
+  OPT             = -O3 -g -xHOST #-qopt-report
   CC              = icc
   CXX             = icpc 
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
   CFLAGS_SLOW          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
   FC              = ifort $(OPT) -DOP2_ARG_POINTERS
-  FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
   MPICC           = $(MPICC_PATH) $(OPT)
   MPICXX          = $(MPICXX_PATH) $(OPT)
   MPIF90          = $(MPIF90_PATH) $(OPT)

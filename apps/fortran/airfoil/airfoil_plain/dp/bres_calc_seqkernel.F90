@@ -106,6 +106,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   integer(4), POINTER, DIMENSION(:) :: opDat6Local
   INTEGER(kind=4) :: opDat6Cardinality
 
+  real(8), POINTER, DIMENSION(:) :: opDat1OptPtr
 
   INTEGER(kind=4) :: i1
   REAL(kind=4) :: dataTransfer
@@ -180,7 +181,9 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   call op_timers_core(endTime)
 
   dataTransfer = 0.0
-  dataTransfer = dataTransfer + opArg1%size * MIN(n_upper,getSetSizeFromOpArg(opArg1))
+  IF (opArg1%opt == 1) THEN
+    dataTransfer = dataTransfer + opArg1%size * MIN(n_upper,getSetSizeFromOpArg(opArg1))
+  END IF
   dataTransfer = dataTransfer + opArg3%size * MIN(n_upper,getSetSizeFromOpArg(opArg3))
   dataTransfer = dataTransfer + opArg4%size * MIN(n_upper,getSetSizeFromOpArg(opArg4))
   dataTransfer = dataTransfer + opArg5%size * MIN(n_upper,getSetSizeFromOpArg(opArg5)) * 2.d0

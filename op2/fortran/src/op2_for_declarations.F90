@@ -749,7 +749,7 @@ module OP2_Fortran_Declarations
   end interface op_decl_const
 
   interface op_arg_dat
-    module procedure op_arg_dat_python, op_arg_dat_real_8, op_arg_dat_integer_4, &
+    module procedure op_arg_dat_python, op_arg_dat_python_OP_ID, op_arg_dat_real_8, op_arg_dat_integer_4, &
                      op_arg_dat_real_8_2, op_arg_dat_integer_4_2, &
                      op_arg_dat_real_8_3, op_arg_dat_integer_4_3, &
                      op_arg_dat_real_8_4, op_arg_dat_real_8_4_m2, &
@@ -759,7 +759,7 @@ module OP2_Fortran_Declarations
   end interface op_arg_dat
 
   interface op_opt_arg_dat
-    module procedure op_opt_arg_dat_python, op_opt_arg_dat_real_8, &
+    module procedure op_opt_arg_dat_python, op_opt_arg_dat_python_OP_ID, op_opt_arg_dat_real_8, &
                      op_opt_arg_dat_real_8_m2, op_opt_arg_dat_real_8_2, &
                      op_opt_arg_dat_real_8_2_m2, op_opt_arg_dat_real_8_3, &
                      op_opt_arg_dat_real_8_4_m2, op_opt_arg_dat_real_8_4, &
@@ -1444,6 +1444,33 @@ contains
 
   end function op_arg_dat_python
 
+  type(op_arg) function op_arg_dat_python_OP_ID (dat, idx, map, dim, type, access)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    integer(4) :: map(2)
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access
+
+    if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
+      print *, "Error, NULL pointer for op_dat"
+      op_arg_dat_python_OP_ID = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+    else
+      if (dat%dataPtr%dim .ne. dim) then
+        print *, "Wrong dim",dim,dat%dataPtr%dim
+        stop 1
+      endif
+      ! warning: access and idx are in FORTRAN style, while the C style is required here
+      ! OP_ID case (does not decrement idx)
+      op_arg_dat_python_OP_ID = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+    endif
+
+  end function op_arg_dat_python_OP_ID
 
 type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
@@ -1791,6 +1818,39 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     endif
 
   end function op_opt_arg_dat_python
+
+  type(op_arg) function op_opt_arg_dat_python_OP_ID (opt, dat, idx, map, dim, type, access)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical :: opt
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    integer(4) :: map(2)
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access
+
+    integer(kind=c_int) :: opt_int
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    ! warning: access and idx are in FORTRAN style, while the C style is required here
+    if (opt) then
+      ! OP_ID case (does not decrement idx)
+      op_opt_arg_dat_python_OP_ID = op_opt_arg_dat_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,   &
+        & dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
+    else
+      ! OP_ID case (does not decrement idx)
+      op_opt_arg_dat_python_OP_ID = op_opt_arg_dat_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type//C_NULL_CHAR, access-1 )
+    endif
+
+  end function op_opt_arg_dat_python_OP_ID
 
   INTEGER function op_get_size (set )
 

@@ -1100,8 +1100,9 @@ op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
 
 op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const *type,
                   op_access acc) {
-  if (opt == 0) return op_opt_arg_dat(opt, NULL, idx, NULL, dim, type, acc);
-//  printf("op_arg_dat_ptr with %p\n", dat);
+  if (opt == 0)
+    return op_opt_arg_dat_core(opt, NULL, idx, NULL, dim, type, acc);
+  //  printf("op_arg_dat_ptr with %p\n", dat);
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;
@@ -1129,7 +1130,7 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   //printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
   //if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
 
-  return op_arg_dat(item_dat, idx, item_map, dim, type, acc);
+  return op_arg_dat_core(item_dat, idx, item_map, dim, type, acc);
 }
 
 int *op_set_registry=NULL;
