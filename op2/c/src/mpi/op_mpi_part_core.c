@@ -1599,19 +1599,19 @@ void op_partition_geom(op_dat coords) {
   idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t) * coords->set->size);
 
   idx_t ndims = coords->dim;
-  float *xyz = 0;
+  real_t *xyz = 0;
 
   // Create ParMetis compatible coordinates array
   //- i.e. coordinates should be floats
   if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (float *)xmalloc(coords->set->size * coords->dim * sizeof(float));
+    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
     for (int i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
                mult);
-        xyz[i * coords->dim + e] = (float)temp;
+        xyz[i * coords->dim + e] = (real_t)temp;
       }
     }
   } else {
@@ -1991,11 +1991,11 @@ void op_partition_kway(op_map primary_map) {
     total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
     tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance / total : 1.0 / total;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   // clean up before calling ParMetis
@@ -2131,19 +2131,19 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures ------------*/
 
   idx_t ndims = coords->dim;
-  float *xyz = 0;
+  real_t *xyz = 0;
 
   // Create ParMetis compatible coordinates array
   //- i.e. coordinates should be floats
   if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (float *)xmalloc(coords->set->size * coords->dim * sizeof(float));
+    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
     for (int i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
                mult);
-        xyz[i * coords->dim + e] = (float)temp;
+        xyz[i * coords->dim + e] = (real_t)temp;
       }
     }
   } else {
@@ -2397,11 +2397,11 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   idx_t options[3] = {1, 3, 15};
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = (float)1.0 / (float)comm_size;
+    tpwgts[i] = (real_t)1.0 / (real_t)comm_size;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   // clean up before calling ParMetis
@@ -2597,11 +2597,11 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   idx_t options[3] = {1, 3, 15};
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = (float)1.0 / (float)comm_size;
+    tpwgts[i] = (real_t)1.0 / (real_t)comm_size;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   idx_t ncommonnodes = 1;
