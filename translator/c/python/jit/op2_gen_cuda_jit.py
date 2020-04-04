@@ -58,7 +58,7 @@ def FOR(i,start,finish):
     code('do '+i+' = '+start+', '+finish+'-1')
   elif CPP:
     code('for (int '+i+' = '+start+'; '+i+' < '+finish+'; ++'+i+')')
-    code('{') 
+    code('{')
   depth += 2
 
 def FOR_INC(i,start,finish,inc):
@@ -67,8 +67,8 @@ def FOR_INC(i,start,finish,inc):
   if FORTRAN:
     code('do '+i+' = '+start+', '+finish+'-1')
   elif CPP:
-    code('for (int '+i+' = '+start+'; '+i+' < '+finish+'; '+i+' += '+inc+')') 
-    code('{') 
+    code('for (int '+i+' = '+start+'; '+i+' < '+finish+'; '+i+' += '+inc+')')
+    code('{')
   depth += 2
 
 def ENDFOR():
@@ -123,7 +123,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
     ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
     unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
- 
+
     optidxs = [0]*nargs
     indopts = [-1]*nargs
     nopts = 0
@@ -169,8 +169,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('#include "op_cuda_reduction.h"')
     comm('global_constants - values #defined by JIT')
     code('#include "jit_const.h"')
-    code('')   
- 
+    code('')
+
     jit_include = file_text
     file_text = ''
 
@@ -207,20 +207,20 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     signature_text = kernel_text[i:lbra]
     lpar = signature_text.find('(')
     rpar = op2_gen_common.para_parse(signature_text, 0, '(', ')')
-  
+
     signature_text = signature_text[lpar+1:rpar]
     body_text = kernel_text[lbra+1:rbra]
 
     #Replace "#include <FILE>" with contents of file
     body_text = op2_gen_common.replace_local_includes_with_file_contents(body_text, os.path.dirname(master))
-  
+
     params = signature_text.split(',')
-   
+
     #check number of arguments
     if len(params) != nargs_novec:
       print "Error parsing user kernel ("+name+"): must have "+str(nargs)+" arguments"
       return
-  
+
     for i in range(0,nargs_novec):
       var = params[i].strip()
       #StructOfArrays and ID/GBL or READ, MAX, or MIN
@@ -228,38 +228,37 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         var = var.replace('*','')
         sp = re.compile('\\s+\\b').split(var)
         var2 = sp[len(sp)-1].strip()
-        
+
         stride = op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)
 
         if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
         #Multiple second index by stride
-          body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+stride+']', body_text) 
+          body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+stride+']', body_text)
         else:
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+stride+']', body_text)
 
-#    old_file = file_text
-#    file_text = ''
-#
-#    depth+=2
-#    # Check constant values 
-#    IF('blockIdx.x == 0 && threadIdx.x == 0')
-#    for nc in range (0,len(consts)):
-#      if consts[nc]['dim']==1:
-#        comm(consts[nc]['name'])
-#        #code('printf("'+name+'-'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
-#      else:
-#        code('printf("'+name+'-'+consts[nc]['name']+':\\n");')
-#        FOR('i','0',consts[nc]['dim'])
-#        code('printf("  %f\\n", '+consts[nc]['name']+'[i]);') 
-#        ENDFOR()
-#    ENDIF()
-#    depth-=2  
-#  
-#    body_text += file_text
-#    file_text = old_file
+    # old_file = file_text
+    # file_text = ''
+    #
+    # depth+=2
+    # # Check constant values
+    # IF('blockIdx.x == 0 && threadIdx.x == 0')
+    #
+    # for nc in range (0,len(consts)):
+    #     if consts[nc]['dim']==1:
+    #         comm(consts[nc]['name'])
+    #         code('printf("'+name+'-'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
+    #     else:
+    #         FOR('i','0',consts[nc]['dim'])
+    #         code('printf("  %f\\n", '+consts[nc]['name']+'[i]);')
+    #         ENDFOR()
+    # ENDIF()
+    # depth-=2
+    #
+    # body_text += file_text
+    # file_text = old_file
 
- 
     user_function = file_text + "//user function\n" + "__device__ void " + name + "_gpu( " + signature_text + ")\n{" + body_text + "}\n"
 
     file_text = ''
@@ -268,21 +267,21 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #  Kernel Function - Calls user function
 ##########################################################################
 
-    code('') 
+    code('')
     comm('C CUDA kernel function')
-    
-    #Function head 
+
+    #Function head
 
     if FORTRAN:
       code('subroutine op_cuda_'+name+'(')
     elif CPP:
       code('__global__ void op_cuda_'+name+'(')
-  
+
     depth = 1
-  
+
     if nopts > 0: #Has optional arguments
       code('int optflags,')
- 
+
     for g_m in range(0, ninds):
       is_const = ''
       if indaccs[g_m] == OP_READ:
@@ -295,7 +294,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         if maps[g_m] == OP_MAP and not (mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
           code('const int* __restrict opDat'+str(invinds[inds[g_m]-1])+'Map, ')
- 
+
     for g_m in range(0,nargs):
       is_const = ''
       if accs[g_m] == OP_READ:
@@ -308,7 +307,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     if ninds > 0:
       code('int start,')
       code('int end,')
-    
+
     code('int set_size)')
     depth = 0
     code('{')
@@ -335,7 +334,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         if indaccs[m-1] == OP_INC:
           ind = int(max([idxs[i] for i in range(len(inds)) if inds[i] == m])) + 1
           code('INDTYP* arg'+str(invinds[m-1])+'_vec['+str(ind)+'] = {')
-       
+
           #Fill list
           depth += 2
           for n in range(0,nargs):
@@ -347,11 +346,11 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #
 # Has indirection
 #
-    if ninds > 0:          
+    if ninds > 0:
       code('int tid = threadIdx.x + blockIdx.x * blockDim.x;')
       IF('tid + start < end')
       code('int n = tid + start;')
- 
+
       comm('Initialise locals')
       for g_m in range(0,nargs):
         if (maps[g_m] == OP_GBL or maps[g_m] == OP_MAP) and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
@@ -382,7 +381,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
           if optflags[g_m] == 1:
             ENDIF()
 
-  ## SKIPPED op2_gen_cuda_simple.py lines 574 - 594 
+      code('')
+
+  ## SKIPPED op2_gen_cuda_simple.py lines 574 - 594
 
 #
 # No indirection
@@ -395,7 +396,6 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 # User Function call
 #
 
-    code('')
     comm('user function call')
     func_name = name + '_gpu('
     indent = ' '*(len(func_name))
@@ -415,7 +415,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
       elif maps[g_m] == OP_MAP:
         if vectorised[g_m]:
-          if m+1 in unique_args: 
+          if m+1 in unique_args:
             code(start + 'ARG_vec' + end)
         elif accs[g_m] == OP_INC:
           code(start + 'ARG_1' + end)
@@ -431,11 +431,10 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         code(start + 'ARG+n' + is_soa + end)
       else:
         print 'internal error 1'
-     
-    code(');') 
-    code('')
 
-#    
+    code(');')
+
+#
 # updating for indirect kernels
 #
     if ninds > 0:
@@ -452,7 +451,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
             code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+stride+'+map'+str(mapinds[g_m])+'idx'+dim+'],ARG_1['+str(d)+']);')
           if optflags[g_m] == 1:
             ENDIF()
-    
+
       ENDIF()
     else:
       ENDFOR()
@@ -464,69 +463,57 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       code('')
       comm('global reductions')
       code('')
-    
+
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
           op = ''
-          if accs[g_m]   == OP_INC:  
+          if accs[g_m]   == OP_INC:
             op = 'OP_INC'
           elif accs[g_m] == OP_MIN:
             op = 'OP_MIN'
-          elif accs[g_m] == OP_MAX: 
+          elif accs[g_m] == OP_MAX:
             op = 'OP_MAX'
           else:
             print 'internal error: invalid reduction option'
-            sys.exit(2)  
-          
+            sys.exit(2)
+
           FOR('d','0','DIM')
           code('op_reduction<'+op+'>(&ARG[d+blockIdx.x*DIM],ARG_1[d]);')
           ENDFOR()
-    
+
 #
 # end function
-#    
+#
     depth -= 2
     code('}')
     code('')
-  
+
     kernel_function = file_text
     file_text = ''
 
 ##########################################################################
-#  Host stub 
+#  Host stub
 ##########################################################################
 
     decl     = 'void op_par_loop_'+name+'_execute(op_kernel_descriptor* desc)'
 
 ##########################################################################
-#  Recompiled Host stub decl 
+#  Recompiled Host stub decl
 ##########################################################################
 
     code('extern "C" {')
     code(decl + ';')
-    code('')   
- 
+    code('')
+
     comm('Recompiled host stub function')
     code(decl)
     code('{')
 
-    # Check constant values    
-#    depth += 2
-#    for nc in range (0,len(consts)):
-#      if consts[nc]['dim']==1:
-#        code('printf("'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
-#      else:
-#        code('printf("'+consts[nc]['name']+':\\n");')
-#        FOR('i','0',consts[nc]['dim'])
-#        code('printf("  %1.17e\\n", '+consts[nc]['name']+'[i]);') 
-#        ENDFOR()
-#    depth -= 2
-
     host_decl_rec = file_text
     file_text = ''
- 
+
 ##########################################################################
-#  Host stub decl 
+#  Host stub decl
 ##########################################################################
 
     comm('Host stub function')
@@ -537,7 +524,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #  JIT compile call
 ##########################################################################
 
-    depth += 2  
+    depth += 2
     code('#ifdef OP2_JIT')
     depth += 2
     IF("!jit_compiled")
@@ -559,19 +546,19 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('op_set set = desc->set;')
     #code('char const* name = desc->name;')
     code('int nargs = '+str(nargs)+';')
-   
+
     code('')
-  
+
     for g_m in range(0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
         code('ARG.idx = 0;')
         code('args['+str(g_m)+'] = ARG;')
-  
-        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]      
+
+        v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
         first = [i for i in range(0,len(v)) if v[i] == 1]
         first = first[0]
-   
+
         FOR('v','1',str(sum(v)))
         code('args['+str(g_m)+' + v] = op_arg_dat(arg'+str(first)+'.dat, v, arg'+str(first)+'.map, DIM, "TYP", '+accstring[accs[g_m]]+');')
         ENDFOR()
@@ -591,10 +578,10 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         start = prefix
       elif m == unique_args[len(unique_args)-1]:
         end = ''
-      
+
       code(start + 'ARG' + end)
-   
-    code('};')       
+
+    code('};')
     code('')
 
     for g_m in range(0,nargs):
@@ -619,7 +606,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     else:
       code('printf(" kernel routine without indirection: '+name+'\\n");')
     ENDIF()
-# 
+#
 # Halo exchange
 #
     code('')
@@ -632,7 +619,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('')
 
 #
-# transfer global reduction initial data 
+# transfer global reduction initial data
 #
 
     comm('set CUDA execution parameters')
@@ -641,11 +628,11 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     depth += 2
     code('int nthread = ' + envStr + ';')
     depth -= 2
-    
+
     code('#else')
     depth += 2
     code('int nthread = OP_block_size;')
-    depth -=2 
+    depth -=2
     code('#endif')
     code('')
     if ninds == 0:
@@ -661,7 +648,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
       code('int reduct_bytes = 0;')
       code('int reduct_size = 0;')
-     
+
       for g_m in range (0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
@@ -670,9 +657,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       code('reallocReductArrays(reduct_bytes);')
       code('');
       code('reduct_bytes = 0;')
-     
+
       for g_m in range(0,nargs):
- 
+
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('ARG.data   = OP_reduct_h + reduct_bytes;')
           code('ARG.data_d = OP_reduct_d + reduct_bytes;')
@@ -685,7 +672,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
           ENDFOR()
           ENDFOR()
           code('reduct_bytes += ROUND_UP(maxblocks*DIM*sizeof(TYP));')
-  
+
       code('mvReductArraysToDevice(reduct_bytes);')
       code('')
  #
@@ -707,8 +694,8 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
       IF('end - start>0')
       code('int nblocks = (end-start-1)/nthread+1;')
-    
-#      code('printf("'+name+' blocks: %d, nthread: %d, total: %d\\n", nblocks, nthread, nblocks*nthread);') 
+
+#      code('printf("'+name+' blocks: %d, nthread: %d, total: %d\\n", nblocks, nthread, nblocks*nthread);')
       if reduct:
         code('int nshared = reduct_size*nthread;')
         code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
@@ -737,7 +724,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       code('printf("CUDA error: %s\\n", cudaGetErrorString(err));')
       code('exit(1);')
       ENDIF()
-      
+
       ENDIF()
       if reduct:
         code('if (round==1) mvReductArraysToHost(reduct_bytes);')
@@ -745,9 +732,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
  #
  # direct
- # 
+ #
     else:
-#      code('printf("'+name+' blocks: %d, nthread: %d, total: %d\\n", nblocks, nthread, nblocks*nthread);') 
+#      code('printf("'+name+' blocks: %d, nthread: %d, total: %d\\n", nblocks, nthread, nblocks*nthread);')
       if reduct:
         code('int nshared = reduct_size*nthread;')
         func_name = 'op_cuda_'+name+'<<<nblocks,nthread,nshared>>>('
@@ -763,9 +750,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         if nopts == 0 and g_m == 0:
           start = func_name
         code(start+'(TYP*) ARG.data_d'+end)
- 
-      code(indent+'set->size') 
-      code(');') 
+
+      code(indent+'set->size')
+      code(');')
       code('cudaError_t err = cudaGetLastError();')
       IF('err != cudaSuccess')
       code('printf("CUDA error: %s\\n", cudaGetErrorString(err));')
@@ -834,7 +821,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
             code(line+' ARG.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
-    
+
     depth -= 2
     code('}')
 
@@ -843,7 +830,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #
     code('')
     body = file_text
-    file_text = '' 
+    file_text = ''
 
 ##########################################################################
 #  Function called from modified source
@@ -857,15 +844,15 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       g_m = m - 1
       if m == unique_args[len(unique_args)-1]:
         end = ')'
-      
+
       code(prefix + 'op_arg ARG' + end)
-   
-    code('{')       
+
+    code('{')
     code('')
     depth += 2
- 
+
     code('int nargs = '+str(nargs)+';')
-    code('op_arg args['+str(nargs)+'];') 
+    code('op_arg args['+str(nargs)+'];')
     code('')
 
     code('op_kernel_descriptor *desc = ')
@@ -901,7 +888,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     code('op_enqueue_kernel(desc);')
     depth -= 2
     code('}')
- 
+
     body_end = file_text
 
 ##########################################################################
@@ -911,17 +898,21 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
-    outfile = user_function   +\
+
+    # Handle constants:
+    #  - AOT: append _cuda for version copied to device mem
+    aot_user_function = user_function
+    for nc in range(0,len(consts)):
+      varname = consts[nc]['name']
+      aot_user_function = re.sub('\\b'+varname+'\\b',varname+'_cuda',aot_user_function)
+
+    outfile = aot_user_function   +\
               kernel_function +\
               host_decl       +\
               body            +\
-              body_end 
-    
-    for nc in range(0,len(consts)):
-      varname = consts[nc]['name']
-      outfile = re.sub('\\b'+varname+'\\b',varname+'_cuda',outfile)
- 
-    fid.write(outfile) 
+              body_end
+
+    fid.write(outfile)
     fid.close()
 
 ##########################################################################
@@ -931,17 +922,37 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
         os.makedirs('cuda')
     fid = open('cuda/'+name+'_kernel_rec.cu','w')
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
+
+
+    # Handle constants:
+    #  - JIT: Leave dim 1 constants
+    #  -      transform multi-value constants
+    jit_user_function = user_function
+    for nc in range(0,len(consts)):
+      varname = consts[nc]['name']
+      if consts[nc]['dim'] != 1:
+        jit_user_function = re.sub('\\b'+varname+'\[([0-9]+)\]','op_const_'+varname+'_\g<1>', jit_user_function)
+        jit_user_function, numFound = re.subn('\\b'+varname+'\[', 'op_const_'+varname+'[', jit_user_function)
+
+        if (numFound > 0):
+            if CPP:
+                #Line start
+                codeline = '__constant__ '+consts[nc]['type'][1:-1]+' op_const_'+varname+'['+consts[nc]['dim']+'] = {'
+
+                #Add each value to line
+                for i in range(0,int(consts[nc]['dim'])):
+                    codeline += "op_const_"+varname+"_"+str(i)+", "
+                codeline = codeline[:-2] + "};"
+
+                #Add list definition at top of function
+                jit_user_function = codeline+'\n\n'+jit_user_function
+
     outfile = jit_include       +\
-              user_function     +\
+              jit_user_function     +\
               kernel_function   +\
               host_decl_rec     +\
               body              +\
               '} //end extern c'
-    
-    for nc in range(0,len(consts)):
-      varname = consts[nc]['name']
-      if consts[nc]['dim'] != 1:
-        outfile = re.sub('\\b'+varname+'\[([a-zA-Z]|[0-9]+)\]','op_const_'+varname+'_\g<1>', outfile)
 
     outfile = re.sub('_'+name,'_'+name+'_rec', outfile)
     fid.write(outfile)
@@ -966,16 +977,19 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
   for nc in range (0,len(consts)):
     if consts[nc]['dim']==1:
+      # __constant__ [type] [name]_cuda;
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda;')
     else:
       if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
+
+      # __constant__ [type] [name]_cuda[ [dim] ];
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda'+'['+num+'];')
 
-  #  
-  # JIT DISABLED 
+  #
+  # JIT DISABLED
   #
 
   code('\n#ifndef OP2_JIT');
@@ -987,7 +1001,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   code('{')
   depth += 2;
   comm(' copy value to device constant')
- 
+
   for nc in range (0, len(consts)):
     IF('!strcmp(name,"'+consts[nc]['name']+'")')
     if(consts[nc]['dim'] < 0):
@@ -997,7 +1011,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       ENDIF()
     code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*size));')
     ENDIF()
-    code('else') 
+    code('else')
   code('{')
   depth += 2
   code('printf("error: unknown const name\\n");')
@@ -1005,15 +1019,15 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   ENDIF()
 
   depth -= 2
-  code('}')  
-  
+  code('}')
+
   #
   # JIT ENABLED
   #
 
   code('\n#else')
   code('');
-  
+
   # op_decl_const_char
   code('void op_decl_const_char(int dim, char const *type,')
   code('                        int size, char *dat,')
@@ -1028,8 +1042,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   FOR('d','0','dim')
   code('char name2[32];')
   code('sprintf(name2, "op_const_%s_%d\\0", name, d);')
-  code('printf("%s|\\n", name2);')
-  code('op_lazy_const(1, type, size, dat+(d*size), name2);') 
+  code('op_lazy_const(1, type, size, dat+(d*size), name2);')
   ENDFOR()
   ENDIF()
 
@@ -1060,7 +1073,11 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 
   comm('Write constants to header file')
   IF('op_is_root()')
-  code('int ret = system("make -j '+master.split('.')[0]+'_cuda_jit &> /dev/null");')
+  IF('system("make -j '+master.split('.')[0]+'_cuda_rec &> jit_compile.log")')
+  comm(' 0 indicates success')
+  code('printf("Error: JIT compile failed. \\n - see jit_compile.log for details\\n");')
+  code('exit(1);')
+  ENDIF()
   ENDIF()
   code('op_mpi_barrier();')
 
