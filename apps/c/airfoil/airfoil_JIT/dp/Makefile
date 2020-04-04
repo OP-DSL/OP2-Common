@@ -22,9 +22,9 @@ JIT ?= TRUE
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
+  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra -ldl -lm
   OMPFLAGS	= -fopenmp
-  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
@@ -39,7 +39,6 @@ ifeq ($(OP2_COMPILER),intel)
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= mpicxx #$(MPI_INSTALL_PATH)/bin/mpicxx
-  NVCCFLAGS	= #-ccbin=$(MPICPP)
   MPIFLAGS	= $(CPPFLAGS)
 else
 ifeq ($(OP2_COMPILER),xl)
@@ -90,7 +89,7 @@ endif
 endif
 endif
 
-
+NVCCFLAGS	= -ccbin=$(CPP)
 
 #
 # set flags for NVCC compilation and linking
@@ -215,7 +214,7 @@ airfoil_openacc: airfoil_op.cpp openacc/airfoil_acckernels.c \
 airfoil_cuda:	airfoil_op.cpp cuda/airfoil_kernels_cu.o Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) airfoil_op.cpp cuda/airfoil_kernels_cu.o \
 		$(CUDA_INC) $(OP2_INC) $(HDF5_INC) \
-		$(OP2_LIB) $(CUDA_LIB) -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda$(SUFFIX)
+		$(OP2_LIB) $(CUDA_LIB) -lirc -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda$(SUFFIX)
 
 cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
 		cuda/save_soln_kernel.cu save_soln.h \
@@ -224,23 +223,23 @@ cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
 		cuda/bres_calc_kernel.cu bres_calc.h \
 		cuda/update_kernel.cu    update.h    \
                 Makefile
-		nvcc  $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -Icuda -I. \
+		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(OP2_INC) $(HDF5_INC) -Icuda -I. \
 		-c -o cuda/airfoil_kernels_cu.o cuda/airfoil_kernels.cu
 
-airfoil_cuda_jit: jit_const.h
+airfoil_cuda_rec: jit_const.h
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
-		./cuda/adt_calc_kernel_rec.cu -o ./cuda/adt_calc_kernel_rec.o &> /dev/null
+		./cuda/adt_calc_kernel_rec.cu -o ./cuda/adt_calc_kernel_rec.o
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
-		./cuda/bres_calc_kernel_rec.cu -o ./cuda/bres_calc_kernel_rec.o &> /dev/null
+		./cuda/bres_calc_kernel_rec.cu -o ./cuda/bres_calc_kernel_rec.o
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
-		./cuda/res_calc_kernel_rec.cu -o ./cuda/res_calc_kernel_rec.o &> /dev/null
+		./cuda/res_calc_kernel_rec.cu -o ./cuda/res_calc_kernel_rec.o
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
-		./cuda/save_soln_kernel_rec.cu -o ./cuda/save_soln_kernel_rec.o &> /dev/null
+		./cuda/save_soln_kernel_rec.cu -o ./cuda/save_soln_kernel_rec.o
 		nvcc $(VAR) $(INC) $(NVCCFLAGS) $(NVCC_COPTS) $(OP2_INC) -Icuda -I. -c \
-		./cuda/update_kernel_rec.cu -o ./cuda/update_kernel_rec.o &> /dev/null
+		./cuda/update_kernel_rec.cu -o ./cuda/update_kernel_rec.o
 		nvcc cuda/adt_calc_kernel_rec.o cuda/bres_calc_kernel_rec.o \
     cuda/res_calc_kernel_rec.o cuda/save_soln_kernel_rec.o \
-    cuda/update_kernel_rec.o -shared -o ./cuda/airfoil_kernel_rec.so &> /dev/null
+    cuda/update_kernel_rec.o -shared -o ./cuda/airfoil_kernel_rec.so
 
 #
 #  CUDA with clang
