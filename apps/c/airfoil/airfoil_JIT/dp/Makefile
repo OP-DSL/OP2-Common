@@ -30,12 +30,6 @@ else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
   CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -rdynamic
-	ifeq ($(JIT), TRUE)
-		CCFLAGS	:= $(CCFLAGS) -DOP2_JIT
-	endif
-	ifeq ($(DEBUG), TRUE)
-		CCFLAGS := $(CCFLAGS) -DDEBUG
- 	endif
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= mpicxx #$(MPI_INSTALL_PATH)/bin/mpicxx
@@ -88,8 +82,15 @@ endif
 endif
 endif
 endif
-
-NVCCFLAGS	= -ccbin=$(CPP)
+ifeq ($(JIT), TRUE)
+	CCFLAGS	  := $(CCFLAGS) -DOP2_JIT
+	NVCCFLAGS	:= $(NVCCFLAGS) -DOP2_JIT
+	SUFFIX	  := _jit
+endif
+ifeq ($(DEBUG), TRUE)
+	CCFLAGS := $(CCFLAGS) -DDEBUG
+	NVCCFLAGS := $(NVCCFLAGS) -g -G
+endif
 
 #
 # set flags for NVCC compilation and linking
@@ -124,16 +125,7 @@ endif
 
 NVCCFLAGS := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo #  -O0
 
-ifeq ($(JIT), TRUE)
-	NVCCFLAGS	:= $(NVCCFLAGS) -DOP2_JIT
-	SUFFIX	:= _jit
-endif
-
-ifeq ($(DEBUG), TRUE)
-	NVCCFLAGS := $(NVCCFLAGS) -g -G
-endif
-
-NVCC_COPTS := --compiler-options -fPIC
+#NVCC_COPTS := --compiler-options -fPIC
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -215,6 +207,8 @@ airfoil_cuda:	airfoil_op.cpp cuda/airfoil_kernels_cu.o Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) airfoil_op.cpp cuda/airfoil_kernels_cu.o \
 		$(CUDA_INC) $(OP2_INC) $(HDF5_INC) \
 		$(OP2_LIB) $(CUDA_LIB) -lirc -lcudart -lop2_cuda -lop2_hdf5 $(HDF5_LIB) -o airfoil_cuda$(SUFFIX)
+
+.PHONY: cuda/airfoil_kernels_cu.o
 
 cuda/airfoil_kernels_cu.o:	cuda/airfoil_kernels.cu      \
 		cuda/save_soln_kernel.cu save_soln.h \
@@ -446,4 +440,4 @@ convert_mesh_mpi: convert_mesh_mpi.cpp
 #
 
 clean:
-		rm -rf airfoil_seq airfoil_seq airfoil_openmp airfoil_cuda airfoil_cuda_jit airfoil_mpi airfoil_mpi_genseq airfoil_mpi_genseq_jit airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt seq/*.o seq/*.so seq/*.optrpt cuda/*.o cuda/*.so cuda/*.optrpt
+		rm -rf airfoil_seq airfoil_seq airfoil_openmp airfoil_cuda airfoil_cuda_jit airfoil_mpi airfoil_mpi_genseq airfoil_mpi_genseq_jit airfoil_mpi_vec airfoil_mpi_cuda_hyb airfoil_mpi_openmp airfoil_mpi_cuda convert_mesh_seq convert_mesh_mpi airfoil_openacc airfoil_mpi_openacc *.o cuda/*.o openacc/*.o openmp4/*.o *.optrpt seq/*.o seq/*.so seq/*.optrpt cuda/*.o cuda/*.so cuda/*.optrpt *.log jit_const.h
