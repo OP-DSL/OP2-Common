@@ -293,6 +293,14 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 
 void op_mpi_put_data(op_dat dat);
 
+void op_mpi_init_custom(int argc, char **argv, int diags, MPI_Fint custom);
+
+FILE * op_print_file_open(const char *line);
+
+void op_print_file_close(FILE *fp);
+
+void op_print_file(const char *line, FILE *fp);
+
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
                  MPI_Fint local);
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,

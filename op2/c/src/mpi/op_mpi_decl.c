@@ -92,6 +92,21 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
 }
 
+//allows a custom communicator to be passed in directly as a single value
+void op_mpi_init_custom(int argc, char **argv, int diags, MPI_Fint custom) {
+  int flag = 0;
+  MPI_Initialized(&flag);
+  if (!flag) {
+    printf("Error: MPI has to be initialized when calling op_mpi_init with "
+           "communicators\n");
+    exit(-1);
+  }
+  OP_MPI_WORLD = MPI_Comm_f2c(custom);
+  OP_MPI_GLOBAL = MPI_Comm_f2c(custom);
+
+  op_init_core(argc, argv, diags);
+}
+
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL || data == NULL)
@@ -246,6 +261,34 @@ void op_print(const char *line) {
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   if (my_rank == MPI_ROOT) {
     printf("%s\n", line);
+  }
+}
+
+FILE * op_print_file_open(const char *line) {
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  if (my_rank == MPI_ROOT) {
+    FILE *fp;
+    fp = fopen(line, "w+");
+    printf("Created file %s\n", line);
+    return fp;
+  }
+  return NULL;
+}
+
+void op_print_file_close(FILE *fp) {
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  if (my_rank == MPI_ROOT) {
+    fclose(fp);
+  }
+}
+
+void op_print_file(const char *line, FILE *fp) {
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  if (my_rank == MPI_ROOT) {
+    fputs(line,fp);
   }
 }
 
