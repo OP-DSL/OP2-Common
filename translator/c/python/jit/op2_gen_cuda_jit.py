@@ -178,6 +178,24 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
 #  User Function - Executed on device
 ##########################################################################
 
+    #strides for SoA
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            code('__constant__ int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT;')
+            code('int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST=-1;')
+      dir_soa = -1
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID and ((not dims[g_m].isdigit()) or int(dims[g_m]) > 1):
+          code('__constant__ int direct_'+name+'_stride_OP2CONSTANT;')
+          code('int direct_'+name+'_stride_OP2HOST=-1;')
+          dir_soa = g_m
+          break
+      code('')
+
     f = open(decl_filepath, 'r')
     kernel_text = f.read()
     f.close()
@@ -618,6 +636,24 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     IF('set->size > 0')
     code('')
 
+    #managing constants
+    if any_soa:
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
+            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
+            ENDIF()
+      if dir_soa<>-1:
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
+          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
+          code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
+          ENDIF()
+
+
 #
 # transfer global reduction initial data
 #
@@ -1000,6 +1036,19 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   code('                        char const *name)')
   code('{')
   depth += 2;
+
+  code('op_printf("Copying constant %s to device\\n", name);')
+  code('')
+
+  #
+  # start timing
+  #
+  comm('initialise timers')
+  code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
+  code('op_timing_realloc('+str(nk)+');')
+  code('op_timers_core(&cpu_t1, &wall_t1);')
+  code('')
+
   comm(' copy value to device constant')
 
   for nc in range (0, len(consts)):
@@ -1017,6 +1066,9 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   code('printf("error: unknown const name\\n");')
   code('exit(1);')
   ENDIF()
+
+  code('op_timers_core(&cpu_t2, &wall_t2);')
+  code('op_printf(" Completed: %fs\\n", wall_t2 - wall_t1);')
 
   depth -= 2
   code('}')
