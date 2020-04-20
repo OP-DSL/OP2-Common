@@ -36,13 +36,18 @@ void op_par_loop_increment_log(char const *name, op_set set,
     op_map prime_map = arg1.map; //TODO works only with arg1...
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
     
+    
+    
     if (rev_map != NULL) {
+        
+        op_mpi_wait_all(nargs, args);
         for (int c=0; c<rev_map->number_of_colors;c++){
             for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
                 int n=rev_map->color_based_exec[i];
-                  if (n==set->core_size) {
+                  printf("Executing edge loc: %d\t glob: %d\t col: %d\t, c2: %d\n",n,OP_set_global_ids_list[prime_map->from->index]->global_ids[n],c, OP_reversed_map_list[prime_map->index]->reproducible_coloring[n]);
+          /*        if (n==set->core_size) {
                     op_mpi_wait_all(nargs, args);
-                  }
+                  }*/
                   int map1idx = arg1.map_data[n * arg1.map->dim + 0];
                   int map2idx = arg1.map_data[n * arg1.map->dim + 1];
 

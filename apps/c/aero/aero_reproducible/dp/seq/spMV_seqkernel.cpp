@@ -46,7 +46,7 @@ void op_par_loop_spMV(char const *name, op_set set,
 
     if (rev_map != NULL) {
         
-        
+   /*     
         int prime_map_dim = prime_map->dim;
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
@@ -67,28 +67,32 @@ void op_par_loop_spMV(char const *name, op_set set,
           tmp_incs[i]=0.0;
         }
 
+    */
         
-        
-        for ( int n=0; n<set_size; n++ ){
+    /*    for ( int n=0; n<set_size; n++ ){
           if (n==set->core_size) {
             op_mpi_wait_all(nargs, args);
-          }
+          }*/
+          for (int c=0; c<rev_map->number_of_colors;c++){
+            for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+                int n=rev_map->color_based_exec[i];
           int map0idx = arg0.map_data[n * arg0.map->dim + 0];
           int map1idx = arg0.map_data[n * arg0.map->dim + 1];
           int map2idx = arg0.map_data[n * arg0.map->dim + 2];
           int map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
-//          double* arg0_vec[] = {
-//             &((double*)arg0.data)[1 * map0idx],
-//             &((double*)arg0.data)[1 * map1idx],
-//             &((double*)arg0.data)[1 * map2idx],
-//             &((double*)arg0.data)[1 * map3idx]};
-             
           double* arg0_vec[] = {
+             &((double*)arg0.data)[1 * map0idx],
+             &((double*)arg0.data)[1 * map1idx],
+             &((double*)arg0.data)[1 * map2idx],
+             &((double*)arg0.data)[1 * map3idx]};
+             
+     /*     double* arg0_vec[] = {
              &tmp_incs[(n*prime_map_dim+0)*arg0.dim],
              &tmp_incs[(n*prime_map_dim+1)*arg0.dim],
              &tmp_incs[(n*prime_map_dim+2)*arg0.dim],
              &tmp_incs[(n*prime_map_dim+3)*arg0.dim]};
+      */
           const double* arg5_vec[] = {
              &((double*)arg5.data)[1 * map0idx],
              &((double*)arg5.data)[1 * map1idx],
@@ -101,7 +105,7 @@ void op_par_loop_spMV(char const *name, op_set set,
             arg5_vec);
         }
         
-        for ( int n=0; n<set_to_size; n++ ){
+      /*  for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg0.dim; d++){
                     ((double*)arg0.data)[arg0.dim * n + d] +=
@@ -109,6 +113,8 @@ void op_par_loop_spMV(char const *name, op_set set,
                 }
             }
         }
+        */
+          }
     }
   }
 

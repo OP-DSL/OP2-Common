@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
     double beta = 0;
 
     // c1 = R'*R;
-    op_par_loop_init_cg("init_cg",nodes,
+    op_par_loop_init_cg("init_cg",nodes,                    
                 op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_READ),
                 op_arg_gbl(&c1,1,"double",OP_INC),
                 op_arg_dat(p_U,-1,OP_ID,1,"double",OP_WRITE),
@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
       // U = U + alpha*P;
       // resm = resm-alpha*V;
       op_par_loop_updateUR("updateUR",nodes,
-                  op_arg_dat(p_U,-1,OP_ID,1,"double",OP_INC),
+                  op_arg_dat(p_U,-1,OP_ID,1,"double",OP_INC),           //TODO!!!! -- ??
                   op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_INC),
                   op_arg_dat(p_P,-1,OP_ID,1,"double",OP_READ),
                   op_arg_dat(p_V,-1,OP_ID,1,"double",OP_RW),
@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
       // P = beta*P+resm;
       op_par_loop_updateP("updateP",nodes,
                   op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_dat(p_P,-1,OP_ID,1,"double",OP_RW),
+                  op_arg_dat(p_P,-1,OP_ID,1,"double",OP_RW),        //TODO ez igazabol inc?
                   op_arg_gbl(&beta,1,"double",OP_READ));
       c1 = c3;
       res = sqrt(c1);

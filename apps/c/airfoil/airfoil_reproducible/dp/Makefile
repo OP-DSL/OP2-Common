@@ -22,14 +22,16 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
+  CPPFLAGS	= -fPIC -DUNIX -Wall -O0 -g -Wextra
+#  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
+  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
+#  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -fp-model strict -fp-model source -prec-sqrt  #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O0 -g -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -fp-model strict -fp-model source -prec-sqrt  #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp 

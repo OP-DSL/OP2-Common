@@ -35,7 +35,7 @@ void op_par_loop_update(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
   int reduct_bytes = 0;
-  reduct_bytes = ROUND_UP(arg4.dim*sizeof(double)*set_size);  
+  reduct_bytes += ROUND_UP(arg4.dim*sizeof(double)*set_size);  
   reallocReductArrays(reduct_bytes);
   
   reduct_bytes=0;
@@ -55,7 +55,7 @@ void op_par_loop_update(char const *name, op_set set,
         &((double*)arg1.data)[4*n],
         &((double*)arg2.data)[4*n],
         &((double*)arg3.data)[1*n],
-        //(double*)arg4.data);
+//        (double*)arg4.data);
         &red4[1*n]);
     }
   }

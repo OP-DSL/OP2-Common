@@ -36,14 +36,22 @@ void op_par_loop_updateUR(char const *name, op_set set,
 
   if (set->size >0) {
 
-    for ( int n=0; n<set_size; n++ ){
-      updateUR(
-        &((double*)arg0.data)[1*n],
-        &((double*)arg1.data)[1*n],
-        &((double*)arg2.data)[1*n],
-        &((double*)arg3.data)[1*n],
-        (double*)arg4.data);
-    }
+        
+        
+        
+  
+  
+        for ( int n=0; n<set_size; n++ ){
+          updateUR(
+            &((double*)arg0.data)[1*n],
+            &((double*)arg1.data)[1*n],
+            &((double*)arg2.data)[1*n],
+            &((double*)arg3.data)[1*n],
+            (double*)arg4.data);
+        }
+        
+        
+
   }
 
   // combine reduction data

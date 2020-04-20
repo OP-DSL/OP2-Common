@@ -3529,6 +3529,8 @@ void op_partition_inertial(op_dat x_dat) {
     printf("Max total inertial partitioning time = %lf\n", max_time);
 }
 
+
+op_dat* color_dats;
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
@@ -3539,6 +3541,37 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   (void)lib_routine;
   (void)prime_map;
 #endif
+
+    bool colorings_ready =true;
+    for (int m = 0; m < OP_map_index; m++) { 
+      op_map original_map = OP_map_list[m];
+      
+      char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+      strcpy(dat_map_name,original_map->name);
+      strcat(dat_map_name,"_coloring");
+      strcat(dat_map_name,".h5");
+            
+      if( access( dat_map_name, F_OK ) == -1 ) {
+        colorings_ready=false;
+      }
+    }
+    if (colorings_ready) {
+      color_dats = (op_dat*)malloc(OP_map_index*sizeof(op_dat*));
+      for (int m=0; m<OP_map_index; m++){
+        op_map original_map=OP_map_list[m];
+       char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+        strcpy(dat_map_name,original_map->name);
+        strcat(dat_map_name,"_coloring");
+        strcat(dat_map_name,".h5");
+        
+        char dat_map_name2[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+        strcpy(dat_map_name2,original_map->name);
+        strcat(dat_map_name2,"_coloring");
+              
+        //op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
+        color_dats[m] = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
+      }
+    }
 
   int partial_halo_flag =
       1; // flag to indicate that partial halos should be created
@@ -4352,10 +4385,10 @@ void greedy_global_coloring(){
         original_map->from->size + original_map->from->exec_size;
     int set_to_size = original_map->to->size + original_map->to->exec_size +
                       original_map->to->nonexec_size;
-                      
+
     if (set_from_size>0){
-    
-      char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+
+ /*     char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
       strcpy(dat_map_name,original_map->name);
       strcat(dat_map_name,"_coloring");
       strcat(dat_map_name,".h5");
@@ -4364,8 +4397,9 @@ void greedy_global_coloring(){
       strcpy(dat_map_name2,original_map->name);
       strcat(dat_map_name2,"_coloring");
             
-      op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
-
+      op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);*/
+      op_dat color_dat=color_dats[m];
+      op_exchange_halo(&op_arg_dat(color_dat, -1, OP_ID, 1,"int", OP_READ),1);
 
 
 
@@ -4377,8 +4411,8 @@ void greedy_global_coloring(){
       
       int max_color=0;
       for (int i=0; i<set_from_size; i++) {
-          if ((int)color_dat->data[i]>max_color){
-            max_color=(int)color_dat->data[i];
+          if (((int*)color_dat->data)[i]>max_color){
+            max_color=((int*)color_dat->data)[i];
           }
       }
       
@@ -4386,7 +4420,7 @@ void greedy_global_coloring(){
       //std::set<int> color_based_exec_sets[max_color+1];
 
       for (int i=0; i<set_from_size; i++){
-          color_based_exec_sets[(int)color_dat->data[i]].insert(i);
+          color_based_exec_sets[((int*)color_dat->data)[i]].insert(i);
       }
 
       int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));

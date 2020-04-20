@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
   //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
    op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
+  create_reversed_mapping();
 
 #define PDIM 2
   int g_ncell = op_get_size(cells);

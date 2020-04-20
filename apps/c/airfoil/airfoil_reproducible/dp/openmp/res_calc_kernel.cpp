@@ -45,7 +45,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
     if (rev_map != NULL) {
-        int prime_map_dim = prime_map->dim;
+      /*  int prime_map_dim = prime_map->dim;
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
 
@@ -63,10 +63,16 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
         for (int i=0; i<set_from_size * prime_map_dim * arg6.dim; i++){
           tmp_incs[i]=0.0;
-        }
+        }*/
 
-        #pragma omp parallel for
-        for ( int n=0; n<set->core_size; n++ ){
+        op_mpi_wait_all(nargs, args);
+  /*      #pragma omp parallel for
+        for ( int n=0; n<set->core_size; n++ ){*/
+        
+         for (int c=0; c<rev_map->number_of_colors;c++){
+            #pragma omp parallel for
+            for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+                int n=rev_map->color_based_exec[i];
 
  //        if (n==set->core_size) {
  //          op_mpi_wait_all(nargs, args);
@@ -83,10 +89,12 @@ void op_par_loop_res_calc(char const *name, op_set set,
               &((double*)arg2.data)[4 * map3idx],
               &((double*)arg4.data)[1 * map2idx],
               &((double*)arg4.data)[1 * map3idx],
-              &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
-              &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
+              &((double*)arg6.data)[4 * map2idx],
+              &((double*)arg6.data)[4 * map3idx]);
+          //    &tmp_incs[(n*prime_map_dim+0)*arg6.dim],
+          //    &tmp_incs[(n*prime_map_dim+1)*arg6.dim]);
         }
-        op_mpi_wait_all(nargs, args);
+/*        op_mpi_wait_all(nargs, args);
 
                 #pragma omp parallel for
         for ( int n=set->core_size; n<set_size; n++ ){
@@ -119,7 +127,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
                 }
             }
         }
-
+*/
+         }
     }
   }
 

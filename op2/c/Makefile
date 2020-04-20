@@ -70,9 +70,9 @@ endif
 #
 ifeq ($(OP2_COMPILER),gnu)
   CC       := gcc
-  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall #-g
+  CCFLAGS  := -std=c99 -fPIC -DUNIX -Wall -g -O0
   CXX      := g++
-  CXXFLAGS := -fPIC -DUNIX -Wall #-g -Wextra
+  CXXFLAGS := -fPIC -DUNIX -Wall -g -O0 #-Wextra
   MPICXX   := $(MPI_INSTALL_PATH)/bin/mpic++
   MPIFLAGS := $(CXXFLAGS)
 else

@@ -93,7 +93,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         }
 
 
-        for ( int n=0; n<set_to_size; n++ ){
+     /*   for ( int n=0; n<set_to_size; n++ ){
             for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
                 for (int d=0; d<arg4.dim; d++){
                     ((double*)arg4.data)[arg4.dim * n + d] +=
@@ -101,7 +101,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
                 }
             }
         }
-
+*/
 
 
     }
