@@ -85,7 +85,7 @@ const char *boolstr = "bool";
  */
 static char *copy_str(char const *src) {
   const size_t len = strlen(src) + 1;
-  char *dest = (char *)op_calloc(len, sizeof(char));
+  char *dest = (char *)op_calloc(len+1, sizeof(char));
   return strncpy(dest, src, len);
 }
 
@@ -294,7 +294,7 @@ op_set op_decl_set_core(int size, char const *name) {
   OP_set_list[OP_set_index++] = set;
   
   op_set_global_ids glbl_ids = (op_set_global_ids)op_malloc(sizeof(op_set_global_ids_core));
-  glbl_ids->index = OP_set_index;
+  glbl_ids->index = OP_set_index-1;
   glbl_ids->global_ids = NULL;
   OP_set_global_ids_list[OP_set_index - 1] = glbl_ids;   
   

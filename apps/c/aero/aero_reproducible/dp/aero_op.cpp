@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
     op_printf("rms = %3.15E iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
   }
 
-   // op_fetch_data_hdf5_file(p_U, "repr_comp_p_U.h5");  
+    op_fetch_data_hdf5_file(p_U, "repr_comp_p_U.h5");  
     
   op_timing_output();
   op_timers(&cpu_t2, &wall_t2);

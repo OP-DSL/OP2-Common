@@ -60,6 +60,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     op_map prime_map = arg9.map; //TODO works only with arg9...
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
     
+            op_mpi_wait_all(nargs, args);
 
     if (rev_map != NULL) {
      /*   int prime_map_dim = prime_map->dim;
