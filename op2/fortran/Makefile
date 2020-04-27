@@ -133,7 +133,7 @@ endif
 
 # Common definitions
 # Uncomment -g to get debugging info on board
-#DEBUG_FLAGS = -g
+DEBUG_FLAGS = -g
 
 #  -Werror
 

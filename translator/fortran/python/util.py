@@ -177,8 +177,62 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
 
   return text
 
+def convert_F90(text):
+    text = re.sub(r'\nc','\n!',text)
+    text = re.sub(r'\n     &','&\n     &',text)
+    return text
+
+#i may point into the middle of the line...
+def comment_line(text, i):
+    orig_i = i
+    linebegin = text[0:i].rfind('\n')
+    lineend = i+text[i:].find('\n')
+    line = text[linebegin:lineend]
+    #comment this line, shift indices:
+    text = text[0:linebegin+1]+'!'+text[linebegin+1:]
+    lineend = lineend+1
+    i=i+1
+    if len(line.strip())>0 and line.strip()[0]=='&':
+        #keep going backwards
+        b_lineend = linebegin
+        b_linebegin = text[0:b_lineend].rfind('\n')
+        line = text[b_linebegin:b_lineend]
+        text = text[0:b_linebegin+1]+'!'+text[b_linebegin+1:]
+        lineend = lineend+1
+        linebegin = linebegin+1
+        b_lineend = b_lineend + 1
+        i=i+1
+        while len(line.strip())>0 and line.strip()[0]=='&':
+            b_lineend = b_linebegin
+            b_linebegin = text[0:b_lineend].rfind('\n')
+            line = text[b_linebegin:b_lineend]
+            text = text[0:b_linebegin+1]+'!'+text[b_linebegin+1:]
+            lineend = lineend+1
+            linebegin = linebegin+1
+            b_lineend = b_lineend + 1
+            i=i+1
+    nextline_end = lineend+1+text[lineend+1:].find('\n')
+    line = text[lineend:nextline_end]
+    while len(line.strip())>0 and line.strip()[0]=='&':
+      text = text[0:lineend+1]+'!'+text[lineend+1:]
+      lineend = nextline_end + 1
+      nextline_end = lineend+1+text[lineend+1:].find('\n')
+      line = text[lineend:nextline_end]
+    return text, i-orig_i
+
+def remove_jm76(text):
+  jm76_funs = ['SET_RGAS_RATIOS', 'INITGAS0', 'INITGAS1', 'INITGAS2', 'INITFUEL', 'INITVAP0', 'TOTALTP', 'TOTALP', 'TOTALT', 'STATICTP', 'QSTATICTP', 'USTATICTP', 'FLOWSPEED', 'DREALGA', 'SPECS', 'REALPHI', 'REALH', 'REALCP', 'REALRG', 'REALT', 'ISENT', 'ISENP']
+  for fun in jm76_funs:
+    k = re.search(r'\n\s+.*\b'+fun+r'\b',text)
+    while not (k is None):
+      text,comm_inserted = comment_line(text,k.start()+1)
+      k = re.search(r'\n\s+.*\b'+fun+r'\b',text)
+  return text
+
+
 def find_function_calls(text, attr):
   global funlist
+  text = remove_jm76(text)
   search_offset = 0
   res=re.search('\\bcall\\b',text)
   my_subs = ''
@@ -188,12 +242,18 @@ def find_function_calls(text, attr):
     #find name: whatever is in front of opening bracket
     openbracket = i+text[i:].find('(')
     fun_name = text[i:openbracket].strip()
-    # #if hyd_dump, comment it out
-    # if fun_name == hyd_dump:
-    #   text = text[0:search_offset + res.start()]+'!'+text[search_offset + res.start():]
-    #   search_offset = i
-    #   res=re.search('\\bcall\\b',text[search_offset:])
-    #   continue
+    #if hyd_dump, comment it out
+    if len(fun_name)>4 and fun_name[0:4] == 'hyd_':
+      text, comm_inserted = comment_line(text,i)
+      w = text[0:search_offset + res.start()].rfind('write(')
+      comm_inserted = 0
+      if w>0:
+        text,comm_inserted = comment_line(text,w)
+
+      search_offset = i + comm_inserted
+      res=re.search('\\bcall\\b',text[search_offset:])
+      print('CUDA: Commented out call to ' + fun_name)
+      continue
 
     if fun_name.lower() in funlist:
       search_offset = i
@@ -212,16 +272,20 @@ def find_function_calls(text, attr):
     curr_pos = curr_pos-1
     arglist = text[openbracket:curr_pos]
     #find the file containing the implementation
-    subr_file =  os.popen('grep -Rilw --include "*.F95" --exclude "*kernel.*" "subroutine '+fun_name+'" . | head -n1').read().strip()
+    subr_file =  os.popen('grep -Rilw --include "*.F90" --include "*.F" --exclude "*kernel.*" "subroutine '+fun_name+'\\b" . | head -n1').read().strip()
     if (len(subr_file) == 0) or (not os.path.exists(subr_file)):
       print 'Error, subroutine '+fun_name+' implementation not found in files, check parser!'
       exit(1)
     #read the file and find the implementation
     subr_fileh = open(subr_file,'r')
     subr_fileh_text = subr_fileh.read()
+    if subr_file[len(subr_file)-1]=='F':
+        subr_fileh_text = convert_F90(subr_fileh_text)
     subr_fileh_text = re.sub('\n*!.*\n','\n',subr_fileh_text)
     subr_fileh_text = re.sub('!.*\n','\n',subr_fileh_text)
-    subr_begin = subr_fileh_text.lower().find('subroutine '+fun_name.lower())
+    subr_fileh_text = remove_jm76(subr_fileh_text)
+#    subr_begin = subr_fileh_text.lower().find('subroutine '+fun_name.lower())
+    subr_begin = re.search(r'\bsubroutine\s*'+fun_name.lower()+r'\b',subr_fileh_text.lower()).start()
     #function name as spelled int he file
     fun_name = subr_fileh_text[subr_begin+11:subr_begin+11+len(fun_name)]
     subr_end = subr_fileh_text[subr_begin:].lower().find('end subroutine')
@@ -237,26 +301,38 @@ def find_function_calls(text, attr):
 
     if attr == '':
       subr_text = subr_text.replace(')\n',')\n!$acc routine seq\n',1)
-    subr_text = subr_text.replace('call hyd_','!call hyd_')
-    subr_text = subr_text.replace('call op_','!call op_')
-    writes = re.search('\\bwrite\\b',subr_text)
-    writes_offset = 0
-    while not (writes is None):
-      writes_offset = writes_offset + writes.start()
-      subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
-      writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
-      while (subr_text[writes_offset:].strip()[0] == '&'):
-        subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
-        writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
-      writes = re.search('\\bwrite\\b',subr_text[writes_offset:])
+    j = re.search(r'\n\s*call hyd_',subr_text)
+    while not (j is None):
+      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
+      j = re.search(r'\n\s*call hyd_',subr_text)
+    j = re.search(r'\n\s*call op_',subr_text)
+    while not (j is None):
+      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
+      j = re.search(r'\n\s*call op_',subr_text)
+    j = re.search(r'\n\s*write\b',subr_text)
+    while not (j is None):
+      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
+      j = re.search(r'\n\s*write\b',subr_text)
 
-    subr_text = replace_npdes(subr_text)
+#    writes = re.search('\\bwrite\\b',subr_text)
+#    writes_offset = 0
+#    while not (writes is None):
+#      writes_offset = writes_offset + writes.start()
+#      subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
+#      writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
+#      while (subr_text[writes_offset:].strip()[0] == '&'):
+#        subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
+#        writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
+#      writes = re.search('\\bwrite\\b',subr_text[writes_offset:])
+
+    #subr_text = replace_npdes(subr_text)
     if attr <> '':
       subr_text = replace_consts(subr_text)
-    subr_text = subr_text.replace('subroutine '+fun_name, attr+' subroutine '+fun_name+'_gpu',1)
+    subr_text = subr_text.replace('subroutine '+fun_name+'(', attr+' subroutine '+fun_name+'_gpu(',1)
     my_subs = my_subs + '\n' + subr_text
     subr_text = re.sub('!.*\n','\n',subr_text)
-    children_subs = children_subs + '\n' + find_function_calls(subr_text, attr)
+    text1, text2 = find_function_calls(subr_text, attr)
+    children_subs = children_subs + '\n' + text1
     search_offset = i
     res=re.search('\\bcall\\b',text[search_offset:])
-  return my_subs+children_subs
+  return my_subs+children_subs, text
