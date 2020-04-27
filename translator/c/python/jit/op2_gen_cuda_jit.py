@@ -967,24 +967,36 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     for nc in range(0,len(consts)):
       varname = consts[nc]['name']
       if consts[nc]['dim'] != 1:
+        # Replace all instances with literal int index
         jit_user_function = re.sub('\\b'+varname+'\[([0-9]+)\]','op_const_'+varname+'_\g<1>', jit_user_function)
+
+        # Replace and count all remaining array accesses
         jit_user_function, numFound = re.subn('\\b'+varname+'\[', 'op_const_'+varname+'[', jit_user_function)
 
+        # At least one expression index found
         if (numFound > 0):
             if CPP:
                 #Line start
-                codeline = '__constant__ '+consts[nc]['type'][1:-1]+' op_const_'+varname+'['+consts[nc]['dim']+'] = {'
+                codeline = '__constant__ '           +\
+                            consts[nc]['type'][1:-1] +\
+                           ' op_const_'              +\
+                            varname                  +\
+                           '['+consts[nc]['dim']+'] = {'
 
-                #Add each value to line
+                #Add each constant index to line
                 for i in range(0,int(consts[nc]['dim'])):
                     codeline += "op_const_"+varname+"_"+str(i)+", "
+
+                # Remove last comma, add closing brace
                 codeline = codeline[:-2] + "};"
 
-                #Add list definition at top of function
-                jit_user_function = codeline+'\n\n'+jit_user_function
+                #Add array declaration above function
+                jit_user_function = codeline +\
+                                    '\n\n'   +\
+                                    jit_user_function
 
     outfile = jit_include       +\
-              jit_user_function     +\
+              jit_user_function +\
               kernel_function   +\
               host_decl_rec     +\
               body              +\
