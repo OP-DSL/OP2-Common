@@ -160,19 +160,6 @@ int main(int argc, char **argv) {
 
   fclose(fp);
 
-  cell = (int *)op_malloc(4 * ncell * sizeof(int));
-  edge = (int *)op_malloc(2 * nedge * sizeof(int));
-  ecell = (int *)op_malloc(2 * nedge * sizeof(int));
-  bedge = (int *)op_malloc(2 * nbedge * sizeof(int));
-  becell = (int *)op_malloc(nbedge * sizeof(int));
-  bound = (int *)op_malloc(nbedge * sizeof(int));
-
-  x = (double *)op_malloc(2 * nnode * sizeof(double));
-  q = (double *)op_malloc(4 * ncell * sizeof(double));
-  qold = (double *)op_malloc(4 * ncell * sizeof(double));
-  res = (double *)op_malloc(4 * ncell * sizeof(double));
-  adt = (double *)op_malloc(ncell * sizeof(double));
-
   /**------------------------END I/O  -----------------------**/
 
   /* FIXME: It's not clear to the compiler that sth. is going on behind the
