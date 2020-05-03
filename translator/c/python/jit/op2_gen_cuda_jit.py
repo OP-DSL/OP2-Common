@@ -264,13 +264,16 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
     # IF('blockIdx.x == 0 && threadIdx.x == 0')
     #
     # for nc in range (0,len(consts)):
+    #     comm(consts[nc]['name'])
     #     if consts[nc]['dim']==1:
-    #         comm(consts[nc]['name'])
     #         code('printf("'+name+'-'+consts[nc]['name']+': %1.17e\\n",'+ consts[nc]['name']+');')
     #     else:
     #         FOR('i','0',consts[nc]['dim'])
-    #         code('printf("  %f\\n", '+consts[nc]['name']+'[i]);')
+    #         code('printf("'+name+'-'+consts[nc]['name']+'[%d]: %1.17e\\n", i,'+consts[nc]['name']+'[i]);')
     #         ENDFOR()
+    #         for i in range (0,int(consts[nc]['dim'])):
+    #             code('printf("'+name+'-'+consts[nc]['name']+'['+str(i)+']: %1.17e\\n",'+ consts[nc]['name']+'['+str(i)+']);')
+    #
     # ENDIF()
     # depth-=2
     #
@@ -968,10 +971,10 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
       varname = consts[nc]['name']
       if consts[nc]['dim'] != 1:
         # Replace all instances with literal int index
-        jit_user_function = re.sub('\\b'+varname+'\[([0-9]+)\]','op_const_'+varname+'_\g<1>', jit_user_function)
+        jit_user_function = re.sub('\\b'+varname+'\[([0-9]+)\]',varname+'_\g<1>_OP2CONSTANT', jit_user_function)
 
         # Replace and count all remaining array accesses
-        jit_user_function, numFound = re.subn('\\b'+varname+'\[', 'op_const_'+varname+'[', jit_user_function)
+        jit_user_function, numFound = re.subn('\\b'+varname+'\[', varname+'_OP2CONSTANT[', jit_user_function)
 
         # At least one expression index found
         if (numFound > 0):
@@ -979,13 +982,13 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
                 #Line start
                 codeline = '__constant__ '           +\
                             consts[nc]['type'][1:-1] +\
-                           ' op_const_'              +\
-                            varname                  +\
+                            ' '+varname              +\
+                            '_OP2CONSTANT'           +\
                            '['+consts[nc]['dim']+'] = {'
 
                 #Add each constant index to line
                 for i in range(0,int(consts[nc]['dim'])):
-                    codeline += "op_const_"+varname+"_"+str(i)+", "
+                    codeline += varname+"_"+str(i)+"_OP2CONSTANT, "
 
                 # Remove last comma, add closing brace
                 codeline = codeline[:-2] + "};"
@@ -1105,7 +1108,7 @@ def op2_gen_cuda_jit(master, date, consts, kernels):
   depth += 2
   FOR('d','0','dim')
   code('char name2[32];')
-  code('sprintf(name2, "op_const_%s_%d\\0", name, d);')
+  code('sprintf(name2, "%s_%d_OP2CONSTANT\\0", name, d);')
   code('op_lazy_const(1, type, size, dat+(d*size), name2);')
   ENDFOR()
   ENDIF()
