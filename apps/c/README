@@ -4,23 +4,23 @@ Regular Makefile build
 ======================
 
 The recommended way of building the examples is using the regular Makefiles under
-each aexample pplication directory.
+each example application directory.
 
 To compile using the regular Makefiles provided, it is required to:
 
-1. Make sure that the OP2 backend libraries have been built under
+1. Make sure that the OP2 back-end libraries have been built under
    ~/OP2-Common/op2/c/lib
 
    See ~/OP2-Common/op2/c/README for instructions on building the op2
-   backend libs
+   back-end libs
 
-2. Use op2 code generator to generate the various paralleizations
+2. Use op2 code generator to generate the various parallelisations
 
    e.g for Airfoil_HDF5  the only file(s) that have OP2 API calls are airfoil.cpp
 
    ~/OP2-Common/translator/c/python/op2.py airfoil.cpp
 
-   This will generate the variousl paralleizations under seperate directories
+   This will generate the various parallelisations under separate directories
    E.g. CUDA files under ~/OP2-Common/apps/c/airfoil/airfoil_hdf5/dp/CUDA  etc.
    (see user documentation for more details)
 
