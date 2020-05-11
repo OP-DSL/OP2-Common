@@ -745,7 +745,7 @@ module OP2_Fortran_Declarations
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
     & op_decl_const_scalar_real_8, op_decl_const_logical, &
-    & op_decl_const_integer_2_4, op_decl_const_real_2_8
+    & op_decl_const_integer_2_4, op_decl_const_real_2_8, op_decl_const_string
   end interface op_decl_const
 
   interface op_arg_dat
@@ -1210,6 +1210,23 @@ contains
     opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_logical
+
+  subroutine op_decl_const_string ( dat, constdim, opname )
+
+    character(kind=c_char,len=*), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    ! string dummies to prevent compiler warning
+    character(kind=c_char,len=512) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname//C_NULL_CHAR
+
+  end subroutine op_decl_const_string
 
   type(op_arg) function op_arg_dat_real_8 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING
