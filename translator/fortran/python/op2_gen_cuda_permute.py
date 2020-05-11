@@ -231,7 +231,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           optidxs[i] = optidxs[invinds[inds[i]-1]]
 
 
-
+    #for unknown dimension indirect inc, swap to OP_RW
+    for g_m in range(0,nargs):
+      if (not dims[g_m].isdigit()) and maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+        accs[g_m] = OP_RW
+    for g_m in range(0,ninds):
+      if (not inddims[g_m].isdigit()) and indaccs[g_m] == OP_INC:
+        indaccs[g_m] = OP_RW
 #
 # set two logicals
 #
@@ -266,20 +272,20 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
     stage_flags=[0]*nargs;
 
-    for g_m in range(0,nargs):
-      if dims[g_m] == 'NPDE':
-        dims[g_m] = '6'
+#    for g_m in range(0,nargs):
+#      if dims[g_m] == 'NPDE':
+#        dims[g_m] = '6'
 
 #    if ('GRADL_EDGECON' in name):
-    for g_m in range(0,nargs):
-      if 'NPDE' in dims[g_m]:
-        dims[g_m] = dims[g_m].replace('NPDE','6')
-        try:
-          newdim = str(eval(dims[g_m]))
-          dims[g_m]  = newdim
-        except NameError as inst:
-          dims[g_m]
-          #do nothing
+#    for g_m in range(0,nargs):
+#      if 'NPDE' in dims[g_m]:
+#        dims[g_m] = dims[g_m].replace('NPDE','6')
+#        try:
+#          newdim = str(eval(dims[g_m]))
+#          dims[g_m]  = newdim
+#        except NameError as inst:
+#          dims[g_m]
+#          #do nothing
 
 
     unknown_reduction_size = 0
@@ -287,9 +293,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if (not dims[g_m].isdigit()):
         found=0
-        for string in ['NPDE','DNTQMU','DNFCROW','1*1']:
-          if string in dims[g_m]:
-            found=1
+ #       for string in ['NPDE','DNTQMU','DNFCROW','1*1']:
+ #         if string in dims[g_m]:
+ #           found=1
         if found==0:
           needDimList = needDimList + [g_m]
           if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
@@ -299,6 +305,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 
     for idx in needDimList:
       dims[idx] = 'opDat'+str(idx+1)+'Dim'
+    for i in range(0,nargs):
+      if maps[i]==OP_MAP:
+        dims[i] = dims[invinds[inds[i]-1]]
 
     FORTRAN = 1;
     CPP     = 0;
@@ -306,13 +315,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     file_text = ''
     depth = 0
     permute = 0
-    if ('ACCUMEDGES' in name) or ('GRADL_EDGECON' in name):
+#    if ('ACCUMEDGES' in name) or ('GRADL_EDGECON' in name):
     #if ('ACCUMEDGES' in name) or ('IFLUX_EDGEF' in name):
-        permute = 1
+#        permute = 1
 
-    stage_inc = 1
-    if ('IFLUX_EDGE' in name) or ('VFLUX_EDGE' in name):
-      stage_inc = 1
+    stage_inc = 0
+#    if ('IFLUX_EDGE' in name) or ('VFLUX_EDGE' in name):
+#      stage_inc = 1
 
     #figure out which maps to stage
     ninds_staged = 0
@@ -343,11 +352,15 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 
     if hydra:
-      code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
-      modfile = kernels[nk]['mod_file'][4:]
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE')
+      modfile = kernels[nk]['mod_file'][9:]+'_module'
+      filename = 'kernels/'+kernels[nk]['master_file']+'_'+name+'.inc'
       if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name[:-1] + '.F95'
+        files = [f for f in glob.glob('kernels/*'+name+'.inc')]
+        if len(files)>0:
+          filename = files[0]
+        else:
+          print 'kernel for '+name+' not found'
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
@@ -362,8 +375,6 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
     code('USE ISO_C_BINDING')
     code('USE CUDAFOR')
     code('USE CUDACONFIGURATIONPARAMS')
-    if hydra:
-      code('USE HYDRA_STRIDE_MODULE')
     code('')
     code('')
     code('#ifdef _OPENMP'); depth = depth + 2
@@ -591,7 +602,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       code('')
       comm(name + ' user functions (CPU and GPU)')
       code('')
-      text = text.replace('module','!module')
+      #text = text.replace('module','!module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
       text = text.replace('recursive subroutine','subroutine')
@@ -608,16 +619,16 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       text = text.replace('subroutine '+name, 'attributes(device) subroutine '+name+'_gpu',1)
 
 
-      using_npdes = 0
-      for g_m in range(0,nargs):
-        if var[g_m] == 'npdes':
-          using_npdes = 1
-      if using_npdes==1:
-        text = replace_npdes(text)
+#      using_npdes = 0
+#      for g_m in range(0,nargs):
+#        if var[g_m] == 'npdes':
+#          using_npdes = 1
+#      if using_npdes==1:
+#        text = replace_npdes(text)
 
       #find subroutine calls
       util.funlist = [name.lower()]
-      plus_kernels = find_function_calls(text,'attributes(device) ')
+      plus_kernels, text = find_function_calls(text,'attributes(device) ')
       if plus_kernels == '':
         text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,0,hydra,bookleaf)
       text = text + '\n' + plus_kernels
@@ -1247,8 +1258,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               if dims[g_m].isdigit():
                 if int(dims[g_m])==1:
                     code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local'+ \
-                    '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
-                    code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ('+str(i)+' + opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local')
+                    '+ sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ( opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+')))')
+                    code('sharedFloat8(opDat'+str(invinds[inds[g_m]-1]+1)+'nBytes + ( opDat'+str(g_m+1)+'SharedMap * ('+dims[g_m]+'))) = opDat'+str(g_m+1)+'Local')
                 else:
                   for i in range(0,int(dims[g_m])):
                     code('opDat'+str(g_m+1)+'Local('+str(i)+') = opDat'+str(g_m+1)+'Local('+str(i)+')'+ \
@@ -1878,6 +1889,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
       #reductions
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+          if optflags[g_m] == 1:
+            IF('opArg'+str(g_m+1)+'%opt == 1')
           code('reductionArrayHost'+str(g_m+1)+' = reductionArrayDevice'+str(g_m+1)+name+'')
           code('')
           DO('i10','0','reductionCardinality'+str(g_m+1)+'')
@@ -1898,9 +1911,13 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
               code('opDat'+str(g_m+1)+'Host(1:'+dims[g_m]+') = MAX(opDat'+str(g_m+1)+'Host(1:'+dims[g_m]+') , reductionArrayHost'+str(g_m+1)+'(i10 * ('+dims[g_m]+') + 1 : i10 * ('+dims[g_m]+') + ('+dims[g_m]+')))')
           ENDDO()
           code('')
+          if optflags[g_m] == 1:
+            ENDIF()
           code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
 #          code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
-        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE) and optflags[g_m] == 1:
+          if optflags[g_m] == 1:
+            IF('opArg'+str(g_m+1)+'%opt == 1')
           if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
             code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
@@ -1910,6 +1927,8 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           code('')
+          if optflags[g_m] == 1:
+            ENDIF()
 
     code('istat = cudaDeviceSynchronize()')
     code('call op_timers_core(endTime)')
@@ -2037,7 +2056,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 #  output individual kernel file
 ##########################################################################
     if hydra:
-      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
+      name = 'kernels/'+kernels[nk]['master_file']+'_'+name
       fid = open(name+'_gpukernel.CUF','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_gpukernel.CUF','w')

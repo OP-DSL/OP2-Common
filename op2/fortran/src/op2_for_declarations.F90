@@ -1092,6 +1092,23 @@ contains
 
   ! All of these are no-ops in the reference implementation
 
+  subroutine op_decl_const_char ( dat, constdim, opname )
+
+    character(kind=c_char,len=*), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    ! local dummies to prevent compiler warning
+    character, dimension(1) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname//C_NULL_CHAR
+
+  end subroutine op_decl_const_char
+
   subroutine op_decl_const_integer_4 ( dat, constdim, opname )
 
     integer(4), dimension(:), intent(in), target :: dat
