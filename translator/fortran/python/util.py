@@ -229,6 +229,24 @@ def remove_jm76(text):
       k = re.search(r'\n\s+.*\b'+fun+r'\b',text)
   return text
 
+def get_kernel(text, name):
+  i = re.search(r'\n\s*\bsubroutine\b\s*'+name+r'\b', text, re.IGNORECASE)
+  if i:
+    #attempt 1: find end subroutine
+    j = re.search(r'\n\s*\bend\s+subroutine\b'+name+r'\b', text[i.start():], re.IGNORECASE)
+    if j:
+      return text[i.start():i.start()+j.end()]
+    #attempt 2: find next subroutine
+    j = re.search(r'\n\s*\bsubroutine\b', text[i.end():], re.IGNORECASE)
+    if j:
+      last_end = i.start()+[m.end() for m in re.finditer(r'\n\s*\bend\b',text[i.start():i.end()+j.start()], re.IGNORECASE)][-1]
+      return text[i.start():last_end+text[last_end:].find('\n')]
+    #attempt 3: end of file
+    last_end = i.start()+[m.end() for m in re.finditer(r'\n\s*\bend\b',text[i.start():], re.IGNORECASE)][-1]
+    return text[i.start():last_end+text[last_end:].find('\n')]
+  else:
+    return ''
+
 
 def find_function_calls(text, attr):
   global funlist
@@ -281,23 +299,27 @@ def find_function_calls(text, attr):
     subr_fileh_text = subr_fileh.read()
     if subr_file[len(subr_file)-1]=='F':
         subr_fileh_text = convert_F90(subr_fileh_text)
-    subr_fileh_text = re.sub('\n*!.*\n','\n',subr_fileh_text)
-    subr_fileh_text = re.sub('!.*\n','\n',subr_fileh_text)
-    subr_fileh_text = remove_jm76(subr_fileh_text)
-#    subr_begin = subr_fileh_text.lower().find('subroutine '+fun_name.lower())
-    subr_begin = re.search(r'\bsubroutine\s*'+fun_name.lower()+r'\b',subr_fileh_text.lower()).start()
+    subr_text = get_kernel(subr_fileh_text,fun_name)
+    #get rid of comments and realgas calls
+    subr_text = re.sub('\n*!.*\n','\n',subr_text)
+    subr_text = re.sub('!.*\n','\n',subr_text)
+    subr_text = remove_jm76(subr_text)
+
+#    subr_fileh_text = re.sub('\n*!.*\n','\n',subr_fileh_text)
+#    subr_fileh_text = re.sub('!.*\n','\n',subr_fileh_text)
+#    subr_begin = re.search(r'\bsubroutine\s*'+fun_name.lower()+r'\b',subr_fileh_text.lower()).start()
     #function name as spelled int he file
-    fun_name = subr_fileh_text[subr_begin+11:subr_begin+11+len(fun_name)]
-    subr_end = subr_fileh_text[subr_begin:].lower().find('end subroutine')
-    if subr_end<0:
-      print 'Error, could not find string "end subroutine" for implemenatation of '+fun_name+' in '+subr_file
-      exit(-1)
-    subr_end= subr_begin+subr_end
-    subr_text =  subr_fileh_text[subr_begin:subr_end+14]
-    if subr_text[10:len(subr_text)-20].lower().find('subroutine')>=0:
-      print 'Error, could not properly parse subroutine, more than one encompassed '+fun_name+' in '+subr_file
-      #print subr_text
-      exit(-1)
+#    fun_name = subr_fileh_text[subr_begin+11:subr_begin+11+len(fun_name)]
+#    subr_end = subr_fileh_text[subr_begin:].lower().find('end subroutine')
+#    if subr_end<0:
+#      print 'Error, could not find string "end subroutine" for implemenatation of '+fun_name+' in '+subr_file
+#      exit(-1)
+#    subr_end= subr_begin+subr_end
+#    subr_text =  subr_fileh_text[subr_begin:subr_end+14]
+#    if subr_text[10:len(subr_text)-20].lower().find('subroutine')>=0:
+#      print 'Error, could not properly parse subroutine, more than one encompassed '+fun_name+' in '+subr_file
+#      #print subr_text
+#      exit(-1)
 
     if attr == '':
       subr_text = subr_text.replace(')\n',')\n!$acc routine seq\n',1)
@@ -328,7 +350,11 @@ def find_function_calls(text, attr):
     #subr_text = replace_npdes(subr_text)
     if attr <> '':
       subr_text = replace_consts(subr_text)
-    subr_text = subr_text.replace('subroutine '+fun_name+'(', attr+' subroutine '+fun_name+'_gpu(',1)
+#    subr_text = subr_text.replace('subroutine '+fun_name+'(', attr+' subroutine '+fun_name+'_gpu(',1)
+    print r'\bsubroutine\b\s+'+fun_name+r'\b'
+    print subr_text[0:30]
+    subr_text = re.sub(r'(\n\s*)\bsubroutine\b\s+'+fun_name+r'\b', r'\1'+attr+' subroutine '+fun_name+'_gpu',subr_text,flags=re.IGNORECASE)
+    print subr_text[0:30]
     my_subs = my_subs + '\n' + subr_text
     subr_text = re.sub('!.*\n','\n',subr_text)
     text1, text2 = find_function_calls(subr_text, attr)
