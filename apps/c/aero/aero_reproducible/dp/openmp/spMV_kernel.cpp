@@ -44,9 +44,10 @@ void op_par_loop_spMV(char const *name, op_set set,
     op_map prime_map = arg0.map; //TODO works only with arg0...
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
+            op_mpi_wait_all(nargs, args);
     if (rev_map != NULL) {
         
-        
+   /*     
         int prime_map_dim = prime_map->dim;
         int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
         int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
@@ -65,30 +66,34 @@ void op_par_loop_spMV(char const *name, op_set set,
 
         for (int i=0; i<set_from_size * prime_map_dim * arg0.dim; i++){
           tmp_incs[i]=0.0;
-        }
+        }*/
 
         
-        #pragma omp parallel for
-        for ( int n=0; n<set->core_size; n++ ){
+    //    #pragma omp parallel for
+    //    for ( int n=0; n<set->core_size; n++ ){
  //         if (n==set->core_size) {
  //           op_mpi_wait_all(nargs, args);
  //         }
+          for (int c=0; c<rev_map->number_of_colors;c++){
+            #pragma omp parallel for
+            for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
+                int n=rev_map->color_based_exec[i];
           int map0idx = arg0.map_data[n * arg0.map->dim + 0];
           int map1idx = arg0.map_data[n * arg0.map->dim + 1];
           int map2idx = arg0.map_data[n * arg0.map->dim + 2];
           int map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
-//          double* arg0_vec[] = {
-//             &((double*)arg0.data)[1 * map0idx],
-//             &((double*)arg0.data)[1 * map1idx],
-//             &((double*)arg0.data)[1 * map2idx],
-//             &((double*)arg0.data)[1 * map3idx]};
-             
           double* arg0_vec[] = {
-             &tmp_incs[(n*prime_map_dim+0)*arg0.dim],
-             &tmp_incs[(n*prime_map_dim+1)*arg0.dim],
-             &tmp_incs[(n*prime_map_dim+2)*arg0.dim],
-             &tmp_incs[(n*prime_map_dim+3)*arg0.dim]};
+             &((double*)arg0.data)[1 * map0idx],
+             &((double*)arg0.data)[1 * map1idx],
+             &((double*)arg0.data)[1 * map2idx],
+             &((double*)arg0.data)[1 * map3idx]};
+             
+ //         double* arg0_vec[] = {
+ //            &tmp_incs[(n*prime_map_dim+0)*arg0.dim],
+ //            &tmp_incs[(n*prime_map_dim+1)*arg0.dim],
+ //            &tmp_incs[(n*prime_map_dim+2)*arg0.dim],
+ //            &tmp_incs[(n*prime_map_dim+3)*arg0.dim]};
           const double* arg5_vec[] = {
              &((double*)arg5.data)[1 * map0idx],
              &((double*)arg5.data)[1 * map1idx],
@@ -101,7 +106,7 @@ void op_par_loop_spMV(char const *name, op_set set,
             arg5_vec);
         }      
         
-        op_mpi_wait_all(nargs, args);
+  /*      op_mpi_wait_all(nargs, args);
         
         #pragma omp parallel for
         for ( int n=set->core_size; n<set_size; n++ ){
@@ -145,6 +150,8 @@ void op_par_loop_spMV(char const *name, op_set set,
                 }
             }
         }
+        */
+          }
     }
   }
 
