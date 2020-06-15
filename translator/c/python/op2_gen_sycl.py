@@ -459,7 +459,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if ninds==0:
         code('int nblocks = 200;')
         code('')
-      if op_color2 and reduct:
+      if reduct:
         IF('op2_queue->get_device().is_cpu()')
         code('nthread = 8;')
         code('nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
@@ -964,7 +964,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'&ind_arg'+str(inds[m]-1)+'[map'+str(mapinds[m])+'idx*<DIM>],'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0 and not op_color2 and not atomics and not inner_loop:
+        if ninds>0 and not op_color2 and not atomics:
           if soaflags[m]:
             line += rep(indent+'&<ARG>[n+offset_b],\n',m)
           else:
@@ -1121,7 +1121,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       else:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(nthread*nblocks), kern);')
     else:
-      if inner_loop:
+      if inner_loop and not reduct:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread,nthread), kern);')
       else:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
