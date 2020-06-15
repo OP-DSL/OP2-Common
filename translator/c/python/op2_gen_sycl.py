@@ -108,8 +108,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=0 #global coloring
+  op_color2_force=1 #global coloring
   atomics=0 # atomics
+  inner_loop=0 #each work item executes a whole block
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -535,23 +536,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('cl::sycl::buffer<int,1> *blkmap_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->blkmap);')
           code('cl::sycl::buffer<int,1> *offset_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->offset);')
           code('cl::sycl::buffer<int,1> *nelems_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nelems);')
-          code('cl::sycl::buffer<int,1> *ncolors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nthrcol);')
-          code('cl::sycl::buffer<int,1> *colors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->thrcol);')
+          if not inner_loop:
+            code('cl::sycl::buffer<int,1> *ncolors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nthrcol);')
+            code('cl::sycl::buffer<int,1> *colors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->thrcol);')
     code('int set_size = set->size+set->exec_size;')
-
- #   for nc in range (0,len(consts)):
- #     if consts[nc]['dim']==1:
- #       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
- #     else:
- #            print 'internal error: invalid reduction option'
- #            sys.exit(2);
- #       if consts[nc]['dim'] > 0:
- #         num = str(consts[nc]['dim'])
- #       else:
- #         num = 'MAX_CONST_SIZE'
- #
- #       code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
- #   code('')
 
 #
 # kernel launch 
@@ -575,6 +563,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('#else')
       code('int nthread = OP_block_size;')
       code('#endif')
+      if inner_loop:
+        IF('op2_queue->get_device().is_cpu()')
+        code('nthread = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
+        ENDIF()
       code('')
       if op_color2:
         code('int start = Plan->col_offsets[0][col];')
@@ -585,7 +577,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         IF('Plan->ncolblk[col] > 0')
 
 
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not inner_loop:
       if inc_stage==1 and ind_inc:
         code('')
         for m in range (1,ninds_staged+1):
@@ -637,8 +629,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('auto blkmap    = (*blkmap_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
         code('auto offset    = (*offset_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
         code('auto nelems    = (*nelems_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-        code('auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-        code('auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+        if not inner_loop:
+          code('auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+          code('auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
       elif op_color2:
         code('auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
       code('')
@@ -710,7 +703,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           FOR('d','0','<DIM>')
           code('<ARG>_l[d]=reduct'+str(g_m)+'[<ARG>_offset+d+item.get_group_linear_id()*<DIM>];')
           ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and (not op_color2 or atomics):
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and (not op_color2 or atomics) and (not inner_loop):
         code('<TYP> <ARG>_l[<DIM>];')
         if atomics:
             FOR('d','0','<DIM>')
@@ -738,17 +731,22 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 # lengthy code for general case with indirection
 #
     if ninds>0 and not op_color2 and not atomics:
+      if inner_loop:
+        FOR_INC('grp','item.get_global_id()[0]','nblocks','item.get_global_range()[0]')
       code('')
       code('')
       comm('get sizes and shift pointers and direct-mapped data')
       code('')
-      code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
+      if inner_loop:
+        code('int blockId = blkmap[grp  + block_offset];')
+      else:
+        code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
       code('')
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
       code('')
 
-      if ind_inc:
+      if ind_inc and not inner_loop:
         code('int nelems2  = item.get_local_range()[0]*(1+(nelem-1)/item.get_local_range()[0]);')
         code('int ncolor   = ncolors[blockId];')
         code('')
@@ -784,29 +782,37 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('')
           code('item.barrier(cl::sycl::access::fence_space::local_space);')
           code('')
-      if ind_inc:
-        FOR_INC('n','item.get_local_id(0)','nelems2','item.get_local_range()[0]')
-        code('int col2 = -1;')
+      if inner_loop:
+        FOR('n','0','nelem')
         k = []
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
             code('int map'+str(mapinds[g_m])+'idx;')
-        IF('n<nelem')
-        comm('initialise local variables')
-
-        for g_m in range(0,nargs):
-          if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-            FOR('d','0','<DIM>')
-            code('<ARG>_l[d] = ZERO_<TYP>;')
-            ENDFOR()
       else:
-        FOR_INC('n','item.get_local_id(0)','nelem','item.get_local_range()[0]')
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
-            k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx;')
+        if ind_inc:
+          FOR_INC('n','item.get_local_id(0)','nelems2','item.get_local_range()[0]')
+          code('int col2 = -1;')
+          k = []
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+              k = k + [mapinds[g_m]]
+              code('int map'+str(mapinds[g_m])+'idx;')
+          IF('n<nelem')
+          comm('initialise local variables')
+
+          for g_m in range(0,nargs):
+            if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+              FOR('d','0','<DIM>')
+              code('<ARG>_l[d] = ZERO_<TYP>;')
+              ENDFOR()
+        else:
+          FOR_INC('n','item.get_local_id(0)','nelem','item.get_local_range()[0]')
+          k = []
+          for g_m in range(0,nargs):
+            if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+              k = k + [mapinds[g_m]]
+              code('int map'+str(mapinds[g_m])+'idx;')
 
       #non-optional maps
       k = []
@@ -932,7 +938,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     indent =''
     for m in range (0, nargs):
       if a > 0:
-        indent = '     '+' '*len(name)
+        indent = ' '*(depth+len(name)+5)
 
       if maps[m] == OP_GBL:
         if accs[m] == OP_READ or accs[m] == OP_WRITE:
@@ -940,7 +946,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         else:
           line += rep(indent+'<ARG>_l,\n',m);
         a =a+1
-      elif maps[m]==OP_MAP and  accs[m]==OP_INC and not op_color2:
+      elif maps[m]==OP_MAP and  accs[m]==OP_INC and not op_color2 and not inner_loop:
         if vectorised[m]:
           if m+1 in unique_args:
             line += rep(indent+'<ARG>_vec,\n',m)
@@ -958,7 +964,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'&ind_arg'+str(inds[m]-1)+'[map'+str(mapinds[m])+'idx*<DIM>],'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0 and not op_color2 and not atomics:
+        if ninds>0 and not op_color2 and not atomics and not inner_loop:
           if soaflags[m]:
             line += rep(indent+'&<ARG>[n+offset_b],\n',m)
           else:
@@ -978,7 +984,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 #
 # updating for indirect kernels ...
 #
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not inner_loop:
       if ind_inc:
         code('col2 = colors[n+offset_b];')
         ENDIF()
@@ -1074,6 +1080,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if indopts[g_m] > 0:
             ENDIF()
 
+    if ninds>0 and inner_loop:
+      ENDFOR()
+
 #
 # global reduction
 #
@@ -1112,7 +1121,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       else:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(nthread*nblocks), kern);')
     else:
-      code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
+      if inner_loop:
+        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread,nthread), kern);')
+      else:
+        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
     depth -= 2
     code('});')
     code('}catch(cl::sycl::exception const &e) {')
