@@ -993,7 +993,8 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
           strcmp(dat->type, "double:soa") == 0 ||
           strcmp(dat->type, "double precision") == 0 ||
           strcmp(dat->type, "real(8)") == 0) {
-        if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j]) <
+        //if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j]) <
+        if (fprintf(fp, " %+2.15lE", ((double *)dat->data)[i * dat->dim + j]) <
             0) {
           printf("error writing to %s\n", file_name);
           exit(2);
@@ -1002,7 +1003,7 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
                  strcmp(dat->type, "float:soa") == 0 ||
                  strcmp(dat->type, "real(4)") == 0 ||
                  strcmp(dat->type, "real") == 0) {
-        if (fprintf(fp, "%f ", ((float *)dat->data)[i * dat->dim + j]) < 0) {
+        if (fprintf(fp, " %+f", ((float *)dat->data)[i * dat->dim + j]) < 0) {
           printf("error writing to %s\n", file_name);
           exit(2);
         }
@@ -1011,13 +1012,13 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
                  strcmp(dat->type, "int(4)") == 0 ||
                  strcmp(dat->type, "integer") == 0 ||
                  strcmp(dat->type, "integer(4)") == 0) {
-        if (fprintf(fp, "%d ", ((int *)dat->data)[i * dat->dim + j]) < 0) {
+        if (fprintf(fp, " %+d", ((int *)dat->data)[i * dat->dim + j]) < 0) {
           printf("error writing to %s\n", file_name);
           exit(2);
         }
       } else if ((strcmp(dat->type, "long") == 0) ||
                  (strcmp(dat->type, "long:soa") == 0)) {
-        if (fprintf(fp, "%ld ", ((long *)dat->data)[i * dat->dim + j]) < 0) {
+        if (fprintf(fp, " %+ld", ((long *)dat->data)[i * dat->dim + j]) < 0) {
           printf("error writing to %s\n", file_name);
           exit(2);
         }
