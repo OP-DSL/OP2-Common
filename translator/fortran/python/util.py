@@ -113,7 +113,6 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
       #Start looking for the variable in the code, after the function signature
       loc1 = endj
       p = re.compile('\\b'+varlist[g_m]+'\\b')
-
       nmatches = len(p.findall(text[loc1:]))
       for id in range(0,nmatches):
         #Search for the next occurence
@@ -169,7 +168,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           if leading_dim[g_m] == 1:
             macro = macro + text[beginarg:endarg]
           else:
-            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*'+leading_dim[g_m]
+            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*('+leading_dim[g_m]+')'
           macro = macro + ', ' + get_stride_string(g_m,maps,mapnames,set_name) + ')'
           text = text[:loc1+i.start()] + macro + text[endarg+1:]
           #Continue search after this instance of the variable
@@ -351,10 +350,7 @@ def find_function_calls(text, attr):
     if attr <> '':
       subr_text = replace_consts(subr_text)
 #    subr_text = subr_text.replace('subroutine '+fun_name+'(', attr+' subroutine '+fun_name+'_gpu(',1)
-    print r'\bsubroutine\b\s+'+fun_name+r'\b'
-    print subr_text[0:30]
     subr_text = re.sub(r'(\n\s*)\bsubroutine\b\s+'+fun_name+r'\b', r'\1'+attr+' subroutine '+fun_name+'_gpu',subr_text,flags=re.IGNORECASE)
-    print subr_text[0:30]
     my_subs = my_subs + '\n' + subr_text
     subr_text = re.sub('!.*\n','\n',subr_text)
     text1, text2 = find_function_calls(subr_text, attr)

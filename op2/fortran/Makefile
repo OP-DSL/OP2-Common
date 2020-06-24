@@ -122,12 +122,12 @@ else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
-   PGI_CUDA_FORT_FLAGS=-Mcuda=cc60,fastmath
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cc60,fastmath,cuda10.2
 else
 ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
-   PGI_CUDA_FORT_FLAGS=-Mcuda=cc70,fastmath
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cc70,fastmath,cuda10.2
 endif
 endif
 endif

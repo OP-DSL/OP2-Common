@@ -107,10 +107,10 @@ module OP2_Fortran_hdf5_Declarations
     module procedure op_decl_set_hdf5_noSetSize, op_decl_set_hdf5_setSize
   end interface op_decl_set_hdf5
 
-!  interface op_fetch_data_hdf5_file2
-!    module procedure op_fetch_data_hdf5_file2_real_8, &
-!                     op_fetch_data_hdf5_file2_integer_4
-!  end interface op_fetch_data_hdf5_file2
+  interface op_fetch_data_hdf5_file2
+    module procedure op_fetch_data_hdf5_file2_real_8, &
+                     op_fetch_data_hdf5_file2_integer_4
+  end interface op_fetch_data_hdf5_file2
 
 
 
@@ -229,9 +229,23 @@ contains
     character(kind=c_char,len=*) :: file_name
     real*8, dimension(*), target :: data
 
-    call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name)
+    call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
 
   end subroutine op_fetch_data_hdf5_file2_real_8
+  subroutine op_fetch_data_hdf5_file2_real2_8 (data, file_name)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    character(kind=c_char,len=*) :: file_name
+    real*8, dimension(:,:), target :: data
+
+    call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
+
+  end subroutine op_fetch_data_hdf5_file2_real2_8
+
 
   subroutine op_fetch_data_hdf5_file2_integer_4 (data, file_name)
 
@@ -243,7 +257,7 @@ contains
     character(kind=c_char,len=*) :: file_name
     integer*4, dimension(*), target :: data
 
-    call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name)
+    call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
 
   end subroutine op_fetch_data_hdf5_file2_integer_4
 

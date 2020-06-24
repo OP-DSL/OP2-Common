@@ -65,6 +65,8 @@ import op2_gen_cuda
 from op2_gen_cuda import *
 import op2_gen_cuda_gbl
 from op2_gen_cuda_gbl import *
+import op2_gen_cuda_color2
+from op2_gen_cuda_color2 import *
 import op2_gen_cuda_permute
 from op2_gen_cuda_permute import *
 import op2_gen_cudaINC
@@ -1033,7 +1035,8 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 #CUDA
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
 #op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
-op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+#op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # does global coloring
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
