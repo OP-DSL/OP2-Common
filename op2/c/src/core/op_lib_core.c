@@ -1159,6 +1159,7 @@ void op_dat_write_index(op_set set, int* dat) {
   for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
     ((int*)arg.dat->data)[i] = i+1;
   }
+  arg.dat->dirty_hd = 1;
 }
 
 void op_print_dat_to_txtfile2(int *dat, const char *file_name) {

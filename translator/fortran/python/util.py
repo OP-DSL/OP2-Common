@@ -46,6 +46,36 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
+def arg_parse2(text, j):
+    """Parsing arguments in op_par_loop to find the correct closing brace"""
+
+    depth = 0
+    loc2 = j
+    arglist = []
+    prev_start = j
+    while 1:
+        if text[loc2] == '(':
+            if depth == 0:
+                prev_start = loc2+1
+            depth = depth + 1
+
+        elif text[loc2] == ')':
+            depth = depth - 1
+            if depth == 0:
+                arglist.append(text[prev_start:loc2].replace('&','').strip())
+                return arglist
+
+        elif text[loc2] == ',':
+            if depth == 1:
+                arglist.append(text[prev_start:loc2].replace('&','').strip())
+                prev_start = loc2+1
+        elif text[loc2] == '{':
+            depth = depth + 1
+        elif text[loc2] == '}':
+            depth = depth - 1
+        loc2 = loc2 + 1
+
+
 const_list = []
 
 def replace_consts(text):
@@ -77,27 +107,82 @@ def replace_npdes(text):
   return text
 
 funlist = []
+funlist2 = []
 
-def get_stride_string(g_m,maps,mapnames,set_name):
+def get_stride_string(g_m,maps,stride,set_name):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   if maps[g_m] == OP_ID:
     return 'direct_stride_OP2CONSTANT'
   if maps[g_m] == OP_GBL:
     return '(gridDim%x*blockDim%x)'
   else:
-    idx = mapnames.index(mapnames[g_m])
+    idx = stride[g_m]
     return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
+def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra,bookleaf,stride=[]):
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  name = funcs[idx]['function_name']
+  if len(stride)==0:
+    stride = [0]*len(funcs[idx]['args'])
+    for g_m in range(0,len(funcs[idx]['args'])):
+      if g_m >= len(maps):
+          print name, maps, funcs[idx]['args']
+      if maps[g_m] == OP_MAP:
+        stride[g_m] = mapnames.index(mapnames[g_m])
+  if funcs[idx]['soa_converted'] == 0:
+    funcs[idx]['soaflags'] = soaflags
+    funcs[idx]['function_text'] = replace_soa(funcs[idx]['function_text'],
+                          len(funcs[idx]['args']),
+                          soaflags, name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride)
+  funcs[idx]['soa_converted'] = 1
+  for funcall in funcs[idx]['calls']:
+    OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+    nargs = len(funcall['args'])
+    call_name = funcall['function_name']
+    idx_called = -1
+    for i in range(0,len(funcs)):
+      if funcs[i]['function_name']==call_name:
+        idx_called = i
+    if idx_called == -1:
+      print 'ERROR, subroutine not found in replace_soa_subroutines: ' + call_name
+    if funcs[idx_called]['soa_converted'] == 1:
+      return funcs
+    soaflags2 = [0]*nargs
+    stride2 = [0]*nargs
+    maps2 = [0]*nargs
+    accs2 = [0]*nargs
+    for i in range(0,nargs):
+      arg = funcall['args'][i]
+      #strip indexing
+      j = arg.find('(')
+      if j > 0:
+        arg = arg[0:j]
+      if arg in funcs[idx]['args']:
+        orig_idx = funcs[idx]['args'].index(arg)
+        soaflags2[i] = soaflags[orig_idx]
+        maps2[i] = maps[orig_idx]
+        accs2[i] = accs[orig_idx]
+        stride2[i] = stride[orig_idx]
+    if funcs[idx_called]['soa_converted'] == 1 and soaflags2 != funcs[idx_called]['soaflags']:
+      print 'ERROR: soaflags mismatch for repeated function call: ' + funcs[idx_called]['function_name']
+    funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,stride2)
+  return funcs
 
-def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf):
+def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,stride=[]):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
+
+  if len(stride)==0:
+    stride = [0]*nargs
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP:
+        stride[g_m] = mapnames.index(mapnames[g_m])
   #
   # Apply SoA to variable accesses
   #
-  j = text.find(name+'_gpu')
+  j = text.find(name)
   endj = arg_parse(text,j)
   while text[j] <> '(':
       j = j + 1
@@ -105,6 +190,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
   arg_list = arg_list.replace('&','')
   varlist = ['']*nargs
   leading_dim = [-1]*nargs
+  follow_dim = ['-1']*nargs
   
   for g_m in range(0,nargs):
     varlist[g_m] = arg_list.split(',')[g_m].strip()
@@ -113,7 +199,6 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
       #Start looking for the variable in the code, after the function signature
       loc1 = endj
       p = re.compile('\\b'+varlist[g_m]+'\\b')
-
       nmatches = len(p.findall(text[loc1:]))
       for id in range(0,nmatches):
         #Search for the next occurence
@@ -146,11 +231,15 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           k = text[j:j2].lower().find('dimension')
           if k <> -1:
             beginarg = j+k+text[j+k:j2].find('(')+1
+            endarg = arg_parse(text,beginarg-1)
           else:
-            print 'Could not find shape specification for '+varlist[g_m]+' in '+name
-          endarg = arg_parse(text,beginarg-1)
+            print 'Could not find shape specification for '+varlist[g_m]+' in '+name+'- assuming scalar'
+            beginarg = loc1 + i.end()
+            endarg=beginarg
         else:
-          print 'Error: array subscript not found'
+          print 'Warning: array subscript not found for ' + varlist[g_m] + ' in '+name
+          loc1 = loc1+i.start() + len(varlist[g_m])
+          continue
 
 
         #If this is the first time we see the argument (i.e. its declaration)
@@ -158,7 +247,12 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           if (len(text[beginarg:endarg].split(',')) > 1):
             #if it's 2D, remember leading dimension, and make it 1D
             leading_dim[g_m] = text[beginarg:endarg].split(',')[0]
+            if '0:' in text[beginarg:endarg].split(',')[1]:
+              follow_dim[g_m] = ''
+#              follow_dim[g_m] = text[beginarg:endarg].split(',')[1].split(':')[0]
             text = text[:beginarg] + '*'+' '*(endarg-beginarg-1) + text[endarg:]
+          elif beginarg==endarg:
+            leading_dim[g_m] = 0
           else:
             leading_dim[g_m] = 1
           #Continue search after this instance of the variable
@@ -168,9 +262,15 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           macro = 'OP2_SOA('+text[loc1+i.start():loc1+i.end()]+','
           if leading_dim[g_m] == 1:
             macro = macro + text[beginarg:endarg]
+          elif leading_dim[g_m] == 0:
+            if beginarg==endarg:
+              loc1 = loc1+i.start() + len(varlist[g_m])
+            else:
+              print 'Warning: '+varlist[g_m]+' in '+name+' was assumed scalar, but now accessed as array: '+text[beginarg:endarg]
+              macro = macro + text[beginarg:endarg]
           else:
-            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*'+leading_dim[g_m]
-          macro = macro + ', ' + get_stride_string(g_m,maps,mapnames,set_name) + ')'
+            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+follow_dim[g_m]+')*('+leading_dim[g_m]+')'
+          macro = macro + ', ' + get_stride_string(g_m,maps,stride,set_name) + ')'
           text = text[:loc1+i.start()] + macro + text[endarg+1:]
           #Continue search after this instance of the variable
           loc1 = loc1+i.start() + len(macro)
@@ -248,32 +348,62 @@ def get_kernel(text, name):
     return ''
 
 
-def find_function_calls(text, attr):
+def find_function_calls(text, attr, name=''):
   global funlist
+  global funlist2
   text = remove_jm76(text)
+  j = re.search(r'\n\s*call hyd_',text)
+  while not (j is None):
+    text,comm_inserted = comment_line(text,j.start()+1)
+    j = re.search(r'\n\s*call hyd_',text)
+  j = re.search(r'\n\s*external',text)
+  while not (j is None):
+    text,comm_inserted = comment_line(text,j.start()+1)
+    j = re.search(r'\n\s*external',text)
+  j = re.search(r'\n\s*call op_',text)
+  while not (j is None):
+    text,comm_inserted = comment_line(text,j.start()+1)
+    j = re.search(r'\n\s*call op_',text)
+  j = re.search(r'\n\s*write\b',text)
+  while not (j is None):
+    text,comm_inserted = comment_line(text,j.start()+1)
+    j = re.search(r'\n\s*write\b',text)
+
   search_offset = 0
-  res=re.search('\\bcall\\b',text)
   my_subs = ''
   children_subs=''
+  funlist_index = len(funlist2)
+  if name == '':
+      i = text.find('subroutine')
+      openbracket = i+text[i:].find('(')
+      name = text[i+len('subroutine'):openbracket].strip()
+  else:
+      i = text.find(name)
+      openbracket = i+text[i:].find('(')
+  funlist_entry = {'function_name' : name,
+                  'function_text' : text,
+                  'args' : arg_parse2(text,openbracket-1),
+                  'soa_converted' : 0,
+                  'calls': []}
+  funlist2 = funlist2 + [funlist_entry]
+  res=re.search('\\bcall\\b',text)
   while (not (res is None)):
     i = search_offset + res.start() + 4
+    #Check if line is commented
+    j = text[:i].rfind('\n')
+    if j > -1 and text[j:i].find('!')>-1:
+      search_offset = i
+      res=re.search('\\bcall\\b',text[search_offset:])
+      continue
     #find name: whatever is in front of opening bracket
     openbracket = i+text[i:].find('(')
     fun_name = text[i:openbracket].strip()
-    #if hyd_dump, comment it out
-    if len(fun_name)>4 and fun_name[0:4] == 'hyd_':
-      text, comm_inserted = comment_line(text,i)
-      w = text[0:search_offset + res.start()].rfind('write(')
-      comm_inserted = 0
-      if w>0:
-        text,comm_inserted = comment_line(text,w)
-
-      search_offset = i + comm_inserted
-      res=re.search('\\bcall\\b',text[search_offset:])
-      print('CUDA: Commented out call to ' + fun_name)
-      continue
-
+    if 'hyd_' in fun_name:
+      print text[j:openbracket]
     if fun_name.lower() in funlist:
+      funcall_entry = {'function_name': fun_name+'_gpu',
+                       'args' : arg_parse2(text,openbracket-1)}
+      funlist2[funlist_index]['calls'].append(funcall_entry)
       search_offset = i
       res=re.search('\\bcall\\b',text[search_offset:])
       continue
@@ -281,6 +411,9 @@ def find_function_calls(text, attr):
     #print fun_name
 
     funlist = funlist + [fun_name.lower()]
+    funcall_entry = {'function_name': fun_name+'_gpu',
+                     'args' : arg_parse2(text,openbracket-1)}
+    funlist2[funlist_index]['calls'].append(funcall_entry)
     #find signature
     line = text[openbracket:openbracket+text[openbracket:].find('\n')].strip()
     curr_pos = openbracket+text[openbracket:].find('\n')+1
@@ -303,62 +436,14 @@ def find_function_calls(text, attr):
     #get rid of comments and realgas calls
     subr_text = re.sub('\n*!.*\n','\n',subr_text)
     subr_text = re.sub('!.*\n','\n',subr_text)
-    subr_text = remove_jm76(subr_text)
 
-#    subr_fileh_text = re.sub('\n*!.*\n','\n',subr_fileh_text)
-#    subr_fileh_text = re.sub('!.*\n','\n',subr_fileh_text)
-#    subr_begin = re.search(r'\bsubroutine\s*'+fun_name.lower()+r'\b',subr_fileh_text.lower()).start()
-    #function name as spelled int he file
-#    fun_name = subr_fileh_text[subr_begin+11:subr_begin+11+len(fun_name)]
-#    subr_end = subr_fileh_text[subr_begin:].lower().find('end subroutine')
-#    if subr_end<0:
-#      print 'Error, could not find string "end subroutine" for implemenatation of '+fun_name+' in '+subr_file
-#      exit(-1)
-#    subr_end= subr_begin+subr_end
-#    subr_text =  subr_fileh_text[subr_begin:subr_end+14]
-#    if subr_text[10:len(subr_text)-20].lower().find('subroutine')>=0:
-#      print 'Error, could not properly parse subroutine, more than one encompassed '+fun_name+' in '+subr_file
-#      #print subr_text
-#      exit(-1)
-
-    if attr == '':
-      subr_text = subr_text.replace(')\n',')\n!$acc routine seq\n',1)
-    j = re.search(r'\n\s*call hyd_',subr_text)
-    while not (j is None):
-      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
-      j = re.search(r'\n\s*call hyd_',subr_text)
-    j = re.search(r'\n\s*call op_',subr_text)
-    while not (j is None):
-      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
-      j = re.search(r'\n\s*call op_',subr_text)
-    j = re.search(r'\n\s*write\b',subr_text)
-    while not (j is None):
-      subr_text,comm_inserted = comment_line(subr_text,j.start()+1)
-      j = re.search(r'\n\s*write\b',subr_text)
-
-#    writes = re.search('\\bwrite\\b',subr_text)
-#    writes_offset = 0
-#    while not (writes is None):
-#      writes_offset = writes_offset + writes.start()
-#      subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
-#      writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
-#      while (subr_text[writes_offset:].strip()[0] == '&'):
-#        subr_text = subr_text[0:writes_offset]+'!'+subr_text[writes_offset:]
-#        writes_offset = writes_offset + subr_text[writes_offset:].find('\n')+1
-#      writes = re.search('\\bwrite\\b',subr_text[writes_offset:])
-
-    #subr_text = replace_npdes(subr_text)
     if attr <> '':
       subr_text = replace_consts(subr_text)
-#    subr_text = subr_text.replace('subroutine '+fun_name+'(', attr+' subroutine '+fun_name+'_gpu(',1)
-    print r'\bsubroutine\b\s+'+fun_name+r'\b'
-    print subr_text[0:30]
     subr_text = re.sub(r'(\n\s*)\bsubroutine\b\s+'+fun_name+r'\b', r'\1'+attr+' subroutine '+fun_name+'_gpu',subr_text,flags=re.IGNORECASE)
-    print subr_text[0:30]
     my_subs = my_subs + '\n' + subr_text
-    subr_text = re.sub('!.*\n','\n',subr_text)
-    text1, text2 = find_function_calls(subr_text, attr)
+    text1, text2 = find_function_calls(subr_text, attr, fun_name+'_gpu')
     children_subs = children_subs + '\n' + text1
     search_offset = i
     res=re.search('\\bcall\\b',text[search_offset:])
+  funlist2[funlist_index]['function_text']=text
   return my_subs+children_subs, text
