@@ -190,6 +190,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
   arg_list = arg_list.replace('&','')
   varlist = ['']*nargs
   leading_dim = [-1]*nargs
+  follow_dim = ['-1']*nargs
   
   for g_m in range(0,nargs):
     varlist[g_m] = arg_list.split(',')[g_m].strip()
@@ -246,6 +247,9 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           if (len(text[beginarg:endarg].split(',')) > 1):
             #if it's 2D, remember leading dimension, and make it 1D
             leading_dim[g_m] = text[beginarg:endarg].split(',')[0]
+            if '0:' in text[beginarg:endarg].split(',')[1]:
+              follow_dim[g_m] = ''
+#              follow_dim[g_m] = text[beginarg:endarg].split(',')[1].split(':')[0]
             text = text[:beginarg] + '*'+' '*(endarg-beginarg-1) + text[endarg:]
           elif beginarg==endarg:
             leading_dim[g_m] = 0
@@ -265,7 +269,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
               print 'Warning: '+varlist[g_m]+' in '+name+' was assumed scalar, but now accessed as array: '+text[beginarg:endarg]
               macro = macro + text[beginarg:endarg]
           else:
-            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+'-1)*('+leading_dim[g_m]+')'
+            macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+follow_dim[g_m]+')*('+leading_dim[g_m]+')'
           macro = macro + ', ' + get_stride_string(g_m,maps,stride,set_name) + ')'
           text = text[:loc1+i.start()] + macro + text[endarg+1:]
           #Continue search after this instance of the variable
