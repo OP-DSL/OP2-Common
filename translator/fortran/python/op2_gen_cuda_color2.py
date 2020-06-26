@@ -14,6 +14,7 @@ import datetime
 import os
 import sys
 import util
+import pprint
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -571,20 +572,31 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
       #find subroutine calls
       util.funlist = [name.lower()]
-      plus_kernels, text = find_function_calls(text,'attributes(device) ')
+      util.funlist2 = []
+      plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
       if plus_kernels != '' and any_soa:
           print('WARNING: function calls and SoA conversion in '+name)
-      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
-      text = text + '\n' + plus_kernels
+#      if plus_kernels != '':
+#        print name
+#        print '\n\n\n'
+#        pp = pprint.PrettyPrinter(indent=4)
+#        pp.pprint(util.funlist2)
+      #text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
+      #text = text + '\n' + plus_kernels
+      print name
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf)
+      text = ''
+      for func in funcs:
+          text = text + '\n' + func['function_text']
       for fun in util.funlist:
         regex = re.compile('\\b'+fun+'\\b',re.I)
         text = regex.sub(fun+'_gpu',text)
 #        text = re.sub(r'\\b'+fun+'\\b',fun+'_gpu',text,flags=re.I)
 
-      if plus_kernels <> '':
-        for i in range(0,nargs):
-          if soaflags[i]==1 and not (maps[i] ==OP_GBL):
-            stage_flags[i] = 1;
+#      if plus_kernels <> '':
+#        for i in range(0,nargs):
+#          if soaflags[i]==1 and not (maps[i] ==OP_GBL):
+#            stage_flags[i] = 1;
 
       #strip "use" statements
       i = re.search('\\buse\\b',text.lower())
