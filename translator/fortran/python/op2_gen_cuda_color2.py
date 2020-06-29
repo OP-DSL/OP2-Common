@@ -562,41 +562,23 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       using_consts = text.find('use HYDRA_CONST_MODULE')>=0
       text = text.replace('subroutine '+name, 'attributes(device) subroutine '+name+'_gpu',1)
 
-
-#      using_npdes = 0
-#      for g_m in range(0,nargs):
-#        if var[g_m] == 'npdes':
-#          using_npdes = 1
-#      if using_npdes==1:
-#        text = replace_npdes(text)
-
       #find subroutine calls
       util.funlist = [name.lower()]
       util.funlist2 = []
+#      print name
       plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
-      if plus_kernels != '' and any_soa:
-          print('WARNING: function calls and SoA conversion in '+name)
-#      if plus_kernels != '':
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf)
+#      if name == 'SET_QB_BND':
 #        print name
 #        print '\n\n\n'
 #        pp = pprint.PrettyPrinter(indent=4)
-#        pp.pprint(util.funlist2)
-      #text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
-      #text = text + '\n' + plus_kernels
-      print name
-      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf)
+#        pp.pprint(funcs)
       text = ''
       for func in funcs:
           text = text + '\n' + func['function_text']
       for fun in util.funlist:
         regex = re.compile('\\b'+fun+'\\b',re.I)
         text = regex.sub(fun+'_gpu',text)
-#        text = re.sub(r'\\b'+fun+'\\b',fun+'_gpu',text,flags=re.I)
-
-#      if plus_kernels <> '':
-#        for i in range(0,nargs):
-#          if soaflags[i]==1 and not (maps[i] ==OP_GBL):
-#            stage_flags[i] = 1;
 
       #strip "use" statements
       i = re.search('\\buse\\b',text.lower())
