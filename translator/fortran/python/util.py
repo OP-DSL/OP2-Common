@@ -86,7 +86,7 @@ def replace_consts(text):
     for line in fi2:
       fstr = '\\b'+line[:-1]+'\\b'
       rstr = line[:-1]+'_OP2CONSTANT'
-      j = re.search(fstr,text)
+      j = re.search(fstr,text,re.IGNORECASE)
       if not (j is None) and not (line[:-1] in const_list):
         const_list = const_list + [line[:-1]]
       text = re.sub(fstr,rstr,text)
@@ -135,18 +135,19 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
                           len(funcs[idx]['args']),
                           soaflags, name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride)
   funcs[idx]['soa_converted'] = 1
-  for funcall in funcs[idx]['calls']:
+  for idx_funcall in range(0,len(funcs[idx]['calls'])):
+    funcall = funcs[idx]['calls'][idx_funcall]
     OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
     nargs = len(funcall['args'])
     call_name = funcall['function_name']
     idx_called = -1
     for i in range(0,len(funcs)):
-      if funcs[i]['function_name']==call_name:
+      if funcs[i]['function_name'].lower()==call_name.lower():
         idx_called = i
     if idx_called == -1:
       print 'ERROR, subroutine not found in replace_soa_subroutines: ' + call_name
-    if funcs[idx_called]['soa_converted'] == 1:
-      return funcs
+    if len(funcs[idx_called]['args'])!=int(nargs):
+      print 'ERROR: number of arguments of function '+call_name+' is '+str(len(funcs[idx_called]['args']))+' but trying to pass '+str(nargs)
     soaflags2 = [0]*nargs
     stride2 = [0]*nargs
     maps2 = [0]*nargs
@@ -163,8 +164,12 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
         maps2[i] = maps[orig_idx]
         accs2[i] = accs[orig_idx]
         stride2[i] = stride[orig_idx]
+    funcs[idx]['calls'][idx_funcall]['soaflags']=soaflags2
     if funcs[idx_called]['soa_converted'] == 1 and soaflags2 != funcs[idx_called]['soaflags']:
-      print 'ERROR: soaflags mismatch for repeated function call: ' + funcs[idx_called]['function_name']
+      print 'WARNING: soaflags mismatch for repeated function call: ' + funcs[idx_called]['function_name']
+      print funcs[idx_called]['soaflags'], soaflags2
+    if funcs[idx_called]['soa_converted'] == 1:
+      continue 
     funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,stride2)
   return funcs
 
@@ -234,10 +239,18 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
             endarg = arg_parse(text,beginarg-1)
           else:
             print 'Could not find shape specification for '+varlist[g_m]+' in '+name+'- assuming scalar'
+            soaflags[g_m] = 0
             beginarg = loc1 + i.end()
             endarg=beginarg
+            break
         else:
-          print 'Warning: array subscript not found for ' + varlist[g_m] + ' in '+name
+          #check if this is in a subroutine call
+          newl = text[:loc1+i.start()].rfind('\n')
+          while (len(text[newl+1:loc1+i.start()].strip())>0 and (text[newl+1:loc1+i.start()].strip()[0]=='&' or text[newl+1:loc1+i.start()].strip()[0]=='!')):
+            newl = text[:newl].rfind('\n')
+          res=re.search('\\bcall\\b',text[newl:loc1+i.start()],re.IGNORECASE)
+          if res is None and text[loc1+i.start()-1]!='%':
+            print 'Warning: array subscript not found for ' + varlist[g_m] + ' in '+name
           loc1 = loc1+i.start() + len(varlist[g_m])
           continue
 
@@ -323,10 +336,10 @@ def comment_line(text, i):
 def remove_jm76(text):
   jm76_funs = ['SET_RGAS_RATIOS', 'INITGAS0', 'INITGAS1', 'INITGAS2', 'INITFUEL', 'INITVAP0', 'TOTALTP', 'TOTALP', 'TOTALT', 'STATICTP', 'QSTATICTP', 'USTATICTP', 'FLOWSPEED', 'DREALGA', 'SPECS', 'REALPHI', 'REALH', 'REALCP', 'REALRG', 'REALT', 'ISENT', 'ISENP']
   for fun in jm76_funs:
-    k = re.search(r'\n\s+.*\b'+fun+r'\b',text)
+    k = re.search(r'\n\s+.*\b'+fun+r'\b',text,re.IGNORECASE)
     while not (k is None):
       text,comm_inserted = comment_line(text,k.start()+1)
-      k = re.search(r'\n\s+.*\b'+fun+r'\b',text)
+      k = re.search(r'\n\s+.*\b'+fun+r'\b',text,re.IGNORECASE)
   return text
 
 def get_kernel(text, name):
@@ -352,22 +365,22 @@ def find_function_calls(text, attr, name=''):
   global funlist
   global funlist2
   text = remove_jm76(text)
-  j = re.search(r'\n\s*call hyd_',text)
+  j = re.search(r'\n\s*call hyd_',text,re.IGNORECASE)
   while not (j is None):
     text,comm_inserted = comment_line(text,j.start()+1)
-    j = re.search(r'\n\s*call hyd_',text)
-  j = re.search(r'\n\s*external',text)
+    j = re.search(r'\n\s*call hyd_',text,re.IGNORECASE)
+  j = re.search(r'\n\s*external',text,re.IGNORECASE)
   while not (j is None):
     text,comm_inserted = comment_line(text,j.start()+1)
-    j = re.search(r'\n\s*external',text)
-  j = re.search(r'\n\s*call op_',text)
+    j = re.search(r'\n\s*external',text,re.IGNORECASE)
+  j = re.search(r'\n\s*call op_',text,re.IGNORECASE)
   while not (j is None):
     text,comm_inserted = comment_line(text,j.start()+1)
-    j = re.search(r'\n\s*call op_',text)
-  j = re.search(r'\n\s*write\b',text)
+    j = re.search(r'\n\s*call op_',text,re.IGNORECASE)
+  j = re.search(r'\n\s*write\b',text,re.IGNORECASE)
   while not (j is None):
     text,comm_inserted = comment_line(text,j.start()+1)
-    j = re.search(r'\n\s*write\b',text)
+    j = re.search(r'\n\s*write\b',text,re.IGNORECASE)
 
   search_offset = 0
   my_subs = ''
@@ -386,14 +399,14 @@ def find_function_calls(text, attr, name=''):
                   'soa_converted' : 0,
                   'calls': []}
   funlist2 = funlist2 + [funlist_entry]
-  res=re.search('\\bcall\\b',text)
+  res=re.search('\\bcall\\b',text,re.IGNORECASE)
   while (not (res is None)):
     i = search_offset + res.start() + 4
     #Check if line is commented
     j = text[:i].rfind('\n')
     if j > -1 and text[j:i].find('!')>-1:
       search_offset = i
-      res=re.search('\\bcall\\b',text[search_offset:])
+      res=re.search('\\bcall\\b',text[search_offset:],re.IGNORECASE)
       continue
     #find name: whatever is in front of opening bracket
     openbracket = i+text[i:].find('(')
@@ -405,7 +418,7 @@ def find_function_calls(text, attr, name=''):
                        'args' : arg_parse2(text,openbracket-1)}
       funlist2[funlist_index]['calls'].append(funcall_entry)
       search_offset = i
-      res=re.search('\\bcall\\b',text[search_offset:])
+      res=re.search('\\bcall\\b',text[search_offset:],re.IGNORECASE)
       continue
 
     #print fun_name
@@ -444,6 +457,6 @@ def find_function_calls(text, attr, name=''):
     text1, text2 = find_function_calls(subr_text, attr, fun_name+'_gpu')
     children_subs = children_subs + '\n' + text1
     search_offset = i
-    res=re.search('\\bcall\\b',text[search_offset:])
+    res=re.search('\\bcall\\b',text[search_offset:],re.IGNORECASE)
   funlist2[funlist_index]['function_text']=text
   return my_subs+children_subs, text
