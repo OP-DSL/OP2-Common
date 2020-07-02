@@ -219,7 +219,6 @@ int main(int argc, char **argv) {
 
   // main time-marching loop
 
- // niter = 1000;
   niter = 1000;
 
   for (int iter = 1; iter <= niter; iter++) {
@@ -235,7 +234,6 @@ int main(int argc, char **argv) {
 
       //    calculate area/timstep
 
- //     op_fetch_data_hdf5_file(p_adt, "before_adt_calc_repr_comp_p_adt_np1.h5"); 
       op_par_loop_adt_calc("adt_calc",cells,
                   op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pcell,2,"double",OP_READ),
@@ -243,10 +241,9 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_x,3,pcell,2,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
-//      op_fetch_data_hdf5_file(p_adt, "after_adt_calc_repr_comp_p_adt_np1.h5"); 
 
       //    calculate flux residual
-//printf("\n\n\n\n\n\n\n============================================================\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+
       op_par_loop_res_calc("res_calc",edges,
                   op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pedge,2,"double",OP_READ),
@@ -256,12 +253,6 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
                   op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
                   op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
-//printf("\n\n\n\n\n\n\n============================================================\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-                  
-//      op_fetch_data_hdf5_file(p_res, "after_res_calc_repr_comp_p_res_np1.h5"); 
-   //   op_fetch_data_hdf5_file(p_x, "after_res_calc_repr_comp_p_x_np1.h5"); 
-  //    op_fetch_data_hdf5_file(p_q, "after_res_calc_repr_comp_p_q_np1.h5"); 
- //     op_fetch_data_hdf5_file(p_adt, "after_res_calc_repr_comp_p_adt_np1.h5"); 
 
       op_par_loop_bres_calc("bres_calc",bedges,
                   op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
@@ -271,18 +262,16 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_res,0,pbecell,4,"double",OP_INC),
                   op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
 
-  //    op_fetch_data_hdf5_file(p_res, "after_bres_calc_repr_comp_p_res_np5.h5"); 
-
       //    update flow field
-      rms = 0.0;      
+
+      rms = 0.0;
+
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
                   op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
                   op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
                   op_arg_gbl(&rms,1,"double",OP_INC));
-   //   op_fetch_data_hdf5_file(p_res, "after_update_repr_comp_p_res_np5.h5"); 
-//      break;
     }
 
     //  print iteration history

@@ -348,9 +348,9 @@ airfoil_mpi_openacc: airfoil_op.cpp openacc/airfoil_acckernels.c \
 
 airfoil_mpi_cuda: airfoil_op.cpp cuda/airfoil_kernels_mpi_cu.o Makefile
 		  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp -lm cuda/airfoil_kernels_mpi_cu.o \
-		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(REPRO_MPI_INC)\
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
-		  $(HDF5_LIB) $(CUDA_LIB) -lcudart -o airfoil_mpi_cuda
+		  $(HDF5_LIB) $(CUDA_LIB) -lcudart $(REPRO_MPI_LIB) -o airfoil_mpi_cuda
 
 cuda/airfoil_kernels_mpi_cu.o: cuda/airfoil_kernels.cu \
 		cuda/save_soln_kernel.cu  save_soln.h \
@@ -359,7 +359,7 @@ cuda/airfoil_kernels_mpi_cu.o: cuda/airfoil_kernels.cu \
 		cuda/bres_calc_kernel.cu  bres_calc.h \
 		cuda/update_kernel.cu     update.h    \
 		Makefile
-		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include -Icuda -I. \
+		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) $(REPRO_MPI_INC) -I $(MPI_INSTALL_PATH)/include -Icuda -I. \
 		-c -o cuda/airfoil_kernels_mpi_cu.o cuda/airfoil_kernels.cu
 
 #

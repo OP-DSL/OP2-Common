@@ -4117,6 +4117,8 @@ void coloring_within_process(){
               }
           }
 
+          op_move_repro_coloring_device();
+
           op_free(neighbors_start_idxs);
           op_free(neighbors);
 
@@ -4438,10 +4440,14 @@ void greedy_global_coloring(){
      // op_free(OP_reversed_map_list[m]->reproducible_coloring);
       OP_reversed_map_list[m]->number_of_colors = max_color+1;
       OP_reversed_map_list[m]->color_based_exec = color_based_exec;
+      OP_reversed_map_list[m]->color_based_exec_d = NULL;
       OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;    
+      OP_reversed_map_list[m]->color_based_exec_row_starts_d = NULL;
+    } else {
+      OP_reversed_map_list[m]->color_based_exec_d = NULL;
     }
   }
-  
+  op_move_repro_coloring_device();
     
 }
 
@@ -4479,7 +4485,16 @@ void create_reversed_mapping() {
 
 
     if (set_from_size == 0) {
-      OP_reversed_map_list[m] = NULL;
+      //OP_reversed_map_list[m] = NULL;
+      op_reversed_map rev_map =
+          (op_reversed_map)op_malloc(sizeof(op_reversed_map_core));
+
+      rev_map->index = original_map->index;
+      rev_map->reversed_map = NULL;
+      rev_map->row_start_idx = NULL;
+      OP_reversed_map_list[m] = rev_map;
+
+
     } else {
 
       // create a reversed mapping to temporary increments with local index
