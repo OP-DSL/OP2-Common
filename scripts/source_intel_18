@@ -13,8 +13,9 @@ unset OP_AUTO_SOA
 #export OP_AUTO_SOA=1
 
 #External libraries
-export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Intel-17/
-#export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Intel-18-debug/
+#export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Intel-17/
+#export PARMETIS_INSTALL_PATH=/rr-home/gihan/Hydra/apps_impi/oplus/Ver17.2-125-g4508d71/
+export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Intel-18-debug/
 export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-Intel-17/
 export HDF5_INSTALL_PATH=/opt/hdf5/1.8.18/intel/15.0u6/impi/5.0u3/
 export LD_LIBRARY_PATH=/rr-home/gihan/ParMetis-Intel-17/lib:/rr-home/gihan/PTScotch-Intel-17/:/opt/hdf5/1.8.18/intel/15.0u6/impi/5.0u3/lib:$LD_LIBRARY_PATH
