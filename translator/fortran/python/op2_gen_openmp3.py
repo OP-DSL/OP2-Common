@@ -162,7 +162,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     nargs = kernels[nk]['nargs']
-    dims  = kernels[nk]['dims']
+    dims  = list(kernels[nk]['dims'])
     maps  = kernels[nk]['maps']
     var   = kernels[nk]['var']
     typs  = kernels[nk]['typs']

@@ -250,6 +250,29 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         j = i
     reduct = reduct_1dim or reduct_mdim
 
+    #npdes->DNPDE
+    for g_m in range(0,nargs):
+      if (not dims[g_m].isdigit()) and maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+        if 'npdes' in dims[g_m]:
+          dims[g_m] = dims[g_m].replace('npdes','DNPDE')
+    for g_m in range(0,ninds):
+      if (not inddims[g_m].isdigit()) and indaccs[g_m] == OP_INC:
+        if 'npdes' in dims[g_m]:
+          inddims[g_m] = inddims[g_m].replace('npdes','DNPDE')
+
+#atomics option
+    ind_rw=0
+    ind_inc=0
+    atomics=0
+    for i in range(0,nargs):
+      if maps[i] == OP_MAP and accs[i] == OP_RW:
+        ind_rw=1
+      if maps[i] == OP_MAP and accs[i] == OP_INC:
+        ind_inc=1
+    if not ind_rw and ind_inc:
+      atomics = 1
+#    atomics=0
+
 
 #    for g_m in range(0,nargs):
 #      if dims[g_m] == 'NPDE':
@@ -567,7 +590,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       util.funlist2 = []
 #      print name
       plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
-      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf)
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,[],atomics)
 #      if name == 'SET_QB_BND':
 #        print name
 #        print '\n\n\n'
@@ -665,7 +688,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     if ninds > 0: #indirect loop
       code('& start, end, &')
-      code('& pcol_reord, &')
+      if not atomics:
+        code('& pcol_reord, &')
       code('& setSize)')
     else: #direct loop
       code('& setSize)')
@@ -735,7 +759,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     if ninds > 0: #indirect loop
       code('INTEGER(kind=4), VALUE :: start, end')
-      code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pcol_reord')
+      if not atomics:
+        code('INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pcol_reord')
       code('INTEGER(kind=4), VALUE :: setSize')
       code('')
 
@@ -800,7 +825,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('')
       code('i1 = threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x')
       IF('i1+start<end')
-      code('i3 = pcol_reord(i1+start)')
+
+      if not atomics:
+        code('i3 = pcol_reord(i1+start)')
+      else:
+        code('i3 = i1+start')
       k = []
       for g_m in range(0,nargs):
         #workaround for optional arguments: its map may not exist either
@@ -1105,9 +1134,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
       code('INTEGER(kind=4) :: numberOfIndirectOpDats')
       code('INTEGER(kind=4) :: blockOffset')
-
-      code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pcol_reord')
-      code('INTEGER(kind=4), DIMENSION(:), POINTER :: color2_offsets')
+      if not atomics:
+        code('INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pcol_reord')
+        code('INTEGER(kind=4), DIMENSION(:), POINTER :: color2_offsets')
+      else:
+        code('INTEGER(kind=4) :: itstart, itend')
       code('INTEGER(kind=4) :: partitionSize')
       code('INTEGER(kind=4) :: blockSize')
       code('INTEGER(kind=4) :: i1')
@@ -1165,6 +1196,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
+    code('print *,"'+name+'"')
 
     #managing constants
     if any_soa:
@@ -1202,19 +1234,20 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('partitionSize = getPartitionSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)')
       #code('partitionSize = OP_PART_SIZE_ENV')
       code('')
-      code('planRet_'+name+' = FortranPlanCaller( &')
-      code('& userSubroutine//C_NULL_CHAR, &')
-      code('& set%setCPtr, &')
-      code('& partitionSize, &')
-      code('& numberOfOpDats, &')
-      code('& opArgArray, &')
-      code('& numberOfIndirectOpDats, &')
-      code('& indirectionDescriptorArray,4)')
-      code('')
+      if not atomics:
+        code('planRet_'+name+' = FortranPlanCaller( &')
+        code('& userSubroutine//C_NULL_CHAR, &')
+        code('& set%setCPtr, &')
+        code('& partitionSize, &')
+        code('& numberOfOpDats, &')
+        code('& opArgArray, &')
+        code('& numberOfIndirectOpDats, &')
+        code('& indirectionDescriptorArray,4)')
+        code('')
     else:
       code('')
       if unknown_reduction_size:
-        code('blocksPerGrid = 100')
+        code('blocksPerGrid = 200')
       else:
         code('blocksPerGrid = 600')
       code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
@@ -1247,7 +1280,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             code('opDat'+str(g_m+1)+'Host_tmp = opDat'+str(g_m+1)+'Host') #XLF workaround
     code('')
 
-    if ninds > 0:
+    if ninds > 0 and not atomics:
       code('CALL c_f_pointer(planRet_'+name+',actualPlan_'+name+')')
       code('CALL c_f_pointer(actualPlan_'+name+'%color2_offsets,color2_offsets,(/actualPlan_'+name+'%ncolors+1/))')
       code('CALL c_f_pointer(actualPlan_'+name+'%col_reord,pcol_reord,(/set%setPtr%size+set%setPtr%exec_size/))')
@@ -1261,9 +1294,12 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         code('opGblDat'+str(g_m+1)+'Device'+name+'(1:opArg'+str(g_m+1)+'%dim) = opDat'+str(g_m+1)+'Host(1:opArg'+str(g_m+1)+'%dim)')
     if ninds>0 and reduct:
       code('blocksPerGrid=0')
-      DO('i2','0','actualPlan_'+name+'%ncolors')
-      code('blocksPerGrid = blocksPerGrid+(color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1')
-      ENDDO()
+      if not atomics:
+        DO('i2','0','actualPlan_'+name+'%ncolors')
+        code('blocksPerGrid = blocksPerGrid+(color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1')
+        ENDDO()
+      else:
+        code('blocksPerGrid = (set%setPtr%size+set%setPtr%exec_size-1)/threadsPerBlock+1')
 
     for idx in needDimList:
       dims[idx] = 'opArg'+str(idx+1)+'%dim'
@@ -1296,9 +1332,12 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     if unknown_reduction_size:
       if ninds>0:
         code('blocksPerGrid = 0')
-        DO('i2','0','actualPlan_'+name+'%ncolors')
-        code('blocksPerGrid = MAX(blocksPerGrid,(color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1)')
-        ENDDO()
+        if not atomics:
+          DO('i2','0','actualPlan_'+name+'%ncolors')
+          code('blocksPerGrid = MAX(blocksPerGrid,(color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1)')
+          ENDDO()
+        else:
+          code('blocksPerGrid = MAX((set%setPtr%core_size-1)/threadsPerBlock+1,(set%setPtr%size+set%setPtr%exec_size-set%setPtr%core_size-1)/threadsPerBlock+1)')
       code('call prepareScratch(opArgArray,numberOfOpDats,blocksPerGrid*threadsPerBlock)')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN) and (g_m in needDimList):
@@ -1308,12 +1347,26 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     #indirect loop host stub call
     if ninds > 0:
-      DO('i2','0','actualPlan_'+name+'%ncolors')
-      IF('i2 .EQ. actualPlan_'+name+'%ncolors_core')
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
-      ENDIF()
-      code('')
-      code('blocksPerGrid = (color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1')
+      if not atomics:
+        DO('i2','0','actualPlan_'+name+'%ncolors')
+        IF('i2 .EQ. actualPlan_'+name+'%ncolors_core')
+        code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+        ENDIF()
+        code('')
+        code('blocksPerGrid = (color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1')
+      else:
+        DO('i2','0','2')
+        IF('i2 .EQ. 1')
+        code('itstart = set%setPtr%core_size')
+        code('itend = set%setPtr%size+set%setPtr%exec_size')
+        code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+        ELSE()
+        code('itstart = 0')
+        code('itend = set%setPtr%core_size')
+        ENDIF()
+        code('')
+        code('blocksPerGrid = (itend-itstart-1)/threadsPerBlock+1')
+
       code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
       code('')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
@@ -1343,9 +1396,12 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
             code('& opDat'+str(g_m+1)+'Host_tmp, &') #XLF workaround
-
-      code('& color2_offsets(i2+1), color2_offsets(i2+2), &')
-      code('& pcol_reord,set%setPtr%size+set%setPtr%exec_size)')
+      if not atomics:
+        code('& color2_offsets(i2+1), color2_offsets(i2+2), &')
+        code('& pcol_reord,set%setPtr%size+set%setPtr%exec_size)')
+      else:
+        code('& itstart, itend, &')
+        code('& set%setPtr%size+set%setPtr%exec_size)')
       ENDDO()
       code('')
     else: #direct loop host stub call
@@ -1369,10 +1425,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('set%setPtr%size)')
 
     code('')
-    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
-    code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
-    ENDIF()
-    code('')
+    if not atomics:
+      IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
+      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+      ENDIF()
+      code('')
 
     code('')
     code('CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)')
@@ -1447,7 +1504,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
-      code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      if not atomics:
+        code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+      else:
+        code('& endTime-startTime, 0.00000_4, 0.00000_4, 1)')
     else:
       code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
 
