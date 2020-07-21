@@ -50,7 +50,7 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
 //
 
 #include "op_lib_mpi.h"
-#include "op_lib_cpp.h"
+#include  "op_lib_cpp.h"
 
 //
 // op_par_loop declarations
@@ -264,9 +264,8 @@ int main(int argc, char **argv) {
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
-
   create_reversed_mapping();
-  
+
   op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size,
             bnodes->size);
   nnode = op_get_size(nodes);
@@ -299,7 +298,7 @@ int main(int argc, char **argv) {
     double beta = 0;
 
     // c1 = R'*R;
-    op_par_loop_init_cg("init_cg",nodes,                    
+    op_par_loop_init_cg("init_cg",nodes,
                 op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_READ),
                 op_arg_gbl(&c1,1,"double",OP_INC),
                 op_arg_dat(p_U,-1,OP_ID,1,"double",OP_WRITE),
@@ -334,7 +333,7 @@ int main(int argc, char **argv) {
       // U = U + alpha*P;
       // resm = resm-alpha*V;
       op_par_loop_updateUR("updateUR",nodes,
-                  op_arg_dat(p_U,-1,OP_ID,1,"double",OP_INC),           //TODO!!!! -- ??
+                  op_arg_dat(p_U,-1,OP_ID,1,"double",OP_INC),
                   op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_INC),
                   op_arg_dat(p_P,-1,OP_ID,1,"double",OP_READ),
                   op_arg_dat(p_V,-1,OP_ID,1,"double",OP_RW),
@@ -350,7 +349,7 @@ int main(int argc, char **argv) {
       // P = beta*P+resm;
       op_par_loop_updateP("updateP",nodes,
                   op_arg_dat(p_resm,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_dat(p_P,-1,OP_ID,1,"double",OP_RW),        //TODO ez igazabol inc?
+                  op_arg_dat(p_P,-1,OP_ID,1,"double",OP_RW),
                   op_arg_gbl(&beta,1,"double",OP_READ));
       c1 = c3;
       res = sqrt(c1);
@@ -366,10 +365,9 @@ int main(int argc, char **argv) {
     op_printf("rms = %3.15E iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
   }
 
-    op_fetch_data_hdf5_file(p_U, "repr_comp_p_U.h5");  
-    
   op_timing_output();
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
+  op_fetch_data_hdf5_file(p_phim, "repr_comp_p_phim.h5");
   op_exit();
 }

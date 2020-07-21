@@ -32,7 +32,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   arg9.idx = 0;
   args[9] = arg9;
   for ( int v=1; v<4; v++ ){
-    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_RW);
+    args[9 + v] = op_opt_arg_dat(arg9.opt, arg9.dat, v, arg9.map, 1, "double", OP_INC);
   }
 
   arg13.idx = 0;
@@ -55,91 +55,115 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
-  
+    op_map prime_map_pcell = arg9.map;
+    op_reversed_map rev_map_pcell = OP_reversed_map_list[prime_map_pcell->index];
 
-    op_map prime_map = arg9.map; //TODO works only with arg9...
-    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
-    
-            op_mpi_wait_all(nargs, args);
+    if (rev_map_pcell != NULL ) {
+      int prime_map_pcell_dim = prime_map_pcell->dim;
+      int set_from_size_pcell = prime_map_pcell->from->size + prime_map_pcell->from->exec_size;
+      int set_to_size_pcell = prime_map_pcell->to->size + prime_map_pcell->to->exec_size + prime_map_pcell->to->nonexec_size;
 
-    if (rev_map != NULL) {
-     /*   int prime_map_dim = prime_map->dim;
-        int set_from_size = prime_map->from->size + prime_map->from->exec_size ;
-        int set_to_size = prime_map->to->size + prime_map->to->exec_size + prime_map->to->nonexec_size;
-
-        int required_tmp_incs_size = set_from_size * prime_map_dim * arg9.dat->size;
-    
-        if (op_repr_incs[arg9.dat->index].tmp_incs == NULL){
-            op_repr_incs[arg9.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size);
-            op_repr_incs[arg9.dat->index].tmp_incs_size = required_tmp_incs_size;
-        } else if (op_repr_incs[arg9.dat->index].tmp_incs_size < required_tmp_incs_size){
-            op_realloc(op_repr_incs[arg9.dat->index].tmp_incs, required_tmp_incs_size);
-            op_repr_incs[arg9.dat->index].tmp_incs_size = required_tmp_incs_size;
+      double *tmp_incs9 = NULL;
+      if (arg9.opt) {
+        int required_tmp_incs_size9 = set_from_size_pcell * prime_map_pcell_dim * arg9.dat->size;
+        if (op_repr_incs[arg9.dat->index].tmp_incs == NULL) {
+          op_repr_incs[arg9.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size9);
+          op_repr_incs[arg9.dat->index].tmp_incs_size = required_tmp_incs_size9;
         }
-
-        double *tmp_incs = (double *)op_repr_incs[arg9.dat->index].tmp_incs;
-
-        for (int i=0; i<set_from_size * prime_map_dim * arg9.dim; i++){
-          tmp_incs[i]=0.0;
-        }*/
-
-
-        
-     /*   for ( int n=0; n<set_size; n++ ){
-          if (n==set->core_size) {
-            op_mpi_wait_all(nargs, args);
-          }*/
-          for (int c=0; c<rev_map->number_of_colors;c++){
-            for ( int i=rev_map->color_based_exec_row_starts[c]; i<rev_map->color_based_exec_row_starts[c+1]; i++ ){
-                int n=rev_map->color_based_exec[i];
-          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-          int map2idx = arg0.map_data[n * arg0.map->dim + 2];
-          int map3idx = arg0.map_data[n * arg0.map->dim + 3];
-
-          const double* arg0_vec[] = {
-             &((double*)arg0.data)[2 * map0idx],
-             &((double*)arg0.data)[2 * map1idx],
-             &((double*)arg0.data)[2 * map2idx],
-             &((double*)arg0.data)[2 * map3idx]};
-          const double* arg4_vec[] = {
-             &((double*)arg4.data)[1 * map0idx],
-             &((double*)arg4.data)[1 * map1idx],
-             &((double*)arg4.data)[1 * map2idx],
-             &((double*)arg4.data)[1 * map3idx]};
-          double* arg9_vec[] = {
-             &((double*)arg9.data)[1 * map0idx],
-             &((double*)arg9.data)[1 * map1idx],
-             &((double*)arg9.data)[1 * map2idx],
-             &((double*)arg9.data)[1 * map3idx]};
-     /*     double* arg9_vec[] = {
-             &tmp_incs[(n*prime_map_dim+0)*arg9.dim],
-             &tmp_incs[(n*prime_map_dim+1)*arg9.dim],
-             &tmp_incs[(n*prime_map_dim+2)*arg9.dim],
-             &tmp_incs[(n*prime_map_dim+3)*arg9.dim]};*/
-          double* arg13_vec[] = {
-             &((double*)arg13.data)[2 * map0idx],
-             &((double*)arg13.data)[2 * map1idx],
-             &((double*)arg13.data)[2 * map2idx],
-             &((double*)arg13.data)[2 * map3idx]};
-
-          res_calc(
-            arg0_vec,
-            arg4_vec,
-            &((double*)arg8.data)[16 * n],
-            arg9_vec,
-            arg13_vec);
+        else
+        if (op_repr_incs[arg9.dat->index].tmp_incs_size < required_tmp_incs_size9) {
+          op_realloc(op_repr_incs[arg9.dat->index].tmp_incs, required_tmp_incs_size9);
+          op_repr_incs[arg9.dat->index].tmp_incs_size = required_tmp_incs_size9;
         }
-        
+        tmp_incs9 = (double *)op_repr_incs[arg9.dat->index].tmp_incs;
+      }
+
+      double *tmp_incs13 = NULL;
+      if (arg13.opt) {
+        int required_tmp_incs_size13 = set_from_size_pcell * prime_map_pcell_dim * arg13.dat->size;
+        if (op_repr_incs[arg13.dat->index].tmp_incs == NULL) {
+          op_repr_incs[arg13.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size13);
+          op_repr_incs[arg13.dat->index].tmp_incs_size = required_tmp_incs_size13;
+        }
+        else
+        if (op_repr_incs[arg13.dat->index].tmp_incs_size < required_tmp_incs_size13) {
+          op_realloc(op_repr_incs[arg13.dat->index].tmp_incs, required_tmp_incs_size13);
+          op_repr_incs[arg13.dat->index].tmp_incs_size = required_tmp_incs_size13;
+        }
+        tmp_incs13 = (double *)op_repr_incs[arg13.dat->index].tmp_incs;
+      }
+
+      for ( int n=0; n<set_size; n++ ){
+        if (n==set->core_size) {
+          op_mpi_wait_all(nargs, args);
+        }
+        int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+        int map1idx = arg0.map_data[n * arg0.map->dim + 1];
+        int map2idx = arg0.map_data[n * arg0.map->dim + 2];
+        int map3idx = arg0.map_data[n * arg0.map->dim + 3];
+
+        const double* arg0_vec[] = {
+           &((double*)arg0.data)[2 * map0idx],
+           &((double*)arg0.data)[2 * map1idx],
+           &((double*)arg0.data)[2 * map2idx],
+           &((double*)arg0.data)[2 * map3idx]};
+        const double* arg4_vec[] = {
+           &((double*)arg4.data)[1 * map0idx],
+           &((double*)arg4.data)[1 * map1idx],
+           &((double*)arg4.data)[1 * map2idx],
+           &((double*)arg4.data)[1 * map3idx]};
+        double* arg9_vec[] = {
+          &tmp_incs9[(n*prime_map_pcell_dim+0)*1],
+          &tmp_incs9[(n*prime_map_pcell_dim+1)*1],
+          &tmp_incs9[(n*prime_map_pcell_dim+2)*1],
+          &tmp_incs9[(n*prime_map_pcell_dim+3)*1]};
+        double* arg13_vec[] = {
+          &tmp_incs13[(n*prime_map_pcell_dim+0)*2],
+          &tmp_incs13[(n*prime_map_pcell_dim+1)*2],
+          &tmp_incs13[(n*prime_map_pcell_dim+2)*2],
+          &tmp_incs13[(n*prime_map_pcell_dim+3)*2]};
+
+        if (arg9.opt) {
+          for ( int i=0; i<prime_map_pcell_dim * 1; i++ ){
+            tmp_incs9[i+n*prime_map_pcell_dim * 1]=(double)0.0;
           }
-     /*   for ( int n=0; n<set_to_size; n++ ){
-            for ( int i=0; i<rev_map->row_start_idx[n+1] - rev_map->row_start_idx[n]; i++){
-                for (int d=0; d<arg9.dim; d++){
-                    ((double*)arg9.data)[arg9.dim * n + d] +=
-                    tmp_incs[rev_map->reversed_map[rev_map->row_start_idx[n]+i] * arg9.dim + d];
-                }
+        }
+
+        if (arg13.opt) {
+          for ( int i=0; i<prime_map_pcell_dim * 2; i++ ){
+            tmp_incs13[i+n*prime_map_pcell_dim * 2]=(double)0.0;
+          }
+        }
+
+        res_calc(
+          arg0_vec,
+          arg4_vec,
+          &((double*)arg8.data)[16 * n],
+          arg9_vec,
+          arg13_vec);
+      }
+
+      if (arg9.opt) {
+        for ( int n=0; n<set_to_size_pcell; n++ ){
+          for ( int i=0; i<rev_map_pcell->row_start_idx[n+1] - rev_map_pcell->row_start_idx[n]; i++ ){
+            for ( int d=0; d<arg9.dim; d++ ){
+              ((double*)arg9.data)[arg9.dim * n + d] += 
+                tmp_incs9[rev_map_pcell->reversed_map[rev_map_pcell->row_start_idx[n]+i] * arg9.dim + d];
             }
-        }*/
+          }
+        }
+      }
+
+      if (arg13.opt) {
+        for ( int n=0; n<set_to_size_pcell; n++ ){
+          for ( int i=0; i<rev_map_pcell->row_start_idx[n+1] - rev_map_pcell->row_start_idx[n]; i++ ){
+            for ( int d=0; d<arg13.dim; d++ ){
+              ((double*)arg13.data)[arg13.dim * n + d] += 
+                tmp_incs13[rev_map_pcell->reversed_map[rev_map_pcell->row_start_idx[n]+i] * arg13.dim + d];
+            }
+          }
+        }
+      }
     }
   }
 

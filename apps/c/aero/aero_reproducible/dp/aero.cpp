@@ -196,6 +196,7 @@ int main(int argc, char **argv) {
   op_diagnostic_output();
 
   op_partition("PTSCOTCH", "KWAY", cells, pcell, p_xm);
+  create_reversed_mapping();
 
   op_printf("nodes: %d cells: %d bnodes: %d\n", nodes->size, cells->size,
             bnodes->size);
@@ -216,7 +217,7 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_xm, -4, pcell, 2, "double", OP_READ),
                 op_arg_dat(p_phim, -4, pcell, 1, "double", OP_READ),
                 op_opt_arg_dat(1,p_K, -1, OP_ID, 16, "double:soa", OP_WRITE),
-                op_opt_arg_dat(1,p_resm, -4, pcell, 1, "double", OP_RW),
+                op_opt_arg_dat(1,p_resm, -4, pcell, 1, "double", OP_INC),
                 op_opt_arg_dat(0,p_none, -4, pcell, 2, "double", OP_INC));
 
     op_par_loop(dirichlet, "dirichlet", bnodes,
@@ -293,11 +294,12 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&rms, 1, "double", OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
+    op_printf("rms = %3.15e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
   }
 
   op_timing_output();
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
+  op_fetch_data_hdf5_file(p_phim, "repr_comp_p_phim.h5");
   op_exit();
 }

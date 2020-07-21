@@ -137,7 +137,17 @@ def op2_gen_seq(master, date, consts, kernels):
 
     j = 0
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] != OP_READ:
+      if maps[i] == OP_MAP and accs[i] == OP_RW:
+        j = i
+    ind_rw = j > 0
+
+    #if we have an indirect RW, we can't do temp array
+    if reproducible==1 and repr_temp_array==1 and ind_rw==1:
+      repr_temp_array==0
+
+    j = 0
+    for i in range(0,nargs):
+      if maps[i] == OP_GBL and accs[i] <> OP_READ:
         j = i
     reduct = j > 0
 
@@ -302,6 +312,9 @@ def op2_gen_seq(master, date, consts, kernels):
                 
                 if not first in k:
                   k = k + [first] 
+                  code('double *tmp_incs{0} = NULL;\n'.format(first))
+                  if optflags[g_m]==1:
+                    IF('ARG.opt')
                   code('int required_tmp_incs_size{0} = set_from_size_{1} * prime_map_{1}_dim * arg{0}.dat->size;\n'.format(first,mapnames[first]))
                   
                   IF('op_repr_incs[arg{0}.dat->index].tmp_incs == NULL'.format(first))
@@ -314,10 +327,12 @@ def op2_gen_seq(master, date, consts, kernels):
                   code('op_realloc(op_repr_incs[arg{0}.dat->index].tmp_incs, required_tmp_incs_size{0});\n'.format(first))
                   code('op_repr_incs[arg{0}.dat->index].tmp_incs_size = required_tmp_incs_size{0};\n'.format(first))
                   ENDIF()
-                  code('double *tmp_incs{0} = (double *)op_repr_incs[arg{0}.dat->index].tmp_incs;\n'.format(first))
+                  code('tmp_incs{0} = (double *)op_repr_incs[arg{0}.dat->index].tmp_incs;\n'.format(first))
                   # FOR('i','0','set_from_size_{0} * prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
                   # code('tmp_incs{0}[i]=0.0;\n'.format(first))
                   # ENDFOR()
+                  if optflags[g_m]==1:
+                    ENDIF()
                   code('')
 
 
@@ -371,7 +386,10 @@ def op2_gen_seq(master, date, consts, kernels):
         
           indent = ' '*(depth+2)
           for k in range(0,sum(v)):
-            line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
+            if reproducible and repr_temp_array and accs[g_m]==OP_INC:
+              line = line + indent + '&tmp_incs'+str(first)+'[(n*prime_map_'+mapnames[g_m]+'_dim+'+str(k)+')*'+str(dims[g_m])+'],\n'
+            else:
+              line = line + indent + ' &((<TYP>*)arg'+str(first)+'.data)[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
           line = line[:-2]+'};'
           code(line)
       code('')
@@ -387,9 +405,13 @@ def op2_gen_seq(master, date, consts, kernels):
           
           if not first in k:
             k = k + [first] 
-            FOR('i','0','prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
-            code('tmp_incs{0}[i+n*prime_map_{1}_dim * arg{0}.dim]=(TYP)0.0;\n'.format(first,mapnames[first]))
+            if optflags[g_m]==1:
+              IF('ARG.opt')
+            FOR('i','0','prime_map_'+mapnames[first]+'_dim * '+str(dims[g_m]))
+            code('tmp_incs'+str(first)+'[i+n*prime_map_'+mapnames[first]+'_dim * '+str(dims[g_m])+']=(TYP)0.0;\n')
             ENDFOR()
+            if optflags[g_m]==1:
+              ENDIF()
             code('')
 
       line = name+'('
@@ -398,19 +420,11 @@ def op2_gen_seq(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+' * n]'
         if maps[g_m] == OP_MAP: 
-          if reproducible and repr_temp_array and accs[g_m]==OP_INC:
-            first=0
-            nth=-1
-            for i in range(0,g_m+1):
-              if maps[g_m]==maps[i] and var[g_m]==var[i]:
-                if first==0:
-                  first=i
-                nth=nth+1
-            
-            line = line + indent + '&tmp_incs{0}[(n*prime_map_{2}_dim+{1})*arg{0}.dim]'.format(first,nth,mapnames[first])
-          elif vectorised[g_m]:
+          if vectorised[g_m]:
             if g_m+1 in unique_args:
                 line = line + indent + 'arg'+str(g_m)+'_vec'
+          elif reproducible and repr_temp_array and accs[g_m]==OP_INC:
+            line = line + indent + '&tmp_incs'+str(invinds[inds[g_m]-1])+'[(n*prime_map_'+mapnames[g_m]+'_dim+'+str(idxs[g_m])+')*'+str(dims[g_m])+']'
           else:
             line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
@@ -463,15 +477,17 @@ def op2_gen_seq(master, date, consts, kernels):
               if not first in k:   
                 code('')
                 k = k + [first]
+                if optflags[g_m]==1:
+                    IF('ARG.opt')
                 FOR('n','0','set_to_size_'+str(mapnames[first]))
                 FOR('i','0','rev_map_{0}->row_start_idx[n+1] - rev_map_{0}->row_start_idx[n]'.format(mapnames[first]))
                 FOR('d','0','arg{0}.dim'.format(first))
                 code('((double*)arg{0}.data)[arg{0}.dim * n + d] += \n'.format(first)+' '*(depth+2)+'tmp_incs{0}[rev_map_{1}->reversed_map[rev_map_{1}->row_start_idx[n]+i] * arg{0}.dim + d];'.format(first,mapnames[first]))
                 ENDFOR()
-                
                 ENDFOR()
-                
                 ENDFOR()
+                if optflags[g_m]==1:
+                    ENDIF()
       
     
     if repro_if:
