@@ -252,7 +252,7 @@ def get_arg_dat(arg_string, j):
 #  if 'DNPDE' in temp_dat['dim']:
 #    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
 #  if 'npdes' in temp_dat['dim']:
-#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','DNPDE')
 #  if 'nfcrow' in temp_dat['dim']:
 #    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
 #  if 'ntqmu' in temp_dat['dim']:

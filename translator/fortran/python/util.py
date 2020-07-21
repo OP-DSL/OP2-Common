@@ -119,7 +119,17 @@ def get_stride_string(g_m,maps,stride,set_name):
     idx = stride[g_m]
     return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
-def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra,bookleaf,stride=[]):
+def get_stride_string_mapnames(g_m,maps,mapnames,set_name):
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  if maps[g_m] == OP_ID:
+    return 'direct_stride_OP2CONSTANT'
+  if maps[g_m] == OP_GBL:
+    return '(gridDim%x*blockDim%x)'
+  else:
+    idx = mapnames.index(mapnames[g_m])
+    return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
+
+def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra,bookleaf,stride=[],atomics=0):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   name = funcs[idx]['function_name']
   if len(stride)==0:
@@ -131,9 +141,13 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
         stride[g_m] = mapnames.index(mapnames[g_m])
   if funcs[idx]['soa_converted'] == 0:
     funcs[idx]['soaflags'] = soaflags
+    if atomics:
+      funcs[idx]['function_text'] = replace_atomics(funcs[idx]['function_text'],
+                          len(funcs[idx]['args']),
+                          funcs[idx]['args'], name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride,atomics)
     funcs[idx]['function_text'] = replace_soa(funcs[idx]['function_text'],
                           len(funcs[idx]['args']),
-                          soaflags, name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride)
+                          soaflags, name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride,atomics)
   funcs[idx]['soa_converted'] = 1
   for idx_funcall in range(0,len(funcs[idx]['calls'])):
     funcall = funcs[idx]['calls'][idx_funcall]
@@ -173,7 +187,57 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
     funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,stride2)
   return funcs
 
-def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,stride=[]):
+def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,stride=[],atomics=0):
+  if not atomics:
+    return text
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
+  OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
+  need_istat = 0
+  for g_m in range(0,nargs):
+    if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+      p = re.compile('\\b'+varlist[g_m]+'\\b')
+      nmatches = len(p.findall(text))
+      loc1 = 0;
+      idd = 0
+      while idd < nmatches:
+        loc1 = loc1 + p.search(text[loc1:]).start()
+        if idd < 2: #variable declaration in function name, and its type
+          loc1 = loc1 + len(varlist[g_m]) + p.search(text[loc1+ len(varlist[g_m]):]).start()
+          idd = idd + 1
+          continue
+ 
+        #look for a = a + x expression and swap it for istat = atomicInc(a,x)
+        line,beg,end = get_full_line(text,loc1)
+        if len(line.strip())>4 and line.strip().lower()[0:5]=='call ':
+            end=beg #this is a function call, should mnot substitute with atomic add
+            loc1 = loc1 + len(varlist[g_m])
+        else:
+          line = line.replace('&','')
+          line = line.replace('\n','')
+          j = line.find('=')
+          expr = re.escape(line[0:j].strip())
+          m = re.search(expr+r'\s*=\s*'+expr+r'\s*(\+|\-)(.*)',line)
+          if m is None:
+              print 'ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_INC, but seems not to be: '+line
+          text = text[:loc1] + 'istat = atomicAdd('+line[0:j].strip()+','+ m.group(1)+ m.group(2)+')' + text[end:]
+          idd = idd + 1
+          loc1 = end
+          need_istat = 1
+        idd = idd + 1
+  if need_istat:
+    k = re.search(r'implicit\s*none',text,re.IGNORECASE)
+    if k is not None:
+      k2 = k.start()+text[k.start():].find('\n')
+    else:
+      k2 = endj+text[endj:].find('\n')
+    text=text[0:k2+1]+'       integer*4 istat\n'+text[k2+1:]
+  return text
+
+
+
+
+def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,stride=[],atomics=0):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
@@ -205,7 +269,10 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
       loc1 = endj
       p = re.compile('\\b'+varlist[g_m]+'\\b')
       nmatches = len(p.findall(text[loc1:]))
-      for id in range(0,nmatches):
+      idd = 0
+      while idd < nmatches:
+        idd = idd + 1
+#      for id in range(0,nmatches):
         #Search for the next occurence
         i = p.search(text[loc1:])
         #Skip commented out ones
@@ -288,6 +355,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
           #Continue search after this instance of the variable
           loc1 = loc1+i.start() + len(macro)
 
+
   return text
 
 def convert_F90(text):
@@ -332,6 +400,40 @@ def comment_line(text, i):
       nextline_end = lineend+1+text[lineend+1:].find('\n')
       line = text[lineend:nextline_end]
     return text, i-orig_i
+
+#i may point into the middle of the line...
+def get_full_line(text, i):
+    orig_i = i
+    linebegin = text[0:i].rfind('\n')
+    lineend = i+text[i:].find('\n')
+    line = text[linebegin:lineend]
+    full_line = line
+    full_line_begin = linebegin
+    full_line_end = lineend
+    #comment this line, shift indices:
+    if len(line.strip())>0 and line.strip()[0]=='&':
+        #keep going backwards
+        b_lineend = linebegin
+        b_linebegin = text[0:b_lineend].rfind('\n')
+        line = text[b_linebegin:b_lineend]
+	full_line = line + full_line
+        full_line_begin = b_linebegin
+        while len(line.strip())>0 and line.strip()[0]=='&':
+            b_lineend = b_linebegin
+            b_linebegin = text[0:b_lineend].rfind('\n')
+            line = text[b_linebegin:b_lineend]
+	    full_line = line + full_line
+            full_line_begin = b_linebegin
+    nextline_end = lineend+1+text[lineend+1:].find('\n')
+    line = text[lineend:nextline_end]
+    while len(line.strip())>0 and line.strip()[0]=='&':
+      full_line = full_line+line
+      full_line_end = nextline_end
+      text = text[0:lineend+1]+'!'+text[lineend+1:]
+      lineend = nextline_end
+      nextline_end = lineend+1+text[lineend+1:].find('\n')
+      line = text[lineend:nextline_end]
+    return full_line, full_line_begin, full_line_end
 
 def remove_jm76(text):
   jm76_funs = ['SET_RGAS_RATIOS', 'INITGAS0', 'INITGAS1', 'INITGAS2', 'INITFUEL', 'INITVAP0', 'TOTALTP', 'TOTALP', 'TOTALT', 'STATICTP', 'QSTATICTP', 'USTATICTP', 'FLOWSPEED', 'DREALGA', 'SPECS', 'REALPHI', 'REALH', 'REALCP', 'REALRG', 'REALT', 'ISENT', 'ISENP']
