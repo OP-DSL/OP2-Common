@@ -60,9 +60,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
         op_repr_incs[arg6.dat->index].tmp_incs_size = required_tmp_incs_size6;
       }
       double *tmp_incs6 = (double *)op_repr_incs[arg6.dat->index].tmp_incs;
-      for ( int i=0; i<set_from_size_pecell * prime_map_pecell_dim * arg6.dim; i++ ){
-        tmp_incs6[i]=0.0;
-      }
 
       for ( int n=0; n<set_size; n++ ){
         if (n==set->core_size) {
@@ -73,6 +70,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int map2idx = arg2.map_data[n * arg2.map->dim + 0];
         int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
+
+        for ( int i=0; i<prime_map_pecell_dim * arg6.dim; i++ ){
+          tmp_incs6[i+n*prime_map_pecell_dim * arg6.dim]=(double)0.0;
+        }
 
         res_calc(
           &((double*)arg0.data)[2 * map0idx],

@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
     rms = sqrt(rms / (double)g_ncell);
 
     if (iter % 100 == 0)
-      op_printf(" %d  %10.5e \n", iter, rms);
+      op_printf(" %d  %3.15E \n", iter, rms);
 
     if (iter % 1000 == 0 &&
         g_ncell == 720000) { // defailt mesh -- for validation testing

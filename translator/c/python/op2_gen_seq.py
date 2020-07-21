@@ -315,9 +315,9 @@ def op2_gen_seq(master, date, consts, kernels):
                   code('op_repr_incs[arg{0}.dat->index].tmp_incs_size = required_tmp_incs_size{0};\n'.format(first))
                   ENDIF()
                   code('double *tmp_incs{0} = (double *)op_repr_incs[arg{0}.dat->index].tmp_incs;\n'.format(first))
-                  FOR('i','0','set_from_size_{0} * prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
-                  code('tmp_incs{0}[i]=0.0;\n'.format(first))
-                  ENDFOR()
+                  # FOR('i','0','set_from_size_{0} * prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
+                  # code('tmp_incs{0}[i]=0.0;\n'.format(first))
+                  # ENDFOR()
                   code('')
 
 
@@ -375,6 +375,22 @@ def op2_gen_seq(master, date, consts, kernels):
           line = line[:-2]+'};'
           code(line)
       code('')
+
+      k=[]
+      for g_m in range(0,nargs):              
+        if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+          first=0
+          for i in range(0,g_m+1):
+            if maps[g_m]==maps[i] and var[g_m]==var[i]:
+              first=i
+              break
+          
+          if not first in k:
+            k = k + [first] 
+            FOR('i','0','prime_map_{0}_dim * arg{1}.dim'.format(mapnames[first],first))
+            code('tmp_incs{0}[i+n*prime_map_{1}_dim * arg{0}.dim]=(TYP)0.0;\n'.format(first,mapnames[first]))
+            ENDFOR()
+            code('')
 
       line = name+'('
       indent = '\n'+' '*(depth+2)

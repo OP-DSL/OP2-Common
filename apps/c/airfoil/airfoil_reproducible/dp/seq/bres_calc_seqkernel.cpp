@@ -56,9 +56,6 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         op_repr_incs[arg4.dat->index].tmp_incs_size = required_tmp_incs_size4;
       }
       double *tmp_incs4 = (double *)op_repr_incs[arg4.dat->index].tmp_incs;
-      for ( int i=0; i<set_from_size_pbecell * prime_map_pbecell_dim * arg4.dim; i++ ){
-        tmp_incs4[i]=0.0;
-      }
 
       for ( int n=0; n<set_size; n++ ){
         if (n==set->core_size) {
@@ -68,6 +65,10 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int map1idx = arg0.map_data[n * arg0.map->dim + 1];
         int map2idx = arg2.map_data[n * arg2.map->dim + 0];
 
+
+        for ( int i=0; i<prime_map_pbecell_dim * arg4.dim; i++ ){
+          tmp_incs4[i+n*prime_map_pbecell_dim * arg4.dim]=(double)0.0;
+        }
 
         bres_calc(
           &((double*)arg0.data)[2 * map0idx],
