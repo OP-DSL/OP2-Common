@@ -324,6 +324,22 @@ module OP2_Fortran_Declarations
 
     end function
 
+    INTEGER(kind=c_int) function op_get_size_local_c ( set ) BIND(C,name='op_get_size_local')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
+    INTEGER(kind=c_int) function op_get_size_local_exec_c ( set ) BIND(C,name='op_get_size_local_exec')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
 
     type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
@@ -1897,6 +1913,30 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     op_get_size = op_get_size_c ( set%setCPtr )
 
   end function op_get_size
+
+  INTEGER function op_get_size_local (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local = op_get_size_local_c ( set%setCPtr )
+
+  end function op_get_size_local
+
+  INTEGER function op_get_size_local_exec (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local_exec = op_get_size_local_exec_c ( set%setCPtr )
+
+  end function op_get_size_local_exec
 
   type(op_arg) function op_arg_gbl_python_r8_scalar ( dat, dim, type, access )
 
