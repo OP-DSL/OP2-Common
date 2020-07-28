@@ -10,6 +10,9 @@
 # OP2_COMPILER (gnu,intel,etc)
 #
 
+#REPRO_MPI_INSTALL_PATH
+#REPRO_MPI_LIB_PATH
+
 #
 # set paths for header files and libraries
 #
@@ -104,6 +107,10 @@ ifeq ($(NV_ARCH),Kepler)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+endif
 endif
 endif
 endif
@@ -120,7 +127,8 @@ ifdef MAX_REG_COUNT
   endif
 endif
 
-NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo  #-g -G -O0
+#NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo  #-g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math $(REG_COUNT) -lineinfo  -g -G -O0
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 
@@ -138,7 +146,7 @@ endif
 
 PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr -lscotch
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz

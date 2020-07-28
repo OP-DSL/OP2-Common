@@ -106,6 +106,32 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  reproducible = 1
+  repr_temp_array = 0
+  repr_coloring = 1
+
+  if reproducible and repr_temp_array and repr_coloring:
+    repr_coloring = 0
+  if reproducible and repr_temp_array:
+    for nk in range (0,len(kernels)):
+      name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
+              ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
+              unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
+      
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP:
+          for g_m in range(0,ninds):
+            if indaccs[g_m] == OP_RW:
+              print('Warning - OP_RW reproducibility is not supported with temporary array method. Changing to reproducible coloring.')
+              repr_temp_array = 0
+              repr_coloring = 1
+              break
+        if repr_coloring:
+          break
+      if repr_coloring:
+        break
+
+
   inc_stage=0
   op_color2=0
   op_color2_force=1
@@ -911,7 +937,31 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('')
       code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
-    IF('set_size > 0')    
+#
+# for reproducible incs method
+#
+    
+    repro_if=0
+    if reproducible:
+      if repr_coloring:
+        if ninds>0:
+          if nmaps > 0:
+            line='set->size > 0 && '
+            for g_m in range(0,nargs):
+              if (accs[g_m] == OP_INC or accs[g_m] == OP_RW) and maps[g_m] == OP_MAP:
+                code('op_map prime_map = ARG.map;\n')
+                code('op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];\n')
+                line = line + 'rev_map != NULL && '
+                code('')
+                repro_if=1
+                break
+            
+            if repro_if:
+              IF(line[:-3])
+        if not repro_if:
+          IF('set->size > 0')
+    else:
+      IF('set->size > 0')
     code('')
 
 #
@@ -1026,6 +1076,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('mvReductArraysToDevice(reduct_bytes);')
       code('')
 
+
+
+    if repro_if:
+    #if repr_coloring:
+      code('op_mpi_wait_all_cuda(nargs, args);')
+
 #
 # kernel call for indirect version
 #
@@ -1034,7 +1090,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if not op_color2:
         code('')
         code('int block_offset = 0;')
-      FOR('col','0','Plan->ncolors')
+      if repro_if and repr_coloring:
+        FOR('col','0','rev_map->number_of_colors')
+      else:
+        FOR('col','0','Plan->ncolors')
       IF('col==Plan->ncolors_core')
       code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
@@ -1044,14 +1103,19 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int nthread = OP_block_size;')
       code('#endif')
       code('')
-      if op_color2:
-        code('int start = Plan->col_offsets[0][col];')
-        code('int end = Plan->col_offsets[0][col+1];')
+      if repro_if and repr_coloring:
+        code('int start = rev_map->color_based_exec_row_starts[col];')
+        code('int end = rev_map->color_based_exec_row_starts[col+1];')
         code('int nblocks = (end - start - 1)/nthread + 1;')
       else:
-        code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
-        code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
-        IF('Plan->ncolblk[col] > 0')
+        if op_color2:
+          code('int start = Plan->col_offsets[0][col];')
+          code('int end = Plan->col_offsets[0][col+1];')
+          code('int nblocks = (end - start - 1)/nthread + 1;')
+        else:
+          code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
+          code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
+          IF('Plan->ncolblk[col] > 0')
 
       if reduct or (inc_stage==1 and ind_inc):
         if reduct and inc_stage==1:
@@ -1084,18 +1148,23 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('Plan->loc_map,')
         code('Plan->ind_sizes,')
         code('Plan->ind_offs,')
-      if op_color2:
+      if repro_if and repr_coloring:
         code('start,')
         code('end,')
-        code('Plan->col_reord,')
+        code('rev_map->color_based_exec_d,')
       else:
-        code('block_offset,')
-        code('Plan->blkmap,')
-        code('Plan->offset,')
-        code('Plan->nelems,')
-        code('Plan->nthrcol,')
-        code('Plan->thrcol,')
-        code('Plan->ncolblk[col],')
+        if op_color2:
+          code('start,')
+          code('end,')
+          code('Plan->col_reord,')
+        else:
+          code('block_offset,')
+          code('Plan->blkmap,')
+          code('Plan->offset,')
+          code('Plan->nelems,')
+          code('Plan->nthrcol,')
+          code('Plan->thrcol,')
+          code('Plan->ncolblk[col],')
       code('set->size+set->exec_size);')
       code('')
       if reduct:

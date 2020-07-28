@@ -334,6 +334,23 @@ def op2_gen_seq(master, date, consts, kernels):
                   if optflags[g_m]==1:
                     ENDIF()
                   code('')
+      if repr_coloring:        
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            line=''
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+                k = k + [mapnames[g_m]]
+                code('op_map prime_map_'+str(mapnames[g_m])+' = ARG.map;\n')
+                code('op_reversed_map rev_map_'+str(mapnames[g_m])+' = OP_reversed_map_list[prime_map_'+str(mapnames[g_m])+'->index];\n')
+                line = line + 'rev_map_'+str(mapnames[g_m])+' != NULL && '
+                code('')
+                repro_if=1
+            
+            if repro_if:
+              IF(line[:-3])
+
 
 
 
@@ -341,11 +358,17 @@ def op2_gen_seq(master, date, consts, kernels):
 #
 # kernel call for indirect version
 #
-    if ninds>0:
-      FOR('n','0','set_size')
-      IF('n==set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
-      ENDIF()
+    if ninds>0:      
+      if repro_if and repr_coloring:
+        code('op_mpi_wait_all(nargs, args);')
+        FOR('col','0','rev_map_'+str(mapnames[g_m])+'->number_of_colors')
+        FOR('i','rev_map_'+str(mapnames[g_m])+'->color_based_exec_row_starts[col]', 'rev_map_'+str(mapnames[g_m])+'->color_based_exec_row_starts[col + 1]')
+        code('int n = rev_map_'+str(mapnames[g_m])+'->color_based_exec[i];')
+      else: 
+        FOR('n','0','set_size')
+        IF('n==set->core_size')
+        code('op_mpi_wait_all(nargs, args);')
+        ENDIF()
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -435,6 +458,8 @@ def op2_gen_seq(master, date, consts, kernels):
         else:
            line = line +');'
       code(line)
+      if reproducible and repr_coloring and repro_if:
+        ENDFOR()
       ENDFOR()
 
 #
@@ -448,7 +473,7 @@ def op2_gen_seq(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
-          if reproducible:
+          if reproducible:            
             line = line + indent +'&red'+str(g_m)+'['+str(dims[g_m])+'*n]'
           else: 
             line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'

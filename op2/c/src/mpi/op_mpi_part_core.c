@@ -3989,7 +3989,7 @@ void coloring_within_process(){
         {
           // Create a mapping of neighbors for coloring
           int neighbors_size=0;
-          std::vector<std::set<int>> neighbors_sets(set_to_size+1);
+          std::vector<std::set<int> > neighbors_sets(set_to_size+1);
           int *neighbors_start_idxs = (int *)op_malloc((set_to_size+1) * sizeof(int));
           neighbors_start_idxs[0]=0;
 
@@ -4014,7 +4014,9 @@ void coloring_within_process(){
           int* neighbors = (int*)op_malloc(neighbors_size*sizeof(int));
           for (int i=0;i<set_to_size;i++){
               int act_id=neighbors_start_idxs[i];
-              for (int n : neighbors_sets[i]){
+              //for (int n : neighbors_sets[i]){
+              for (std::set<int>::iterator it=neighbors_sets[i].begin(); it!=neighbors_sets[i].end(); it++){
+                  int n=*it;
                   neighbors[act_id++]=n;
               }
               globalIdSort2(&neighbors[neighbors_start_idxs[i]], neighbors_start_idxs[i+1]-neighbors_start_idxs[i], OP_set_global_ids_list[original_map->to->index]->global_ids);
@@ -4099,7 +4101,7 @@ void coloring_within_process(){
           }
 
           //create a map to optimize color based execution. For every colors, there should be a list containing the executed elements with the given color
-          std::vector<std::set<int>> color_based_exec_sets(max_color+1);
+          std::vector<std::set<int> > color_based_exec_sets(max_color+1);
           //std::set<int> color_based_exec_sets[max_color+1];
 
           for (int i=0; i<set_from_size; i++){
@@ -4112,12 +4114,14 @@ void coloring_within_process(){
           for (int i=0; i<max_color+1; i++){
               color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
               int act_id=color_based_exec_row_starts[i];
-              for (int e : color_based_exec_sets[i]){
+              //for (int e : color_based_exec_sets[i]){
+              for (std::set<int>::iterator it=color_based_exec_sets[i].begin(); it!=color_based_exec_sets[i].end(); it++){
+                  int e=*it;
                   color_based_exec[act_id++]=e;
               }
           }
 
-          op_move_repro_coloring_device();
+//          op_move_repro_coloring_device();
 
           op_free(neighbors_start_idxs);
           op_free(neighbors);
@@ -4303,7 +4307,7 @@ void greedy_global_coloring(){
           }
 */
           //create a map to optimize color based execution. For every colors, there should be a list containing the executed elements with the given color
- //         std::vector<std::set<int>> color_based_exec_sets(max_color+1);
+ //         std::vector<std::set<int> > color_based_exec_sets(max_color+1);
  //         //std::set<int> color_based_exec_sets[max_color+1];
  //
  //         for (int i=0; i<set_from_size; i++){
@@ -4418,7 +4422,7 @@ void greedy_global_coloring(){
           }
       }
       
-      std::vector<std::set<int>> color_based_exec_sets(max_color+1);
+      std::vector<std::set<int> > color_based_exec_sets(max_color+1);
       //std::set<int> color_based_exec_sets[max_color+1];
 
       for (int i=0; i<set_from_size; i++){
@@ -4431,7 +4435,9 @@ void greedy_global_coloring(){
       for (int i=0; i<max_color+1; i++){
           color_based_exec_row_starts[i+1]=color_based_exec_row_starts[i]+color_based_exec_sets[i].size();
           int act_id=color_based_exec_row_starts[i];
-          for (int e : color_based_exec_sets[i]){
+          //for (int e : color_based_exec_sets[i]){
+          for (std::set<int>::iterator it=color_based_exec_sets[i].begin(); it!=color_based_exec_sets[i].end(); it++){
+              int e=*it;
               color_based_exec[act_id++]=e;
           }
       }
@@ -4447,7 +4453,7 @@ void greedy_global_coloring(){
       OP_reversed_map_list[m]->color_based_exec_d = NULL;
     }
   }
-  op_move_repro_coloring_device();
+//  op_move_repro_coloring_device();
     
 }
 
@@ -4570,6 +4576,7 @@ void create_reversed_mapping() {
 
   //coloring_within_process();
   greedy_global_coloring();
+  op_move_repro_coloring_device();
   
 }
 
