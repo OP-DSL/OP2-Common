@@ -103,17 +103,67 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   }
   memcpy(d, data, sizeof(char) * set->size * dim * size);
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  // op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
+
+  free(data); // free user allocated data block ?
+
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
     if (item->dat == out_dat) {
-      item->orig_ptr = data;
+      item->orig_ptr = d;
       break;
     }
   }
+  // printf(" op2 pointer for dat %s = %lu  ", name, (unsigned long)d);
   out_dat->user_managed = 0;
   return out_dat;
+}
+
+unsigned long op_get_data_ptr(op_dat d) { return (unsigned long)(d->data); }
+
+unsigned long op_get_data_ptr2(char *data) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->orig_ptr == data) {
+      item_dat = item->dat;
+      break;
+    }
+  }
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for dat with %p pointer\n", data);
+  }
+  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
+  //  item_dat->name, item->orig_ptr, item_dat->data);
+
+  // set orig pointer
+  item->orig_ptr = item_dat->data;
+
+  return (unsigned long)(item->orig_ptr);
+}
+
+unsigned long op_get_map_ptr(op_map m) { return (unsigned long)(m->map); }
+
+extern int **OP_map_ptr_list;
+unsigned long op_copy_map_to_fort(int *map) {
+
+  op_map item_map = NULL;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+
+  int *m = (int *)malloc(item_map->from->size * item_map->dim * sizeof(int));
+  memcpy(m, item_map->map, item_map->from->size * item_map->dim * sizeof(int));
+  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
+    m[i]++;
+  return (unsigned long)(m);
 }
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,

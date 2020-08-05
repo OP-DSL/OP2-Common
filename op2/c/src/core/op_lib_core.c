@@ -356,7 +356,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
-  OP_map_ptr_list[OP_map_index-1] = imap;
+  OP_map_ptr_list[OP_map_index - 1] = m;
   //printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
 
   return map;
@@ -560,8 +560,9 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
          (arg.idx >= arg.map->dim || arg.idx < -1 * arg.map->dim)))
       op_err_print("invalid index", m, name);
 
-    if (arg.dat->dim != arg.dim)
+    if (arg.dat->dim != arg.dim) {
       op_err_print("dataset dim does not match declared dim", m, name);
+    }
 
     if (strcmp(arg.dat->type, arg.type)) {
       if ((strcmp(arg.dat->type, "double") == 0 && (int)arg.type[0] == 114 &&
@@ -1111,7 +1112,8 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
     tmp_item = TAILQ_NEXT(item, entries);
     if (item->orig_ptr == dat) {
       //printf("%s(%p), ", item->dat->name, item->dat->data);
-      item_dat = item->dat; break;
+      item_dat = item->dat;
+      break;
     }
   }
   //printf("\n");
@@ -1127,10 +1129,6 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
     printf("ERROR: op_map not found for %p pointer\n", map);
     for (int i = 0; i < OP_map_index; i++) printf("%s (%p) ",OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
-
-  //printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
-  //if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
-
   return op_arg_dat_core(item_dat, idx, item_map, dim, type, acc);
 }
 
