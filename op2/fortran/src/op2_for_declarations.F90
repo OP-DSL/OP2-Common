@@ -741,7 +741,7 @@ module OP2_Fortran_Declarations
     end subroutine set_maps_base_c
 
    INTEGER(8) function op_get_data_ptr_c ( data ) BIND(C,name='op_get_data_ptr')
-      use, intrinsic :: ISO_C_BINDING
+     use, intrinsic :: ISO_C_BINDING
      import :: op_dat_core
      type(op_dat_core) :: data
    end function
@@ -752,9 +752,14 @@ module OP2_Fortran_Declarations
    end function
 
    INTEGER(8) function op_get_map_ptr_c ( map ) BIND(C,name='op_get_map_ptr')
-      use, intrinsic :: ISO_C_BINDING
+     use, intrinsic :: ISO_C_BINDING
      import :: op_map_core
      type(op_map_core) :: map
+   end function
+
+   INTEGER(8) function op_get_map_ptr2_c ( map ) BIND(C,name='op_get_map_ptr2')
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value, intent(in) :: map
    end function
 
    INTEGER(8) function op_copy_map_to_fort_c ( map ) BIND(C,name='op_copy_map_to_fort')
@@ -832,6 +837,9 @@ module OP2_Fortran_Declarations
     module procedure op_get_data_ptr, op_get_data_ptr2_r8, op_get_data_ptr2_i4
   end interface op_get_data_ptr
 
+  interface op_get_map_ptr
+    module procedure op_get_map_ptr, op_get_map_ptr2
+  end interface op_get_map_ptr
 
 contains
 
@@ -2795,13 +2803,22 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_get_data_ptr2_i4
 
-
+  ! get the pointer of the data held in an op_map
   INTEGER(8) function op_get_map_ptr(map)
     use, intrinsic :: ISO_C_BINDING
     type(op_map)         :: map
     op_get_map_ptr = op_get_map_ptr_c( map%mapPtr)
 
   end function op_get_map_ptr
+
+    ! get the pointer of the map held in an op_dat (via the original pointer) - i4
+  INTEGER(8) function op_get_map_ptr2(map)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), target :: map
+    op_get_map_ptr2 = op_get_map_ptr2_c(c_loc(map))
+
+  end function op_get_map_ptr2
+
 
   INTEGER(8) function op_copy_map_to_fort(map)
     use, intrinsic :: ISO_C_BINDING

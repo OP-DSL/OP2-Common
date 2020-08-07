@@ -140,15 +140,41 @@ unsigned long op_get_data_ptr2(char *data) {
   // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
   //  item_dat->name, item->orig_ptr, item_dat->data);
 
-  // set orig pointer
+  // reset orig pointer
   item->orig_ptr = item_dat->data;
 
   return (unsigned long)(item->orig_ptr);
 }
 
+
 unsigned long op_get_map_ptr(op_map m) { return (unsigned long)(m->map); }
 
 extern int **OP_map_ptr_list;
+
+unsigned long op_get_map_ptr2(int *map) {
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      idx = i;
+      break;
+    }
+  }
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+  }
+  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
+  //  item_dat->name, item->orig_ptr, item_dat->data);
+
+  // reset orig pointer
+  OP_map_ptr_list[idx] = item_map->map;
+
+  return (unsigned long)(item_map->map);
+}
+
 unsigned long op_copy_map_to_fort(int *map) {
 
   op_map item_map = NULL;
