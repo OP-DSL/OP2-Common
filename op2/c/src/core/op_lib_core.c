@@ -541,7 +541,8 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set){
       //op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset set %p (%s) does not match loop set %p (%s)\n", arg.dat->set, arg.dat->set->name, set, set->name );
+        printf("dataset dat %s with data pointer %lu, on set %p (%s) does not match loop set %p (%s)\n",
+          arg.dat->name, arg.dat->data, arg.dat->set, arg.dat->set->name, set, set->name );
     }
 
     if (arg.map != NULL) {
@@ -1120,6 +1121,11 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
   }
+  if(strcmp(item_dat->name,"x")== 0 || strcmp(item_dat->name, "pjaca") == 0 ||
+    strcmp(item_dat->name, "ewt") == 0 ||  strcmp(item_dat->name, "vol") == 0)
+  printf(" Found OP2 pointer for dat %s orig_ptr = %lu, dat->data = %lu  \n",
+  item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
+
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
     if (OP_map_ptr_list[i] == map) {item_map = OP_map_list[i]; break;}

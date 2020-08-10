@@ -3253,7 +3253,7 @@ int op_get_size_local(op_set set) {
  *******************************************************************************/
 
 int op_get_size_local_exec(op_set set) {
-  return set->exec_size;
+  return set->exec_size+set->size;
 }
 
 /*******************************************************************************

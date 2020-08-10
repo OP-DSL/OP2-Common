@@ -837,9 +837,9 @@ module OP2_Fortran_Declarations
     module procedure op_get_data_ptr, op_get_data_ptr2_r8, op_get_data_ptr2_i4
   end interface op_get_data_ptr
 
-  interface op_get_map_ptr
-    module procedure op_get_map_ptr, op_get_map_ptr2
-  end interface op_get_map_ptr
+  !interface op_get_map_ptr
+  !  module procedure op_get_map_ptr, op_get_map_ptr2
+  !end interface op_get_map_ptr
 
 contains
 

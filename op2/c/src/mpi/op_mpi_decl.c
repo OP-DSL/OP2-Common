@@ -137,8 +137,8 @@ unsigned long op_get_data_ptr2(char *data) {
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %p pointer\n", data);
   }
-  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
-  //  item_dat->name, item->orig_ptr, item_dat->data);
+   printf(" op2 pointer for dat %s before = %lu, after change = %lu  \n",
+   item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
 
   // reset orig pointer
   item->orig_ptr = item_dat->data;
