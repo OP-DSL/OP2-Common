@@ -105,17 +105,17 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
   // op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
 
-  free(data); // free user allocated data block ?
-
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
     if (item->dat == out_dat) {
-      item->orig_ptr = d;
+      item->orig_ptr = data;
       break;
     }
   }
+  //free(data); // free user allocated data block ?
+
   // printf(" op2 pointer for dat %s = %lu  ", name, (unsigned long)d);
   out_dat->user_managed = 0;
   return out_dat;
@@ -137,8 +137,8 @@ unsigned long op_get_data_ptr2(char *data) {
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %p pointer\n", data);
   }
-   printf(" op2 pointer for dat %s before = %lu, after change = %lu  \n",
-   item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
+   //printf(" op2 pointer for dat %s before = %lu, after change = %lu  \n",
+   //item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
 
   // reset orig pointer
   item->orig_ptr = item_dat->data;

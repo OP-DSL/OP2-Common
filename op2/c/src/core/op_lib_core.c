@@ -356,7 +356,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
-  OP_map_ptr_list[OP_map_index - 1] = m;
+  OP_map_ptr_list[OP_map_index - 1] = imap;//m;
   //printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
 
   return map;
@@ -1121,10 +1121,10 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
   }
-  if(strcmp(item_dat->name,"x")== 0 || strcmp(item_dat->name, "pjaca") == 0 ||
-    strcmp(item_dat->name, "ewt") == 0 ||  strcmp(item_dat->name, "vol") == 0)
-  printf(" Found OP2 pointer for dat %s orig_ptr = %lu, dat->data = %lu  \n",
-  item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
+  //if(strcmp(item_dat->name,"x")== 0 || strcmp(item_dat->name, "pjaca") == 0 ||
+    //strcmp(item_dat->name, "ewt") == 0 ||  strcmp(item_dat->name, "vol") == 0)
+  //printf(" Found OP2 pointer for dat %s orig_ptr = %lu, dat->data = %lu  \n",
+  //item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
 
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
