@@ -996,6 +996,8 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
           strcmp(dat->type, "double precision") == 0 ||
           strcmp(dat->type, "real(8)") == 0) {
         //if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j]) <
+        if (((double *)dat->data)[i * dat->dim + j] == -0.0 )
+          ((double *)dat->data)[i * dat->dim + j] = +0.0;
         if (fprintf(fp, " %+2.15lE", ((double *)dat->data)[i * dat->dim + j]) <
             0) {
           printf("error writing to %s\n", file_name);
@@ -1169,4 +1171,60 @@ void op_dat_write_index(op_set set, int* dat) {
 void op_print_dat_to_txtfile2(int *dat, const char *file_name) {
   op_arg arg = op_arg_dat_ptr(1, (char *)dat, -2, NULL, 1, "int", OP_WRITE);
   op_print_dat_to_txtfile_core(arg.dat, file_name);
+}
+
+
+/*******************************************************************************
+ * Common routines for accessing inernally held OP2 maps
+ *******************************************************************************/
+
+unsigned long op_get_map_ptr(op_map m) { return (unsigned long)(m->map); }
+
+extern int **OP_map_ptr_list;
+
+unsigned long op_get_map_ptr2(int *map) {
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      idx = i;
+      break;
+    }
+  }
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+  }
+  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
+  //  item_dat->name, item->orig_ptr, item_dat->data);
+
+  // reset orig pointer
+  OP_map_ptr_list[idx] = item_map->map;
+
+  return (unsigned long)(item_map->map);
+}
+
+unsigned long op_copy_map_to_fort(int *map) {
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+  }
+
+  int *m = (int *)malloc(item_map->from->size * item_map->dim * sizeof(int));
+  memcpy(m, item_map->map, item_map->from->size * item_map->dim * sizeof(int));
+  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
+    m[i]++;
+
+  return (unsigned long)(m);
 }
