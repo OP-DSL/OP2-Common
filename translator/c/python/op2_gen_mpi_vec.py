@@ -294,12 +294,12 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
             #code('<TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
             #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            code('DECLARE_PTR_ALIGNED(ptr'+str(g_m)+',<TYP>_ALIGN);')
 
           else:
             code('ALIGNED_<TYP> const <TYP> * __restrict__ ptr'+\
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            code('DECLARE_PTR_ALIGNED(ptr'+str(g_m)+',<TYP>_ALIGN);')
             #code('const <TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
             #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
 
@@ -661,10 +661,16 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#define ALIGNED_double __attribute__((aligned(double_ALIGN)))')
   code('#define ALIGNED_float __attribute__((aligned(float_ALIGN)))')
   code('#define ALIGNED_int __attribute__((aligned(int_ALIGN)))')
+  code('  #ifdef __ICC')
+  code('    #define DECLARE_PTR_ALIGNED(X, Y) __assume_aligned(X, Y)')
+  code('  #else')
+  code('    #define DECLARE_PTR_ALIGNED(X, Y)')
+  code('  #endif')
   code('#else')
   code('#define ALIGNED_double')
   code('#define ALIGNED_float')
   code('#define ALIGNED_int')
+  code('#define DECLARE_PTR_ALIGNED(X, Y)')
   code('#endif')
   code('')
 
