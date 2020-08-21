@@ -15,6 +15,7 @@ import os
 import op2_gen_common
 
 insert_thread_timers = os.getenv('OP_TIME_THREADS', False);
+record_cpuids = os.getenv('OP_RECORD_CPUIDS', False);
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -158,6 +159,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('include '+name+'.inc')
     elif CPP:
       code('#include "../'+decl_filepath+'"')
+      if record_cpuids:
+        code('#include <sched.h>')
 
 ##########################################################################
 # then C++ stub function
@@ -214,7 +217,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('')
     comm(' initialise timers')
     code('double cpu_t1, cpu_t2, wall_t1, wall_t2;')
-    if insert_thread_timers:
+    if insert_thread_timers or record_cpuids:
       code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
     else:
       code('op_timing_realloc('+str(nk)+');')
@@ -518,6 +521,17 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
     else:
         code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    if record_cpuids:
+      code('if (OP_kernels[' +str(nk)+ '].cpu_ids[0] == -1) {')
+      depth += 2
+      code('#pragma omp parallel')
+      code('{')
+      depth += 2
+      code('OP_kernels[' +str(nk)+ '].cpu_ids[omp_get_thread_num()] = sched_getcpu();')
+      depth -= 2
+      code('}')
+      depth -= 2
+      code('}')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'

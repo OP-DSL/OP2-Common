@@ -188,8 +188,8 @@ void op_timings_to_csv(const char *outputFileName) {
     printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
   }
   else {
-    // fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-    fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi stencil time,mpi collectives time,GB used,GB total,kernel name\n");
+    // fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi stencil time,mpi collectives time,GB used,GB total,kernel name\n");
+    fprintf(outputFile, "rank,thread,cpuid,nranks,nthreads,count,total time,plan time,mpi stencil time,mpi collectives time,GB used,GB total,kernel name\n");
   }
 
   if (outputFile != NULL) {
@@ -203,7 +203,6 @@ void op_timings_to_csv(const char *outputFileName) {
         }
         
         double plan_time = OP_kernels[n].plan_time;
-        // double mpi_time = OP_kernels[n].mpi_time;
         for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
           double kern_time = OP_kernels[n].times[thr];
           if (thr > 0 && kern_time == 0.0) {
@@ -211,21 +210,23 @@ void op_timings_to_csv(const char *outputFileName) {
           }
           if (thr==0)
             fprintf(outputFile, 
-                    // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                    "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
-                    0, thr, 1, OP_kernels[n].ntimes, 
+                    // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
+                    // 0, thr, 
+                    "%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
+                    0, thr, OP_kernels[n].cpu_ids[thr],
+                    1, OP_kernels[n].ntimes, 
                     OP_kernels[n].count, kern_time, plan_time, 
-                    // mpi_time, 
                     OP_kernels[n].mpi_stencil, OP_kernels[n].mpi_collectives, 
                     OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
                     OP_kernels[n].name);
           else
             fprintf(outputFile, 
-                    // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                    "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
-                    0, thr, 1, OP_kernels[n].ntimes, 
+                    // "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
+                    // 0, thr, 
+                    "%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
+                    0, thr, OP_kernels[n].cpu_ids[thr],
+                    1, OP_kernels[n].ntimes, 
                     OP_kernels[n].count, kern_time, 0.0f, 
-                    // 0.0f, 
                     0.0f, 0.0f,
                     0.0f, 0.0f,
                     OP_kernels[n].name);

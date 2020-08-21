@@ -14,6 +14,8 @@ import datetime
 import os
 import op2_gen_common
 
+record_cpuids = os.getenv('OP_RECORD_CPUIDS', False);
+
 def comm(line):
   global file_text, FORTRAN, CPP
   global depth
@@ -155,6 +157,8 @@ def op2_gen_seq(master, date, consts, kernels):
       code('include '+name+'.inc')
     elif CPP:
       code('#include "../'+decl_filepath+'"')
+      if record_cpuids:
+        code('#include <sched.h>')
 
 ##########################################################################
 # then C++ stub function
@@ -347,6 +351,12 @@ def op2_gen_seq(master, date, consts, kernels):
     code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
+    if record_cpuids:
+      code('if (OP_kernels['+str(nk)+'].cpu_ids[0] == -1) {')
+      depth += 2
+      code('OP_kernels['+str(nk)+'].cpu_ids[0] = sched_getcpu();')
+      depth -= 2
+      code('}')
 
     if ninds == 0:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
