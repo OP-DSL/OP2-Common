@@ -326,7 +326,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
     code('')
     for g_m in range(0,nargs):
@@ -340,7 +340,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       code('')
       code('int ncolors = 0;')
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     code('')
     #managing constants
     if any_soa:

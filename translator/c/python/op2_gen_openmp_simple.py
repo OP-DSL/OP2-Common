@@ -257,7 +257,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
 #
 # set number of threads in x86 execution and create arrays for reduction
@@ -289,7 +289,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           ENDFOR()
 
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     code('')
 
 #
