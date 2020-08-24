@@ -387,7 +387,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
 # get part and block size
@@ -417,7 +417,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('int ncolors = 0;')
       code('int set_size1 = set->size + set->exec_size;')
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     #managing constants
     if any_soa:
       code('')

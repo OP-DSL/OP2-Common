@@ -232,7 +232,7 @@ def op2_gen_seq(master, date, consts, kernels):
     code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     code('')
 
 #

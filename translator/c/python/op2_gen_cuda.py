@@ -660,7 +660,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 #
 # start timing
 #
@@ -670,7 +670,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
     code('op_timers_core(&cpu_t1, &wall_t1);')
     code('')
 
-    IF('set->size > 0')
+    IF('set_size > 0')
     code('')
     code('op_timing_realloc('+str(nk)+');')
     code('OP_kernels[' +str(nk)+ '].name      = name;')
