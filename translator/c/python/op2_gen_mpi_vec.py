@@ -217,9 +217,14 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r'('+var2+'\[[\w\(\)\+\-\*\s\\\\]*\]'+')', r'\1'+'[idx]', body_text)
+          array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
+          ## Replace "+=" with "=". Otherwise leaving them can confuse the compiler's auto-vectoriser (e.g. Clang), 
+          ## and assignment is safe anyway with these intermediate arrays:
+          body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
+          ## Append vector array access:
+          body_text = re.sub(r'('+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
 
-          var = var + '[*][SIMD_VEC]'
+          var = var + '[][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
         new_signature_text +=  var+', '
 
