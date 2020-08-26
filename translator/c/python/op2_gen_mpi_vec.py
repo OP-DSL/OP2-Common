@@ -225,7 +225,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
 
       #add ( , idx and )
-      signature_text = "inline " + head_text + '( '+new_signature_text + 'int idx ) {'
+      signature_text = "#if defined __clang__ || defined __GNUC__\n"
+      signature_text += "__attribute__((always_inline))\n"
+      signature_text += "#endif\n"
+      signature_text += "inline " + head_text + '( '+new_signature_text + 'int idx ) {'
       #finally update name
       signature_text = signature_text.replace(name,name+'_vec')
 
