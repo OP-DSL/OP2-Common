@@ -303,7 +303,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   // set exec length
   int exec_length = set->size;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].opt && args[i].idx != -1 && args[i].acc != OP_READ) {
+    if (args[i].argtype == OP_ARG_DAT && args[i].opt && args[i].idx != -1 && args[i].acc != OP_READ) {
       exec_length += set->exec_size;
       break;
     }

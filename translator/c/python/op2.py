@@ -46,6 +46,7 @@ from op2_gen_mpi_vec import op2_gen_mpi_vec
 # import OpenMP and CUDA code generation functions
 from op2_gen_openmp_simple import op2_gen_openmp_simple
 from op2_gen_openmp import op2_gen_openmp
+from op2_gen_omp_vec import op2_gen_omp_vec
 
 from op2_gen_openacc import op2_gen_openacc
 
@@ -920,6 +921,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   op2_gen_seq(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
   # Vec translator is not yet ready for release, eg it cannot translate the 'aero' app.
   op2_gen_mpi_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
+  op2_gen_omp_vec(masterFile, date, consts, kernels) # MPI+GENSEQ with code that gets auto vectorised with intel compiler (version 15.0 and above)
 
   #code generators for OpenMP parallelisation with MPI
   #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
