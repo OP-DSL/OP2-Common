@@ -174,6 +174,7 @@ void quickSort(int arr[], int left, int right) {
   int i = left;
   int j = right;
   int tmp;
+  if (left==right) return;
   int pivot = arr[(left + right) / 2];
 
   // partition
@@ -205,6 +206,7 @@ void quickSort_2(int arr1[], int arr2[], int left, int right) {
   int i = left;
   int j = right;
   int tmp1, tmp2;
+  if (left==right) return;
   int pivot = arr1[(left + right) / 2];
 
   // partition
@@ -239,6 +241,7 @@ void quickSort_2(int arr1[], int arr2[], int left, int right) {
 void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size) {
   if (left < 0 || right <= 0)
     return;
+  if (left==right) return;
   int i = left, j = right;
   int tmp;
   char *tmp_dat = (char *)xmalloc(sizeof(char) * elem_size);
@@ -283,6 +286,7 @@ void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size) {
 *******************************************************************************/
 
 void quickSort_map(int arr[], int map[], int left, int right, int dim) {
+  if (left==right) return;
   int i = left, j = right;
   int tmp;
   int *tmp_map = (int *)xmalloc(sizeof(int) * dim);

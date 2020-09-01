@@ -97,7 +97,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   if (set == NULL || data == NULL)
     return NULL;
   char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
-  if (d == NULL) {
+  if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }

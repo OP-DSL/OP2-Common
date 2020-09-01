@@ -146,7 +146,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   char *d = (char *)xmalloc(set->size * dim * size);
-  if (d == NULL) {
+  if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }
