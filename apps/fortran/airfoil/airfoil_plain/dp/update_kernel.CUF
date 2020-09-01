@@ -17,8 +17,6 @@ USE CUDACONFIGURATIONPARAMS
 
 ! updatevariable declarations
 
-INTEGER(kind=4), CONSTANT :: direct_stride_OP2CONSTANT
-INTEGER(kind=4) :: direct_stride_OP2HOST
 real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice5update
 
 
@@ -93,9 +91,9 @@ SUBROUTINE update_gpu(qold,q,res,adt,rms)
   adti = 1.0 / adt
 
   DO i = 1, 4
-    del = adti * OP2_SOA(res,i, direct_stride_OP2CONSTANT)
-    OP2_SOA(q,i, direct_stride_OP2CONSTANT) = OP2_SOA(qold,i, direct_stride_OP2CONSTANT) - del
-    OP2_SOA(res,i, direct_stride_OP2CONSTANT) = 0.0
+    del = adti * res(i)
+    q(i) = qold(i) - del
+    res(i) = 0.0
     rms(2) = rms(2) + del * del
   END DO
 END SUBROUTINE
@@ -108,7 +106,6 @@ END SUBROUTINE
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
     & opDat4Deviceupdate, &
-    & reductionArrayDevice5,   &
     & setSize)
 
     IMPLICIT NONE
@@ -119,7 +116,6 @@ END SUBROUTINE
     real(8), DEVICE :: opDat3Deviceupdate(*)
     real(8), DEVICE, INTENT(IN) :: opDat4Deviceupdate(*)
 
-    real(8), DIMENSION(:), DEVICE :: reductionArrayDevice5
     real(8), DIMENSION(0:2-1) :: opGblDat5Deviceupdate
 
     INTEGER(kind=4), VALUE :: setSize
@@ -134,9 +130,9 @@ END SUBROUTINE
 ! kernel call
 
       CALL update_gpu( &
-      & opDat1Deviceupdate(1 + i1), &
-      & opDat2Deviceupdate(1 + i1), &
-      & opDat3Deviceupdate(1 + i1), &
+      & opDat1Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
+      & opDat2Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
+      & opDat3Deviceupdate(i1 * (4) + 1: i1 * (4) + 4), &
       & opDat4Deviceupdate(i1 + 1), &
       & opGblDat5Deviceupdate &
       & )
@@ -144,7 +140,7 @@ END SUBROUTINE
 
     do i1=0,2-1,8
     i2 = MIN(i1+8,2)
-      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
+      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5update((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
     end do
 
   END SUBROUTINE
@@ -243,17 +239,14 @@ END SUBROUTINE
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
     & 0.0_8, 0.00000_4,0.00000_4, 0)
-    IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
-      direct_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
-      direct_stride_OP2CONSTANT = direct_stride_OP2HOST
-    END IF
+    print *,"update"
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
     blocksPerGrid = 600
-    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
@@ -286,7 +279,6 @@ END SUBROUTINE
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
     & opDat4Deviceupdate, &
-    & reductionArrayDevice5update, &
     set%setPtr%size)
 
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
@@ -303,8 +295,6 @@ END SUBROUTINE
     END DO
 
     deallocate( reductionArrayHost5 )
-    CALL op_mpi_reduce_double(opArg5,opArg5%data)
-
     istat = cudaDeviceSynchronize()
     call op_timers_core(endTime)
 
