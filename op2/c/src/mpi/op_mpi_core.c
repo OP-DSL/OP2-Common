@@ -3241,60 +3241,6 @@ int op_get_size(op_set set) {
 }
 
 /*******************************************************************************
- * Get the local size of a set
- *******************************************************************************/
-
-int op_get_size_local(op_set set) {
-  return set->size;
-}
-
-/*******************************************************************************
- * Get the local exec size of a set
- *******************************************************************************/
-
-int op_get_size_local_exec(op_set set) {
-  return set->exec_size+set->size;
-}
-
-/*******************************************************************************
- * Routines for accessing inernally held OP2 maps - JM76-type sliding planes
- *******************************************************************************/
-
-unsigned long op_get_data_ptr(op_dat d) {
-  op_download_dat(d);
-  return (unsigned long)(d->data);
-}
-
-unsigned long op_get_data_ptr2(char *data) {
-  op_dat_entry *item;
-  op_dat_entry *tmp_item;
-  op_dat item_dat = NULL;
-  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
-    tmp_item = TAILQ_NEXT(item, entries);
-    if (item->orig_ptr == data) {
-      item_dat = item->dat;
-      break;
-    }
-  }
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", data);
-  }
-   //printf(" op2 pointer for dat %s before = %lu, after change = %lu  \n",
-   //item_dat->name, (unsigned long)item->orig_ptr, (unsigned long)item_dat->data);
-
-  //Download dat from device (if required)
-  op_download_dat(item_dat);
-
-  // reset orig pointer
-  item->orig_ptr = item_dat->data;
-
-  return (unsigned long)(item->orig_ptr);
-}
-
-
-
-
-/*******************************************************************************
  * Old - Sliding planes implementations
  *******************************************************************************/
 

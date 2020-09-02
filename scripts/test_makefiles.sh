@@ -27,7 +27,7 @@ function validate {
 export NV_ARCH=Pascal
 export CUDA_VISIBLE_DEVICES=0,1
 export INTEL_SOURCE=source_intel_18
-export PGI_SOURCE=source_pgi_kos
+export PGI_SOURCE=source_pgi_20_hydra
 export CLANG_SOURCE=source_clang_kos
 
 export CURRENT_DIR=$PWD
@@ -412,6 +412,7 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
+#COMMENT0
 
 ###################################################################################
 ###################################################################################
