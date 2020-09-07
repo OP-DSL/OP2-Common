@@ -418,8 +418,8 @@ void op_timings_to_csv(const char *outputFileName) {
       MPI_Gather(&OP_hdf5_write_time, 1, MPI_DOUBLE, hdf5_write_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
       for (int p=0; p<comm_size; p++) {
         fprintf(outputFile, 
-                "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
-                p, 0, comm_size, 1, 
+                "%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%s\n",
+                p, 0, OP_kernels[0].cpu_ids[0], comm_size, 1, 
                 -1, 0.0f, 0.0f, 
                 0.0f, hdf5_write_times[p], 
                 0.0f, 0.0f, 
