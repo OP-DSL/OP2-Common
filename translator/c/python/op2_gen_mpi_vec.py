@@ -228,12 +228,17 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
 
-          ## Note to developers: the replacement below MAY be needed to vectorize some loops. Take care
-          ## to ensure the regex is finding increments.
-          # if maps[i] == OP_MAP and accs[i] == OP_INC:
-          #   ## Replace increment with write. Otherwise leaving them can confuse the compiler's auto-vectoriser (e.g. Clang), 
-          #   ## and write is safe anyway with these intermediate arrays:
-          #   body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
+          ## It has been observed that vectorisation can fail on loops with increments, 
+          ## but replacing them with writes succeeds.
+          ## For example with Clang on particular loops, vectorisation fails with message:
+          ##   "loop not vectorized: loop control flow is not understood by vectorizer"
+          ## replacing increments with writes solves this.
+          ## Replacement is data-safe due to use of local/intermediate SIMD arrays.
+          ## Hopefully the regex is matching all increments.
+          ## And for loops that were being vectorised, this change can give a small perf boost.
+          if maps[i] == OP_MAP and accs[i] == OP_INC:
+            ## Replace 'var' increments with writes:
+            body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
 
           ## Append vector array access:
           body_text = re.sub(r'('+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
