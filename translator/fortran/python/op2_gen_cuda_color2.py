@@ -1196,7 +1196,6 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
     code('& 0.0_8, 0.00000_4,0.00000_4, 0)')
-    code('print *,"'+name+'"')
 
     #managing constants
     if any_soa:
