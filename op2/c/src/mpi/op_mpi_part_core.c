@@ -47,6 +47,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <sstream>
+#include <string>
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -3546,10 +3548,15 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     for (int m = 0; m < OP_map_index; m++) { 
       op_map original_map = OP_map_list[m];
       
-      char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+  /*    char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
       strcpy(dat_map_name,original_map->name);
       strcat(dat_map_name,"_coloring");
       strcat(dat_map_name,".h5");
+      */
+          std::stringstream ss;
+          ss<<original_map->name<<m<<"_coloring.h5";
+          std::string tmp = ss.str();
+          const char* dat_map_name = tmp.c_str();
             
       if( access( dat_map_name, F_OK ) == -1 ) {
         colorings_ready=false;
@@ -3559,15 +3566,24 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       color_dats = (op_dat*)malloc(OP_map_index*sizeof(op_dat*));
       for (int m=0; m<OP_map_index; m++){
         op_map original_map=OP_map_list[m];
-       char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+   /*    char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
         strcpy(dat_map_name,original_map->name);
         strcat(dat_map_name,"_coloring");
-        strcat(dat_map_name,".h5");
+        strcat(dat_map_name,".h5");*/
+
         
-        char dat_map_name2[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+          std::stringstream ss;
+          ss<<original_map->name<<m<<"_coloring";
+          std::string tmp = ss.str();
+          const char* dat_map_name2 = tmp.c_str();
+          ss<<".h5";
+          std::string tmp2 = ss.str();
+          const char* dat_map_name = tmp2.c_str();
+        
+     /*   char dat_map_name2[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
         strcpy(dat_map_name2,original_map->name);
         strcat(dat_map_name2,"_coloring");
-              
+              */
         //op_dat color_dat = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
         color_dats[m] = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
       }
@@ -4228,11 +4244,17 @@ void greedy_global_coloring(){
   for (int m = 0; m < OP_map_index; m++) { 
     op_map original_map = OP_map_list[m];
     
-    char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
-    strcpy(dat_map_name,original_map->name);
+    //char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1+2];
+   /* strcpy(dat_map_name,original_map->name);
     strcat(dat_map_name,"_coloring");
-    strcat(dat_map_name,".h5");
-          
+    strcat(dat_map_name,".h5");*/
+    std::stringstream ss;
+    ss<<original_map->name<<m<<"_coloring.h5";
+    std::string tmp = ss.str();
+    const char* dat_map_name = tmp.c_str();
+
+    
+
     if( access( dat_map_name, F_OK ) == -1 ) {
       colorings_ready=false;
     }
@@ -4291,6 +4313,18 @@ void greedy_global_coloring(){
                 max_color++;
               }
               
+          }
+
+          //check whether neighbouring edges have different colors
+          for (int i=0; i<set_from_size; i++){
+            for (int d=0; d<original_map->dim; d++){
+              int to_element=original_map->map[i*original_map->dim+d];
+              for (int n_id=rev_map->row_start_idx[to_element]; n_id<rev_map->row_start_idx[to_element+1]; n_id++){
+                int neighbor=rev_map->reversed_map[n_id]/original_map->dim;
+               // if ((i==112615 || i==129493) && i!=neighbor) printf("BBBBBBBBBBBBBBBBBBBBBBBBB id:%d, col:%d, --- neigh: %d, col: %d\n",i,repr_colors[i],neighbor,repr_colors[neighbor]);
+                if (i!=neighbor &&  repr_colors[i] == repr_colors[neighbor]) printf("AAAAAAAAAAAAAAAA %d - %d - col: %d\n",i,neighbor,repr_colors[i]);
+              }
+            }
           }
 
 
@@ -4373,12 +4407,22 @@ void greedy_global_coloring(){
 
           printf("For map %s, from_size: %d, to_size: %d, number of used colors: %d, max_color_length: %d, min_color_length: %d, avg_color_length: %f\n",original_map->name,set_from_size,set_to_size,max_color+1,max_col_size,min_col_size,avg_col_size);
   */
-          char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
+      /*    char dat_map_name[strlen(original_map->name)+1+strlen("_coloring.h5")+1];
           strcpy(dat_map_name,original_map->name);
           strcat(dat_map_name,"_coloring");
+*/
+          std::stringstream ss;
+          ss<<original_map->name<<m<<"_coloring";
+          std::string tmp = ss.str();
+          const char* dat_map_name = tmp.c_str();
+
           op_dat color_dat = op_decl_dat(original_map->from,1,"int",repr_colors,dat_map_name);
-          strcat(dat_map_name,".h5");
-          op_fetch_data_hdf5_file(color_dat,dat_map_name);
+     //     printf("col[6888153]: %d, col[6888155]: %d\n",((int*)color_dat->data)[6888153],((int*)color_dat->data)[6888155]);
+          ss<<".h5";
+          tmp = ss.str();
+          const char* dat_map_file_name = tmp.c_str();
+        //  strcat(dat_map_name,".h5");
+          op_fetch_data_hdf5_file(color_dat,dat_map_file_name);
       } //end of if (set_from_size > 0)     
     } //end of coloring for each map    
   }//end of if (MPI_size==1 && !colorings_ready)
@@ -4407,6 +4451,18 @@ void greedy_global_coloring(){
       op_dat color_dat=color_dats[m];
       op_exchange_halo(&op_arg_dat(color_dat, -1, OP_ID, 1,"int", OP_READ),1);
 
+
+          //check whether neighbouring edges have different colors2
+          for (int i=0; i<set_from_size; i++){
+            for (int d=0; d<original_map->dim; d++){
+              int to_element=original_map->map[i*original_map->dim+d];
+              for (int n_id=rev_map->row_start_idx[to_element]; n_id<rev_map->row_start_idx[to_element+1]; n_id++){
+                int neighbor=rev_map->reversed_map[n_id]/original_map->dim;
+           //     if ((i==112615 || i==129493) && i!=neighbor) printf("CCBBBBBBBBBBBBBBBBBBBBBBBBB id:%d, col:%d, --- neigh: %d, col: %d\n",i,((int*)color_dat->data)[i],neighbor,((int*)color_dat->data)[neighbor]);
+                if (i!=neighbor &&  ((int*)color_dat->data)[i] == ((int*)color_dat->data)[neighbor]) printf("CCAAAAAAAAAAAAAAAA %d - %d - col: %d\n",i,neighbor,((int*)color_dat->data)[i]);
+              }
+            }
+          }
 
 
       //int *repr_colors =  (int*)color_dat->data;
