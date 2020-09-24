@@ -760,7 +760,6 @@ void op_timing_output_core() {
         double moments_time[2];
         op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true, &moments_time[0],
                           &moments_time[1]);
-        // op_compute_moment(OP_kernels[n].mpi_time, 
         double mpi_time = OP_kernels[n].mpi_stencil + OP_kernels[n].mpi_collectives;
         op_compute_moment(mpi_time, 
                           &moments_mpi_time[0],
@@ -881,10 +880,10 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].plan_time = 0.0f;
       OP_kernels[n].transfer = 0.0f;
       OP_kernels[n].transfer2 = 0.0f;
-      // OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].mpi_stencil = 0.0f;
       OP_kernels[n].mpi_collectives = 0.0f;
       OP_kernels[n].name = "unused";
+      OP_kernels[n].cpu_ids = NULL;
     }
     OP_kern_max = OP_kern_max_new;
   }
@@ -895,6 +894,14 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[kernel].times[t] = 0.0f;
     }
     OP_kernels[kernel].ntimes = num_timers;
+  }
+
+  if (OP_kernels[kernel].cpu_ids == NULL) {
+    OP_kernels[kernel].cpu_ids = (int*)op_malloc(num_timers * sizeof(int));
+    for (int t = 0; t < num_timers; t++) {
+      OP_kernels[kernel].cpu_ids[t] = -1;
+    }
+    OP_kernels[kernel].num_cpus = num_timers;
   }
 }
 

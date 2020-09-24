@@ -2247,7 +2247,6 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
   op_free(arg_list);
   op_free(data);
@@ -2305,7 +2304,6 @@ void op_mpi_reduce_float(op_arg *arg, float *data) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
 }
 
@@ -2360,7 +2358,6 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
 }
 
@@ -2415,7 +2412,6 @@ void op_mpi_reduce_int(op_arg *arg, int *data) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
 }
 
@@ -2470,7 +2466,6 @@ void op_mpi_reduce_bool(op_arg *arg, bool *data) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_collectives += t2 - t1;
 }
 
@@ -3106,7 +3101,6 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
   return size;
 }
@@ -3176,7 +3170,6 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
   return size;
 }
@@ -3206,7 +3199,6 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
 }
 
@@ -3217,7 +3209,6 @@ void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
-    // OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
     OP_kernels[OP_kern_curr].mpi_stencil += t2 - t1;
 }
 
