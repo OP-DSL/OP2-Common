@@ -218,6 +218,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
     else:
       code('op_timing_realloc('+str(nk)+');')
+    code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('op_timers_core(&cpu_t1, &wall_t1);')
     if insert_thread_timers:
       code('double non_thread_walltime = 0.0;')
@@ -512,7 +513,6 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('op_timers_core(&cpu_t2, &wall_t2);')
     if insert_thread_timers:
       code('non_thread_walltime += wall_t2 - wall_t1;')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
     code('OP_kernels[' +str(nk)+ '].count    += 1;')
     if insert_thread_timers:
         code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
