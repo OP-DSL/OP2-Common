@@ -383,7 +383,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     else:
       code('')
       IF('OP_diags>2')
-      code('printf(" kernel routine w/o indirection:  '+ name + '");')
+      code('printf(" kernel routine w/o indirection:  '+ name + '\\n");')
       ENDIF()
       code('')
       code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
@@ -407,16 +407,33 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 #
 # transfer constants
 #
+    consts_used = False
     g = [i for i in range(0,nargs) if maps[i] == OP_GBL and (accs[i] == OP_READ or accs[i] == OP_WRITE)]
     if len(g)>0:
+      consts_used = True
       comm('transfer constants to GPU')
       code('int consts_bytes = 0;')
+      # for m in range(0,nargs):
+      #   g_m = m
+      #   if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m] == OP_WRITE):
+      #     code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
+      #     code('allocConstArrays(consts_bytes, "<TYP>");')
+      # code('reallocConstArrays(consts_bytes);')
+      ## SYCL requires buffers be statically typed for target variable, 
+      ## e.g. double. OP2 only has one buffer for consts. Therefore, 
+      ## only load consts of same type
+      const_typ = None
       for m in range(0,nargs):
         g_m = m
         if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m] == OP_WRITE):
+          if const_typ is None:
+            const_typ = typs[g_m]
+          elif const_typ != typs[g_m]:
+            print("Error: cannot mix different types in OP2's SYCL const buffer. Raise to developers.")
+            exit(-1)
           code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
 
-      code('reallocConstArrays(consts_bytes);')
+      code('allocConstArrays(consts_bytes, "{0}");'.format(const_typ))
       code('consts_bytes = 0;')
 
       for m in range(0,nargs):
@@ -428,7 +445,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('((<TYP> *)<ARG>.data)[d] = <ARG>h[d];')
           ENDFOR()
           code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
-      code('mvConstArraysToDevice(consts_bytes);')
+      code('mvConstArraysToDevice(consts_bytes, "<TYP>");')
       code('cl::sycl::buffer<'+gbl_reads+',1> *consts = static_cast<cl::sycl::buffer<'+gbl_reads+',1> *>((void*)OP_consts_d);')
       code('')
 
@@ -479,13 +496,25 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
       code('int reduct_bytes = 0;')
       code('int reduct_size  = 0;')
-
+      # for g_m in range(0,nargs):
+      #   if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+      #     code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
+      #     code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
+      # code('reallocReductArrays(reduct_bytes);')
+      ## SYCL requires buffers be statically typed for target variable, 
+      ## e.g. double. OP2 only has one buffer for reduction. Therefore, 
+      ## can only reduce variables of same type
+      reduct_type = None
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+          if reduct_type is None:
+            reduct_type = typs[g_m]
+          elif reduct_type != typs[g_m]:
+            print("Error: cannot mix different types in OP2's SYCL reduction buffer. Raise to developers.")
+            exit(-1)
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
-
-      code('reallocReductArrays(reduct_bytes);')
+      code('allocReductArrays(reduct_bytes, "{0}");'.format(reduct_type))
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
@@ -501,7 +530,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           ENDFOR()
           ENDFOR()
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
-      code('mvReductArraysToDevice(reduct_bytes);')
+      code('mvReductArraysToDevice(reduct_bytes, "<TYP>");')
       code('cl::sycl::buffer<'+gbl_reducts+',1> *reduct = static_cast<cl::sycl::buffer<'+gbl_reducts+',1> *>((void*)OP_reduct_d);')
       code('')
 
@@ -1159,7 +1188,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     if reduct:
       if ninds == 0:
         comm('transfer global reduction data back to CPU')
-        code('mvReductArraysToHost(reduct_bytes);')
+        code('mvReductArraysToHost(reduct_bytes, "<TYP>");')
 
       for m in range(0,nargs):
         g_m = m
@@ -1191,6 +1220,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         ENDFOR()
         code('<ARG>.data = (char *)<ARG>h;')
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
+
+    if reduct:
+      code('freeReductArrays("<TYP>");')
+    if consts_used:
+      code('freeConstArrays("<TYP>");')
 
     ENDIF()
     code('op_mpi_set_dirtybit_cuda(nargs, args);')
