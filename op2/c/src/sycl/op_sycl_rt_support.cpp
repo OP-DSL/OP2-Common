@@ -56,49 +56,118 @@
 
 int OP_consts_bytes = 0, OP_reduct_bytes = 0;
 
-char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
+char *OP_consts_h=NULL, *OP_consts_d=NULL, *OP_reduct_h=NULL, *OP_reduct_d=NULL;
 
 cl::sycl::queue *op2_queue=NULL;
 
-void op_mvHostToDevice(void **map, int size) {
+void op_mvHostToDevice(void **map, int size, const char* type) {
   if (!OP_hybrid_gpu)
     return;
-  auto *temp = new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
-  void *tmp = (void*) temp;
-  char *data = (char*)(*map);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.copy(data, acc);
+
+  if (strstr(type, "double") != NULL) {
+    auto *temp = new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(size));
+    void *tmp = (void*) temp;
+    double *data = (double*)(*map);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(data, acc);
       });
-  op2_queue->wait();
-#else
-  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
-  for (size_t i = 0; i < size; i++)
-    HostAccessor[i] = data[i];
-#endif
-  free(*map);
-  *map = tmp;
+      op2_queue->wait();
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < size; i++)
+        HostAccessor[i] = data[i];
+    #endif
+    free(*map);
+    *map = tmp;
+
+  } else if (strstr(type, "int") != NULL) {
+    auto *temp = new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(size));
+    void *tmp = (void*) temp;
+    int *data = (int*)(*map);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(data, acc);
+      });
+      op2_queue->wait();
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < size; i++)
+        HostAccessor[i] = data[i];
+    #endif
+    free(*map);
+    *map = tmp;
+
+  } else if (strstr(type, "short") != NULL) {
+    auto *temp = new cl::sycl::buffer<short, 1>(cl::sycl::range<1>(size));
+    void *tmp = (void*) temp;
+    short *data = (short*)(*map);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(data, acc);
+      });
+      op2_queue->wait();
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < size; i++)
+        HostAccessor[i] = data[i];
+    #endif
+    free(*map);
+    *map = tmp;
+
+  } else {
+    op_printf("Error: op_mvHostToDevice() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+void op_cpHostToDevice(void **data_d, void **data_h, int size, const char* type) {
   if (!OP_hybrid_gpu)
     return;
-  if (*data_d != NULL) delete static_cast<cl::sycl::buffer<char, 1> *>((void*)*data_d);
-  auto *buf =  new cl::sycl::buffer<char, 1>(cl::sycl::range<1>(size));
-  *data_d = (void*)buf;
-  char *data = (char*)(*data_h);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*buf).template get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.copy(data, acc);
+
+  if (strstr(type, "double") != NULL) {
+    if (*data_d != NULL)
+      delete static_cast<cl::sycl::buffer<double, 1> *>((void*)*data_d);
+    auto *buf =  new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(size));
+    *data_d = (void*)buf;
+    char *data = (char*)(*data_h);
+
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*buf).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(data, acc);
       });
-  op2_queue->wait();
-#else
-  auto HostAccessor = (*buf).get_access<cl::sycl::access::mode::write>();
-  for (size_t i = 0; i < size; i++)
-    HostAccessor[i] = data[i];
-#endif
+      op2_queue->wait();
+    #else
+      auto HostAccessor = (*buf).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < size; i++) HostAccessor[i] = data[i];
+    #endif
+
+  } else if (strstr(type, "int") != NULL) {
+    if (*data_d != NULL)
+      delete static_cast<cl::sycl::buffer<int, 1> *>((void*)*data_d);
+    auto *buf =  new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(size));
+    *data_d = (void*)buf;
+    char *data = (char*)(*data_h);
+
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*buf).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(data, acc);
+      });
+      op2_queue->wait();
+    #else
+      auto HostAccessor = (*buf).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < size; i++) HostAccessor[i] = data[i];
+    #endif
+
+  } else {
+    op_printf("Error: op_cpHostToDevice() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
@@ -142,7 +211,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
     }
     if (offsets[plan->ninds_staged]>0)
       op_mvHostToDevice((void **)&(plan->ind_map),
-                                offsets[plan->ninds_staged] * set_size * sizeof(int));
+                                offsets[plan->ninds_staged] * set_size * sizeof(int), "int");
     else plan->ind_map = NULL;
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = NULL; // &plan->ind_map[set_size * offsets[m]];
@@ -155,7 +224,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
     short *tmp2 = plan->loc_map;
     if (counter > 0)
       op_mvHostToDevice((void **)&(plan->loc_map),
-                                sizeof(short) * counter * set_size);
+                                sizeof(short) * counter * set_size, "short");
     else plan->loc_map = NULL;
     counter = 0;
     for (int m = 0; m < nargs; m++)
@@ -166,20 +235,20 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
 
     if (plan->ninds_staged>0)
       op_mvHostToDevice((void **)&(plan->ind_sizes),
-          sizeof(int) * plan->nblocks * plan->ninds_staged);
+          sizeof(int) * plan->nblocks * plan->ninds_staged, "int");
     else plan->ind_sizes = NULL;
     if (plan->ninds_staged>0)
       op_mvHostToDevice((void **)&(plan->ind_offs),
-                                sizeof(int) * plan->nblocks * plan->ninds_staged);
+                                sizeof(int) * plan->nblocks * plan->ninds_staged, "int");
     else plan->ind_offs = NULL;
-    op_mvHostToDevice((void **)&(plan->nthrcol), sizeof(int) * plan->nblocks);
-    op_mvHostToDevice((void **)&(plan->thrcol), sizeof(int) * set_size);
-    op_mvHostToDevice((void **)&(plan->col_reord), sizeof(int) * set_size);
-    op_mvHostToDevice((void **)&(plan->offset), sizeof(int) * plan->nblocks);
+    op_mvHostToDevice((void **)&(plan->nthrcol), sizeof(int) * plan->nblocks, "int");
+    op_mvHostToDevice((void **)&(plan->thrcol), sizeof(int) * set_size, "int");
+    op_mvHostToDevice((void **)&(plan->col_reord), sizeof(int) * set_size, "int");
+    op_mvHostToDevice((void **)&(plan->offset), sizeof(int) * plan->nblocks, "int");
     plan->offset_d = plan->offset;
-    op_mvHostToDevice((void **)&(plan->nelems), sizeof(int) * plan->nblocks);
+    op_mvHostToDevice((void **)&(plan->nelems), sizeof(int) * plan->nblocks, "int");
     plan->nelems_d = plan->nelems;
-    op_mvHostToDevice((void **)&(plan->blkmap), sizeof(int) * plan->nblocks);
+    op_mvHostToDevice((void **)&(plan->blkmap), sizeof(int) * plan->nblocks, "int");
     plan->blkmap_d = plan->blkmap;
   }
 
@@ -238,7 +307,10 @@ void *op_sycl_register_const(void *old_p, void *new_p) {
 //
 // routines to resize constant/reduct arrays, if necessary
 //
-
+/*
+// UPDATE: sycl::buffer must be type-specific, no more 'generic' 
+//         sycl::buffer<char>. This rules out realloc methods on a
+//         single global buffer object.
 void reallocConstArrays(int consts_bytes) {
   if (consts_bytes > OP_consts_bytes) {
     if (OP_consts_bytes > 0) {
@@ -264,67 +336,240 @@ void reallocReductArrays(int reduct_bytes) {
     OP_reduct_h = (char*)op_malloc(OP_reduct_bytes);
   }
 }
+*/
+
+//
+// routines to alloc/free constant/reduct arrays
+//
+void allocConstArrays(int consts_bytes, const char* type) {
+  if (OP_consts_d != NULL) {
+    op_printf("Error: allocConstArrays() - OP_consts_d must be NULL\n");
+    exit(-1);
+  }
+
+  OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
+  if (strstr(type, "double") != NULL) {
+    OP_consts_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_consts_bytes));
+  } else if (strstr(type, "int") != NULL) {
+    OP_consts_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_consts_bytes));
+  } else {
+    op_printf("Error: allocConstArrays() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
+  
+  OP_consts_h = (char*)op_malloc(OP_consts_bytes);
+}
+void freeConstArrays(const char* type) {
+  if (OP_consts_d == NULL)
+    return;
+
+  if (OP_consts_d != NULL) {
+    if (strstr(type, "double") != NULL) {
+      delete static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_consts_d);
+    } else if (strstr(type, "int") != NULL) {
+      delete static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_consts_d);
+    } else {
+      op_printf("Error: freeConstArrays() - unrecognised data type '%s'\n", type);
+      exit(-1);
+    }
+    OP_consts_d = NULL;
+
+    free(OP_consts_h); OP_consts_h=NULL;
+  }
+}
+
+void allocReductArrays(int reduct_bytes, const char* type) {
+  if (OP_reduct_d != NULL) {
+    op_printf("Error: allocReductArrays() - OP_reduct_d must be NULL\n");
+    exit(-1);
+  }
+
+  OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
+  if (strstr(type, "double") != NULL) {
+    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_reduct_bytes));
+  } else if (strstr(type, "int") != NULL) {
+    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_reduct_bytes));
+  } else {
+    op_printf("Error: reallocReductArrays() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
+  OP_reduct_h = (char*)op_malloc(OP_reduct_bytes);
+}
+void freeReductArrays(const char* type) {
+  if (OP_reduct_d == NULL)
+    return;
+
+  if (strstr(type, "double") != NULL) {
+    delete static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_reduct_d);
+  } else if (strstr(type, "int") != NULL) {
+    delete static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_reduct_d);
+  } else {
+    op_printf("Error: freeReductArrays() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
+  OP_reduct_d = NULL;
+  
+  free(OP_reduct_h); OP_reduct_h=NULL;
+}
 
 //
 // routines to move constant/reduct arrays
 //
 
-void mvConstArraysToDevice(int consts_bytes) {
-  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.copy(OP_consts_h, acc);
-      });
-#else
-  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
-  for (size_t i = 0; i < consts_bytes; i++)
-    HostAccessor[i] = OP_consts_h[i];
-#endif
+void mvConstArraysToDevice(int consts_bytes, const char* type) {
+  if (OP_consts_d == NULL) {
+    op_printf("Error: mvConstArraysToDevice() - cannot move NULL pointer\n");
+    exit(-1);
+  }
+
+  if (strstr(type, "double") != NULL) {
+    cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_consts_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(OP_consts_h, acc);
+          });
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < consts_bytes; i++)
+        HostAccessor[i] = OP_consts_h[i];
+    #endif
+
+  } else if (strstr(type, "int") != NULL) {
+    cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_consts_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(OP_consts_h, acc);
+          });
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < consts_bytes; i++)
+        HostAccessor[i] = OP_consts_h[i];
+    #endif
+
+  } else {
+    op_printf("Error: mvConstArraysToDevice() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
-void mvConstArraysToHost(int consts_bytes) {
-  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_consts_d);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-      cgh.copy(acc,OP_consts_h);
-      });
-    op2_queue->wait();
-#else
-  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
-  for (size_t i = 0; i < consts_bytes; i++)
-    OP_consts_h[i] = HostAccessor[i];
-#endif
+void mvConstArraysToHost(int consts_bytes, const char* type) {
+  if (OP_consts_d == NULL) {
+    op_printf("Error: mvConstArraysToHost() - cannot move NULL pointer\n");
+    exit(-1);
+  }
+
+  if (strstr(type, "double") != NULL) {
+    cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_consts_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+          cgh.copy(acc,OP_consts_h);
+          });
+        op2_queue->wait();
+    #else
+      const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+      for (size_t i = 0; i < consts_bytes; i++)
+        OP_consts_h[i] = HostAccessor[i];
+    #endif
+
+  } else if (strstr(type, "int") != NULL) {
+    cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_consts_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+          cgh.copy(acc,OP_consts_h);
+          });
+        op2_queue->wait();
+    #else
+      const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+      for (size_t i = 0; i < consts_bytes; i++)
+        OP_consts_h[i] = HostAccessor[i];
+    #endif
+
+  } else {
+    op_printf("Error: mvConstArraysToHost() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
-void mvReductArraysToDevice(int reduct_bytes) {
-  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.copy(OP_reduct_h, acc);
-      });
-#else
-  auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
-  for (size_t i = 0; i < reduct_bytes; i++)
-    HostAccessor[i] = OP_reduct_h[i];
-#endif
+void mvReductArraysToDevice(int reduct_bytes, const char* type) {
+  if (OP_reduct_d == NULL) {
+    op_printf("Error: mvReductArraysToDevice() - cannot move NULL pointer\n");
+    exit(-1);
+  }
+
+  if (strstr(type, "double") != NULL) {
+    cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_reduct_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(OP_reduct_h, acc);
+          });
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < reduct_bytes; i++)
+        HostAccessor[i] = OP_reduct_h[i];
+    #endif
+
+  } else if (strstr(type, "int") != NULL) {
+    cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_reduct_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
+          cgh.copy(OP_reduct_h, acc);
+          });
+    #else
+      auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
+      for (size_t i = 0; i < reduct_bytes; i++)
+        HostAccessor[i] = OP_reduct_h[i];
+    #endif
+
+  } else {
+    op_printf("Error: mvReductArraysToDevice() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
-void mvReductArraysToHost(int reduct_bytes) {
-  cl::sycl::buffer<char, 1> *temp = static_cast<cl::sycl::buffer<char, 1> *>((void*)OP_reduct_d);
-#ifdef SYCL_COPY
-  op2_queue->submit([&](cl::sycl::handler &cgh) {
-      auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-      cgh.copy(acc,OP_reduct_h);
-      });
-    op2_queue->wait();
-#else
-  const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
-  for (size_t i = 0; i < reduct_bytes; i++)
-    OP_reduct_h[i] = HostAccessor[i];
-#endif
+void mvReductArraysToHost(int reduct_bytes, const char* type) {
+  if (OP_reduct_d == NULL) {
+    op_printf("Error: mvReductArraysToHost() - cannot move NULL pointer\n");
+    exit(-1);
+  }
+
+  if (strstr(type, "double") != NULL) {
+    cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_reduct_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+          cgh.copy(acc,OP_reduct_h);
+          });
+        op2_queue->wait();
+    #else
+      const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+      for (size_t i = 0; i < reduct_bytes; i++)
+        OP_reduct_h[i] = HostAccessor[i];
+    #endif
+
+  } else if (strstr(type, "int") != NULL) {
+    cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_reduct_d);
+    #ifdef SYCL_COPY
+      op2_queue->submit([&](cl::sycl::handler &cgh) {
+          auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
+          cgh.copy(acc,OP_reduct_h);
+          });
+        op2_queue->wait();
+    #else
+      const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
+      for (size_t i = 0; i < reduct_bytes; i++)
+        OP_reduct_h[i] = HostAccessor[i];
+    #endif
+
+  } else {
+    op_printf("Error: mvReductArraysToHost() - unrecognised data type '%s'\n", type);
+    exit(-1);
+  }
 }
 
 //
