@@ -496,9 +496,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and ((not (optflags[g_m]*nargs+mapinds[g_m]) in k) and (not mapinds[g_m] in      k)):
-          k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
           if optflags[g_m]==1:
             IF('optflags & 1<<'+str(optidxs[g_m]))
+          else:
+            k = k + [(optflags[g_m]*nargs+mapinds[g_m])]
 
           code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
