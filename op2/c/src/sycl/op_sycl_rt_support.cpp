@@ -65,6 +65,7 @@ void op_mvHostToDevice(void **map, int size, const char* type) {
     return;
 
   if (strstr(type, "double") != NULL) {
+    size = size / sizeof(double);
     auto *temp = new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(size));
     void *tmp = (void*) temp;
     double *data = (double*)(*map);
@@ -83,6 +84,7 @@ void op_mvHostToDevice(void **map, int size, const char* type) {
     *map = tmp;
 
   } else if (strstr(type, "int") != NULL) {
+    size = size / sizeof(int);
     auto *temp = new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(size));
     void *tmp = (void*) temp;
     int *data = (int*)(*map);
@@ -101,6 +103,7 @@ void op_mvHostToDevice(void **map, int size, const char* type) {
     *map = tmp;
 
   } else if (strstr(type, "short") != NULL) {
+    size = size / sizeof(short);
     auto *temp = new cl::sycl::buffer<short, 1>(cl::sycl::range<1>(size));
     void *tmp = (void*) temp;
     short *data = (short*)(*map);
@@ -129,11 +132,12 @@ void op_cpHostToDevice(void **data_d, void **data_h, int size, const char* type)
     return;
 
   if (strstr(type, "double") != NULL) {
+    size = size / sizeof(double);
     if (*data_d != NULL)
       delete static_cast<cl::sycl::buffer<double, 1> *>((void*)*data_d);
     auto *buf =  new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(size));
     *data_d = (void*)buf;
-    char *data = (char*)(*data_h);
+    double *data = (double*)(*data_h);
 
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
@@ -147,11 +151,12 @@ void op_cpHostToDevice(void **data_d, void **data_h, int size, const char* type)
     #endif
 
   } else if (strstr(type, "int") != NULL) {
+    size = size / sizeof(int);
     if (*data_d != NULL)
       delete static_cast<cl::sycl::buffer<int, 1> *>((void*)*data_d);
     auto *buf =  new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(size));
     *data_d = (void*)buf;
-    char *data = (char*)(*data_h);
+    int *data = (int*)(*data_h);
 
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
@@ -349,9 +354,9 @@ void allocConstArrays(int consts_bytes, const char* type) {
 
   OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
   if (strstr(type, "double") != NULL) {
-    OP_consts_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_consts_bytes));
+    OP_consts_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_consts_bytes/sizeof(double)));
   } else if (strstr(type, "int") != NULL) {
-    OP_consts_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_consts_bytes));
+    OP_consts_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_consts_bytes/sizeof(int)));
   } else {
     op_printf("Error: allocConstArrays() - unrecognised data type '%s'\n", type);
     exit(-1);
@@ -386,9 +391,9 @@ void allocReductArrays(int reduct_bytes, const char* type) {
 
   OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
   if (strstr(type, "double") != NULL) {
-    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_reduct_bytes));
+    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<double, 1>(cl::sycl::range<1>(OP_reduct_bytes/sizeof(double)));
   } else if (strstr(type, "int") != NULL) {
-    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_reduct_bytes));
+    OP_reduct_d = (char*)(void*)new cl::sycl::buffer<int, 1>(cl::sycl::range<1>(OP_reduct_bytes/sizeof(int)));
   } else {
     op_printf("Error: reallocReductArrays() - unrecognised data type '%s'\n", type);
     exit(-1);
@@ -423,29 +428,31 @@ void mvConstArraysToDevice(int consts_bytes, const char* type) {
   }
 
   if (strstr(type, "double") != NULL) {
+    consts_bytes = consts_bytes/sizeof(double);
     cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_consts_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-          cgh.copy(OP_consts_h, acc);
+          cgh.copy((double*)OP_consts_h, acc);
           });
     #else
       auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
       for (size_t i = 0; i < consts_bytes; i++)
-        HostAccessor[i] = OP_consts_h[i];
+        HostAccessor[i] = ((double*)OP_consts_h)[i];
     #endif
 
   } else if (strstr(type, "int") != NULL) {
+    consts_bytes = consts_bytes/sizeof(int);
     cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_consts_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-          cgh.copy(OP_consts_h, acc);
+          cgh.copy((int*)OP_consts_h, acc);
           });
     #else
       auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
       for (size_t i = 0; i < consts_bytes; i++)
-        HostAccessor[i] = OP_consts_h[i];
+        HostAccessor[i] = ((int*)OP_consts_h)[i];
     #endif
 
   } else {
@@ -461,31 +468,33 @@ void mvConstArraysToHost(int consts_bytes, const char* type) {
   }
 
   if (strstr(type, "double") != NULL) {
+    consts_bytes = consts_bytes/sizeof(double);
     cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_consts_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-          cgh.copy(acc,OP_consts_h);
+          cgh.copy(acc,(double*)OP_consts_h);
           });
         op2_queue->wait();
     #else
       const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
       for (size_t i = 0; i < consts_bytes; i++)
-        OP_consts_h[i] = HostAccessor[i];
+        ((double*)OP_consts_h)[i] = HostAccessor[i];
     #endif
 
   } else if (strstr(type, "int") != NULL) {
+    consts_bytes = consts_bytes/sizeof(int);
     cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_consts_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-          cgh.copy(acc,OP_consts_h);
+          cgh.copy(acc,(int*)OP_consts_h);
           });
         op2_queue->wait();
     #else
       const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
       for (size_t i = 0; i < consts_bytes; i++)
-        OP_consts_h[i] = HostAccessor[i];
+        ((int*)OP_consts_h)[i] = HostAccessor[i];
     #endif
 
   } else {
@@ -501,29 +510,31 @@ void mvReductArraysToDevice(int reduct_bytes, const char* type) {
   }
 
   if (strstr(type, "double") != NULL) {
+    reduct_bytes = reduct_bytes/sizeof(double);
     cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_reduct_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-          cgh.copy(OP_reduct_h, acc);
+          cgh.copy((double*)OP_reduct_h, acc);
           });
     #else
       auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
       for (size_t i = 0; i < reduct_bytes; i++)
-        HostAccessor[i] = OP_reduct_h[i];
+        HostAccessor[i] = ((double*)OP_reduct_h)[i];
     #endif
 
   } else if (strstr(type, "int") != NULL) {
+    reduct_bytes = reduct_bytes/sizeof(int);
     cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_reduct_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::write>(cgh);
-          cgh.copy(OP_reduct_h, acc);
+          cgh.copy((int*)OP_reduct_h, acc);
           });
     #else
       auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::write>();
       for (size_t i = 0; i < reduct_bytes; i++)
-        HostAccessor[i] = OP_reduct_h[i];
+        HostAccessor[i] = ((int*)OP_reduct_h)[i];
     #endif
 
   } else {
@@ -539,31 +550,33 @@ void mvReductArraysToHost(int reduct_bytes, const char* type) {
   }
 
   if (strstr(type, "double") != NULL) {
+    reduct_bytes = reduct_bytes/sizeof(double);
     cl::sycl::buffer<double, 1> *temp = static_cast<cl::sycl::buffer<double, 1> *>((void*)OP_reduct_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-          cgh.copy(acc,OP_reduct_h);
+          cgh.copy(acc,(double*)OP_reduct_h);
           });
         op2_queue->wait();
     #else
       const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
       for (size_t i = 0; i < reduct_bytes; i++)
-        OP_reduct_h[i] = HostAccessor[i];
+        ((double*)OP_reduct_h)[i] = HostAccessor[i];
     #endif
 
   } else if (strstr(type, "int") != NULL) {
+    reduct_bytes = reduct_bytes/sizeof(int);
     cl::sycl::buffer<int, 1> *temp = static_cast<cl::sycl::buffer<int, 1> *>((void*)OP_reduct_d);
     #ifdef SYCL_COPY
       op2_queue->submit([&](cl::sycl::handler &cgh) {
           auto acc = (*temp).template get_access<cl::sycl::access::mode::read>(cgh);
-          cgh.copy(acc,OP_reduct_h);
+          cgh.copy(acc,(int*)OP_reduct_h);
           });
         op2_queue->wait();
     #else
       const auto HostAccessor = (*temp).get_access<cl::sycl::access::mode::read>();
       for (size_t i = 0; i < reduct_bytes; i++)
-        OP_reduct_h[i] = HostAccessor[i];
+        ((int*)OP_reduct_h)[i] = HostAccessor[i];
     #endif
 
   } else {
