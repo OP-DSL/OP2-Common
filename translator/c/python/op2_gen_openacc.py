@@ -280,6 +280,16 @@ def op2_gen_openacc(master, date, consts, kernels):
       else:
         code('args['+str(g_m)+'] = <ARG>;')
 
+    if nopts>0:
+      code('int optflags = 0;')
+      for i in range(0,nargs):
+        if optflags[i] == 1:
+          IF('args['+str(i)+'].opt')
+          code('optflags |= 1<<'+str(optidxs[i])+';')
+          ENDIF()
+    if nopts > 30:
+      print 'ERROR: too many optional arguments to store flags in an integer'
+
 #
 # start timing
 #
@@ -428,8 +438,27 @@ def op2_gen_openacc(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
               '[n + set_size1 * '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('optflags & 1<<'+str(optidxs[g_m]))
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = map'+str(invmapinds[inds[g_m]-1])+\
+              '[n + set_size1 * '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
 
       code('')
       for g_m in range (0,nargs):
