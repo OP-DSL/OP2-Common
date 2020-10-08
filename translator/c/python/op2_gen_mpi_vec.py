@@ -527,14 +527,29 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
       if nmaps > 0:
         k = []
-        #print name
-        #print maps
-        #print mapinds
         for g_m in range(0,nargs):
-          #print g_m
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('<ARG>.opt')
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
+
       code('')
       line = name+'('
       indent = '\n'+' '*(depth+2)
