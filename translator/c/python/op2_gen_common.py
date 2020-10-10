@@ -44,6 +44,9 @@ def remove_trailing_w_space(text):
     if line_end < 0:
       return striped_test[:-1]
 
+def remove_empty_lines(text):
+  return re.sub(r'\n\s*\n', '\n', text)
+
 def extract_includes(text):
   ## Find all '#includes ...' that are not inside of function declarations.
 
@@ -142,6 +145,7 @@ def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt
       that file contains a "sqrt" and "OP_FUN_PREFIX". This is a proxy for 
       the ideal condition, that the file contains a FUNCTION with both sqrt and 
       OP_FUN_PREFIX '''
+  ## Could try to be smarter and only inline functions actually invoked in 'text'
 
   include_rgx = r'' + "^([\s]*)" + "#include" + "[\s]+" + '"([\w\.]+)"'
 
@@ -173,23 +177,21 @@ def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt
         include_file_text = f.read()
         f.close()
         include_file_text = comment_remover(include_file_text)
+        include_file_text = remove_empty_lines(include_file_text)
 
         file_contains_prefix = False
         file_contains_sqrt = False
-        for line in include_file_text.split('\n'):
-          if ("OP_FUN_PREFIX" in line) and not ("define OP_FUN_PREFIX" in line):
+        for inc_line in include_file_text.split('\n'):
+          if ("OP_FUN_PREFIX" in inc_line) and not ("define OP_FUN_PREFIX" in inc_line):
             file_contains_prefix = True
-          if "sqrt(" in line:
+          if "sqrt(" in inc_line:
             file_contains_sqrt = True
           if file_contains_prefix and file_contains_sqrt:
             break
-        # print("file_contains_prefix = " + str(file_contains_prefix))
-        # print("file_contains_sqrt = " + str(file_contains_sqrt))
         if file_contains_prefix and file_contains_sqrt:
-          print("file_contains_prefix = " + str(file_contains_prefix))
-          print("file_contains_sqrt = " + str(file_contains_sqrt))
-          for line in include_file_text.split('\n'):
-            text2 += leading_whitespace + line+'\n'
+          for inc_line in include_file_text.split('\n'):
+            text2 += leading_whitespace + inc_line+'\n'
+          text2 += '\n'
         else:
           text2 += line+'\n'
   return text2
