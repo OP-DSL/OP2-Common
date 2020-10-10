@@ -44,6 +44,9 @@ def remove_trailing_w_space(text):
     if line_end < 0:
       return striped_test[:-1]
 
+def remove_empty_lines(text):
+  return re.sub(r'\n\s*\n', '\n', text)
+
 def extract_includes(text):
   ## Find all '#includes ...' that are not inside of function declarations.
 
@@ -135,6 +138,62 @@ def replace_local_includes_with_file_contents(text, search_dir):
         include_file_text = comment_remover(include_file_text)
         for line in include_file_text.split('\n'):
           text2 += leading_whitespace + line+'\n'
+  return text2
+
+def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt(text, search_dir):
+  ''' Replace occurences of '#include "<FILE>"' with <FILE> contents IFF    
+      that file contains a "sqrt" and "OP_FUN_PREFIX". This is a proxy for 
+      the ideal condition, that the file contains a FUNCTION with both sqrt and 
+      OP_FUN_PREFIX '''
+  ## Could try to be smarter and only inline functions actually invoked in 'text'
+
+  include_rgx = r'' + "^([\s]*)" + "#include" + "[\s]+" + '"([\w\.]+)"'
+
+  text2 = ''
+  for line in text.split('\n'):
+    if not "#include" in line:
+      text2 += line+'\n'
+    else:
+      include_item_filepath = ""
+      matches = re.findall(include_rgx, line)
+      if len(matches) > 0:
+        matches = matches[0]
+      if len(matches) != 2:
+        text2 += line+'\n'
+      else:
+        leading_whitespace = matches[0]
+        include_item = matches[1]
+        for r, d, f in os.walk(search_dir):
+          for f_item in f:
+            if f_item == include_item:
+              include_item_filepath = os.path.join(r, f_item)
+              break
+          if include_item_filepath != "":
+            break
+        if include_item_filepath == "":
+          print("Failed to locate file '{0}'".format(include_item))
+          quit()
+        f = open(include_item_filepath, 'r')
+        include_file_text = f.read()
+        f.close()
+        include_file_text = comment_remover(include_file_text)
+        include_file_text = remove_empty_lines(include_file_text)
+
+        file_contains_prefix = False
+        file_contains_sqrt = False
+        for inc_line in include_file_text.split('\n'):
+          if ("OP_FUN_PREFIX" in inc_line) and not ("define OP_FUN_PREFIX" in inc_line):
+            file_contains_prefix = True
+          if "sqrt(" in inc_line:
+            file_contains_sqrt = True
+          if file_contains_prefix and file_contains_sqrt:
+            break
+        if file_contains_prefix and file_contains_sqrt:
+          for inc_line in include_file_text.split('\n'):
+            text2 += leading_whitespace + inc_line+'\n'
+          text2 += '\n'
+        else:
+          text2 += line+'\n'
   return text2
 
 def get_stride_string(g_m,maps,mapnames,name):

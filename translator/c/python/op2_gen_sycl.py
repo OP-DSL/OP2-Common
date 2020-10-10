@@ -222,7 +222,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       includes = op2_gen_common.extract_includes(kernel_text)
       if len(includes) > 0:
         for include in includes:
-          code(include)
+          text = include
+          text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt(text, os.path.dirname(master))
+          code(text)
         code("")
 
     comm('user function')
