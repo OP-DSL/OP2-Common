@@ -219,11 +219,18 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     f.close()
 
     if CPP:
+      print("name: " + name)
       includes = op2_gen_common.extract_includes(kernel_text)
       if len(includes) > 0:
         for include in includes:
-          code(include)
-        code("")
+          # code(include)
+          ## Update: if this include contains "OP_FUN_PREFIX", then insert file contents 
+          ##         into this file instead, so that sqrt's etc can be converted to sycl 
+          ##         equivalents.
+          text = include
+          text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt(text, os.path.dirname(master))
+          
+          code(text)
 
     comm('user function')
     
