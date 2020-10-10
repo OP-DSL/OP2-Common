@@ -223,7 +223,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if len(includes) > 0:
         for include in includes:
           text = include
-          text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt(text, os.path.dirname(master))
+          text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_complex(text, os.path.dirname(master))
+          text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',text)
+          text = re.sub(r'\bcbrt\b','cl::sycl::cbrt',text)
+          text = re.sub(r'\bfabs\b','cl::sycl::fabs',text)
+          text = re.sub(r'\bisnan\b','cl::sycl::isnan',text)
+          text = re.sub(r'\bisinf\b','cl::sycl::isinf',text)
           code(text)
         code("")
 

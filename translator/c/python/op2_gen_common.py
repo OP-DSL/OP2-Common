@@ -140,10 +140,10 @@ def replace_local_includes_with_file_contents(text, search_dir):
           text2 += leading_whitespace + line+'\n'
   return text2
 
-def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt(text, search_dir):
+def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_complex(text, search_dir):
   ''' Replace occurences of '#include "<FILE>"' with <FILE> contents IFF    
-      that file contains a "sqrt" and "OP_FUN_PREFIX". This is a proxy for 
-      the ideal condition, that the file contains a FUNCTION with both sqrt and 
+      that file contains a complex-op (e.g sqrt) and "OP_FUN_PREFIX". This is a proxy for 
+      the ideal condition, that the file contains a FUNCTION with both a complex-op and 
       OP_FUN_PREFIX '''
   ## Could try to be smarter and only inline functions actually invoked in 'text'
 
@@ -180,15 +180,19 @@ def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_sqrt
         include_file_text = remove_empty_lines(include_file_text)
 
         file_contains_prefix = False
-        file_contains_sqrt = False
+        file_contains_complex = False
         for inc_line in include_file_text.split('\n'):
           if ("OP_FUN_PREFIX" in inc_line) and not ("define OP_FUN_PREFIX" in inc_line):
             file_contains_prefix = True
-          if "sqrt(" in inc_line:
-            file_contains_sqrt = True
-          if file_contains_prefix and file_contains_sqrt:
+          if re.compile(r'\bsqrt\b').search(inc_line) or \
+             re.compile(r'\bcbrt\b').search(inc_line) or \
+             re.compile(r'\bfabs\b').search(inc_line) or \
+             re.compile(r'\bisnan\b').search(inc_line) or \
+             re.compile(r'\bisinf\b').search(inc_line):
+            file_contains_complex = True
+          if file_contains_prefix and file_contains_complex:
             break
-        if file_contains_prefix and file_contains_sqrt:
+        if file_contains_prefix and file_contains_complex:
           for inc_line in include_file_text.split('\n'):
             text2 += leading_whitespace + inc_line+'\n'
           text2 += '\n'
