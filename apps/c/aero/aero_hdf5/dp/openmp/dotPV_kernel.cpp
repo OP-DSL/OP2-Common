@@ -29,7 +29,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  dotPV");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
   // set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
@@ -45,7 +45,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
     }
   }
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     // execute plan
     #pragma omp parallel for

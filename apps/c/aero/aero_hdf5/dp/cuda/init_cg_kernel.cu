@@ -74,8 +74,8 @@ void op_par_loop_init_cg(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  init_cg");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
-  if (set->size > 0) {
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
+  if (set_size > 0) {
 
     //set CUDA execution parameters
     #ifdef OP_BLOCK_SIZE_2

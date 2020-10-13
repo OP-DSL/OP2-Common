@@ -74,7 +74,7 @@ void op_par_loop_res(char const *name, op_set set,
     printf(" kernel routine with indirection: res\n");
   }
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
-  if (set->size > 0) {
+  if (set_size > 0) {
 
     //transfer constants to GPU
     int consts_bytes = 0;

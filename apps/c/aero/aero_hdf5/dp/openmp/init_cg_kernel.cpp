@@ -33,7 +33,7 @@ void op_par_loop_init_cg(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  init_cg");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
   // set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
@@ -49,7 +49,7 @@ void op_par_loop_init_cg(char const *name, op_set set,
     }
   }
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     // execute plan
     #pragma omp parallel for

@@ -35,17 +35,20 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     for ( int n=0; n<set_size; n++ ){
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-      int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-      int map2idx = arg0.map_data[n * arg0.map->dim + 2];
-      int map3idx = arg0.map_data[n * arg0.map->dim + 3];
-
+      int map0idx;
+      int map1idx;
+      int map2idx;
+      int map3idx;
+      map0idx = arg0.map_data[n * arg0.map->dim + 0];
+      map1idx = arg0.map_data[n * arg0.map->dim + 1];
+      map2idx = arg0.map_data[n * arg0.map->dim + 2];
+      map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
       adt_calc(
         &((double*)arg0.data)[2 * map0idx],
