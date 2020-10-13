@@ -32,7 +32,7 @@ void op_par_loop_update(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     for ( int n=0; n<set_size; n++ ){
       update(

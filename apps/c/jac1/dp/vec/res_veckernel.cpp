@@ -31,11 +31,11 @@ void op_par_loop_res(char const *name, op_set set,
   args[3] = arg3;
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  __assume_aligned(ptr0,double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr1 = (double *) arg1.data;
-  __assume_aligned(ptr1,double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
   ALIGNED_double       double * __restrict__ ptr2 = (double *) arg2.data;
-  __assume_aligned(ptr2,double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -98,8 +98,10 @@ void op_par_loop_res(char const *name, op_set set,
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      int map1idx = arg1.map_data[n * arg1.map->dim + 1];
-      int map2idx = arg1.map_data[n * arg1.map->dim + 0];
+      int map1idx;
+      int map2idx;
+      map1idx = arg1.map_data[n * arg1.map->dim + 1];
+      map2idx = arg1.map_data[n * arg1.map->dim + 0];
 
       res(
         &(ptr0)[1 * n],

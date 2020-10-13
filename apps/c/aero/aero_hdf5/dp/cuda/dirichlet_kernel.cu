@@ -50,7 +50,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
     printf(" kernel routine with indirection: dirichlet\n");
   }
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
-  if (set->size > 0) {
+  if (set_size > 0) {
 
     //set CUDA execution parameters
     #ifdef OP_BLOCK_SIZE_1

@@ -22,13 +22,14 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][1];
+      det_x_xi += Ng2_xi[4 * i + 16 + m] *
+                  x[m][(1) * opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[m] = det_x_xi * Ng2_xi[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][0];
+      a += Ng2_xi[4 * i + m] * x[m][(0) * opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] = a * Ng2_xi[4 * i + 16 + m];
 
@@ -36,13 +37,14 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][1];
+      a += Ng2_xi[4 * i + m] * x[m][(1) * opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[m] -= a * Ng2_xi[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi[4 * i + 16 + m] * x[m][0];
+      b += Ng2_xi[4 * i + 16 + m] *
+           x[m][(0) * opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] -= b * Ng2_xi[4 * i + m];
 
@@ -114,6 +116,34 @@ void op_par_loop_res_calc(char const *name, op_set set,
     args[13 + v] = op_opt_arg_dat(arg13.opt, arg13.dat, v, arg13.map, 2, "double", OP_INC);
   }
 
+  int optflags = 0;
+  if (args[8].opt) {
+    optflags |= 1 << 0;
+  }
+  if (args[9].opt) {
+    optflags |= 1 << 1;
+  }
+  if (args[10].opt) {
+    optflags |= 1 << 1;
+  }
+  if (args[11].opt) {
+    optflags |= 1 << 1;
+  }
+  if (args[12].opt) {
+    optflags |= 1 << 1;
+  }
+  if (args[13].opt) {
+    optflags |= 1 << 2;
+  }
+  if (args[14].opt) {
+    optflags |= 1 << 2;
+  }
+  if (args[15].opt) {
+    optflags |= 1 << 2;
+  }
+  if (args[16].opt) {
+    optflags |= 1 << 2;
+  }
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -141,7 +171,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -177,16 +207,17 @@ void op_par_loop_res_calc(char const *name, op_set set,
       #pragma acc parallel loop independent deviceptr(col_reord,map0,data8,data0,data4,data9,data13)
       for ( int e=start; e<end; e++ ){
         int n = col_reord[e];
-        int map0idx = map0[n + set_size1 * 0];
-        int map1idx = map0[n + set_size1 * 1];
-        int map2idx = map0[n + set_size1 * 2];
-        int map3idx = map0[n + set_size1 * 3];
+        int map0idx;
+        int map1idx;
+        int map2idx;
+        int map3idx;
+        map0idx = map0[n + set_size1 * 0];
+        map1idx = map0[n + set_size1 * 1];
+        map2idx = map0[n + set_size1 * 2];
+        map3idx = map0[n + set_size1 * 3];
 
-        const double* arg0_vec[] = {
-           &data0[2 * map0idx],
-           &data0[2 * map1idx],
-           &data0[2 * map2idx],
-           &data0[2 * map3idx]};
+        const double *arg0_vec[] = {&data0[map0idx], &data0[map1idx],
+                                    &data0[map2idx], &data0[map3idx]};
         const double* arg4_vec[] = {
            &data4[1 * map0idx],
            &data4[1 * map1idx],
@@ -197,11 +228,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
            &data9[1 * map1idx],
            &data9[1 * map2idx],
            &data9[1 * map3idx]};
-        double* arg13_vec[] = {
-           &data13[2 * map0idx],
-           &data13[2 * map1idx],
-           &data13[2 * map2idx],
-           &data13[2 * map3idx]};
+        double *arg13_vec[] = {&data13[map0idx], &data13[map1idx],
+                               &data13[map2idx], &data13[map3idx]};
 
         res_calc_openacc(
           arg0_vec,

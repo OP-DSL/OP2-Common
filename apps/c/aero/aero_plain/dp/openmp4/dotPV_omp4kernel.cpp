@@ -41,7 +41,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  dotPV");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   #ifdef OP_PART_SIZE_4
     int part_size = OP_PART_SIZE_4;
@@ -56,7 +56,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
 
   double arg2_l = arg2h[0];
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     //Set up typed device pointers for OpenMP
 

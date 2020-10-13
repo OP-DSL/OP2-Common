@@ -3,10 +3,16 @@
 //
 
 //user function
+int opDat1_res_stride_OP2CONSTANT;
+int opDat1_res_stride_OP2HOST = -1;
+int direct_res_stride_OP2CONSTANT;
+int direct_res_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void res_openacc( const double *A, const float *u, float *du, const float *beta) {
-  *du += (float)((*beta) * (*A) * (*u));
+  du[(0) * opDat1_res_stride_OP2CONSTANT] +=
+      (float)((*beta) * (A[(0) * direct_res_stride_OP2CONSTANT]) *
+              (u[(0) * opDat1_res_stride_OP2CONSTANT]));
 }
 
 // host stub function
@@ -52,8 +58,18 @@ void op_par_loop_res(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
+    if ((OP_kernels[0].count == 1) ||
+        (opDat1_res_stride_OP2HOST != getSetSizeFromOpArg(&arg1))) {
+      opDat1_res_stride_OP2HOST = getSetSizeFromOpArg(&arg1);
+      opDat1_res_stride_OP2CONSTANT = opDat1_res_stride_OP2HOST;
+    }
+    if ((OP_kernels[0].count == 1) ||
+        (direct_res_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_res_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_res_stride_OP2CONSTANT = direct_res_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
     int *map1 = arg1.map_data_d;
@@ -78,15 +94,12 @@ void op_par_loop_res(char const *name, op_set set,
       #pragma acc parallel loop independent deviceptr(col_reord,map1,data0,data1,data2)
       for ( int e=start; e<end; e++ ){
         int n = col_reord[e];
-        int map1idx = map1[n + set_size1 * 1];
-        int map2idx = map1[n + set_size1 * 0];
+        int map1idx;
+        int map2idx;
+        map1idx = map1[n + set_size1 * 1];
+        map2idx = map1[n + set_size1 * 0];
 
-
-        res_openacc(
-          &data0[3 * n],
-          &data1[2 * map1idx],
-          &data2[3 * map2idx],
-          &arg3_l);
+        res_openacc(&data0[n], &data1[map1idx], &data2[map2idx], &arg3_l);
       }
 
     }

@@ -44,7 +44,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     if ((OP_kernels[1].count==1) || (opDat0_dirichlet_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_dirichlet_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -72,8 +72,8 @@ void op_par_loop_dirichlet(char const *name, op_set set,
       #pragma acc parallel loop independent deviceptr(col_reord,map0,data0)
       for ( int e=start; e<end; e++ ){
         int n = col_reord[e];
-        int map0idx = map0[n + set_size1 * 0];
-
+        int map0idx;
+        map0idx = map0[n + set_size1 * 0];
 
         dirichlet_openacc(
           &data0[1 * map0idx]);

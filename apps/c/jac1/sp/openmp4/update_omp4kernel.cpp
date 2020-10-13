@@ -49,7 +49,7 @@ void op_par_loop_update(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  update");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   #ifdef OP_PART_SIZE_1
     int part_size = OP_PART_SIZE_1;
@@ -65,7 +65,7 @@ void op_par_loop_update(char const *name, op_set set,
   float arg3_l = arg3h[0];
   float arg4_l = arg4h[0];
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     //Set up typed device pointers for OpenMP
 

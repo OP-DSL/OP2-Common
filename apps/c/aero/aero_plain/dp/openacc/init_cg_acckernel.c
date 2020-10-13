@@ -42,12 +42,11 @@ void op_par_loop_init_cg(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  init_cg");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
   double arg1_l = arg1h[0];
 
-  if (set->size >0) {
-
+  if (set_size > 0) {
 
     //Set up typed device pointers for OpenACC
 

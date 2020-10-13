@@ -52,7 +52,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     }
   }
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);
 
@@ -70,8 +70,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int nelem    = Plan->nelems[blockId];
         int offset_b = Plan->offset[blockId];
         for ( int n=offset_b; n<offset_b+nelem; n++ ){
-          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-
+          int map0idx;
+          map0idx = arg0.map_data[n * arg0.map->dim + 0];
 
           res_calc(
             &((double*)arg0.data)[4 * map0idx],
