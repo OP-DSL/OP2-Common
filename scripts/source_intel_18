@@ -9,8 +9,8 @@ module purge
 #OP2 specifics
 export OP2_COMPILER=intel
 export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2/
-unset OP_AUTO_SOA
-#export OP_AUTO_SOA=1
+#unset OP_AUTO_SOA
+export OP_AUTO_SOA=1
 
 #External libraries
 #export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Intel-17/

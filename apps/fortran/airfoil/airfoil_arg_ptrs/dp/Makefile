@@ -63,7 +63,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  FC = pgfortran -fast -Mcuda=kepler,cc35
+  FC = pgfortran
   #OPT_CUDA=-Mcuda=kepler,cc35,fastmath,ptxinfo
   OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi

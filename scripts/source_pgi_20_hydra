@@ -5,10 +5,11 @@ module purge
 . ~/.bashrc
 
 module load cuda/toolkit-10.0.130
-module load pgi-20.1/pgi-20.1
+#module load pgi-20.1/pgi-20.1
 #module load pgi-llvm-20.1/pgi-llvm-20.1
 #module load gnu-5.4.0
 #module load pgi-20.1/ompi-3.1.3
+module load pgi-20.4/pgi-20.4
 #module load pgi-18.1/ompi-3.0.0
 export LD_LIBRARY_PATH=/rr-home/gihan/Hydra/apps_pgi/hdf5/Ver1.8.18/lib:$LD_LIBRARY_PATH
 
@@ -21,7 +22,8 @@ export LD_LIBRARY_PATH=/rr-home/gihan/OpenMPI-PGI-20/lib:$LD_LIBRARY_PATH
 #export MPI_INSTALL_PATH=/opt/pgi/licensed/20.1/linux86-64-nollvm/2020/mpi/openmpi-3.1.3/
 
 
-export HDF5_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/hdf5/Ver1.8.18
+export HDF5_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18
+#export HDF5_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/hdf5/Ver1.8.18
 #export HDF5_INSTALL_PATH=/rr-home/gihan/HDF5-OpenMPI-PGI-20/
 
 #export PARMETIS_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/parmetis-gnu
@@ -30,7 +32,7 @@ export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-PGI-20-OpenMPI/
 #export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/ptscotch-gnu
 export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-PGI-20-OPENMPI/
 
-export CGNS_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/cgns
+export CGNS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/cgns/Ver3.1.4/
 export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
 export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
 export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
