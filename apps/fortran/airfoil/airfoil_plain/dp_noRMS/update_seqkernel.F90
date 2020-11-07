@@ -20,14 +20,12 @@ SUBROUTINE op_wrap_update( &
   & opDat2Local, &
   & opDat3Local, &
   & opDat4Local, &
-  & opDat5Local, &
   & bottom,top)
   implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
-  real(8) opDat5Local(2)
   INTEGER(kind=4) bottom,top,i1
 
   DO i1 = bottom, top-1, 1
@@ -36,8 +34,7 @@ SUBROUTINE op_wrap_update( &
     & opDat1Local(1,i1+1), &
     & opDat2Local(1,i1+1), &
     & opDat3Local(1,i1+1), &
-    & opDat4Local(1,i1+1), &
-    & opDat5Local(1) &
+    & opDat4Local(1,i1+1) &
     & )
   END DO
 END SUBROUTINE
@@ -45,8 +42,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opArg1, &
   & opArg2, &
   & opArg3, &
-  & opArg4, &
-  & opArg5 )
+  & opArg4 )
 
   IMPLICIT NONE
   character(kind=c_char,len=*), INTENT(IN) :: userSubroutine
@@ -56,9 +52,8 @@ SUBROUTINE update_host( userSubroutine, set, &
   type ( op_arg ) , INTENT(IN) :: opArg2
   type ( op_arg ) , INTENT(IN) :: opArg3
   type ( op_arg ) , INTENT(IN) :: opArg4
-  type ( op_arg ) , INTENT(IN) :: opArg5
 
-  type ( op_arg ) , DIMENSION(5) :: opArgArray
+  type ( op_arg ) , DIMENSION(4) :: opArgArray
   INTEGER(kind=4) :: numberOfOpDats
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayEnd
@@ -80,18 +75,16 @@ SUBROUTINE update_host( userSubroutine, set, &
   real(8), POINTER, DIMENSION(:) :: opDat4Local
   INTEGER(kind=4) :: opDat4Cardinality
 
-  real(8), POINTER, DIMENSION(:) :: opDat5Local
 
   INTEGER(kind=4) :: i1
   REAL(kind=4) :: dataTransfer
 
-  numberOfOpDats = 5
+  numberOfOpDats = 4
 
   opArgArray(1) = opArg1
   opArgArray(2) = opArg2
   opArgArray(3) = opArg3
   opArgArray(4) = opArg4
-  opArgArray(5) = opArg5
 
   returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
@@ -109,7 +102,6 @@ SUBROUTINE update_host( userSubroutine, set, &
   CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
   CALL c_f_pointer(opArg3%data,opDat3Local,(/opDat3Cardinality/))
   CALL c_f_pointer(opArg4%data,opDat4Local,(/opDat4Cardinality/))
-  CALL c_f_pointer(opArg5%data,opDat5Local, (/opArg5%dim/))
 
 
   CALL op_wrap_update( &
@@ -117,7 +109,6 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opDat2Local, &
   & opDat3Local, &
   & opDat4Local, &
-  & opDat5Local, &
   & 0, opSetCore%core_size)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_update( &
@@ -125,7 +116,6 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opDat2Local, &
   & opDat3Local, &
   & opDat4Local, &
-  & opDat5Local, &
   & opSetCore%core_size, n_upper)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
@@ -134,8 +124,6 @@ SUBROUTINE update_host( userSubroutine, set, &
 
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 
-  CALL op_mpi_reduce_double(opArg5,opArg5%data)
-
   call op_timers_core(endTime)
 
   dataTransfer = 0.0
@@ -143,7 +131,6 @@ SUBROUTINE update_host( userSubroutine, set, &
   dataTransfer = dataTransfer + opArg2%size * opSetCore%size
   dataTransfer = dataTransfer + opArg3%size * opSetCore%size * 2.d0
   dataTransfer = dataTransfer + opArg4%size * opSetCore%size
-  dataTransfer = dataTransfer + opArg5%size * 2.d0
   returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
   & endTime-startTime, dataTransfer, 0.00000_4, 1)
 END SUBROUTINE

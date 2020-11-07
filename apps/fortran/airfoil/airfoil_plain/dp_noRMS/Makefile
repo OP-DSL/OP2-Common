@@ -121,44 +121,44 @@ airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
 	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq $(HDF5_LIB)
 
 airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
-        res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
+        res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 update1_seqkernel.F90 constants.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
-        save_soln_seqkernel.F90 update_seqkernel.F90 bres_calc_seqkernel.F90 \
+        save_soln_seqkernel.F90 update_seqkernel.F90 update1_seqkernel.F90 bres_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 adt_calc_seqkernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_seqkernel.o adt_calc_seqkernel.o res_calc_seqkernel.o \
-        bres_calc_seqkernel.o update_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq $(HDF5_LIB)
+        bres_calc_seqkernel.o update_seqkernel.o update1_seqkernel.o airfoil_op.o -o airfoil_genseq -lop2_for_seq $(HDF5_LIB)
 
 airfoil_vec: airfoil_op.F90 input.F90 save_soln_veckernel.F90 adt_calc_veckernel.F90 \
-        res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 constants.F90 airfoil_seqfun.F90
+        res_calc_veckernel.F90 bres_calc_veckernel.F90 update_veckernel.F90 update1_veckernel.F90 constants.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
-        save_soln_veckernel.F90 update_veckernel.F90 bres_calc_veckernel.F90 \
+        save_soln_veckernel.F90 update_veckernel.F90 update1_veckernel.F90 bres_calc_veckernel.F90 \
         res_calc_veckernel.F90 adt_calc_veckernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) input.o constants.o airfoil_seqfun.o \
         save_soln_veckernel.o adt_calc_veckernel.o res_calc_veckernel.o \
-        bres_calc_veckernel.o update_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq $(HDF5_LIB)
+        bres_calc_veckernel.o update_veckernel.o update1_veckernel.o airfoil_op.o -o airfoil_vec -lop2_for_seq $(HDF5_LIB)
 
 
 airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
-	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 constants.F90 input.F90 airfoil_seqfun.F90
+	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 update1_kernel.F90 constants.F90 input.F90 airfoil_seqfun.F90
 	$(FC) $(OPT) $(OPENMP) $(FMODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
-	save_soln_kernel.F90 update_kernel.F90 bres_calc_kernel.F90 \
+	save_soln_kernel.F90 update_kernel.F90 update1_kernel.F90 bres_calc_kernel.F90 \
 	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
 	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) constants.o input.o airfoil_seqfun.o \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
-	bres_calc_kernel.o update_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp $(HDF5_LIB)
+	bres_calc_kernel.o update_kernel.o update1_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp $(HDF5_LIB)
 
 airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
-	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
+	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF update1_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
 	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
-	save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
+	save_soln_kernel.CUF update_kernel.CUF update1_kernel.CUF bres_calc_kernel.CUF \
 	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda $(HDF5_LIB)
 
 
 airfoil_openmp4: airfoil_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4kernel.F90 input.F90 airfoil_seqfun.F90 \
-	res_calc_omp4kernel.F90 bres_calc_omp4kernel.F90 update_omp4kernel.F90 constants.F90 input.F90 cudaConfigurationParams.F95
+	res_calc_omp4kernel.F90 bres_calc_omp4kernel.F90 update_omp4kernel.F90 update1_omp4kernel.F90 constants.F90 input.F90 cudaConfigurationParams.F95
 	$(FC) $(OPT) $(OMP_OFFLOAD) $(FMODS)/cuda $(FMODS) $(FLINK) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
-	save_soln_omp4kernel.F90 update_omp4kernel.F90 bres_calc_omp4kernel.F90 \
+	save_soln_omp4kernel.F90 update_omp4kernel.F90 update1_omp4kernel.F90 bres_calc_omp4kernel.F90 \
 	res_calc_omp4kernel.F90 adt_calc_omp4kernel.F90 airfoil_op.F90 -o airfoil_openmp4 -lop2_for_openmp4 $(HDF5_LIB)
 
 clean:

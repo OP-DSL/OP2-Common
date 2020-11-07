@@ -1,17 +1,21 @@
-SUBROUTINE update_gpu(qold,q,res,adt)
+SUBROUTINE update1_gpu(qold,q,res,adt,rms)
   IMPLICIT NONE
   REAL(kind=8), INTENT(IN) :: qold(4)
   REAL(kind=8) :: q(4)
   REAL(kind=8) :: res(4)
   REAL(kind=8) :: del(4)
   REAL(kind=8), INTENT(IN) :: adt
+  REAL(kind=8) :: rms(2)
   REAL(kind=8) :: adti
   INTEGER(kind=4) :: i
   adti = 1.0 / adt
 
   DO i = 1, 4
-    del(i) = adti * res(i)
-    q(i) = qold(i) - del(i)
-    res(i) = 0.0
+    del(i) = qold(i) - q(i)
   END DO
+
+  DO i = 1, 4
+    rms(2) = rms(2) + del(i) * del(i)
+  END DO
+
 END SUBROUTINE
