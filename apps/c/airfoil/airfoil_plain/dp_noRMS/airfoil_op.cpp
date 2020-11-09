@@ -60,6 +60,12 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include  "op_lib_cpp.h"
 
+#ifdef SLOPE
+#include "executor.h"
+#include "inspector.h"
+#define TILE_SIZE 5000
+#endif
+
 //
 // op_par_loop declarations
 //
@@ -263,6 +269,54 @@ int main(int argc, char **argv) {
 
   op_diagnostic_output();
 
+  #ifdef SLOPE
+  int avgTileSize = 5000;
+  int seedTilePoint = 0;
+
+  // sets
+  set_t* sl_nodes = set("nodes", nnode);
+  set_t* sl_edges = set("edges", nedge);
+  set_t* sl_bedges = set("bedges", nbedge, 0, 0, sl_edges);
+  set_t* sl_cells = set("cells", ncell);
+
+  // maps
+  map_t* sl_pcell = map("c2n", sl_cells, sl_nodes, cell, ncell*4);
+  map_t* sl_pedge = map("e2n", sl_edges, sl_nodes, edge, nedge*2);
+  map_t* sl_pecell = map("e2c", sl_edges, sl_cells, ecell, nedge*2);
+  map_t* sl_pbedge = map("be2n", sl_bedges, sl_nodes, bedge, nbedge*2);
+  map_t* sl_pbecell = map("be2c", sl_bedges, sl_cells, becell, nbedge*1);
+
+  // descriptors
+  desc_list adtCalcDesc ({desc(sl_pcell, READ),
+                          desc(DIRECT, WRITE)});
+  desc_list resCalcDesc ({desc(sl_pedge, READ),
+                          desc(sl_pecell, READ),
+                          desc(sl_pecell, INC)});
+  desc_list bresCalcDesc ({desc(sl_pbedge, READ),
+                           desc(sl_pbecell, READ),
+                           desc(sl_pbecell, INC)});
+  desc_list updateDesc ({desc(DIRECT, READ),
+                         desc(DIRECT, WRITE)});
+
+  map_list meshMaps ({sl_pcell});
+
+  inspector_t* insp = insp_init(avgTileSize, OMP, COL_DEFAULT, &meshMaps);
+
+  insp_add_parloop (insp, "adtCalc", sl_cells, &adtCalcDesc);
+  insp_add_parloop (insp, "resCalc", sl_edges, &resCalcDesc);
+  insp_add_parloop (insp, "bresCalc", sl_bedges, &bresCalcDesc);
+  insp_add_parloop (insp, "update", sl_cells, &updateDesc);
+
+  insp_run (insp, seedTilePoint);
+
+  insp_print (insp, LOW);
+
+  printf("running executor\n");
+  executor_t* exec = exec_init (insp);
+  int nColors = exec_num_colors (exec);
+
+  #endif
+
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
@@ -278,9 +332,80 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
                 op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
 
-    // predictor/corrector update loop
+    for (int k1 = 0; k1 < 2; k1++) {
 
-    for (int k = 0; k < 2; k++) {
+      #ifdef SLOPE
+      
+      for (int i = 0; i < nColors; i++) {
+        // for all tiles of this color
+        const int nTilesPerColor = exec_tiles_per_color (exec, i);
+
+        #pragma omp parallel for
+        for (int j = 0; j < nTilesPerColor; j++) {
+          // execute the tile
+          tile_t* tile = exec_tile_at (exec, i, j);
+          int tileLoopSize;
+
+          // loop adt_calc (calculate area/timstep)
+          iterations_list& lc2n_0 = tile_get_local_map (tile, 0, "c2n");
+          iterations_list& iterations_0 = tile_get_iterations (tile, 0);
+          tileLoopSize = tile_loop_size (tile, 0);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            adt_calc (x + lc2n_0[k*4 + 0]*2,
+                      x + lc2n_0[k*4 + 1]*2,
+                      x + lc2n_0[k*4 + 2]*2,
+                      x + lc2n_0[k*4 + 3]*2,
+                      q + iterations_0[k]*4,
+                      adt + iterations_0[k]);
+          }
+
+          // loop res_calc
+          iterations_list& le2n_1 = tile_get_local_map (tile, 1, "e2n");
+          iterations_list& le2c_1 = tile_get_local_map (tile, 1, "e2c");
+          iterations_list& iterations_1 = tile_get_iterations (tile, 1);
+          tileLoopSize = tile_loop_size (tile, 1);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            res_calc (x + le2n_1[k*2 + 0]*2,
+                      x + le2n_1[k*2 + 1]*2,
+                      q + le2c_1[k*2 + 0]*4,
+                      q + le2c_1[k*2 + 1]*4,
+                      adt + le2c_1[k*2 + 0]*1,
+                      adt + le2c_1[k*2 + 1]*1,
+                      res + le2c_1[k*2 + 0]*4,
+                      res + le2c_1[k*2 + 1]*4);
+          }
+
+          // loop bres_calc
+          iterations_list& lbe2n_2 = tile_get_local_map (tile, 2, "be2n");
+          iterations_list& lbe2c_2 = tile_get_local_map (tile, 2, "be2c");
+          iterations_list& iterations_2 = tile_get_iterations (tile, 2);
+          tileLoopSize = tile_loop_size (tile, 2);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            bres_calc (x + lbe2n_2[k*2 + 0]*2,
+                       x + lbe2n_2[k*2 + 1]*2,
+                       q + lbe2c_2[k + 0]*4,
+                       adt + lbe2c_2[k + 0]*1,
+                       res + lbe2c_2[k + 0]*4,
+                       bound + iterations_2[k]);
+          }
+
+          // loop update
+          iterations_list& iterations_3 = tile_get_iterations (tile, 3);
+          tileLoopSize = tile_loop_size (tile, 3);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            update    (qold + iterations_3[k]*4,
+                       q + iterations_3[k]*4,
+                       res + iterations_3[k]*4,
+                       adt + iterations_3[k]);
+          }
+        }
+      }
+
+      #else
 
       // calculate area/timstep
 
@@ -314,13 +439,13 @@ int main(int argc, char **argv) {
 
       // update flow field
 
-      rms = 0.0;
-
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
                   op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
                   op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ));
+
+      #endif
     }
 
     // print iteration history
@@ -344,7 +469,6 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
   rms = 0.0;
-
   op_par_loop_update1("update1",cells,
               op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
               op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
