@@ -15,6 +15,18 @@ program AIRFOIL
   use OP2_CONSTANTS
   use AIRFOIL_SEQ
   use IO
+
+  !DIR$ DEFINE SLOPE=1
+  !DIR$ IF DEFINED (SLOPE)
+  use SLOPE_FORTRAN_DECLARATIONS
+  use AIRFOIL_SEQ,save_soln_slope => save_soln
+  use AIRFOIL_SEQ,adt_calc_slope => adt_calc
+  use AIRFOIL_SEQ,res_calc_slope => res_calc
+  use AIRFOIL_SEQ,bres_calc_slope => bres_calc
+  use AIRFOIL_SEQ,update_slope => update
+  use AIRFOIL_SEQ,update1_slope => update1
+  !DIR$ ENDIF
+
   use, intrinsic :: ISO_C_BINDING
 
   implicit none
@@ -56,6 +68,27 @@ program AIRFOIL
   ! for validation
   REAL(KIND=8) :: diff
   integer(4):: ncelli
+
+  !DIR$ IF DEFINED (SLOPE)
+  type(sl_set) :: sl_nodes, sl_edges, sl_bedges, sl_cells
+  type(sl_map) :: sl_pedge, sl_pecell, sl_pcell, sl_pbedge, sl_pbecell
+  type(sl_desc_list) :: sl_adt_calc_desc, sl_res_calc_desc, sl_bres_calc_desc, sl_update_desc
+  type(sl_descriptor) :: sl_desc1, sl_desc2, sl_desc3, sl_desc4, sl_desc5, sl_desc6, sl_desc7, sl_desc8, sl_desc9, sl_desc10
+
+  type(sl_map_list) :: sl_meshMaps
+  type(sl_inspector) :: sl_insp
+  type(sl_executor) :: sl_exec
+  type(sl_tile) ::  sl_tile1
+
+  integer(4) :: avg_tile_size, ncolors, ntiles_per_color, loop_size
+  integer(4), pointer, dimension(:) :: lc2n_0, iterations_0
+  integer(4), pointer, dimension(:) :: le2n_1, le2c_1, iterations_1
+  integer(4), pointer, dimension(:) :: lbe2n_2, lbe2c_2, iterations_2
+  integer(4), pointer, dimension(:) :: iterations_3
+
+  integer(4) :: s, s1, s2, s3
+  
+  !DIR$ ENDIF
 
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
@@ -122,6 +155,84 @@ program AIRFOIL
   ncelli  = op_get_size(cells)
   ncellr = real(ncelli)
 
+  !DIR$ IF DEFINED (SLOPE)
+  print *, "SLOPE declaring sets"
+  call set(sl_nodes, 'sl_nodes', nnode);
+  call set(sl_edges, 'sl_edges', nedge);
+  call set(sl_bedges, 'sl_bedges', nbedge, 0, 0, sl_edges);
+  call set(sl_cells, 'sl_cells', ncell);
+
+  print *, "SLOPE declaring maps"
+  call map(sl_pcell, 'c2n', sl_cells, sl_nodes, cell, ncell * 4)
+  call map(sl_pedge, 'e2n', sl_edges, sl_nodes, edge, nedge * 2)
+  call map(sl_pecell, 'e2c', sl_edges, sl_cells, ecell, nedge * 2)
+  call map(sl_pbedge, 'be2n', sl_bedges, sl_nodes, bedge, nbedge * 2)
+  call map(sl_pbecell, 'be2c', sl_bedges, sl_cells, becell, nbedge * 1)
+  
+
+  print *, "SLOPE creating desc lits"
+
+  call desc(sl_desc1, sl_pcell, SL_READ)
+  call desc(sl_desc2, DIRECT, SL_WRITE)
+
+  call desc_list(sl_adt_calc_desc)
+  call insert_descriptor_to(sl_adt_calc_desc, sl_desc1)
+  call insert_descriptor_to(sl_adt_calc_desc, sl_desc2)
+
+  call desc(sl_desc3, sl_pedge, SL_READ)
+  call desc(sl_desc4, sl_pecell, SL_READ)
+  call desc(sl_desc5, sl_pecell, SL_INC)
+
+  call desc_list(sl_res_calc_desc)
+  call insert_descriptor_to(sl_res_calc_desc, sl_desc3)
+  call insert_descriptor_to(sl_res_calc_desc, sl_desc4)
+  call insert_descriptor_to(sl_res_calc_desc, sl_desc5)
+
+  call desc(sl_desc6, sl_pbedge, SL_READ)
+  call desc(sl_desc7, sl_pbecell, SL_READ)
+  call desc(sl_desc8, sl_pbecell, SL_INC)
+
+  call desc_list(sl_bres_calc_desc)
+  call insert_descriptor_to(sl_bres_calc_desc, sl_desc6)
+  call insert_descriptor_to(sl_bres_calc_desc, sl_desc7)
+  call insert_descriptor_to(sl_bres_calc_desc, sl_desc8)
+
+  call desc(sl_desc9, DIRECT, SL_READ)
+  call desc(sl_desc10, DIRECT, SL_WRITE)
+
+  call desc_list(sl_update_desc)
+  call insert_descriptor_to(sl_update_desc, sl_desc9)
+  call insert_descriptor_to(sl_update_desc, sl_desc10)
+
+  print *, "SLOPE creating map lits"
+  call map_list(sl_meshMaps)
+  call insert_map_to(sl_meshMaps, sl_pcell)
+
+  print *, "SLOPE creating inspector"
+  avg_tile_size = 5000
+  call insp_init(sl_insp, avg_tile_size, SL_OMP, SL_COL_DEFAULT, sl_meshMaps)
+
+  print *, "SLOPE adding parloops to inspector"
+
+  call insp_add_parloop (sl_insp, "adtCalc", sl_cells, sl_adt_calc_desc)
+  call insp_add_parloop (sl_insp, "resCalc", sl_edges, sl_res_calc_desc)
+  call insp_add_parloop (sl_insp, "bresCalc", sl_bedges, sl_bres_calc_desc)
+  call insp_add_parloop (sl_insp, "update", sl_cells, sl_update_desc)
+
+  print *, "SLOPE inspector run"
+
+  call insp_run (sl_insp, 0)
+  print *, "SLOPE inspector print"
+  call insp_print (sl_insp, SL_VERY_LOW);
+
+  ! call generate_vtk (sl_insp, SL_VERY_LOW, sl_nodes, x, SL_DIM2);
+
+  print *, "SLOPE running executor"
+  call exec_init (sl_exec, sl_insp);
+  call exec_num_colors (sl_exec, ncolors);
+
+  !DIR$ ENDIF
+
   ! start timer
   call op_timers ( startTime )
 
@@ -129,16 +240,96 @@ program AIRFOIL
 
   do niter = 1, iterationNumber
 
-     call save_soln_host(&
+    !DIR$ IF DEFINED (SLOPE)
+    !$OMP PARALLEL DO private (s)
+    do s = 0, ncell - 1
+      call save_soln_slope(&
+                      q((4*s) + 1), &
+                      qold((4*s) + 1))
+    end do
+    !$OMP END PARALLEL DO
+    !DIR$ ELSE
+    call save_soln_host(&
                       & "save_soln",cells,  &
                       & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_READ),  &
-                      & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE))
-
-
-    ! predictor/corrector update loop
+                      & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE))                 
+    !DIR$ ENDIF
 
     do k = 1, 2
 
+      !DIR$ IF DEFINED (SLOPE)
+      do s1 = 0, ncolors - 1
+
+        call exec_tiles_per_color(sl_exec, s1, ntiles_per_color)
+        !$OMP PARALLEL DO private (sl_tile1, loop_size, s, lc2n_0, iterations_0, &
+        le2n_1, le2c_1, iterations_1, lbe2n_2, lbe2c_2,  iterations_2, iterations_3)
+        do s2 = 0, ntiles_per_color - 1
+
+          call exec_tile_at(sl_tile1, sl_exec, s1 , s2)
+
+          call tile_loop_size(loop_size, sl_tile1, 0)
+          call tile_get_local_map(lc2n_0, sl_tile1, 0, "c2n", loop_size)
+          call tile_get_iterations(iterations_0, sl_tile1, 0, loop_size)
+
+          do s = 0, loop_size - 1 
+            call adt_calc_slope ( &
+                      x((lc2n_0(s*4 + 1)*2) + 1), &
+                      x((lc2n_0(s*4 + 2)*2) + 1), &
+                      x((lc2n_0(s*4 + 3)*2) + 1), &
+                      x((lc2n_0(s*4 + 4)*2) + 1), &
+                      q((iterations_0(s + 1)*4) + 1), &
+                      adt((iterations_0(s + 1)) + 1))
+          end do
+
+          call tile_loop_size(loop_size, sl_tile1, 1)
+          call tile_get_local_map(le2n_1, sl_tile1, 1, "e2n", loop_size)
+          call tile_get_local_map(le2c_1, sl_tile1, 1, "e2c", loop_size)
+          call tile_get_iterations(iterations_1, sl_tile1, 1, loop_size)
+
+          do s = 0, loop_size - 1
+            call res_calc_slope ( &
+                      x((le2n_1(s*2 + 1)*2) + 1), &
+                      x((le2n_1(s*2 + 2)*2) + 1), &
+                      q((le2c_1(s*2 + 1)*4) + 1), &
+                      q((le2c_1(s*2 + 2)*4) + 1), &
+                      adt((le2c_1(s*2 + 1)*1) + 1), &
+                      adt((le2c_1(s*2 + 2)*1) + 1), &
+                      res((le2c_1(s*2 + 1)*4) + 1), &
+                      res((le2c_1(s*2 + 2)*4) + 1))
+          end do
+
+          call tile_loop_size(loop_size, sl_tile1, 2)
+          call tile_get_local_map(lbe2n_2, sl_tile1, 2, "be2n", loop_size)
+          call tile_get_local_map(lbe2c_2, sl_tile1, 2, "be2c", loop_size)
+          call tile_get_iterations(iterations_2, sl_tile1, 2, loop_size)
+
+          do s = 0, loop_size - 1
+            call bres_calc_slope ( &
+                      x((lbe2n_2(s*2 + 1)*2) + 1), &
+                      x((lbe2n_2(s*2 + 2)*2) + 1), &
+                      q((lbe2c_2(s + 1)*4) + 1), &
+                      adt((lbe2c_2(s + 1)*1) + 1), &
+                      res((lbe2c_2(s + 1)*4) + 1), &
+                      bound((iterations_2(s + 1)*1) + 1))
+          end do
+
+          call tile_loop_size(loop_size, sl_tile1, 3)
+          call tile_get_iterations(iterations_3, sl_tile1, 3, loop_size)
+
+          do s = 0, loop_size - 1
+            call update_slope ( &
+                      qold((iterations_3(s + 1)*4) + 1), &
+                      q((iterations_3(s + 1)*4) + 1), &
+                      res((iterations_3(s + 1)*4) + 1), &
+                      adt((iterations_3(s + 1)*1) + 1))
+          end do
+
+        end do
+        !$OMP END PARALLEL DO
+      end do
+
+      !DIR$ ELSE
+     
       ! calculate area/timstep
       call adt_calc_host(&
                        & "adt_calc",cells,  &
@@ -175,8 +366,6 @@ program AIRFOIL
 
       ! update flow field
 
-      rms(1:2) = 0.0
-
       call update_host(&
                        & "update",cells,  &
                        & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_READ),  &
@@ -184,6 +373,8 @@ program AIRFOIL
                        & op_arg_dat(p_res,-1,OP_ID,4,"real(8)",OP_RW),  &
                        & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_READ))
 
+                      
+      !DIR$ ENDIF                 
 
     end do ! internal loop
 
@@ -213,9 +404,20 @@ program AIRFOIL
 !  call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
   call op_timers ( endTime )
-
+  !DIR$ IF DEFINED (SLOPE)
   rms(1:2) = 0.0
+  !$OMP PARALLEL DO private (s) reduction(+:rms)
+  do s = 0, ncell - 1
+    call update1_slope(&
+                   qold((4*s) + 1), &
+                   q((4*s) + 1), &
+                   res((4*s) + 1), &
+                   adt((4*s) + 1), &
+                   rms(1:2))
+  end do
+  !$OMP END PARALLEL DO
 
+  !DIR$ ELSE
   call update1_host(&
                    & "update1",cells,  &
                    & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_READ),  &
@@ -223,7 +425,7 @@ program AIRFOIL
                    & op_arg_dat(p_res,-1,OP_ID,4,"real(8)",OP_RW),  &
                    & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_READ),  &
                    & op_arg_gbl(rms,2,"real(8)",OP_INC))
-
+  !DIR$ ENDIF
 
   rms(2) = sqrt ( rms(2) / ncellr )
 
@@ -243,6 +445,7 @@ program AIRFOIL
 
 
   call op_timing_output ()
+  write (*,*) 'RMS value =',rms(1:2)
   write (*,*) 'Max total runtime =',endTime-startTime,'seconds'
 
 end program AIRFOIL

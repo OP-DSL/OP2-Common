@@ -16,6 +16,23 @@ PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
                   -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
 
+#suneth
+ifdef SLOPE_INSTALL_PATH
+  SLOPE_INC = -I$(SLOPE_INSTALL_PATH)/sparsetiling/include
+  SLOPE_LIB = -L$(SLOPE_INSTALL_PATH)/lib
+  F_SLOPE_MOD = $(SLOPE_INSTALL_PATH)/fortran/mod
+  F_SLOPE_LIB = $(SLOPE_INSTALL_PATH)/fortran/lib
+  
+endif
+
+ifdef METIS_INSTALL_PATH
+  METIS_INC = -I$(METIS_INSTALL_PATH)/include
+  METIS_LIB = -L$(METIS_INSTALL_PATH)/lib
+endif
+
+F_SLOPE_LINK = -L$(F_SLOPE_LIB) $(METIS_LIB)
+F_SLOPE_MODS = -I$(F_SLOPE_MOD) $(METIS_INC)
+
 PART_SIZE_ENV ?= 128
 
 #
@@ -148,6 +165,16 @@ airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
 	bres_calc_kernel.o update_kernel.o update1_kernel.o airfoil_op.o -o airfoil_openmp -lop2_for_openmp $(HDF5_LIB)
 
+airfoil_slope: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
+	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 update1_kernel.F90 constants.F90 input.F90 airfoil_seqfun.F90
+	$(FC) $(OPT) $(OPENMP) $(FMODS) $(F_SLOPE_MODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	save_soln_kernel.F90 update_kernel.F90 update1_kernel.F90 bres_calc_kernel.F90 \
+	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
+	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) constants.o input.o airfoil_seqfun.o \
+	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
+	bres_calc_kernel.o update_kernel.o update1_kernel.o airfoil_op.o -o airfoil_slope -lop2_for_openmp $(HDF5_LIB) \
+  $(F_SLOPE_LIB)/libfslope.a -lmetis -g -lstdc++ -lc
+
 airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF update1_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
 	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
@@ -170,6 +197,7 @@ clean:
 	rm -f airfoil_seq
 	rm -f airfoil_vec
 	rm -f airfoil_openmp
+	rm -f airfoil_slope
 	rm -f airfoil_openmp_*
 	rm -f airfoil_cuda
 	rm -f airfoil_vec
