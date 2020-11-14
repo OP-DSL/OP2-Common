@@ -163,10 +163,10 @@ airfoil_openmp: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 
 airfoil_slope: airfoil_op.F90 save_soln_kernel.F90 adt_calc_kernel.F90 \
 	res_calc_kernel.F90 bres_calc_kernel.F90 update_kernel.F90 update1_kernel.F90 constants.F90 input.F90 airfoil_seqfun.F90
-	$(FC) $(OPT) $(OPENMP) $(FMODS) $(F_SLOPE_MODS) -c constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT) $(OPENMP) $(FMODS) $(F_SLOPE_MODS) -DSLOPE -c constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_kernel.F90 update_kernel.F90 update1_kernel.F90 bres_calc_kernel.F90 \
 	res_calc_kernel.F90 adt_calc_kernel.F90 airfoil_op.F90
-	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) constants.o input.o airfoil_seqfun.o \
+	$(MPIF90) $(OPT) $(OPENMP) $(FLINK) -DSLOPE constants.o input.o airfoil_seqfun.o \
 	save_soln_kernel.o adt_calc_kernel.o res_calc_kernel.o \
 	bres_calc_kernel.o update_kernel.o update1_kernel.o airfoil_op.o -o airfoil_slope -lop2_for_openmp $(HDF5_LIB) \
  	$(F_SLOPE_LIB)/libfslope.a $(METIS_LIB) -lmetis -lstdc++ -lc

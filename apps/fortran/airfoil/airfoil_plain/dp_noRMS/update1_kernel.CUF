@@ -20,6 +20,7 @@ USE CUDACONFIGURATIONPARAMS
 real(8), DIMENSION(:), DEVICE, ALLOCATABLE :: reductionArrayDevice5update1
 
 
+#define OP2_SOA(var,dim,stride) var((dim-1)*stride+1)
 
 CONTAINS
 
@@ -108,7 +109,6 @@ END SUBROUTINE
     & opDat2Deviceupdate1, &
     & opDat3Deviceupdate1, &
     & opDat4Deviceupdate1, &
-    & reductionArrayDevice5,   &
     & setSize)
 
     IMPLICIT NONE
@@ -119,7 +119,6 @@ END SUBROUTINE
     real(8), DEVICE :: opDat3Deviceupdate1(*)
     real(8), DEVICE, INTENT(IN) :: opDat4Deviceupdate1(*)
 
-    real(8), DIMENSION(:), DEVICE :: reductionArrayDevice5
     real(8), DIMENSION(0:2-1) :: opGblDat5Deviceupdate1
 
     INTEGER(kind=4), VALUE :: setSize
@@ -144,7 +143,7 @@ END SUBROUTINE
 
     do i1=0,2-1,8
     i2 = MIN(i1+8,2)
-      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate1(i1:),0,i2-i1)
+      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5update1((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate1(i1:),0,i2-i1)
     end do
 
   END SUBROUTINE
@@ -246,10 +245,10 @@ END SUBROUTINE
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
     blocksPerGrid = 600
-    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
@@ -282,7 +281,6 @@ END SUBROUTINE
     & opDat2Deviceupdate1, &
     & opDat3Deviceupdate1, &
     & opDat4Deviceupdate1, &
-    & reductionArrayDevice5update1, &
     set%setPtr%size)
 
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
@@ -299,8 +297,6 @@ END SUBROUTINE
     END DO
 
     deallocate( reductionArrayHost5 )
-    CALL op_mpi_reduce_double(opArg5,opArg5%data)
-
     istat = cudaDeviceSynchronize()
     call op_timers_core(endTime)
 

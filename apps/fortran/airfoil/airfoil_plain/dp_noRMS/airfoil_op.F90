@@ -16,16 +16,15 @@ program AIRFOIL
   use AIRFOIL_SEQ
   use IO
 
-  !DIR$ DEFINE SLOPE=1
-  !DIR$ IF DEFINED (SLOPE)
+#ifdef SLOPE
   use SLOPE_FORTRAN_DECLARATIONS
   use AIRFOIL_SEQ,save_soln_slope => save_soln
   use AIRFOIL_SEQ,adt_calc_slope => adt_calc
   use AIRFOIL_SEQ,res_calc_slope => res_calc
   use AIRFOIL_SEQ,bres_calc_slope => bres_calc
   use AIRFOIL_SEQ,update_slope => update
-  use AIRFOIL_SEQ,update1_slope => update1
-  !DIR$ ENDIF
+  use AIRFOIL_SEQ,update1_slope => update1 
+#endif
 
   use, intrinsic :: ISO_C_BINDING
 
@@ -62,6 +61,7 @@ program AIRFOIL
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, q_part
   real(8), dimension(1:2) :: rms
 
+  integer(4) :: snode, scell, sedge, sbedge
   integer(4) :: debugiter, retDebug
   real(8) :: datad
 
@@ -69,7 +69,8 @@ program AIRFOIL
   REAL(KIND=8) :: diff
   integer(4):: ncelli
 
-  !DIR$ IF DEFINED (SLOPE)
+#ifdef SLOPE
+
   type(sl_set) :: sl_nodes, sl_edges, sl_bedges, sl_cells
   type(sl_map) :: sl_pedge, sl_pecell, sl_pcell, sl_pbedge, sl_pbecell
   type(sl_desc_list) :: sl_adt_calc_desc, sl_res_calc_desc, sl_bres_calc_desc, sl_update_desc
@@ -88,12 +89,16 @@ program AIRFOIL
 
   integer(4) :: s, s1, s2, s3
   
-  !DIR$ ENDIF
+#endif
 
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
   print *, "Getting set sizes"
   call getSetSizes ( nnode, ncell, nedge, nbedge )
+  snode = 2
+  scell = 1
+  sedge = 5
+  sbedge = 7
 
   print *, ncell
   ! allocate sets (cannot allocate in subroutine in F90)
@@ -129,6 +134,11 @@ program AIRFOIL
   call op_decl_set ( nbedge, bedges, 'bedges' )
   call op_decl_set ( ncell, cells, 'cells' )
 
+  call op_register_set(snode, nodes)
+  call op_register_set(scell, cells)
+  call op_register_set(sedge, edges)
+  call op_register_set(sbedge, bedges)
+
   print *, "Declaring OP2 maps"
   call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
   call op_decl_map ( edges, cells, 2, ecell, pecell, 'pecell' )
@@ -155,7 +165,8 @@ program AIRFOIL
   ncelli  = op_get_size(cells)
   ncellr = real(ncelli)
 
-  !DIR$ IF DEFINED (SLOPE)
+#ifdef SLOPE
+
   print *, "SLOPE declaring sets"
   call set(sl_nodes, 'sl_nodes', nnode);
   call set(sl_edges, 'sl_edges', nedge);
@@ -231,7 +242,8 @@ program AIRFOIL
   call exec_init (sl_exec, sl_insp);
   call exec_num_colors (sl_exec, ncolors);
 
-  !DIR$ ENDIF
+
+#endif
 
   ! start timer
   call op_timers ( startTime )
@@ -240,141 +252,135 @@ program AIRFOIL
 
   do niter = 1, iterationNumber
 
-    !DIR$ IF DEFINED (SLOPE)
-    !$OMP PARALLEL DO private (s)
-    do s = 0, ncell - 1
-      call save_soln_slope(&
-                      q((4*s) + 1), &
-                      qold((4*s) + 1))
-    end do
-    !$OMP END PARALLEL DO
-    !DIR$ ELSE
-    call save_soln_host(&
-                      & "save_soln",cells,  &
-                      & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_READ),  &
-                      & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_WRITE))                 
-    !DIR$ ENDIF
+     call save_soln_host(&
+                      & "save_soln",op_get_set(scell),  &
+                      & op_arg_dat(q,-1,OP_ID,4,"real(8)",OP_READ),  &
+                      & op_arg_dat(qold,-1,OP_ID,4,"real(8)",OP_WRITE))
+
+
+    ! predictor/corrector update loop
 
     do k = 1, 2
 
-      !DIR$ IF DEFINED (SLOPE)
+#ifdef SLOPE
+
       do s1 = 0, ncolors - 1
 
-        call exec_tiles_per_color(sl_exec, s1, ntiles_per_color)
-        !$OMP PARALLEL DO private (sl_tile1, loop_size, s, lc2n_0, iterations_0, &
-        le2n_1, le2c_1, iterations_1, lbe2n_2, lbe2c_2,  iterations_2, iterations_3)
-        do s2 = 0, ntiles_per_color - 1
+      call exec_tiles_per_color(sl_exec, s1, ntiles_per_color)
+      !$OMP PARALLEL DO private (sl_tile1, loop_size, s, lc2n_0, iterations_0, &
+      le2n_1, le2c_1, iterations_1, lbe2n_2, lbe2c_2,  iterations_2, iterations_3)
+      do s2 = 0, ntiles_per_color - 1
 
-          call exec_tile_at(sl_tile1, sl_exec, s1 , s2)
+        call exec_tile_at(sl_tile1, sl_exec, s1 , s2)
 
-          call tile_loop_size(loop_size, sl_tile1, 0)
-          call tile_get_local_map(lc2n_0, sl_tile1, 0, "c2n", loop_size)
-          call tile_get_iterations(iterations_0, sl_tile1, 0, loop_size)
+        call tile_loop_size(loop_size, sl_tile1, 0)
+        call tile_get_local_map(lc2n_0, sl_tile1, 0, "c2n", loop_size)
+        call tile_get_iterations(iterations_0, sl_tile1, 0, loop_size)
 
-          do s = 0, loop_size - 1 
-            call adt_calc_slope ( &
-                      x((lc2n_0(s*4 + 1)*2) + 1), &
-                      x((lc2n_0(s*4 + 2)*2) + 1), &
-                      x((lc2n_0(s*4 + 3)*2) + 1), &
-                      x((lc2n_0(s*4 + 4)*2) + 1), &
-                      q((iterations_0(s + 1)*4) + 1), &
-                      adt((iterations_0(s + 1)) + 1))
-          end do
-
-          call tile_loop_size(loop_size, sl_tile1, 1)
-          call tile_get_local_map(le2n_1, sl_tile1, 1, "e2n", loop_size)
-          call tile_get_local_map(le2c_1, sl_tile1, 1, "e2c", loop_size)
-          call tile_get_iterations(iterations_1, sl_tile1, 1, loop_size)
-
-          do s = 0, loop_size - 1
-            call res_calc_slope ( &
-                      x((le2n_1(s*2 + 1)*2) + 1), &
-                      x((le2n_1(s*2 + 2)*2) + 1), &
-                      q((le2c_1(s*2 + 1)*4) + 1), &
-                      q((le2c_1(s*2 + 2)*4) + 1), &
-                      adt((le2c_1(s*2 + 1)*1) + 1), &
-                      adt((le2c_1(s*2 + 2)*1) + 1), &
-                      res((le2c_1(s*2 + 1)*4) + 1), &
-                      res((le2c_1(s*2 + 2)*4) + 1))
-          end do
-
-          call tile_loop_size(loop_size, sl_tile1, 2)
-          call tile_get_local_map(lbe2n_2, sl_tile1, 2, "be2n", loop_size)
-          call tile_get_local_map(lbe2c_2, sl_tile1, 2, "be2c", loop_size)
-          call tile_get_iterations(iterations_2, sl_tile1, 2, loop_size)
-
-          do s = 0, loop_size - 1
-            call bres_calc_slope ( &
-                      x((lbe2n_2(s*2 + 1)*2) + 1), &
-                      x((lbe2n_2(s*2 + 2)*2) + 1), &
-                      q((lbe2c_2(s + 1)*4) + 1), &
-                      adt((lbe2c_2(s + 1)*1) + 1), &
-                      res((lbe2c_2(s + 1)*4) + 1), &
-                      bound((iterations_2(s + 1)*1) + 1))
-          end do
-
-          call tile_loop_size(loop_size, sl_tile1, 3)
-          call tile_get_iterations(iterations_3, sl_tile1, 3, loop_size)
-
-          do s = 0, loop_size - 1
-            call update_slope ( &
-                      qold((iterations_3(s + 1)*4) + 1), &
-                      q((iterations_3(s + 1)*4) + 1), &
-                      res((iterations_3(s + 1)*4) + 1), &
-                      adt((iterations_3(s + 1)*1) + 1))
-          end do
-
+        do s = 0, loop_size - 1 
+          call adt_calc_slope ( &
+                    x((lc2n_0(s*4 + 1)*2) + 1), &
+                    x((lc2n_0(s*4 + 2)*2) + 1), &
+                    x((lc2n_0(s*4 + 3)*2) + 1), &
+                    x((lc2n_0(s*4 + 4)*2) + 1), &
+                    q((iterations_0(s + 1)*4) + 1), &
+                    adt((iterations_0(s + 1)) + 1))
         end do
-        !$OMP END PARALLEL DO
-      end do
 
-      !DIR$ ELSE
-     
+        call tile_loop_size(loop_size, sl_tile1, 1)
+        call tile_get_local_map(le2n_1, sl_tile1, 1, "e2n", loop_size)
+        call tile_get_local_map(le2c_1, sl_tile1, 1, "e2c", loop_size)
+        call tile_get_iterations(iterations_1, sl_tile1, 1, loop_size)
+
+        do s = 0, loop_size - 1
+          call res_calc_slope ( &
+                    x((le2n_1(s*2 + 1)*2) + 1), &
+                    x((le2n_1(s*2 + 2)*2) + 1), &
+                    q((le2c_1(s*2 + 1)*4) + 1), &
+                    q((le2c_1(s*2 + 2)*4) + 1), &
+                    adt((le2c_1(s*2 + 1)*1) + 1), &
+                    adt((le2c_1(s*2 + 2)*1) + 1), &
+                    res((le2c_1(s*2 + 1)*4) + 1), &
+                    res((le2c_1(s*2 + 2)*4) + 1))
+        end do
+
+        call tile_loop_size(loop_size, sl_tile1, 2)
+        call tile_get_local_map(lbe2n_2, sl_tile1, 2, "be2n", loop_size)
+        call tile_get_local_map(lbe2c_2, sl_tile1, 2, "be2c", loop_size)
+        call tile_get_iterations(iterations_2, sl_tile1, 2, loop_size)
+
+        do s = 0, loop_size - 1
+          call bres_calc_slope ( &
+                    x((lbe2n_2(s*2 + 1)*2) + 1), &
+                    x((lbe2n_2(s*2 + 2)*2) + 1), &
+                    q((lbe2c_2(s + 1)*4) + 1), &
+                    adt((lbe2c_2(s + 1)*1) + 1), &
+                    res((lbe2c_2(s + 1)*4) + 1), &
+                    bound((iterations_2(s + 1)*1) + 1))
+        end do
+
+        call tile_loop_size(loop_size, sl_tile1, 3)
+        call tile_get_iterations(iterations_3, sl_tile1, 3, loop_size)
+
+        do s = 0, loop_size - 1
+          call update_slope ( &
+                    qold((iterations_3(s + 1)*4) + 1), &
+                    q((iterations_3(s + 1)*4) + 1), &
+                    res((iterations_3(s + 1)*4) + 1), &
+                    adt((iterations_3(s + 1)*1) + 1))
+        end do
+
+      end do
+      !$OMP END PARALLEL DO
+    end do
+
+#else
+
       ! calculate area/timstep
       call adt_calc_host(&
                        & "adt_calc",cells,  &
-                       & op_arg_dat(p_x,1,pcell,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_x,2,pcell,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_x,3,pcell,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_x,4,pcell,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_WRITE))
+                       & op_arg_dat(x,1,cell,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(x,2,cell,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(x,3,cell,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(x,4,cell,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(q,-1,OP_ID,4,"real(8)",OP_READ),  &
+                       & op_arg_dat(adt,-1,OP_ID,1,"real(8)",OP_WRITE))
 
 
       ! calculate flux residual
       call res_calc_host(&
                        & "res_calc",edges,  &
-                       & op_arg_dat(p_x,1,pedge,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_x,2,pedge,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_q,1,pecell,4,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_q,2,pecell,4,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_adt,1,pecell,1,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_adt,2,pecell,1,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_res,1,pecell,4,"real(8)",OP_INC),  &
-                       & op_arg_dat(p_res,2,pecell,4,"real(8)",OP_INC))
+                       & op_arg_dat(x,1,edge,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(x,2,edge,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(q,1,ecell,4,"real(8)",OP_READ),  &
+                       & op_arg_dat(q,2,ecell,4,"real(8)",OP_READ),  &
+                       & op_arg_dat(adt,1,ecell,1,"real(8)",OP_READ),  &
+                       & op_arg_dat(adt,2,ecell,1,"real(8)",OP_READ),  &
+                       & op_arg_dat(res,1,ecell,4,"real(8)",OP_INC),  &
+                       & op_arg_dat(res,2,ecell,4,"real(8)",OP_INC))
 
 
       call bres_calc_host(&
                        & "bres_calc",bedges,  &
-                       & op_arg_dat(p_x,1,pbedge,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_x,2,pbedge,2,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_q,1,pbecell,4,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_adt,1,pbecell,1,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_res,1,pbecell,4,"real(8)",OP_INC),  &
-                       & op_arg_dat(p_bound,-1,OP_ID,1,"integer(4)",OP_READ))
+                       & op_opt_arg_dat(.true.,x,1,bedge,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(x,2,bedge,2,"real(8)",OP_READ),  &
+                       & op_arg_dat(q,1,becell,4,"real(8)",OP_READ),  &
+                       & op_arg_dat(adt,1,becell,1,"real(8)",OP_READ),  &
+                       & op_arg_dat(res,1,becell,4,"real(8)",OP_INC),  &
+                       & op_arg_dat(bound,-1,OP_ID,1,"integer(4)",OP_READ))
 
 
       ! update flow field
 
+      ! rms(1:2) = 0.0
+
       call update_host(&
                        & "update",cells,  &
-                       & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_READ),  &
-                       & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_WRITE),  &
-                       & op_arg_dat(p_res,-1,OP_ID,4,"real(8)",OP_RW),  &
-                       & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_READ))
-
-                      
-      !DIR$ ENDIF                 
+                       & op_arg_dat(qold,-1,OP_ID,4,"real(8)",OP_READ),  &
+                       & op_arg_dat(q,-1,OP_ID,4,"real(8)",OP_WRITE),  &
+                       & op_arg_dat(res,-1,OP_ID,4,"real(8)",OP_RW),  &
+                       & op_arg_dat(adt,-1,OP_ID,1,"real(8)",OP_READ))
+#endif
 
     end do ! internal loop
 
@@ -404,28 +410,17 @@ program AIRFOIL
 !  call op_fetch_data_idx(p_q,q_part, 1, ncell)
 
   call op_timers ( endTime )
-  !DIR$ IF DEFINED (SLOPE)
-  rms(1:2) = 0.0
-  !$OMP PARALLEL DO private (s) reduction(+:rms)
-  do s = 0, ncell - 1
-    call update1_slope(&
-                   qold((4*s) + 1), &
-                   q((4*s) + 1), &
-                   res((4*s) + 1), &
-                   adt((4*s) + 1), &
-                   rms(1:2))
-  end do
-  !$OMP END PARALLEL DO
 
-  !DIR$ ELSE
+  rms(1:2) = 0.0
+
   call update1_host(&
                    & "update1",cells,  &
-                   & op_arg_dat(p_qold,-1,OP_ID,4,"real(8)",OP_READ),  &
-                   & op_arg_dat(p_q,-1,OP_ID,4,"real(8)",OP_WRITE),  &
-                   & op_arg_dat(p_res,-1,OP_ID,4,"real(8)",OP_RW),  &
-                   & op_arg_dat(p_adt,-1,OP_ID,1,"real(8)",OP_READ),  &
+                   & op_arg_dat(qold,-1,OP_ID,4,"real(8)",OP_READ),  &
+                   & op_arg_dat(q,-1,OP_ID,4,"real(8)",OP_WRITE),  &
+                   & op_arg_dat(res,-1,OP_ID,4,"real(8)",OP_RW),  &
+                   & op_arg_dat(adt,-1,OP_ID,1,"real(8)",OP_READ),  &
                    & op_arg_gbl(rms,2,"real(8)",OP_INC))
-  !DIR$ ENDIF
+
 
   rms(2) = sqrt ( rms(2) / ncellr )
 
@@ -445,7 +440,6 @@ program AIRFOIL
 
 
   call op_timing_output ()
-  write (*,*) 'RMS value =',rms(1:2)
   write (*,*) 'Max total runtime =',endTime-startTime,'seconds'
 
 end program AIRFOIL
