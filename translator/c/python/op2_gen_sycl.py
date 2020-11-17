@@ -108,9 +108,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=1 #global coloring
+  op_color2_force=0 #global coloring
   atomics=0 # atomics
   inner_loop=0 #each work item executes a whole block
+  intel = 1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -724,9 +725,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     code('')
 
     if (op_color2 or ninds==0) and not reduct:
-      code('auto kern = [=](cl::sycl::item<1> item) {')
+      code('auto kern = [=](cl::sycl::item<1> item) [[intel::reqd_sub_group_size(SIMD_VEC)]] {')
     else:
-      code('auto kern = [=](cl::sycl::nd_item<1> item) {')
+      code('auto kern = [=](cl::sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SIMD_VEC)]] {')
     depth += 2
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
@@ -780,6 +781,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('')
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
+      if intel and not inner_loop:
+        code('sycl::ONEAPI::sub_group sg = item.get_sub_group();')
       code('')
 
       if ind_inc and not inner_loop:
@@ -816,7 +819,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             ENDFOR()
         if ind_inc:
           code('')
-          code('item.barrier(cl::sycl::access::fence_space::local_space);')
+          if intel:
+            code('sg.barrier();')
+          else:
+            code('item.barrier(cl::sycl::access::fence_space::local_space);')
           code('')
       if inner_loop:
         FOR('n','0','nelem')
@@ -1286,6 +1292,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   code('#ifndef MAX_CONST_SIZE')
   code('#define MAX_CONST_SIZE 128')
+  code('#endif')
+  code('#ifndef SIMD_VEC')
+  code('#define SIMD_VEC 8')
   code('#endif')
   code('')
 
