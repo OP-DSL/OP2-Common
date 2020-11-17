@@ -133,6 +133,11 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 }
 void op_renumber(op_map base) { (void)base; }
 
+#ifdef __cplusplus
+extern "C"
+#endif
+void op_renumber_ptr(int *ptr) {};
+
 void op_compute_moment(double t, double *first, double *second) {
   *first = t;
   *second = t * t;
