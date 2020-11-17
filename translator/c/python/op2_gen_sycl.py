@@ -595,15 +595,14 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       IF('col==Plan->ncolors_core')
       code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
-      code('#ifdef OP_BLOCK_SIZE_'+str(nk))
-      code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
-      code('#else')
-      code('int nthread = OP_block_size;')
-      code('#endif')
       if inner_loop:
-        IF('op2_queue->get_device().is_cpu()')
-        code('nthread = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
-        ENDIF()
+        code('int nthread = 1;')
+      else:
+        code('#ifdef OP_BLOCK_SIZE_'+str(nk))
+        code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
+        code('#else')
+        code('int nthread = OP_block_size;')
+        code('#endif')
       code('')
       if op_color2:
         code('int start = Plan->col_offsets[0][col];')
@@ -768,16 +767,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 # lengthy code for general case with indirection
 #
     if ninds>0 and not op_color2 and not atomics:
-      if inner_loop:
-        FOR_INC('grp','item.get_global_id()[0]','nblocks','item.get_global_range()[0]')
       code('')
       code('')
       comm('get sizes and shift pointers and direct-mapped data')
       code('')
-      if inner_loop:
-        code('int blockId = blkmap[grp  + block_offset];')
-      else:
-        code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
+      code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
       code('')
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
@@ -1122,9 +1116,6 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if indopts[g_m] > 0:
             ENDIF()
 
-    if ninds>0 and inner_loop:
-      ENDFOR()
-
 #
 # global reduction
 #
@@ -1163,10 +1154,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       else:
         code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::range<1>(nthread*nblocks), kern);')
     else:
-      if inner_loop and not reduct:
-        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread,nthread), kern);')
-      else:
-        code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
+      code('cgh.parallel_for<class '+name+'_kernel>(cl::sycl::nd_range<1>(nthread*nblocks,nthread), kern);')
     depth -= 2
     code('});')
     code('}catch(cl::sycl::exception const &e) {')
