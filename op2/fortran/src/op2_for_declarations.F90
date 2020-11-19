@@ -746,7 +746,7 @@ module OP2_Fortran_Declarations
      type(op_dat_core) :: data
    end function
 
-   INTEGER(8) function op_get_data_ptr2_c ( data ) BIND(C,name='op_get_data_ptr2')
+   INTEGER(8) function op_reset_data_ptr_c ( data ) BIND(C,name='op_reset_data_ptr')
      use, intrinsic :: ISO_C_BINDING
      type(c_ptr), value, intent(in) :: data
    end function
@@ -757,7 +757,7 @@ module OP2_Fortran_Declarations
      type(op_map_core) :: map
    end function
 
-   INTEGER(8) function op_get_map_ptr2_c ( map ) BIND(C,name='op_get_map_ptr2')
+   INTEGER(8) function op_reset_map_ptr_c ( map ) BIND(C,name='op_reset_map_ptr')
      use, intrinsic :: ISO_C_BINDING
      type(c_ptr), value, intent(in) :: map
    end function
@@ -833,13 +833,9 @@ module OP2_Fortran_Declarations
     module procedure op_print_dat_to_txtfile2_real_8, op_print_dat_to_txtfile2_integer_4
   end interface op_print_dat_to_txtfile2
 
-  interface op_get_data_ptr
-    module procedure op_get_data_ptr, op_get_data_ptr2_r8, op_get_data_ptr2_i4
-  end interface op_get_data_ptr
-
-  !interface op_get_map_ptr
-  !  module procedure op_get_map_ptr, op_get_map_ptr2
-  !end interface op_get_map_ptr
+  interface op_reset_data_ptr
+    module procedure op_reset_data_ptr_r8, op_reset_data_ptr_i4
+  end interface op_reset_data_ptr
 
 contains
 
@@ -2788,20 +2784,20 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
   end function op_get_data_ptr
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - r8
-  INTEGER(8) function op_get_data_ptr2_r8(data)
+  INTEGER(8) function op_reset_data_ptr_r8(data)
     use, intrinsic :: ISO_C_BINDING
     real(8), dimension(*), target :: data
-    op_get_data_ptr2_r8 = op_get_data_ptr2_c(c_loc(data))
+    op_reset_data_ptr_r8 = op_reset_data_ptr_c(c_loc(data))
 
-  end function op_get_data_ptr2_r8
+  end function op_reset_data_ptr_r8
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - i4
-  INTEGER(8) function op_get_data_ptr2_i4(data)
+  INTEGER(8) function op_reset_data_ptr_i4(data)
     use, intrinsic :: ISO_C_BINDING
     integer(4), dimension(*), target :: data
-    op_get_data_ptr2_i4 = op_get_data_ptr2_c(c_loc(data))
+    op_reset_data_ptr_i4 = op_reset_data_ptr_c(c_loc(data))
 
-  end function op_get_data_ptr2_i4
+  end function op_reset_data_ptr_i4
 
   ! get the pointer of the data held in an op_map
   INTEGER(8) function op_get_map_ptr(map)
@@ -2812,12 +2808,12 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
   end function op_get_map_ptr
 
     ! get the pointer of the map held in an op_dat (via the original pointer) - i4
-  INTEGER(8) function op_get_map_ptr2(map)
+  INTEGER(8) function op_reset_map_ptr(map)
     use, intrinsic :: ISO_C_BINDING
     integer(4), dimension(*), target :: map
-    op_get_map_ptr2 = op_get_map_ptr2_c(c_loc(map))
+    op_reset_map_ptr = op_reset_map_ptr_c(c_loc(map))
 
-  end function op_get_map_ptr2
+  end function op_reset_map_ptr
 
 
   INTEGER(8) function op_copy_map_to_fort(map)
