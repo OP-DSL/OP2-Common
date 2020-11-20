@@ -59,6 +59,8 @@ program AIRFOIL
   ! arrays used in data
   integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
   real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, q_part
+  real(8), dimension(:), allocatable, target :: sl_x, sl_q, sl_qold, sl_adt, sl_res
+  integer(4), dimension(:), allocatable, target :: sl_bound
   real(8), dimension(1:2) :: rms
 
   integer(4) :: snode, scell, sedge, sbedge
@@ -74,7 +76,6 @@ program AIRFOIL
   type(sl_set) :: sl_nodes, sl_edges, sl_bedges, sl_cells
   type(sl_map) :: sl_pedge, sl_pecell, sl_pcell, sl_pbedge, sl_pbecell
   type(sl_desc_list) :: sl_adt_calc_desc, sl_res_calc_desc, sl_bres_calc_desc, sl_update_desc
-  type(sl_descriptor) :: sl_desc1, sl_desc2, sl_desc3, sl_desc4, sl_desc5, sl_desc6, sl_desc7, sl_desc8, sl_desc9, sl_desc10
 
   type(sl_map_list) :: sl_meshMaps
   type(sl_inspector) :: sl_insp
@@ -183,38 +184,21 @@ program AIRFOIL
 
   print *, "SLOPE creating desc lits"
 
-  call desc(sl_desc1, sl_pcell, SL_READ)
-  call desc(sl_desc2, DIRECT, SL_WRITE)
 
-  call desc_list(sl_adt_calc_desc)
-  call insert_descriptor_to(sl_adt_calc_desc, sl_desc1)
-  call insert_descriptor_to(sl_adt_calc_desc, sl_desc2)
+  call desc_list(sl_adt_calc_desc, (/ desc(sl_pcell, SL_READ), &
+                                      desc(DIRECT, SL_WRITE)  /), 2)
 
-  call desc(sl_desc3, sl_pedge, SL_READ)
-  call desc(sl_desc4, sl_pecell, SL_READ)
-  call desc(sl_desc5, sl_pecell, SL_INC)
+  call desc_list(sl_res_calc_desc, (/ desc(sl_pedge, SL_READ), &
+                                      desc(sl_pecell, SL_READ), &
+                                      desc(sl_pecell, SL_INC) /), 3)
+  
+  call desc_list(sl_bres_calc_desc, (/  desc(sl_pbedge, SL_READ), &
+                                        desc(sl_pbecell, SL_READ), &
+                                        desc(sl_pbecell, SL_INC) /), 3)
 
-  call desc_list(sl_res_calc_desc)
-  call insert_descriptor_to(sl_res_calc_desc, sl_desc3)
-  call insert_descriptor_to(sl_res_calc_desc, sl_desc4)
-  call insert_descriptor_to(sl_res_calc_desc, sl_desc5)
-
-  call desc(sl_desc6, sl_pbedge, SL_READ)
-  call desc(sl_desc7, sl_pbecell, SL_READ)
-  call desc(sl_desc8, sl_pbecell, SL_INC)
-
-  call desc_list(sl_bres_calc_desc)
-  call insert_descriptor_to(sl_bres_calc_desc, sl_desc6)
-  call insert_descriptor_to(sl_bres_calc_desc, sl_desc7)
-  call insert_descriptor_to(sl_bres_calc_desc, sl_desc8)
-
-  call desc(sl_desc9, DIRECT, SL_READ)
-  call desc(sl_desc10, DIRECT, SL_WRITE)
-
-  call desc_list(sl_update_desc)
-  call insert_descriptor_to(sl_update_desc, sl_desc9)
-  call insert_descriptor_to(sl_update_desc, sl_desc10)
-
+  call desc_list(sl_update_desc, (/ desc(DIRECT, SL_READ), &
+                                    desc(DIRECT, SL_WRITE) /), 2)
+  
   print *, "SLOPE creating map lits"
   call map_list(sl_meshMaps)
   call insert_map_to(sl_meshMaps, sl_pcell)
@@ -242,6 +226,13 @@ program AIRFOIL
   call exec_init (sl_exec, sl_insp);
   call exec_num_colors (sl_exec, ncolors);
 
+  call c_f_pointer(p_x%dataPtr%dat,sl_x,(/p_x%dataPtr%size/))
+  call c_f_pointer(p_q%dataPtr%dat,sl_q,(/p_q%dataPtr%size/))
+  call c_f_pointer(p_qold%dataPtr%dat,sl_qold,(/p_qold%dataPtr%size/))
+  call c_f_pointer(p_adt%dataPtr%dat,sl_adt,(/p_adt%dataPtr%size/))
+  call c_f_pointer(p_res%dataPtr%dat,sl_res,(/p_res%dataPtr%size/))
+  call c_f_pointer(p_bound%dataPtr%dat,sl_bound,(/p_bound%dataPtr%size/))
+
 
 #endif
 
@@ -259,7 +250,6 @@ program AIRFOIL
 
 
     ! predictor/corrector update loop
-
     do k = 1, 2
 
 #ifdef SLOPE
@@ -279,12 +269,12 @@ program AIRFOIL
 
         do s = 0, loop_size - 1 
           call adt_calc_slope ( &
-                    x((lc2n_0(s*4 + 1)*2) + 1), &
-                    x((lc2n_0(s*4 + 2)*2) + 1), &
-                    x((lc2n_0(s*4 + 3)*2) + 1), &
-                    x((lc2n_0(s*4 + 4)*2) + 1), &
-                    q((iterations_0(s + 1)*4) + 1), &
-                    adt((iterations_0(s + 1)) + 1))
+                    sl_x((lc2n_0(s*4 + 1)*2) + 1), &
+                    sl_x((lc2n_0(s*4 + 2)*2) + 1), &
+                    sl_x((lc2n_0(s*4 + 3)*2) + 1), &
+                    sl_x((lc2n_0(s*4 + 4)*2) + 1), &
+                    sl_q((iterations_0(s + 1)*4) + 1), &
+                    sl_adt((iterations_0(s + 1)) + 1))
         end do
 
         call tile_loop_size(loop_size, sl_tile1, 1)
@@ -294,14 +284,14 @@ program AIRFOIL
 
         do s = 0, loop_size - 1
           call res_calc_slope ( &
-                    x((le2n_1(s*2 + 1)*2) + 1), &
-                    x((le2n_1(s*2 + 2)*2) + 1), &
-                    q((le2c_1(s*2 + 1)*4) + 1), &
-                    q((le2c_1(s*2 + 2)*4) + 1), &
-                    adt((le2c_1(s*2 + 1)*1) + 1), &
-                    adt((le2c_1(s*2 + 2)*1) + 1), &
-                    res((le2c_1(s*2 + 1)*4) + 1), &
-                    res((le2c_1(s*2 + 2)*4) + 1))
+                    sl_x((le2n_1(s*2 + 1)*2) + 1), &
+                    sl_x((le2n_1(s*2 + 2)*2) + 1), &
+                    sl_q((le2c_1(s*2 + 1)*4) + 1), &
+                    sl_q((le2c_1(s*2 + 2)*4) + 1), &
+                    sl_adt((le2c_1(s*2 + 1)*1) + 1), &
+                    sl_adt((le2c_1(s*2 + 2)*1) + 1), &
+                    sl_res((le2c_1(s*2 + 1)*4) + 1), &
+                    sl_res((le2c_1(s*2 + 2)*4) + 1))
         end do
 
         call tile_loop_size(loop_size, sl_tile1, 2)
@@ -311,12 +301,12 @@ program AIRFOIL
 
         do s = 0, loop_size - 1
           call bres_calc_slope ( &
-                    x((lbe2n_2(s*2 + 1)*2) + 1), &
-                    x((lbe2n_2(s*2 + 2)*2) + 1), &
-                    q((lbe2c_2(s + 1)*4) + 1), &
-                    adt((lbe2c_2(s + 1)*1) + 1), &
-                    res((lbe2c_2(s + 1)*4) + 1), &
-                    bound((iterations_2(s + 1)*1) + 1))
+                    sl_x((lbe2n_2(s*2 + 1)*2) + 1), &
+                    sl_x((lbe2n_2(s*2 + 2)*2) + 1), &
+                    sl_q((lbe2c_2(s + 1)*4) + 1), &
+                    sl_adt((lbe2c_2(s + 1)*1) + 1), &
+                    sl_res((lbe2c_2(s + 1)*4) + 1), &
+                    sl_bound((iterations_2(s + 1)*1) + 1))
         end do
 
         call tile_loop_size(loop_size, sl_tile1, 3)
@@ -324,10 +314,10 @@ program AIRFOIL
 
         do s = 0, loop_size - 1
           call update_slope ( &
-                    qold((iterations_3(s + 1)*4) + 1), &
-                    q((iterations_3(s + 1)*4) + 1), &
-                    res((iterations_3(s + 1)*4) + 1), &
-                    adt((iterations_3(s + 1)*1) + 1))
+                    sl_qold((iterations_3(s + 1)*4) + 1), &
+                    sl_q((iterations_3(s + 1)*4) + 1), &
+                    sl_res((iterations_3(s + 1)*4) + 1), &
+                    sl_adt((iterations_3(s + 1)*1) + 1))
         end do
 
       end do
