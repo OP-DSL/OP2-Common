@@ -241,7 +241,6 @@ END SUBROUTINE
 
     returnSetKernelTiming = setKernelTime(4 , userSubroutine//C_NULL_CHAR, &
     & 0.0_8, 0.00000_4,0.00000_4, 0)
-    print *,"update"
     IF ((calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
       direct_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
       direct_stride_OP2CONSTANT = direct_stride_OP2HOST

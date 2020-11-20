@@ -239,7 +239,7 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Tempdats DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp
-#validate "./airfoil_seq"
+validate "./airfoil_seq"
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
@@ -369,6 +369,17 @@ pwd
 $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil_hdf5.F90
 export PART_SIZE_ENV=128
 make clean; make
+
+
+echo " "
+echo " "
+echo "=======================> Building Airfoil Fortran DP ARG PTR Version With Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
+export PART_SIZE_ENV=128
+make clean; make
+
 
 
 echo " "

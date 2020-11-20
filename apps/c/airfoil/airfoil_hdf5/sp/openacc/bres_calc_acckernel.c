@@ -3,19 +3,30 @@
 //
 
 //user function
+int opDat0_bres_calc_stride_OP2CONSTANT;
+int opDat0_bres_calc_stride_OP2HOST = -1;
+int opDat2_bres_calc_stride_OP2CONSTANT;
+int opDat2_bres_calc_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void bres_calc_openacc( const float *x1, const float *x2, const float *q1,
                       const float *adt1, float *res1, const int *bound) {
   float dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
-  dx = x1[0] - x2[0];
-  dy = x1[1] - x2[1];
+  dx = x1[(0) * opDat0_bres_calc_stride_OP2CONSTANT] -
+       x2[(0) * opDat0_bres_calc_stride_OP2CONSTANT];
+  dy = x1[(1) * opDat0_bres_calc_stride_OP2CONSTANT] -
+       x2[(1) * opDat0_bres_calc_stride_OP2CONSTANT];
 
-  ri = 1.0f / q1[0];
-  p1 = gm1 * (q1[3] - 0.5f * ri * (q1[1] * q1[1] + q1[2] * q1[2]));
+  ri = 1.0f / q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT];
+  p1 = gm1 * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] -
+              0.5f * ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                               q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                           q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                               q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT]));
 
-  vol1 = ri * (q1[1] * dy - q1[2] * dx);
+  vol1 = ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] * dy -
+               q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] * dx);
 
   ri = 1.0f / qinf[0];
   p2 = gm1 * (qinf[3] - 0.5f * ri * (qinf[1] * qinf[1] + qinf[2] * qinf[2]));
@@ -23,17 +34,22 @@ inline void bres_calc_openacc( const float *x1, const float *x2, const float *q1
 
   mu = (*adt1) * eps;
 
-  f = 0.5f * (vol1 * q1[0] + vol2 * qinf[0]) + mu * (q1[0] - qinf[0]);
-  res1[0] += *bound == 1 ? 0.0f : f;
-  f = 0.5f * (vol1 * q1[1] + p1 * dy + vol2 * qinf[1] + p2 * dy) +
-      mu * (q1[1] - qinf[1]);
-  res1[1] += *bound == 1 ? p1 * dy : f;
-  f = 0.5f * (vol1 * q1[2] - p1 * dx + vol2 * qinf[2] - p2 * dx) +
-      mu * (q1[2] - qinf[2]);
-  res1[2] += *bound == 1 ? -p1 * dx : f;
-  f = 0.5f * (vol1 * (q1[3] + p1) + vol2 * (qinf[3] + p2)) +
-      mu * (q1[3] - qinf[3]);
-  res1[3] += *bound == 1 ? 0.0f : f;
+  f = 0.5f * (vol1 * q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] +
+              vol2 * qinf[0]) +
+      mu * (q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[0]);
+  res1[(0) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? 0.0f : f;
+  f = 0.5f * (vol1 * q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] + p1 * dy +
+              vol2 * qinf[1] + p2 * dy) +
+      mu * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[1]);
+  res1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? p1 * dy : f;
+  f = 0.5f * (vol1 * q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] - p1 * dx +
+              vol2 * qinf[2] - p2 * dx) +
+      mu * (q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[2]);
+  res1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? -p1 * dx : f;
+  f = 0.5f * (vol1 * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] + p1) +
+              vol2 * (qinf[3] + p2)) +
+      mu * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] - qinf[3]);
+  res1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] += *bound == 1 ? 0.0f : f;
 }
 
 // host stub function
@@ -83,6 +99,16 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[3].count == 1) ||
+        (opDat0_bres_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      opDat0_bres_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      opDat0_bres_calc_stride_OP2CONSTANT = opDat0_bres_calc_stride_OP2HOST;
+    }
+    if ((OP_kernels[3].count == 1) ||
+        (opDat2_bres_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg2))) {
+      opDat2_bres_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg2);
+      opDat2_bres_calc_stride_OP2CONSTANT = opDat2_bres_calc_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
     int *map0 = arg0.map_data_d;
@@ -114,14 +140,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int map1idx = map0[n + set_size1 * 1];
         int map2idx = map2[n + set_size1 * 0];
 
-
-        bres_calc_openacc(
-          &data0[2 * map0idx],
-          &data0[2 * map1idx],
-          &data2[4 * map2idx],
-          &data3[1 * map2idx],
-          &data4[4 * map2idx],
-          &data5[1 * n]);
+        bres_calc_openacc(&data0[map0idx], &data0[map1idx], &data2[map2idx],
+                          &data3[1 * map2idx], &data4[map2idx], &data5[1 * n]);
       }
 
     }

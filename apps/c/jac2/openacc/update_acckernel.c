@@ -3,14 +3,19 @@
 //
 
 //user function
+int direct_update_stride_OP2CONSTANT;
+int direct_update_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void update_openacc( const float *r, float *du, float *u, float *u_sum,
                    float *u_max) {
-  *u += *du + alpha * (*r);
-  *du = 0.0f;
-  *u_sum += (*u) * (*u);
-  *u_max = MAX(*u_max, *u);
+  u[(0) * direct_update_stride_OP2CONSTANT] +=
+      du[(0) * direct_update_stride_OP2CONSTANT] +
+      alpha * (r[(0) * direct_update_stride_OP2CONSTANT]);
+  du[(0) * direct_update_stride_OP2CONSTANT] = 0.0f;
+  *u_sum += (u[(0) * direct_update_stride_OP2CONSTANT]) *
+            (u[(0) * direct_update_stride_OP2CONSTANT]);
+  *u_max = MAX(*u_max, u[(0) * direct_update_stride_OP2CONSTANT]);
 }
 
 // host stub function
@@ -51,6 +56,11 @@ void op_par_loop_update(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[1].count == 1) ||
+        (direct_update_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_update_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_update_stride_OP2CONSTANT = direct_update_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
 
@@ -59,12 +69,7 @@ void op_par_loop_update(char const *name, op_set set,
     float* data2 = (float*)arg2.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1,data2) reduction(+:arg3_l) reduction(max:arg4_l)
     for ( int n=0; n<set->size; n++ ){
-      update_openacc(
-        &data0[2*n],
-        &data1[3*n],
-        &data2[2*n],
-        &arg3_l,
-        &arg4_l);
+      update_openacc(&data0[n], &data1[n], &data2[n], &arg3_l, &arg4_l);
     }
   }
 

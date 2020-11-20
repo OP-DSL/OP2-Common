@@ -378,11 +378,11 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->index = OP_dat_index;
   dat->set = set;
   dat->dim = dim;
-  //dat->data = data;
+  dat->data = data;
   //printf("DATASET %s, ptr %p\n", name, data);
-  char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
+  /*char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
   memcpy(new_data, data, dim * size * set->size * sizeof(char));
-  dat->data = new_data;
+  dat->data = new_data;*/
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -408,7 +408,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     printf("WARNING data pointer is NULL for %s!\n", name);
   }
   item->orig_ptr = data;
-  //free(data);
   // printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
   if (TAILQ_EMPTY(&OP_dat_list)) {
@@ -1205,7 +1204,7 @@ unsigned long op_reset_data_ptr(char *data) {
   op_download_dat(item_dat);
 
   // reset orig pointer
-  //free(data);
+  // free(data)
   item->orig_ptr = item_dat->data;
 
   return (unsigned long)(item->orig_ptr);
@@ -1238,7 +1237,6 @@ unsigned long op_reset_map_ptr(int *map) {
   //  item_dat->name, item->orig_ptr, item_dat->data);
 
   // reset orig pointer
-  //free(map);
   OP_map_ptr_list[idx] = item_map->map;
 
   return (unsigned long)(item_map->map);

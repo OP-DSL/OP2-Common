@@ -3,10 +3,12 @@
 //
 
 //user function
+int opDat0_res_calc_stride_OP2CONSTANT;
+int opDat0_res_calc_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void res_calc_openacc( double *data, int *count) {
-  data[0] = 0.0;
+  data[(0) * opDat0_res_calc_stride_OP2CONSTANT] = 0.0;
   (*count)++;
 }
 
@@ -51,6 +53,11 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
+    if ((OP_kernels[0].count == 1) ||
+        (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      opDat0_res_calc_stride_OP2CONSTANT = opDat0_res_calc_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenACC
     int *map0 = arg0.map_data_d;
@@ -75,10 +82,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         int n = col_reord[e];
         int map0idx = map0[n + set_size1 * 0];
 
-
-        res_calc_openacc(
-          &data0[4 * map0idx],
-          &arg1_l);
+        res_calc_openacc(&data0[map0idx], &arg1_l);
       }
 
       // combine reduction data

@@ -96,16 +96,16 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL || data == NULL)
     return NULL;
-  /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
+  char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
   if (d == NULL) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
-  }*/
-  //memcpy(d, data, sizeof(char) * set->size * dim * size);
-  //op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
+  }
+  memcpy(d, data, sizeof(char) * set->size * dim * size);
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  // op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
 
-  /*op_dat_entry *item;
+  op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
@@ -113,7 +113,8 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
       item->orig_ptr = data;
       break;
     }
-  }*/
+  }
+  // free(data); // free user allocated data block ?
 
   // printf(" op2 pointer for dat %s = %lu  ", name, (unsigned long)d);
   out_dat->user_managed = 0;

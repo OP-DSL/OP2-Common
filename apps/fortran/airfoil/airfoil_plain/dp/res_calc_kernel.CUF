@@ -256,7 +256,6 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
 
   returnSetKernelTiming = setKernelTime(2 , userSubroutine//C_NULL_CHAR, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
-  print *,"res_calc"
   IF ((calledTimes.EQ.0).OR.(opDat1_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg1))) THEN
     opDat1_stride_OP2HOST = getSetSizeFromOpArg(opArg1)
     opDat1_stride_OP2CONSTANT = opDat1_stride_OP2HOST
