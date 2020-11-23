@@ -588,14 +588,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       #find subroutine calls
       util.funlist = [name.lower()]
       util.funlist2 = []
-#      print name
       plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
       funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,[],atomics)
-#      if name == 'SET_QB_BND':
-#        print name
-#        print '\n\n\n'
-#        pp = pprint.PrettyPrinter(indent=4)
-#        pp.pprint(funcs)
       text = ''
       for func in funcs:
           text = text + '\n' + func['function_text']
@@ -647,7 +641,18 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('attributes (device) &')
       fid = open(name+'.inc2', 'r')
       text = fid.read()
-      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf)
+#      text = replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,1,hydra,bookleaf,[],atomics)
+      #find subroutine calls
+      util.funlist = [name.lower()]
+      util.funlist2 = []
+      plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,[],atomics)
+      text = ''
+      for func in funcs:
+          text = text + '\n' + func['function_text']
+      for fun in util.funlist:
+        regex = re.compile('\\b'+fun+'\\b',re.I)
+        text = regex.sub(fun+'_gpu',text)
       code(text)
       depth += 2
       code('')

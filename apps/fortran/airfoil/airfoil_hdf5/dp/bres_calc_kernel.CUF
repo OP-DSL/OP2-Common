@@ -31,8 +31,10 @@ CONTAINS
 attributes (host) &
 #include "bres_calc.inc"
 attributes (device) &
+
 SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   IMPLICIT NONE
+       integer*4 istat
   REAL(kind=8) :: x1(2)
   REAL(kind=8) :: x2(2)
   REAL(kind=8) :: q1(4)
@@ -47,8 +49,8 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   p1 = gm1_OP2 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT)))
 
   IF (bound .EQ. 1) THEN
-    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + p1 * dy
-    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) -(p1 * dx)
+    istat = atomicAdd(OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT),+ p1 * dy)
+    istat = atomicAdd(OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT),-(p1 * dx))
   ELSE
     vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
     ri = 1.0 / qinf_OP2(1)
@@ -56,13 +58,13 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
     vol2 = ri * (qinf_OP2(2) * dy - qinf_OP2(3) * dx)
     mu = adt1 * eps_OP2
     f = 0.5 * (vol1 * OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) + vol2 * qinf_OP2(1)) + mu * (OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) - qinf_OP2(1))
-    OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) + f
+    istat = atomicAdd(OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT),+ f)
     f = 0.5 * (vol1 * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + p1 * dy + vol2 * qinf_OP2(2) + p2 * dy) + mu * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) - qinf_OP2(2))
-    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + f
+    istat = atomicAdd(OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT),+ f)
     f = 0.5 * (vol1 * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - p1 * dx + vol2 * qinf_OP2(3) - p2 * dx) + mu * (OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - qinf_OP2(3))
-    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) + f
+    istat = atomicAdd(OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT),+ f)
     f = 0.5 * (vol1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) + p1) + vol2 * (qinf_OP2(4) + p2)) + mu * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - qinf_OP2(4))
-    OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) + f
+    istat = atomicAdd(OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT),+ f)
   END IF
 END SUBROUTINE
 

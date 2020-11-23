@@ -81,6 +81,7 @@ CONTAINS
 attributes (host) &
 #include "update.inc"
 attributes (device) &
+
 SUBROUTINE update_gpu(qold,q,res,adt,rms)
   IMPLICIT NONE
   REAL(kind=8), INTENT(IN) :: qold(4)
