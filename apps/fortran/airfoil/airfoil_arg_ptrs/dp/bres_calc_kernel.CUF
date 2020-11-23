@@ -47,8 +47,8 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
   p1 = gm1_OP2 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - 0.5 * ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT)))
 
   IF (bound .EQ. 1) THEN
-    res1(2) = res1(2) + p1 * dy
-    res1(3) = res1(3) - (p1 * dx)
+    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + p1 * dy
+    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) - (p1 * dx)
   ELSE
     vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
     ri = 1.0 / qinf_OP2(1)
@@ -56,13 +56,13 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
     vol2 = ri * (qinf_OP2(2) * dy - qinf_OP2(3) * dx)
     mu = adt1 * eps_OP2
     f = 0.5 * (vol1 * OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) + vol2 * qinf_OP2(1)) + mu * (OP2_SOA(q1,1, opDat3_stride_OP2CONSTANT) - qinf_OP2(1))
-    res1(1) = res1(1) + f
+    OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,1, opDat3_stride_OP2CONSTANT) + f
     f = 0.5 * (vol1 * OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) + p1 * dy + vol2 * qinf_OP2(2) + p2 * dy) + mu * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) - qinf_OP2(2))
-    res1(2) = res1(2) + f
+    OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT) + f
     f = 0.5 * (vol1 * OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - p1 * dx + vol2 * qinf_OP2(3) - p2 * dx) + mu * (OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) - qinf_OP2(3))
-    res1(3) = res1(3) + f
+    OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT) + f
     f = 0.5 * (vol1 * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) + p1) + vol2 * (qinf_OP2(4) + p2)) + mu * (OP2_SOA(q1,4, opDat3_stride_OP2CONSTANT) - qinf_OP2(4))
-    res1(4) = res1(4) + f
+    OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) = OP2_SOA(res1,4, opDat3_stride_OP2CONSTANT) + f
   END IF
 END SUBROUTINE
 
@@ -70,6 +70,7 @@ END SUBROUTINE
 
 ! CUDA kernel function
 attributes (global) SUBROUTINE op_cuda_bres_calc( &
+  &  optflags,        &
   & opDat1Devicebres_calc, &
   & opDat3Devicebres_calc, &
   & opDat4Devicebres_calc, &
@@ -77,21 +78,13 @@ attributes (global) SUBROUTINE op_cuda_bres_calc( &
   & opDat1Map, &
   & opDat3Map, &
   & opDat6Devicebres_calc, &
-  & ind_maps5, &
-  & mappingArray5, &
-  & ind_sizes, &
-  & ind_offs, &
-  & pblkMap, &
-  & poffset, &
-  & pnelems, &
-  & pnthrcol, &
-  & pthrcol, &
-  & setSize, &
-  & blockOffset)
+  & start, end, &
+  & setSize)
 
   IMPLICIT NONE
 
 ! local variables
+  INTEGER(kind=4), VALUE :: optflags
   real(8), DEVICE :: opDat1Devicebres_calc(*)
   real(8), DEVICE :: opDat3Devicebres_calc(*)
   real(8), DEVICE :: opDat4Devicebres_calc(*)
@@ -102,139 +95,35 @@ attributes (global) SUBROUTINE op_cuda_bres_calc( &
 
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_maps5
-
-  INTEGER(kind=2), DIMENSION(0:*), DEVICE :: mappingArray5
-
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_sizes
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: ind_offs
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pblkMap
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: poffset
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnelems
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE :: pnthrcol
-  INTEGER(kind=4), DIMENSION(0:*), DEVICE, INTENT(IN) :: pthrcol
-  INTEGER(kind=4), VALUE :: blockOffset
+  INTEGER(kind=4), VALUE :: start, end
   INTEGER(kind=4), VALUE :: setSize
 
-  INTEGER(kind=4) :: opDat5SharedMap
-  real(8), DIMENSION(0:4-1) :: opDat5Local
-
-  REAL(kind=8), DIMENSION(0:*), SHARED :: sharedFloat8
-
-  INTEGER(kind=4), SHARED :: ind_maps5offset
-  INTEGER(kind=4), SHARED :: ind_maps5size
-  INTEGER(kind=4), SHARED :: numOfColours
-  INTEGER(kind=4), SHARED :: numberOfActiveThreadsCeiling
-  INTEGER(kind=4), SHARED :: blockID
-  INTEGER(kind=4), SHARED :: threadBlockOffset
-  INTEGER(kind=4), SHARED :: numberOfActiveThreads
-  INTEGER(kind=4) :: colour1
-  INTEGER(kind=4) :: colour2
-  INTEGER(kind=4) :: n1
   INTEGER(kind=4) :: i3
-  INTEGER(kind=4) :: opDat5nBytes
-  INTEGER(kind=4), SHARED :: opDat5RoundUp
-  INTEGER(kind=4) moduloResult
   INTEGER(kind=4) :: i1
   INTEGER(kind=4) :: i2
 
 
-  IF (threadIdx%x - 1 .EQ. 0) THEN
-    blockID = pblkMap(blockIdx%x - 1 + blockOffset)
-    numberOfActiveThreads = pnelems(blockID)
-    numberOfActiveThreadsCeiling = blockDim%x * (1 + (numberOfActiveThreads - 1) / blockDim%x)
-    numOfColours = pnthrcol(blockID)
-    threadBlockOffset = poffset(blockID)
-    ind_maps5offset = ind_offs (0 + blockID * 1)
-    ind_maps5size   = ind_sizes(0 + blockID * 1)
-    opDat5RoundUp = ind_maps5size * (4)
-    opDat5RoundUp = opDat5RoundUp + MOD(opDat5RoundUp,2)
 
-  END IF
-
-  CALL syncthreads()
-
-  opDat5nBytes = 0
-
-
-  i1 = threadIdx%x - 1
-  DO WHILE (i1 < ind_maps5size )
-    DO i2 = 0, 4 - 1, 1
-      sharedFloat8(opDat5nBytes + i2 + i1 * (4)) = 0
-    END DO
-    i1 = i1 + blockDim%x
-  END DO
-
-
-  CALL syncthreads()
-
-  i1 = threadIdx%x - 1
-
-  DO WHILE (i1 < numberOfActiveThreadsCeiling )
-    colour2 = -1
-    IF (i1 < numberOfActiveThreads) THEN
-      i3 = i1
-      map1idx = opDat1Map(1 + i3 + threadBlockOffset + setSize * 0)
-      map2idx = opDat1Map(1 + i3 + threadBlockOffset + setSize * 1)
-      map3idx = opDat3Map(1 + i3 + threadBlockOffset + setSize * 0)
-      DO i2 = 0, 4 - 1, 1
-        opDat5Local(i2) = 0
-      END DO
+  i1 = threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x
+  IF (i1+start<end) THEN
+    i3 = i1+start
+    IF (BTEST(optflags,0)) THEN
+      map1idx = opDat1Map(1 + i3 + setSize * 0)
+    END IF
+    map2idx = opDat1Map(1 + i3 + setSize * 1)
+    map3idx = opDat3Map(1 + i3 + setSize * 0)
 
 ! kernel call
-      CALL bres_calc_gpu( &
-      & opDat1Devicebres_calc(1 + map1idx), &
-      & opDat1Devicebres_calc(1 + map2idx), &
-      & opDat3Devicebres_calc(1 + map3idx), &
-      & opDat4Devicebres_calc(1 + map3idx), &
-      & opDat5Local, &
-      & opDat6Devicebres_calc((i3 + threadBlockOffset) * (1) +1) &
-      & )
+    CALL bres_calc_gpu( &
+    & opDat1Devicebres_calc(1 + map1idx), &
+    & opDat1Devicebres_calc(1 + map2idx), &
+    & opDat3Devicebres_calc(1 + map3idx), &
+    & opDat4Devicebres_calc(1 + map3idx), &
+    & opDat5Devicebres_calc(1 + map3idx), &
+    & opDat6Devicebres_calc(i3 * (1) +1) &
+    & )
 
-      colour2 = pthrcol(i1 + threadBlockOffset)
-    END IF
-
-    IF (colour2 .GE. 0) THEN
-      opDat5SharedMap = mappingArray5(i1 + threadBlockOffset)
-    END IF
-
-    DO colour1 = 0, numOfColours - 1, 1
-      IF (colour2 .EQ. colour1) THEN
-        opDat5Local(0) = opDat5Local(0)+ sharedFloat8(opDat5nBytes + (0 + opDat5SharedMap * (4)))
-        opDat5Local(1) = opDat5Local(1)+ sharedFloat8(opDat5nBytes + (1 + opDat5SharedMap * (4)))
-        opDat5Local(2) = opDat5Local(2)+ sharedFloat8(opDat5nBytes + (2 + opDat5SharedMap * (4)))
-        opDat5Local(3) = opDat5Local(3)+ sharedFloat8(opDat5nBytes + (3 + opDat5SharedMap * (4)))
-        sharedFloat8(opDat5nBytes + (0 + opDat5SharedMap * (4))) = opDat5Local(0)
-        sharedFloat8(opDat5nBytes + (1 + opDat5SharedMap * (4))) = opDat5Local(1)
-        sharedFloat8(opDat5nBytes + (2 + opDat5SharedMap * (4))) = opDat5Local(2)
-        sharedFloat8(opDat5nBytes + (3 + opDat5SharedMap * (4))) = opDat5Local(3)
-
-      END IF
-      CALL syncthreads()
-    END DO
-    i1 = i1 + blockDim%x
-  END DO
-
-  i1 = threadIdx%x - 1
-  DO WHILE (i1 < ind_maps5size )
-    opDat5Local(0) = &
-    & opDat5Devicebres_calc(1 + 0 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) + &
-    & sharedFloat8(opDat5nBytes + 0 + i1 * (4))
-    opDat5Local(1) = &
-    & opDat5Devicebres_calc(1 + 1 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) + &
-    & sharedFloat8(opDat5nBytes + 1 + i1 * (4))
-    opDat5Local(2) = &
-    & opDat5Devicebres_calc(1 + 2 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) + &
-    & sharedFloat8(opDat5nBytes + 2 + i1 * (4))
-    opDat5Local(3) = &
-    & opDat5Devicebres_calc(1 + 3 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) + &
-    & sharedFloat8(opDat5nBytes + 3 + i1 * (4))
-    opDat5Devicebres_calc(1 + 0 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) = opDat5Local(0)
-    opDat5Devicebres_calc(1 + 1 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) = opDat5Local(1)
-    opDat5Devicebres_calc(1 + 2 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) = opDat5Local(2)
-    opDat5Devicebres_calc(1 + 3 * opDat3_stride_OP2CONSTANT + ind_maps5(ind_maps5offset + i1)) = opDat5Local(3)
-    i1 = i1 + blockDim%x
-  END DO
+  END IF
 
 
 END SUBROUTINE
@@ -339,26 +228,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
 
   INTEGER(kind=4) :: numberOfIndirectOpDats
   INTEGER(kind=4) :: blockOffset
-  INTEGER(kind=4), DEVICE, POINTER, DIMENSION(:) :: ind_maps5
-
-  INTEGER(kind=2), DEVICE, POINTER, DIMENSION(:) :: mappingArray5
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_offs
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: ind_sizes
-  INTEGER(kind=4), POINTER, DIMENSION(:) :: pnindirect
-  INTEGER(kind=4), POINTER, DIMENSION(:) :: nsharedCol
-  TYPE ( c_ptr ), POINTER, DIMENSION(:) :: mappingArray
-  TYPE ( c_ptr ), POINTER, DIMENSION(:) :: ind_maps
-  INTEGER(kind=4) :: pblkMapSize
-  INTEGER(kind=4) :: poffsetSize
-  INTEGER(kind=4) :: pnelemsSize
-  INTEGER(kind=4) :: pnthrcolSize
-  INTEGER(kind=4) :: pthrcolSize
-  INTEGER(kind=4), POINTER, DIMENSION(:) :: ncolblk
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pblkMap
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: poffset
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnelems
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pnthrcol
-  INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: pthrcol
+  INTEGER(kind=4) :: itstart, itend
   INTEGER(kind=4) :: partitionSize
   INTEGER(kind=4) :: blockSize
   INTEGER(kind=4) :: i1
@@ -367,6 +237,11 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
 
   INTEGER(kind=4), SAVE :: calledTimes=0
   INTEGER(kind=4) :: istat
+  INTEGER(kind=4) :: optflags
+  optflags = 0
+  IF (opArg1%opt == 1) THEN
+    optflags = IBSET(optflags,0)
+  END IF
 
   numberOfOpDats = 6
 
@@ -390,6 +265,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
   indirectionDescriptorArray(1) = 0
   indirectionDescriptorArray(2) = 0
@@ -401,15 +277,6 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   numberOfIndirectOpDats = 4
 
   partitionSize = getPartitionSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
-
-  planRet_bres_calc = FortranPlanCaller( &
-  & userSubroutine//C_NULL_CHAR, &
-  & set%setCPtr, &
-  & partitionSize, &
-  & numberOfOpDats, &
-  & opArgArray, &
-  & numberOfIndirectOpDats, &
-  & indirectionDescriptorArray,1)
 
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opMap1Cardinality = set%setPtr%size * getMapDimFromOpArg(opArg1)
@@ -432,42 +299,22 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   CALL c_f_pointer(opArg5%map_data_d,opMap5Devicebres_calc,(/opMap5Cardinality/))
   CALL c_f_pointer(opArg6%data_d,opDat6Devicebres_calc,(/opDat6Cardinality/))
 
-  CALL c_f_pointer(planRet_bres_calc,actualPlan_bres_calc)
-  CALL c_f_pointer(actualPlan_bres_calc%ncolblk,ncolblk,(/set%setPtr%size/))
-  pblkMapSize = actualPlan_bres_calc%nblocks
-  CALL c_f_pointer(actualPlan_bres_calc%blkmap_d,pblkMap,(/pblkMapSize/))
-  poffsetSize = actualPlan_bres_calc%nblocks
-  CALL c_f_pointer(actualPlan_bres_calc%offset_d,poffset,(/poffsetSize/))
-  pnelemsSize = actualPlan_bres_calc%nblocks
-  CALL c_f_pointer(actualPlan_bres_calc%nelems_d,pnelems,(/pnelemsSize/))
-  pnthrcolSize = actualPlan_bres_calc%nblocks
-  CALL c_f_pointer(actualPlan_bres_calc%nthrcol,pnthrcol,(/pnthrcolSize/))
-  pthrcolSize = set%setPtr%size
-  CALL c_f_pointer(actualPlan_bres_calc%thrcol,pthrcol,(/pthrcolSize/))
-  CALL c_f_pointer(actualPlan_bres_calc%nsharedCol,nsharedCol,(/actualPlan_bres_calc%ncolors_core/))
-  CALL c_f_pointer(actualPlan_bres_calc%nindirect,pnindirect,(/actualPlan_bres_calc%ninds_staged/))
-  CALL c_f_pointer(actualPlan_bres_calc%ind_maps,ind_maps,(/actualPlan_bres_calc%ninds_staged/))
-  CALL c_f_pointer(actualPlan_bres_calc%maps,mappingArray,(/numberOfOpDats/))
-  CALL c_f_pointer(actualPlan_bres_calc%ind_sizes,ind_sizes,(/actualPlan_bres_calc%nblocks * actualPlan_bres_calc%ninds_staged/))
-  CALL c_f_pointer(actualPlan_bres_calc%ind_offs,ind_offs,(/actualPlan_bres_calc%nblocks * actualPlan_bres_calc%ninds_staged/))
 
-  CALL c_f_pointer(ind_maps(1),ind_maps5,(/pnindirect(1)/))
-  CALL c_f_pointer(mappingArray(5),mappingArray5,(/set%setPtr%size/))
-
-
-
-  blockOffset = 0
-
-  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
-  DO i2 = 0, actualPlan_bres_calc%ncolors - 1, 1
-    IF (i2 .EQ. actualPlan_bres_calc%ncolors_core) THEN
+  DO i2 = 0, 2 - 1, 1
+    IF (i2 .EQ. 1) THEN
+      itstart = set%setPtr%core_size
+      itend = set%setPtr%size+set%setPtr%exec_size
       CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+    ELSE
+      itstart = 0
+      itend = set%setPtr%core_size
     END IF
 
-    blocksPerGrid = ncolblk(i2 + 1)
-    dynamicSharedMemorySize = MAX(reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock, nsharedCol(1+i2))
+    blocksPerGrid = (itend-itstart-1)/threadsPerBlock+1
+    dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     CALL op_cuda_bres_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
+    & optflags, &
     & opDat1Devicebres_calc, &
     & opDat3Devicebres_calc, &
     & opDat4Devicebres_calc, &
@@ -475,21 +322,10 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
     & opMap1Devicebres_calc, &
     & opMap3Devicebres_calc, &
     & opDat6Devicebres_calc, &
-    & ind_maps5, &
-    & mappingArray5, &
-    & ind_sizes, &
-    & ind_offs, &
-    & pblkMap, &
-    & poffset,pnelems,pnthrcol,pthrcol, &
-    & set%setPtr%size+set%setPtr%exec_size, blockOffset)
-
-    blockOffset = blockOffset + blocksPerGrid
+    & itstart, itend, &
+    & set%setPtr%size+set%setPtr%exec_size)
   END DO
 
-
-  IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
-    CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
-  END IF
 
 
   CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
@@ -498,7 +334,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   call op_timers_core(endTime)
 
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &
-  & endTime-startTime, actualPlan_bres_calc%transfer,actualPlan_bres_calc%transfer2, 1)
+  & endTime-startTime, 0.00000_4, 0.00000_4, 1)
   calledTimes = calledTimes + 1
 END SUBROUTINE
 

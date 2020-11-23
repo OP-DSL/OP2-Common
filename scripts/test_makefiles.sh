@@ -401,6 +401,20 @@ validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 
 
+echo " "
+echo " "
+echo "=======================> Running Airfoil Fortran Arg Pointers DP built with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+export PART_SIZE_ENV=128
+validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_vec OP_MAPS_BASE_INDEX=0"
+export OMP_NUM_THREADS=20
+validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
+
+
+
 
 echo " "
 echo " "
@@ -448,6 +462,17 @@ $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
+echo " "
+echo " "
+echo "=======================> Building Airfoil Fortran DP ARG PTR Version With PGI Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
+export PART_SIZE_ENV=128
+make clean; make
+
+
+
 
 echo " "
 echo " "
@@ -476,6 +501,17 @@ export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 
+echo " "
+echo " "
+echo "=======================> Running Airfoil Fortran Arg Pointers DP built with PGI Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+export PART_SIZE_ENV=128
+validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
+export OMP_NUM_THREADS=20
+validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
 
 echo " "
 echo " "

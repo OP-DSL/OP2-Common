@@ -404,9 +404,11 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     exit(-1);
   }
   item->dat = dat;
-  if (data == NULL) {
+  /*if (data == NULL) { -- this check would be good to have for Hydra,
+                           but temp_dats prints this error .. so commented out
+  for now
     printf("WARNING data pointer is NULL for %s!\n", name);
-  }
+  }*/
   item->orig_ptr = data;
   // printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
