@@ -30,13 +30,13 @@ OBJ = obj
 # Locate MPI compilers:
 #
 ifdef MPI_INSTALL_PATH
-  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpic++)")
-    MPICPP_PATH = $(MPI_INSTALL_PATH)/bin/mpic++
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/bin/mpicxx)")
+    MPICPP_PATH = $(MPI_INSTALL_PATH)/bin/mpicxx
   else
-  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
-    MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
+  ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
+    MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICPP_PATH = mpic++
+    MPICPP_PATH = mpicxx
   endif
   endif
 
@@ -60,7 +60,7 @@ ifdef MPI_INSTALL_PATH
   endif
   endif
 else
-  MPICPP_PATH = mpic++
+  MPICPP_PATH = mpicxx
   MPICXX_PATH = mpicxx
   MPICC_PATH  = mpicc
 endif
@@ -152,9 +152,9 @@ ifeq ($(OP2_COMPILER),sycl)
 else
 ifeq ($(OP2_COMPILER),intel-sycl)
   ifdef DEBUG
-    CCFLAGS  = -g -O0
+    CCFLAGS  = -g -O0 -fPIC
   else
-    CCFLAGS  = -g -O3
+    CCFLAGS  = -g -O3 -fPIC
   endif
   CXX       = clang++
   SYCLCXX   = clang++

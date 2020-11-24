@@ -106,12 +106,13 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0 # shared memory stages coloring (on/off)
+  inc_stage=1 # shared memory stages coloring (on/off)
   op_color2=0 #
   op_color2_force=0 #global coloring
   atomics=0 # atomics
-  inner_loop=0 #each work item executes a whole block
-  intel = 1
+  inner_loop=0 #each workgroup has just 1 workitem, which executes a whole block
+  intel = 0
+  loop_over_blocks=0 # instead of launching nblocks blocks, launch just a few (number of cores)
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -598,18 +599,25 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if inner_loop:
         code('int nthread = 1;')
       else:
-        code('#ifdef OP_BLOCK_SIZE_'+str(nk))
-        code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
-        code('#else')
-        code('int nthread = OP_block_size;')
-        code('#endif')
+        if intel:
+          code('int nthread = SIMD_VEC;')
+        else:
+          code('#ifdef OP_BLOCK_SIZE_'+str(nk))
+          code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
+          code('#else')
+          code('int nthread = OP_block_size;')
+          code('#endif')
       code('')
       if op_color2:
         code('int start = Plan->col_offsets[0][col];')
         code('int end = Plan->col_offsets[0][col+1];')
         code('int nblocks = (end - start - 1)/nthread + 1;')
       else:
-        code('int nblocks = Plan->ncolblk[col];')
+        if loop_over_blocks: 
+          code('int nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
+          code('int nblocks2 = Plan->ncolblk[col];')
+        else:
+          code('int nblocks = Plan->ncolblk[col];')
         IF('Plan->ncolblk[col] > 0')
 
 
@@ -771,7 +779,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('')
       comm('get sizes and shift pointers and direct-mapped data')
       code('')
-      code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
+      if loop_over_blocks:
+        code('int blocksPerWG = (nblocks2-1)/item.get_group_range(0)+1;')
+        FOR('idx','item.get_group_linear_id()*blocksPerWG','(item.get_group_linear_id()+1)*blocksPerWG && idx < nblocks2')
+        code('int blockId = blkmap[idx + block_offset];')
+      else:
+        code('int blockId = blkmap[item.get_group_linear_id()  + block_offset];')
       code('')
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
@@ -1082,7 +1095,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
                 ENDIF()
 
         ENDFOR()
-        code('item.barrier(cl::sycl::access::fence_space::local_space);')
+        if intel:
+          code('sg.barrier();')
+        else:
+          code('item.barrier(cl::sycl::access::fence_space::local_space);')
         ENDFOR()
     if ninds>0 and atomics:
       for g_m in range(0,nargs):
@@ -1144,7 +1160,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
 
 
-
+    if ninds>0 and not atomics and not op_color2 and loop_over_blocks:
+      ENDFOR()
 
     depth -= 2
     code('};')

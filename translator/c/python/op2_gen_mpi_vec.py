@@ -160,6 +160,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     file_text += kernel_text
     f.close()
 
+    ## Clang compiler can struggle to vectorize a loop if it uses a mix of 
+    ## Python-generated simd arrays for indirect data AND pointers to direct
+    ## data. Fix by also generating simd arrays for direct data:
+    do_gen_direct_simd_arrays = True
+
 #
 # Modified vectorisable version if its an indirect kernel
 # - direct kernels can be vectorised without modification
@@ -207,7 +212,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       for i in range(0,nargs):
         var = signature_text.split(',')[i].strip()
 
-        if maps[i] <> OP_GBL and maps[i] <> OP_ID:
+        if do_gen_direct_simd_arrays:
+          do_gen_simd_array_arg = maps[i] <> OP_GBL
+        else:
+          do_gen_simd_array_arg = maps[i] <> OP_GBL and maps[i] <> OP_ID
+        if do_gen_simd_array_arg:
           #remove * and add [*][SIMD_VEC]
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
@@ -217,15 +226,33 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          body_text = re.sub(r'('+var2+'\[[\w\(\)\+\-\*\s\\\\]*\]'+')', r'\1'+'[idx]', body_text)
+          array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
 
-          var = var + '[*][SIMD_VEC]'
+          ## It has been observed that vectorisation can fail on loops with increments, 
+          ## but replacing them with writes succeeds.
+          ## For example with Clang on particular loops, vectorisation fails with message:
+          ##   "loop not vectorized: loop control flow is not understood by vectorizer"
+          ## replacing increments with writes solves this.
+          ## Replacement is data-safe due to use of local/intermediate SIMD arrays.
+          ## Hopefully the regex is matching all increments.
+          ## And for loops that were being vectorised, this change can give a small perf boost.
+          if maps[i] == OP_MAP and accs[i] == OP_INC:
+            ## Replace 'var' increments with writes:
+            body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
+
+          ## Append vector array access:
+          body_text = re.sub(r'('+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
+
+          var = var + '[][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
         new_signature_text +=  var+', '
 
 
       #add ( , idx and )
-      signature_text = "inline " + head_text + '( '+new_signature_text + 'int idx ) {'
+      signature_text = "#if defined __clang__ || defined __GNUC__\n"
+      signature_text += "__attribute__((always_inline))\n"
+      signature_text += "#endif\n"
+      signature_text += "inline " + head_text + '( '+new_signature_text + 'int idx ) {'
       #finally update name
       signature_text = signature_text.replace(name,name+'_vec')
 
@@ -294,12 +321,12 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
             #code('<TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
             #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            code('DECLARE_PTR_ALIGNED(ptr'+str(g_m)+',<TYP>_ALIGN);')
 
           else:
             code('ALIGNED_<TYP> const <TYP> * __restrict__ ptr'+\
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
-            code('__assume_aligned(ptr'+str(g_m)+',<TYP>_ALIGN);')
+            code('DECLARE_PTR_ALIGNED(ptr'+str(g_m)+',<TYP>_ALIGN);')
             #code('const <TYP>* __restrict__ __attribute__((align_value (<TYP>_ALIGN)))  ptr'+\
             #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
 
@@ -362,33 +389,56 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
 
-      IF('n+SIMD_VEC >= set->core_size')
+      IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (accs[g_m] == OP_READ \
-          or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE \
-          or accs[g_m] == OP_INC):
-          code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
+        if do_gen_direct_simd_arrays:
+          if (maps[g_m] in [OP_MAP, OP_ID]) and (accs[g_m] in [OP_READ, OP_RW, OP_WRITE, OP_INC]):
+            code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
+        else:
+          if maps[g_m] == OP_MAP and (accs[g_m] in [OP_READ, OP_RW, OP_WRITE, OP_INC]):
+            code('ALIGNED_<TYP> <TYP> dat'+str(g_m)+'[<DIM>][SIMD_VEC];')
 
       #setup gathers
+      idx_map_template = "int idx{0}_<DIM> = <DIM> * arg{1}.map_data[(n+i) * arg{1}.map->dim + {2}];"
+      idx_id_template  = "int idx{0}_<DIM> = <DIM> * (n+i);"
       code('#pragma omp simd simdlen(SIMD_VEC)')
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if (accs[g_m] in [OP_READ, OP_RW, OP_WRITE]):#and (not mapinds[g_m] in k):
+              code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+          elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID :
+            code(idx_id_template.format(g_m))
       code('')
+
+      init_dat_template = "dat{0}[{1}][i] = (ptr{0})[idx{0}_<DIM> + {1}];"
+      zero_dat_template = "dat{0}[{1}][i] = 0.0;"
       for g_m in range(0,nargs):
+        if do_gen_direct_simd_arrays:
+          ## also 'gather' directly-accessed data, because SOME compilers 
+          ## struggle to vectorise otherwise (e.g. Clang).
+          if accs[g_m] in [OP_READ, OP_RW]:
+            for d in range(0,int(dims[g_m])):
+              code(init_dat_template.format(g_m, d))
+            code('')
+          elif accs[g_m] == OP_INC:
+            for d in range(0,int(dims[g_m])):
+              code(zero_dat_template.format(g_m, d))
+            code('')
+        else:
           if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_READ or accs[g_m] == OP_RW):#and (not mapinds[g_m] in k):
+            if accs[g_m] in [OP_READ, OP_RW]:#and (not mapinds[g_m] in k):
               for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'['+str(d)+'][i] = (ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'];')
+                init_dat_str = init_dat_template.format(g_m, d)
+                code(init_dat_str)
               code('')
             elif (accs[g_m] == OP_INC):
               for d in range(0,int(dims[g_m])):
-                code('dat'+str(g_m)+'['+str(d)+'][i] = 0.0;')
+                zero_dat_str = zero_dat_template.format(g_m, d)
+                code(zero_dat_str)
               code('')
           else: #globals
             if (accs[g_m] == OP_INC):
@@ -404,7 +454,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       line = name+'_vec('
       indent = '\n'+' '*(depth+2)
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_ID:
+        if (not do_gen_direct_simd_arrays) and maps[g_m] == OP_ID:
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * (n+i)],'
         elif maps[g_m] == OP_GBL and accs[g_m] == OP_READ:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data,'
@@ -420,19 +470,33 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       if nmaps > 0:
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):#and (not mapinds[g_m] in k):
-              code('int idx'+str(g_m)+'_<DIM> = <DIM> * arg'+str(invmapinds[inds[g_m]-1])+'.map_data[(n+i) * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if (accs[g_m] in [OP_INC, OP_RW, OP_WRITE]):#and (not mapinds[g_m] in k):
+              code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+          elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID :
+            if (accs[g_m] in [OP_INC, OP_RW, OP_WRITE]):
+              code(idx_id_template.format(g_m))
       code('')
+      dat_scatter_inc_template = "(ptr{0})[idx{0}_<DIM> + {1}] += dat{0}[{1}][i];"
+      dat_scatter_wr_template  = "(ptr{0})[idx{0}_<DIM> + {1}] = dat{0}[{1}][i];"
       for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP :
-            if (accs[g_m] == OP_INC ):
-              for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] += dat'+str(g_m)+'['+str(d)+'][i];')
-              code('')
-            if (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
-              for d in range(0,int(dims[g_m])):
-                code('(ptr'+str(g_m)+')[idx'+str(g_m)+'_<DIM> + '+str(d)+'] = dat'+str(g_m)+'['+str(d)+'][i];')
-              code('')
+        if maps[g_m] == OP_MAP :
+          if (accs[g_m] == OP_INC ):
+            for d in range(0,int(dims[g_m])):
+              code(dat_scatter_inc_template.format(g_m, d))
+            code('')
+          elif accs[g_m] in [OP_WRITE, OP_RW]:
+            for d in range(0,int(dims[g_m])):
+              code(dat_scatter_wr_template.format(g_m, d))
+            code('')
+        elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID:
+          ## also scatter directly-written data
+          if (accs[g_m] == OP_INC ):
+            for d in range(0,int(dims[g_m])):
+              code(dat_scatter_inc_template.format(g_m, d))
+          elif accs[g_m] in [OP_WRITE, OP_RW]:
+            for d in range(0,int(dims[g_m])):
+              code(dat_scatter_wr_template.format(g_m, d))
+            code('')
       ENDFOR()
 
       #do reductions
@@ -463,14 +527,29 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
       if nmaps > 0:
         k = []
-        #print name
-        #print maps
-        #print mapinds
         for g_m in range(0,nargs):
-          #print g_m
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('<ARG>.opt')
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
+
       code('')
       line = name+'('
       indent = '\n'+' '*(depth+2)
@@ -661,10 +740,16 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('#define ALIGNED_double __attribute__((aligned(double_ALIGN)))')
   code('#define ALIGNED_float __attribute__((aligned(float_ALIGN)))')
   code('#define ALIGNED_int __attribute__((aligned(int_ALIGN)))')
+  code('  #ifdef __ICC')
+  code('    #define DECLARE_PTR_ALIGNED(X, Y) __assume_aligned(X, Y)')
+  code('  #else')
+  code('    #define DECLARE_PTR_ALIGNED(X, Y)')
+  code('  #endif')
   code('#else')
   code('#define ALIGNED_double')
   code('#define ALIGNED_float')
   code('#define ALIGNED_int')
+  code('#define DECLARE_PTR_ALIGNED(X, Y)')
   code('#endif')
   code('')
 
