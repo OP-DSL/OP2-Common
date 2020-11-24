@@ -34,6 +34,8 @@
 
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <vector>
+#include <algorithm>
 
 MPI_Comm OP_MPI_IO_WORLD;
 
@@ -262,4 +264,195 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name) {
   else
     printf("Unknown type %s, cannot be written to file %s\n", dat->type,
            file_name);
+}
+
+
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
+  int size = set->size;
+  int direct_flag = 1;
+
+  if (OP_diags > 0) {
+    int dummy;
+    for (int n = 0; n < nargs; n++)
+      op_arg_check(set, n, args[n], &dummy, "halo_exchange_grouped cuda");
+  }
+
+  for (int n = 0; n < nargs; n++) {
+    if (device == 2 && args[n].opt && args[n].argtype == OP_ARG_DAT &&
+        args[n].dat->dirty_hd == 1) { //Running on device, but dirty on host
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+    if (device == 1 && args[n].opt && args[n].argtype == OP_ARG_DAT &&
+        args[n].dat->dirty_hd == 2) { //Running on host, but dirty on device
+      op_download_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+  }
+
+  // check if this is a direct loop
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1)
+    return size;
+
+  // not a direct loop ...
+  int exec_flag = 0;
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      size = set->size + set->exec_size;
+      exec_flag = 1;
+    }
+  }
+  op_timers_core(&c1, &t1);
+  std::vector<int> sets();
+  sets.resize(0);
+  std::vector<unsigned> send_offsets();
+  std::vector<unsigned> recv_offsets();
+  std::vector<int> send_neigh_list();
+  std::vector<int> recv_neigh_list();
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+      if (args[n].map == OP_ID && exec_flag == 0) continue; 
+
+      //list of sets on which we have data accessed, and list of MPI neighbors
+      if (std::find(sets.begin(), sets.end(), args[n].dat->set->index)!= sets.end()) {
+        sets.push_back(args[n].dat->set->index);
+        //receive neighbors
+        halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
+        for (int i = 0; i < imp_exec_list->ranks_size; i++)
+          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i])!= recv_neigh_list.end()) {
+            recv_neigh_list.push_back(imp_exec_list->ranks[i]);
+            recv_offsets.push_back(0);
+          }
+        halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
+        for (int i = 0; i < imp_nonexec_list->ranks_size; i++)
+          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i])!= recv_neigh_list.end()) {
+            recv_neigh_list.push_back(imp_nonexec_list->ranks[i]);
+            recv_offsets.push_back(0);
+          }
+
+        //send neighbors
+        halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
+        for (int i = 0; i < exp_exec_list->ranks_size; i++)
+          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i])!= send_neigh_list.end()) {
+            send_neigh_list.push_back(exp_exec_list->ranks[i]);
+            send_offsets.push_back(0);
+          }
+        halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
+        for (int i = 0; i < exp_nonexec_list->ranks_size; i++)
+          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i])!= send_neigh_list.end()) {
+            send_neigh_list.push_back(exp_nonexec_list->ranks[i]);
+            send_offsets.push_back(0);
+          }
+      }
+
+      //Amount of memory required for send/recv per neighbor
+      halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
+      for (int i = 0; i < imp_exec_list->ranks_size; i++) {
+        int idx = std::distance(recv_neigh_list.start(), std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i]));
+        recv_offsets[idx] += args[n].dat->size * imp_exec_list->sizes[i];
+      }
+      halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
+      for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
+        int idx = std::distance(recv_neigh_list.start(), std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i]));
+        recv_offsets[idx] += args[n].dat->size * imp_nonexec_list->sizes[i];
+      }
+      halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
+      for (int i = 0; i < exp_exec_list->ranks_size; i++) {
+        int idx = std::distance(send_neigh_list.start(), std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i]));
+        send_offsets[idx] += args[n].dat->size * exp_exec_list->sizes[i];
+      }
+      halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
+      for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
+        int idx = std::distance(send_neigh_list.start(), std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i]));
+        send_offsets[idx] += args[n].dat->size * exp_nonexec_list->sizes[i];
+      }      
+    }
+  }
+
+  //Realloc buffers
+  unsigned size_send = std::accumulate(send_offsets.begin(), send_offsets.end(), 0u);
+  unsigned size_recv = std::accumulate(recv_offsets.begin(), recv_offsets.end(), 0u);
+  op_realloc_comm_buffer(&send_buffer_host, &recv_buffer_host, &send_buffer_device, &recv_buffer_device, device, size_send, size_recv);
+
+  //Pack buffers
+  std::vector<unsigned> send_offsets_fill(send_offsets.size(), 0u);
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+      if (args[n].map == OP_ID && exec_flag == 0) continue; 
+      halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
+      halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
+      //need disps and sizes into list to make sure we put them in right place
+      if (device==1) gather_data_to_buffer_ptr     (args[n], exp_exec_list, exp_nonexec_list, send_buffer_host, &send_neigh_list[0], );
+      if (device==2) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device);
+    }
+  }
+
+  //Non-blocking receive
+  unsigned curr_offset = 0;
+  for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
+    char *buf = gpudirect
+    MPI_Irecv(buf + curr_offset, recv_offsets[i], MPI_CHAR, recv_neigh_list[i], 0 ,OP_MPI_WORLD, recv_requests[i]);
+    curr_offset += recv_offsets[i];
+  }
+
+  if (device == 1) {
+    unsigned curr_offset = 0;
+    for (unsigned i = 0; i < send_neigh_list.size(); i++) {
+      char *buf = send_buffer_host;
+      MPI_Isend(buf + curr_offset, send_offsets[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, send_requests[i]);
+      curr_offset += send_offsets[i];
+    }
+  } else if (device == 2 && !gpudirect) {
+      download_buffer_async(send_buffer_device, send_buffer_host, size_send);
+  }
+    
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+  return size;
+}
+
+void op_mpi_wait_all_grouped(op_set set, int nargs, op_arg *args, int device) {
+  // check if this is a direct loop
+  int direct_flag = 1;
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+  if (direct_flag == 1)
+    return;
+
+  // not a direct loop ...
+  int exec_flag = 0;
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      exec_flag = 1;
+    }
+  }
+  op_timers_core(&c1, &t1);
+
+  //Sends are only started here when running async on the device
+  if (device == 2) {
+    unsigned curr_offset = 0;
+    for (unsigned i = 0; i < send_neigh_list.size(); i++) {
+      char *buf = gpudirect
+      MPI_Isend(buf + curr_offset, send_offsets[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, send_requests[i]);
+      curr_offset += send_offsets[i];
+    }
+  }
+
+  MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
+  
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirty == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+      if (args[n].map == OP_ID && exec_flag == 0) continue; 
+      unpack
+    }
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
