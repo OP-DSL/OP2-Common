@@ -42,16 +42,26 @@
  * is based on C++ templates, while the other file only includes C routines.
  */
 
-template <op_access reduction, class T, class out_acc, class local_acc>
+template <op_access reduction, int intel, class T, class out_acc, class local_acc>
 void op_reduction(out_acc dat_g, int offset, T dat_l, local_acc temp, cl::sycl::nd_item<1> &item_id) {
   T dat_t;
-
-  item_id.barrier(cl::sycl::access::fence_space::local_space); /* important to finish all previous activity */
+#ifdef __SYCL_COMPILER_VERSION
+  sycl::ONEAPI::sub_group sg = item_id.get_sub_group();
+  if (intel)
+    sg.barrier();
+  else
+#endif
+    item_id.barrier(cl::sycl::access::fence_space::local_space); /* important to finish all previous activity */
 
   size_t tid = item_id.get_local_id(0);
   temp[tid] = dat_l;
 
   for (size_t d = item_id.get_local_range()[0] / 2; d > 0; d >>= 1) {
+#ifdef __SYCL_COMPILER_VERSION
+  if (intel)
+    sg.barrier();
+  else
+#endif
     item_id.barrier(cl::sycl::access::fence_space::local_space);
     if (tid < d) {
       dat_t = temp[tid + d];

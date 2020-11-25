@@ -656,7 +656,7 @@ void syclDeviceInit(int argc, char **argv) {
   op2_queue = new cl::sycl::queue(*selector);
   delete selector;
   OP_hybrid_gpu = 1;
-  std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << "\n";
+  std::cout << "Running on " << op2_queue->get_device().get_info<cl::sycl::info::device::name>() << ", cores: "<< op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>() <<"\n";
 }
 
 void op_upload_dat(op_dat dat) {

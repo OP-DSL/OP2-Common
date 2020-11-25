@@ -106,13 +106,13 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=1 # shared memory stages coloring (on/off)
+  inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
   op_color2_force=0 #global coloring
   atomics=0 # atomics
   inner_loop=0 #each workgroup has just 1 workitem, which executes a whole block
-  intel = 0
-  loop_over_blocks=0 # instead of launching nblocks blocks, launch just a few (number of cores)
+  intel = 1
+  loop_over_blocks=1 # instead of launching nblocks blocks, launch just a few (number of cores)
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -226,11 +226,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         for include in includes:
           text = include
           text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_complex(text, os.path.dirname(master))
-          text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',text)
-          text = re.sub(r'\bcbrt\b','cl::sycl::cbrt',text)
-          text = re.sub(r'\bfabs\b','cl::sycl::fabs',text)
-          text = re.sub(r'\bisnan\b','cl::sycl::isnan',text)
-          text = re.sub(r'\bisinf\b','cl::sycl::isinf',text)
+          text = re.sub(r'(std::)?\bsqrt\b','cl::sycl::sqrt',text)
+          text = re.sub(r'(std::)?\bcbrt\b','cl::sycl::cbrt',text)
+          text = re.sub(r'(std::)?\bfabs\b','cl::sycl::fabs',text)
+          text = re.sub(r'(std::)?\bisnan\b','cl::sycl::isnan',text)
+          text = re.sub(r'(std::)?\bisinf\b','cl::sycl::isinf',text)
           code(text)
         code("")
 
@@ -487,7 +487,10 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('')
       if reduct:
         IF('op2_queue->get_device().is_cpu()')
-        code('nthread = 8;')
+        if intel:
+          code('nthread = SIMD_VEC;')
+        else:
+          code('nthread = 8;')
         code('nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
         ENDIF()
 
@@ -721,11 +724,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     code('')
     comm('user fun as lambda')
-    body_text = re.sub(r'\bsqrt\b','cl::sycl::sqrt',body_text)
-    body_text = re.sub(r'\bcbrt\b','cl::sycl::cbrt',body_text)
-    body_text = re.sub(r'\bfabs\b','cl::sycl::fabs',body_text)
-    body_text = re.sub(r'\bisnan\b','cl::sycl::isnan',body_text)
-    body_text = re.sub(r'\bisinf\b','cl::sycl::isinf',body_text)
+    body_text = re.sub(r'(std::)?\bsqrt\b','cl::sycl::sqrt',body_text)
+    body_text = re.sub(r'(std::)?\bcbrt\b','cl::sycl::cbrt',body_text)
+    body_text = re.sub(r'(std::)?\bfabs\b','cl::sycl::fabs',body_text)
+    body_text = re.sub(r'(std::)?\bisnan\b','cl::sycl::isnan',body_text)
+    body_text = re.sub(r'(std::)?\bisinf\b','cl::sycl::isinf',body_text)
     kernel_text = depth*' ' + 'auto '+head_text + '_gpu = [=]( '+signature_text + ') {' + body_text + '};\n'
     kernel_text = re.sub('\n','\n'+(depth+2)*' ',kernel_text)
     file_text += kernel_text
@@ -1144,11 +1147,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
          if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
-             code('op_reduction<OP_INC>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_INC,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            elif accs[m]==OP_MIN:
-             code('op_reduction<OP_MIN>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_MIN,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            elif accs[m]==OP_MAX:
-             code('op_reduction<OP_MAX>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_MAX,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            else:
              print 'internal error: invalid reduction option'
              sys.exit(2);
