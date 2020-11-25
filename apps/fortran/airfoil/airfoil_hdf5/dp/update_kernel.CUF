@@ -301,6 +301,8 @@ END SUBROUTINE
     END DO
 
     deallocate( reductionArrayHost5 )
+    CALL op_mpi_reduce_double(opArg5,opArg5%data)
+
     istat = cudaDeviceSynchronize()
     call op_timers_core(endTime)
 

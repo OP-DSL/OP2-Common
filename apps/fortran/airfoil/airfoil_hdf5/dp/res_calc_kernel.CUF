@@ -307,7 +307,7 @@ attributes (host) SUBROUTINE res_calc_host_gpu( userSubroutine, set, &
   DO i2 = 0, 2 - 1, 1
     IF (i2 .EQ. 1) THEN
       itstart = set%setPtr%core_size
-      itend = set%setPtr%size+set%setPtr%exec_size
+      itend = n_upper
       CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
     ELSE
       itstart = 0

@@ -1910,7 +1910,7 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
           code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
 #          code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
-        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE) and optflags[g_m] == 1:
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
           if optflags[g_m] == 1:
             IF('opArg'+str(g_m+1)+'%opt == 1')
           if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
