@@ -569,6 +569,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             IF('opArg'+str(g_m+1)+'%opt == 1')
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
             ENDIF()
+          else:
+            print 'Error, reduction type '+typs[g_m]+' unrecognised'
           code('')
       else:
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
@@ -580,6 +582,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          else:
+            print 'Error, reduction type '+typs[g_m]+' unrecognised'
           code('')
 
     code('call op_timers_core(endTime)')

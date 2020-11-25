@@ -1477,14 +1477,16 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
           if optflags[g_m] == 1:
             IF('opArg'+str(g_m+1)+'%opt == 1')
-          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
             code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
             code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)':
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
             code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          else:
+            print 'Error, reduction type '+typs[g_m]+' unrecognised'
           code('')
           if optflags[g_m] == 1:
             ENDIF()
