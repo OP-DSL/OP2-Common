@@ -28,6 +28,7 @@ CONTAINS
 attributes (host) &
 #include "save_soln.inc"
 attributes (device) &
+
 SUBROUTINE save_soln_gpu(q,qold)
   IMPLICIT NONE
 

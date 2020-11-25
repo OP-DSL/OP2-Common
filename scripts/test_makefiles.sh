@@ -497,7 +497,7 @@ pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=28
 validate "./airfoil_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 
@@ -508,9 +508,8 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
 pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
-validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=28
 validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
 
 echo " "
@@ -521,19 +520,19 @@ pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_hdf5_cuda OP_MAPS_BASE_INDEX=0"
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=28
 validate "./airfoil_hdf5_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 validate "./airfoil_hdf5_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=1
-validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 28 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=20
 validate "./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 14 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 validate "./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
@@ -612,3 +611,4 @@ export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
 
 echo "All tests Passed !"
+echo "End of Test Script !"
