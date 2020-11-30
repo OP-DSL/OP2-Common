@@ -389,7 +389,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
-      if ( args[n].idx != -1 && exec_flag == 0) continue; 
+      if ( args[n].idx == -1 && exec_flag == 0) continue; 
 
       //flag, so same dat not checked again
       args[n].dat->dirtybit = 2;
@@ -431,7 +431,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   std::sort(send_neigh_list.begin(), send_neigh_list.end());
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 2 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
-      if ( args[n].idx != -1 && exec_flag == 0) continue; 
+      if ( args[n].idx == -1 && exec_flag == 0) continue; 
 
       //flag, so same dat not checked again
       args[n].dat->dirtybit = 3;
@@ -476,7 +476,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   //Pack buffers
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 3 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
-      if ( args[n].idx != -1 && exec_flag == 0) continue; 
+      if ( args[n].idx == -1 && exec_flag == 0) continue; 
       //flag, so same dat not checked again
       args[n].dat->dirtybit = 4;
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
@@ -558,7 +558,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 4 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
-      if (args[n].idx != -1 && exec_flag == 0) continue; 
+      if (args[n].idx == -1 && exec_flag == 0) continue; 
       halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
       halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
       if (device==1) scatter_data_from_buffer_ptr     (args[n], imp_exec_list, imp_nonexec_list, recv_buffer_host, recv_neigh_list, recv_offsets );
