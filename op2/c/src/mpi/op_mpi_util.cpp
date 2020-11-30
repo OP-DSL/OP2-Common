@@ -386,18 +386,18 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       if ( args[n].idx != -1 && exec_flag == 0) continue; 
 
       //list of sets on which we have data accessed, and list of MPI neighbors
-      if (std::find(sets.begin(), sets.end(), args[n].dat->set->index)!= sets.end()) {
+      if (std::find(sets.begin(), sets.end(), args[n].dat->set->index)== sets.end()) {
         sets.push_back(args[n].dat->set->index);
         //receive neighbors
         halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
         for (int i = 0; i < imp_exec_list->ranks_size; i++)
-          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i])!= recv_neigh_list.end()) {
+          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i])== recv_neigh_list.end()) {
             recv_neigh_list.push_back(imp_exec_list->ranks[i]);
             recv_sizes.push_back(0);
           }
         halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
         for (int i = 0; i < imp_nonexec_list->ranks_size; i++)
-          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i])!= recv_neigh_list.end()) {
+          if (std::find(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i])== recv_neigh_list.end()) {
             recv_neigh_list.push_back(imp_nonexec_list->ranks[i]);
             recv_sizes.push_back(0);
           }
@@ -405,13 +405,13 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
         //send neighbors
         halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
         for (int i = 0; i < exp_exec_list->ranks_size; i++)
-          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i])!= send_neigh_list.end()) {
+          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i])== send_neigh_list.end()) {
             send_neigh_list.push_back(exp_exec_list->ranks[i]);
             send_sizes.push_back(0);
           }
         halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
         for (int i = 0; i < exp_nonexec_list->ranks_size; i++)
-          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i])!= send_neigh_list.end()) {
+          if (std::find(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i])== send_neigh_list.end()) {
             send_neigh_list.push_back(exp_nonexec_list->ranks[i]);
             send_sizes.push_back(0);
           }
@@ -472,6 +472,9 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     }
   }
 
+  send_requests.resize(send_neigh_list.size());
+  recv_requests.resize(recv_neigh_list.size());
+  
   //Non-blocking receive
   unsigned curr_offset = 0;
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
@@ -479,9 +482,6 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     MPI_Irecv(buf + curr_offset, recv_sizes[i], MPI_CHAR, recv_neigh_list[i], 0 ,OP_MPI_WORLD, &recv_requests[i]);
     curr_offset += recv_sizes[i];
   }
-
-  send_requests.resize(send_neigh_list.size());
-  recv_requests.resize(recv_neigh_list.size());
 
   if (device == 1) {
     unsigned curr_offset = 0;
