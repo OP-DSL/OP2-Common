@@ -307,3 +307,9 @@ int op_is_root() {
 
 void deviceSync() {}
 
+void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
+      char **send_buffer_device, char **recv_buffer_device, int device, 
+      unsigned size_send, unsigned size_recv) {
+  *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
+  *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
+}
