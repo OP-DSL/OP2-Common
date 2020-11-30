@@ -112,10 +112,17 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                                j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
-      //      printf("export exec from %d to %d data %10s, number of elements of
-      //      size %d | sending:\n ",
+      int my_rank;
+      MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+      // printf("export exec from %d to %d data %10s, number of elements of size %d | sending:\n ",
       //             my_rank, exp_exec_list->ranks[i],
       //             dat->name,exp_exec_list->sizes[i]);
+      // double *b = (double*)&((op_mpi_buffer)(dat->mpi_buffer))
+      //                ->buf_exec[exp_exec_list->disps[i] * dat->size];
+      // for (int el = 0; el < (dat->size * exp_exec_list->sizes[i])/8; el++)
+      //   printf("%g ", b[el]);
+      // printf("\n");
+      
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
@@ -158,10 +165,14 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                                   j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
-      //      printf("export from %d to %d data %10s, number of elements of size
-      //      %d | sending:\n ",
-      //                my_rank, exp_nonexec_list->ranks[i],
-      //                dat->name,exp_nonexec_list->sizes[i]);
+      // printf("export nonexec from %d to %d data %10s, number of elements of size %d | sending:\n ",
+      //                 rank, exp_nonexec_list->ranks[i],
+      //                 dat->name,exp_nonexec_list->sizes[i]);
+      // double *b = (double*)&((op_mpi_buffer)(dat->mpi_buffer))
+      //                ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size];
+      // for (int el = 0; el < (dat->size * exp_nonexec_list->sizes[i])/8; el++)
+      //   printf("%g ", b[el]);
+      // printf("\n");
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size],
                 dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,

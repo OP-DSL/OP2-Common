@@ -69,9 +69,9 @@ endif
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O0
   CXX      = g++
-  CXXFLAGS = -fPIC -DUNIX -Wall #-g -Wextra
+  CXXFLAGS = -fPIC -DUNIX -Wall -g -O0 #-g -Wextra
   MPICXX   = $(MPICPP_PATH)
   MPIFLAGS = $(CXXFLAGS)
 else

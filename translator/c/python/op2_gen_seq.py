@@ -229,7 +229,8 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+    #code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+    code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
 
     code('')
     IF('set_size > 0')
@@ -241,7 +242,8 @@ def op2_gen_seq(master, date, consts, kernels):
     if ninds>0:
       FOR('n','0','set_size')
       IF('n==set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
+      #code('op_mpi_wait_all(nargs, args);')
+      code('op_mpi_wait_all_grouped(nargs, args, 1);')
       ENDIF()
       if nmaps > 0:
         k = []
