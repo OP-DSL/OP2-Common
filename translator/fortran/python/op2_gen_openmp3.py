@@ -497,7 +497,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
-    code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+    #code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+    code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
     code('')
 
     if ninds > 0:
@@ -600,7 +601,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       DO('i1','0','actualPlan_'+name+'%ncolors')
 
       IF('i1 .EQ. actualPlan_'+name+'%ncolors_core')
-      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+      #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
       ENDIF()
       code('')
 
@@ -669,7 +671,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+    #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+    code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
     ENDIF()
     code('')
     code('CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)')
