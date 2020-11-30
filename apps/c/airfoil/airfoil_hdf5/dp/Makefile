@@ -14,7 +14,7 @@ include ../../../../make-common.inc
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -O0 -g -fPIC -DUNIX -Wall -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CCFLAGS)
