@@ -318,11 +318,19 @@ int op_is_root() {
 
 void deviceSync() {}
 
+int op2_grp_size_recv_old = 0;
+int op2_grp_size_send_old = 0;
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
       unsigned size_send, unsigned size_recv) {
-  *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
-  *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
+  if (op2_grp_size_recv_old < size_recv) {
+    *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
+    op2_grp_size_recv_old = size_recv;
+  }
+  if (op2_grp_size_send_old < size_send) {
+    *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
+    op2_grp_size_send_old = size_send;
+  }
 }
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {}

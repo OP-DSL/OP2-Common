@@ -489,7 +489,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
       halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
       if (device==1) gather_data_to_buffer_ptr     (args[n], exp_exec_list, exp_nonexec_list, send_buffer_host, send_neigh_list, send_offsets );
-      if (device==1) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device, send_neigh_list, send_offsets );
+      if (device==2) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device, send_neigh_list, send_offsets );
     }
   }
 
@@ -508,7 +508,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     unsigned curr_offset = 0;
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = send_buffer_host;
-      int rank;
+      // int rank;
       // MPI_Comm_rank(OP_MPI_WORLD, &rank);
       // printf("export from %d to %d, number of elements of size %d | sending:\n ",
       //                 rank, send_neigh_list[i],
@@ -556,6 +556,15 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
+    //   int rank;
+    // MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    //   printf("export from %d to %d, number of elements of size %d | sending:\n ",
+    //                   rank, send_neigh_list[i],
+    //                   send_sizes[i]);
+    //   double *b = (double*)(buf + curr_offset);
+    //   for (int el = 0; el <send_sizes[i]/8; el++)
+    //     printf("%g ", b[el]);
+    //   printf("\n");
       MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
     }
@@ -574,8 +583,9 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
       halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
       halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
       if (device==1) scatter_data_from_buffer_ptr     (args[n], imp_exec_list, imp_nonexec_list, recv_buffer_host, recv_neigh_list, recv_offsets );
-      if (device==1) scatter_data_from_buffer_ptr_cuda(args[n], imp_exec_list, imp_nonexec_list, recv_buffer_device, recv_neigh_list, recv_offsets );
+      if (device==2) scatter_data_from_buffer_ptr_cuda(args[n], imp_exec_list, imp_nonexec_list, recv_buffer_device, recv_neigh_list, recv_offsets );
       args[n].dat->dirtybit = 0;
+      args[n].dat->dirty_hd = device;
     }
   }
 

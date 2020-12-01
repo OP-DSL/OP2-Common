@@ -169,7 +169,7 @@ endif
 endif
 endif
 
-NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -G -O0 #-O3
 
 ifdef CUDA_INSTALL_PATH
   CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
