@@ -716,17 +716,21 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
       char **send_buffer_device, char **recv_buffer_device, int device, 
       unsigned size_send, unsigned size_recv) {
   if (op2_grp_size_recv_old < size_recv) {
-    if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
+    //if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
     if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
     cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
-    cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
+    //cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
+    *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
+    cutilSafeCall(cudaHostRegister ( *recv_buffer_host, size_recv, cudaHostRegisterDefault ));
     op2_grp_size_recv_old = size_recv;
   }
   if (op2_grp_size_send_old < size_send) {
-    if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
+    //if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
     if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
     cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
-    cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
+    //cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
+    *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
+    cutilSafeCall(cudaHostRegister ( *send_buffer_host, size_send, cudaHostRegisterDefault ));
     op2_grp_size_send_old = size_send;
   }
 }

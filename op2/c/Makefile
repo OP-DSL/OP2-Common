@@ -69,9 +69,14 @@ endif
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
+  ifdef DEBUG
   CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O0
-  CXX      = g++
   CXXFLAGS = -fPIC -DUNIX -Wall -g -O0 #-g -Wextra
+  else
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O3
+  CXXFLAGS = -fPIC -DUNIX -Wall -g -O3 #-g -Wextra
+  endif
+  CXX      = g++
   MPICXX   = $(MPICPP_PATH)
   MPIFLAGS = $(CXXFLAGS)
 else
@@ -169,7 +174,7 @@ endif
 endif
 endif
 
-NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -G -O0 #-O3
+NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -O3 #-G -O0 #-O3
 
 ifdef CUDA_INSTALL_PATH
   CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
