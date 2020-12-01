@@ -165,10 +165,14 @@ extern int **orig_part_range;
 /** export list on the device **/
 
 extern int **export_exec_list_d;
+extern int **export_exec_list_disps_d;
 extern int **export_nonexec_list_d;
+extern int **export_nonexec_list_disps_d;
 extern int **export_nonexec_list_partial_d;
 extern int **import_nonexec_list_partial_d;
 extern int *set_import_buffer_size;
+extern int **import_exec_list_disps_d;
+extern int **import_nonexec_list_disps_d;
 
 /*******************************************************************************
 * Data Type to hold sliding planes info
@@ -368,5 +372,9 @@ void op_wait_all(op_arg *arg);
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
 void op_wait_all_cuda(op_arg *arg);
+
+void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send);
+void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
+void op_download_buffer_sync();
 
 #endif /* __OP_MPI_CORE_H */

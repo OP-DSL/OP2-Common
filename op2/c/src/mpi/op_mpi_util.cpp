@@ -268,6 +268,11 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name) {
            file_name);
 }
 
+void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
+                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets);
+void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
+                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets);
+
 void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
                                std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets) {
 
@@ -338,6 +343,7 @@ char *send_buffer_host = NULL;
 char *send_buffer_device = NULL;
 char *recv_buffer_host = NULL;
 char *recv_buffer_device = NULL;
+int op2_grp_counter = 0;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
   int size = set->size;
@@ -473,6 +479,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   if (send_sizes.size()>0) std::partial_sum(send_sizes.begin(), send_sizes.begin()+send_sizes.size()-1, send_offsets.begin()+1);
   if (recv_sizes.size()>0) std::partial_sum(recv_sizes.begin(), recv_sizes.begin()+recv_sizes.size()-1, recv_offsets.begin()+1);
 
+  op2_grp_counter = 0;
   //Pack buffers
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 3 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
@@ -482,7 +489,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
       halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
       if (device==1) gather_data_to_buffer_ptr     (args[n], exp_exec_list, exp_nonexec_list, send_buffer_host, send_neigh_list, send_offsets );
-      //if (device==2) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device);
+      if (device==1) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device, send_neigh_list, send_offsets );
     }
   }
 
@@ -515,7 +522,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       curr_offset += send_sizes[i];
     }
   } else if (device == 2 && !OP_gpu_direct) {
-      //download_buffer_async(send_buffer_device, send_buffer_host, size_send);
+      op_download_buffer_async(send_buffer_device, send_buffer_host, size_send);
   }
     
   op_timers_core(&c2, &t2);
@@ -546,7 +553,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   //Sends are only started here when running async on the device
   if (device == 2) {
     unsigned curr_offset = 0;
-    //TODO:::: sync_on_download
+    op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
       MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
@@ -555,14 +562,19 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   }
 
   MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
-  
+
+  if (device == 2 && !OP_gpu_direct) {
+    unsigned size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
+    op_upload_buffer_async(recv_buffer_device, recv_buffer_host, size_recv);
+  }
+  op2_grp_counter = 0;
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 4 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
       if (args[n].idx == -1 && exec_flag == 0) continue; 
       halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
       halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
       if (device==1) scatter_data_from_buffer_ptr     (args[n], imp_exec_list, imp_nonexec_list, recv_buffer_host, recv_neigh_list, recv_offsets );
-      //if (device==2) gather_data_to_buffer_ptr_cuda(args[n], imp_exec_list, imp_nonexec_list, send_buffer_device);
+      if (device==1) scatter_data_from_buffer_ptr_cuda(args[n], imp_exec_list, imp_nonexec_list, recv_buffer_device, recv_neigh_list, recv_offsets );
       args[n].dat->dirtybit = 0;
     }
   }
