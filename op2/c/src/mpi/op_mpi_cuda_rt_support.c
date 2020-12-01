@@ -710,24 +710,32 @@ int op_is_root() {
   return (my_rank == MPI_ROOT);
 }
 
+int op2_grp_size_recv_old = 0;
+int op2_grp_size_send_old = 0;
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
       unsigned size_send, unsigned size_recv) {
-  if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
-  if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
-  if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
-  if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
-  cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
-  cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
-  cutilSafeCall(cudaMallocHost(recv_buffer_host, size_recv));
-  cutilSafeCall(cudaMallocHost(send_buffer_host, size_send));
+  if (op2_grp_size_recv_old < size_recv) {
+    if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
+    if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
+    cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
+    cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
+    op2_grp_size_recv_old = size_recv;
+  }
+  if (op2_grp_size_send_old < size_send) {
+    if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
+    if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
+    cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
+    cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
+    op2_grp_size_send_old = size_send;
+  }
 }
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
   cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost));
 }
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv) {
-  cutilSafeCall(cudaMemcpyAsync(recv_buffer_host, recv_buffer_device, size_recv, cudaMemcpyHostToDevice));
+  cutilSafeCall(cudaMemcpyAsync(recv_buffer_device, recv_buffer_host, size_recv, cudaMemcpyHostToDevice));
 }
 
 void op_download_buffer_sync() {

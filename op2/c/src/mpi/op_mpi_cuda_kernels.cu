@@ -284,8 +284,9 @@ __device__ int lower_bound(int *disps, int count, int value) {
 __global__ void gather_data_to_buffer_ptr_cuda_kernel(char *data, char *buffer, int *elem_list, int *disps, 
           unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (id > disps[rank_size]) return;
+  if (id >= disps[rank_size]) return;
   int neighbour = lower_bound(disps, rank_size, id);
+  if (disps[neighbour]!=id) neighbour--;
   unsigned buf_pos = neigh_to_neigh_offsets[neighbour];
   unsigned set_elem_index = elem_list[id];
   if (soa) {
@@ -303,8 +304,9 @@ __global__ void gather_data_to_buffer_ptr_cuda_kernel(char *data, char *buffer, 
 __global__ void scatter_data_from_buffer_ptr_cuda_kernel(char *data, char *buffer, int *disps, 
   unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (id > disps[rank_size]) return;
+  if (id >= disps[rank_size]) return;
   int neighbour = lower_bound(disps, rank_size, id);
+  if (disps[neighbour]!=id) neighbour--;
   unsigned buf_pos = neigh_to_neigh_offsets[neighbour];
   if (soa) {
     for (int d = 0; d < dim; d++)
@@ -312,6 +314,8 @@ __global__ void scatter_data_from_buffer_ptr_cuda_kernel(char *data, char *buffe
         data[(d*set_size + id)*type_size + p] = buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p];
   } else {
     int dat_size = type_size * dim;
+    // if (*(double*)&buffer[buf_pos + (id - disps[neighbour]) * dat_size] != *(double*)&data[id*dat_size])
+    //   printf("Mismatch\n");
     for (int p = 0; p < dat_size; p++)
       data[id*dat_size + p] = buffer[buf_pos + (id - disps[neighbour]) * dat_size + p];
   }
