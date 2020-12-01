@@ -316,6 +316,94 @@ void op_mv_halo_list_device() {
                       OP_export_nonexec_list[set->index]->size * sizeof(int));
   }
 
+  //for grouped, we need the disps array on device too
+  if (export_exec_list_disps_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (export_exec_list_disps_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_exec_list_disps_d[OP_set_list[s]->index]));
+    free(export_exec_list_disps_d);
+  }
+  export_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    export_exec_list_disps_d[set->index] = NULL;
+
+    //make sure end size is there too
+    OP_export_exec_list[set->index]->disps[OP_export_exec_list[set->index]->ranks_size] = 
+      OP_export_exec_list[set->index]->ranks_size == 0 ? 0 :
+      OP_export_exec_list[set->index]->disps[OP_export_exec_list[set->index]->ranks_size-1] +
+      OP_export_exec_list[set->index]->sizes[OP_export_exec_list[set->index]->ranks_size-1];
+    op_cpHostToDevice((void **)&(export_exec_list_disps_d[set->index]),
+                      (void **)&(OP_export_exec_list[set->index]->disps),
+                      (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int));
+  }
+
+  if (export_nonexec_list_disps_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (export_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_nonexec_list_disps_d[OP_set_list[s]->index]));
+    free(export_nonexec_list_disps_d);
+  }
+  export_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    export_nonexec_list_disps_d[set->index] = NULL;
+
+    //make sure end size is there too
+    OP_export_nonexec_list[set->index]->disps[OP_export_nonexec_list[set->index]->ranks_size] = 
+      OP_export_nonexec_list[set->index]->ranks_size == 0 ? 0 :
+      OP_export_nonexec_list[set->index]->disps[OP_export_nonexec_list[set->index]->ranks_size-1] +
+      OP_export_nonexec_list[set->index]->sizes[OP_export_nonexec_list[set->index]->ranks_size-1];
+    op_cpHostToDevice((void **)&(export_nonexec_list_disps_d[set->index]),
+                      (void **)&(OP_export_nonexec_list[set->index]->disps),
+                      (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
+  }
+  if (import_exec_list_disps_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (import_exec_list_disps_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(import_exec_list_disps_d[OP_set_list[s]->index]));
+    free(import_exec_list_disps_d);
+  }
+  import_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    import_exec_list_disps_d[set->index] = NULL;
+
+    //make sure end size is there too
+    OP_import_exec_list[set->index]->disps[OP_import_exec_list[set->index]->ranks_size] = 
+      OP_import_exec_list[set->index]->ranks_size == 0 ? 0 :
+      OP_import_exec_list[set->index]->disps[OP_import_exec_list[set->index]->ranks_size-1] +
+      OP_import_exec_list[set->index]->sizes[OP_import_exec_list[set->index]->ranks_size-1];
+    op_cpHostToDevice((void **)&(import_exec_list_disps_d[set->index]),
+                      (void **)&(OP_import_exec_list[set->index]->disps),
+                      (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int));
+  }
+
+  if (import_nonexec_list_disps_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (import_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(import_nonexec_list_disps_d[OP_set_list[s]->index]));
+    free(import_nonexec_list_disps_d);
+  }
+  import_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    import_nonexec_list_disps_d[set->index] = NULL;
+
+    //make sure end size is there too
+    OP_import_nonexec_list[set->index]->disps[OP_import_nonexec_list[set->index]->ranks_size] = 
+      OP_import_nonexec_list[set->index]->ranks_size == 0 ? 0 :
+      OP_import_nonexec_list[set->index]->disps[OP_import_nonexec_list[set->index]->ranks_size-1] +
+      OP_import_nonexec_list[set->index]->sizes[OP_import_nonexec_list[set->index]->ranks_size-1];
+    op_cpHostToDevice((void **)&(import_nonexec_list_disps_d[set->index]),
+                      (void **)&(OP_import_nonexec_list[set->index]->disps),
+                      (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
+  }
+
   if ( export_nonexec_list_partial_d!= NULL) {
     for (int s = 0; s < OP_map_index; s++)
       if (OP_map_partial_exchange[s] && export_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)

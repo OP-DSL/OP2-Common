@@ -68,8 +68,12 @@ typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 int **export_exec_list_d = NULL;
 int **export_nonexec_list_d = NULL;
+int **export_exec_list_disps_d = NULL;
+int **export_nonexec_list_disps_d = NULL;
 int **export_nonexec_list_partial_d = NULL;
 int **import_nonexec_list_partial_d = NULL;
+int **import_exec_list_disps_d = NULL;
+int **import_nonexec_list_disps_d = NULL;
 
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
@@ -706,3 +710,26 @@ int op_is_root() {
   return (my_rank == MPI_ROOT);
 }
 
+void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
+      char **send_buffer_device, char **recv_buffer_device, int device, 
+      unsigned size_send, unsigned size_recv) {
+  if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
+  if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
+  if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
+  if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
+  cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
+  cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
+  cutilSafeCall(cudaMallocHost(recv_buffer_host, size_recv));
+  cutilSafeCall(cudaMallocHost(send_buffer_host, size_send));
+}
+
+void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
+  cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost));
+}
+void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv) {
+  cutilSafeCall(cudaMemcpyAsync(recv_buffer_host, recv_buffer_device, size_recv, cudaMemcpyHostToDevice));
+}
+
+void op_download_buffer_sync() {
+  cutilSafeCall(cudaDeviceSynchronize());
+}

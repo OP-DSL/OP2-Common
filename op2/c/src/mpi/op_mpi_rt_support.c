@@ -324,3 +324,12 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
   *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
   *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
 }
+
+void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {}
+void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_send) {}
+void op_download_buffer_sync() {}
+#include <vector>
+void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
+                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets){}
+void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
+                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets){}
