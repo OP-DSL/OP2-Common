@@ -281,7 +281,7 @@ __device__ int lower_bound(int *disps, int count, int value) {
   return first-disps;
 }
 
-__global__ void gather_data_to_buffer_ptr_cuda_kernel(char *data, char *buffer, int *elem_list, int *disps, 
+__global__ void gather_data_to_buffer_ptr_cuda_kernel(const char *__restrict data, char *__restrict buffer, int *elem_list, int *disps, 
           unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= disps[rank_size]) return;
@@ -291,17 +291,24 @@ __global__ void gather_data_to_buffer_ptr_cuda_kernel(char *data, char *buffer, 
   unsigned set_elem_index = elem_list[id];
   if (soa) {
     for (int d = 0; d < dim; d++)
-      for (int p = 0; p < type_size; p++)
-        buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p] = data[(d*set_size + set_elem_index)*type_size + p];
+      if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size)%8==0) 
+        *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size] = *(double*)&data[(d*set_size + set_elem_index)*type_size];
+      else
+        for (int p = 0; p < type_size; p++)
+          buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p] = data[(d*set_size + set_elem_index)*type_size + p];
 
   } else {
     int dat_size = type_size * dim;
-    for (int p = 0; p < dat_size; p++)
-      buffer[buf_pos + (id - disps[neighbour]) * dat_size + p] = data[set_elem_index*dat_size + p];
+    if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * dat_size)%8==0) 
+      for (int d = 0; d < dim; d++)
+        *(double*)&buffer[buf_pos + (id - disps[neighbour]) * dat_size + d*type_size] = *(double*)&data[set_elem_index*dat_size + d*type_size];
+    else
+      for (int p = 0; p < dat_size; p++)
+        buffer[buf_pos + (id - disps[neighbour]) * dat_size + p] = data[set_elem_index*dat_size + p];
   }
 }
 
-__global__ void scatter_data_from_buffer_ptr_cuda_kernel(char *data, char *buffer, int *disps, 
+__global__ void scatter_data_from_buffer_ptr_cuda_kernel(char * __restrict data, const char * __restrict buffer, int *disps, 
   unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= disps[rank_size]) return;
@@ -310,14 +317,21 @@ __global__ void scatter_data_from_buffer_ptr_cuda_kernel(char *data, char *buffe
   unsigned buf_pos = neigh_to_neigh_offsets[neighbour];
   if (soa) {
     for (int d = 0; d < dim; d++)
-      for (int p = 0; p < type_size; p++)
-        data[(d*set_size + id)*type_size + p] = buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p];
+      if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size)%8==0) 
+        *(double*)&data[(d*set_size + id)*type_size] = *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size];
+      else
+        for (int p = 0; p < type_size; p++)
+          data[(d*set_size + id)*type_size + p] = buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p];
   } else {
     int dat_size = type_size * dim;
     // if (*(double*)&buffer[buf_pos + (id - disps[neighbour]) * dat_size] != *(double*)&data[id*dat_size])
     //   printf("Mismatch\n");
-    for (int p = 0; p < dat_size; p++)
-      data[id*dat_size + p] = buffer[buf_pos + (id - disps[neighbour]) * dat_size + p];
+    if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * dat_size)%8==0) 
+      for (int d = 0; d < dim; d++)
+        *(double*)&data[id*dat_size + d*type_size] =  *(double*)&buffer[buf_pos + (id - disps[neighbour]) * dat_size + d*type_size];
+    else
+      for (int p = 0; p < dat_size; p++)
+        data[id*dat_size + p] = buffer[buf_pos + (id - disps[neighbour]) * dat_size + p];
   }
 }
 
@@ -411,10 +425,10 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
     neigh_offsets[buf_rankpos] += iel->sizes[i] * arg.dat->size;
   }
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_h[op2_grp_counter*op2_grp_max_neighbours],iel->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice);
+  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_h[op2_grp_counter*op2_grp_max_neighbours],iel->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice,op2_grp_secondary);
   //Launch kernel
   unsigned offset = arg.dat->set->size * (soa?arg.dat->size/arg.dat->dim:arg.dat->size);
-  scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((iel->size - 1) / 192),192>>>(arg.dat->data_d+offset, buffer, import_exec_list_disps_d[arg.dat->set->index], 
+  scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((iel->size - 1) / 192),192,0,op2_grp_secondary>>>(arg.dat->data_d+offset, buffer, import_exec_list_disps_d[arg.dat->set->index], 
     op2_grp_neigh_to_neigh_offsets_d, iel->ranks_size, soa, arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
   op2_grp_counter++;
 
@@ -428,10 +442,10 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
     neigh_offsets[buf_rankpos] += inl->sizes[i] * arg.dat->size;
   }
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_h[op2_grp_counter*op2_grp_max_neighbours],inl->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice);
+  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_h[op2_grp_counter*op2_grp_max_neighbours],inl->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice,op2_grp_secondary);
   //Launch kernel
   offset = (arg.dat->set->size + iel->size) * (soa?arg.dat->size/arg.dat->dim:arg.dat->size);
-  scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((inl->size - 1) / 192),192>>>(arg.dat->data_d+offset, buffer, import_nonexec_list_disps_d[arg.dat->set->index], 
+  scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((inl->size - 1) / 192),192,0,op2_grp_secondary>>>(arg.dat->data_d+offset, buffer, import_nonexec_list_disps_d[arg.dat->set->index], 
     op2_grp_neigh_to_neigh_offsets_d, inl->ranks_size, soa, arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
 
   op2_grp_counter++;
