@@ -33,6 +33,10 @@ ifeq ($(NV_ARCH),Kepler)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=cc60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=cc70
+endif
 endif
 endif
 endif

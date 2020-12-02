@@ -30,6 +30,14 @@ export INTEL_SOURCE=source_intel_18
 export PGI_SOURCE=source_pgi_20_hydra
 export CLANG_SOURCE=source_clang_kos
 
+#Telos
+#export NV_ARCH=Volta
+#export CUDA_VISIBLE_DEVICES=0
+#export INTEL_SOURCE=source_intel_18
+#export PGI_SOURCE=source_pgi_20_hydra
+#export CLANG_SOURCE=source_clang_kos
+
+
 export CURRENT_DIR=$PWD
 cd ../op2
 export OP2_INSTALL_PATH=$PWD
