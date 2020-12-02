@@ -895,6 +895,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('  int part_size = OP_part_size;')
         code('#endif')
         code('')
+      #code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
 
 #
@@ -907,6 +908,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       ENDIF()
       code('')
       code('op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
+      #code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
     IF('set_size > 0')    
     code('')
@@ -1034,6 +1036,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       FOR('col','0','Plan->ncolors')
       IF('col==Plan->ncolors_core')
       code('op_mpi_wait_all_grouped(nargs, args, 2);')
+      #code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
@@ -1115,6 +1118,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         FOR('round','0','2')
       IF('round==1')
       code('op_mpi_wait_all_grouped(nargs, args, 2);')
+      #code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
       if reduct:
         code('int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);')
