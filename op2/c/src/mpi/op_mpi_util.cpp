@@ -588,6 +588,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
       args[n].dat->dirty_hd = device;
     }
   }
+  if (op2_grp_counter>0 && device == 2) op_scatter_sync();
 
   MPI_Waitall(send_neigh_list.size(), &send_requests[0], MPI_STATUSES_IGNORE);
 

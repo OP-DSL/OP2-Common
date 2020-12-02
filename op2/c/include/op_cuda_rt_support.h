@@ -62,6 +62,8 @@ extern char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 
 extern void __syncthreads();
 
+extern cudaStream_t op2_grp_secondary;
+
 /*
  * personal stripped-down version of cutil_inline.h
  */

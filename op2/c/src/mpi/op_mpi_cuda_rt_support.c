@@ -75,6 +75,9 @@ int **import_nonexec_list_partial_d = NULL;
 int **import_exec_list_disps_d = NULL;
 int **import_nonexec_list_disps_d = NULL;
 
+cudaEvent_t op2_grp_download_event;
+cudaStream_t op2_grp_secondary;
+
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
@@ -150,6 +153,8 @@ void cutilDeviceInit(int argc, char **argv) {
     cutilSafeCall(cudaGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s on rank %d\n", deviceId,
            deviceProp.name, rank);
+    cutilSafeCall(cudaStreamCreateWithFlags(&op2_grp_secondary, cudaStreamNonBlocking));
+    cutilSafeCall(cudaEventCreateWithFlags(&op2_grp_download_event, cudaEventDisableTiming));
   } else {
     printf("\n Using CPU on rank %d\n", rank);
   }
@@ -736,12 +741,19 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 }
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
-  cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost));
+  //Make sure gather kernels on the 0 stream finished before starting download
+  cutilSafeCall(cudaEventRecord(op2_grp_download_event));
+  cutilSafeCall(cudaStreamWaitEvent(op2_grp_secondary, op2_grp_download_event,0));
+  cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost, op2_grp_secondary));
 }
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv) {
-  cutilSafeCall(cudaMemcpyAsync(recv_buffer_device, recv_buffer_host, size_recv, cudaMemcpyHostToDevice));
+  cutilSafeCall(cudaMemcpyAsync(recv_buffer_device, recv_buffer_host, size_recv, cudaMemcpyHostToDevice, op2_grp_secondary));
 }
 
+void op_scatter_sync() {
+  cutilSafeCall(cudaEventRecord(op2_grp_download_event, op2_grp_secondary));
+  cutilSafeCall(cudaStreamWaitEvent(0, op2_grp_download_event,0));
+}
 void op_download_buffer_sync() {
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(cudaStreamSynchronize(op2_grp_secondary));
 }
