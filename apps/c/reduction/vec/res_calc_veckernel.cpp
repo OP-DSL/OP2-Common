@@ -9,7 +9,11 @@ inline void res_calc(double *data, int *count) {
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void res_calc_vec( double data[*][SIMD_VEC], int *count, int idx ) {
+#if defined __clang__ || defined __GNUC__
+__attribute__((always_inline))
+#endif
+inline void
+res_calc_vec(double data[][SIMD_VEC], int *count, int idx) {
   data[0][idx] = 0.0;
   (*count)++;
 
@@ -50,7 +54,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       for ( int i=0; i<SIMD_VEC; i++ ){
         dat1[i] = 0.0;
       }
-      if (n+SIMD_VEC >= set->core_size) {
+      if ((n + SIMD_VEC >= set->core_size) &&
+          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[4][SIMD_VEC];
