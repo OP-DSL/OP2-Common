@@ -160,7 +160,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     file_text += kernel_text
     f.close()
 
-    ## Clang compiler can struggle to vectorize a loop if it uses a mix of 
+    ## Clang compiler can struggle to vectorize a loop if it uses a mix of
     ## Python-generated simd arrays for indirect data AND pointers to direct
     ## data. Fix by also generating simd arrays for direct data:
     do_gen_direct_simd_arrays = True
@@ -228,7 +228,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
 
-          ## It has been observed that vectorisation can fail on loops with increments, 
+          ## It has been observed that vectorisation can fail on loops with increments,
           ## but replacing them with writes succeeds.
           ## For example with Clang on particular loops, vectorisation fails with message:
           ##   "loop not vectorized: loop control flow is not understood by vectorizer"
@@ -418,16 +418,17 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       zero_dat_template = "dat{0}[{1}][i] = 0.0;"
       for g_m in range(0,nargs):
         if do_gen_direct_simd_arrays:
-          ## also 'gather' directly-accessed data, because SOME compilers 
+          ## also 'gather' directly-accessed data, because SOME compilers
           ## struggle to vectorise otherwise (e.g. Clang).
-          if accs[g_m] in [OP_READ, OP_RW]:
-            for d in range(0,int(dims[g_m])):
-              code(init_dat_template.format(g_m, d))
-            code('')
-          elif accs[g_m] == OP_INC:
-            for d in range(0,int(dims[g_m])):
-              code(zero_dat_template.format(g_m, d))
-            code('')
+          if maps[g_m] <> OP_GBL :
+            if accs[g_m] in [OP_READ, OP_RW]:
+              for d in range(0,int(dims[g_m])):
+                code(init_dat_template.format(g_m, d))
+              code('')
+            elif accs[g_m] == OP_INC:
+              for d in range(0,int(dims[g_m])):
+                code(zero_dat_template.format(g_m, d))
+              code('')
         else:
           if maps[g_m] == OP_MAP :
             if accs[g_m] in [OP_READ, OP_RW]:#and (not mapinds[g_m] in k):

@@ -38,7 +38,14 @@ inline void res_calc(const double *x1, const double *x2, const double *q1,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_VEC], const double q1[*][SIMD_VEC], const double q2[*][SIMD_VEC], const double adt1[*][SIMD_VEC], const double adt2[*][SIMD_VEC], double res1[*][SIMD_VEC], double res2[*][SIMD_VEC], int idx ) {
+#if defined __clang__ || defined __GNUC__
+__attribute__((always_inline))
+#endif
+inline void
+res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
+             const double q1[][SIMD_VEC], const double q2[][SIMD_VEC],
+             const double adt1[][SIMD_VEC], const double adt2[][SIMD_VEC],
+             double res1[][SIMD_VEC], double res2[][SIMD_VEC], int idx) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -55,18 +62,18 @@ inline void res_calc_vec( const double x1[*][SIMD_VEC], const double x2[*][SIMD_
   mu = 0.5f * ((adt1[0][idx]) + (adt2[0][idx])) * eps;
 
   f = 0.5f * (vol1 * q1[0][idx] + vol2 * q2[0][idx]) + mu * (q1[0][idx] - q2[0][idx]);
-  res1[0][idx] += f;
+  res1[0][idx] = f;
   res2[0][idx] -= f;
   f = 0.5f * (vol1 * q1[1][idx] + p1 * dy + vol2 * q2[1][idx] + p2 * dy) +
       mu * (q1[1][idx] - q2[1][idx]);
-  res1[1][idx] += f;
+  res1[1][idx] = f;
   res2[1][idx] -= f;
   f = 0.5f * (vol1 * q1[2][idx] - p1 * dx + vol2 * q2[2][idx] - p2 * dx) +
       mu * (q1[2][idx] - q2[2][idx]);
-  res1[2][idx] += f;
+  res1[2][idx] = f;
   res2[2][idx] -= f;
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
-  res1[3][idx] += f;
+  res1[3][idx] = f;
   res2[3][idx] -= f;
 
 }
@@ -128,7 +135,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n+SIMD_VEC >= set->core_size) {
+      if ((n + SIMD_VEC >= set->core_size) &&
+          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[2][SIMD_VEC];
