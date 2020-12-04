@@ -68,7 +68,9 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
-  return op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+  // free(data);
+  return dat;
 }
 
 int op_free_dat_temp_char(op_dat dat) { return op_free_dat_temp_core(dat); }
@@ -130,7 +132,12 @@ op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
                        op_access acc) {
-  return op_arg_gbl_core(data, dim, type, size, acc);
+  return op_arg_gbl_core(1, data, dim, type, size, acc);
+}
+
+op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
+                           int size, op_access acc) {
+  return op_arg_gbl_core(opt, data, dim, type, size, acc);
 }
 
 void op_upload_all() {}
@@ -179,13 +186,14 @@ void op_timings_to_csv(const char *outputFileName) {
   if (outputFile != NULL) {
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older 
+          // This library is being used by an OP2 translation made with the
+          // older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
-        
+
         for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
           double kern_time = OP_kernels[n].times[thr];
           if (kern_time == 0.0) {
@@ -193,12 +201,10 @@ void op_timings_to_csv(const char *outputFileName) {
           }
           double plan_time = OP_kernels[n].plan_time;
           double mpi_time = OP_kernels[n].mpi_time;
-          fprintf(outputFile, 
-                  "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                  0, thr, 1, OP_kernels[n].ntimes, 
-                  OP_kernels[n].count, kern_time, plan_time, mpi_time, 
-                  OP_kernels[n].transfer/1e9f, OP_kernels[n].transfer2/1e9f, 
-                  OP_kernels[n].name);
+          fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", 0, thr, 1,
+                  OP_kernels[n].ntimes, OP_kernels[n].count, kern_time,
+                  plan_time, mpi_time, OP_kernels[n].transfer / 1e9f,
+                  OP_kernels[n].transfer2 / 1e9f, OP_kernels[n].name);
         }
       }
     }
@@ -214,3 +220,7 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
+
+void op_upload_dat(op_dat dat) {}
+
+void op_download_dat(op_dat dat) {}

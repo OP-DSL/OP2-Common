@@ -105,6 +105,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   integer(4), POINTER, DIMENSION(:) :: opDat6Local
   INTEGER(kind=4) :: opDat6Cardinality
 
+  real(8), POINTER, DIMENSION(:) :: opDat1OptPtr
   INTEGER(kind=4) :: threadID
   INTEGER(kind=4) :: numberOfThreads
   INTEGER(kind=4), DIMENSION(1:8) :: timeArrayStart
@@ -211,7 +212,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
       END IF
 
       nblocks = ncolblk_bres_calc(i1 + 1)
-      !$OMP PARALLEL DO private (threadID, blockID, nelem, offset_b)
+      !$OMP PARALLEL DO private (threadID, blockID, nelem, offset_b, opDat1OptPtr)
       DO i2 = 0, nblocks-1, 1
         threadID = omp_get_thread_num()
         blockID = blkmap_bres_calc(i2+blockOffset+1)

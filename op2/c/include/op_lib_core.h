@@ -187,6 +187,7 @@ typedef struct {
 // struct definition for a double linked list entry to hold an op_dat
 struct op_dat_entry_core {
   op_dat dat;
+  void *orig_ptr;
   TAILQ_ENTRY(op_dat_entry_core)
   entries; /*holds pointers to next and
            previous entries in the list*/
@@ -256,7 +257,7 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
 op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
                            const char *typ, op_access acc);
 
-op_arg op_arg_gbl_core(char *, int, const char *, int, op_access);
+op_arg op_arg_gbl_core(int, char *, int, const char *, int, op_access);
 
 void op_diagnostic_output(void);
 
@@ -287,6 +288,10 @@ int op_size_of_set(const char *);
 int op_get_size(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
+
+void op_upload_dat(op_dat dat);
+
+void op_download_dat(op_dat dat);
 
 /*******************************************************************************
 * Core MPI lib function prototypes

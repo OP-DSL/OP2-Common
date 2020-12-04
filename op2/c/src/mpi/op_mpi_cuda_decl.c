@@ -153,6 +153,15 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 
   memcpy(d, data, set->size * dim * size * sizeof(char));
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->dat == out_dat) {
+      item->orig_ptr = data;
+      break;
+    }
+  }
   out_dat->user_managed = 0;
   return out_dat;
 }
@@ -352,9 +361,11 @@ op_set op_decl_set(int size, char const *name) {
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
-  int *m = (int *)xmalloc(from->size * dim * sizeof(int));
-  memcpy(m, imap, from->size * dim * sizeof(int));
-  return op_decl_map_core(from, to, dim, m, name);
+  // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
+  //  memcpy(m, imap, from->size * dim * sizeof(int));
+  op_map out_map = op_decl_map_core(from, to, dim, imap, name);
+  out_map->user_managed = 0;
+  return out_map;
   // return op_decl_map_core ( from, to, dim, imap, name );
 }
 
@@ -370,7 +381,12 @@ op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
                        op_access acc) {
-  return op_arg_gbl_core(data, dim, type, size, acc);
+  return op_arg_gbl_core(1, data, dim, type, size, acc);
+}
+
+op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
+                           int size, op_access acc) {
+  return op_arg_gbl_core(opt, data, dim, type, size, acc);
 }
 
 void op_printf(const char *format, ...) {
@@ -477,9 +493,10 @@ void op_timings_to_csv(const char *outputFileName) {
   if (can_write) {
     for (int n = 0; n < OP_kern_max; n++) {
       if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f && 
+        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older 
+          // This library is being used by an OP2 translation made with the
+          // older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
@@ -510,11 +527,10 @@ void op_timings_to_csv(const char *outputFileName) {
             for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
               double kern_time = times[p*OP_kernels[n].ntimes + thr];
 
-              fprintf(outputFile, 
-                      "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n",
-                      p, thr, comm_size, OP_kernels[n].ntimes, 
-                      OP_kernels[n].count, kern_time, plan_times[p], mpi_times[p], 
-                      transfers[p]/1e9f, transfers2[p]/1e9f, 
+              fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", p, thr,
+                      comm_size, OP_kernels[n].ntimes, OP_kernels[n].count,
+                      kern_time, plan_times[p], mpi_times[p],
+                      transfers[p] / 1e9f, transfers2[p] / 1e9f,
                       OP_kernels[n].name);
             }
           }

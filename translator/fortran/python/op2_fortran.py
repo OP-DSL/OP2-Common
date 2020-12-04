@@ -65,6 +65,8 @@ import op2_gen_cuda
 from op2_gen_cuda import *
 import op2_gen_cuda_gbl
 from op2_gen_cuda_gbl import *
+import op2_gen_cuda_color2
+from op2_gen_cuda_color2 import *
 import op2_gen_cuda_permute
 from op2_gen_cuda_permute import *
 import op2_gen_cudaINC
@@ -176,6 +178,35 @@ def arg_parse(text,j):
           return loc2
       loc2 = loc2 + 1
 
+def arg_parse2(text, j):
+    """Parsing arguments in op_par_loop to find the correct closing brace"""
+
+    depth = 0
+    loc2 = j
+    arglist = []
+    prev_start = j
+    while 1:
+        if text[loc2] == '(':
+            if depth == 0:
+                prev_start = loc2+1
+            depth = depth + 1
+
+        elif text[loc2] == ')':
+            depth = depth - 1
+            if depth == 0:
+                arglist.append(text[prev_start:loc2].strip())
+                return arglist
+
+        elif text[loc2] == ',':
+            if depth == 1:
+                arglist.append(text[prev_start:loc2].strip())
+                prev_start = loc2+1
+        elif text[loc2] == '{':
+            depth = depth + 1
+        elif text[loc2] == '}':
+            depth = depth - 1
+        loc2 = loc2 + 1
+
 def typechange(text):
   if '"INTEGER(kind=4)"' in text:
     return '"i4"'
@@ -218,28 +249,28 @@ def get_arg_dat(arg_string, j):
   'acc':dat_args_string.split(',')[5].strip(),
   'opt':''}
 
-  if 'DNPDE' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
-  if 'npdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
-  if 'nfcrow' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
-  if 'ntqmu' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
-  if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'#'1*1'
-  if 'mpdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
-  if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'#'1*1'
+#  if 'DNPDE' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+#  if 'npdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','DNPDE')
+#  if 'nfcrow' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+#  if 'ntqmu' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+#  if temp_dat['dim']=='njaca':
+#    temp_dat['dim']='1'#'1*1'
+#  if 'mpdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
+#  if temp_dat['dim']=='njacs':
+#    temp_dat['dim']='1'#'1*1'
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
-    temp_dat['typ']='"logical*1"'
+    temp_dat['typ']='"logical"'
   return temp_dat
 
 def get_opt_arg_dat(arg_string, j):
@@ -267,28 +298,28 @@ def get_opt_arg_dat(arg_string, j):
   'typ':dat_args_string.split(',')[5].strip(),
   'acc':dat_args_string.split(',')[6].strip()}
 
-  if 'DNPDE' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
-  if 'npdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
-  if 'ntqmu' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
-  if 'nfcrow' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
-  if temp_dat['dim']=='njaca':
-    temp_dat['dim']='1'#'1*1'
-  if temp_dat['dim']=='njacs':
-    temp_dat['dim']='1'#'1*1'
-  if 'mpdes' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_dat['dim']:
-    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
+#  if 'DNPDE' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
+#  if 'npdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('ntqmu','DNTQMU')
+#  if 'nfcrow' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('nfcrow','DNFCROW')
+#  if temp_dat['dim']=='njaca':
+#    temp_dat['dim']='1'#'1*1'
+#  if temp_dat['dim']=='njacs':
+#    temp_dat['dim']='1'#'1*1'
+#  if 'mpdes' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_dat['dim']:
+#    temp_dat['dim'] = temp_dat['dim'].replace('maxgrp','1000')
   if '"r8' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"r8','"REAL(kind=8)')
   if '"i4' in temp_dat['typ']:
     temp_dat['typ']= temp_dat['typ'].replace('"i4','"INTEGER(kind=4)')
   if temp_dat['typ']=='"logical"':
-    temp_dat['typ']='"logical*1"'
+    temp_dat['typ']='"logical"'
 
   return temp_dat
 
@@ -300,8 +331,9 @@ def get_arg_gbl(arg_string, k):
   gbl_args_string = comment_remover(gbl_args_string)
   gbl_args_string = gbl_args_string.replace('&','')
 
+  gbl_args = arg_parse2('('+gbl_args_string+')',0)
   #check for syntax errors
-  if len(gbl_args_string.split(',')) != 4:
+  if len(gbl_args) != 4:
     print 'Error parsing op_arg_gbl(%s): must have four arguments' \
           % gbl_args_string
     return
@@ -309,26 +341,73 @@ def get_arg_gbl(arg_string, k):
   # split the gbl_args_string into  4 and create a struct with the elements
   # and type as op_arg_gbl
   temp_gbl = {'type':'op_arg_gbl',
-  'data':gbl_args_string.split(',')[0].strip(),
-  'dim':gbl_args_string.split(',')[1].strip(),
-  'typ':gbl_args_string.split(',')[2].strip(),
-  'acc':gbl_args_string.split(',')[3].strip(),
+  'data':gbl_args[0].strip(),
+  'dim':gbl_args[1].strip(),
+  'typ':gbl_args[2].strip(),
+  'acc':gbl_args[3].strip(),
   'opt':''}
 
-  if 'DNPDE' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
-  if 'nfcrow' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
-  if 'npdes' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
-  if 'ntqmu' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
-  if 'maxzone' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
-  if 'mpdes' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
-  if 'maxgrp' in temp_gbl['dim']:
-    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
+#  if 'DNPDE' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+#  if 'nfcrow' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+#  if 'npdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+#  if 'maxzone' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
+#  if 'mpdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
+  if temp_gbl['typ']=='"r8"':
+    temp_gbl['typ']='"REAL(kind=8)"'
+  if temp_gbl['typ']=='"i4"':
+    temp_gbl['typ']='"INTEGER(kind=4)"'
+  if temp_gbl['typ']=='"logical"':
+    temp_gbl['typ']='"logical"'
+
+  return temp_gbl
+
+def get_opt_arg_gbl(arg_string, k):
+  loc = arg_parse(arg_string,k+1)
+  gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+
+  #remove comments
+  gbl_args_string = comment_remover(gbl_args_string)
+  gbl_args_string = gbl_args_string.replace('&','')
+
+  gbl_args = arg_parse2('('+gbl_args_string+')',0)
+  #check for syntax errors
+  if len(gbl_args) != 5:
+    print 'Error parsing op_arg_gbl(%s): must have five arguments' \
+          % gbl_args_string
+    return
+
+  # split the gbl_args_string into  4 and create a struct with the elements
+  # and type as op_arg_gbl
+  temp_gbl = {'type':'op_opt_arg_gbl',
+  'opt' :gbl_args[0].strip(),
+  'data':gbl_args[1].strip(),
+  'dim' :gbl_args[2].strip(),
+  'typ' :gbl_args[3].strip(),
+  'acc' :gbl_args[4].strip()}
+
+#  if 'DNPDE' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
+#  if 'nfcrow' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
+#  if 'npdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
+#  if 'ntqmu' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
+#  if 'maxzone' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
+#  if 'mpdes' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
+#  if 'maxgrp' in temp_gbl['dim']:
+#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
   if temp_gbl['typ']=='"r8"':
     temp_gbl['typ']='"REAL(kind=8)"'
   if temp_gbl['typ']=='"i4"':
@@ -363,12 +442,14 @@ def op_par_loop_parse(text):
       search2 = "op_arg_dat"
       search3 = "op_arg_gbl"
       search4 = "op_opt_arg_dat"
+      search5 = "op_opt_arg_gbl"
       j = arg_string.find(search2)
       k = arg_string.find(search3)
       l = arg_string.find(search4)
+      p = arg_string.find(search5)
 
-      while j > -1 or k > -1 or l > -1:
-        index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint)
+      while j > -1 or k > -1 or l > -1 or p > -1:
+        index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint, p if (p > -1) else sys.maxint)
 
         if index == j:
           temp_dat = get_arg_dat(arg_string,j)
@@ -388,6 +469,12 @@ def op_par_loop_parse(text):
           temp_args.append(temp_dat)
           num_args = num_args + 1
           l = arg_string.find(search4, l+15)
+        elif  index == p :
+          temp_dat = get_opt_arg_gbl(arg_string,p)
+          #append this struct to a temporary list/array
+          temp_args.append(temp_dat)
+          num_args = num_args + 1
+          p = arg_string.find(search5, p+15)
 
       temp = {'loc':i,
               'name1':arg_string.split(',')[0].strip(),
@@ -510,6 +597,7 @@ for a in range(init_ctr,len(sys.argv)):
     name = loop_args[i]['name1']
     set_name = loop_args[i]['set']
     nargs = loop_args[i]['nargs']
+    code_loc = loop_args[i]['loc']
     print '\nprocessing kernel '+name+' with '+str(nargs)+' arguments',
 
 #
@@ -573,12 +661,15 @@ for a in range(init_ctr,len(sys.argv)):
         else:
           optflags[m] = 0
 
-      if arg_type.strip() == 'op_arg_gbl':
+      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl':
         maps[m] = OP_GBL
         var[m] = args['data']
         dims[m] = args['dim']
         typs[m] = args['typ'][1:-1]
-        optflags[m] = 0
+        if arg_type.strip() == 'op_opt_arg_gbl':
+          optflags[m] = 1
+        else:
+          optflags[m] = 0
 
         l = -1
         for l in range(0,len(OP_accs_labels)):
@@ -676,6 +767,7 @@ for a in range(init_ctr,len(sys.argv)):
            repeat = True
          else:
            print 'repeated kernel with incompatible arguments: ERROR'
+           sys.exit(-1)
            break
 
 #
@@ -731,17 +823,10 @@ for a in range(init_ctr,len(sys.argv)):
 
       if hydra==1:
         temp['master_file'] = src_file.split('.')[0].replace('mod_','')
-        search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name+'\n'
-        i = text.rfind(search)
-        if i > -1:
-          temp['mod_file'] = search.strip()
-        else:
-          search = 'use '+temp['master_file'].upper()+'_KERNELS_'+name[:-1]
-          i = text.rfind(search)
-          if i > -1:
-            temp['mod_file'] = search.strip()
-          else:
-            print'  ERROR: no module file found!  '
+        temp['mod_file'] = 'external '+name
+        i = text[0:code_loc].rfind(temp['mod_file'])
+        if i < 0:
+          print'  ERROR: no module use statement ('+temp['mod_file']+') found!  '
       if bookleaf==1:
         file_part = src_file.split('/')
         file_part = file_part[len(file_part)-1]
@@ -849,6 +934,9 @@ for a in range(init_ctr,len(sys.argv)):
          elif elem['type'] == 'op_arg_gbl':
             line = line + indent + cont + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] \
             +','+ typechange(elem['typ'])+','+ elem['acc']
+         elif elem['type'] == 'op_opt_arg_gbl':
+            line = line + indent + cont + elem['type'] + '(' + elem['opt']+','+ elem['data'] + ','+ elem['dim'] \
+            +','+ typechange(elem['typ'])+','+ elem['acc']
 
          if arguments <> loop_args[curr_loop]['nargs'] - 1:
            line = line + '), '+cont_end+'\n'
@@ -886,8 +974,20 @@ for a in range(init_ctr,len(sys.argv)):
       master_file = file_part.split('.')[0]
       text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
-      replace = kernels[nk]['mod_file']+'_MODULE'+'\n'
+      if hydra:
+        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE'+'\n'
+      else:
+        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
+    if hydra:
+       pattern = re.compile(r'(\n\s*implicit\s*none\s*)(\n\s*use .*)',re.IGNORECASE)
+       count = 1
+       while count>0:
+         res = re.subn(pattern, r'\2\1', text)
+         text = res[0]
+         count = res[1]
+            #do nothing
+         #   x=1
 
     fid = open(src_file.replace('.','_op.'), 'w')
     #if file_format == 90:
@@ -925,7 +1025,7 @@ if npart==0 and nhdf5>0:
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
 op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
@@ -935,15 +1035,16 @@ op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 #CUDA
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
 #op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
-op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+#op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
+op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # does global coloring
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
 #OpenACC
-op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #OpenMP4 offload
-op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features

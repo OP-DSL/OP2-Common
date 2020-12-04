@@ -48,7 +48,12 @@ void op_get_dat_mpi (op_dat dat) {
 void op_put_dat_mpi (op_dat dat) {
   (void) dat;
 }
- 
+
+void op_get_all_cuda(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif

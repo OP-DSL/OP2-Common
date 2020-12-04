@@ -61,6 +61,14 @@ op_put_dat_mpi (op_dat dat) {
   op_put_dat(dat);
 }
 
+void op_get_all_cuda(int nargs, op_arg *args) {
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_DAT && args[i].opt == 1) {
+      op_get_dat_mpi(args[i].dat);
+    }
+  }
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif

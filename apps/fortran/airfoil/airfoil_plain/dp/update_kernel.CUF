@@ -81,6 +81,7 @@ CONTAINS
 attributes (host) &
 #include "update.inc"
 attributes (device) &
+
 SUBROUTINE update_gpu(qold,q,res,adt,rms)
   IMPLICIT NONE
   REAL(kind=8), INTENT(IN) :: qold(4)
@@ -108,7 +109,6 @@ END SUBROUTINE
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
     & opDat4Deviceupdate, &
-    & reductionArrayDevice5,   &
     & setSize)
 
     IMPLICIT NONE
@@ -119,7 +119,6 @@ END SUBROUTINE
     real(8), DEVICE :: opDat3Deviceupdate(*)
     real(8), DEVICE, INTENT(IN) :: opDat4Deviceupdate(*)
 
-    real(8), DIMENSION(:), DEVICE :: reductionArrayDevice5
     real(8), DIMENSION(0:2-1) :: opGblDat5Deviceupdate
 
     INTEGER(kind=4), VALUE :: setSize
@@ -144,7 +143,7 @@ END SUBROUTINE
 
     do i1=0,2-1,8
     i2 = MIN(i1+8,2)
-      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
+      CALL ReductionFloat8Mdim(redFloat8, reductionArrayDevice5update((blockIdx%x - 1)*(2) + 1+i1:),opGblDat5Deviceupdate(i1:),0,i2-i1)
     end do
 
   END SUBROUTINE
@@ -250,10 +249,10 @@ END SUBROUTINE
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
     blocksPerGrid = 600
-    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
@@ -286,7 +285,6 @@ END SUBROUTINE
     & opDat2Deviceupdate, &
     & opDat3Deviceupdate, &
     & opDat4Deviceupdate, &
-    & reductionArrayDevice5update, &
     set%setPtr%size)
 
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN

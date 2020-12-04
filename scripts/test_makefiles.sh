@@ -30,6 +30,14 @@ export INTEL_SOURCE=source_intel_18
 export PGI_SOURCE=source_pgi_20_hydra
 export CLANG_SOURCE=source_clang_kos
 
+#Telos
+#export NV_ARCH=Volta
+#export CUDA_VISIBLE_DEVICES=0
+#export INTEL_SOURCE=source_intel_18
+#export PGI_SOURCE=source_pgi_20_hydra
+#export CLANG_SOURCE=source_clang_kos
+
+
 export CURRENT_DIR=$PWD
 cd ../op2
 export OP2_INSTALL_PATH=$PWD
@@ -240,7 +248,7 @@ echo " "
 echo " "
 echo "=======================> Running Airfoil Tempdats DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp
-#validate "./airfoil_seq"
+validate "./airfoil_seq"
 validate "./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp OP_PART_SIZE=256"
@@ -374,6 +382,17 @@ make clean; make
 
 echo " "
 echo " "
+echo "=======================> Building Airfoil Fortran DP ARG PTR Version With Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
+export PART_SIZE_ENV=128
+make clean; make
+
+
+
+echo " "
+echo " "
 echo "**********************************************************************"
 echo "********************** Running Fortran Apps built with Intel Compilers"
 echo "**********************************************************************"
@@ -389,6 +408,20 @@ validate "./airfoil_vec OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=20
 validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
+
+
+echo " "
+echo " "
+echo "=======================> Running Airfoil Fortran Arg Pointers DP built with Intel Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+export PART_SIZE_ENV=128
+validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_vec OP_MAPS_BASE_INDEX=0"
+export OMP_NUM_THREADS=20
+validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
+
 
 
 
@@ -413,6 +446,7 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
+#COMMENT0
 
 ###################################################################################
 ###################################################################################
@@ -439,6 +473,17 @@ $OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
 export PART_SIZE_ENV=128
 make clean; make
 
+echo " "
+echo " "
+echo "=======================> Building Airfoil Fortran DP ARG PTR Version With PGI Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+$OP2_FORT_CODEGEN_DIR/op2_fortran.py airfoil.F90
+export PART_SIZE_ENV=128
+make clean; make
+
+
+
 
 echo " "
 echo " "
@@ -463,10 +508,20 @@ pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=28
 validate "./airfoil_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 
+echo " "
+echo " "
+echo "=======================> Running Airfoil Fortran Arg Pointers DP built with PGI Compilers"
+cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
+pwd
+export PART_SIZE_ENV=128
+validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
+export OMP_NUM_THREADS=28
+validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
 
 echo " "
 echo " "
@@ -476,19 +531,19 @@ pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_hdf5_cuda OP_MAPS_BASE_INDEX=0"
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=28
 validate "./airfoil_hdf5_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 validate "./airfoil_hdf5_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=1
-validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 28 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=20
 validate "./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 export OMP_NUM_THREADS=2
-validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 14 ./airfoil_hdf5_mpi_openmp OP_MAPS_BASE_INDEX=0"
 #_$PART_SIZE_ENV
 validate "./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
@@ -567,3 +622,4 @@ export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
 
 echo "All tests Passed !"
+echo "End of Test Script !"

@@ -22,7 +22,7 @@ PART_SIZE_ENV ?= 128
 # set flags for NVCC compilation and linking
 #
 ifndef NV_ARCH
-  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=Kepler
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
   NV_ARCH=Kepler
 endif
 ifeq ($(NV_ARCH),Fermi)
@@ -33,10 +33,6 @@ ifeq ($(NV_ARCH),Kepler)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=cc60
-else
-ifeq ($(NV_ARCH),Volta)
-  CODE_GEN_CUDA=cc70
-endif
 endif
 endif
 endif
@@ -67,7 +63,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgcc
-  FC = pgfortran 
+  FC = pgfortran
   #OPT_CUDA=-Mcuda=kepler,cc35,fastmath,ptxinfo
   OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
@@ -86,7 +82,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
   OPENMP = -qopenmp
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xHost -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g -xHost -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xMIC-AVX512 -parallel -qopt-report=5 -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp

@@ -190,6 +190,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
+  // printf("HERE\n");
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)

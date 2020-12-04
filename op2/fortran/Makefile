@@ -31,7 +31,7 @@ ifdef PARMETIS_INSTALL_PATH
 	ifeq ($(PARMETIS_VER),4)
 	  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS -DPARMETIS_VER_4
 	else
-	  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/ -DHAVE_PARMETIS
+	  PARMETIS_INC = -I$(PARMETIS_INCLUDE_PATH)/include -DHAVE_PARMETIS
 	endif
 	PARMETIS_LIB = -L$(PARMETIS_LIB_PATH)/lib -lparmetis -lmetis
 else
@@ -122,7 +122,13 @@ else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
-   PGI_CUDA_FORT_FLAGS=-Mcuda=cc60,fastmath
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cc60,fastmath,cuda10.2
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+#  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
+   PGI_CUDA_FORT_FLAGS=-Mcuda=cc70,cuda10.2
+endif
 endif
 endif
 endif
@@ -133,7 +139,7 @@ endif
 
 # Common definitions
 # Uncomment -g to get debugging info on board
-#DEBUG_FLAGS = -g
+DEBUG_FLAGS = -g
 
 #  -Werror
 
@@ -143,10 +149,10 @@ ifeq ($(OP2_COMPILER),gnu)
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   CC              = gcc
   CXX             = g++
-  CFLAGS          = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  CFLAGS_SLOW     = -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  FC              = gfortran
-  FFLAGS          = -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS          = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS_SLOW     = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FC              = gfortran  -DOP2_ARG_POINTERS
+  FFLAGS          = -g -O0 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   MPICC           = mpicc
   MPICXX          = mpicxx
@@ -157,15 +163,15 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = nvcc -Xcompiler=-std=c99
-  CXX             = nvcc 
-  FC              = pgfortran -g
+  CC              = nvcc -g -Xcompiler=-std=c99
+  CXX             = nvcc -g -Xcompiler=-std=c99
+  FC              = pgfortran -g -DOP2_ARG_POINTERS
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS      = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
   NVCC            = nvcc
   PGCC            = pgcc
   PGCFLAGS        = -O2 $(DEBUG_FLAGS)
-  PGFC            = pgfortran
+  PGFC            = pgfortran -DOP2_ARG_POINTERS
   PGFFLAGS        = -module $(F_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   PGMPI_FFLAGS    = -module $(F_MPI_INC_MOD)/cuda $(DEBUG_FLAGS) -fast -O2 $(PGI_CUDA_FORT_FLAGS) #-DOP2_WITH_CUDAFOR -Mvect –Mvect=cachesize:12288 #-Minform=inform
   CFLAGS          = -O2 -DOMPI_SKIP_MPICXX=1 -DMPICH_IGNORE_CXX_SEE
@@ -211,14 +217,14 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -xHOST -vec-report
+  OPT             = -O3 -g -xHOST #-qopt-report
   CC              = icc
   CXX             = icpc 
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
   CFLAGS_SLOW          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
-  FC              = ifort $(OPT)
-  FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
-  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
+  FC              = ifort $(OPT) -DOP2_ARG_POINTERS
+  FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
   MPICC           = $(MPICC_PATH) $(OPT)
   MPICXX          = $(MPICXX_PATH) $(OPT)
   MPIF90          = $(MPIF90_PATH) $(OPT)
@@ -249,7 +255,7 @@ endif
 endif
 endif
 
-NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS += -O3 $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g #-G -O0
 
 .PHONY: clean directories
 

@@ -580,7 +580,7 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
     typ = type;
   }
   H5Dclose(dset_id);
-  
+
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
   dataspace = H5Dget_space(dset_id);
@@ -1439,6 +1439,29 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
 void op_fetch_data_hdf5_file(op_dat dat, char const *file_name) {
   op_fetch_data_hdf5(dat, file_name, dat->name);
+}
+
+void op_fetch_data_hdf5_file_ptr(char *data, const char *file_name) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    // printf("Available op_dat %s with pointer %p\n", item->dat->name,
+    // item->dat->data);
+    if (item->orig_ptr == data) {
+      // printf("%s(%p), ", item->dat->name, item->dat->data);
+      item_dat = item->dat;
+      break;
+    }
+  }
+  // printf("\n");
+  if (item_dat == NULL) {
+    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
+           data);
+  }
+
+  op_fetch_data_hdf5(item_dat, file_name, item_dat->name);
 }
 
 /*******************************************************************************

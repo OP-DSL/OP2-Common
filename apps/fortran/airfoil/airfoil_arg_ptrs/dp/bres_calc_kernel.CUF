@@ -50,7 +50,7 @@ SUBROUTINE bres_calc_gpu(x1,x2,q1,adt1,res1,bound)
 
   IF (bound .EQ. 1) THEN
     istat = atomicAdd(OP2_SOA(res1,2, opDat3_stride_OP2CONSTANT),+ p1 * dy)
-    istat = atomicAdd(OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT),-(p1 * dx))
+    istat = atomicAdd(OP2_SOA(res1,3, opDat3_stride_OP2CONSTANT),- (p1 * dx))
   ELSE
     vol1 = ri * (OP2_SOA(q1,2, opDat3_stride_OP2CONSTANT) * dy - OP2_SOA(q1,3, opDat3_stride_OP2CONSTANT) * dx)
     ri = 1.0 / qinf_OP2(1)
@@ -72,6 +72,7 @@ END SUBROUTINE
 
 ! CUDA kernel function
 attributes (global) SUBROUTINE op_cuda_bres_calc( &
+  &  optflags,        &
   & opDat1Devicebres_calc, &
   & opDat3Devicebres_calc, &
   & opDat4Devicebres_calc, &
@@ -85,13 +86,14 @@ attributes (global) SUBROUTINE op_cuda_bres_calc( &
   IMPLICIT NONE
 
 ! local variables
+  INTEGER(kind=4), VALUE :: optflags
   real(8), DEVICE :: opDat1Devicebres_calc(*)
   real(8), DEVICE :: opDat3Devicebres_calc(*)
   real(8), DEVICE :: opDat4Devicebres_calc(*)
   real(8), DEVICE :: opDat5Devicebres_calc(*)
   INTEGER(kind=4), DEVICE, INTENT(IN) :: opDat1Map(*)
   INTEGER(kind=4), DEVICE, INTENT(IN) :: opDat3Map(*)
-  integer, DEVICE, INTENT(IN) :: opDat6Devicebres_calc(*)
+  integer(4), DEVICE, INTENT(IN) :: opDat6Devicebres_calc(*)
 
   INTEGER(kind=4) map1idx, map2idx, map3idx
 
@@ -107,7 +109,9 @@ attributes (global) SUBROUTINE op_cuda_bres_calc( &
   i1 = threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x
   IF (i1+start<end) THEN
     i3 = i1+start
-    map1idx = opDat1Map(1 + i3 + setSize * 0)
+    IF (BTEST(optflags,0)) THEN
+      map1idx = opDat1Map(1 + i3 + setSize * 0)
+    END IF
     map2idx = opDat1Map(1 + i3 + setSize * 1)
     map3idx = opDat3Map(1 + i3 + setSize * 0)
 
@@ -196,7 +200,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap4Devicebres_calc
   real(8), DIMENSION(:), DEVICE, POINTER :: opDat5Devicebres_calc
   INTEGER(kind=4), DIMENSION(:), DEVICE, POINTER :: opMap5Devicebres_calc
-  integer, DIMENSION(:), DEVICE, POINTER :: opDat6Devicebres_calc
+  integer(4), DIMENSION(:), DEVICE, POINTER :: opDat6Devicebres_calc
 
   INTEGER(kind=4) :: opDat1Cardinality
   INTEGER(kind=4) :: opMap1Cardinality
@@ -235,6 +239,11 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
 
   INTEGER(kind=4), SAVE :: calledTimes=0
   INTEGER(kind=4) :: istat
+  INTEGER(kind=4) :: optflags
+  optflags = 0
+  IF (opArg1%opt == 1) THEN
+    optflags = IBSET(optflags,0)
+  END IF
 
   numberOfOpDats = 6
 
@@ -307,6 +316,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
     CALL op_cuda_bres_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
+    & optflags, &
     & opDat1Devicebres_calc, &
     & opDat3Devicebres_calc, &
     & opDat4Devicebres_calc, &

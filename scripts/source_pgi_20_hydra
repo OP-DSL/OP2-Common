@@ -4,41 +4,38 @@ unset LD_LIBRARY_PATH
 module purge
 . ~/.bashrc
 
-module load cuda/toolkit-10.0.130
-#module load pgi-20.1/pgi-20.1
-#module load pgi-llvm-20.1/pgi-llvm-20.1
-#module load gnu-5.4.0
-#module load pgi-20.1/ompi-3.1.3
+module load cuda/toolkit-10.2.89
 module load pgi-20.4/pgi-20.4
-#module load pgi-18.1/ompi-3.0.0
-export LD_LIBRARY_PATH=/rr-home/gihan/Hydra/apps_pgi/hdf5/Ver1.8.18/lib:$LD_LIBRARY_PATH
+module load gnu-5.4.0
 
-export MPI_INSTALL_PATH=/rr-home/gihan/OpenMPI-PGI-20/
-export PATH=/rr-home/gihan/OpenMPI-PGI-20/bin:$PATH
-export LD_LIBRARY_PATH=/rr-home/gihan/OpenMPI-PGI-20/lib:$LD_LIBRARY_PATH
+export MPI_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/openmpi-pgi/
+export PATH=$MPI_INSTALL_PATH/bin:$PATH
+export LD_LIBRARY_PATH=$MPI_INSTALL_PATH/lib:/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/rr-home/shared/hydra/apps_pgi/jm72/Ver19.1.0/lib:$LD_LIBRARY_PATH
 
-#export MPI_INSTALL_PATH=/opt/mpi/openmpi/1.10.6/gnu/5.4.0/
-#export MPI_INSTALL_PATH=/opt/mpi/openmpi/3.0.0/pgi/18.1/
-#export MPI_INSTALL_PATH=/opt/pgi/licensed/20.1/linux86-64-nollvm/2020/mpi/openmpi-3.1.3/
-
-
-export HDF5_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18
-#export HDF5_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/hdf5/Ver1.8.18
-#export HDF5_INSTALL_PATH=/rr-home/gihan/HDF5-OpenMPI-PGI-20/
-
-#export PARMETIS_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/parmetis-gnu
-export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-PGI-20-OpenMPI/
-
-#export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/Hydra/apps_pgi/ptscotch-gnu
-export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-PGI-20-OPENMPI/
-
+export HDF5_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18/
+export PARMETIS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/parmetis-gnu
+export PTSCOTCH_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/ptscotch-gnu
 export CGNS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/cgns/Ver3.1.4/
-export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
-export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
+
+export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
+export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
+
 export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
 export OP2_COMPILER=pgi
-export NV_ARCH=Pascal
-export OP_AUTO_SOA=1
+
+if [ "$(hostname)" == 'telos' ]; then
+  export NV_ARCH=Volta
+else
+  export NV_ARCH=Pascal
+fi
+echo $NV_ARCH
+
+
 export OMPI_CC=pgcc
 export OMPI_CXX=pgc++
 export OMPI_FC=pgfortran
+
+
+export OP_AUTO_SOA=1
+echo "Warning, OP_AUTO_SOA=1"

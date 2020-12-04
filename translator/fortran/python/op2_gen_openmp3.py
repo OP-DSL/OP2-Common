@@ -12,6 +12,7 @@
 import re
 import datetime
 import os
+import glob
 
 def comm(line):
   global file_text, FORTRAN, CPP
@@ -161,7 +162,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     nargs = kernels[nk]['nargs']
-    dims  = kernels[nk]['dims']
+    dims  = list(kernels[nk]['dims'])
     maps  = kernels[nk]['maps']
     var   = kernels[nk]['var']
     typs  = kernels[nk]['typs']
@@ -221,13 +222,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 
     needDimList = []
     for g_m in range(0,nargs):
-      if (not dims[g_m].isdigit()):
-        found=0
-        for string in ['NPDE','DNTQMU','DNFCROW','1*1']:
-          if string in dims[g_m]:
-            found=1
-        if found==0:
-          needDimList = needDimList + [g_m]
+      if (not dims[g_m].isdigit()):# and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
+        needDimList = needDimList + [g_m]
 
     for idx in needDimList:
       dims[idx] = 'opDat'+str(idx+1)+'Dim'
@@ -237,7 +233,7 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 #  Generate Header
 ##########################################################################
     if hydra:
-      code('MODULE '+kernels[nk]['mod_file'][4:]+'_MODULE')
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
@@ -267,39 +263,41 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('')
     if hydra:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
-      modfile = kernels[nk]['mod_file'][4:]
-      modfile = modfile.replace('INIT_INIT','INIT')
-      name2 = name.replace('INIT_INIT','INIT')
-      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
+      modfile = kernels[nk]['mod_file'][9:]+'_module'
+      filename = 'kernels/'+kernels[nk]['master_file']+'_'+name+'.inc'
       if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name + '.F95'
-      if not os.path.isfile(filename):
-        filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2[:-1] + '.F95'
+        files = [f for f in glob.glob('kernels/*'+name+'.inc')]
+        if len(files)>0:
+          filename = files[0]
+        else:
+          print 'kernel for '+name+' not found'
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
       text = text.replace('recursive subroutine','subroutine')
-      text = text.replace('module','!module')
+      text = text.replace(' module',' !module')
       text = text.replace('contains','!contains')
       text = text.replace('end !module','!end module')
 
       #
       # substitute npdes with DNPDE
       #
-      using_npdes = 0
-      for g_m in range(0,nargs):
-        if var[g_m] == 'npdes':
-          using_npdes = 1
-      if using_npdes:
-        i = re.search('\\bnpdes\\b',text)
-        j = i.start()
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        i = re.search('\\bnpdes\\b',text[j:])
-        j = j + i.start()+5
-        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
+#      using_npdes = 0
+#      for g_m in range(0,nargs):
+#        if var[g_m] == 'npdes':
+#          using_npdes = 1
+#      if using_npdes:
+#        i = re.search('\\bnpdes\\b',text)
+#        j = i.start()
+#        i = re.search('\\bnpdes\\b',text[j:])
+#        j = j + i.start()+5
+#        i = re.search('\\bnpdes\\b',text[j:])
+#        j = j + i.start()+5
+#        text = text[1:j] + re.sub('\\bnpdes\\b','NPDE',text[j:])
 
       file_text += text
+      file_text += '\n#undef MIN\n'
+      file_text += '\n#undef MAX\n'
       #code(kernels[nk]['mod_file'])
     elif bookleaf:
       file_text += '!DEC$ ATTRIBUTES FORCEINLINE :: ' + name + '\n'
@@ -569,16 +567,30 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 
     #reductions
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
-        code('allocate( reductionArrayHost'+str(g_m+1)+'(numberOfThreads * (('+dims[g_m]+'-1)/64+1)*64) )')
-        DO('i1','1','numberOfThreads+1')
-        DO('i2','1',dims[g_m]+'+1')
-        if accs[g_m] == OP_INC:
-          code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = 0')
-        else:
-          code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = opDat'+str(g_m+1)+'Local(i2)')
-        ENDDO()
-        ENDDO()
+      if optflags[g_m] == 1:
+        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+          code('allocate( reductionArrayHost'+str(g_m+1)+'(numberOfThreads * (('+dims[g_m]+'-1)/64+1)*64) )')
+          IF('opArg'+str(g_m+1)+'%opt == 1')
+          DO('i1','1','numberOfThreads+1')
+          DO('i2','1',dims[g_m]+'+1')
+          if accs[g_m] == OP_INC:
+            code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = 0')
+          else:
+            code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = opDat'+str(g_m+1)+'Local(i2)')
+          ENDDO()
+          ENDDO()
+          ENDIF()
+      else:
+        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+          code('allocate( reductionArrayHost'+str(g_m+1)+'(numberOfThreads * (('+dims[g_m]+'-1)/64+1)*64) )')
+          DO('i1','1','numberOfThreads+1')
+          DO('i2','1',dims[g_m]+'+1')
+          if accs[g_m] == OP_INC:
+            code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = 0')
+          else:
+            code('reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2) = opDat'+str(g_m+1)+'Local(i2)')
+          ENDDO()
+          ENDDO()
 
     code('')
 
@@ -665,39 +677,94 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 
     #reductions
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-        DO('i1','1','numberOfThreads+1')
-        if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
-          DO('i2','1',dims[g_m]+'+1')
-          if accs[g_m] == OP_INC:
-            code('opDat'+str(g_m+1)+'Local(i2) = opDat'+str(g_m+1)+'Local(i2) + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2)')
-          if accs[g_m] == OP_MIN:
-            code('opDat'+str(g_m+1)+'Local(i2) = MIN(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
-          if accs[g_m] == OP_MAX:
-            code('opDat'+str(g_m+1)+'Local(i2) = MAX(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
-
+      if optflags[g_m] == 1:
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+          DO('i1','1','numberOfThreads+1')
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            DO('i2','1',dims[g_m]+'+1')
+            if accs[g_m] == OP_INC:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local(i2) = opDat'+str(g_m+1)+'Local(i2) + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2)')
+              ENDIF()
+            if accs[g_m] == OP_MIN:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local(i2) = MIN(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
+              ENDIF()
+            if accs[g_m] == OP_MAX:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local(i2) = MAX(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
+              ENDIF()
+            ENDDO()
+          else:
+            if accs[g_m] == OP_INC:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1)')
+              ENDIF()
+            if accs[g_m] == OP_MIN:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local = MIN(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
+              ENDIF()
+            if accs[g_m] == OP_MAX:
+              IF('opArg'+str(g_m+1)+'%opt == 1')
+              code('opDat'+str(g_m+1)+'Local = MAX(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
+              ENDIF()
           ENDDO()
-        else:
-          if accs[g_m] == OP_INC:
-            code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1)')
-          if accs[g_m] == OP_MIN:
-            code('opDat'+str(g_m+1)+'Local = MIN(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
-          if accs[g_m] == OP_MAX:
-            code('opDat'+str(g_m+1)+'Local = MAX(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
-        ENDDO()
-        code('')
-        code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
-        code('')
+          code('')
+          code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
+          code('')
+      else:
+        if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+          DO('i1','1','numberOfThreads+1')
+          if (not dims[g_m].isdigit()) or int(dims[g_m]) > 1:
+            DO('i2','1',dims[g_m]+'+1')
+            if accs[g_m] == OP_INC:
+              code('opDat'+str(g_m+1)+'Local(i2) = opDat'+str(g_m+1)+'Local(i2) + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2)')
+            if accs[g_m] == OP_MIN:
+              code('opDat'+str(g_m+1)+'Local(i2) = MIN(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
+            if accs[g_m] == OP_MAX:
+              code('opDat'+str(g_m+1)+'Local(i2) = MAX(opDat'+str(g_m+1)+'Local(i2) , reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + i2))')
+            ENDDO()
+          else:
+            if accs[g_m] == OP_INC:
+              code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'Local + reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1)')
+            if accs[g_m] == OP_MIN:
+              code('opDat'+str(g_m+1)+'Local = MIN(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
+            if accs[g_m] == OP_MAX:
+              code('opDat'+str(g_m+1)+'Local = MAX(opDat'+str(g_m+1)+'Local, reductionArrayHost'+str(g_m+1)+'((i1 - 1) * (('+dims[g_m]+'-1)/64+1)*64 + 1))')
+          ENDDO()
+          code('')
+          code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
+          code('')
+
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
-        if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)':
-          code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)':
-          code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)':
-          code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
-          code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-        code('')
+        if optflags[g_m] == 1:
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
+            IF('opArg'+str(g_m+1)+'%opt == 1')
+            code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+            ENDIF()
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
+            IF('opArg'+str(g_m+1)+'%opt == 1')
+            code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+            ENDIF()
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
+            IF('opArg'+str(g_m+1)+'%opt == 1')
+            code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+            ENDIF()
+          elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
+            IF('opArg'+str(g_m+1)+'%opt == 1')
+            code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+            ENDIF()
+          code('')
+        else:
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
+            code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
+            code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
+            code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
+            code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
+          code('')
 
     code('call op_timers_core(endTime)')
     code('')
@@ -731,8 +798,8 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
 #  output individual kernel file
 ##########################################################################
     if hydra:
-      name = 'kernels/'+kernels[nk]['master_file']+'/'+name
-      fid = open(name+'_ompkernel.F95','w')
+      name = 'kernels/'+kernels[nk]['master_file']+'_'+name
+      fid = open(name+'_ompkernel.F90','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_kernel.f90','w')
     else:

@@ -40,6 +40,10 @@ ifeq ($(NV_ARCH),Kepler)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=cc60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=cc70
+endif
 endif
 endif
 endif
@@ -105,7 +109,7 @@ ifeq ($(OP2_COMPILER),xl)
 else
 ifeq ($(OP2_COMPILER),intel)
   CC = icc
-  FC = ifort
+  FC = ifort -warn interfaces -gen-interfaces
   MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 =  $(FC) -I$(MPI_INC) -L$(MPI_LIB)
@@ -182,7 +186,7 @@ airfoil_hdf5_openmp4: airfoil_hdf5_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4
 
 airfoil_hdf5_cuda: airfoil_hdf5_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 airfoil_seqfun.F90 \
         res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
-	$(FC) $(OPT_CUDA) -Minline,reshape $(FMODS)/cuda $(FMODS) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
+	$(FC) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
 		save_soln_kernel.CUF bres_calc_kernel.CUF \
 		adt_calc_kernel.CUF -c \
 		$(FLINK) -lop2_for_cuda -lop2_hdf5 $(HDF5_LIB) $(MPI_LIB)

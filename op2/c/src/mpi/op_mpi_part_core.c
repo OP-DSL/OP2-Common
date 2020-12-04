@@ -3715,3 +3715,40 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   printf("Orphan edges: %d\n", ctr);
 #endif
 }
+
+extern int **OP_map_ptr_list;
+void op_partition_ptr(const char *lib_name, const char *lib_routine,
+                      op_set prime_set, int *prime_map, double *coords) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    // printf("Available op_dat %s with pointer %p\n", item->dat->name,
+    // item->dat->data);
+    if (item->orig_ptr == coords) {
+      // printf("%s(%p), ", item->dat->name, item->dat->data);
+      item_dat = item->dat;
+      break;
+    }
+  }
+  // printf("\n");
+  if (item_dat == NULL) {
+    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
+           coords);
+  }
+  op_map item_map = NULL;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == prime_map) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+  if (item_map == NULL) {
+    printf("ERROR in op_partition: op_map not found for %p pointer\n",
+           prime_map);
+    for (int i = 0; i < OP_map_index; i++)
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+  }
+  op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
+}

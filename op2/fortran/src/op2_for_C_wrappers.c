@@ -302,6 +302,18 @@ op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access ac
 
   return op_arg_gbl_char (data, dim, heapType, size, acc);
 }
+
+op_arg op_opt_arg_gbl_copy(int opt, char *data, int dim, const char *typ,
+                           int size, op_access acc) {
+
+  int len = strlen(typ);
+  char *heapType = (char *)calloc(len + 1, sizeof(char));
+
+  strncpy(heapType, typ, len);
+
+  return op_opt_arg_gbl_char(opt, data, dim, heapType, size, acc);
+}
+
 /*
 op_arg
 op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_access acc) {
@@ -431,8 +443,9 @@ int setKernelTime (int id, char name[], double kernelTime, float transfer, float
   /* need to copy the name the first time */
   if ( OP_kernels[id].count == 0 ) {
     nameLen = strlen (name);
-    heapName = (char *) calloc (nameLen, sizeof(char));
+    heapName = (char *)calloc(nameLen + 1, sizeof(char));
     strncpy (heapName, name, nameLen);
+    heapName[nameLen] = '\0';
     OP_kernels[id].name = heapName;
   }
 
