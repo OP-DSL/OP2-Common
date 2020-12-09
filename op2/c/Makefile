@@ -273,7 +273,7 @@ core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(MPICXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+	$(CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
 	-o $(OBJ)/op_hdf5.o
 
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/op_hdf5.o $(OBJ)/op_util.o
