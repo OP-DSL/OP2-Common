@@ -437,7 +437,7 @@ def op_par_loop_parse(text):
     i = text.find(search)
     while i > -1:
       arg_string = text[text.find('(',i)+1:arg_parse(text,i+11)]
-
+      parloop_args = arg_parse2(text, i+11)
       #parse arguments in par loop
       temp_args = []
       num_args = 0
@@ -482,8 +482,8 @@ def op_par_loop_parse(text):
           p = arg_string.find(search5, p+15)
 
       temp = {'loc':i,
-              'name1':arg_string.split(',')[0].strip(),
-              'set':arg_string.split(',')[1].strip(),
+              'name1':parloop_args[0].strip(),
+              'set':parloop_args[1].strip(),
               'args':temp_args,
               'nargs':num_args}
 
