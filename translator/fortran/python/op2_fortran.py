@@ -227,26 +227,29 @@ def typechange(text):
 
 def get_arg_dat(arg_string, j):
   loc = arg_parse(arg_string,j+1)
-  dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+  dat_args_string = arg_string[arg_string.find('(',j):loc+1]
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
   dat_args_string = dat_args_string.replace('&','')
+
+  args = arg_parse2(dat_args_string,0)
   #check for syntax errors
-  if len(dat_args_string.split(',')) <> 6:
+  if len(args) <> 6:
     print 'Error parsing op_arg_dat(%s): must have six arguments' \
           % dat_args_string
+    print args
     return
 
   # split the dat_args_string into  6 and create a struct with the elements
   # and type as op_arg_dat
   temp_dat = {'type':'op_arg_dat',
-  'dat':dat_args_string.split(',')[0].strip(),
-  'idx':dat_args_string.split(',')[1].strip(),
-  'map':dat_args_string.split(',')[2].strip(),
-  'dim':dat_args_string.split(',')[3].strip(),
-  'typ':dat_args_string.split(',')[4].strip(),
-  'acc':dat_args_string.split(',')[5].strip(),
+  'dat':args[0].strip(),
+  'idx':args[1].strip(),
+  'map':args[2].strip(),
+  'dim':args[3].strip(),
+  'typ':args[4].strip(),
+  'acc':args[5].strip(),
   'opt':''}
 
 #  if 'DNPDE' in temp_dat['dim']:
@@ -275,14 +278,16 @@ def get_arg_dat(arg_string, j):
 
 def get_opt_arg_dat(arg_string, j):
   loc = arg_parse(arg_string,j+1)
-  dat_args_string = arg_string[arg_string.find('(',j)+1:loc]
+  dat_args_string = arg_string[arg_string.find('(',j):loc+1]
 
   #remove comments
   dat_args_string = comment_remover(dat_args_string)
   dat_args_string = dat_args_string.replace('&','')
 
+  args = arg_parse2(dat_args_string,0)
+
   #check for syntax errors
-  if len(dat_args_string.split(',')) <> 7:
+  if len(args) <> 7:
     print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
           % dat_args_string
     return
@@ -290,13 +295,13 @@ def get_opt_arg_dat(arg_string, j):
   # split the dat_args_string into  6 and create a struct with the elements
   # and type as op_arg_dat
   temp_dat = {'type':'op_opt_arg_dat',
-  'opt':dat_args_string.split(',')[0].strip(),
-  'dat':dat_args_string.split(',')[1].strip(),
-  'idx':dat_args_string.split(',')[2].strip(),
-  'map':dat_args_string.split(',')[3].strip(),
-  'dim':dat_args_string.split(',')[4].strip(),
-  'typ':dat_args_string.split(',')[5].strip(),
-  'acc':dat_args_string.split(',')[6].strip()}
+  'opt':args[0].strip(),
+  'dat':args[1].strip(),
+  'idx':args[2].strip(),
+  'map':args[3].strip(),
+  'dim':args[4].strip(),
+  'typ':args[5].strip(),
+  'acc':args[6].strip()}
 
 #  if 'DNPDE' in temp_dat['dim']:
 #    temp_dat['dim'] = temp_dat['dim'].replace('DNPDE','6')
