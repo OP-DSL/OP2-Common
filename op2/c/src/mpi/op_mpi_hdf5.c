@@ -269,7 +269,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5error_off(old_func, old_client_data);
+  H5error_off(&old_func, &old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -409,7 +409,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   /* Save old error handler */
   H5E_auto_t old_func;
   void *old_client_data;
-  H5error_off(old_func, old_client_data);
+  H5error_off(&old_func, &old_client_data);
 
   /*open data set*/
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
@@ -1158,7 +1158,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
     }
     file_id = H5Fopen(file_name, H5F_ACC_RDWR, plist_id);
 
-    H5error_off(old_func, old_client_data);
+    H5error_off(&old_func, &old_client_data);
     herr_t status = H5Gget_objinfo(file_id, path_name, 0, NULL);
     H5error_on(old_func, old_client_data);
 
