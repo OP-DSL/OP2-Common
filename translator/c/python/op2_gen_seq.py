@@ -351,9 +351,9 @@ def op2_gen_seq(master, date, consts, kernels):
             for g_m in range(0,nargs):
               if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames2[g_m] in k):
                 k = k + [mapnames2[g_m]]
-                code('op_map prime_map_'+str(mapnames2[g_m])+' = ARG.map;\n')
-                code('op_reversed_map rev_map_'+str(mapnames2[g_m])+' = OP_reversed_map_list[prime_map_'+str(mapnames2[g_m])+'->index];\n')
-                line = line + 'rev_map_'+str(mapnames2[g_m])+' != NULL && '
+                code('op_map prime_map = ARG.map;\n')
+                code('op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];\n')
+                line = line + 'rev_map != NULL && '
                 code('')
                 repro_if=1
             
@@ -370,9 +370,9 @@ def op2_gen_seq(master, date, consts, kernels):
     if ninds>0:      
       if repro_if and repr_coloring:
         code('op_mpi_wait_all(nargs, args);')
-        FOR('col','0','rev_map_'+str(mapnames2[g_m])+'->number_of_colors')
-        FOR('i','rev_map_'+str(mapnames2[g_m])+'->color_based_exec_row_starts[col]', 'rev_map_'+str(mapnames2[g_m])+'->color_based_exec_row_starts[col + 1]')
-        code('int n = rev_map_'+str(mapnames2[g_m])+'->color_based_exec[i];')
+        FOR('col','0','rev_map->number_of_colors')
+        FOR('i','rev_map->color_based_exec_row_starts[col]', 'rev_map->color_based_exec_row_starts[col + 1]')
+        code('int n = rev_map->color_based_exec[i];')
       else: 
         FOR('n','0','set_size')
         IF('n==set->core_size')

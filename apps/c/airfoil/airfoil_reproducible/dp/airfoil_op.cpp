@@ -127,6 +127,7 @@ void op_par_loop_update(char const *, op_set,
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
+  op_enable_reproducibility();
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
@@ -209,7 +210,7 @@ int main(int argc, char **argv) {
   //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
    op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
-  create_reversed_mapping();
+ // create_reversed_mapping();
 
 #define PDIM 2
   int g_ncell = op_get_size(cells);

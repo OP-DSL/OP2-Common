@@ -71,6 +71,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
+  op_enable_reproducibility();
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
@@ -153,7 +154,7 @@ int main(int argc, char **argv) {
   //op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
    op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
-  create_reversed_mapping();
+ // create_reversed_mapping();
 
 #define PDIM 2
   int g_ncell = op_get_size(cells);
@@ -244,8 +245,7 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_res, "repr_comp_p_res.h5");     //naming for automatic test
-  op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
+ // op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);

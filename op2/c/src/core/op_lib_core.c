@@ -61,6 +61,8 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 int OP_reduct_bytes = 0;
 char *OP_reduct_h;
 
+int reproducible_enabled = 0;
+
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -201,6 +203,7 @@ void op_set_args(int argc, char *argv) {
  */
 
 void op_init_core(int argc, char **argv, int diags) {
+  reproducible_enabled=0;
   op_printf("\n Initializing OP2\n");
   OP_diags = diags;
 
@@ -275,9 +278,10 @@ op_set op_decl_set_core(int size, char const *name) {
     OP_set_max += 10;
     OP_set_list =
         (op_set *)op_realloc(OP_set_list, OP_set_max * sizeof(op_set));
-    OP_set_global_ids_list =
-        (op_set_global_ids *)op_realloc(OP_set_global_ids_list, OP_set_max * sizeof(op_set_global_ids));
-
+    if (reproducible_enabled){
+      OP_set_global_ids_list =
+          (op_set_global_ids *)op_realloc(OP_set_global_ids_list, OP_set_max * sizeof(op_set_global_ids));
+    }
     if (OP_set_list == NULL) {
       printf(" op_decl_set error -- error reallocating memory\n");
       exit(-1);
@@ -293,11 +297,12 @@ op_set op_decl_set_core(int size, char const *name) {
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
   
-  op_set_global_ids glbl_ids = (op_set_global_ids)op_malloc(sizeof(op_set_global_ids_core));
-  glbl_ids->index = OP_set_index-1;
-  glbl_ids->global_ids = NULL;
-  OP_set_global_ids_list[OP_set_index - 1] = glbl_ids;   
-  
+  if (reproducible_enabled){
+    op_set_global_ids glbl_ids = (op_set_global_ids)op_malloc(sizeof(op_set_global_ids_core));
+    glbl_ids->index = OP_set_index-1;
+    glbl_ids->global_ids = NULL;
+    OP_set_global_ids_list[OP_set_index - 1] = glbl_ids;   
+  }
   return set;
 }
 
@@ -346,10 +351,11 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
         (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
-    OP_reversed_map_list =
-        (op_reversed_map *)op_realloc(OP_reversed_map_list, OP_map_max * sizeof(op_reversed_map));
-
-    if (OP_map_list == NULL || OP_reversed_map_list==NULL ) {
+    if (reproducible_enabled){
+      OP_reversed_map_list =
+          (op_reversed_map *)op_realloc(OP_reversed_map_list, OP_map_max * sizeof(op_reversed_map));
+    }
+    if (OP_map_list == NULL || ( reproducible_enabled && OP_reversed_map_list==NULL ) ) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
@@ -459,7 +465,11 @@ op_dat op_decl_dat_temp_core(op_set set, int dim, char const *type, int size,
     exit(2);
   }
   // if not found ...
-  return op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+  if (reproducible_enabled) {    
+    rev_map_realloc();
+  }
+  return dat;
 }
 
 int op_free_dat_temp_core(op_dat dat) {
@@ -502,12 +512,17 @@ void op_exit_core() {
   for (int i = 0; i < OP_set_index; i++) {
     free((char *)OP_set_list[i]->name);
     free(OP_set_list[i]);
-    free(OP_set_global_ids_list[i]->global_ids);
+    if (reproducible_enabled){
+      free(OP_set_global_ids_list[i]->global_ids);
+    }
   }
   free(OP_set_list);
-  free(OP_set_global_ids_list);
   OP_set_list = NULL;
-  OP_set_global_ids_list = NULL;
+  
+  if (reproducible_enabled){
+    free(OP_set_global_ids_list);
+    OP_set_global_ids_list = NULL;
+  }
 
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_list[i]->user_managed)
@@ -533,14 +548,20 @@ void op_exit_core() {
     free(item);
   }
 
-  // free storage for timing info
-  for (int n = 0; n < OP_dat_index; n++) {
-        op_free(op_repr_incs[n].tmp_incs);
-        op_repr_incs[n].tmp_incs_size=0;
+
+  if (reproducible_enabled){
+    for (int n = 0; n < OP_dat_index; n++) {
+          if (op_repr_incs[n].tmp_incs_size>0) {
+            op_free(op_repr_incs[n].tmp_incs);
+            op_repr_incs[n].tmp_incs_size=0;
+          }
+    }
+    free(op_repr_incs);
+    op_repr_incs = NULL;
   }
+
+  // free storage for timing info
   free(OP_kernels);
-  free(op_repr_incs);
-  op_repr_incs = NULL;
   OP_kernels = NULL;
   
   // reset initial values
@@ -682,7 +703,9 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
 
-  arg.local_sum=binned_dballoc(3);
+  if (reproducible_enabled){
+    arg.local_sum=binned_dballoc(3);
+  }
   return arg;
 }
 
@@ -732,8 +755,10 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   arg.acc = acc;
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
-  arg.sent = 0;
-  arg.local_sum=binned_dballoc(3);
+  arg.sent = 0;  
+  if (reproducible_enabled){
+    arg.local_sum=binned_dballoc(3);
+  }
   return arg;
 }
 
@@ -776,7 +801,9 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   /* TODO: properly??*/
   if (data == NULL)
     arg.opt = 0;
-  arg.local_sum=binned_dballoc(3);
+  if (reproducible_enabled){
+    arg.local_sum=binned_dballoc(3);
+  }
   return arg;
 }
 
@@ -947,8 +974,6 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
     OP_kern_max_new = kernel + 10;
     OP_kernels = (op_kernel *)op_realloc(OP_kernels,
                                          OP_kern_max_new * sizeof(op_kernel));
-//    op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
-//                                         OP_kern_max_new * sizeof(op_repr_inc));
     if (OP_kernels == NULL) {
       printf(" op_timing_realloc error \n");
       exit(-1);
@@ -967,8 +992,6 @@ void op_timing_realloc_manytime(int kernel, int num_timers) {
       OP_kernels[n].transfer2 = 0.0f;
       OP_kernels[n].mpi_time = 0.0f;
       OP_kernels[n].name = "unused";
-//      op_repr_incs[n].tmp_incs = NULL;
-//      op_repr_incs[n].tmp_incs_size = 0;
     }
     OP_kern_max = OP_kern_max_new;
   }
@@ -1330,13 +1353,9 @@ int op_get_size_local(op_set set) { return set->size; }
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
 void reprLocalSum(op_arg *arg, int set_size, double *red) {
     
-  //double_binned *local_sum = binned_dballoc(3);
-    
   for (int d=0; d<arg->dim; d++){
     binned_dbsetzero(3, arg->local_sum);
     binnedBLAS_dbdsum(3, set_size, red+d, arg->dim, arg->local_sum);
-    
-  //  ((double*)arg->data)[d]=binned_ddbconv(3, local_sum);
   }
     
 }

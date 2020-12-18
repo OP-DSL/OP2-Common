@@ -42,11 +42,14 @@
 // mpi header
 #include <mpi.h>
 
+
 // headers for reproducible MPI reduce
-extern "C" {
-#include <binned.h>
-#include <binnedMPI.h>
-}
+#ifdef HAVE_REPRO 
+  extern "C" {
+  #include <binned.h>
+  #include <binnedMPI.h>
+  }
+#endif
 
 //#include <op_lib_core.h>
 #include <op_lib_c.h>

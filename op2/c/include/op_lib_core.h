@@ -92,6 +92,8 @@ extern int OP_maps_base_index;
 extern int OP_reduct_bytes;
 extern char *OP_reduct_h;
 
+extern int reproducible_enabled;
+
 
 /*
  * enum list for op_par_loop
@@ -369,6 +371,10 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 void op_mpi_barrier();
 
 void create_reversed_mapping();
+
+void op_enable_reproducibility();
+
+void rev_map_realloc();
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
