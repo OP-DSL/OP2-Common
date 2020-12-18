@@ -4,10 +4,10 @@ unset LD_LIBRARY_PATH
 module purge
 . ~/.bashrc
 
-#module load cuda/toolkit-10.2.89
-module load cuda/toolkit-10.0.130
+module load cuda/toolkit-10.2.89
+#module load cuda/toolkit-10.0.130
 module load pgi-20.4/pgi-20.4
-#module load gnu-5.4.0
+module load gnu-5.4.0
 
 export MPI_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/openmpi-pgi/
 export PATH=$MPI_INSTALL_PATH/bin:$PATH
@@ -19,11 +19,11 @@ export PARMETIS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/parmetis-gnu
 export PTSCOTCH_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/ptscotch-gnu
 export CGNS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/cgns/Ver3.1.4/
 
-#export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
-#export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
+export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
+export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
 
-export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
-export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
+#export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
+#export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
 
 
 export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
