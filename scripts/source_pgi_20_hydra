@@ -1,0 +1,45 @@
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+module purge
+. ~/.bashrc
+
+module load cuda/toolkit-10.2.89
+#module load cuda/toolkit-10.0.130
+module load pgi-20.4/pgi-20.4
+module load gnu-5.4.0
+
+export MPI_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/openmpi-pgi/
+export PATH=$MPI_INSTALL_PATH/bin:$PATH
+export LD_LIBRARY_PATH=$MPI_INSTALL_PATH/lib:/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18/lib:$LD_LIBRARY_PATH
+
+export HDF5_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18/
+export PARMETIS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/parmetis-gnu
+export PTSCOTCH_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/ptscotch-gnu
+export CGNS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi/cgns/Ver3.1.4/
+
+export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
+export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
+
+#export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
+#export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
+
+
+export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
+export OP2_COMPILER=pgi
+
+if [ "$(hostname)" == 'telos' ]; then
+  export NV_ARCH=Volta
+else
+  export NV_ARCH=Pascal
+fi
+echo $NV_ARCH
+
+
+export OMPI_CC=pgcc
+export OMPI_CXX=pgc++
+export OMPI_FC=pgfortran
+
+
+export OP_AUTO_SOA=1
+echo "Warning, OP_AUTO_SOA=1"
