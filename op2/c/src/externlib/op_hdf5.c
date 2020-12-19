@@ -978,21 +978,28 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
   // create dataset path
   create_path(path_name, file_id);
 
-  // Create the dataset with default properties and write data
+ // Create the dataset with default properties and write data
   if ((strcmp(dat->type, "double") == 0) ||
-      (strcmp(dat->type, "double:soa") == 0)) {
+      (strcmp(dat->type, "double:soa") == 0) ||
+      (strcmp(dat->type, "double precision") == 0) ||      
+      (strcmp(dat->type, "real(8)") == 0)) {
     dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_DOUBLE, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT,
              dat->data);
   } else if ((strcmp(dat->type, "float") == 0) ||
-             (strcmp(dat->type, "float:soa") == 0)) {
+             (strcmp(dat->type, "float:soa") == 0) ||
+             (strcmp(dat->type, "real(4)") == 0) ||
+             (strcmp(dat->type, "real") == 0)) {
     dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_FLOAT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, dataspace, H5P_DEFAULT,
              dat->data);
   } else if ((strcmp(dat->type, "int") == 0) ||
-             (strcmp(dat->type, "int:soa") == 0)) {
+             (strcmp(dat->type, "int:soa") == 0) ||
+             (strcmp(dat->type, "int(4)") == 0) ||
+             (strcmp(dat->type, "integer") == 0) ||
+             (strcmp(dat->type, "integer(4)") == 0)) {
     dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_INT, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, dataspace, H5P_DEFAULT,
