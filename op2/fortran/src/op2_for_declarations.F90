@@ -372,6 +372,19 @@ module OP2_Fortran_Declarations
 
     end function op_decl_dat_c
 
+    type(c_ptr) function op_decl_dat_temp_char_c ( set, datdim, type, datsize, name ) BIND(C,name='op_decl_dat_temp_char')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set_core, op_dat_core
+
+      type(c_ptr), value, intent(in)           :: set
+      integer(kind=c_int), value               :: datdim, datsize
+      character(kind=c_char,len=1), intent(in) :: type(*)
+      character(kind=c_char,len=1), intent(in) :: name(*)
+
+    end function op_decl_dat_temp_char_c
+
     function op_arg_dat_c ( dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat')
 
       use, intrinsic :: ISO_C_BINDING
@@ -776,6 +789,10 @@ module OP2_Fortran_Declarations
                      op_decl_dat_real_8_3, op_decl_dat_integer_4_3
   end interface op_decl_dat
 
+  interface op_decl_dat_temp
+    module procedure op_decl_dat_temp_real_8, op_decl_dat_temp_integer_4
+  end interface op_decl_dat_temp
+
   interface op_arg_gbl
     module procedure op_arg_gbl_python_r8_scalar, &
        & op_arg_gbl_python_i4_scalar, op_arg_gbl_python_logical_scalar, op_arg_gbl_python_r8_1dim, &
@@ -1129,6 +1146,50 @@ contains
     call op_decl_dat_integer_4 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_integer_4_3
+
+  subroutine op_decl_dat_temp_real_8 ( set, datdim, type, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(*), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
+
+    if ( present ( opname ) ) then
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, opName//C_NULL_CHAR )
+    else
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+    ! debugging
+
+  end subroutine op_decl_dat_temp_real_8
+
+  subroutine op_decl_dat_temp_integer_4 ( set, datdim, type, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(*), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
+
+    if ( present ( opname ) ) then
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 4, opName//C_NULL_CHAR )
+    else
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 4, C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+    ! debugging
+
+  end subroutine op_decl_dat_temp_integer_4
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   declarations of constants  !
