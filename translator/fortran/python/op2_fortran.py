@@ -148,7 +148,7 @@ def op_decl_const_parse(text):
 
         # check for syntax errors
         if len(args) != 3:
-            print 'Error in op_decl_const : must have three arguments'
+            print('Error in op_decl_const : must have three arguments')
             return
 
         consts.append({
@@ -235,10 +235,10 @@ def get_arg_dat(arg_string, j):
 
   args = arg_parse2(dat_args_string,0)
   #check for syntax errors
-  if len(args) <> 6:
-    print 'Error parsing op_arg_dat(%s): must have six arguments' \
-          % dat_args_string
-    print args
+  if len(args) != 6:
+    print('Error parsing op_arg_dat(%s): must have six arguments' \
+          % dat_args_string)
+    print(args)
     return
 
   # split the dat_args_string into  6 and create a struct with the elements
@@ -287,9 +287,9 @@ def get_opt_arg_dat(arg_string, j):
   args = arg_parse2(dat_args_string,0)
 
   #check for syntax errors
-  if len(args) <> 7:
-    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
-          % dat_args_string
+  if len(args) != 7:
+    print('Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
+          % dat_args_string)
     return
 
   # split the dat_args_string into  6 and create a struct with the elements
@@ -339,8 +339,8 @@ def get_arg_gbl(arg_string, k):
   gbl_args = arg_parse2('('+gbl_args_string+')',0)
   #check for syntax errors
   if len(gbl_args) != 4:
-    print 'Error parsing op_arg_gbl(%s): must have four arguments' \
-          % gbl_args_string
+    print('Error parsing op_arg_gbl(%s): must have four arguments' \
+          % gbl_args_string)
     return
 
   # split the gbl_args_string into  4 and create a struct with the elements
@@ -386,8 +386,8 @@ def get_opt_arg_gbl(arg_string, k):
   gbl_args = arg_parse2('('+gbl_args_string+')',0)
   #check for syntax errors
   if len(gbl_args) != 5:
-    print 'Error parsing op_arg_gbl(%s): must have five arguments' \
-          % gbl_args_string
+    print('Error parsing op_arg_gbl(%s): must have five arguments' \
+          % gbl_args_string)
     return
 
   # split the gbl_args_string into  4 and create a struct with the elements
@@ -454,7 +454,7 @@ def op_par_loop_parse(text):
       p = arg_string.find(search5)
 
       while j > -1 or k > -1 or l > -1 or p > -1:
-        index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint, p if (p > -1) else sys.maxint)
+        index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize, p if (p > -1) else sys.maxsize)
 
         if index == j:
           temp_dat = get_arg_dat(arg_string,j)
@@ -490,7 +490,7 @@ def op_par_loop_parse(text):
       loop_args.append(temp)
       i=text.find(search, i+10)
 
-    print '\n\n'
+    print('\n\n')
     return (loop_args)
 
 ###################END OF FUNCTIONS DECLARATIONS #########################
@@ -513,8 +513,8 @@ if len(sys.argv) > 1:
     init_ctr=2
 
 for a in range(init_ctr,len(sys.argv)):
-  print 'processing file '+ str(a) + ' of ' + str(len(sys.argv)-init_ctr) + ' '+ \
-  str(sys.argv[a])
+  print('processing file '+ str(a) + ' of ' + str(len(sys.argv)-init_ctr) + ' '+ \
+  str(sys.argv[a]))
 
   src_file = str(sys.argv[a])
   f = open(src_file,'r')
@@ -530,7 +530,7 @@ for a in range(init_ctr,len(sys.argv)):
     cont_end = ''
     comment = 'C '
   else:
-    print "Error in parsing file: unsupported file format, only *.F90, *.F95 or *.F77 supported"
+    print("Error in parsing file: unsupported file format, only *.F90, *.F95 or *.F77 supported")
     exit()
 
 ############ check for op_init/op_exit/op_partition/op_hdf5 calls ########
@@ -538,17 +538,17 @@ for a in range(init_ctr,len(sys.argv)):
   inits, exits, parts, hdf5s = op_parse_calls(text)
 
   if inits+exits+parts+hdf5s > 0:
-    print ' '
+    print(' ')
   if inits > 0:
-    print'contains op_init call'
-    if auto_soa<>'0':
+    print('contains op_init call')
+    if auto_soa!='0':
       text = append_init_soa(text)
   if exits > 0:
-    print'contains op_exit call'
+    print('contains op_exit call')
   if parts > 0:
-    print'contains op_partition call'
+    print('contains op_partition call')
   if hdf5s > 0:
-    print'contains op_hdf5 calls'
+    print('contains op_hdf5 calls')
 
   ninit = ninit + inits
   nexit = nexit + exits
@@ -575,16 +575,16 @@ for a in range(init_ctr,len(sys.argv)):
     for c in range(0,nconsts):
       if  const_args[i]['name'] == consts[c]['name']:
         repeat = 1
-        if const_args[i]['type'] <> consts[c]['type']:
-          print 'type mismatch in repeated op_decl_const'
-        if const_args[i]['dim'] <> consts[c]['dim']:
-          print 'size mismatch in repeated op_decl_const'
+        if const_args[i]['type'] != consts[c]['type']:
+          print('type mismatch in repeated op_decl_const')
+        if const_args[i]['dim'] != consts[c]['dim']:
+          print('size mismatch in repeated op_decl_const')
 
     if repeat > 0:
-      print 'repeated global constant ' + const_args[i]['name']
+      print('repeated global constant ' + const_args[i]['name'])
     else:
-      print '\nglobal constant ('+ const_args[i]['name'].strip() + ') of size ' \
-      + str(const_args[i]['dim'] + ' and type ' + const_args[i]['type'].strip())
+      print('\nglobal constant ('+ const_args[i]['name'].strip() + ') of size ' \
+      + str(const_args[i]['dim'] + ' and type ' + const_args[i]['type'].strip()))
 
   #store away in master list
     if repeat == 0:
@@ -603,7 +603,7 @@ for a in range(init_ctr,len(sys.argv)):
     set_name = loop_args[i]['set']
     nargs = loop_args[i]['nargs']
     code_loc = loop_args[i]['loc']
-    print '\nprocessing kernel '+name+' with '+str(nargs)+' arguments',
+    print('\nprocessing kernel '+name+' with '+str(nargs)+' arguments', end=' ')
 
 #
 # process arguments
@@ -631,8 +631,8 @@ for a in range(init_ctr,len(sys.argv)):
         idxs[m] =  args['idx']
         if str(args['map']).strip() == 'OP_ID':
           maps[m] = OP_ID
-          if int(idxs[m]) <> -1:
-             print 'invalid index for argument'+str(m)
+          if int(idxs[m]) != -1:
+             print('invalid index for argument'+str(m))
         else:
           maps[m] = OP_MAP
           mapnames[m] = str(args['map']).strip()
@@ -654,7 +654,7 @@ for a in range(init_ctr,len(sys.argv)):
             break
 
         if l == -1:
-          print 'unknown access type for argument '+str(m)
+          print('unknown access type for argument '+str(m))
         else:
           accs[m] = l+1
 
@@ -682,17 +682,17 @@ for a in range(init_ctr,len(sys.argv)):
             break
 
         if l == -1:
-          print 'unknown access type for argument '+str(m)
+          print('unknown access type for argument '+str(m))
         else:
           accs[m] = l+1
 
       if (maps[m]==OP_GBL) and (accs[m]==OP_WRITE or accs[m]==OP_RW):
-         print 'invalid access type for argument '+str(m)
+         print('invalid access type for argument '+str(m))
 
-      if (maps[m]<>OP_GBL) and (accs[m]==OP_MIN or accs[m]==OP_MAX):
-         print 'invalid access type for argument '+str(m)
+      if (maps[m]!=OP_GBL) and (accs[m]==OP_MIN or accs[m]==OP_MAX):
+         print('invalid access type for argument '+str(m))
 
-    print ' '
+    print(' ')
 #
 # identify indirect datasets
 #
@@ -768,10 +768,10 @@ for a in range(init_ctr,len(sys.argv)):
             kernels[nk]['invinds'][arg] == invinds[arg]
 
          if rep2:
-           print 'repeated kernel with compatible arguments: '+ kernels[nk]['name']
+           print('repeated kernel with compatible arguments: '+ kernels[nk]['name'])
            repeat = True
          else:
-           print 'repeated kernel with incompatible arguments: ERROR'
+           print('repeated kernel with incompatible arguments: ERROR')
            sys.exit(-1)
            break
 
@@ -779,26 +779,26 @@ for a in range(init_ctr,len(sys.argv)):
 # output various diagnostics
 #
     if not repeat:
-      print '  local constants:',
+      print('  local constants:', end=' ')
       for arg in range(0,nargs):
           if maps[arg] == OP_GBL and accs[arg] == OP_READ:
-            print str(arg),
-      print '\n  global reductions:',
+            print(str(arg), end=' ')
+      print('\n  global reductions:', end=' ')
       for arg in range(0,nargs):
-          if maps[arg] == OP_GBL and accs[arg] <> OP_READ:
-            print str(arg),
-      print '\n  direct arguments:',
+          if maps[arg] == OP_GBL and accs[arg] != OP_READ:
+            print(str(arg), end=' ')
+      print('\n  direct arguments:', end=' ')
       for arg in range(0,nargs):
           if maps[arg] == OP_ID:
-            print str(arg),
-      print '\n  indirect arguments:',
+            print(str(arg), end=' ')
+      print('\n  indirect arguments:', end=' ')
       for arg in range(0,nargs):
           if maps[arg] == OP_MAP:
-            print str(arg),
+            print(str(arg), end=' ')
       if ninds > 0:
-          print '\n  number of indirect datasets: '+str(ninds),
+          print('\n  number of indirect datasets: '+str(ninds), end=' ')
 
-      print '\n'
+      print('\n')
 #
 # store away in master list
 #
@@ -831,7 +831,7 @@ for a in range(init_ctr,len(sys.argv)):
         temp['mod_file'] = 'external '+name
         i = text[0:code_loc].rfind(temp['mod_file'])
         if i < 0:
-          print'  ERROR: no module use statement ('+temp['mod_file']+') found!  '
+          print('  ERROR: no module use statement ('+temp['mod_file']+') found!  ')
       if bookleaf==1:
         file_part = src_file.split('/')
         file_part = file_part[len(file_part)-1]
@@ -943,7 +943,7 @@ for a in range(init_ctr,len(sys.argv)):
             line = line + indent + cont + elem['type'] + '(' + elem['opt']+','+ elem['data'] + ','+ elem['dim'] \
             +','+ typechange(elem['typ'])+','+ elem['acc']
 
-         if arguments <> loop_args[curr_loop]['nargs'] - 1:
+         if arguments != loop_args[curr_loop]['nargs'] - 1:
            line = line + '), '+cont_end+'\n'
          else:
            line = line + '))\n'
@@ -1008,22 +1008,22 @@ for a in range(init_ctr,len(sys.argv)):
 ########################## errors and warnings ############################
 
 if ninit==0:
-  print' '
-  print'-----------------------------'
-  print'  ERROR: no call to op_init  '
-  print'-----------------------------'
+  print(' ')
+  print('-----------------------------')
+  print('  ERROR: no call to op_init  ')
+  print('-----------------------------')
 
 if nexit==0:
-  print' '
-  print'-------------------------------'
-  print'  WARNING: no call to op_exit  '
-  print'-------------------------------'
+  print(' ')
+  print('-------------------------------')
+  print('  WARNING: no call to op_exit  ')
+  print('-------------------------------')
 
 if npart==0 and nhdf5>0:
-  print' '
-  print'---------------------------------------------------'
-  print'  WARNING: hdf5 calls without call to op_partition '
-  print'---------------------------------------------------'
+  print(' ')
+  print('---------------------------------------------------')
+  print('  WARNING: hdf5 calls without call to op_partition ')
+  print('---------------------------------------------------')
 
 ########## finally, generate target-specific kernel files ################
 

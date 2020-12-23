@@ -191,7 +191,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -224,7 +224,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('TYPE  :: '+name+'_opDatDimensions')
     depth = depth + 2
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_GBL:
+      if maps[g_m] != OP_GBL:
         code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'Dimension')
     depth = depth - 2
     code('END TYPE '+name+'_opDatDimensions')
@@ -245,7 +245,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
 
     if ninds > 0:
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           code('INTEGER(kind=4) :: mappingArray'+str(g_m+1)+'Size')
 
       code('INTEGER(kind=4) :: pblkMapSize')
@@ -270,10 +270,10 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     if ninds > 0:
       code('TYPE ( c_ptr )  :: planRet_'+name)
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           code('INTEGER(kind=4), DIMENSION(:), DEVICE, ALLOCATABLE :: ind_maps'+str(g_m+1)+'_'+name)
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           code('INTEGER(kind=2), DIMENSION(:), DEVICE, ALLOCATABLE :: mappingArray'+str(g_m+1)+'_'+name)
 
 ##########################################################################
@@ -494,7 +494,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('TYPE ( '+name+'_opDatDimensions ) , DEVICE :: opDatDimensions')
       code('TYPE ( '+name+'_opDatCardinalities ) , DEVICE :: opDatCardinalities')
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           code(typs[g_m]+', DIMENSION(0:'+dims[g_m]+'-1) :: opDat'+str(g_m+1)+'Local')
         else: #global arg
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
@@ -603,7 +603,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       code('localOffset = i1 - threadID')
       code('numberOfActiveThreads = min(warpSize,setSize - localOffset)')
       for g_m in range(0,nargs):
-        if int(dims[g_m]) <> 1 and (accs[g_m] == OP_READ or accs[g_m] == OP_RW):
+        if int(dims[g_m]) != 1 and (accs[g_m] == OP_READ or accs[g_m] == OP_RW):
           DO('i2','0','opDatDimensions%opDat'+str(g_m+1)+'Dimension')
           code('sharedFloat8(sharedOffsetFloat8 + (threadID + i2 * numberOfActiveThreads)) = &')
           code('& opDat'+str(g_m+1)+'Device'+name+'(threadID + (i2 * numberOfActiveThreads + localOffset &')
@@ -635,7 +635,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
       depth = depth + 2
       code('')
       for g_m in range(0,nargs):
-        if int(dims[g_m]) <> 1 and (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
+        if int(dims[g_m]) != 1 and (accs[g_m] == OP_WRITE or accs[g_m] == OP_RW):
           DO('i2','0','opDatDimensions%opDat'+str(g_m+1)+'Dimension')
           code('sharedFloat8(sharedOffsetFloat8 + (i2 + threadID * opDatDimensions%opDat'+str(g_m+1)+'Dimension)) = opDat'+str(g_m+1)+'Local(i2)')
           ENDDO()
@@ -830,7 +830,7 @@ def op2_gen_cuda_old(master, date, consts, kernels, hydra):
     code('')
 
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_GBL:
+      if maps[g_m] != OP_GBL:
         code('opDatDimensions%opDat'+str(g_m+1)+'Dimension = opArg'+str(g_m+1)+'%dim')
 
     code('')

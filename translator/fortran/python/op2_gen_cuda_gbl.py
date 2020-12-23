@@ -624,7 +624,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
         text = regex.sub(fun+'_gpu',text)
 #        text = re.sub(r'\\b'+fun+'\\b',fun+'_gpu',text,flags=re.I)
 
-      if plus_kernels <> '':
+      if plus_kernels != '':
         for i in range(0,nargs):
           if soaflags[i]==1 and not (maps[i]==OP_MAP and accs[i]==OP_INC) and not (maps[i] ==OP_GBL):
             stage_flags[i] = 1;
@@ -656,8 +656,8 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
       kern_text = 'attributes (device) subroutine ' + name + '_gpu' + text[i+ 11 + len(name):j]+'_gpu\n\n'
       for const in range(0,len(consts)):
         i = re.search('\\b'+consts[const]['name']+'\\b',kern_text)
-        if i <> None:
-          print 'Found ' + consts[const]['name']
+        if i != None:
+          print('Found ' + consts[const]['name'])
           j = i.start()
           kern_text = kern_text[0:j+1] + re.sub('\\b'+consts[const]['name']+'\\b',consts[const]['name']+'_OP2',kern_text[j+1:])
 
@@ -666,7 +666,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
       #
       j = kern_text.find(name+'_gpu')
       endj = arg_parse(kern_text,j)
-      while kern_text[j] <> '(':
+      while kern_text[j] != '(':
           j = j + 1
       arg_list = kern_text[j+1:endj]
       arg_list = arg_list.replace('&','')
@@ -696,7 +696,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
               endarg = arg_parse(kern_text,loc1+i.start())
             #Find opening bracket
             beginarg = loc1+i.start()
-            while kern_text[beginarg] <> '(':
+            while kern_text[beginarg] != '(':
               beginarg = beginarg+1
             beginarg = beginarg+1
 
@@ -929,7 +929,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
       line = '  CALL '+name+'_gpu( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:
+        if soaflags[g_m] == 1 and maps[g_m] != OP_GBL:
           if maps[g_m] == OP_MAP:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ '(1 + map'+str(mapinds[g_m]+1)+'idx)'
           else:
@@ -972,7 +972,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
       line = '  CALL '+name+'_gpu( &'
       indent = '\n'+' '*depth
       for g_m in range(0,nargs):
-        if soaflags[g_m] == 1 and maps[g_m] <> OP_GBL and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
+        if soaflags[g_m] == 1 and maps[g_m] != OP_GBL and (maps[g_m] != OP_MAP or accs[g_m] != OP_INC):# and optflags[g_m]==0:
            line = line +indent + '& opDat'+str(g_m+1)+'Device'+name+ '(1 + i1)'
         elif maps[g_m] == OP_GBL:
           if accs[g_m] == OP_WRITE and dims[g_m].isdigit() and int(dims[g_m]) == 1:
@@ -1192,7 +1192,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
           code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
     code('')
     code('numberOfOpDats = '+str(nargs))
@@ -1217,7 +1217,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT = opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2HOST')
             ENDIF()
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           IF('(calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
           code('direct_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(dir_soa+1)+')')
           code('direct_stride_OP2CONSTANT = direct_stride_OP2HOST')

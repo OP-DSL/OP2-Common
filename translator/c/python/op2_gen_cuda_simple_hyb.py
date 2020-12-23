@@ -123,7 +123,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
 
   for nk in range(0,len(kernels)):
     name  = kernels[nk]['name']
-    unique_args = range(1,kernels[nk]['nargs']+1)
+    unique_args = list(range(1,kernels[nk]['nargs']+1))
     code('')
     code('void op_par_loop_'+name+'_gpu(char const *name, op_set set,')
     depth += 2

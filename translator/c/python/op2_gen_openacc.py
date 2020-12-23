@@ -137,7 +137,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -191,8 +191,8 @@ def op2_gen_openacc(master, date, consts, kernels):
     i = p.search(kernel_text).start()
 
     if(i < 0):
-      print "\n********"
-      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+      print("\n********")
+      print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
       exit(2)
     i2 = i
 
@@ -208,7 +208,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel('+name+'): must have '+str(nargs_novec)+' arguments'
+        print('Error parsing user kernel('+name+'): must have '+str(nargs_novec)+' arguments')
         return
 
     for i in range(0,nargs_novec):
@@ -288,7 +288,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           code('optflags |= 1<<'+str(optidxs[i])+';')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
 #
 # start timing
@@ -342,7 +342,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL: #and accs[g_m]<>OP_READ:
         if not dims[g_m].isdigit() or int(dims[g_m]) > 1:
-          print 'ERROR: OpenACC does not support multi-dimensional op_arg_gbl variables'
+          print('ERROR: OpenACC does not support multi-dimensional op_arg_gbl variables')
           exit(-1)
         code('<TYP> <ARG>_l = <ARG>h[0];')
 
@@ -363,7 +363,7 @@ def op2_gen_openacc(master, date, consts, kernels):
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT = opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST;')
             ENDIF()
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
           code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
           code('direct_'+name+'_stride_OP2CONSTANT = direct_'+name+'_stride_OP2HOST;')
@@ -423,7 +423,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
       if reduct:
         for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+          if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
             if accs[g_m] == OP_INC:
               line = line + ' reduction(+:arg'+str(g_m)+'_l)'
             if accs[g_m] == OP_MIN:
@@ -514,7 +514,7 @@ def op2_gen_openacc(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+          if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
             if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
               code('<ARG>h[0] = <ARG>_l;')
             elif accs[g_m]==OP_MIN:
@@ -540,7 +540,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 
       if reduct:
         for g_m in range(0,nargs):
-          if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+          if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
             if accs[g_m] == OP_INC:
               line = line + ' reduction(+:arg'+str(g_m)+'_l)'
             if accs[g_m] == OP_MIN:
@@ -584,7 +584,7 @@ def op2_gen_openacc(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         if ninds==0: #direct version only
           if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
             code('<ARG>h[0] = <ARG>_l;')
@@ -593,7 +593,7 @@ def op2_gen_openacc(master, date, consts, kernels):
           elif accs[g_m]==OP_MAX:
             code('<ARG>h[0]  = MAX(<ARG>h[0],<ARG>_l);')
           else:
-            print 'internal error: invalid reduction option'
+            print('internal error: invalid reduction option')
         if typs[g_m] == 'double': #need for both direct and indirect
           code('op_mpi_reduce_double(&<ARG>,<ARG>h);')
         elif typs[g_m] == 'float':
@@ -601,7 +601,7 @@ def op2_gen_openacc(master, date, consts, kernels):
         elif typs[g_m] == 'int':
           code('op_mpi_reduce_int(&<ARG>,<ARG>h);')
         else:
-          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
+          print('Type '+typs[g_m]+' not supported in OpenACC code generator, please add it')
           exit(-1)
 
 
@@ -622,7 +622,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -660,7 +660,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       if consts[nc]['dim']==1:
         code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        if consts[nc]['dim'] > 0:
+        if consts[nc]['dim'].isdigit() and int(consts[nc]['dim']) > 0:
           num = str(consts[nc]['dim'])
         else:
           num = 'MAX_CONST_SIZE'

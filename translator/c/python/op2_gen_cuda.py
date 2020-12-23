@@ -144,13 +144,13 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         j = i
     ind_rw= j >= 0
     if (ind_rw):
-      print 'Error: indirect OP_RW not supported by op2_gen_cuda code generator'
+      print('Error: indirect OP_RW not supported by op2_gen_cuda code generator')
       sys.exit(2);
 
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -243,7 +243,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('')
 
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
         code('<TYP> <ARG>_l[<DIM>];')
         if accs[g_m] == OP_INC:
           FOR('d','0','<DIM>')
@@ -255,7 +255,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
           ENDFOR()
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
         code('<TYP> <ARG>_l[<DIM>];')
-      elif (ninds==0 and maps[g_m]==OP_ID and dims[g_m]<>'1') and not(soaflags[g_m]):
+      elif (ninds==0 and maps[g_m]==OP_ID and dims[g_m]!='1') and not(soaflags[g_m]):
         code('<TYP> <ARG>_l[<DIM>];')
 
     for m in range (1,ninds+1):
@@ -376,7 +376,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
     else:
       use_shared = 0;
       for m in range(0,nargs):
-        if maps[m]<>OP_GBL and dims[m]<>'1':
+        if maps[m]!=OP_GBL and dims[m]!='1':
           use_shared = 1
 
       if use_shared:
@@ -396,7 +396,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
       for m in range(0,nargs):
         g_m = m
-        if (maps[m]<>OP_GBL and accs[m]<>OP_WRITE and dims[m]<>'1') and not(soaflags[m]):
+        if (maps[m]!=OP_GBL and accs[m]!=OP_WRITE and dims[m]!='1') and not(soaflags[m]):
           FOR('m','0','<DIM>')
           code('((<TYP> *)arg_s)[tid+m*nelems] = <ARG>[tid+m*nelems+offset*<DIM>];')
           ENDFOR()
@@ -416,7 +416,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
     for m in range(1,ninds+1):
       s = [i for i in range(len(inds)) if inds[i]==m]
       if sum(s)>1:
-        if indaccs[m-1] <> OP_INC:
+        if indaccs[m-1] != OP_INC:
           code('')
           ctr = 0
           for n in range(0,nargs):
@@ -453,7 +453,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       elif maps[m]==OP_MAP and m == 0:
         line += rep(indent+'<ARG>_vec,'+'\n',inds[m]-1)
         a =a+1
-      elif maps[m]==OP_MAP and m>0 and vectorised[m] <> vectorised[m-1]: #xxx:vector
+      elif maps[m]==OP_MAP and m>0 and vectorised[m] != vectorised[m-1]: #xxx:vector
         line += rep(indent+'<ARG>_vec,'+'\n',inds[m]-1)
         a =a+1
       elif maps[m]==OP_MAP and m>0 and vectorised[m] == vectorised[m-1]:
@@ -473,7 +473,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
             line += rep(indent+'<ARG>_l,\n',m)
           a =a+1
       else:
-        print 'internal error 1 '
+        print('internal error 1 ')
 
     code(line[0:-2]+');') #remove final ',' and \n
 
@@ -514,7 +514,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         ENDFOR()
       ENDFOR()
 
-      s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
+      s = [i for i in range(1,ninds+1) if indaccs[i-1]!= OP_READ]
 
       if len(s)>0 and max(s)>0:
         code('')
@@ -536,7 +536,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
         comm('copy back into shared memory, then to device')
       for m in range(0,nargs):
         g_m = m
-        if (maps[m]<>OP_GBL and accs[m]<>OP_READ and dims[m]<>'1') and not(soaflags[m]):
+        if (maps[m]!=OP_GBL and accs[m]!=OP_READ and dims[m]!='1') and not(soaflags[m]):
           code('')
           FOR('m','0','<DIM>')
           code('((<TYP> *)arg_s)[m+tid*<DIM>] = <ARG>_l[m];')
@@ -557,7 +557,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
@@ -566,7 +566,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
            elif accs[m]==OP_MAX:
              code('op_reduction<OP_MAX>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
            else:
-             print 'internal error: invalid reduction option'
+             print('internal error: invalid reduction option')
              sys.exit(2);
            ENDFOR()
     depth -= 2
@@ -748,7 +748,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('int reduct_size  = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
 
@@ -756,7 +756,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
           FOR('b','0','maxblocks')
@@ -840,7 +840,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       code('int nshared = 0;')
 
       for g_m in range(0,nargs):
-         if maps[g_m]<>OP_GBL and dims[g_m]<>'1':
+         if maps[g_m]!=OP_GBL and dims[g_m]!='1':
            code('nshared = MAX(nshared,sizeof(<TYP>)*<DIM>);')
 
       code('')
@@ -880,7 +880,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
 
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m]<>OP_WRITE:
+        if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m]!=OP_WRITE:
           FOR('b','0','maxblocks')
           FOR('d','0','<DIM>')
           if accs[m]==OP_INC:
@@ -923,7 +923,7 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ or accs[g_m]==OP_WRITE:
             code(line+' <ARG>.size;')
           else:
