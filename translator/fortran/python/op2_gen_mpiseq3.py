@@ -209,7 +209,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -259,7 +259,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         if len(files)>0:
           filename = files[0]
         else:
-          print 'kernel for '+name+' not found'
+          print('kernel for '+name+' not found')
 #      modfile = modfile.replace('INIT_INIT','INIT')
 #      name2 = name.replace('INIT_INIT','INIT')
 #      filename = modfile.split('_')[1].lower() + '/' + modfile.split('_')[0].lower() + '/' + name2 + '.F95'
@@ -324,7 +324,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         code('& opDat'+str(invinds[g_m]+1)+'Dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -344,7 +344,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       else:
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
@@ -502,7 +502,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_MAP:
+        if maps[g_m] != OP_MAP:
           if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
           code('& opDat'+str(g_m+1)+'Local, &')
@@ -522,7 +522,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -570,7 +570,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
             ENDIF()
           else:
-            print 'Error, reduction type '+typs[g_m]+' unrecognised'
+            print('Error, reduction type '+typs[g_m]+' unrecognised')
           code('')
       else:
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
@@ -583,7 +583,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           else:
-            print 'Error, reduction type '+typs[g_m]+' unrecognised'
+            print('Error, reduction type '+typs[g_m]+' unrecognised')
           code('')
 
     code('call op_timers_core(endTime)')
@@ -609,7 +609,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       names = []
       for g_m in range(0,ninds):
         mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+        if indaccs[g_m] != OP_WRITE and indaccs[g_m] != OP_READ:
           mult = ' * 2.d0'
         if not var[invinds[g_m]] in names:
           if optflags[invinds[g_m]] == 1:
@@ -620,7 +620,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
       for g_m in range(0,nargs):
         mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+        if accs[g_m] != OP_WRITE and accs[g_m] != OP_READ:
           mult = ' * 2.d0'
         if not var[g_m] in names:
           if optflags[g_m] == 1:

@@ -136,7 +136,7 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
     stride = [0]*len(funcs[idx]['args'])
     for g_m in range(0,len(funcs[idx]['args'])):
       if g_m >= len(maps):
-          print name, maps, funcs[idx]['args']
+          print(name, maps, funcs[idx]['args'])
       if maps[g_m] == OP_MAP:
         stride[g_m] = mapnames.index(mapnames[g_m])
   if funcs[idx]['soa_converted'] == 0:
@@ -159,9 +159,9 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
       if funcs[i]['function_name'].lower()==call_name.lower():
         idx_called = i
     if idx_called == -1:
-      print 'ERROR, subroutine not found in replace_soa_subroutines: ' + call_name
+      print('ERROR, subroutine not found in replace_soa_subroutines: ' + call_name)
     if len(funcs[idx_called]['args'])!=int(nargs):
-      print 'ERROR: number of arguments of function '+call_name+' is '+str(len(funcs[idx_called]['args']))+' but trying to pass '+str(nargs)
+      print('ERROR: number of arguments of function '+call_name+' is '+str(len(funcs[idx_called]['args']))+' but trying to pass '+str(nargs))
     soaflags2 = [0]*nargs
     stride2 = [0]*nargs
     maps2 = [0]*nargs
@@ -180,8 +180,8 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
         stride2[i] = stride[orig_idx]
     funcs[idx]['calls'][idx_funcall]['soaflags']=soaflags2
     if funcs[idx_called]['soa_converted'] == 1 and soaflags2 != funcs[idx_called]['soaflags']:
-      print 'WARNING: soaflags mismatch for repeated function call: ' + funcs[idx_called]['function_name']
-      print funcs[idx_called]['soaflags'], soaflags2
+      print('WARNING: soaflags mismatch for repeated function call: ' + funcs[idx_called]['function_name'])
+      print(funcs[idx_called]['soaflags'], soaflags2)
     if funcs[idx_called]['soa_converted'] == 1:
       continue 
     funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,stride2)
@@ -219,7 +219,7 @@ def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc
           expr = re.escape(line[0:j].strip())
           m = re.search(expr+r'\s*=\s*'+expr+r'\s*(\+|\-)(.*)',line)
           if m is None:
-              print 'ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_INC, but seems not to be: '+line
+              print('ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_INC, but seems not to be: '+line)
           text = text[:loc1] + 'istat = atomicAdd('+line[0:j].strip()+','+ m.group(1)+ m.group(2)+')' + text[end:]
           idd = idd + 1
           loc1 = end
@@ -253,7 +253,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
   #
   j = text.find(name)
   endj = arg_parse(text,j)
-  while text[j] <> '(':
+  while text[j] != '(':
       j = j + 1
   arg_list = text[j+1:endj]
   arg_list = arg_list.replace('&','')
@@ -301,11 +301,11 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
             j = text[:j2].rfind('\n')
 
           k = text[j:j2].lower().find('dimension')
-          if k <> -1:
+          if k != -1:
             beginarg = j+k+text[j+k:j2].find('(')+1
             endarg = arg_parse(text,beginarg-1)
           else:
-            print 'Could not find shape specification for '+varlist[g_m]+' in '+name+'- assuming scalar'
+            print('Could not find shape specification for '+varlist[g_m]+' in '+name+'- assuming scalar')
             soaflags[g_m] = 0
             beginarg = loc1 + i.end()
             endarg=beginarg
@@ -317,7 +317,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
             newl = text[:newl].rfind('\n')
           res=re.search('\\bcall\\b',text[newl:loc1+i.start()],re.IGNORECASE)
           if res is None and text[loc1+i.start()-1]!='%':
-            print 'Warning: array subscript not found for ' + varlist[g_m] + ' in '+name
+            print('Warning: array subscript not found for ' + varlist[g_m] + ' in '+name)
           loc1 = loc1+i.start() + len(varlist[g_m])
           continue
 
@@ -346,7 +346,7 @@ def replace_soa(text,nargs,soaflags,name,maps,accs,set_name,mapnames,repl_inc,hy
             if beginarg==endarg:
               loc1 = loc1+i.start() + len(varlist[g_m])
             else:
-              print 'Warning: '+varlist[g_m]+' in '+name+' was assumed scalar, but now accessed as array: '+text[beginarg:endarg]
+              print('Warning: '+varlist[g_m]+' in '+name+' was assumed scalar, but now accessed as array: '+text[beginarg:endarg])
               macro = macro + text[beginarg:endarg]
           else:
             macro = macro + text[beginarg:endarg].split(',')[0] + '+('+text[beginarg:endarg].split(',')[1]+follow_dim[g_m]+')*('+leading_dim[g_m]+')'
@@ -416,13 +416,13 @@ def get_full_line(text, i):
         b_lineend = linebegin
         b_linebegin = text[0:b_lineend].rfind('\n')
         line = text[b_linebegin:b_lineend]
-	full_line = line + full_line
+        full_line = line + full_line
         full_line_begin = b_linebegin
         while len(line.strip())>0 and line.strip()[0]=='&':
             b_lineend = b_linebegin
             b_linebegin = text[0:b_lineend].rfind('\n')
             line = text[b_linebegin:b_lineend]
-	    full_line = line + full_line
+            full_line = line + full_line
             full_line_begin = b_linebegin
     nextline_end = lineend+1+text[lineend+1:].find('\n')
     line = text[lineend:nextline_end]
@@ -514,7 +514,7 @@ def find_function_calls(text, attr, name=''):
     openbracket = i+text[i:].find('(')
     fun_name = text[i:openbracket].strip()
     if 'hyd_' in fun_name:
-      print text[j:openbracket]
+      print(text[j:openbracket])
     if fun_name.lower() in funlist:
       funcall_entry = {'function_name': fun_name+'_gpu',
                        'args' : arg_parse2(text,openbracket-1)}
@@ -540,7 +540,7 @@ def find_function_calls(text, attr, name=''):
     #find the file containing the implementation
     subr_file =  os.popen('grep -Rilw --include "*.F90" --include "*.F" --exclude "*kernel.*" "subroutine '+fun_name+'\\b" . | head -n1').read().strip()
     if (len(subr_file) == 0) or (not os.path.exists(subr_file)):
-      print 'Error, subroutine '+fun_name+' implementation not found in files, check parser!'
+      print('Error, subroutine '+fun_name+' implementation not found in files, check parser!')
       exit(1)
     #read the file and find the implementation
     subr_fileh = open(subr_file,'r')
@@ -552,7 +552,7 @@ def find_function_calls(text, attr, name=''):
     subr_text = re.sub('\n*!.*\n','\n',subr_text)
     subr_text = re.sub('!.*\n','\n',subr_text)
 
-    if attr <> '':
+    if attr != '':
       subr_text = replace_consts(subr_text)
     subr_text = re.sub(r'(\n\s*)\bsubroutine\b\s+'+fun_name+r'\b', r'\1'+attr+' subroutine '+fun_name+'_gpu',subr_text,flags=re.IGNORECASE)
     my_subs = my_subs + '\n' + subr_text

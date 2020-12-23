@@ -327,7 +327,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         if len(files)>0:
           filename = files[0]
         else:
-          print 'kernel for '+name+' not found'
+          print('kernel for '+name+' not found')
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
@@ -624,7 +624,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       kern_text = 'attributes (device) subroutine ' + name + '_gpu' + text[i+ 11 + len(name):j]+'_gpu\n\n'
       for const in range(0,len(consts)):
         i = re.search('\\b'+consts[const]['name']+'\\b',kern_text)
-        if i <> None:
+        if i != None:
 #          print 'Found ' + consts[const]['name']
           j = i.start()
           kern_text = kern_text[0:j+1] + re.sub('\\b'+consts[const]['name']+'\\b',consts[const]['name']+'_OP2',kern_text[j+1:])
@@ -797,7 +797,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if stage_flags[g_m] == 1:
         if g_m in needDimList:
-              print 'Error, cannot statically determine dim of argument '+str(g_m+1)+' in kernel '+name
+              print('Error, cannot statically determine dim of argument '+str(g_m+1)+' in kernel '+name)
               sys.exit(-1)
         code(typs[g_m]+', DIMENSION('+dims[g_m]+') :: opDat'+str(g_m+1)+'Staged')
 
@@ -894,7 +894,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
           line = line + indent + '& opDat'+str(g_m+1)+'Staged'
-        elif soaflags[g_m] == 1 and maps[g_m] <> OP_GBL:# and optflags[g_m]==0:
+        elif soaflags[g_m] == 1 and maps[g_m] != OP_GBL:# and optflags[g_m]==0:
 #          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
           if maps[g_m] == OP_MAP:
             line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Device'+name+ '(1 + map'+str(mapinds[g_m]+1)+'idx)'
@@ -934,7 +934,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('')
 
       for g_m in range(0,nargs):
-        if stage_flags[g_m] == 1 and accs[g_m] <> OP_READ:
+        if stage_flags[g_m] == 1 and accs[g_m] != OP_READ:
           if optflags[g_m]==1:
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if maps[g_m] == OP_MAP:
@@ -956,7 +956,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
           line = line + indent + '& opDat'+str(g_m+1)+'Staged'
-        elif soaflags[g_m] == 1 and maps[g_m] <> OP_GBL and (maps[g_m] <> OP_MAP or accs[g_m] <> OP_INC):# and optflags[g_m]==0:
+        elif soaflags[g_m] == 1 and maps[g_m] != OP_GBL and (maps[g_m] != OP_MAP or accs[g_m] != OP_INC):# and optflags[g_m]==0:
 #          line = line +indent + '& opDat'+str(g_m+1)+'SoALocal'
            line = line +indent + '& opDat'+str(g_m+1)+'Device'+name+ '(1 + i1)'
         elif maps[g_m] == OP_GBL:
@@ -981,7 +981,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code(line + indent +  '& )')
       depth = depth + 2
       for g_m in range(0,nargs):
-        if stage_flags[g_m] == 1 and accs[g_m] <> OP_READ:
+        if stage_flags[g_m] == 1 and accs[g_m] != OP_READ:
           if optflags[g_m]==1:
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           DO('i2','0', dims[g_m])
@@ -1188,7 +1188,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
     code('')
     code('numberOfOpDats = '+str(nargs))
@@ -1214,7 +1214,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT = opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2HOST')
             ENDIF()
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           IF('(calledTimes.EQ.0).OR.(direct_stride_OP2HOST.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
           code('direct_stride_OP2HOST = getSetSizeFromOpArg(opArg'+str(dir_soa+1)+')')
           code('direct_stride_OP2CONSTANT = direct_stride_OP2HOST')
@@ -1486,7 +1486,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           else:
-            print 'Error, reduction type '+typs[g_m]+' unrecognised'
+            print('Error, reduction type '+typs[g_m]+' unrecognised')
           code('')
           if optflags[g_m] == 1:
             ENDIF()

@@ -207,7 +207,7 @@ def op2_gen_mpiseq(master, date, consts, kernels, hydra):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 

@@ -163,7 +163,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -239,8 +239,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     i = p.search(kernel_text).start()
 
     if(i < 0):
-      print "\n********"
-      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+      print("\n********")
+      print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
       exit(2)
     i2 = i
 
@@ -259,7 +259,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments'
+        print('Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments')
         return
 
     for i in range(0,nargs_novec):
@@ -353,7 +353,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
         code('<TYP> <ARG>_l[<DIM>];')
         if accs[g_m] == OP_INC:
           FOR('d','0','<DIM>')
@@ -506,7 +506,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       code('')
       for g_m in range (0,nargs):
-        if accs[g_m] <> OP_INC: #TODO: add opt handling here
+        if accs[g_m] != OP_INC: #TODO: add opt handling here
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
             if accs[g_m] == OP_READ:
@@ -654,7 +654,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'<ARG>+n*<DIM>,\n',m)
           a =a+1
       else:
-        print 'internal error 1 '
+        print('internal error 1 ')
 
     code(line[0:-2]+');') #remove final ',' and \n
 
@@ -769,7 +769,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
@@ -778,7 +778,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
            elif accs[m]==OP_MAX:
              code('op_reduction<OP_MAX>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
            else:
-             print 'internal error: invalid reduction option'
+             print('internal error: invalid reduction option')
              sys.exit(2);
            ENDFOR()
     depth -= 2
@@ -844,7 +844,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code('optflags |= 1<<'+str(optidxs[i])+';')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 #
 # start timing
 #
@@ -949,7 +949,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
             code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
           code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
           code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
@@ -987,7 +987,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int reduct_size  = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
 
@@ -995,7 +995,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
           FOR('b','0','maxblocks')
@@ -1172,7 +1172,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+        if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
           FOR('b','0','maxblocks')
           FOR('d','0','<DIM>')
           if accs[m]==OP_INC:
@@ -1219,7 +1219,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -1261,7 +1261,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     if consts[nc]['dim']==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda;')
     else:
-      if consts[nc]['dim'] > 0:
+      if consts[nc]['dim'].isdigit() and int(consts[nc]['dim']) > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
@@ -1286,9 +1286,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   code('if (!OP_hybrid_gpu) return;')
   for nc in range(0,len(consts)):
     IF('!strcmp(name,"'+consts[nc]['name']+'")')
-    if consts[nc]['dim'] < 0:
-      IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE) {')
-      code('printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);')
+    if not consts[nc]['dim'] or int(consts[nc]['dim']) > 1:
+      IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE')
+      code('printf("error: MAX_CONST_SIZE not big enough\\n"); exit(1);')
       ENDIF()
     code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*size));')
     ENDIF()

@@ -265,7 +265,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -356,7 +356,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
           #if there is a nested macro, bail
           l = i+text[i:].find('#if')
           if l>i and l < k:
-            print 'Nested macro in '+name+'prevents parsing for vectorization'
+            print('Nested macro in '+name+'prevents parsing for vectorization')
             exit(-1)
           #otherwise remove the body
           if j>i and j<k:
@@ -369,7 +369,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
           i = text.find('#ifdef COMPLEX')
           
         res=re.search('\\bcall\\b',text)
-        if res <> None:
+        if res != None:
           funcall_in_kernel = 1
 
         kernel_text = text
@@ -390,7 +390,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         else:
           code('#define VECTORIZE')
       else:
-        print 'Function call in '+name+' prevents vectorisation - disabled for this kernel'
+        print('Function call in '+name+' prevents vectorisation - disabled for this kernel')
 #
 # Modified vectorisable version if its an indirect kernel
 # - direct kernels can be vectorised without modification
@@ -403,8 +403,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         i = p.search(kernel_text).start()
 
         if(i < 0):
-          print "\n********"
-          print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+          print("\n********")
+          print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
           exit(2)
         i2 = i
         j = kernel_text[i:].find('(')
@@ -441,10 +441,10 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         bl_idx = 0
         while bl_idx < len(body_lines):
           bl = body_lines[bl_idx].strip()
-          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) <> None and \
+          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) != None and \
                   re.search(r'\b'+typestr+r'\b',bl.lower()).start()==0) for typestr in typestr_list):
             #concatenate lines
-            while bl.find('&') <> -1: #TODO: commented out &?
+            while bl.find('&') != -1: #TODO: commented out &?
               bl_idx = bl_idx + 1
               if body_lines[bl_idx].strip().find('#') == 0:
                 bl_idx = bl_idx + 1
@@ -463,7 +463,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
           else:
             current_type = ''
 
-          if current_type <> '':
+          if current_type != '':
             last_bl_idx=bl_idx
             idx = len(current_type)
             prev_idx = len(current_type)
@@ -500,7 +500,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         for i in range(0,len(varlist)):
           for j in range(0,len(para)):
             if (not para[j] == 'DIRECT') and (not re.search(r'\b'+para[j]+r'\b', varlist[i]) == None):
-              if dimlist[i] <> '':
+              if dimlist[i] != '':
                 dimsstr=dimlist[i]
               elif j in needDimList:
                 dimsstr = '*'
@@ -524,9 +524,9 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         bl_idx = 0
         while bl_idx < len(body_lines):
           bl = body_lines[bl_idx].strip()
-          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) <> None and \
+          if any((re.search(r'\b'+typestr+r'\b',bl.lower()) != None and \
                   re.search(r'\b'+typestr+r'\b',bl.lower()).start()==0) for typestr in typestr_list):
-            while bl.find('&') <> -1: #TODO: commented out &?
+            while bl.find('&') != -1: #TODO: commented out &?
               bl_idx = bl_idx + 1
               if body_lines[bl_idx].strip().find('#') == 0:
                 bl_idx = bl_idx + 1
@@ -595,8 +595,8 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         i = p.search(kernel_text).start()
 
         if(i < 0):
-          print "\n********"
-          print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+          print("\n********")
+          print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
           exit(2)
         i2 = i
         j = kernel_text[i:].find('(')
@@ -613,7 +613,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         depth = depth + 2
         code('!dir$ attributes vector :: '+name+'_vec')
         code('IMPLICIT NONE')
-        print needDimList
+        print(needDimList)
         for g_m in range(0,nargs):
           if g_m in needDimList:
             dimsstr = '*'
@@ -644,7 +644,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         code('& opDat'+str(invinds[g_m]+1)+'Dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -666,7 +666,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
       else:
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',*)')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
@@ -902,7 +902,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
             line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
           elif dims[g_m].isdigit() and eval(dims[g_m]) == 1:
             line = line + indent +'& dat'+str(g_m+1)+'(i2)'
-          elif accs[g_m] <> OP_READ:
+          elif accs[g_m] != OP_READ:
             line = line + indent +'& dat'+str(g_m+1)+'('+dims[g_m]+\
               '*(i2-1)+1:'+dims[g_m]+'*(i2-1)+'+dims[g_m]+')'
         if g_m < nargs-1:
@@ -1038,7 +1038,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
           code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
 
     code('')
@@ -1087,7 +1087,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
           code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
         code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_MAP:
+        if maps[g_m] != OP_MAP:
           if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
           code('& opDat'+str(g_m+1)+'Local, &')
@@ -1108,7 +1108,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
         code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('& opArg'+str(g_m+1)+'%dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -1170,7 +1170,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
       names = []
       for g_m in range(0,ninds):
         mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+        if indaccs[g_m] != OP_WRITE and indaccs[g_m] != OP_READ:
           mult = ' * 2.d0'
         if not var[invinds[g_m]] in names:
           if optflags[invinds[g_m]] == 1:
@@ -1181,7 +1181,7 @@ def op2_gen_mpivec(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
       for g_m in range(0,nargs):
         mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+        if accs[g_m] != OP_WRITE and accs[g_m] != OP_READ:
           mult = ' * 2.d0'
         if not var[g_m] in names:
           if optflags[g_m] == 1:
