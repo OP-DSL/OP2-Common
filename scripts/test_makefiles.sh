@@ -8,6 +8,9 @@
 #application executions.
 set -e
 
+#set python3 as default
+alias python=python3
+
 function validate {
   $1 > perf_out
   echo

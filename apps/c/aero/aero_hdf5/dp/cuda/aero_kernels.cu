@@ -49,30 +49,51 @@ int size, char *dat, char const *name){
   }
   else
   if (!strcmp(name,"wtg1")) {
+    if (!strcmp(name,"wtg1") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(wtg1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"xi1")) {
+    if (!strcmp(name,"xi1") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(xi1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng1")) {
+    if (!strcmp(name,"Ng1") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(Ng1_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng1_xi")) {
+    if (!strcmp(name,"Ng1_xi") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(Ng1_xi_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"wtg2")) {
+    if (!strcmp(name,"wtg2") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(wtg2_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng2")) {
+    if (!strcmp(name,"Ng2") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(Ng2_cuda, dat, dim*size));
   }
   else
   if (!strcmp(name,"Ng2_xi")) {
+    if (!strcmp(name,"Ng2_xi") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(Ng2_xi_cuda, dat, dim*size));
   }
   else
