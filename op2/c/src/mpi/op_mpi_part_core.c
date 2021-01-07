@@ -3326,7 +3326,7 @@ void op_partition_inertial(op_dat x_dat) {
       op_free(x);
       op_free(global_indices);
       x = (double *)xrealloc(
-          x_keep, (keep_ctr + size_0 + size_1) * 3 *
+          x_keep, (keep_ctr + size_0 + size_1 + 1) * 3 *
                       sizeof(double)); // Implicitly assign x = x_keep
       global_indices = (int *)xrealloc(
           idx_gbl_keep,
