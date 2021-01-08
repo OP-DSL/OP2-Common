@@ -75,7 +75,6 @@ res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
   res1[3][idx] = f;
   res2[3][idx] -= f;
-
 }
 #endif
 

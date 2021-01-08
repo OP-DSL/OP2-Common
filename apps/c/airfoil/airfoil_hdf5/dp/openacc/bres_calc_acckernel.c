@@ -20,10 +20,11 @@ inline void bres_calc_openacc( const double *x1, const double *x2, const double 
 
   ri = 1.0f / q1[(0) * opDat2_bres_calc_stride_OP2CONSTANT];
   p1 = gm1 * (q1[(3) * opDat2_bres_calc_stride_OP2CONSTANT] -
-              0.5f * ri * (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] *
-                               q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
-                           q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] *
-                               q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT]));
+              0.5f * ri *
+                  (q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                       q1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] +
+                   q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT] *
+                       q1[(2) * opDat2_bres_calc_stride_OP2CONSTANT]));
 
   if (*bound == 1) {
     res1[(1) * opDat2_bres_calc_stride_OP2CONSTANT] += +p1 * dy;

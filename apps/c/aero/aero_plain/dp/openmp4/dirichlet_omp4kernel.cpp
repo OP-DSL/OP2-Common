@@ -3,11 +3,14 @@
 //
 
 //user function
+int opDat0_dirichlet_stride_OP2CONSTANT;
+int opDat0_dirichlet_stride_OP2HOST = -1;
 //user function
 
 void dirichlet_omp4_kernel(int *map0, int map0size, double *data0, int dat0size,
                            int *col_reord, int set_size1, int start, int end,
-                           int num_teams, int nthread);
+                           int num_teams, int nthread,
+                           int opDat0_dirichlet_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_dirichlet(char const *name, op_set set,
@@ -52,6 +55,12 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
   if (set_size > 0) {
 
+    if ((OP_kernels[1].count == 1) ||
+        (opDat0_dirichlet_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      opDat0_dirichlet_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      opDat0_dirichlet_stride_OP2CONSTANT = opDat0_dirichlet_stride_OP2HOST;
+    }
+
     //Set up typed device pointers for OpenMP
     int *map0 = arg0.map_data_d;
      int map0size = arg0.map->dim * set_size1;
@@ -75,7 +84,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
                             set_size1, start, end,
                             part_size != 0 ? (end - start - 1) / part_size + 1
                                            : (end - start - 1) / nthread,
-                            nthread);
+                            nthread, opDat0_dirichlet_stride_OP2CONSTANT);
     }
     OP_kernels[1].transfer  += Plan->transfer;
     OP_kernels[1].transfer2 += Plan->transfer2;
