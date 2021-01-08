@@ -73,7 +73,6 @@ void op_par_loop_dotPV(char const *name, op_set set,
       set->size,
       part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
       nthread);
-
   }
 
   // combine reduction data

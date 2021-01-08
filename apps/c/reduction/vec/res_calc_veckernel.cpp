@@ -16,7 +16,6 @@ inline void
 res_calc_vec(double data[][SIMD_VEC], int *count, int idx) {
   data[0][idx] = 0.0;
   (*count)++;
-
 }
 #endif
 

@@ -7,7 +7,8 @@ void save_soln_omp4_kernel(float *data0, int dat0size, float *data1,
                            int direct_save_soln_stride_OP2CONSTANT) {
 
 #pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
-    map(to : data0[0 : dat0size], data1[0 : dat1size])
+    map(to                                                                     \
+        : data0 [0:dat0size], data1 [0:dat1size])
 #pragma omp distribute parallel for schedule(static, 1)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
@@ -21,5 +22,4 @@ void save_soln_omp4_kernel(float *data0, int dat0size, float *data1,
           q[(n)*direct_save_soln_stride_OP2CONSTANT];
     //end inline func
   }
-
 }

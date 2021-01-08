@@ -79,7 +79,6 @@ bres_calc_vec(const float x1[][SIMD_VEC], const float x2[][SIMD_VEC],
         mu * (q1[3][idx] - qinf[3]);
     res1[3][idx] = f;
   }
-
 }
 #endif
 

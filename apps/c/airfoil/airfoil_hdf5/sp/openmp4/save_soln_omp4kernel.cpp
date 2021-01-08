@@ -65,7 +65,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
                             part_size != 0 ? (set->size - 1) / part_size + 1
                                            : (set->size - 1) / nthread,
                             nthread, direct_save_soln_stride_OP2CONSTANT);
-  }
+    }
 
   // combine reduction data
   op_mpi_set_dirtybit_cuda(nargs, args);

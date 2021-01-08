@@ -16,8 +16,9 @@ inline void adt_calc_openacc( const double *x1, const double *x2, const double *
   ri = 1.0f / q[(0) * direct_adt_calc_stride_OP2CONSTANT];
   u = ri * q[(1) * direct_adt_calc_stride_OP2CONSTANT];
   v = ri * q[(2) * direct_adt_calc_stride_OP2CONSTANT];
-  c = sqrt(gam * gm1 * (ri * q[(3) * direct_adt_calc_stride_OP2CONSTANT] -
-                        0.5f * (u * u + v * v)));
+  c = sqrt(gam * gm1 *
+           (ri * q[(3) * direct_adt_calc_stride_OP2CONSTANT] -
+            0.5f * (u * u + v * v)));
 
   dx = x2[(0) * opDat0_adt_calc_stride_OP2CONSTANT] -
        x1[(0) * opDat0_adt_calc_stride_OP2CONSTANT];
