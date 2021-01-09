@@ -60,7 +60,8 @@ void op_par_loop_update(char const *name, op_set set,
 
   double arg3_l = arg3h[0];
 
-  if (set_size > 0) {
+  if (set_size >0) {
+
 
     //Set up typed device pointers for OpenMP
 
@@ -81,6 +82,7 @@ void op_par_loop_update(char const *name, op_set set,
       set->size,
       part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
       nthread);
+
   }
 
   // combine reduction data

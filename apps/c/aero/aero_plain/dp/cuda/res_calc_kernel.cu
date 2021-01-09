@@ -3,15 +3,15 @@
 //
 
 __constant__ int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST = -1;
+int opDat0_res_calc_stride_OP2HOST=-1;
 __constant__ int direct_res_calc_stride_OP2CONSTANT;
-int direct_res_calc_stride_OP2HOST = -1;
+int direct_res_calc_stride_OP2HOST=-1;
 //user function
 __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
                       double **res) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
-      K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] = 0;
+      K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
     }
   }
   for (int i = 0; i < 4; i++) {
@@ -20,15 +20,13 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi_cuda[4 * i + 16 + m] *
-                  x[m][(1) * opDat0_res_calc_stride_OP2CONSTANT];
+      det_x_xi += Ng2_xi_cuda[4 * i + 16 + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[m] = det_x_xi * Ng2_xi_cuda[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi_cuda[4 * i + m] *
-           x[m][(0) * opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] = a * Ng2_xi_cuda[4 * i + 16 + m];
 
@@ -36,15 +34,13 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi_cuda[4 * i + m] *
-           x[m][(1) * opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[m] -= a * Ng2_xi_cuda[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi_cuda[4 * i + 16 + m] *
-           x[m][(0) * opDat0_res_calc_stride_OP2CONSTANT];
+      b += Ng2_xi_cuda[4 * i + 16 + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] -= b * Ng2_xi_cuda[4 * i + m];
 
@@ -71,7 +67,7 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
     }
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] +=
+        K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] +=
             wt1 * rho * (N_x[j] * N_x[k] + N_x[4 + j] * N_x[4 + k]) -
             wt1 * rc2 * (u[0] * N_x[j] + u[1] * N_x[4 + j]) *
                 (u[0] * N_x[k] + u[1] * N_x[4 + k]);
@@ -129,8 +125,11 @@ __global__ void op_cuda_res_calc(
     map1idx = opDat0Map[n + set_size * 1];
     map2idx = opDat0Map[n + set_size * 2];
     map3idx = opDat0Map[n + set_size * 3];
-    const double *arg0_vec[] = {&ind_arg0[map0idx], &ind_arg0[map1idx],
-                                &ind_arg0[map2idx], &ind_arg0[map3idx]};
+    const double* arg0_vec[] = {
+       &ind_arg0[map0idx],
+       &ind_arg0[map1idx],
+       &ind_arg0[map2idx],
+       &ind_arg0[map3idx]};
     const double* arg4_vec[] = {
        &ind_arg1[1 * map0idx],
        &ind_arg1[1 * map1idx],
@@ -143,7 +142,10 @@ __global__ void op_cuda_res_calc(
        &ind_arg2[1 * map3idx]};
 
     //user-supplied kernel call
-    res_calc_gpu(arg0_vec, arg4_vec, arg8 + n, arg9_vec);
+    res_calc_gpu(arg0_vec,
+             arg4_vec,
+             arg8+n,
+             arg9_vec);
     atomicAdd(&ind_arg2[0+map0idx*1],arg9_l[0]);
     atomicAdd(&ind_arg2[0+map1idx*1],arg10_l[0]);
     atomicAdd(&ind_arg2[0+map2idx*1],arg11_l[0]);
@@ -199,17 +201,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set_size > 0) {
 
-    if ((OP_kernels[0].count == 1) ||
-        (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      cudaMemcpyToSymbol(opDat0_res_calc_stride_OP2CONSTANT,
-                         &opDat0_res_calc_stride_OP2HOST, sizeof(int));
+      cudaMemcpyToSymbol(opDat0_res_calc_stride_OP2CONSTANT, &opDat0_res_calc_stride_OP2HOST,sizeof(int));
     }
-    if ((OP_kernels[0].count == 1) ||
-        (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
+    if ((OP_kernels[0].count==1) || (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
       direct_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg8);
-      cudaMemcpyToSymbol(direct_res_calc_stride_OP2CONSTANT,
-                         &direct_res_calc_stride_OP2HOST, sizeof(int));
+      cudaMemcpyToSymbol(direct_res_calc_stride_OP2CONSTANT,&direct_res_calc_stride_OP2HOST,sizeof(int));
     }
     //set CUDA execution parameters
     #ifdef OP_BLOCK_SIZE_0

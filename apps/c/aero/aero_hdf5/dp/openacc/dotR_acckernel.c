@@ -35,7 +35,8 @@ void op_par_loop_dotR(char const *name, op_set set,
 
   double arg1_l = arg1h[0];
 
-  if (set_size > 0) {
+  if (set_size >0) {
+
 
     //Set up typed device pointers for OpenACC
 

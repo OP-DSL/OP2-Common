@@ -34,6 +34,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
       int map0idx;
       map0idx = arg0.map_data[n * arg0.map->dim + 0];
 
+
       dirichlet(
         &((double*)arg0.data)[1 * map0idx]);
     }
