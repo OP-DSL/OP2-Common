@@ -9,13 +9,27 @@ int direct_res_calc_stride_OP2CONSTANT;
 int direct_res_calc_stride_OP2HOST=-1;
 //user function
 
-void res_calc_omp4_kernel(int *map0, int map0size, double *data8, int dat8size,
-                          double *data0, int dat0size, double *data4,
-                          int dat4size, double *data9, int dat9size,
-                          double *data13, int dat13size, int *col_reord,
-                          int set_size1, int start, int end, int num_teams,
-                          int nthread, int opDat0_res_calc_stride_OP2CONSTANT,
-                          int direct_res_calc_stride_OP2CONSTANT, int optflags);
+void res_calc_omp4_kernel(
+  int *map0,
+  int map0size,
+  double *data8,
+  int dat8size,
+  double *data0,
+  int dat0size,
+  double *data4,
+  int dat4size,
+  double *data9,
+  int dat9size,
+  double *data13,
+  int dat13size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread,
+  int opDat0_res_calc_stride_OP2CONSTANT,
+  int direct_res_calc_stride_OP2CONSTANT, int optflags);
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
@@ -55,31 +69,31 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int optflags = 0;
   if (args[8].opt) {
-    optflags |= 1 << 0;
+    optflags |= 1<<0;
   }
   if (args[9].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[10].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[11].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[12].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[13].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[14].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[15].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[16].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
 
   // initialise timers
@@ -114,7 +128,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int ncolors = 0;
   int set_size1 = set->size + set->exec_size;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
     if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -152,13 +166,29 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      res_calc_omp4_kernel(map0, map0size, data8, dat8size, data0, dat0size,
-                           data4, dat4size, data9, dat9size, data13, dat13size,
-                           col_reord, set_size1, start, end,
-                           part_size != 0 ? (end - start - 1) / part_size + 1
-                                          : (end - start - 1) / nthread,
-                           nthread, opDat0_res_calc_stride_OP2CONSTANT,
-                           direct_res_calc_stride_OP2CONSTANT, optflags);
+      res_calc_omp4_kernel(
+        map0,
+        map0size,
+        data8,
+        dat8size,
+        data0,
+        dat0size,
+        data4,
+        dat4size,
+        data9,
+        dat9size,
+        data13,
+        dat13size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread,
+        opDat0_res_calc_stride_OP2CONSTANT,
+        direct_res_calc_stride_OP2CONSTANT,
+        optflags);
+
     }
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;

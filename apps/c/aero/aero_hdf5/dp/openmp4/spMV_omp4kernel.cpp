@@ -82,7 +82,7 @@ void op_par_loop_spMV(char const *name, op_set set,
   int ncolors = 0;
   int set_size1 = set->size + set->exec_size;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
     if ((OP_kernels[3].count==1) || (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg0);

@@ -4,17 +4,28 @@
 
 //user function
 int opDat0_spMV_stride_OP2CONSTANT;
-int opDat0_spMV_stride_OP2HOST = -1;
+int opDat0_spMV_stride_OP2HOST=-1;
 int direct_spMV_stride_OP2CONSTANT;
-int direct_spMV_stride_OP2HOST = -1;
+int direct_spMV_stride_OP2HOST=-1;
 //user function
 
-void spMV_omp4_kernel(int *map0, int map0size, double *data4, int dat4size,
-                      double *data0, int dat0size, double *data5, int dat5size,
-                      int *col_reord, int set_size1, int start, int end,
-                      int num_teams, int nthread,
-                      int opDat0_spMV_stride_OP2CONSTANT,
-                      int direct_spMV_stride_OP2CONSTANT);
+void spMV_omp4_kernel(
+  int *map0,
+  int map0size,
+  double *data4,
+  int dat4size,
+  double *data0,
+  int dat0size,
+  double *data5,
+  int dat5size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread,
+  int opDat0_spMV_stride_OP2CONSTANT,
+  int direct_spMV_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_spMV(char const *name, op_set set,
@@ -71,15 +82,13 @@ void op_par_loop_spMV(char const *name, op_set set,
   int ncolors = 0;
   int set_size1 = set->size + set->exec_size;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[3].count == 1) ||
-        (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[3].count==1) || (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       opDat0_spMV_stride_OP2CONSTANT = opDat0_spMV_stride_OP2HOST;
     }
-    if ((OP_kernels[3].count == 1) ||
-        (direct_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
+    if ((OP_kernels[3].count==1) || (direct_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
       direct_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg4);
       direct_spMV_stride_OP2CONSTANT = direct_spMV_stride_OP2HOST;
     }
@@ -107,12 +116,24 @@ void op_par_loop_spMV(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      spMV_omp4_kernel(map0, map0size, data4, dat4size, data0, dat0size, data5,
-                       dat5size, col_reord, set_size1, start, end,
-                       part_size != 0 ? (end - start - 1) / part_size + 1
-                                      : (end - start - 1) / nthread,
-                       nthread, opDat0_spMV_stride_OP2CONSTANT,
-                       direct_spMV_stride_OP2CONSTANT);
+      spMV_omp4_kernel(
+        map0,
+        map0size,
+        data4,
+        dat4size,
+        data0,
+        dat0size,
+        data5,
+        dat5size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread,
+        opDat0_spMV_stride_OP2CONSTANT,
+        direct_spMV_stride_OP2CONSTANT);
+
     }
     OP_kernels[3].transfer  += Plan->transfer;
     OP_kernels[3].transfer2 += Plan->transfer2;

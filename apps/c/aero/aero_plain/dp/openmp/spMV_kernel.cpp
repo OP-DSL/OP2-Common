@@ -31,8 +31,8 @@ void op_par_loop_spMV(char const *name, op_set set,
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(3);
-  OP_kernels[3].name = name;
-  OP_kernels[3].count += 1;
+  OP_kernels[3].name      = name;
+  OP_kernels[3].count    += 1;
   op_timers_core(&cpu_t1, &wall_t1);
 
   int  ninds   = 2;
@@ -51,7 +51,7 @@ void op_par_loop_spMV(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
     op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);
 
