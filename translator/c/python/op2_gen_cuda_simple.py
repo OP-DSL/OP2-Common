@@ -109,7 +109,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   inc_stage=0
   op_color2=0
   op_color2_force=0
-  atomics=1
+  atomics=0
 ##########################################################################
 #  create new kernel file
 ##########################################################################

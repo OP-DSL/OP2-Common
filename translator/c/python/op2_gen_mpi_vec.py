@@ -139,6 +139,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         j = i
     indirect_kernel = j >= 0
 
+    if nargs != nargs_novec:
+      return
 ####################################################################################
 #  generate the user kernel function - creating versions for vectorisation as needed
 ####################################################################################

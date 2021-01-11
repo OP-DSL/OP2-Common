@@ -52,8 +52,13 @@ __global__ void op_cuda_spMV(
   const double *__restrict ind_arg1,
   const int *__restrict opDat0Map,
   const double *__restrict arg4,
-  int start,
-  int end,
+  int    block_offset,
+  int   *blkmap,
+  int   *offset,
+  int   *nelems,
+  int   *ncolors,
+  int   *colors,
+  int   nblocks,
   int   set_size) {
   double arg0_l[1];
   double arg1_l[1];
@@ -65,53 +70,83 @@ __global__ void op_cuda_spMV(
     arg2_l,
     arg3_l,
   };
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (tid + start < end) {
-    int n = tid + start;
-    //initialise local variables
-    double arg0_l[1];
-    for ( int d=0; d<1; d++ ){
-      arg0_l[d] = ZERO_double;
-    }
-    double arg1_l[1];
-    for ( int d=0; d<1; d++ ){
-      arg1_l[d] = ZERO_double;
-    }
-    double arg2_l[1];
-    for ( int d=0; d<1; d++ ){
-      arg2_l[d] = ZERO_double;
-    }
-    double arg3_l[1];
-    for ( int d=0; d<1; d++ ){
-      arg3_l[d] = ZERO_double;
-    }
+
+  __shared__ int    nelems2, ncolor;
+  __shared__ int    nelem, offset_b;
+
+  extern __shared__ char shared[];
+
+  if (blockIdx.x+blockIdx.y*gridDim.x >= nblocks) {
+    return;
+  }
+  if (threadIdx.x==0) {
+
+    //get sizes and shift pointers and direct-mapped data
+
+    int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];
+
+    nelem    = nelems[blockId];
+    offset_b = offset[blockId];
+
+    nelems2  = blockDim.x*(1+(nelem-1)/blockDim.x);
+    ncolor   = ncolors[blockId];
+
+  }
+  __syncthreads(); // make sure all of above completed
+
+  for ( int n=threadIdx.x; n<nelems2; n+=blockDim.x ){
+    int col2 = -1;
     int map0idx;
     int map1idx;
     int map2idx;
     int map3idx;
-    map0idx = opDat0Map[n + set_size * 0];
-    map1idx = opDat0Map[n + set_size * 1];
-    map2idx = opDat0Map[n + set_size * 2];
-    map3idx = opDat0Map[n + set_size * 3];
-    double* arg0_vec[] = {
-       &ind_arg0[1 * map0idx],
-       &ind_arg0[1 * map1idx],
-       &ind_arg0[1 * map2idx],
-       &ind_arg0[1 * map3idx]};
-    const double* arg5_vec[] = {
-       &ind_arg1[1 * map0idx],
-       &ind_arg1[1 * map1idx],
-       &ind_arg1[1 * map2idx],
-       &ind_arg1[1 * map3idx]};
+    if (n<nelem) {
+      //initialise local variables
+      for ( int d=0; d<1; d++ ){
+        arg0_l[d] = ZERO_double;
+      }
+      for ( int d=0; d<1; d++ ){
+        arg1_l[d] = ZERO_double;
+      }
+      for ( int d=0; d<1; d++ ){
+        arg2_l[d] = ZERO_double;
+      }
+      for ( int d=0; d<1; d++ ){
+        arg3_l[d] = ZERO_double;
+      }
+      map0idx = opDat0Map[n + offset_b + set_size * 0];
+      map1idx = opDat0Map[n + offset_b + set_size * 1];
+      map2idx = opDat0Map[n + offset_b + set_size * 2];
+      map3idx = opDat0Map[n + offset_b + set_size * 3];
 
-    //user-supplied kernel call
-    spMV_gpu(arg0_vec,
-         arg4+n,
+      const double* arg5_vec[] = {
+         &ind_arg1[1 * map0idx],
+         &ind_arg1[1 * map1idx],
+         &ind_arg1[1 * map2idx],
+         &ind_arg1[1 * map3idx]};
+
+      //user-supplied kernel call
+      spMV_gpu(arg0_vec,
+         arg4+(n+offset_b),
          arg5_vec);
-    atomicAdd(&ind_arg0[0+map0idx*1],arg0_l[0]);
-    atomicAdd(&ind_arg0[0+map1idx*1],arg1_l[0]);
-    atomicAdd(&ind_arg0[0+map2idx*1],arg2_l[0]);
-    atomicAdd(&ind_arg0[0+map3idx*1],arg3_l[0]);
+      col2 = colors[n+offset_b];
+    }
+
+    //store local variables
+
+    for ( int col=0; col<ncolor; col++ ){
+      if (col2==col) {
+        arg0_l[0] += ind_arg0[0+map0idx*1];
+        ind_arg0[0+map0idx*1] = arg0_l[0];
+        arg1_l[0] += ind_arg0[0+map1idx*1];
+        ind_arg0[0+map1idx*1] = arg1_l[0];
+        arg2_l[0] += ind_arg0[0+map2idx*1];
+        ind_arg0[0+map2idx*1] = arg2_l[0];
+        arg3_l[0] += ind_arg0[0+map3idx*1];
+        ind_arg0[0+map3idx*1] = arg3_l[0];
+      }
+      __syncthreads();
+    }
   }
 }
 
@@ -153,8 +188,18 @@ void op_par_loop_spMV(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: spMV\n");
   }
+
+  //get plan
+  #ifdef OP_PART_SIZE_3
+    int part_size = OP_PART_SIZE_3;
+  #else
+    int part_size = OP_part_size;
+  #endif
+
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set_size > 0) {
+
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     if ((OP_kernels[3].count==1) || (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -164,29 +209,41 @@ void op_par_loop_spMV(char const *name, op_set set,
       direct_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg4);
       cudaMemcpyToSymbol(direct_spMV_stride_OP2CONSTANT,&direct_spMV_stride_OP2HOST,sizeof(int));
     }
-    //set CUDA execution parameters
-    #ifdef OP_BLOCK_SIZE_3
-      int nthread = OP_BLOCK_SIZE_3;
-    #else
-      int nthread = OP_block_size;
-    #endif
+    //execute plan
 
-    for ( int round=0; round<2; round++ ){
-      if (round==1) {
+    int block_offset = 0;
+    for ( int col=0; col<Plan->ncolors; col++ ){
+      if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
       }
-      int start = round==0 ? 0 : set->core_size;
-      int end = round==0 ? set->core_size : set->size + set->exec_size;
-      if (end-start>0) {
-        int nblocks = (end-start-1)/nthread+1;
+      #ifdef OP_BLOCK_SIZE_3
+      int nthread = OP_BLOCK_SIZE_3;
+      #else
+      int nthread = OP_block_size;
+      #endif
+
+      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
+      Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
+      if (Plan->ncolblk[col] > 0) {
         op_cuda_spMV<<<nblocks,nthread>>>(
         (double *)arg0.data_d,
         (double *)arg5.data_d,
         arg0.map_data_d,
         (double*)arg4.data_d,
-        start,end,set->size+set->exec_size);
+        block_offset,
+        Plan->blkmap,
+        Plan->offset,
+        Plan->nelems,
+        Plan->nthrcol,
+        Plan->thrcol,
+        Plan->ncolblk[col],
+        set->size+set->exec_size);
+
       }
+      block_offset += Plan->ncolblk[col];
     }
+    OP_kernels[3].transfer  += Plan->transfer;
+    OP_kernels[3].transfer2 += Plan->transfer2;
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
   cutilSafeCall(cudaDeviceSynchronize());
