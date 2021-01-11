@@ -457,6 +457,7 @@ int op_free_dat_temp_core(op_dat dat) {
       free((char *)(item->dat)->name);
       free((char *)(item->dat)->type);
       TAILQ_REMOVE(&OP_dat_list, item, entries);
+      free(item->dat);          
       free(item);
       success = 1;
       break;
