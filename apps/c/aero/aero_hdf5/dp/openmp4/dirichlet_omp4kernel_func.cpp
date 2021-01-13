@@ -12,8 +12,7 @@ void dirichlet_omp4_kernel(
   int start,
   int end,
   int num_teams,
-  int nthread,
-  int opDat0_dirichlet_stride_OP2CONSTANT){
+  int nthread){
 
   #pragma omp target teams num_teams(num_teams) thread_limit(nthread) \
     map(to:col_reord[0:set_size1],map0[0:map0size],data0[0:dat0size])

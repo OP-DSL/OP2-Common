@@ -3,17 +3,13 @@
 //
 
 //user function
-int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST=-1;
-int direct_res_calc_stride_OP2CONSTANT;
-int direct_res_calc_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void res_calc_openacc( const double **x, const double **phim, double *K,
                       double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
-      K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
+      K[j * 4 + k] = 0;
     }
   }
   for (int i = 0; i < 4; i++) {
@@ -22,13 +18,13 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
+      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][1];
     for (int m = 0; m < 4; m++)
       N_x[m] = det_x_xi * Ng2_xi[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi[4 * i + m] * x[m][0];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] = a * Ng2_xi[4 * i + 16 + m];
 
@@ -36,13 +32,13 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][(1)*opDat0_res_calc_stride_OP2CONSTANT];
+      a += Ng2_xi[4 * i + m] * x[m][1];
     for (int m = 0; m < 4; m++)
       N_x[m] -= a * Ng2_xi[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi[4 * i + 16 + m] * x[m][(0)*opDat0_res_calc_stride_OP2CONSTANT];
+      b += Ng2_xi[4 * i + 16 + m] * x[m][0];
     for (int m = 0; m < 4; m++)
       N_x[4 + m] -= b * Ng2_xi[4 * i + m];
 
@@ -69,7 +65,7 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
     }
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] +=
+        K[j * 4 + k] +=
             wt1 * rho * (N_x[j] * N_x[k] + N_x[4 + j] * N_x[4 + k]) -
             wt1 * rc2 * (u[0] * N_x[j] + u[1] * N_x[4 + j]) *
                 (u[0] * N_x[k] + u[1] * N_x[4 + k]);
@@ -171,14 +167,6 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set_size >0) {
 
-    if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
-      opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      opDat0_res_calc_stride_OP2CONSTANT = opDat0_res_calc_stride_OP2HOST;
-    }
-    if ((OP_kernels[0].count==1) || (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
-      direct_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg8);
-      direct_res_calc_stride_OP2CONSTANT = direct_res_calc_stride_OP2HOST;
-    }
 
     //Set up typed device pointers for OpenACC
     int *map0 = arg0.map_data_d;
@@ -215,10 +203,10 @@ void op_par_loop_res_calc(char const *name, op_set set,
         map3idx = map0[n + set_size1 * 3];
 
         const double* arg0_vec[] = {
-           &data0[map0idx],
-           &data0[map1idx],
-           &data0[map2idx],
-           &data0[map3idx]};
+           &data0[2 * map0idx],
+           &data0[2 * map1idx],
+           &data0[2 * map2idx],
+           &data0[2 * map3idx]};
         const double* arg4_vec[] = {
            &data4[1 * map0idx],
            &data4[1 * map1idx],
@@ -230,15 +218,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
            &data9[1 * map2idx],
            &data9[1 * map3idx]};
         double* arg13_vec[] = {
-           &data13[map0idx],
-           &data13[map1idx],
-           &data13[map2idx],
-           &data13[map3idx]};
+           &data13[2 * map0idx],
+           &data13[2 * map1idx],
+           &data13[2 * map2idx],
+           &data13[2 * map3idx]};
 
         res_calc_openacc(
           arg0_vec,
           arg4_vec,
-          &data8[n],
+          &data8[16 * n],
           arg9_vec,
           arg13_vec);
       }

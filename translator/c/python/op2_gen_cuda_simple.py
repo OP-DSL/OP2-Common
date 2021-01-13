@@ -115,7 +115,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #Optimization settings
     inc_stage=0
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \

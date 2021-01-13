@@ -58,7 +58,6 @@ void op_par_loop_dotPV(char const *name, op_set set,
 
   if (set_size >0) {
 
-
     //Set up typed device pointers for OpenMP
 
     double* data0 = (double*)arg0.data_d;
