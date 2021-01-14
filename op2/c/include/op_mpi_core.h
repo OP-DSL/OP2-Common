@@ -358,9 +358,6 @@ void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1,
                    double *dtheta2, double *alpha);
 
 void op_move_to_device();
-#ifdef __cplusplus
-}
-#endif
 
 /*******************************************************************************
 * External functions defined in op_mpi_(cuda)_rt_support.c
@@ -377,5 +374,8 @@ void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, 
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
 void op_download_buffer_sync();
 void op_scatter_sync();
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __OP_MPI_CORE_H */
