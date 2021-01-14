@@ -522,7 +522,7 @@ int main(int argc, char **argv) {
       op_printf("\n\nTest problem with %d nodes is within %3.15E %% of the "
                 "expected solution\n",
                 op_get_size(nodes), diff);
-      if (diff < 0.001) {
+      if (diff < 0.02) {
         op_printf("This test is considered PASSED\n");
       } else {
         op_printf("This test is considered FAILED\n");

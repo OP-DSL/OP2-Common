@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
     if (iter % niter ==
         0) { //&& ncell == 720000) { // defailt mesh -- for validation testing
       float diff = fabs((100.0 * (rms / 0.0000005644214176463586)) - 100.0);
-      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
+      op_printf("\n\nTest problem with %d nodes is within %3.15E %% of the "
                 "expected solution\n",
                 op_get_size(nodes), diff);
       if (diff < 0.02) {

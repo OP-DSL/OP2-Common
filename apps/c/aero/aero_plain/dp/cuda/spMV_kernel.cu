@@ -55,16 +55,6 @@ __global__ void op_cuda_spMV(
   int start,
   int end,
   int   set_size) {
-  double arg0_l[1];
-  double arg1_l[1];
-  double arg2_l[1];
-  double arg3_l[1];
-  double *arg0_vec[4] = {
-    arg0_l,
-    arg1_l,
-    arg2_l,
-    arg3_l,
-  };
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
@@ -93,11 +83,7 @@ __global__ void op_cuda_spMV(
     map1idx = opDat0Map[n + set_size * 1];
     map2idx = opDat0Map[n + set_size * 2];
     map3idx = opDat0Map[n + set_size * 3];
-    double* arg0_vec[] = {
-       &ind_arg0[1 * map0idx],
-       &ind_arg0[1 * map1idx],
-       &ind_arg0[1 * map2idx],
-       &ind_arg0[1 * map3idx]};
+    double *arg0_vec[] = {arg0_l, arg1_l, arg2_l, arg3_l};
     const double* arg5_vec[] = {
        &ind_arg1[1 * map0idx],
        &ind_arg1[1 * map1idx],

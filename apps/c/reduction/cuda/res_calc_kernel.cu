@@ -19,7 +19,6 @@ __global__ void op_cuda_res_calc(
   int start,
   int end,
   int   set_size) {
-  double arg0_l[4];
   int arg1_l[1];
   for ( int d=0; d<1; d++ ){
     arg1_l[d]=ZERO_int;

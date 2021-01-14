@@ -354,8 +354,8 @@ int main(int argc, char **argv) {
       float diff = fabs((100.0 * (rms / 0.0000005644214176463586)) - 100.0);
       op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
                 "expected solution\n",
-                720000, diff);
-      if (diff < 0.001) {
+                op_get_size(nodes), diff);
+      if (diff < 0.02) {
         op_printf("This test is considered PASSED\n");
       } else {
         op_printf("This test is considered FAILED\n");
