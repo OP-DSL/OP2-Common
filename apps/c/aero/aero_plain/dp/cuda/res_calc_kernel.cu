@@ -87,16 +87,6 @@ __global__ void op_cuda_res_calc(
   int start,
   int end,
   int   set_size) {
-  double arg9_l[1];
-  double arg10_l[1];
-  double arg11_l[1];
-  double arg12_l[1];
-  double *arg9_vec[4] = {
-    arg9_l,
-    arg10_l,
-    arg11_l,
-    arg12_l,
-  };
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
@@ -135,11 +125,7 @@ __global__ void op_cuda_res_calc(
        &ind_arg1[1 * map1idx],
        &ind_arg1[1 * map2idx],
        &ind_arg1[1 * map3idx]};
-    double* arg9_vec[] = {
-       &ind_arg2[1 * map0idx],
-       &ind_arg2[1 * map1idx],
-       &ind_arg2[1 * map2idx],
-       &ind_arg2[1 * map3idx]};
+    double *arg9_vec[] = {arg9_l, arg10_l, arg11_l, arg12_l};
 
     //user-supplied kernel call
     res_calc_gpu(arg0_vec,
