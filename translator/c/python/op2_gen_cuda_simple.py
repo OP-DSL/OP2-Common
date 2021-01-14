@@ -991,7 +991,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         FOR('col','0','Plan->ncolors')
         code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
         ENDFOR()
-      if atomics and ninds>0:
+      elif atomics and ninds>0:
         code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
       else:
         code('int maxblocks = nblocks;')
