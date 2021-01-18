@@ -3476,6 +3476,8 @@ void op_partition_inertial(op_dat x_dat) {
     }
   }
   MPI_Waitall(send_count, send_requests, send_statuses);
+  op_free(global_indices_recv);
+  op_free(global_indices);
   // Debugging: print partvecs to file
   /*FILE *file;
   char fname[64];
