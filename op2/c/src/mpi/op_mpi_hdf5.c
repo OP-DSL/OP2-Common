@@ -362,6 +362,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   free((char*)dset_props.type_str);
 
   op_map new_map = op_decl_map_core(from, to, dim, map, name);
+  free(map);
   new_map->user_managed = 0;
   return new_map;
 }
