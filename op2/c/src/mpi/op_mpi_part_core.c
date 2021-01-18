@@ -3330,7 +3330,7 @@ void op_partition_inertial(op_dat x_dat) {
                       sizeof(double)); // Implicitly assign x = x_keep
       global_indices = (int *)xrealloc(
           idx_gbl_keep,
-          (keep_ctr + size_0 + size_1) *
+          (keep_ctr + size_0 + size_1 + 1) *
               sizeof(int)); // Implicitly assign global_indices = idx_gbl_keep
       current_part_size = keep_ctr + size_0 + size_1;
 
