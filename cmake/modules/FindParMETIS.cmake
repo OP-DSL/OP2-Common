@@ -92,6 +92,7 @@ if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
   # Set flags for building test program
   set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
   set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
+  set(CMAKE_REQUIRED_FLAGS ${MPI_COMPILE_FLAGS})
 
   # Build and run test program
   include(CheckCXXSourceRuns)
@@ -99,15 +100,15 @@ if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
 #include <mpi.h>
 #include <parmetis.h>
 
-int main()
+int main(int argc, char** argv)
 {
   // FIXME: Find a simple but sensible test for ParMETIS
 
   // Initialise MPI
-  MPI::Init();
+  MPI_Init(&argc, &argv);
 
   // Finalize MPI
-  MPI::Finalize();
+  MPI_Finalize();
 
   return 0;
 }

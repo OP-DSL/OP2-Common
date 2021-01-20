@@ -62,7 +62,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH_INIT} CACHE FILEPATH
 # Libraries linked via full path no longer produce linker search paths.
 cmake_policy(SET CMP0003 NEW)
 # Silently strip whitespace from target_link_libraries
-cmake_policy(SET CMP0004 OLD)
+cmake_policy(SET CMP0004 NEW)
 if(POLICY CMP0017)
   # Always prefer files from CMAKE_MODULE_PATH over files from the CMake
   # modules directory.

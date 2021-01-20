@@ -13,7 +13,7 @@ CORES=`fgrep -m 1 'cpu cores' /proc/cpuinfo | cut -d ' ' -f 3`
 mkdir -p build && cd build &&
 (
   eval cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR \
-             -DCMAKE_BUILD_TYPE=Developer \
+             -DCMAKE_BUILD_TYPE=Release \
              -DCMAKE_VERBOSE_CONFIGURE=ON \
              -DINSTALLATION_APPS_DIR='' \
              $CMAKE_EXTRA_ARGS \
