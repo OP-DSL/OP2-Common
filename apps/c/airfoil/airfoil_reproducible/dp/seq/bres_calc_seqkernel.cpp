@@ -37,54 +37,26 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
-    op_map prime_map_pbecell = arg4.map;
-    op_reversed_map rev_map_pbecell = OP_reversed_map_list[prime_map_pbecell->index];
+    op_map prime_map = arg4.map;
+    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
-    if (rev_map_pbecell != NULL ) {
-      int prime_map_pbecell_dim = prime_map_pbecell->dim;
-      int set_from_size_pbecell = prime_map_pbecell->from->size + prime_map_pbecell->from->exec_size;
-      int set_to_size_pbecell = prime_map_pbecell->to->size + prime_map_pbecell->to->exec_size + prime_map_pbecell->to->nonexec_size;
-
-      int required_tmp_incs_size4 = set_from_size_pbecell * prime_map_pbecell_dim * arg4.dat->size;
-      if (op_repr_incs[arg4.dat->index].tmp_incs == NULL) {
-        op_repr_incs[arg4.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size4);
-        op_repr_incs[arg4.dat->index].tmp_incs_size = required_tmp_incs_size4;
-      }
-      else
-      if (op_repr_incs[arg4.dat->index].tmp_incs_size < required_tmp_incs_size4) {
-        op_realloc(op_repr_incs[arg4.dat->index].tmp_incs, required_tmp_incs_size4);
-        op_repr_incs[arg4.dat->index].tmp_incs_size = required_tmp_incs_size4;
-      }
-      double *tmp_incs4 = (double *)op_repr_incs[arg4.dat->index].tmp_incs;
-
-      for ( int n=0; n<set_size; n++ ){
-        if (n==set->core_size) {
-          op_mpi_wait_all(nargs, args);
-        }
-        int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-        int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-        int map2idx = arg2.map_data[n * arg2.map->dim + 0];
+    if (rev_map != NULL ) {
+      op_mpi_wait_all(nargs, args);
+      for ( int col=0; col<rev_map->number_of_colors; col++ ){
+        for ( int i=rev_map->color_based_exec_row_starts[col]; i<rev_map->color_based_exec_row_starts[col + 1]; i++ ){
+          int n = rev_map->color_based_exec[i];
+          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
+          int map2idx = arg2.map_data[n * arg2.map->dim + 0];
 
 
-        for ( int i=0; i<prime_map_pbecell_dim * arg4.dim; i++ ){
-          tmp_incs4[i+n*prime_map_pbecell_dim * arg4.dim]=(double)0.0;
-        }
-
-        bres_calc(
-          &((double*)arg0.data)[2 * map0idx],
-          &((double*)arg0.data)[2 * map1idx],
-          &((double*)arg2.data)[4 * map2idx],
-          &((double*)arg3.data)[1 * map2idx],
-          &tmp_incs4[(n*prime_map_pbecell_dim+0)*arg4.dim],
-          &((int*)arg5.data)[1 * n]);
-      }
-
-      for ( int n=0; n<set_to_size_pbecell; n++ ){
-        for ( int i=0; i<rev_map_pbecell->row_start_idx[n+1] - rev_map_pbecell->row_start_idx[n]; i++ ){
-          for ( int d=0; d<arg4.dim; d++ ){
-            ((double*)arg4.data)[arg4.dim * n + d] += 
-              tmp_incs4[rev_map_pbecell->reversed_map[rev_map_pbecell->row_start_idx[n]+i] * arg4.dim + d];
-          }
+          bres_calc(
+            &((double*)arg0.data)[2 * map0idx],
+            &((double*)arg0.data)[2 * map1idx],
+            &((double*)arg2.data)[4 * map2idx],
+            &((double*)arg3.data)[1 * map2idx],
+            &((double*)arg4.data)[4 * map2idx],
+            &((int*)arg5.data)[1 * n]);
         }
       }
     }

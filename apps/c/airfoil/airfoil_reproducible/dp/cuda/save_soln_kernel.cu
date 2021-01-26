@@ -48,7 +48,7 @@ void op_par_loop_save_soln(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  save_soln");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
     //set CUDA execution parameters

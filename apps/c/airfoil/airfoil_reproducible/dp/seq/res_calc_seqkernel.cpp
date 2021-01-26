@@ -41,57 +41,29 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set->size >0) {
 
-    op_map prime_map_pecell = arg6.map;
-    op_reversed_map rev_map_pecell = OP_reversed_map_list[prime_map_pecell->index];
+    op_map prime_map = arg6.map;
+    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
-    if (rev_map_pecell != NULL ) {
-      int prime_map_pecell_dim = prime_map_pecell->dim;
-      int set_from_size_pecell = prime_map_pecell->from->size + prime_map_pecell->from->exec_size;
-      int set_to_size_pecell = prime_map_pecell->to->size + prime_map_pecell->to->exec_size + prime_map_pecell->to->nonexec_size;
-
-      int required_tmp_incs_size6 = set_from_size_pecell * prime_map_pecell_dim * arg6.dat->size;
-      if (op_repr_incs[arg6.dat->index].tmp_incs == NULL) {
-        op_repr_incs[arg6.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size6);
-        op_repr_incs[arg6.dat->index].tmp_incs_size = required_tmp_incs_size6;
-      }
-      else
-      if (op_repr_incs[arg6.dat->index].tmp_incs_size < required_tmp_incs_size6) {
-        op_realloc(op_repr_incs[arg6.dat->index].tmp_incs, required_tmp_incs_size6);
-        op_repr_incs[arg6.dat->index].tmp_incs_size = required_tmp_incs_size6;
-      }
-      double *tmp_incs6 = (double *)op_repr_incs[arg6.dat->index].tmp_incs;
-
-      for ( int n=0; n<set_size; n++ ){
-        if (n==set->core_size) {
-          op_mpi_wait_all(nargs, args);
-        }
-        int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-        int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-        int map2idx = arg2.map_data[n * arg2.map->dim + 0];
-        int map3idx = arg2.map_data[n * arg2.map->dim + 1];
+    if (rev_map != NULL ) {
+      op_mpi_wait_all(nargs, args);
+      for ( int col=0; col<rev_map->number_of_colors; col++ ){
+        for ( int i=rev_map->color_based_exec_row_starts[col]; i<rev_map->color_based_exec_row_starts[col + 1]; i++ ){
+          int n = rev_map->color_based_exec[i];
+          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
+          int map2idx = arg2.map_data[n * arg2.map->dim + 0];
+          int map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
 
-        for ( int i=0; i<prime_map_pecell_dim * arg6.dim; i++ ){
-          tmp_incs6[i+n*prime_map_pecell_dim * arg6.dim]=(double)0.0;
-        }
-
-        res_calc(
-          &((double*)arg0.data)[2 * map0idx],
-          &((double*)arg0.data)[2 * map1idx],
-          &((double*)arg2.data)[4 * map2idx],
-          &((double*)arg2.data)[4 * map3idx],
-          &((double*)arg4.data)[1 * map2idx],
-          &((double*)arg4.data)[1 * map3idx],
-          &tmp_incs6[(n*prime_map_pecell_dim+0)*arg6.dim],
-          &tmp_incs6[(n*prime_map_pecell_dim+1)*arg6.dim]);
-      }
-
-      for ( int n=0; n<set_to_size_pecell; n++ ){
-        for ( int i=0; i<rev_map_pecell->row_start_idx[n+1] - rev_map_pecell->row_start_idx[n]; i++ ){
-          for ( int d=0; d<arg6.dim; d++ ){
-            ((double*)arg6.data)[arg6.dim * n + d] += 
-              tmp_incs6[rev_map_pecell->reversed_map[rev_map_pecell->row_start_idx[n]+i] * arg6.dim + d];
-          }
+          res_calc(
+            &((double*)arg0.data)[2 * map0idx],
+            &((double*)arg0.data)[2 * map1idx],
+            &((double*)arg2.data)[4 * map2idx],
+            &((double*)arg2.data)[4 * map3idx],
+            &((double*)arg4.data)[1 * map2idx],
+            &((double*)arg4.data)[1 * map3idx],
+            &((double*)arg6.data)[4 * map2idx],
+            &((double*)arg6.data)[4 * map3idx]);
         }
       }
     }

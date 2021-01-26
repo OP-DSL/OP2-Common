@@ -27,33 +27,28 @@ void op_par_loop_dotR(char const *name, op_set set,
   }
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
-
-  
   int reduct_bytes = 0;
-  reduct_bytes = ROUND_UP(arg1.dim*sizeof(double)*set_size);  
+
+  reduct_bytes += ROUND_UP(arg1.dim*sizeof(double)*set_size);
   reallocReductArrays(reduct_bytes);
-  
+
   reduct_bytes=0;
   double* red1 = (double*)(OP_reduct_h+reduct_bytes);
   reduct_bytes+=arg1.dim*sizeof(double)*set_size;
-  
-  for (int i=0; i<arg1.dim*set_size; i++){
-      red1[i]=0;
+  for ( int i=0; i<arg1.dim*set_size; i++ ){
+    red1[i]=0;
   }
-  
-  
+
   if (set->size >0) {
 
     for ( int n=0; n<set_size; n++ ){
       dotR(
         &((double*)arg0.data)[1*n],
-        //(double*)arg1.data);
         &red1[1*n]);
     }
   }
-  
+
   reprLocalSum(&arg1,set_size,red1);
-  
   // combine reduction data
   op_mpi_repr_inc_reduce_double(&arg1,(double*)arg1.data);
   op_mpi_set_dirtybit(nargs, args);

@@ -63,6 +63,11 @@ char *OP_reduct_h;
 
 int reproducible_enabled = 0;
 
+
+int repr_red_arg_count = 0;
+int repr_red_arg_available = 0;
+double_binned** repr_red_args;
+
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -180,6 +185,7 @@ void op_set_args(int argc, char *argv) {
     OP_hybrid_balance = atof(temp + 18);
     op_printf("\n OP_hybrid_balance  = %g \n", OP_hybrid_balance);
   }
+  //TODO -op_repro_greedy_coloring
 
   pch = strstr(argv, "OP_MAPS_BASE_INDEX=");
   if (pch != NULL) {
@@ -512,9 +518,6 @@ void op_exit_core() {
   for (int i = 0; i < OP_set_index; i++) {
     free((char *)OP_set_list[i]->name);
     free(OP_set_list[i]);
-    if (reproducible_enabled){
-      free(OP_set_global_ids_list[i]->global_ids);
-    }
   }
   free(OP_set_list);
   OP_set_list = NULL;
@@ -558,6 +561,11 @@ void op_exit_core() {
     }
     free(op_repr_incs);
     op_repr_incs = NULL;
+
+    for (int i=0; i<repr_red_arg_count; i++){
+      op_free(repr_red_args[i]);
+    }
+    op_free(repr_red_args);
   }
 
   // free storage for timing info
@@ -703,9 +711,6 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
 
-  if (reproducible_enabled){
-    arg.local_sum=binned_dballoc(3);
-  }
   return arg;
 }
 
@@ -756,9 +761,6 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;  
-  if (reproducible_enabled){
-    arg.local_sum=binned_dballoc(3);
-  }
   return arg;
 }
 
@@ -802,7 +804,13 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   if (data == NULL)
     arg.opt = 0;
   if (reproducible_enabled){
-    arg.local_sum=binned_dballoc(3);
+    if (repr_red_arg_available >= repr_red_arg_count) {
+      repr_red_arg_count++;
+      repr_red_args = (double_binned**) op_realloc(repr_red_args, repr_red_arg_count * sizeof( double_binned* ) );
+      repr_red_args[repr_red_arg_count-1]=binned_dballoc(3);
+    }
+    arg.local_sum=repr_red_args[repr_red_arg_available];
+    repr_red_arg_available++;
   }
   return arg;
 }

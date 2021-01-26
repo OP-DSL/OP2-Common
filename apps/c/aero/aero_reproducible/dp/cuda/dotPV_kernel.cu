@@ -12,24 +12,17 @@ __global__ void op_cuda_dotPV(
   double *arg2,
   int   set_size ) {
 
-  double arg2_l[1];
-  for ( int d=0; d<1; d++ ){
-    arg2_l[d]=ZERO_double;
-  }
 
   //process set elements
   for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n+=blockDim.x*gridDim.x ){
+    for ( int d=0; d<1; d++ ){
+      arg2[n+d]=ZERO_double;
+    }
 
     //user-supplied kernel call
     dotPV_gpu(arg0+n*1,
           arg1+n*1,
-          arg2_l);
-  }
-
-  //global reductions
-
-  for ( int d=0; d<1; d++ ){
-    op_reduction<OP_INC>(&arg2[d+blockIdx.x*1],arg2_l[d]);
+          arg2+n*1);
   }
 }
 
@@ -60,7 +53,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  dotPV");
   }
 
-  op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set->size > 0) {
 
     //set CUDA execution parameters
@@ -74,22 +67,15 @@ void op_par_loop_dotPV(char const *name, op_set set,
     int nblocks = 200;
 
     //transfer global reduction data to GPU
-    int maxblocks = nblocks;
     int reduct_bytes = 0;
     int reduct_size  = 0;
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
+    reduct_bytes += ROUND_UP(set_size*arg2.size);
     reduct_size   = MAX(reduct_size,sizeof(double));
     reallocReductArrays(reduct_bytes);
     reduct_bytes = 0;
     arg2.data   = OP_reduct_h + reduct_bytes;
     arg2.data_d = OP_reduct_d + reduct_bytes;
-    for ( int b=0; b<maxblocks; b++ ){
-      for ( int d=0; d<1; d++ ){
-        ((double *)arg2.data)[d+b*1] = ZERO_double;
-      }
-    }
-    reduct_bytes += ROUND_UP(maxblocks*1*sizeof(double));
-    mvReductArraysToDevice(reduct_bytes);
+    reduct_bytes += ROUND_UP(set_size*arg2.size);
 
     int nshared = reduct_size*nthread;
     op_cuda_dotPV<<<nblocks,nthread,nshared>>>(
@@ -99,13 +85,9 @@ void op_par_loop_dotPV(char const *name, op_set set,
       set->size );
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
-    for ( int b=0; b<maxblocks; b++ ){
-      for ( int d=0; d<1; d++ ){
-        arg2h[d] = arg2h[d] + ((double *)arg2.data)[d+b*1];
-      }
-    }
+    reprLocalSum(&arg2,set_size,(double*)arg2.data);
     arg2.data = (char *)arg2h;
-    op_mpi_reduce(&arg2,arg2h);
+    op_mpi_repr_inc_reduce_double(&arg2,(double*)arg2.data);
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
   cutilSafeCall(cudaDeviceSynchronize());

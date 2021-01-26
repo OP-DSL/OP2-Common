@@ -25,12 +25,13 @@ ifeq ($(OP2_COMPILER),gnu)
   CPPFLAGS	= -g -fPIC -DUNIX -Wall
 #  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
   OMPFLAGS	= -fopenmp
-  MPICPP	= /usr/bin/mpiCC
+#  MPICPP	= /usr/bin/mpiCC
+  MPICPP        = $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CPPFLAGS	= -O0 -xHost #-DMPICH_IGNORE_CXX_SEEK#-DCOMM_PERF #-DDEBUG #-vec-report
+  CPPFLAGS	= -O3 -xHost #-g #-DMPICH_IGNORE_CXX_SEEK#-DCOMM_PERF #-DDEBUG #-vec-report
   OMPFLAGS	= -qopenmp #-openmp-report2
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS	= $(CPPFLAGS)
@@ -64,6 +65,14 @@ ifeq ($(NV_ARCH),Fermi)
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
+else
+ifeq ($(NV_ARCH),Pascal)
+  CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+endif
+endif
 endif
 endif
 
@@ -84,7 +93,7 @@ endif
 
 PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr -lscotch
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
@@ -159,13 +168,13 @@ aero_mpi_openmp:	aero_op.cpp openmp/aero_kernels.cpp \
 #
 aero_mpi_cuda:	aero_op.cpp cuda/aero_kernels_mpi_cu.o Makefile
 		$(MPICPP) $(VAR) $(MPIFLAGS) aero_op.cpp cuda/aero_kernels_mpi_cu.o \
-		$(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) \
+		$(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(REPRO_MPI_INC)\
 		$(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) \
-		$(CUDA_LIB) -lcudart -o aero_mpi_cuda
+		$(CUDA_LIB) -lcudart $(REPRO_MPI_LIB) -o aero_mpi_cuda
 
 cuda/aero_kernels_mpi_cu.o:	cuda/aero_kernels.cu \
                 Makefile
-		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
+		nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC)  $(REPRO_MPI_INC) -I $(MPI_INSTALL_PATH)/include \
 		-Icuda -I. -c -o cuda/aero_kernels_mpi_cu.o \
 		cuda/aero_kernels.cu
 

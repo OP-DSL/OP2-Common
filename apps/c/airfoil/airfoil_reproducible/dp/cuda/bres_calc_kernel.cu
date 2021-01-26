@@ -107,9 +107,6 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     printf(" kernel routine with indirection: bres_calc\n");
   }
 
-  op_map prime_map = arg4.map; //TODO works only with arg4...
-  op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
-
   //get plan
   #ifdef OP_PART_SIZE_3
     int part_size = OP_PART_SIZE_3;
@@ -118,27 +115,26 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   #endif
 
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
-  if (set->size > 0 && rev_map!=NULL) {
+  op_map prime_map = arg4.map;
+  op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
+
+  if (set->size > 0 && rev_map != NULL ) {
 
     op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
 
     op_mpi_wait_all_cuda(nargs, args);
     //execute plan
-   /* for ( int col=0; col<Plan->ncolors; col++ ){
+    for ( int col=0; col<rev_map->number_of_colors; col++ ){
       if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
-      }*/
-    for (int col=0; col<rev_map->number_of_colors; col++){
-
+      }
       #ifdef OP_BLOCK_SIZE_3
       int nthread = OP_BLOCK_SIZE_3;
       #else
       int nthread = OP_block_size;
       #endif
 
-      //int start = Plan->col_offsets[0][col];      
-      int start =rev_map->color_based_exec_row_starts[col];
-      //int end = Plan->col_offsets[0][col+1];
+      int start = rev_map->color_based_exec_row_starts[col];
       int end = rev_map->color_based_exec_row_starts[col+1];
       int nblocks = (end - start - 1)/nthread + 1;
       op_cuda_bres_calc<<<nblocks,nthread>>>(
@@ -151,7 +147,6 @@ void op_par_loop_bres_calc(char const *name, op_set set,
       (int*)arg5.data_d,
       start,
       end,
-      //Plan->col_reord,
       rev_map->color_based_exec_d,
       set->size+set->exec_size);
 

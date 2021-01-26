@@ -2406,6 +2406,7 @@ void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
     if (arg->dim > 1)
       op_free(result);
   }
+  repr_red_arg_available=0;
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;

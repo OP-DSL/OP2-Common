@@ -41,63 +41,34 @@ void op_par_loop_spMV(char const *name, op_set set,
 
   if (set->size >0) {
 
-    op_map prime_map_pcell = arg0.map;
-    op_reversed_map rev_map_pcell = OP_reversed_map_list[prime_map_pcell->index];
+    op_map prime_map = arg0.map;
+    op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
-    if (rev_map_pcell != NULL ) {
-      int prime_map_pcell_dim = prime_map_pcell->dim;
-      int set_from_size_pcell = prime_map_pcell->from->size + prime_map_pcell->from->exec_size;
-      int set_to_size_pcell = prime_map_pcell->to->size + prime_map_pcell->to->exec_size + prime_map_pcell->to->nonexec_size;
+    if (rev_map != NULL ) {
+      op_mpi_wait_all(nargs, args);
+      for ( int col=0; col<rev_map->number_of_colors; col++ ){
+        for ( int i=rev_map->color_based_exec_row_starts[col]; i<rev_map->color_based_exec_row_starts[col + 1]; i++ ){
+          int n = rev_map->color_based_exec[i];
+          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
+          int map2idx = arg0.map_data[n * arg0.map->dim + 2];
+          int map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
-      double *tmp_incs0 = NULL;
-      int required_tmp_incs_size0 = set_from_size_pcell * prime_map_pcell_dim * arg0.dat->size;
-      if (op_repr_incs[arg0.dat->index].tmp_incs == NULL) {
-        op_repr_incs[arg0.dat->index].tmp_incs = (void *)op_malloc(required_tmp_incs_size0);
-        op_repr_incs[arg0.dat->index].tmp_incs_size = required_tmp_incs_size0;
-      }
-      else
-      if (op_repr_incs[arg0.dat->index].tmp_incs_size < required_tmp_incs_size0) {
-        op_realloc(op_repr_incs[arg0.dat->index].tmp_incs, required_tmp_incs_size0);
-        op_repr_incs[arg0.dat->index].tmp_incs_size = required_tmp_incs_size0;
-      }
-      tmp_incs0 = (double *)op_repr_incs[arg0.dat->index].tmp_incs;
+          double* arg0_vec[] = {
+             &((double*)arg0.data)[1 * map0idx],
+             &((double*)arg0.data)[1 * map1idx],
+             &((double*)arg0.data)[1 * map2idx],
+             &((double*)arg0.data)[1 * map3idx]};
+          const double* arg5_vec[] = {
+             &((double*)arg5.data)[1 * map0idx],
+             &((double*)arg5.data)[1 * map1idx],
+             &((double*)arg5.data)[1 * map2idx],
+             &((double*)arg5.data)[1 * map3idx]};
 
-      for ( int n=0; n<set_size; n++ ){
-        if (n==set->core_size) {
-          op_mpi_wait_all(nargs, args);
-        }
-        int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-        int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-        int map2idx = arg0.map_data[n * arg0.map->dim + 2];
-        int map3idx = arg0.map_data[n * arg0.map->dim + 3];
-
-        double* arg0_vec[] = {
-          &tmp_incs0[(n*prime_map_pcell_dim+0)*1],
-          &tmp_incs0[(n*prime_map_pcell_dim+1)*1],
-          &tmp_incs0[(n*prime_map_pcell_dim+2)*1],
-          &tmp_incs0[(n*prime_map_pcell_dim+3)*1]};
-        const double* arg5_vec[] = {
-           &((double*)arg5.data)[1 * map0idx],
-           &((double*)arg5.data)[1 * map1idx],
-           &((double*)arg5.data)[1 * map2idx],
-           &((double*)arg5.data)[1 * map3idx]};
-
-        for ( int i=0; i<prime_map_pcell_dim * 1; i++ ){
-          tmp_incs0[i+n*prime_map_pcell_dim * 1]=(double)0.0;
-        }
-
-        spMV(
-          arg0_vec,
-          &((double*)arg4.data)[16 * n],
-          arg5_vec);
-      }
-
-      for ( int n=0; n<set_to_size_pcell; n++ ){
-        for ( int i=0; i<rev_map_pcell->row_start_idx[n+1] - rev_map_pcell->row_start_idx[n]; i++ ){
-          for ( int d=0; d<arg0.dim; d++ ){
-            ((double*)arg0.data)[arg0.dim * n + d] += 
-              tmp_incs0[rev_map_pcell->reversed_map[rev_map_pcell->row_start_idx[n]+i] * arg0.dim + d];
-          }
+          spMV(
+            arg0_vec,
+            &((double*)arg4.data)[16 * n],
+            arg5_vec);
         }
       }
     }

@@ -137,14 +137,13 @@ endif
 
 PTSCOTCH_INC 	= -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
 PTSCOTCH_LIB 	= -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
-                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr
+                  -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotcherr -lscotch
 
 HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
 HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib -lhdf5 -lz
 
 REPRO_MPI_INC = -I$(REPRO_MPI_INSTALL_PATH)/include
 REPRO_MPI_LIB   = -L$(REPRO_MPI_LIB_PATH) -lbinned -lbinnedblas -lreproblas -lbinnedmpi -lm
-
 #
 # master to make all versions
 #

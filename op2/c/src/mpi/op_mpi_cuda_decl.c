@@ -356,14 +356,11 @@ void op_mv_halo_list_device() {
 }
 
 void op_move_repro_coloring_device(){
-
   for (int m=0; m<OP_map_index; m++){
-
       op_cpHostToDevice((void **)&(OP_reversed_map_list[m]->color_based_exec_d),
                         (void **)&(OP_reversed_map_list[m]->color_based_exec),
                         (OP_map_list[m]->from->size + OP_map_list[m]->from->exec_size) * sizeof(int));
   }
-
 }
 
 op_set op_decl_set(int size, char const *name) {

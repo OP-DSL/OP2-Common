@@ -25,8 +25,8 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -fPIC -DUNIX -Wall -O0 -g -Wextra
-#  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
+#  CPPFLAGS	= -fPIC -DUNIX -Wall -O0 -g -Wextra
+  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall #-O0 -g -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
 #  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
@@ -34,8 +34,8 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O0 -g -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -fp-model strict -fp-model source -prec-sqrt  #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
-#  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+#  CCFLAGS	= -O0 -g -xAVX -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report=5 -parallel -DVECTORIZE -fp-model strict -fp-model source -prec-sqrt  #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xAVX -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp 
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
@@ -127,8 +127,8 @@ ifdef MAX_REG_COUNT
   endif
 endif
 
-#NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo  #-g -G -O0
-NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math $(REG_COUNT) -lineinfo  -g -G -O0
+NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math -O3 $(REG_COUNT) -lineinfo  #-g -G -O0
+#NVCCFLAGS       := $(NVCCFLAGS) $(CODE_GEN_CUDA) -m64 -Xptxas=-v --use_fast_math $(REG_COUNT) -lineinfo  -g -G -O0
 
 VAR		= #-DOP_PART_SIZE_1=160 -DOP_PART_SIZE_2=320 -DOP_PART_SIZE_3=64 #-DOP_BLOCK_SIZE_0=64 -DOP_BLOCK_SIZE_1=64 -DOP_BLOCK_SIZE_2=64 -DOP_BLOCK_SIZE_3=64 -DOP_BLOCK_SIZE_4=64
 

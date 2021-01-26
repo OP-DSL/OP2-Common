@@ -81,7 +81,7 @@ typedef unsigned long long ull;
    4 or above   report use of old plans
    7 or above   report positive checks in op_plan_check
 */
-
+extern "C" {
 extern int OP_diags;
 extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
@@ -94,6 +94,11 @@ extern char *OP_reduct_h;
 
 extern int reproducible_enabled;
 
+extern int repr_red_arg_count;
+extern int repr_red_arg_available;
+extern double_binned** repr_red_args;
+
+}
 
 /*
  * enum list for op_par_loop

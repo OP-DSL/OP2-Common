@@ -1078,8 +1078,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
-          if accs[g_m]==OP_INC and reproducible:
-            code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
+          if reproducible:
+            if accs[g_m]==OP_INC:
+              code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
           else:
             FOR('b','0','maxblocks')
             FOR('d','0','<DIM>')
