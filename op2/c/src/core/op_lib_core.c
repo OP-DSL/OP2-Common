@@ -76,7 +76,6 @@ op_set *OP_set_list;
 op_map *OP_map_list = NULL;
 int **OP_map_ptr_list = NULL;
 op_set_global_ids *OP_set_global_ids_list;
-op_map *OP_map_list;
 op_reversed_map *OP_reversed_map_list;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;

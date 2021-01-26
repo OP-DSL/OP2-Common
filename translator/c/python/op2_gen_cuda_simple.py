@@ -389,7 +389,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
         if not reproducible:
           code('<TYP> <ARG>_l[<DIM>];')
           if accs[g_m] == OP_INC:
@@ -647,9 +647,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('process set elements')
       FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
       for g_m in range (0,nargs):
-        if reproducible and reduct and maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
-          FOR('d','0','DIM')
-          code('ARG[n+d]=ZERO_TYP;')
+        if reproducible and reduct and maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
+          FOR('d','0','<DIM>')
+          code('<ARG>[n+d]=ZERO_<TYP>;')
           ENDFOR()
 
 #
@@ -670,7 +670,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           line += rep(indent+'<ARG>,\n',m)
         else:
           if reproducible:
-            line += rep(indent+'<ARG>+n*DIM,\n',m)
+            line += rep(indent+'<ARG>+n*<DIM>,\n',m)
           else:
             line += rep(indent+'<ARG>_l,\n',m);
         a =a+1
@@ -957,7 +957,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line='set->size > 0 && '
             for g_m in range(0,nargs):
               if (accs[g_m] == OP_INC or accs[g_m] == OP_RW) and maps[g_m] == OP_MAP:
-                code('op_map prime_map = ARG.map;\n')
+                code('op_map prime_map = <ARG>.map;\n')
                 code('op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];\n')
                 line = line + 'rev_map != NULL && '
                 code('')

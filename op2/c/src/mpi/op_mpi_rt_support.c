@@ -142,22 +142,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,status1);
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,status2);
 
-    int n = memcmp( tmp_comparends, &dat->data[init],imp_exec_list->size*dat->size);
-    if (n != 0) {
-        printf("Error - different data in the exchanged halos. First different byte: %d, dat_name: %s\n",n,dat->name);
-    }
-    MPI_Status status1[30];
-    MPI_Status status2[30];
-
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,status1);
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,status2);
-
-    int n = memcmp( tmp_comparends, &dat->data[init],imp_exec_list->size*dat->size);
-    if (n != 0) {
-        printf("Error - different data in the exchanged halos. First different byte: %d, dat_name: %s\n",n,dat->name);
-    }
-    free(tmp_comparends);
-
     //-----second exchange nonexec elements related to this data array------
     // sanity checks
     if (compare_sets(imp_nonexec_list->set, dat->set) == 0) {
