@@ -4576,8 +4576,11 @@ void create_reversed_mapping() {
 
   } //end of reverse mapping creating
 
-  coloring_within_process();    //TODO work on this choice...
-  //greedy_global_coloring();
+  if (OP_repro_greedy_coloring){
+    greedy_global_coloring();
+  } else {
+    coloring_within_process();
+  }
   op_move_repro_coloring_device();
   rev_maps_created = 1;
 }
