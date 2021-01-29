@@ -147,6 +147,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   halo_list exec_i_list = OP_import_exec_list[set->index];
   halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
+  mpi_buf->s_req = NULL;
+  mpi_buf->r_req = NULL;
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
       (exec_e_list->ranks_size + nonexec_e_list->ranks_size));

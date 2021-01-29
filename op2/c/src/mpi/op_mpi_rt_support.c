@@ -136,11 +136,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
-    MPI_Status status1[30];
-    MPI_Status status2[30];
 
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,status1);
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,status2);
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,MPI_STATUSES_IGNORE);
+    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,MPI_STATUSES_IGNORE);
 
     //-----second exchange nonexec elements related to this data array------
     // sanity checks
