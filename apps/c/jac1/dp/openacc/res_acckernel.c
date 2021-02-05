@@ -53,7 +53,8 @@ void op_par_loop_res(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set_size > 0) {
+  if (set_size >0) {
+
 
     //Set up typed device pointers for OpenACC
     int *map1 = arg1.map_data_d;
@@ -82,6 +83,7 @@ void op_par_loop_res(char const *name, op_set set,
         int map2idx;
         map1idx = map1[n + set_size1 * 1];
         map2idx = map1[n + set_size1 * 0];
+
 
         res_openacc(
           &data0[1 * n],

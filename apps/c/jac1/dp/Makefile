@@ -24,6 +24,7 @@ ifeq ($(OP2_COMPILER),gnu)
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CCFLAGS)
+  HIPCC		= hipcc
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
@@ -149,6 +150,9 @@ cuda/jac_kernels_cu.o:	cuda/jac_kernels.cu  cuda/res_kernel.cu res.h \
 			Makefile
 			nvcc $(INC) $(NVCCFLAGS) $(OP2_INC) -Icuda -I. -c -o cuda/jac_kernels_cu.o cuda/jac_kernels.cu
 
+jac_hip:	jac_op.cpp hip/jac_kernels.cpp Makefile
+		$(HIPCC) $(CPPFLAGS) $(OP2_INC) $(OP2_LIB) $(CUDA_LIB) \
+		jac_op.cpp hip/jac_kernels.cpp -lop2_hip -o jac_hip
 #
 # OpenACC version
 #

@@ -12,10 +12,9 @@ inline void res(const double *A, const double *u, double *du,
 #if defined __clang__ || defined __GNUC__
 __attribute__((always_inline))
 #endif
-inline void
-res_vec(const double A[][SIMD_VEC], const double u[][SIMD_VEC],
-        double du[][SIMD_VEC], const double *beta, int idx) {
-  du[0][idx] = (*beta) * (A[0][idx]) * (u[0][idx]);
+inline void res_vec( const double A[][SIMD_VEC], const double u[][SIMD_VEC], double du[][SIMD_VEC], const double *beta, int idx ) {
+  du[0][idx]= (*beta) * (A[0][idx]) * (u[0][idx]);
+
 }
 #endif
 
@@ -35,11 +34,11 @@ void op_par_loop_res(char const *name, op_set set,
   args[3] = arg3;
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,double_ALIGN);
   ALIGNED_double       double * __restrict__ ptr2 = (double *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2,double_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -61,8 +60,7 @@ void op_par_loop_res(char const *name, op_set set,
       for ( int i=0; i<SIMD_VEC; i++ ){
         dat3[i] = *((double*)arg3.data);
       }
-      if ((n + SIMD_VEC >= set->core_size) &&
-          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
+      if ((n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[1][SIMD_VEC];
@@ -70,7 +68,7 @@ void op_par_loop_res(char const *name, op_set set,
       ALIGNED_double double dat2[1][SIMD_VEC];
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        int idx0_1 = 1 * (n + i);
+        int idx0_1 = 1 * (n+i);
         int idx1_1 = 1 * arg1.map_data[(n+i) * arg1.map->dim + 1];
 
         dat0[0][i] = (ptr0)[idx0_1 + 0];
@@ -82,7 +80,12 @@ void op_par_loop_res(char const *name, op_set set,
       }
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        res_vec(dat0, dat1, dat2, (double *)arg3.data, i);
+        res_vec(
+          dat0,
+          dat1,
+          dat2,
+          (double*)arg3.data,
+          i);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx2_1 = 1 * arg1.map_data[(n+i) * arg1.map->dim + 0];

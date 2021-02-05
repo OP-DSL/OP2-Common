@@ -49,7 +49,8 @@ void op_par_loop_update(char const *name, op_set set,
   double arg3_l = arg3h[0];
   double arg4_l = arg4h[0];
 
-  if (set_size > 0) {
+  if (set_size >0) {
+
 
     //Set up typed device pointers for OpenACC
 
