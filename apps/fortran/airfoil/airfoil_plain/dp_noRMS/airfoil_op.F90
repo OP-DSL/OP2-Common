@@ -175,11 +175,11 @@ program AIRFOIL
   call set(sl_cells, 'sl_cells', ncell);
 
   print *, "SLOPE declaring maps"
-  call map(sl_pcell, 'c2n', sl_cells, sl_nodes, cell, ncell * 4)
-  call map(sl_pedge, 'e2n', sl_edges, sl_nodes, edge, nedge * 2)
-  call map(sl_pecell, 'e2c', sl_edges, sl_cells, ecell, nedge * 2)
-  call map(sl_pbedge, 'be2n', sl_bedges, sl_nodes, bedge, nbedge * 2)
-  call map(sl_pbecell, 'be2c', sl_bedges, sl_cells, becell, nbedge * 1)
+  call map(sl_pcell, 'c2n', sl_cells, sl_nodes, cell, ncell * 4, 0)
+  call map(sl_pedge, 'e2n', sl_edges, sl_nodes, edge, nedge * 2, 0)
+  call map(sl_pecell, 'e2c', sl_edges, sl_cells, ecell, nedge * 2, 0)
+  call map(sl_pbedge, 'be2n', sl_bedges, sl_nodes, bedge, nbedge * 2, 0)
+  call map(sl_pbecell, 'be2c', sl_bedges, sl_cells, becell, nbedge * 1, 0)
   
 
   print *, "SLOPE creating desc lits"
@@ -200,8 +200,7 @@ program AIRFOIL
                                     desc(DIRECT, SL_WRITE) /), 2)
   
   print *, "SLOPE creating map lits"
-  call map_list(sl_meshMaps)
-  call insert_map_to(sl_meshMaps, sl_pcell)
+  call map_list(sl_meshMaps, (/sl_pcell/), 1)
 
   print *, "SLOPE creating inspector"
   avg_tile_size = 5000
