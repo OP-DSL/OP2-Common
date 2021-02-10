@@ -1466,12 +1466,11 @@ void op_halo_permap_create() {
 
   OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
-    OP_map_partial_exchange[i] = 0; //(double)reduced_map_halo_sizes[i] <
-    //(double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
-    // if (rank == 0 && OP_diags>1) printf("Mapping %s partially exchanged: %d
-    // (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i],
-    // reduced_map_halo_sizes[i],
-    // reduced_total_halo_sizes[OP_map_list[i]->to->index]);
+    OP_map_partial_exchange[i] = (double)reduced_map_halo_sizes[i] <
+    (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
+     if (rank == 0 && OP_diags>1) printf("Mapping %s partially exchanged: %d (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i],
+     reduced_map_halo_sizes[i],
+     reduced_total_halo_sizes[OP_map_list[i]->to->index]);
   }
   op_free(reduced_total_halo_sizes);
   op_free(reduced_map_halo_sizes);
@@ -1737,19 +1736,15 @@ void op_halo_permap_create() {
     //
     int *send_buffer = (int *)xmalloc(
         2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
-    int *recv_buffer = (int *)xmalloc(
-        2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
     MPI_Status *send_status = (MPI_Status *)xmalloc(
-        OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
-    MPI_Status *recv_status = (MPI_Status *)xmalloc(
         OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
     MPI_Request *send_request = (MPI_Request *)xmalloc(
         OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Request));
 
     for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      send_buffer[2 * j] = import_sizes2[i][j];
+      send_buffer[2 * j] = import_sizes2[i][j]; //exec count
       send_buffer[2 * j + 1] =
-          OP_import_nonexec_permap[i]->sizes[j] - import_sizes2[i][j];
+          OP_import_nonexec_permap[i]->sizes[j] - import_sizes2[i][j]; //nonexec count
       MPI_Isend(&send_buffer[2 * j], 2, MPI_INT,
                 OP_import_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD,
                 &send_request[j]);
@@ -1788,6 +1783,10 @@ void op_halo_permap_create() {
     //
     // Receive sizes, allocate export lists
     //
+    int *recv_buffer = (int *)xmalloc(
+        2 * OP_export_nonexec_permap[i]->ranks_size * sizeof(int));
+    MPI_Status *recv_status = (MPI_Status *)xmalloc(
+        OP_export_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
     OP_export_nonexec_permap[i]->disps =
         (int *)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
     OP_export_nonexec_permap[i]->sizes =
