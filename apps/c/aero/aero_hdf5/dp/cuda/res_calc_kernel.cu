@@ -3,15 +3,15 @@
 //
 
 __constant__ int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST=-1;
+int opDat0_res_calc_stride_OP2HOST = -1;
 __constant__ int direct_res_calc_stride_OP2CONSTANT;
-int direct_res_calc_stride_OP2HOST=-1;
+int direct_res_calc_stride_OP2HOST = -1;
 //user function
 __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
                       double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
-      K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
+      K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] = 0;
     }
   }
   for (int i = 0; i < 4; i++) {
@@ -71,7 +71,7 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
     }
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] +=
+        K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] +=
             wt1 * rho * (N_x[j] * N_x[k] + N_x[4 + j] * N_x[4 + k]) -
             wt1 * rc2 * (u[0] * N_x[j] + u[1] * N_x[4 + j]) *
                 (u[0] * N_x[k] + u[1] * N_x[4 + k]);
@@ -92,20 +92,11 @@ __global__ void op_cuda_res_calc(
   double *arg8,
   int start,
   int end,
+  int *col_reord,
   int   set_size) {
-  double arg13_l[2];
-  double arg14_l[2];
-  double arg15_l[2];
-  double arg16_l[2];
-  double *arg13_vec[4] = {
-    arg13_l,
-    arg14_l,
-    arg15_l,
-    arg16_l,
-  };
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
-    int n = tid + start;
+    int n = col_reord[tid + start];
     //initialise local variables
     double arg13_l[2];
     for ( int d=0; d<2; d++ ){
@@ -147,35 +138,7 @@ __global__ void op_cuda_res_calc(
                            &ind_arg3[map2idx], &ind_arg3[map3idx]};
 
     //user-supplied kernel call
-    res_calc_gpu(arg0_vec,
-             arg4_vec,
-             arg8+n,
-             arg9_vec,
-             arg13_vec);
-    if (optflags & 1<<2) {
-      atomicAdd(&ind_arg3[0 * opDat0_res_calc_stride_OP2CONSTANT + map0idx],
-                arg13_l[0]);
-      atomicAdd(&ind_arg3[1 * opDat0_res_calc_stride_OP2CONSTANT + map0idx],
-                arg13_l[1]);
-    }
-    if (optflags & 1<<2) {
-      atomicAdd(&ind_arg3[0 * opDat0_res_calc_stride_OP2CONSTANT + map1idx],
-                arg14_l[0]);
-      atomicAdd(&ind_arg3[1 * opDat0_res_calc_stride_OP2CONSTANT + map1idx],
-                arg14_l[1]);
-    }
-    if (optflags & 1<<2) {
-      atomicAdd(&ind_arg3[0 * opDat0_res_calc_stride_OP2CONSTANT + map2idx],
-                arg15_l[0]);
-      atomicAdd(&ind_arg3[1 * opDat0_res_calc_stride_OP2CONSTANT + map2idx],
-                arg15_l[1]);
-    }
-    if (optflags & 1<<2) {
-      atomicAdd(&ind_arg3[0 * opDat0_res_calc_stride_OP2CONSTANT + map3idx],
-                arg16_l[0]);
-      atomicAdd(&ind_arg3[1 * opDat0_res_calc_stride_OP2CONSTANT + map3idx],
-                arg16_l[1]);
-    }
+    res_calc_gpu(arg0_vec, arg4_vec, arg8 + n, arg9_vec, arg13_vec);
   }
 }
 
@@ -259,43 +222,61 @@ void op_par_loop_res_calc(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
   }
+
+  //get plan
+  #ifdef OP_PART_SIZE_0
+    int part_size = OP_PART_SIZE_0;
+  #else
+    int part_size = OP_part_size;
+  #endif
+
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set_size > 0) {
 
-    if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
-      opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      cudaMemcpyToSymbol(opDat0_res_calc_stride_OP2CONSTANT, &opDat0_res_calc_stride_OP2HOST,sizeof(int));
-    }
-    if ((OP_kernels[0].count==1) || (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
-      direct_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg8);
-      cudaMemcpyToSymbol(direct_res_calc_stride_OP2CONSTANT,&direct_res_calc_stride_OP2HOST,sizeof(int));
-    }
-    //set CUDA execution parameters
-    #ifdef OP_BLOCK_SIZE_0
-      int nthread = OP_BLOCK_SIZE_0;
-    #else
-      int nthread = OP_block_size;
-    #endif
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
 
-    for ( int round=0; round<2; round++ ){
-      if (round==1) {
+    if ((OP_kernels[0].count == 1) ||
+        (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      cudaMemcpyToSymbol(opDat0_res_calc_stride_OP2CONSTANT,
+                         &opDat0_res_calc_stride_OP2HOST, sizeof(int));
+    }
+    if ((OP_kernels[0].count == 1) ||
+        (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
+      direct_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg8);
+      cudaMemcpyToSymbol(direct_res_calc_stride_OP2CONSTANT,
+                         &direct_res_calc_stride_OP2HOST, sizeof(int));
+    }
+    //execute plan
+    for ( int col=0; col<Plan->ncolors; col++ ){
+      if (col==Plan->ncolors_core) {
         op_mpi_wait_all_cuda(nargs, args);
       }
-      int start = round==0 ? 0 : set->core_size;
-      int end = round==0 ? set->core_size : set->size + set->exec_size;
-      if (end-start>0) {
-        int nblocks = (end-start-1)/nthread+1;
-        op_cuda_res_calc<<<nblocks,nthread>>>(
-        optflags,
-        (double *)arg0.data_d,
-        (double *)arg4.data_d,
-        (double *)arg9.data_d,
-        (double *)arg13.data_d,
-        arg0.map_data_d,
-        (double*)arg8.data_d,
-        start,end,set->size+set->exec_size);
-      }
+      #ifdef OP_BLOCK_SIZE_0
+      int nthread = OP_BLOCK_SIZE_0;
+      #else
+      int nthread = OP_block_size;
+      #endif
+
+      int start = Plan->col_offsets[0][col];
+      int end = Plan->col_offsets[0][col+1];
+      int nblocks = (end - start - 1)/nthread + 1;
+      op_cuda_res_calc<<<nblocks,nthread>>>(
+      optflags,
+      (double *)arg0.data_d,
+      (double *)arg4.data_d,
+      (double *)arg9.data_d,
+      (double *)arg13.data_d,
+      arg0.map_data_d,
+      (double*)arg8.data_d,
+      start,
+      end,
+      Plan->col_reord,
+      set->size+set->exec_size);
+
     }
+    OP_kernels[0].transfer  += Plan->transfer;
+    OP_kernels[0].transfer2 += Plan->transfer2;
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
   cutilSafeCall(cudaDeviceSynchronize());

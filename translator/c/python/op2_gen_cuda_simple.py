@@ -106,22 +106,26 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0
-  op_color2=0
-  op_color2_force=0
-  atomics=1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
 
   for nk in range (0,len(kernels)):
 
+#Optimization settings
+    inc_stage=0
+    op_color2_force=0
+    atomics=1
+
+
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
            unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk], inc_stage)
 
+
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
+    op_color2=0
 #
 # set logicals
 #
@@ -137,7 +141,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         j = i
     ind_rw = j >= 0
 
-    if not atomics and (ind_rw or op_color2_force):
+    if atomics and ind_rw:
+      atomics = 0
+
+    if ind_rw or op_color2_force:
         op_color2 = 1
     else:
         op_color2 = 0
@@ -363,10 +370,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           FOR('d','0','<DIM>')
           code('<ARG>_l[d]=<ARG>[d+blockIdx.x*<DIM>];')
           ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2:
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics:
         code('<TYP> <ARG>_l[<DIM>];')
 
-    if not op_color2:
+    if not op_color2 and not atomics:
       for m in range (1,ninds+1):
         g_m = m -1
         v = [int(inds[i]==m) for i in range(len(inds))]
@@ -578,20 +585,26 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               line = 'const <TYP>* <ARG>_vec[] = {\n'
             else:
               line = '<TYP>* <ARG>_vec[] = {\n'
+            if atomics and accs[g_m] == OP_INC:
+              indent = ' '*(depth+2)
+              for n in range(0,nargs):
+                if vectorised[n] == vectorised[g_m]:
+                  line = line + indent + 'arg'+str(n)+'_l,\n'
+              line = line[:-2]+'};'
+              code(line)
+            else:
+              v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
+              first = [i for i in range(0,len(v)) if v[i] == 1]
+              first = first[0]
 
-            v = [int(vectorised[i] == vectorised[g_m]) for i in range(0,len(vectorised))]
-            first = [i for i in range(0,len(v)) if v[i] == 1]
-            first = first[0]
-
-#TODO: atomics OP_INC
-            indent = ' '*(depth+2)
-            for k in range(0,sum(v)):
-              if soaflags[g_m]:
-                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
-              else:
-                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
-            line = line[:-2]+'};'
-            code(line)
+              indent = ' '*(depth+2)
+              for k in range(0,sum(v)):
+                if soaflags[g_m]:
+                  line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+                else:
+                  line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
+              line = line[:-2]+'};'
+              code(line)
 
 
 
@@ -978,7 +991,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         FOR('col','0','Plan->ncolors')
         code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
         ENDFOR()
-      if atomics and ninds>0:
+      elif atomics and ninds>0:
         code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
       else:
         code('int maxblocks = nblocks;')

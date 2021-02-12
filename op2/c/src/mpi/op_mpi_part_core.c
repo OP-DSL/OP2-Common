@@ -3162,34 +3162,41 @@ void op_partition_inertial(op_dat x_dat) {
       x_global /= (double)current_group_size;
       y_global /= (double)current_group_size;
       z_global /= (double)current_group_size;
-      // printf("Centre of gravity: %5.14f %5.14f %5.14f\n", x_global, y_global,
-      // z_global);
+      // printf("Centre of gravity: %5.14f %5.14f %5.14f\n", x_global, y_global, z_global);
       for (int i = 0; i < 9; i++)
         mtx[i] = 0.0;
       for (int i = 0; i < 9; i++)
         mtx_global[i] = 0.0;
       for (int i = 0; i < current_part_size; i++) {
-        mtx[0] += (x[3 * i] - x_global) * (x[3 * i] - x_global);
-        mtx[4] += (x[3 * i + 1] - y_global) * (x[3 * i + 1] - y_global);
-        mtx[8] += (x[3 * i + 2] - z_global) * (x[3 * i + 2] - z_global);
-        mtx[1] += (x[3 * i] - x_global) * (x[3 * i + 1] - y_global);
-        mtx[2] += (x[3 * i] - x_global) * (x[3 * i + 2] - z_global);
-        mtx[5] += (x[3 * i + 1] - y_global) * (x[3 * i + 2] - z_global);
+        mtx[0] += (x[3 * i] - x_global) * (x[3 * i] - x_global); //sxx (1,1)
+        mtx[4] += (x[3 * i + 1] - y_global) * (x[3 * i + 1] - y_global); //syy (2,2)
+        mtx[8] += (x[3 * i + 2] - z_global) * (x[3 * i + 2] - z_global); //szz (3,3)
+        mtx[1] += (x[3 * i] - x_global) * (x[3 * i + 1] - y_global); //sxy (2,1)
+        mtx[2] += (x[3 * i] - x_global) * (x[3 * i + 2] - z_global); //sxz (1,3)
+        mtx[5] += (x[3 * i + 1] - y_global) * (x[3 * i + 2] - z_global); //syz (3,2)
       }
-      mtx[3] = mtx[1];
-      mtx[6] = mtx[2];
-      mtx[7] = mtx[5];
+      mtx[3] = mtx[1]; //sxy (1,2)
+      mtx[6] = mtx[2]; //sxz (1,3)
+      mtx[7] = mtx[5]; //syz (2,3)
       MPI_Allreduce(mtx, mtx_global, 9, MPI_DOUBLE, MPI_SUM, mpi_comm);
 
       q[0] = 0.0;
       q[1] = 0.0;
       q[2] = 0.0;
-      if (mtx_global[0] > mtx_global[4] && mtx_global[0] > mtx_global[8])
+      if (mtx_global[0] >= mtx_global[4] && mtx_global[0] >= mtx_global[8])
         q[0] = 1.0;
-      if (mtx_global[4] > mtx_global[0] && mtx_global[4] > mtx_global[8])
+      if (mtx_global[4] >= mtx_global[0] && mtx_global[4] >= mtx_global[8])
         q[1] = 1.0;
-      if (mtx_global[8] > mtx_global[0] && mtx_global[8] > mtx_global[4])
+      if (mtx_global[8] >= mtx_global[0] && mtx_global[8] >= mtx_global[4])
         q[2] = 1.0;
+
+      //op_power
+
+      //normalize q
+      double qmod = 0.0;
+      for (int i = 0; i < 3; i++) qmod += q[i]*q[i];
+      qmod = 1.0/sqrt(qmod);
+      for (int i = 0; i < 3; i++) q[i] = qmod*q[i];
 
       int iter = 0;
       double err = 1.0;
@@ -3218,15 +3225,15 @@ void op_partition_inertial(op_dat x_dat) {
         for (int i = 0; i < 3; i++)
           q[i] = p[i];
       }
-      // printf("Converged %d %5.14f (%5.14f %5.14f
-      // %5.14f)\n",iter,mue,q[0],q[1],q[2]);
+      // printf("Converged %d %5.14f (%5.14f %5.14f %5.14f)\n",iter,mue,q[0],q[1],q[2]);
+      // op_power end
       for (int i = 0; i < current_part_size; i++)
         dist[i] = x[3 * i] * p[0] + x[3 * i + 1] * p[1] + x[3 * i + 2] * p[2];
       // op_inert end
 
       // op_sort begin
       double distmin = DBL_MAX;
-      double distmax = DBL_MIN;
+      double distmax = -1.0*DBL_MAX;
       double distavg = 0.0;
       for (int i = 0; i < current_part_size; i++) {
         distmin = distmin < dist[i] ? distmin : dist[i];
@@ -3245,7 +3252,7 @@ void op_partition_inertial(op_dat x_dat) {
       double dlower = distmin_g;
       double dupper = distmax_g;
       double dsplit = distavg_g;
-      int nsplit = (current_group_size * (comm_size / 2)) / comm_size;
+      long nsplit = ((long)current_group_size * (long)(comm_size / 2)) / (long)comm_size;
       int nlower_g = 0;
       while (1) {
         int nlower = 0;
@@ -3310,7 +3317,6 @@ void op_partition_inertial(op_dat x_dat) {
       int target_part = comm_size - my_rank - 1;
       if (my_rank == target_part)
         target_part--;
-
       // Send send buffer size
       MPI_Isend(&send_ctr, 1, MPI_INT, target_part, 0, mpi_comm, &s_request);
 
@@ -3330,7 +3336,7 @@ void op_partition_inertial(op_dat x_dat) {
                       sizeof(double)); // Implicitly assign x = x_keep
       global_indices = (int *)xrealloc(
           idx_gbl_keep,
-          (keep_ctr + size_0 + size_1) *
+          (keep_ctr + size_0 + size_1 + 1) *
               sizeof(int)); // Implicitly assign global_indices = idx_gbl_keep
       current_part_size = keep_ctr + size_0 + size_1;
 
@@ -3476,6 +3482,8 @@ void op_partition_inertial(op_dat x_dat) {
     }
   }
   MPI_Waitall(send_count, send_requests, send_statuses);
+  op_free(global_indices_recv);
+  op_free(global_indices);
   // Debugging: print partvecs to file
   /*FILE *file;
   char fname[64];

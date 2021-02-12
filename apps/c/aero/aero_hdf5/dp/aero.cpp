@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
   op_dat p_phim = op_decl_dat_hdf5(nodes, 1, "double", file, "p_phim");
   op_dat p_resm = op_decl_dat_hdf5(nodes, 1, "double", file, "p_resm");
   op_dat p_none = op_decl_dat_hdf5(nodes, 4, "double", file, "p_none");
-  op_dat p_K = op_decl_dat_hdf5(cells, 16, "double:soa", file, "p_K");
+  op_dat p_K = op_decl_dat_hdf5(cells, 16, "double", file, "p_K");
   op_dat p_V = op_decl_dat_hdf5(nodes, 1, "double", file, "p_V");
   op_dat p_P = op_decl_dat_hdf5(nodes, 1, "double", file, "p_P");
   op_dat p_U = op_decl_dat_hdf5(nodes, 1, "double", file, "p_U");
@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
     op_par_loop(res_calc, "res_calc", cells,
                 op_arg_dat(p_xm, -4, pcell, 2, "double", OP_READ),
                 op_arg_dat(p_phim, -4, pcell, 1, "double", OP_READ),
-                op_opt_arg_dat(1,p_K, -1, OP_ID, 16, "double:soa", OP_WRITE),
+                op_opt_arg_dat(1,p_K, -1, OP_ID, 16, "double", OP_WRITE),
                 op_opt_arg_dat(1,p_resm, -4, pcell, 1, "double", OP_RW),
                 op_opt_arg_dat(0,p_none, -4, pcell, 2, "double", OP_INC));
 
@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
       // V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
-                  op_arg_dat(p_K, -1, OP_ID, 16, "double:soa", OP_READ),
+                  op_arg_dat(p_K, -1, OP_ID, 16, "double", OP_READ),
                   op_arg_dat(p_P, -4, pcell, 1, "double", OP_READ));
 
       op_par_loop(dirichlet, "dirichlet", bnodes,
@@ -293,7 +293,22 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&rms, 1, "double", OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
+    // op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
+    // print iteration history
+    rms = sqrt(rms / (double)op_get_size(nodes));
+    op_printf("%d %d %3.15E\n", iter, inner_iter, rms);
+    if (iter % niter ==
+        0) { //&& ncell == 720000) { // defailt mesh -- for validation testing
+      float diff = fabs((100.0 * (rms / 0.0000005644214176463586)) - 100.0);
+      op_printf("\n\nTest problem with %d nodes is within %3.15E %% of the "
+                "expected solution\n",
+                op_get_size(nodes), diff);
+      if (diff < 0.02) {
+        op_printf("This test is considered PASSED\n");
+      } else {
+        op_printf("This test is considered FAILED\n");
+      }
+    }
   }
 
   op_timing_output();

@@ -25,8 +25,8 @@ void op_par_loop_updateUR(char const *name, op_set set,
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(5);
-  OP_kernels[5].name = name;
-  OP_kernels[5].count += 1;
+  OP_kernels[5].name      = name;
+  OP_kernels[5].count    += 1;
   op_timers_core(&cpu_t1, &wall_t1);
 
 
@@ -42,7 +42,7 @@ void op_par_loop_updateUR(char const *name, op_set set,
     int nthreads = 1;
   #endif
 
-    if (set_size > 0) {
+  if (set_size >0) {
 
     // execute plan
     #pragma omp parallel for

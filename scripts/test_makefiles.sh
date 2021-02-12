@@ -271,36 +271,36 @@ echo " "
 echo " "
 echo "=======================> Running Aero Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./aero_seq"
+validate "./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_openmp OP_PART_SIZE=256
+validate "./aero_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi"
+validate "./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp OP_PART_SIZE=256
+validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256"
 
 
 echo " "
 echo " "
 echo "=======================> Running Aero Plain DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./aero_seq"
+validate "./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_openmp OP_PART_SIZE=256
+validate "./aero_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2  ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi"
+validate "./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2  ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp OP_PART_SIZE=256
+validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256"
 
 
 
@@ -588,18 +588,18 @@ echo " "
 echo " "
 echo "=======================> Running Aero Plain DP built with Clang Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./aero_seq"
+validate "./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_openmp OP_PART_SIZE=256
+validate "./aero_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi"
+validate "./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp OP_PART_SIZE=256
+validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
 
@@ -609,18 +609,18 @@ echo " "
 echo " "
 echo "=======================> Running Aero HDF5 DP built with Intel Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp
-./aero_seq
-./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "./aero_seq"
+validate "./aero_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_openmp OP_PART_SIZE=256
+validate "./aero_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=1
-$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi
-./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 20 ./aero_mpi"
+validate "./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./aero_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192"
 export OMP_NUM_THREADS=20
-./aero_mpi_openmp OP_PART_SIZE=256
+validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
-$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256
+validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=20
 #./aero_mpi_openmp4 OP_PART_SIZE=256
 

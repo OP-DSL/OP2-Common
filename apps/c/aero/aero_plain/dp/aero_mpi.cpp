@@ -443,7 +443,24 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_resm, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_U, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_gbl(&rms, 1, "double", OP_INC));
-    op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(g_nnode), inner_iter);
+    // op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(g_nnode),
+    // inner_iter);
+
+    // print iteration history
+    rms = sqrt(rms / (double)op_get_size(nodes));
+    op_printf("%d %d %3.15E\n", iter, inner_iter, rms);
+    if (iter % niter ==
+        0) { //&& ncell == 720000) { // defailt mesh -- for validation testing
+      float diff = fabs((100.0 * (rms / 0.0000005644214176463586)) - 100.0);
+      op_printf("\n\nTest problem with %d nodes is within %3.15E %% of the "
+                "expected solution\n",
+                op_get_size(nodes), diff);
+      if (diff < 0.02) {
+        op_printf("This test is considered PASSED\n");
+      } else {
+        op_printf("This test is considered FAILED\n");
+      }
+    }
   }
   op_timers(&cpu_t2, &wall_t2);
   op_timing_output();

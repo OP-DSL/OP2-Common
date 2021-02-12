@@ -3,86 +3,54 @@
 //
 
 __constant__ int opDat0_spMV_stride_OP2CONSTANT;
-int opDat0_spMV_stride_OP2HOST=-1;
+int opDat0_spMV_stride_OP2HOST = -1;
 __constant__ int direct_spMV_stride_OP2CONSTANT;
-int direct_spMV_stride_OP2HOST=-1;
+int direct_spMV_stride_OP2HOST = -1;
 //user function
 __device__ void spMV_gpu( double **v, const double *K, const double **p) {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  v[0][0] += K[(0)*direct_spMV_stride_OP2CONSTANT] * p[0][0];
-  v[0][0] += K[(1)*direct_spMV_stride_OP2CONSTANT] * p[1][0];
-  v[1][0] += K[(1)*direct_spMV_stride_OP2CONSTANT] * p[0][0];
-  v[0][0] += K[(2)*direct_spMV_stride_OP2CONSTANT] * p[2][0];
-  v[2][0] += K[(2)*direct_spMV_stride_OP2CONSTANT] * p[0][0];
-  v[0][0] += K[(3)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
-  v[3][0] += K[(3)*direct_spMV_stride_OP2CONSTANT] * p[0][0];
-  v[1][0] += K[(4 + 1)*direct_spMV_stride_OP2CONSTANT] * p[1][0];
-  v[1][0] += K[(4 + 2)*direct_spMV_stride_OP2CONSTANT] * p[2][0];
-  v[2][0] += K[(4 + 2)*direct_spMV_stride_OP2CONSTANT] * p[1][0];
-  v[1][0] += K[(4 + 3)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
-  v[3][0] += K[(4 + 3)*direct_spMV_stride_OP2CONSTANT] * p[1][0];
-  v[2][0] += K[(8 + 2)*direct_spMV_stride_OP2CONSTANT] * p[2][0];
-  v[2][0] += K[(8 + 3)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
-  v[3][0] += K[(8 + 3)*direct_spMV_stride_OP2CONSTANT] * p[2][0];
-  v[3][0] += K[(15)*direct_spMV_stride_OP2CONSTANT] * p[3][0];
-
+  v[0][0] += K[(0) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(1) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(1) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(2) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[0][0] += K[(3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(3) * direct_spMV_stride_OP2CONSTANT] * p[0][0];
+  v[1][0] += K[(4 + 1) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(4 + 2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(4 + 2) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[1][0] += K[(4 + 3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(4 + 3) * direct_spMV_stride_OP2CONSTANT] * p[1][0];
+  v[2][0] += K[(8 + 2) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[2][0] += K[(8 + 3) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
+  v[3][0] += K[(8 + 3) * direct_spMV_stride_OP2CONSTANT] * p[2][0];
+  v[3][0] += K[(15) * direct_spMV_stride_OP2CONSTANT] * p[3][0];
 }
 
 // CUDA kernel function
-__global__ void op_cuda_spMV(
-  double *__restrict ind_arg0,
-  const double *__restrict ind_arg1,
-  const int *__restrict opDat0Map,
-  const double *__restrict arg4,
-  int start,
-  int end,
-  int   set_size) {
-  double arg0_l[1];
-  double arg1_l[1];
-  double arg2_l[1];
-  double arg3_l[1];
-  double *arg0_vec[4] = {
-    arg0_l,
-    arg1_l,
-    arg2_l,
-    arg3_l,
-  };
+__global__ void op_cuda_spMV(double *__restrict ind_arg0,
+                             const double *__restrict ind_arg1,
+                             const int *__restrict opDat0Map,
+                             const double *__restrict arg4, int start, int end,
+                             int set_size) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
-    //initialise local variables
+    // initialise local variables
     double arg0_l[1];
-    for ( int d=0; d<1; d++ ){
+    for (int d = 0; d < 1; d++) {
       arg0_l[d] = ZERO_double;
     }
     double arg1_l[1];
-    for ( int d=0; d<1; d++ ){
+    for (int d = 0; d < 1; d++) {
       arg1_l[d] = ZERO_double;
     }
     double arg2_l[1];
-    for ( int d=0; d<1; d++ ){
+    for (int d = 0; d < 1; d++) {
       arg2_l[d] = ZERO_double;
     }
     double arg3_l[1];
-    for ( int d=0; d<1; d++ ){
+    for (int d = 0; d < 1; d++) {
       arg3_l[d] = ZERO_double;
     }
     int map0idx;
@@ -93,28 +61,18 @@ __global__ void op_cuda_spMV(
     map1idx = opDat0Map[n + set_size * 1];
     map2idx = opDat0Map[n + set_size * 2];
     map3idx = opDat0Map[n + set_size * 3];
-    double* arg0_vec[] = {
-       &ind_arg0[1 * map0idx],
-       &ind_arg0[1 * map1idx],
-       &ind_arg0[1 * map2idx],
-       &ind_arg0[1 * map3idx]};
-    const double* arg5_vec[] = {
-       &ind_arg1[1 * map0idx],
-       &ind_arg1[1 * map1idx],
-       &ind_arg1[1 * map2idx],
-       &ind_arg1[1 * map3idx]};
+    double *arg0_vec[] = {arg0_l, arg1_l, arg2_l, arg3_l};
+    const double *arg5_vec[] = {&ind_arg1[1 * map0idx], &ind_arg1[1 * map1idx],
+                                &ind_arg1[1 * map2idx], &ind_arg1[1 * map3idx]};
 
-    //user-supplied kernel call
-    spMV_gpu(arg0_vec,
-         arg4+n,
-         arg5_vec);
-    atomicAdd(&ind_arg0[0+map0idx*1],arg0_l[0]);
-    atomicAdd(&ind_arg0[0+map1idx*1],arg1_l[0]);
-    atomicAdd(&ind_arg0[0+map2idx*1],arg2_l[0]);
-    atomicAdd(&ind_arg0[0+map3idx*1],arg3_l[0]);
+    // user-supplied kernel call
+    spMV_gpu(arg0_vec, arg4 + n, arg5_vec);
+    atomicAdd(&ind_arg0[0 + map0idx * 1], arg0_l[0]);
+    atomicAdd(&ind_arg0[0 + map1idx * 1], arg1_l[0]);
+    atomicAdd(&ind_arg0[0 + map2idx * 1], arg2_l[0]);
+    atomicAdd(&ind_arg0[0 + map3idx * 1], arg3_l[0]);
   }
 }
-
 
 //host stub function
 void op_par_loop_spMV(char const *name, op_set set,
@@ -156,35 +114,36 @@ void op_par_loop_spMV(char const *name, op_set set,
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
   if (set_size > 0) {
 
-    if ((OP_kernels[3].count==1) || (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[3].count == 1) ||
+        (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
-      cudaMemcpyToSymbol(opDat0_spMV_stride_OP2CONSTANT, &opDat0_spMV_stride_OP2HOST,sizeof(int));
+      cudaMemcpyToSymbol(opDat0_spMV_stride_OP2CONSTANT,
+                         &opDat0_spMV_stride_OP2HOST, sizeof(int));
     }
-    if ((OP_kernels[3].count==1) || (direct_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
+    if ((OP_kernels[3].count == 1) ||
+        (direct_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
       direct_spMV_stride_OP2HOST = getSetSizeFromOpArg(&arg4);
-      cudaMemcpyToSymbol(direct_spMV_stride_OP2CONSTANT,&direct_spMV_stride_OP2HOST,sizeof(int));
+      cudaMemcpyToSymbol(direct_spMV_stride_OP2CONSTANT,
+                         &direct_spMV_stride_OP2HOST, sizeof(int));
     }
-    //set CUDA execution parameters
-    #ifdef OP_BLOCK_SIZE_3
-      int nthread = OP_BLOCK_SIZE_3;
-    #else
-      int nthread = OP_block_size;
-    #endif
+// set CUDA execution parameters
+#ifdef OP_BLOCK_SIZE_3
+    int nthread = OP_BLOCK_SIZE_3;
+#else
+    int nthread = OP_block_size;
+#endif
 
-    for ( int round=0; round<2; round++ ){
-      if (round==1) {
+    for (int round = 0; round < 2; round++) {
+      if (round == 1) {
         op_mpi_wait_all_cuda(nargs, args);
       }
-      int start = round==0 ? 0 : set->core_size;
-      int end = round==0 ? set->core_size : set->size + set->exec_size;
-      if (end-start>0) {
-        int nblocks = (end-start-1)/nthread+1;
-        op_cuda_spMV<<<nblocks,nthread>>>(
-        (double *)arg0.data_d,
-        (double *)arg5.data_d,
-        arg0.map_data_d,
-        (double*)arg4.data_d,
-        start,end,set->size+set->exec_size);
+      int start = round == 0 ? 0 : set->core_size;
+      int end = round == 0 ? set->core_size : set->size + set->exec_size;
+      if (end - start > 0) {
+        int nblocks = (end - start - 1) / nthread + 1;
+        op_cuda_spMV<<<nblocks, nthread>>>(
+            (double *)arg0.data_d, (double *)arg5.data_d, arg0.map_data_d,
+            (double *)arg4.data_d, start, end, set->size + set->exec_size);
       }
     }
   }

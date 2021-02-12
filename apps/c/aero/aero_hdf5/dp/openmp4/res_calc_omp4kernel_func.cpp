@@ -57,7 +57,7 @@ void res_calc_omp4_kernel(int *map0, int map0size, double *data8, int dat8size,
     
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
+        K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] = 0;
       }
     }
     for (int i = 0; i < 4; i++) {
@@ -117,7 +117,7 @@ void res_calc_omp4_kernel(int *map0, int map0size, double *data8, int dat8size,
       }
       for (int j = 0; j < 4; j++) {
         for (int k = 0; k < 4; k++) {
-          K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] +=
+          K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] +=
               wt1 * rho * (N_x[j] * N_x[k] + N_x[4 + j] * N_x[4 + k]) -
               wt1 * rc2 * (u[0] * N_x[j] + u[1] * N_x[4 + j]) *
                   (u[0] * N_x[k] + u[1] * N_x[4 + k]);

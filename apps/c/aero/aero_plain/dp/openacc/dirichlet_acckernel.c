@@ -4,7 +4,7 @@
 
 //user function
 int opDat0_dirichlet_stride_OP2CONSTANT;
-int opDat0_dirichlet_stride_OP2HOST = -1;
+int opDat0_dirichlet_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void dirichlet_openacc( double *res) { *res = 0.0; }
@@ -44,10 +44,9 @@ void op_par_loop_dirichlet(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[1].count == 1) ||
-        (opDat0_dirichlet_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[1].count==1) || (opDat0_dirichlet_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_dirichlet_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       opDat0_dirichlet_stride_OP2CONSTANT = opDat0_dirichlet_stride_OP2HOST;
     }
@@ -75,6 +74,7 @@ void op_par_loop_dirichlet(char const *name, op_set set,
         int n = col_reord[e];
         int map0idx;
         map0idx = map0[n + set_size1 * 0];
+
 
         dirichlet_openacc(
           &data0[1 * map0idx]);

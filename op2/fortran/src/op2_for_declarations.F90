@@ -514,6 +514,15 @@ module OP2_Fortran_Declarations
 
     end subroutine op_timers_f
 
+    function op_free_dat_temp_c ( dat ) BIND(C,name='op_free_dat_temp_char')
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in) :: dat
+
+      integer(kind=c_int) op_free_dat_temp_c
+
+    end function
+
     function get_set_size ( set ) BIND(C,name='get_set_size')
       use, intrinsic :: ISO_C_BINDING
 
@@ -1349,6 +1358,14 @@ contains
     opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_string
+
+  integer(kind=c_int) function op_free_dat_temp (dat)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    type(op_dat) :: dat
+    op_free_dat_temp = op_free_dat_temp_c ( dat%dataCPtr )
+  end function op_free_dat_temp
+
 
   type(op_arg) function op_arg_dat_real_8 (dat, idx, map, dim, type, access)
     use, intrinsic :: ISO_C_BINDING

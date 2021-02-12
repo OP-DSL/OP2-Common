@@ -4,16 +4,16 @@
 
 //user function
 int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST=-1;
+int opDat0_res_calc_stride_OP2HOST = -1;
 int direct_res_calc_stride_OP2CONSTANT;
-int direct_res_calc_stride_OP2HOST=-1;
+int direct_res_calc_stride_OP2HOST = -1;
 //user function
 //#pragma acc routine
 inline void res_calc_openacc( const double **x, const double **phim, double *K,
                       double **res, double **none) {
   for (int j = 0; j < 4; j++) {
     for (int k = 0; k < 4; k++) {
-      K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] = 0;
+      K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] = 0;
     }
   }
   for (int i = 0; i < 4; i++) {
@@ -71,7 +71,7 @@ inline void res_calc_openacc( const double **x, const double **phim, double *K,
     }
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        K[(j * 4 + k)*direct_res_calc_stride_OP2CONSTANT] +=
+        K[(j * 4 + k) * direct_res_calc_stride_OP2CONSTANT] +=
             wt1 * rho * (N_x[j] * N_x[k] + N_x[4 + j] * N_x[4 + k]) -
             wt1 * rc2 * (u[0] * N_x[j] + u[1] * N_x[4 + j]) *
                 (u[0] * N_x[k] + u[1] * N_x[4 + k]);
@@ -118,31 +118,31 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int optflags = 0;
   if (args[8].opt) {
-    optflags |= 1 << 0;
+    optflags |= 1<<0;
   }
   if (args[9].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[10].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[11].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[12].opt) {
-    optflags |= 1 << 1;
+    optflags |= 1<<1;
   }
   if (args[13].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[14].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[15].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
   if (args[16].opt) {
-    optflags |= 1 << 2;
+    optflags |= 1<<2;
   }
 
   // initialise timers
@@ -171,13 +171,15 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[0].count == 1) ||
+        (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       opDat0_res_calc_stride_OP2CONSTANT = opDat0_res_calc_stride_OP2HOST;
     }
-    if ((OP_kernels[0].count==1) || (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
+    if ((OP_kernels[0].count == 1) ||
+        (direct_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg8))) {
       direct_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg8);
       direct_res_calc_stride_OP2CONSTANT = direct_res_calc_stride_OP2HOST;
     }
@@ -231,12 +233,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         double *arg13_vec[] = {&data13[map0idx], &data13[map1idx],
                                &data13[map2idx], &data13[map3idx]};
 
-        res_calc_openacc(
-          arg0_vec,
-          arg4_vec,
-          &data8[n],
-          arg9_vec,
-          arg13_vec);
+        res_calc_openacc(arg0_vec, arg4_vec, &data8[n], arg9_vec, arg13_vec);
       }
 
     }

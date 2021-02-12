@@ -56,7 +56,6 @@ __global__ void op_cuda_bres_calc(
   int start,
   int end,
   int   set_size) {
-  float arg4_l[4];
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;

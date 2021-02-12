@@ -18,7 +18,6 @@ __global__ void op_cuda_res(
   int start,
   int end,
   int   set_size) {
-  float arg2_l[1];
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
     int n = tid + start;
