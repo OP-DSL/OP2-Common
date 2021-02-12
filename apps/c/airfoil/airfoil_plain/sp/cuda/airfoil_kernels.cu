@@ -48,6 +48,9 @@ int size, char *dat, char const *name){
   }
   else
   if (!strcmp(name,"qinf")) {
+    if (!strcmp(name,"qinf") && size>MAX_CONST_SIZE) {
+      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
+    }
     cutilSafeCall(cudaMemcpyToSymbol(qinf_cuda, dat, dim*size));
   }
   else

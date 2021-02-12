@@ -3241,7 +3241,7 @@ int op_get_size(op_set set) {
 }
 
 /*******************************************************************************
- * Sliding planes implementations
+ * Old - Sliding planes implementations
  *******************************************************************************/
 
 op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {

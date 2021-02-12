@@ -502,3 +502,20 @@ void op_renumber(op_map base) {
 
 #endif
 }
+
+extern int **OP_map_ptr_list;
+extern "C" void op_renumber_ptr(int *ptr) {
+  op_map item_map;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == ptr) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+  if (item_map == NULL) {
+    printf("ERROR in op_renumber: op_map not found for %p pointer\n", ptr);
+    for (int i = 0; i < OP_map_index; i++)
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+  }
+  op_renumber(item_map);
+}

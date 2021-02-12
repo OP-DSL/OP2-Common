@@ -132,10 +132,10 @@ def op2_gen_openmp(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         j = i
     reduct = j >= 0
-    print name, reduct
+    print(name, reduct)
 ##########################################################################
 #  start with OpenMP kernel function
 ##########################################################################
@@ -346,7 +346,7 @@ def op2_gen_openmp(master, date, consts, kernels):
     for m in range(1,ninds+1):
       s = [i for i in range(len(inds)) if inds[i]==m]
       if sum(s)>1:
-        if indaccs[m-1] <> OP_INC:
+        if indaccs[m-1] != OP_INC:
           code('')
           ctr = 0
           for n in range(0,nargs):
@@ -380,7 +380,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       elif maps[m]==OP_MAP and m == 0:
         line += rep(indent+'<ARG>_vec,'+'\n',inds[m]-1)
         a = a+1
-      elif maps[m]==OP_MAP and m>0 and vectorised[m] <> vectorised[m-1]: #xxx:vector
+      elif maps[m]==OP_MAP and m>0 and vectorised[m] != vectorised[m-1]: #xxx:vector
         line += rep(indent+'<ARG>_vec,'+'\n',inds[m]-1)
         a = a+1
       elif maps[m]==OP_MAP and m>0 and vectorised[m] == vectorised[m-1]:
@@ -394,7 +394,7 @@ def op2_gen_openmp(master, date, consts, kernels):
           line += rep(indent+'<ARG>+n*<DIM>,'+'\n',m)
           a = a+1
       else:
-        print 'internal error 1 '
+        print('internal error 1 ')
 
     code(line[0:-2]+');') #remove final ',' and \n
 
@@ -420,7 +420,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       ENDFOR()
 
-      s = [i for i in range(1,ninds+1) if indaccs[i-1]<> OP_READ]
+      s = [i for i in range(1,ninds+1) if indaccs[i-1]!= OP_READ]
 
       if len(s)>0 and max(s)>0:
         code('')
@@ -468,7 +468,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         code('op_arg <ARG>,')
 
     for g_m in range (0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m] != OP_READ:
         code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
@@ -533,7 +533,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
 #
 # start timing
@@ -560,7 +560,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('')
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<TYP> <ARG>_l[<DIM>+64*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
@@ -574,7 +574,7 @@ def op2_gen_openmp(master, date, consts, kernels):
           ENDFOR()
 
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     code('')
 
 #
@@ -604,7 +604,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for m in range(0,nargs):
         g_m = m
-        if inds[m]==0 and maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
+        if inds[m]==0 and maps[m] == OP_GBL and accs[m] != OP_READ and accs[m] != OP_WRITE:
           code('&<ARG>_l[64*omp_get_thread_num()],')
         elif inds[m]==0:
           code('(<TYP> *)<ARG>.data,')
@@ -625,7 +625,7 @@ def op2_gen_openmp(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
-          if maps[m] == OP_GBL and accs[m] <> OP_READ and accs[m] <> OP_WRITE:
+          if maps[m] == OP_GBL and accs[m] != OP_READ and accs[m] != OP_WRITE:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
               FOR('d','0','<DIM>')
@@ -659,7 +659,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 
       for g_m in range(0,nargs):
         indent = ''
-        if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
           code(indent+'<ARG>_l + thr*64,')
         else:
           code(indent+'(<TYP> *) <ARG>.data,')
@@ -680,7 +680,7 @@ def op2_gen_openmp(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
           FOR('d','0','<DIM>')
@@ -695,9 +695,9 @@ def op2_gen_openmp(master, date, consts, kernels):
           code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         else:
-          print 'internal error: invalid reduction option'
+          print('internal error: invalid reduction option')
         ENDFOR()
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
@@ -720,7 +720,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:

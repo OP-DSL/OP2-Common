@@ -174,7 +174,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -225,8 +225,8 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       i = p.search(kernel_text).start()
 
       if(i < 0):
-        print "\n********"
-        print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+        print("\n********")
+        print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
         exit(2)
       i2 = i
 
@@ -243,15 +243,15 @@ def op2_gen_omp_vec(master, date, consts, kernels):
 
       # check for number of arguments
       if len(signature_text.split(',')) != nargs:
-          print 'Error parsing user kernel(%s): must have %d arguments' \
-                % name, nargs
+          print('Error parsing user kernel(%s): must have %d arguments' \
+                % name, nargs)
           return
 
       new_signature_text = ''
       for i in range(0,nargs):
         var = signature_text.split(',')[i].strip()
 
-        if maps[i] <> OP_GBL and maps[i] <> OP_ID:
+        if maps[i] != OP_GBL and maps[i] != OP_ID:
           #remove * and add [*][SIMD_VEC]
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
@@ -336,7 +336,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
     aligned_clauses = ''
     comm('create aligned pointers for dats')
     for g_m in range (0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
             code('ALIGNED_<TYP>       <TYP> * __restrict__ ptr'+\
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
@@ -354,7 +354,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
             #str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
         elif accs[g_m]==OP_MIN or accs[g_m]==OP_MAX or accs[g_m]==OP_INC:
           if not dims[g_m].isdigit() or int(dims[g_m])>1:
-            print 'Error reduce dim < 1'
+            print('Error reduce dim < 1')
             exit(2) 
           code('<TYP> <ARG>h = *(<TYP> *)arg'+str(g_m)+'.data;')
           if accs[g_m]==OP_MIN:
@@ -460,14 +460,29 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       FOR('n','offset_b','((offset_b-1)/SIMD_VEC+1)*SIMD_VEC')
       if nmaps > 0:
         k = []
-        #print name
-        #print maps
-        #print mapinds
         for g_m in range(0,nargs):
-          #print g_m
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('<ARG>.opt')
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
+
       code('')
       line = name+'('
       indent = '\n'+' '*(depth+2)
@@ -566,7 +581,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
 
       #do reductions
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
             code('<ARG>h += dat'+str(g_m)+'[i];')
@@ -665,7 +680,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       ENDFOR()
       #do reductions
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ:
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
           FOR('i','0','SIMD_VEC')
           if accs[g_m] == OP_INC:
             code('arg'+str(g_m)+'h += dat'+str(g_m)+'[i];')
@@ -715,7 +730,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         code('*(<TYP>*)<ARG>.data = <ARG>h;')
         code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
 
@@ -736,7 +751,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -745,14 +760,14 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       names = []
       for g_m in range(0,ninds):
         mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+        if indaccs[g_m] != OP_WRITE and indaccs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[invinds[g_m]] in names:
           code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[g_m])+'.size'+mult+';')
           names = names + [var[invinds[g_m]]]
       for g_m in range(0,nargs):
         mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+        if accs[g_m] != OP_WRITE and accs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[g_m] in names:
           names = names + [var[invinds[g_m]]]

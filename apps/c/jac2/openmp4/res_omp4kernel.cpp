@@ -3,24 +3,18 @@
 //
 
 //user function
+int opDat1_res_stride_OP2CONSTANT;
+int opDat1_res_stride_OP2HOST = -1;
+int direct_res_stride_OP2CONSTANT;
+int direct_res_stride_OP2HOST = -1;
 //user function
 
-void res_omp4_kernel(
-  double *data0,
-  int dat0size,
-  int *map1,
-  int map1size,
-  float *arg3,
-  float *data1,
-  int dat1size,
-  float *data2,
-  int dat2size,
-  int *col_reord,
-  int set_size1,
-  int start,
-  int end,
-  int num_teams,
-  int nthread);
+void res_omp4_kernel(double *data0, int dat0size, int *map1, int map1size,
+                     float *arg3, float *data1, int dat1size, float *data2,
+                     int dat2size, int *col_reord, int set_size1, int start,
+                     int end, int num_teams, int nthread,
+                     int opDat1_res_stride_OP2CONSTANT,
+                     int direct_res_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_res(char const *name, op_set set,
@@ -71,7 +65,18 @@ void op_par_loop_res(char const *name, op_set set,
   int ncolors = 0;
   int set_size1 = set->size + set->exec_size;
 
-  if (set->size >0) {
+  if (set_size > 0) {
+
+    if ((OP_kernels[0].count == 1) ||
+        (opDat1_res_stride_OP2HOST != getSetSizeFromOpArg(&arg1))) {
+      opDat1_res_stride_OP2HOST = getSetSizeFromOpArg(&arg1);
+      opDat1_res_stride_OP2CONSTANT = opDat1_res_stride_OP2HOST;
+    }
+    if ((OP_kernels[0].count == 1) ||
+        (direct_res_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+      direct_res_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
+      direct_res_stride_OP2CONSTANT = direct_res_stride_OP2HOST;
+    }
 
     //Set up typed device pointers for OpenMP
     int *map1 = arg1.map_data_d;
@@ -96,23 +101,12 @@ void op_par_loop_res(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      res_omp4_kernel(
-        data0,
-        dat0size,
-        map1,
-        map1size,
-        &arg3_l,
-        data1,
-        dat1size,
-        data2,
-        dat2size,
-        col_reord,
-        set_size1,
-        start,
-        end,
-        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
-        nthread);
-
+      res_omp4_kernel(data0, dat0size, map1, map1size, &arg3_l, data1, dat1size,
+                      data2, dat2size, col_reord, set_size1, start, end,
+                      part_size != 0 ? (end - start - 1) / part_size + 1
+                                     : (end - start - 1) / nthread,
+                      nthread, opDat1_res_stride_OP2CONSTANT,
+                      direct_res_stride_OP2CONSTANT);
     }
     OP_kernels[0].transfer  += Plan->transfer;
     OP_kernels[0].transfer2 += Plan->transfer2;

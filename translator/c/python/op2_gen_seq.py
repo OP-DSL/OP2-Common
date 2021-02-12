@@ -135,7 +135,7 @@ def op2_gen_seq(master, date, consts, kernels):
 
     j = 0
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j > 0
 
@@ -232,7 +232,7 @@ def op2_gen_seq(master, date, consts, kernels):
     code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
     code('')
-    IF('set->size >0')
+    IF('set_size > 0')
     code('')
 
 #
@@ -248,7 +248,26 @@ def op2_gen_seq(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('<ARG>.opt')
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
+
       code('')
       for g_m in range (0,nargs):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
@@ -323,7 +342,7 @@ def op2_gen_seq(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
 #        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         if typs[g_m] == 'double': #need for both direct and indirect
           code('op_mpi_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
@@ -332,7 +351,7 @@ def op2_gen_seq(master, date, consts, kernels):
         elif typs[g_m] == 'int':
           code('op_mpi_reduce_int(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         else:
-          print 'Type '+typs[g_m]+' not supported in OpenACC code generator, please add it'
+          print('Type '+typs[g_m]+' not supported in OpenACC code generator, please add it')
           exit(-1)
 
     code('op_mpi_set_dirtybit(nargs, args);')
@@ -354,7 +373,7 @@ def op2_gen_seq(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -365,7 +384,7 @@ def op2_gen_seq(master, date, consts, kernels):
       names = []
       for g_m in range(0,ninds):
         mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+        if indaccs[g_m] != OP_WRITE and indaccs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[invinds[g_m]] in names:
           if optflags[g_m]==1:
@@ -376,7 +395,7 @@ def op2_gen_seq(master, date, consts, kernels):
           names = names + [var[invinds[g_m]]]
       for g_m in range(0,nargs):
         mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+        if accs[g_m] != OP_WRITE and accs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[g_m] in names:
           names = names + [var[g_m]]
@@ -426,7 +445,7 @@ def op2_gen_seq(master, date, consts, kernels):
       if consts[nc]['dim']==1:
         code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        if consts[nc]['dim'] > 0:
+        if consts[nc]['dim'].isdigit() and int(consts[nc]['dim']) > 0:
           num = str(consts[nc]['dim'])
         else:
           num = 'MAX_CONST_SIZE'

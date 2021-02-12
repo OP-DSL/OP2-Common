@@ -138,7 +138,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         j = i
     reduct = j >= 0
 
@@ -177,7 +177,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         code('op_arg <ARG>,')
 
     for g_m in range (0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m] <> OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m] != OP_READ:
         code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
@@ -218,6 +218,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code("op_timing_realloc_manytime({0}, {1});".format(str(nk), "omp_get_max_threads()"))
     else:
       code('op_timing_realloc('+str(nk)+');')
+    code('OP_kernels[' +str(nk)+ '].name      = name;')
+    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     code('op_timers_core(&cpu_t1, &wall_t1);')
     if insert_thread_timers:
       code('double non_thread_walltime = 0.0;')
@@ -257,7 +259,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
 #
 # set number of threads in x86 execution and create arrays for reduction
@@ -275,7 +277,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('')
       comm(' allocate and initialise arrays for global reduction')
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
           code('<TYP> <ARG>_l[nthreads*64];')
           FOR('thr','0','nthreads')
           if accs[g_m]==OP_INC:
@@ -289,7 +291,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           ENDFOR()
 
     code('')
-    IF('set->size >0')
+    IF('set_size >0')
     code('')
 
 #
@@ -337,8 +339,26 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             k = k + [mapinds[g_m]]
-            code('int map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+\
-              '.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            code('int map'+str(mapinds[g_m])+'idx;')
+      #do non-optional ones
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k) and (not optflags[g_m]):
+            k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+      #do optional ones
+      if nmaps > 0:
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
+            if optflags[g_m]:
+              IF('<ARG>.opt')
+            else:
+              k = k + [mapinds[g_m]]
+            code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
+            if optflags[g_m]:
+              ENDIF()
+
       code('')
       for g_m in range (0,nargs):
         u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
@@ -370,7 +390,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           else:
             line = line + indent + '&(('+typs[g_m]+'*)arg'+str(invinds[inds[g_m]-1])+'.data)['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
-          if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+          if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
             line = line + indent +'&arg'+str(g_m)+'_l[64*omp_get_thread_num()]'
           else:
             line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
@@ -394,7 +414,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         comm(' combine reduction data')
         IF('col == Plan->ncolors_owned-1')
         for m in range(0,nargs):
-          if maps[m] == OP_GBL and accs[m] <> OP_READ:
+          if maps[m] == OP_GBL and accs[m] != OP_READ:
             FOR('thr','0','nthreads')
             if accs[m]==OP_INC:
               FOR('d','0','<DIM>')
@@ -444,7 +464,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         if maps[g_m] == OP_ID:
           line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
-          if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+          if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
             line = line + indent +'&arg'+str(g_m)+'_l[64*omp_get_thread_num()]'
           else:
             line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
@@ -481,7 +501,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE and ninds==0:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE and ninds==0:
         FOR('thr','0','nthreads')
         if accs[g_m]==OP_INC:
           FOR('d','0','<DIM>')
@@ -496,9 +516,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
           code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
           ENDFOR()
         else:
-          print 'internal error: invalid reduction option'
+          print('internal error: invalid reduction option')
         ENDFOR()
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
@@ -512,8 +532,6 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     code('op_timers_core(&cpu_t2, &wall_t2);')
     if insert_thread_timers:
       code('non_thread_walltime += wall_t2 - wall_t1;')
-    code('OP_kernels[' +str(nk)+ '].name      = name;')
-    code('OP_kernels[' +str(nk)+ '].count    += 1;')
     if insert_thread_timers:
         code('OP_kernels[' +str(nk)+ '].times[0] += non_thread_walltime;')
     else:
@@ -525,7 +543,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -569,7 +587,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if consts[nc]['dim']==1:
         code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        if consts[nc]['dim'] > 0:
+        if consts[nc]['dim'].isdigit() and int(consts[nc]['dim']) > 0:
           num = str(consts[nc]['dim'])
         else:
           num = 'MAX_CONST_SIZE'

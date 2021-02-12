@@ -218,7 +218,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -241,8 +241,8 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           dims[g_m]  = newdim
         except NameError as inst:
           dims[g_m]
-      if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not dims[g_m].isdigit():
-        print 'WARNING: unknown dimension reduction argument '+str(g_m)+' in '+name+': host sequential execution'
+      if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not dims[g_m].isdigit():
+        print('WARNING: unknown dimension reduction argument '+str(g_m)+' in '+name+': host sequential execution')
         host_exec = 1
         for i in range(0,nargs):
           soaflags[i] = 0
@@ -391,8 +391,8 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           regex = re.compile('\\b'+fun+'\\b',re.I)
           text = regex.sub(fun+'_gpu',text)
 
-        if plus_kernels <> '':
-          print name
+        if plus_kernels != '':
+          print(name)
           for i in range(0,nargs):
             if soaflags[i]==1 and not (maps[i] ==OP_GBL):
               stage_flags[i] = 1;
@@ -451,7 +451,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       code('& opDat'+str(invinds[g_m]+1)+'Size, &')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -482,7 +482,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       else:
         code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Local('+str(dims[invinds[g_m]])+',opDat'+str(invinds[g_m]+1)+'Size)')
     for g_m in range(0,nargs):
-      if maps[g_m] <> OP_MAP:
+      if maps[g_m] != OP_MAP:
         if g_m in needDimList:
           code('INTEGER(kind=4) opDat'+str(g_m+1)+'Dim')
       if maps[g_m] == OP_ID:
@@ -491,7 +491,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
         else:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',set_size_full)')
       elif maps[g_m] == OP_GBL:
-        if accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE and dims[g_m].isdigit() and int(dims[g_m])==1:
+        if accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE and dims[g_m].isdigit() and int(dims[g_m])==1:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local')
         else:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+')')
@@ -509,7 +509,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       for g_m in range(0,nargs):
         if stage_flags[g_m] == 1:
           if g_m in needDimList:
-                print 'Error, cannot statically determine dim of argument '+str(g_m+1)+' in kernel '+name
+                print('Error, cannot statically determine dim of argument '+str(g_m+1)+' in kernel '+name)
                 sys.exit(-1)
           code(typs[g_m]+', DIMENSION('+dims[g_m]+') :: opDat'+str(g_m+1)+'Staged')
 
@@ -517,7 +517,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     if not host_exec:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
           for d in range(0,int(dims[g_m])):
             code(typs[g_m]+' opDat'+str(g_m+1)+'Local_'+str(d+1))
           code(typs[g_m]+' opDat'+str(g_m+1)+'LocalArr('+dims[g_m]+')')
@@ -538,7 +538,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
     code('')
     if not host_exec:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
           for d in range(0,int(dims[g_m])):
             code('opDat'+str(g_m+1)+'Local_'+str(d+1)+' = opDat'+str(g_m+1)+'Local('+str(d+1)+')')
 
@@ -566,7 +566,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     if not host_exec:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
           if int(dims[g_m])==1:
             if accs[g_m] == OP_INC:
               line = line + '!$omp& reduction(+:'+'opDat'+str(g_m+1)+'Local) map(tofrom:opDat'+str(g_m+1)+'Local) &\n'
@@ -589,7 +589,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           line = line + '!$omp& private(opDat'+str(g_m+1)+'Staged) &\n'
 
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+      if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
         line = line + '!$omp& private(opDat'+str(g_m+1)+'LocalArr) &\n'
     line = line[:-2]
     if not host_exec:
@@ -602,7 +602,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       DO('i1','bottom','top')
     if not host_exec:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
           if accs[g_m] == OP_INC:
             code('opDat'+str(g_m+1)+'LocalArr = 0')
           if accs[g_m] == OP_MIN:
@@ -657,7 +657,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
         else:
           line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
       elif maps[g_m] == OP_GBL:
-        if accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+        if accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
           if dims[g_m].isdigit() and int(dims[g_m])==1:
             line = line + indent +'& opDat'+str(g_m+1)+'Local'
           else:
@@ -674,7 +674,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
     code(line + indent + '& )')
     if not host_exec:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
           for d in range(0,int(dims[g_m])):
             if accs[g_m] == OP_INC:
               code('opDat'+str(g_m+1)+'Local_'+str(d+1)+' = opDat'+str(g_m+1)+'Local_'+str(d+1)+' + opDat'+str(g_m+1)+'LocalArr('+str(d+1)+')')
@@ -684,7 +684,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
               code('opDat'+str(g_m+1)+'Local_'+str(d+1)+' = MAX(opDat'+str(g_m+1)+'Local_'+str(d+1)+', opDat'+str(g_m+1)+'LocalArr('+str(d+1)+'))')
 
     for g_m in range(0,nargs):
-        if stage_flags[g_m] == 1 and accs[g_m] <> OP_READ:
+        if stage_flags[g_m] == 1 and accs[g_m] != OP_READ:
           if optflags[g_m]==1:
             IF('BTEST(optflags,'+str(optidxs[g_m])+')')
           if maps[g_m] == OP_MAP:
@@ -707,7 +707,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
     if not host_exec:
       code('')
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and (not dims[g_m].isdigit() or int(dims[g_m])>1):
           for d in range(0,int(dims[g_m])):
             code('opDat'+str(g_m+1)+'Local('+str(d+1)+') = opDat'+str(g_m+1)+'Local_'+str(d+1))
     depth = depth - 2
@@ -787,7 +787,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     code('')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+      if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
         code(typs[g_m]+', ALLOCATABLE, DIMENSION(:) :: opDat'+str(g_m+1)+'LocalReduction')
 
     code('')
@@ -801,7 +801,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
           code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
 
     code('')
@@ -826,7 +826,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
             code('opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(g_m+1)+')')
             code('!$omp target update to(opDat'+str(invinds[inds[g_m]-1]+1)+'_stride_OP2CONSTANT)') 
             ENDIF()
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           IF('(calledTimes.EQ.0).OR.(direct_stride_OP2CONSTANT.NE.getSetSizeFromOpArg(opArg'+str(dir_soa+1)+'))')
           code('direct_stride_OP2CONSTANT = getSetSizeFromOpArg(opArg'+str(dir_soa+1)+')')
           code('!$omp target update to(direct_stride_OP2CONSTANT)')
@@ -885,7 +885,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data'+suffix+',opDat'+str(g_m+1)+'Local,(/opDat'+str(g_m+1)+'Cardinality/))')
       elif maps[g_m] == OP_GBL:
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim/))')
-        if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
+        if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not host_exec:
           code('allocate(opDat'+str(g_m+1)+'LocalReduction(opArg'+str(g_m+1)+'%dim)) ')
           code('opDat'+str(g_m+1)+'LocalReduction = opDat'+str(g_m+1)+'Local')
     code('')
@@ -923,7 +923,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
         elif maps[g_m] == OP_GBL:
           if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
-          if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
+          if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
             code('& opDat'+str(g_m+1)+'Local, &')
@@ -939,7 +939,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       if reduct and not host_exec:
         IF('i1 .EQ. actualPlan_'+name+'%ncolors_owned -1')
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE:
+          if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
             code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'LocalReduction')
         ENDIF()
 
@@ -961,7 +961,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
         if maps[g_m] == OP_ID:
           code('& opDat'+str(g_m+1)+'Local, &')
         elif maps[g_m] == OP_GBL:
-          if accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
+          if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not host_exec:
             code('& opDat'+str(g_m+1)+'LocalReduction(1), &')
           else:
             code('& opDat'+str(g_m+1)+'Local, &')
@@ -976,7 +976,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     if ninds==0:
       for g_m in range(0,nargs):
-        if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
+        if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not host_exec:
           code('opDat'+str(g_m+1)+'Local = opDat'+str(g_m+1)+'LocalReduction')
     code('')
     if host_exec:
@@ -987,7 +987,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
 
     #reductions
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and accs[g_m] <> OP_READ and accs[g_m] <> OP_WRITE and not host_exec:
+      if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and accs[g_m] != OP_WRITE and not host_exec:
         code('deallocate( opDat'+str(g_m+1)+'LocalReduction )')
         code('')
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):

@@ -28,6 +28,7 @@ CONTAINS
 attributes (host) &
 #include "save_soln.inc"
 attributes (device) &
+
 SUBROUTINE save_soln_gpu(q,qold)
   IMPLICIT NONE
 
@@ -148,10 +149,10 @@ attributes (host) SUBROUTINE save_soln_host_gpu( userSubroutine, set, &
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
   blocksPerGrid = 600
-  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
   dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)

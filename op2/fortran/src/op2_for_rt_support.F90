@@ -242,6 +242,15 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_renumber_ptr_c (ptr) BIND(C,name='op_renumber_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(c_ptr), value, intent(in) :: ptr
+
+    end subroutine
+
     integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args) BIND(C,name='op_mpi_halo_exchanges')
 
       use, intrinsic :: ISO_C_BINDING
@@ -293,6 +302,17 @@ module OP2_Fortran_RT_Support
       type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
+
+    subroutine op_get_all_cuda (argsNumber, args) BIND(C,name='op_get_all_cuda')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end subroutine
+
 
     subroutine op_mpi_set_dirtybit_cuda (argsNumber, args) BIND(C,name='op_mpi_set_dirtybit_cuda')
 
@@ -454,6 +474,15 @@ module OP2_Fortran_RT_Support
     call op_renumber_c (base_map%mapPtr)
 
   end subroutine
+  
+  subroutine op_renumber_ptr (prime_map)  
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+    integer*4, dimension(*), target :: prime_map
+    call op_renumber_ptr_c(c_loc(prime_map))
+  end subroutine
+
 
   subroutine op_dat_write_index(set, dat)
     use, intrinsic :: ISO_C_BINDING

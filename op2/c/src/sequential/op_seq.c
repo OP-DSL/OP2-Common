@@ -69,7 +69,7 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
-  //free(data);
+  // free(data);
   return dat;
 }
 
@@ -220,3 +220,7 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
+
+void op_upload_dat(op_dat dat) {}
+
+void op_download_dat(op_dat dat) {}

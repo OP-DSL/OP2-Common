@@ -9,10 +9,13 @@ inline void res_calc(double *data, int *count) {
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void res_calc_vec( double data[*][SIMD_VEC], int *count, int idx ) {
+#if defined __clang__ || defined __GNUC__
+__attribute__((always_inline))
+#endif
+inline void
+res_calc_vec(double data[][SIMD_VEC], int *count, int idx) {
   data[0][idx] = 0.0;
   (*count)++;
-
 }
 #endif
 
@@ -28,7 +31,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[1] = arg1;
   //create aligned pointers for dats
   ALIGNED_double       double * __restrict__ ptr0 = (double *) arg0.data;
-  __assume_aligned(ptr0,double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -50,7 +53,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       for ( int i=0; i<SIMD_VEC; i++ ){
         dat1[i] = 0.0;
       }
-      if (n+SIMD_VEC >= set->core_size) {
+      if ((n + SIMD_VEC >= set->core_size) &&
+          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[4][SIMD_VEC];
@@ -92,7 +96,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      int map0idx = arg0.map_data[n * arg0.map->dim + 0];
+      int map0idx;
+      map0idx = arg0.map_data[n * arg0.map->dim + 0];
 
       res_calc(
         &(ptr0)[4 * map0idx],

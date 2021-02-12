@@ -316,20 +316,19 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }*/
 
-  int *m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int) );
+  int *m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int));
   if (m == NULL) {
     printf(" op_decl_map_core error -- error allocating memory to map\n");
     exit(-1);
   }
-  memcpy(m, imap, sizeof(int) * from->size * dim );
-
+  memcpy(m, imap, sizeof(int) * from->size * dim);
 
   if (OP_map_index == OP_map_max) {
     OP_map_max += 10;
     OP_map_list =
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
-        (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int*));
+        (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
     if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
@@ -339,7 +338,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   if (OP_maps_base_index == 1) {
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
     for (int i = 0; i < from->size * dim; i++)
-      //imap[i]--;
+      // imap[i]--;
       m[i]--; // modify op2's copy
   }
   // else OP_maps_base_index == 0
@@ -350,14 +349,15 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->from = from;
   map->to = to;
   map->dim = dim;
-  map->map = m; //use op2's copy instead of imap;
+  map->map = m; // use op2's copy instead of imap;
   map->map_d = NULL;
   map->name = copy_str(name);
   map->user_managed = 1;
 
   OP_map_list[OP_map_index++] = map;
-  OP_map_ptr_list[OP_map_index-1] = imap;
-  //printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map, imap);
+  OP_map_ptr_list[OP_map_index - 1] = imap; // m;
+  // printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map,
+  // imap);
 
   return map;
 }
@@ -379,7 +379,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->set = set;
   dat->dim = dim;
   dat->data = data;
-  //printf("DATASET %s, ptr %p\n", name, data);
+  // printf("DATASET %s, ptr %p\n", name, data);
   /*char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
   memcpy(new_data, data, dim * size * set->size * sizeof(char));
   dat->data = new_data;*/
@@ -404,9 +404,11 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     exit(-1);
   }
   item->dat = dat;
-  if (data == NULL) {
+  /*if (data == NULL) { -- this check would be good to have for Hydra,
+                           but temp_dats prints this error .. so commented out
+  for now
     printf("WARNING data pointer is NULL for %s!\n", name);
-  }
+  }*/
   item->orig_ptr = data;
   // printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
@@ -455,6 +457,7 @@ int op_free_dat_temp_core(op_dat dat) {
       free((char *)(item->dat)->name);
       free((char *)(item->dat)->type);
       TAILQ_REMOVE(&OP_dat_list, item, entries);
+      free(item->dat);          
       free(item);
       success = 1;
       break;
@@ -489,7 +492,8 @@ void op_exit_core() {
     free(OP_map_list[i]);
   }
   free(OP_map_list);
-  if (OP_map_ptr_list != NULL) free(OP_map_ptr_list);
+  if (OP_map_ptr_list != NULL)
+    free(OP_map_ptr_list);
   OP_map_list = NULL;
   OP_map_ptr_list = NULL;
 
@@ -538,21 +542,25 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (set == NULL)
       op_err_print("invalid set", m, name);
 
-    if (arg.map == NULL && arg.dat->set != set){
-      //op_err_print("dataset set does not match loop set", m, name);
+    if (arg.map == NULL && arg.dat->set != set) {
+      // op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset set %p (%s) does not match loop set %p (%s)\n", arg.dat->set, arg.dat->set->name, set, set->name );
+        printf("dataset dat %s with data pointer %lu, on set %p (%s) does not "
+               "match loop set %p (%s)\n",
+               arg.dat->name, arg.dat->data, arg.dat->set, arg.dat->set->name,
+               set, set->name);
     }
 
     if (arg.map != NULL) {
-        if (arg.map->from != set){
-          op_err_print("mapping error", m, name);
-          printf("map from set %s does not match set \n", arg.map->from->name);
-        }
-        if (arg.map->to != arg.dat->set) {
-          op_err_print("mapping error", m, name);
-          printf("map %s to set %s does not match dat %s set %s\n", arg.map->name, arg.map->to->name, arg.dat->name, arg.dat->set->name);
-        }
+      if (arg.map->from != set) {
+        op_err_print("mapping error", m, name);
+        printf("map from set %s does not match set \n", arg.map->from->name);
+      }
+      if (arg.map->to != arg.dat->set) {
+        op_err_print("mapping error", m, name);
+        printf("map %s to set %s does not match dat %s set %s\n", arg.map->name,
+               arg.map->to->name, arg.dat->name, arg.dat->set->name);
+      }
     }
 
     if ((arg.map == NULL && arg.idx != -1) ||
@@ -560,8 +568,9 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
          (arg.idx >= arg.map->dim || arg.idx < -1 * arg.map->dim)))
       op_err_print("invalid index", m, name);
 
-    if (arg.dat->dim != arg.dim)
+    if (arg.dat->dim != arg.dim) {
       op_err_print("dataset dim does not match declared dim", m, name);
+    }
 
     if (strcmp(arg.dat->type, arg.type)) {
       if ((strcmp(arg.dat->type, "double") == 0 && (int)arg.type[0] == 114 &&
@@ -787,7 +796,8 @@ void op_timing_output_core() {
       if (OP_kernels[n].count > 0) {
         if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
             OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the older
+          // This library is being used by an OP2 translation made with the
+          // older
           // translator with older timing logic. Adjust to new logic:
           OP_kernels[n].times[0] = OP_kernels[n].time;
         }
@@ -993,7 +1003,10 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
           strcmp(dat->type, "double:soa") == 0 ||
           strcmp(dat->type, "double precision") == 0 ||
           strcmp(dat->type, "real(8)") == 0) {
-        //if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j]) <
+        // if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j])
+        // <
+        if (((double *)dat->data)[i * dat->dim + j] == -0.0)
+          ((double *)dat->data)[i * dat->dim + j] = +0.0;
         if (fprintf(fp, " %+2.15lE", ((double *)dat->data)[i * dat->dim + j]) <
             0) {
           printf("error writing to %s\n", file_name);
@@ -1099,8 +1112,8 @@ void op_free(void *ptr) {
 op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
 op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
 
-op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const *type,
-                  op_access acc) {
+op_arg op_arg_dat_ptr(int opt, char *dat, int idx, int *map, int dim,
+                      char const *type, op_access acc) {
   if (opt == 0)
     return op_opt_arg_dat_core(opt, NULL, idx, NULL, dim, type, acc);
   //  printf("op_arg_dat_ptr with %p\n", dat);
@@ -1110,36 +1123,46 @@ op_arg op_arg_dat_ptr(int opt, char* dat, int idx, int *map, int dim, char const
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
     if (item->orig_ptr == dat) {
-      //printf("%s(%p), ", item->dat->name, item->dat->data);
-      item_dat = item->dat; break;
+      // printf("%s(%p), ", item->dat->name, item->dat->data);
+      item_dat = item->dat;
+      break;
     }
   }
-  //printf("\n");
+  // printf("\n");
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
   }
+  // if(strcmp(item_dat->name,"x")== 0 || strcmp(item_dat->name, "pjaca") == 0
+  // ||
+  // strcmp(item_dat->name, "ewt") == 0 ||  strcmp(item_dat->name, "vol") == 0)
+  // printf(" Found OP2 pointer for dat %s orig_ptr = %lu, dat->data = %lu  \n",
+  // item_dat->name, (unsigned long)item->orig_ptr, (unsigned
+  // long)item_dat->data);
+
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {item_map = OP_map_list[i]; break;}
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      break;
+    }
   }
-  if (item_map == NULL && idx == -2) idx = -1;
+  if (item_map == NULL && idx == -2)
+    idx = -1;
   if (item_map == NULL && idx != -1) {
     printf("ERROR: op_map not found for %p pointer\n", map);
-    for (int i = 0; i < OP_map_index; i++) printf("%s (%p) ",OP_map_list[i]->name, OP_map_ptr_list[i]);
+    for (int i = 0; i < OP_map_index; i++)
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
-
-  //printf("incoming %p, dat->data %s(%p)\n", dat, item_dat->name, item_dat->data);
-  //if (item_map != NULL) printf("Mapping: %p op_map: %s (dim %d, idx %d)\n", map, item_map->name, item_map->dim, idx);
-
   return op_arg_dat_core(item_dat, idx, item_map, dim, type, acc);
 }
 
-int *op_set_registry=NULL;
+int *op_set_registry = NULL;
 int op_set_registry_size = 0;
 void op_register_set(int idx, op_set set) {
-  if (idx>=op_set_registry_size) {
-    op_set_registry_size = idx+10;
-    op_set_registry = (int*)op_realloc(op_set_registry, op_set_registry_size*sizeof(int));
+  if (idx >= op_set_registry_size) {
+    op_set_registry_size = idx + 10;
+    op_set_registry =
+        (int *)op_realloc(op_set_registry, op_set_registry_size * sizeof(int));
   }
   op_set_registry[idx] = set->index;
 }
@@ -1147,17 +1170,18 @@ void op_register_set(int idx, op_set set) {
 op_set op_get_set(int idx) {
   if (idx < op_set_registry_size)
     return OP_set_list[op_set_registry[idx]];
-  else return NULL;
+  else
+    return NULL;
 }
 
-void op_dat_write_index(op_set set, int* dat) {
-  op_arg arg = op_arg_dat_ptr(1, (char*)dat, -2, NULL, 1, "int", OP_WRITE);
+void op_dat_write_index(op_set set, int *dat) {
+  op_arg arg = op_arg_dat_ptr(1, (char *)dat, -2, NULL, 1, "int", OP_WRITE);
   if (set != arg.dat->set) {
     op_printf("Error: op_dat_write_index set and arg.dat->set do not match\n");
     exit(-1);
   }
   for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
-    ((int*)arg.dat->data)[i] = i+1;
+    ((int *)arg.dat->data)[i] = i + 1;
   }
   arg.dat->dirty_hd = 1;
 }
@@ -1166,3 +1190,107 @@ void op_print_dat_to_txtfile2(int *dat, const char *file_name) {
   op_arg arg = op_arg_dat_ptr(1, (char *)dat, -2, NULL, 1, "int", OP_WRITE);
   op_print_dat_to_txtfile_core(arg.dat, file_name);
 }
+
+/*******************************************************************************
+ * Routines for accessing inernally held OP2 dats - JM76-type sliding planes
+ *******************************************************************************/
+
+unsigned long op_get_data_ptr(op_dat d) {
+  op_download_dat(d);
+  return (unsigned long)(d->data);
+}
+
+unsigned long op_reset_data_ptr(char *data) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->orig_ptr == data) {
+      item_dat = item->dat;
+      break;
+    }
+  }
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for dat with %p pointer\n", data);
+  }
+  // printf(" op2 pointer for dat %s before = %lu, after change = %lu  \n",
+  // item_dat->name, (unsigned long)item->orig_ptr, (unsigned
+  // long)item_dat->data);
+
+  // Download dat from device (if required)
+  op_download_dat(item_dat);
+
+  // reset orig pointer
+  // free(data)
+  item->orig_ptr = item_dat->data;
+
+  return (unsigned long)(item->orig_ptr);
+}
+
+/*******************************************************************************
+ * Common routines for accessing inernally held OP2 maps
+ *******************************************************************************/
+
+unsigned long op_get_map_ptr(op_map m) { return (unsigned long)(m->map); }
+
+// extern int **OP_map_ptr_list;
+
+unsigned long op_reset_map_ptr(int *map) {
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      idx = i;
+      break;
+    }
+  }
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+  }
+  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
+  //  item_dat->name, item->orig_ptr, item_dat->data);
+
+  // reset orig pointer
+  OP_map_ptr_list[idx] = item_map->map;
+
+  return (unsigned long)(item_map->map);
+}
+
+unsigned long op_copy_map_to_fort(int *map) {
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+  }
+
+  int *m = (int *)malloc(item_map->from->size * item_map->dim * sizeof(int));
+  memcpy(m, item_map->map, item_map->from->size * item_map->dim * sizeof(int));
+  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
+    m[i]++;
+
+  return (unsigned long)(m);
+}
+
+/*******************************************************************************
+ * Get the local size of a set
+ *******************************************************************************/
+
+int op_get_size_local(op_set set) { return set->size; }
+
+/*******************************************************************************
+ * Get the local exec size of a set
+ *******************************************************************************/
+
+int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }

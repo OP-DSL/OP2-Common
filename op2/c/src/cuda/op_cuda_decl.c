@@ -239,6 +239,12 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 void op_renumber(op_map base) { (void)base; }
 
+#ifdef __cplusplus
+extern "C"
+#endif
+    void
+    op_renumber_ptr(int *ptr){};
+
 int getHybridGPU() { return OP_hybrid_gpu; }
 
 void op_exit() {

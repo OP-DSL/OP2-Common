@@ -324,6 +324,22 @@ module OP2_Fortran_Declarations
 
     end function
 
+    INTEGER(kind=c_int) function op_get_size_local_c ( set ) BIND(C,name='op_get_size_local')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
+    INTEGER(kind=c_int) function op_get_size_local_exec_c ( set ) BIND(C,name='op_get_size_local_exec')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
 
     type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
@@ -355,6 +371,19 @@ module OP2_Fortran_Declarations
       character(kind=c_char,len=1), intent(in) :: name(*)
 
     end function op_decl_dat_c
+
+    type(c_ptr) function op_decl_dat_temp_char_c ( set, datdim, type, datsize, name ) BIND(C,name='op_decl_dat_temp_char')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set_core, op_dat_core
+
+      type(c_ptr), value, intent(in)           :: set
+      integer(kind=c_int), value               :: datdim, datsize
+      character(kind=c_char,len=1), intent(in) :: type(*)
+      character(kind=c_char,len=1), intent(in) :: name(*)
+
+    end function op_decl_dat_temp_char_c
 
     function op_arg_dat_c ( dat, idx, map, dim, type, acc ) BIND(C,name='op_arg_dat')
 
@@ -724,6 +753,32 @@ module OP2_Fortran_Declarations
       integer(c_int), value :: base
     end subroutine set_maps_base_c
 
+   INTEGER(8) function op_get_data_ptr_c ( data ) BIND(C,name='op_get_data_ptr')
+     use, intrinsic :: ISO_C_BINDING
+     import :: op_dat_core
+     type(op_dat_core) :: data
+   end function
+
+   INTEGER(8) function op_reset_data_ptr_c ( data ) BIND(C,name='op_reset_data_ptr')
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value, intent(in) :: data
+   end function
+
+   INTEGER(8) function op_get_map_ptr_c ( map ) BIND(C,name='op_get_map_ptr')
+     use, intrinsic :: ISO_C_BINDING
+     import :: op_map_core
+     type(op_map_core) :: map
+   end function
+
+   INTEGER(8) function op_reset_map_ptr_c ( map ) BIND(C,name='op_reset_map_ptr')
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value, intent(in) :: map
+   end function
+
+   INTEGER(8) function op_copy_map_to_fort_c ( map ) BIND(C,name='op_copy_map_to_fort')
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value, intent(in) :: map
+   end function
 
   end interface
 
@@ -733,6 +788,10 @@ module OP2_Fortran_Declarations
                      op_decl_dat_real_8_2, op_decl_dat_integer_4_2, &
                      op_decl_dat_real_8_3, op_decl_dat_integer_4_3
   end interface op_decl_dat
+
+  interface op_decl_dat_temp
+    module procedure op_decl_dat_temp_real_8, op_decl_dat_temp_integer_4
+  end interface op_decl_dat_temp
 
   interface op_arg_gbl
     module procedure op_arg_gbl_python_r8_scalar, &
@@ -791,7 +850,9 @@ module OP2_Fortran_Declarations
     module procedure op_print_dat_to_txtfile2_real_8, op_print_dat_to_txtfile2_integer_4
   end interface op_print_dat_to_txtfile2
 
-
+  interface op_reset_data_ptr
+    module procedure op_reset_data_ptr_r8, op_reset_data_ptr_i4
+  end interface op_reset_data_ptr
 
 contains
 
@@ -1085,6 +1146,50 @@ contains
     call op_decl_dat_integer_4 ( set, datdim, type, dat, data, opname )
 
   end subroutine op_decl_dat_integer_4_3
+
+  subroutine op_decl_dat_temp_real_8 ( set, datdim, type, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    real(8), dimension(*), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
+
+    if ( present ( opname ) ) then
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, opName//C_NULL_CHAR )
+    else
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 8, C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+    ! debugging
+
+  end subroutine op_decl_dat_temp_real_8
+
+  subroutine op_decl_dat_temp_integer_4 ( set, datdim, type, dat, data, opname )
+
+    type(op_set), intent(in) :: set
+    integer, intent(in) :: datdim
+    integer(4), dimension(*), intent(in), target :: dat
+    type(op_dat) :: data
+    character(kind=c_char,len=*), optional :: opname
+    character(kind=c_char,len=*) :: type
+
+    if ( present ( opname ) ) then
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 4, opName//C_NULL_CHAR )
+    else
+      data%dataCPtr = op_decl_dat_temp_char_c ( set%setCPtr, datdim, type//C_NULL_CHAR , 4, C_CHAR_'NONAME'//C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( data%dataCPtr, data%dataPtr )
+
+    ! debugging
+
+  end subroutine op_decl_dat_temp_integer_4
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   declarations of constants  !
@@ -1898,6 +2003,30 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_get_size
 
+  INTEGER function op_get_size_local (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local = op_get_size_local_c ( set%setCPtr )
+
+  end function op_get_size_local
+
+  INTEGER function op_get_size_local_exec (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local_exec = op_get_size_local_exec_c ( set%setCPtr )
+
+  end function op_get_size_local_exec
+
   type(op_arg) function op_arg_gbl_python_r8_scalar ( dat, dim, type, access )
 
     use, intrinsic :: ISO_C_BINDING
@@ -2706,6 +2835,54 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     call op_theta_init_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp), c_loc(alpha) )
 
   end subroutine op_theta_init
+
+  ! get the pointer of the data held in an op_dat
+  INTEGER(8) function op_get_data_ptr(dat)
+    use, intrinsic :: ISO_C_BINDING
+    type(op_dat)         :: dat
+    op_get_data_ptr = op_get_data_ptr_c( dat%dataPtr)
+
+  end function op_get_data_ptr
+
+  ! get the pointer of the data held in an op_dat (via the original pointer) - r8
+  INTEGER(8) function op_reset_data_ptr_r8(data)
+    use, intrinsic :: ISO_C_BINDING
+    real(8), dimension(*), target :: data
+    op_reset_data_ptr_r8 = op_reset_data_ptr_c(c_loc(data))
+
+  end function op_reset_data_ptr_r8
+
+  ! get the pointer of the data held in an op_dat (via the original pointer) - i4
+  INTEGER(8) function op_reset_data_ptr_i4(data)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), target :: data
+    op_reset_data_ptr_i4 = op_reset_data_ptr_c(c_loc(data))
+
+  end function op_reset_data_ptr_i4
+
+  ! get the pointer of the data held in an op_map
+  INTEGER(8) function op_get_map_ptr(map)
+    use, intrinsic :: ISO_C_BINDING
+    type(op_map)         :: map
+    op_get_map_ptr = op_get_map_ptr_c( map%mapPtr)
+
+  end function op_get_map_ptr
+
+    ! get the pointer of the map held in an op_dat (via the original pointer) - i4
+  INTEGER(8) function op_reset_map_ptr(map)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), target :: map
+    op_reset_map_ptr = op_reset_map_ptr_c(c_loc(map))
+
+  end function op_reset_map_ptr
+
+
+  INTEGER(8) function op_copy_map_to_fort(map)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), intent(in), target :: map
+    op_copy_map_to_fort = op_copy_map_to_fort_c(c_loc(map))
+
+  end function op_copy_map_to_fort
 
 end module OP2_Fortran_Declarations
 

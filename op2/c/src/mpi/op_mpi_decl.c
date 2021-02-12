@@ -112,12 +112,14 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   if (set == NULL || data == NULL)
     return NULL;
   char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
-  if (d == NULL) {
+  if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }
   memcpy(d, data, sizeof(char) * set->size * dim * size);
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  // op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
+
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
@@ -127,12 +129,15 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
       break;
     }
   }
+  // free(data); // free user allocated data block ?
+
+  // printf(" op2 pointer for dat %s = %lu  ", name, (unsigned long)d);
   out_dat->user_managed = 0;
   return out_dat;
 }
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
-    char const *name) {
+                             char const *name) {
   char *d = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
 
@@ -317,8 +322,8 @@ op_set op_decl_set(int size, char const *name) {
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
 
-//  int *m = (int *)malloc(from->size * dim * sizeof(int));
-//  memcpy(m, imap, from->size * dim * sizeof(int));
+  //  int *m = (int *)malloc(from->size * dim * sizeof(int));
+  //  memcpy(m, imap, from->size * dim * sizeof(int));
 
   op_map out_map = op_decl_map_core(from, to, dim, imap, name);
   out_map->user_managed = 0;

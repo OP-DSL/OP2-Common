@@ -117,6 +117,7 @@ __inline__ __device__ void op_reduction(volatile T *dat_g, T dat_l) {
 
   if (tid < warpSize) {
     for (; d > 0; d >>= 1) {
+      __syncwarp();
       if (tid < d) {
         dat_t = temp[tid + d];
 

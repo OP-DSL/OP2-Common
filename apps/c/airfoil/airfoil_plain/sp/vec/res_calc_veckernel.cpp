@@ -38,7 +38,14 @@ inline void res_calc(const float *x1, const float *x2, const float *q1,
 }
 #ifdef VECTORIZE
 //user function -- modified for vectorisation
-inline void res_calc_vec( const float x1[*][SIMD_VEC], const float x2[*][SIMD_VEC], const float q1[*][SIMD_VEC], const float q2[*][SIMD_VEC], const float adt1[*][SIMD_VEC], const float adt2[*][SIMD_VEC], float res1[*][SIMD_VEC], float res2[*][SIMD_VEC], int idx ) {
+#if defined __clang__ || defined __GNUC__
+__attribute__((always_inline))
+#endif
+inline void
+res_calc_vec(const float x1[][SIMD_VEC], const float x2[][SIMD_VEC],
+             const float q1[][SIMD_VEC], const float q2[][SIMD_VEC],
+             const float adt1[][SIMD_VEC], const float adt2[][SIMD_VEC],
+             float res1[][SIMD_VEC], float res2[][SIMD_VEC], int idx) {
   float dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -55,20 +62,19 @@ inline void res_calc_vec( const float x1[*][SIMD_VEC], const float x2[*][SIMD_VE
   mu = 0.5f * ((adt1[0][idx]) + (adt2[0][idx])) * eps;
 
   f = 0.5f * (vol1 * q1[0][idx] + vol2 * q2[0][idx]) + mu * (q1[0][idx] - q2[0][idx]);
-  res1[0][idx] += f;
+  res1[0][idx] = f;
   res2[0][idx] -= f;
   f = 0.5f * (vol1 * q1[1][idx] + p1 * dy + vol2 * q2[1][idx] + p2 * dy) +
       mu * (q1[1][idx] - q2[1][idx]);
-  res1[1][idx] += f;
+  res1[1][idx] = f;
   res2[1][idx] -= f;
   f = 0.5f * (vol1 * q1[2][idx] - p1 * dx + vol2 * q2[2][idx] - p2 * dx) +
       mu * (q1[2][idx] - q2[2][idx]);
-  res1[2][idx] += f;
+  res1[2][idx] = f;
   res2[2][idx] -= f;
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
-  res1[3][idx] += f;
+  res1[3][idx] = f;
   res2[3][idx] -= f;
-
 }
 #endif
 
@@ -96,21 +102,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[7] = arg7;
   //create aligned pointers for dats
   ALIGNED_float const float * __restrict__ ptr0 = (float *) arg0.data;
-  __assume_aligned(ptr0,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0, float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr1 = (float *) arg1.data;
-  __assume_aligned(ptr1,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1, float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr2 = (float *) arg2.data;
-  __assume_aligned(ptr2,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2, float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr3 = (float *) arg3.data;
-  __assume_aligned(ptr3,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3, float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr4 = (float *) arg4.data;
-  __assume_aligned(ptr4,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr4, float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr5 = (float *) arg5.data;
-  __assume_aligned(ptr5,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr5, float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr6 = (float *) arg6.data;
-  __assume_aligned(ptr6,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr6, float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr7 = (float *) arg7.data;
-  __assume_aligned(ptr7,float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr7, float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -128,7 +134,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n+SIMD_VEC >= set->core_size) {
+      if ((n + SIMD_VEC >= set->core_size) &&
+          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_float float dat0[2][SIMD_VEC];
@@ -217,10 +224,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-      int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-      int map2idx = arg2.map_data[n * arg2.map->dim + 0];
-      int map3idx = arg2.map_data[n * arg2.map->dim + 1];
+      int map0idx;
+      int map1idx;
+      int map2idx;
+      int map3idx;
+      map0idx = arg0.map_data[n * arg0.map->dim + 0];
+      map1idx = arg0.map_data[n * arg0.map->dim + 1];
+      map2idx = arg2.map_data[n * arg2.map->dim + 0];
+      map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
       res_calc(
         &(ptr0)[2 * map0idx],

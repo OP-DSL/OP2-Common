@@ -443,8 +443,9 @@ int setKernelTime (int id, char name[], double kernelTime, float transfer, float
   /* need to copy the name the first time */
   if ( OP_kernels[id].count == 0 ) {
     nameLen = strlen (name);
-    heapName = (char *) calloc (nameLen, sizeof(char));
+    heapName = (char *)calloc(nameLen + 1, sizeof(char));
     strncpy (heapName, name, nameLen);
+    heapName[nameLen] = '\0';
     OP_kernels[id].name = heapName;
   }
 

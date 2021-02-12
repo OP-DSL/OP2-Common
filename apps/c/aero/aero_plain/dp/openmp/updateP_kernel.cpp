@@ -21,6 +21,8 @@ void op_par_loop_updateP(char const *name, op_set set,
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(7);
+  OP_kernels[7].name = name;
+  OP_kernels[7].count += 1;
   op_timers_core(&cpu_t1, &wall_t1);
 
 
@@ -28,7 +30,7 @@ void op_par_loop_updateP(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  updateP");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
   // set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
@@ -36,7 +38,7 @@ void op_par_loop_updateP(char const *name, op_set set,
     int nthreads = 1;
   #endif
 
-  if (set->size >0) {
+    if (set_size > 0) {
 
     // execute plan
     #pragma omp parallel for
@@ -57,8 +59,6 @@ void op_par_loop_updateP(char const *name, op_set set,
 
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[7].name      = name;
-  OP_kernels[7].count    += 1;
   OP_kernels[7].time     += wall_t2 - wall_t1;
   OP_kernels[7].transfer += (float)set->size * arg0.size;
   OP_kernels[7].transfer += (float)set->size * arg1.size * 2.0f;

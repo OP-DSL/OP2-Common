@@ -39,6 +39,8 @@
  * written by: Gihan R. Mudalige, (Started 27-10-2017)
  */
 
+#include <assert.h>
+
 // hdf5 header
 #include <hdf5.h>
 
@@ -56,9 +58,12 @@ typedef struct {
 } op_hdf5_dataset_properties;
 
 /* Temporarily switch off HDF5 error handler*/
-void H5error_off(H5E_auto_t old_func, void *old_client_data) {
+void H5error_off(H5E_auto_t* old_func, void **old_client_data) {
+  assert(old_func);
+  assert(old_client_data);
+
   /* Save old error handler */
-  H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
+  H5Eget_auto(H5E_DEFAULT, old_func, old_client_data);
   H5Eset_auto(H5E_DEFAULT, NULL, NULL); // turn off HDF5's auto error reporting
 }
 
@@ -180,7 +185,7 @@ void create_path(const char *name, hid_t file_id) {
       c += 1 + k;
 
       // Create a group named "/result" in the file.
-      H5error_off(old_func, old_client_data);
+      H5error_off(&old_func, &old_client_data);
       status = H5Gget_objinfo(file_id, buffer, 0, NULL);
       H5error_on(old_func, old_client_data);
 

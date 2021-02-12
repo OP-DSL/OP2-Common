@@ -146,7 +146,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   char *d = (char *)xmalloc(set->size * dim * size);
-  if (d == NULL) {
+  if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }
@@ -361,8 +361,8 @@ op_set op_decl_set(int size, char const *name) {
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
-  //int *m = (int *)xmalloc(from->size * dim * sizeof(int));
-//  memcpy(m, imap, from->size * dim * sizeof(int));
+  // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
+  //  memcpy(m, imap, from->size * dim * sizeof(int));
   op_map out_map = op_decl_map_core(from, to, dim, imap, name);
   out_map->user_managed = 0;
   return out_map;

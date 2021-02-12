@@ -75,37 +75,37 @@ for nargs in range (1,maxargs+1):
     f.write('template <')
     for n in range (0, nargs):
         f.write('class T'+str(n))
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(',')
         else:
           f.write('>\n')
-        if n%n_per_line == 3 and n <> nargs-1:
+        if n%n_per_line == 3 and n != nargs-1:
           f.write('\n          ')
 
     f.write('void op_par_loop(void (*kernel)(')
     for n in range (0, nargs):
         f.write('T'+str(n)+'*')
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(', ')
         else:
           f.write('),\n')
-        if n%n_per_line == 3 and n <> nargs-1:
+        if n%n_per_line == 3 and n != nargs-1:
          f.write('\n                                ')
 
     f.write('    char const * name, op_set set,\n    ')
     for n in range (0, nargs):
         f.write('op_arg arg'+str(n))
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(', ')
         else:
           f.write('){\n')
-        if n%n_per_line == 3 and n <> nargs-1:
+        if n%n_per_line == 3 and n != nargs-1:
          f.write('\n    ')
 
     f.write('\n  char *p_a['+str(nargs)+'] = {')
     for n in range (0, nargs):
         f.write('0')
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(',')
         else:
           f.write('};\n')
@@ -113,11 +113,11 @@ for nargs in range (1,maxargs+1):
     f.write('  op_arg args['+str(nargs)+'] = {')
     for n in range (0, nargs):
         f.write('arg'+str(n))
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(', ')
         else:
           f.write('};\n')
-        if n%n_per_line == 3 and n <> nargs-1:
+        if n%n_per_line == 3 and n != nargs-1:
           f.write('\n                    ')
 
     for n in range (0, nargs):
@@ -164,11 +164,11 @@ for nargs in range (1,maxargs+1):
     f.write('\n    kernel( ')
     for n in range (0, nargs):
         f.write('(T'+str(n)+' *)p_a['+str(n)+']')
-        if nargs <> 1 and n != nargs-1:
+        if nargs != 1 and n != nargs-1:
           f.write(', ')
         else:
           f.write(');\n')
-        if n%n_per_line == 3 and n <> nargs-1:
+        if n%n_per_line == 3 and n != nargs-1:
           f.write('\n          ')
 
 

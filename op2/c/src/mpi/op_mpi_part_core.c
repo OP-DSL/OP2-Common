@@ -1599,19 +1599,19 @@ void op_partition_geom(op_dat coords) {
   idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t) * coords->set->size);
 
   idx_t ndims = coords->dim;
-  float *xyz = 0;
+  real_t *xyz = 0;
 
   // Create ParMetis compatible coordinates array
   //- i.e. coordinates should be floats
   if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (float *)xmalloc(coords->set->size * coords->dim * sizeof(float));
+    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
     for (int i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
                mult);
-        xyz[i * coords->dim + e] = (float)temp;
+        xyz[i * coords->dim + e] = (real_t)temp;
       }
     }
   } else {
@@ -1991,11 +1991,11 @@ void op_partition_kway(op_map primary_map) {
     total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
     tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance / total : 1.0 / total;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   // clean up before calling ParMetis
@@ -2131,19 +2131,19 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures ------------*/
 
   idx_t ndims = coords->dim;
-  float *xyz = 0;
+  real_t *xyz = 0;
 
   // Create ParMetis compatible coordinates array
   //- i.e. coordinates should be floats
   if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (float *)xmalloc(coords->set->size * coords->dim * sizeof(float));
+    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
     for (int i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
                mult);
-        xyz[i * coords->dim + e] = (float)temp;
+        xyz[i * coords->dim + e] = (real_t)temp;
       }
     }
   } else {
@@ -2397,11 +2397,11 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   idx_t options[3] = {1, 3, 15};
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = (float)1.0 / (float)comm_size;
+    tpwgts[i] = (real_t)1.0 / (real_t)comm_size;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   // clean up before calling ParMetis
@@ -2597,11 +2597,11 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   idx_t options[3] = {1, 3, 15};
 
   idx_t ncon = 1;
-  float *tpwgts = (float *)xmalloc(comm_size * sizeof(float) * ncon);
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
   for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = (float)1.0 / (float)comm_size;
+    tpwgts[i] = (real_t)1.0 / (real_t)comm_size;
 
-  float *ubvec = (float *)xmalloc(sizeof(float) * ncon);
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
   idx_t ncommonnodes = 1;
@@ -3326,7 +3326,7 @@ void op_partition_inertial(op_dat x_dat) {
       op_free(x);
       op_free(global_indices);
       x = (double *)xrealloc(
-          x_keep, (keep_ctr + size_0 + size_1) * 3 *
+          x_keep, (keep_ctr + size_0 + size_1 + 1) * 3 *
                       sizeof(double)); // Implicitly assign x = x_keep
       global_indices = (int *)xrealloc(
           idx_gbl_keep,
@@ -3718,29 +3718,37 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
 
 extern int **OP_map_ptr_list;
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
-                  op_set prime_set, int* prime_map, double* coords) {
+                      op_set prime_set, int *prime_map, double *coords) {
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
-    //printf("Available op_dat %s with pointer %p\n", item->dat->name, item->dat->data);
+    // printf("Available op_dat %s with pointer %p\n", item->dat->name,
+    // item->dat->data);
     if (item->orig_ptr == coords) {
-      //printf("%s(%p), ", item->dat->name, item->dat->data);
-      item_dat = item->dat; break;
+      // printf("%s(%p), ", item->dat->name, item->dat->data);
+      item_dat = item->dat;
+      break;
     }
   }
-  //printf("\n");
+  // printf("\n");
   if (item_dat == NULL) {
-    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n", coords);
+    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
+           coords);
   }
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == prime_map) {item_map = OP_map_list[i]; break;}
+    if (OP_map_ptr_list[i] == prime_map) {
+      item_map = OP_map_list[i];
+      break;
+    }
   }
   if (item_map == NULL) {
-    printf("ERROR in op_partition: op_map not found for %p pointer\n", prime_map);
-    for (int i = 0; i < OP_map_index; i++) printf("%s (%p) ",OP_map_list[i]->name, OP_map_ptr_list[i]);
+    printf("ERROR in op_partition: op_map not found for %p pointer\n",
+           prime_map);
+    for (int i = 0; i < OP_map_index; i++)
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 }

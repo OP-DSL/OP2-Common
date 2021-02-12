@@ -202,7 +202,7 @@ def op2_gen_openmpINC(master, date, consts, kernels, hydra):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -486,7 +486,7 @@ def op2_gen_openmpINC(master, date, consts, kernels, hydra):
           elif 'integer' in typs[invinds_staged[g_m]].lower():
             this_size = 4
           if this_size == 0 or prev_size == 0:
-            print "ERROR: Unrecognized type"
+            print("ERROR: Unrecognized type")
           code('opDat'+str(invinds_staged[g_m]+1)+'nBytes = opDat'+str(invinds_staged[g_m-1]+1)+'nBytes * '+str(prev_size)+\
           ' / '+str(this_size)+' + opDat'+str(invinds_staged[g_m-1]+1)+'RoundUp * '+str(prev_size)+' / '+str(this_size))
         if g_m>0 and indopts_staged[g_m-1] > 0:
@@ -556,7 +556,7 @@ def op2_gen_openmpINC(master, date, consts, kernels, hydra):
 
     else: #direct loop
       for g_m in range(0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           code(typs[g_m]+', DIMENSION(0:*) :: opDat'+str(g_m+1))
         else: #global arg
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
@@ -797,7 +797,7 @@ def op2_gen_openmpINC(master, date, consts, kernels, hydra):
           code('optflags = IBSET(optflags,'+str(optidxs[i])+')')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 
     code('')
     code('numberOfOpDats = '+str(nargs))

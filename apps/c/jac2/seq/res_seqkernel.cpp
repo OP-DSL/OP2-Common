@@ -31,15 +31,16 @@ void op_par_loop_res(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     for ( int n=0; n<set_size; n++ ){
       if (n==set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      int map1idx = arg1.map_data[n * arg1.map->dim + 1];
-      int map2idx = arg1.map_data[n * arg1.map->dim + 0];
-
+      int map1idx;
+      int map2idx;
+      map1idx = arg1.map_data[n * arg1.map->dim + 1];
+      map2idx = arg1.map_data[n * arg1.map->dim + 0];
 
       res(
         &((double*)arg0.data)[3 * n],
