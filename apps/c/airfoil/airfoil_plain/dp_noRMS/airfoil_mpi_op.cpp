@@ -111,6 +111,12 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg,
+  op_arg );
+
+void op_par_loop_update1(char const *, op_set,
+  op_arg,
+  op_arg,
+  op_arg,
   op_arg,
   op_arg );
 #ifdef OPENACC
@@ -129,6 +135,7 @@ void op_par_loop_update(char const *, op_set,
 #include "res_calc.h"
 #include "save_soln.h"
 #include "update.h"
+#include "update1.h"
 
 //
 // user declared functions
@@ -456,9 +463,19 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
                   op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_gbl(&rms,1,"double",OP_INC));
+                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ));
     }
+
+    op_timers(&cpu_t2, &wall_t2);
+    rms = 0.0;
+
+    op_par_loop_update1("update1",cells,
+                op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
+                op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
+                op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+                op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
+                op_arg_gbl(&rms,1,"double",OP_INC));
+
 
     // print iteration history
     rms = sqrt(rms / (double)g_ncell);
@@ -479,8 +496,6 @@ int main(int argc, char **argv) {
       }
     }
   }
-
-  op_timers(&cpu_t2, &wall_t2);
 
   // output the result dat array to files
   op_print_dat_to_txtfile(p_q, "out_grid_mpi.dat"); // ASCI

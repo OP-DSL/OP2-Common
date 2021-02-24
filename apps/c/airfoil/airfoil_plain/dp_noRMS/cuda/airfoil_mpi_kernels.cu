@@ -62,3 +62,4 @@ int size, char *dat, char const *name){
 #include "res_calc_kernel.cu"
 #include "bres_calc_kernel.cu"
 #include "update_kernel.cu"
+#include "update1_kernel.cu"

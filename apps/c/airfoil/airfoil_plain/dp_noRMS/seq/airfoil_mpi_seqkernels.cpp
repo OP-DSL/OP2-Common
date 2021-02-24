@@ -20,3 +20,4 @@ extern double qinf[4];
 #include "res_calc_seqkernel.cpp"
 #include "bres_calc_seqkernel.cpp"
 #include "update_seqkernel.cpp"
+#include "update1_seqkernel.cpp"

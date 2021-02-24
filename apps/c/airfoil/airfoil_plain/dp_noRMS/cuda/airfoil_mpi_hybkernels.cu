@@ -9,24 +9,28 @@
 #define op_par_loop_res_calc op_par_loop_res_calc_gpu
 #define op_par_loop_bres_calc op_par_loop_bres_calc_gpu
 #define op_par_loop_update op_par_loop_update_gpu
+#define op_par_loop_update1 op_par_loop_update1_gpu
 #include "airfoil_mpi_kernels.cu"
 #undef op_par_loop_save_soln
 #undef op_par_loop_adt_calc
 #undef op_par_loop_res_calc
 #undef op_par_loop_bres_calc
 #undef op_par_loop_update
+#undef op_par_loop_update1
 #else
 #define op_par_loop_save_soln op_par_loop_save_soln_cpu
 #define op_par_loop_adt_calc op_par_loop_adt_calc_cpu
 #define op_par_loop_res_calc op_par_loop_res_calc_cpu
 #define op_par_loop_bres_calc op_par_loop_bres_calc_cpu
 #define op_par_loop_update op_par_loop_update_cpu
+#define op_par_loop_update1 op_par_loop_update1_cpu
 #include "../openmp/airfoil_mpi_kernels.cpp"
 #undef op_par_loop_save_soln
 #undef op_par_loop_adt_calc
 #undef op_par_loop_res_calc
 #undef op_par_loop_bres_calc
 #undef op_par_loop_update
+#undef op_par_loop_update1
 
 //user kernel files
 
@@ -254,8 +258,7 @@ void op_par_loop_update_gpu(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
-  op_arg arg3,
-  op_arg arg4);
+  op_arg arg3);
 
 //GPU host stub function
 #if OP_HYBRID_GPU
@@ -263,11 +266,58 @@ void op_par_loop_update(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
+  op_arg arg3){
+
+  if (OP_hybrid_gpu) {
+    op_par_loop_update_gpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3);
+
+    }else{
+    op_par_loop_update_cpu(name, set,
+      arg0,
+      arg1,
+      arg2,
+      arg3);
+
+  }
+}
+#else
+void op_par_loop_update(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3){
+
+  op_par_loop_update_gpu(name, set,
+    arg0,
+    arg1,
+    arg2,
+    arg3);
+
+  }
+#endif //OP_HYBRID_GPU
+
+void op_par_loop_update1_gpu(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
+  op_arg arg3,
+  op_arg arg4);
+
+//GPU host stub function
+#if OP_HYBRID_GPU
+void op_par_loop_update1(char const *name, op_set set,
+  op_arg arg0,
+  op_arg arg1,
+  op_arg arg2,
   op_arg arg3,
   op_arg arg4){
 
   if (OP_hybrid_gpu) {
-    op_par_loop_update_gpu(name, set,
+    op_par_loop_update1_gpu(name, set,
       arg0,
       arg1,
       arg2,
@@ -275,7 +325,7 @@ void op_par_loop_update(char const *name, op_set set,
       arg4);
 
     }else{
-    op_par_loop_update_cpu(name, set,
+    op_par_loop_update1_cpu(name, set,
       arg0,
       arg1,
       arg2,
@@ -285,14 +335,14 @@ void op_par_loop_update(char const *name, op_set set,
   }
 }
 #else
-void op_par_loop_update(char const *name, op_set set,
+void op_par_loop_update1(char const *name, op_set set,
   op_arg arg0,
   op_arg arg1,
   op_arg arg2,
   op_arg arg3,
   op_arg arg4){
 
-  op_par_loop_update_gpu(name, set,
+  op_par_loop_update1_gpu(name, set,
     arg0,
     arg1,
     arg2,
