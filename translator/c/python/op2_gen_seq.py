@@ -241,6 +241,8 @@ def op2_gen_seq(master, date, consts, kernels):
 #
     if ninds>0:
       FOR('n','0','set_size')
+      code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
+      code('  op_mpi_test_all(nargs,args);')
       IF('n==set->core_size')
       #code('op_mpi_wait_all(nargs, args);')
       code('op_mpi_wait_all_grouped(nargs, args, 1);')

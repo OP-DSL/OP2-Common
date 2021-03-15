@@ -391,6 +391,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
 
+      code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
+      code('  op_mpi_test_all(nargs,args);')
       IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()

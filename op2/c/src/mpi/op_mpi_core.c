@@ -3193,6 +3193,23 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   }
 }
 
+
+int op_mpi_test(op_arg *arg) {
+  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
+    int result;
+    if (((op_mpi_buffer)(arg->dat->mpi_buffer))->s_num_req>0)
+      MPI_Test(((op_mpi_buffer)(arg->dat->mpi_buffer))->s_req,&result,MPI_STATUS_IGNORE);
+    return 1;
+  }
+  return 0;
+}
+
+void op_mpi_test_all(int nargs, op_arg *args) {
+  for (int n = 0; n < nargs; n++) {
+    if (op_mpi_test(&args[n])) return;
+  }
+}
+
 void op_mpi_wait_all(int nargs, op_arg *args) {
   op_timers_core(&c1, &t1);
   for (int n = 0; n < nargs; n++) {
