@@ -163,8 +163,8 @@ else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = nvcc -g -Xcompiler=-std=c99
-  CXX             = nvcc -g -Xcompiler=-std=c99
+  CC              = pgcc -g #-std=c99
+  CXX             = pgc++ -g
   FC              = pgfortran -g -DOP2_ARG_POINTERS
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS)
   FMPI_FLAGS      = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS)
