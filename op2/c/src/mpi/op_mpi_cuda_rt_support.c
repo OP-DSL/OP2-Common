@@ -725,6 +725,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
     if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
     cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
     //cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
+    if (op2_grp_size_recv_old>0) cutilSafeCall(cudaHostUnregister ( *recv_buffer_host ));
     *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
     cutilSafeCall(cudaHostRegister ( *recv_buffer_host, size_recv, cudaHostRegisterDefault ));
     op2_grp_size_recv_old = size_recv;
@@ -734,6 +735,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
     if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
     cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
     //cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
+    if (op2_grp_size_send_old>0) cutilSafeCall(cudaHostUnregister ( *send_buffer_host ));
     *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
     cutilSafeCall(cudaHostRegister ( *send_buffer_host, size_send, cudaHostRegisterDefault ));
     op2_grp_size_send_old = size_send;
@@ -742,7 +744,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
   //Make sure gather kernels on the 0 stream finished before starting download
-  cutilSafeCall(cudaEventRecord(op2_grp_download_event));
+  cutilSafeCall(cudaEventRecord(op2_grp_download_event,0));
   cutilSafeCall(cudaStreamWaitEvent(op2_grp_secondary, op2_grp_download_event,0));
   cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost, op2_grp_secondary));
 }

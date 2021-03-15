@@ -592,6 +592,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
 
   MPI_Waitall(send_neigh_list.size(), &send_requests[0], MPI_STATUSES_IGNORE);
 
+  send_neigh_list.resize(0);
+  recv_neigh_list.resize(0);
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
