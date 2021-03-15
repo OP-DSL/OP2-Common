@@ -36,7 +36,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
     MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
   else
-    MPICPP_PATH = mpic++
+    MPICPP_PATH ?= mpic++
   endif
   endif
 
@@ -46,7 +46,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
     MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX_PATH = mpicxx
+    MPICXX_PATH ?= mpicxx
   endif
   endif
 
@@ -56,13 +56,13 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
     MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC_PATH = mpicc
+    MPICC_PATH = ?mpicc
   endif
   endif
 else
-  MPICPP_PATH = mpic++
-  MPICXX_PATH = mpicxx
-  MPICC_PATH  = mpicc
+  MPICPP_PATH ?= mpic++
+  MPICXX_PATH ?= mpicxx
+  MPICC_PATH  ?= mpicc
 endif
 
 #
@@ -84,7 +84,7 @@ ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
     CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS = -O3 -xHost #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost -I/opt/cray/pe/hdf5-parallel/1.12.0.2/gnu/9.1/include -I/opt/cray/pe/libsci/20.10.1.2/GNU/9.1/x86_64/include -I/opt/cray/pe/mpich/8.0.16/ofi/gnu/9.1/include -I/opt/cray/pe/dsmml/0.1.2/dsmml//include -I/opt/cray/xpmem/2.2.35-7.0.1.0_1.9__gd50fabf.shasta/include  #-DCOMM_PERF
   endif
   CXX       = icpc
   CXXFLAGS  = $(CCFLAGS)
@@ -203,7 +203,7 @@ PTSCOTCH_INC += -DHAVE_PTSCOTCH
 PTSCOTCH_LIB += -lptscotch -lptscotcherr
 
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
+  HDF5_INC = -I$(HDF5_INSTALL_PATH)/include -I$(HDF5_INSTALL_PATH)/gnu/9.1/include
   HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
