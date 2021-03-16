@@ -762,9 +762,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           if soaflags[invinds[g_m]]:
             FOR_INC('n','threadIdx.x','<INDARG>_size','blockDim.x')
             for d in range(0,int(dims[invinds[g_m]])):
-              code('arg'+str(invinds[g_m])+'_l['+str(d)+'] = <INDARG>_s[n+'+str(d)+'*<INDARG>_size] + <INDARG>[<INDARG>_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'];')
+              code('arg'+str(invinds[g_m])+'_l['+str(d)+'] = <INDARG>_s[n+'+str(d)+'*<INDARG>_size] + <INDARG>[<INDARG>_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(invinds[g_m],maps,mapnames,name)+'];')
             for d in range(0,int(dims[invinds[g_m]])):
-              code('<INDARG>[<INDARG>_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'] = arg'+str(invinds[g_m])+'_l['+str(d)+'];')
+              code('<INDARG>[<INDARG>_map[n]+'+str(d)+'*'+op2_gen_common.get_stride_string(invinds[g_m],maps,mapnames,name)+'] = arg'+str(invinds[g_m])+'_l['+str(d)+'];')
             ENDFOR()
           else:
             FOR_INC('n','threadIdx.x','<INDARG>_size*<INDDIM>','blockDim.x')
