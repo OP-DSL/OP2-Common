@@ -703,7 +703,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
       for (int e = prev_offset; e < next_offset; e++) {
         if (OP_plans[ip].thrcol[e] == -1) {
           int mask = 0;
-          if (staging == OP_COLOR2 && halo_exchange && e >= set->core_size &&
+          if (staging == OP_COLOR2 && halo_exchange && 
+              e >= set->core_size && set->core_size>0 && //if element needs halo axchange to finish
               ncolor == 0)
             mask = 1;
           for (int m = 0; m < nargs; m++)

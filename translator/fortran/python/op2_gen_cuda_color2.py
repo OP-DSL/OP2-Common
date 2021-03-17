@@ -1374,6 +1374,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
       code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
       code('')
+      IF('blocksPerGrid.gt.0')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
       if nopts>0:
         code('& optflags, &')
@@ -1407,6 +1408,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       else:
         code('& itstart, itend, &')
         code('& set%setPtr%size+set%setPtr%exec_size)')
+      ENDIF()
       ENDDO()
       code('')
     else: #direct loop host stub call
