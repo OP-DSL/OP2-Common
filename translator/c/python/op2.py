@@ -384,6 +384,14 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
     any_soa = 0
 
+
+    if reproducible:
+      if repr_temp_array:
+        text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("repr_temp_array");',text)
+      elif repr_coloring:
+        text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("repr_coloring");',text)
+
+
     # check for op_init/op_exit/op_partition/op_hdf5 calls
     inits, exits, parts, hdf5s = op_parse_calls(text)
 
@@ -923,7 +931,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   #code generators for OpenMP parallelisation with MPI
   #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
-#  op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
+  op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 #  op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
   #code generators for NVIDIA GPUs with CUDA

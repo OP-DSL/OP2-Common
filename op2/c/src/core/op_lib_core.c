@@ -48,7 +48,7 @@
  */
 
 int OP_diags = 0, OP_part_size = 0, OP_block_size = 64,
-    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_repro_greedy_coloring = 0;
+    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_repro_greedy_coloring = 0, OP_repro_coloring = 0, OP_repro_temparray = 0;
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
@@ -184,7 +184,6 @@ void op_set_args(int argc, char *argv) {
     OP_hybrid_balance = atof(temp + 18);
     op_printf("\n OP_hybrid_balance  = %g \n", OP_hybrid_balance);
   }
-  //TODO -op_repro_greedy_coloring
   pch = strstr(argv, "-op_repro_greedy_coloring");
   if (pch != NULL) {
     OP_repro_greedy_coloring = 1;

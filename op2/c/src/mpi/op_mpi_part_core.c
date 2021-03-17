@@ -3545,34 +3545,39 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   (void)prime_map;
 #endif
 
-    if (reproducible_enabled){
-      bool colorings_ready =true;
-      for (int m = 0; m < OP_map_index; m++) { 
-        op_map original_map = OP_map_list[m];
-    
-            std::stringstream ss;
-            ss<<original_map->name<<m<<"_coloring.h5";
-            std::string tmp = ss.str();
-            const char* dat_map_name = tmp.c_str();
-              
-        if( access( dat_map_name, F_OK ) == -1 ) {
-          colorings_ready=false;
-        }
-      }
+    if (reproducible_enabled){      
       color_dats = (op_dat*)malloc(OP_map_index*sizeof(op_dat*));
-      if (colorings_ready) {
-        for (int m=0; m<OP_map_index; m++){
-          op_map original_map=OP_map_list[m];         
-          std::stringstream ss;
-          ss<<original_map->name<<m<<"_coloring";
-          std::string tmp = ss.str();
-          const char* dat_map_name2 = tmp.c_str();
-          ss<<".h5";
-          std::string tmp2 = ss.str();
-          const char* dat_map_name = tmp2.c_str();        
-          color_dats[m] = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
+      if (OP_repro_greedy_coloring){
+        bool colorings_ready =true;
+        for (int m = 0; m < OP_map_index; m++) { 
+          op_map original_map = OP_map_list[m];
+      
+              std::stringstream ss;
+              ss<<original_map->name<<m<<"_coloring.h5";
+              std::string tmp = ss.str();
+              const char* dat_map_name = tmp.c_str();
+                
+          if( access( dat_map_name, F_OK ) == -1 ) {
+            colorings_ready=false;
+          }
         }
-        rev_map_realloc();
+        if (colorings_ready) {
+          for (int m=0; m<OP_map_index; m++){
+            op_map original_map=OP_map_list[m];         
+            
+            op_printf("Reproducible greedy coloring read from file for map %s%d\n",original_map->name,m);
+
+            std::stringstream ss;
+            ss<<original_map->name<<m<<"_coloring";
+            std::string tmp = ss.str();
+            const char* dat_map_name2 = tmp.c_str();
+            ss<<".h5";
+            std::string tmp2 = ss.str();
+            const char* dat_map_name = tmp2.c_str();        
+            color_dats[m] = op_decl_dat_hdf5(original_map->from, 1, "int", dat_map_name, dat_map_name2);
+          }
+          rev_map_realloc();
+        }
       }
     }
   int partial_halo_flag =
@@ -4013,6 +4018,7 @@ void coloring_within_process(){
     op_reversed_map rev_map = OP_reversed_map_list[m];
  //   int* reversed_map = OP_reversed_map_list[m];
 
+    op_printf("Reproducible distributed coloring for map %s%d\n",original_map->name,m);
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
     int set_to_size = original_map->to->size + original_map->to->exec_size +
@@ -4307,8 +4313,12 @@ void greedy_global_coloring(){
   if (MPI_size==1 && !colorings_ready)
   {
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    
+
     op_map original_map = OP_map_list[m];
     op_reversed_map rev_map = OP_reversed_map_list[m];
+
+    op_printf("Reproducible greedy coloring for map %s%d\n",original_map->name,m);
 
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
@@ -4365,12 +4375,6 @@ void greedy_global_coloring(){
           const char* dat_map_file_name = tmp.c_str();          
           op_fetch_data_hdf5_file(color_dat,dat_map_file_name);
 
-          op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-          mpi_buf->buf_exec = NULL;
-          mpi_buf->buf_nonexec = NULL;
-          mpi_buf->s_req = NULL;
-          mpi_buf->r_req = NULL;
-          color_dat->mpi_buffer = mpi_buf;
           color_dat->dirtybit = 1;
 
           color_dats[m] = color_dat;
@@ -4389,10 +4393,23 @@ void greedy_global_coloring(){
     int set_to_size = original_map->to->size + original_map->to->exec_size +
                       original_map->to->nonexec_size;
 
+    int sum_set_from_size = 0;
+    int sum_set_to_size  = 0;
+    int glb_max_col_size  = 0;
+    int glb_min_col_size  = 0;
+    MPI_Allreduce(&set_from_size,&glb_min_col_size,1,MPI_INT,MPI_MAX,OP_MPI_WORLD);
+    double sum_avg_col_size = 0;
+    int max_num_colors = 0;    
+    double avg_col_size=0;
+    int max_col_size=0;
+    int min_col_size=set_from_size;
+    int num_colors = 0;
+
     if (set_from_size>0){
 
       op_dat color_dat=color_dats[m];
       op_arg color_dat_arg = op_arg_dat(color_dat, -1, OP_ID, 1,"int", OP_READ);
+      
       op_exchange_halo(&color_dat_arg,1);      
       
       int max_color=0;
@@ -4401,7 +4418,7 @@ void greedy_global_coloring(){
             max_color=((int*)color_dat->data)[i];
           }
       }
-      int num_colors = max_color+1;
+      num_colors = max_color+1;
       
       std::vector<std::set<int> > color_based_exec_sets(num_colors);
 
@@ -4429,9 +4446,9 @@ void greedy_global_coloring(){
       OP_reversed_map_list[m]->color_based_exec_row_starts_d = NULL;
 
 //just debug infos
-          double avg_col_size=0;
-          int max_col_size=0;
-          int min_col_size=set_from_size;
+          avg_col_size=0;
+          max_col_size=0;
+          min_col_size=set_from_size;
 
           int my_rank;
           MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -4444,28 +4461,29 @@ void greedy_global_coloring(){
           avg_col_size/=(num_colors);
 
 
-          int sum_set_from_size = 0;
-          int sum_set_to_size  = 0;
-          int glb_max_col_size  = max_col_size;
-          int glb_min_col_size  = min_col_size;
-          double sum_avg_col_size = 0;
-          int max_num_colors = 0;
+          glb_max_col_size  = max_col_size;
+          glb_min_col_size  = min_col_size;
 
-          MPI_Reduce(&set_from_size,&sum_set_from_size,1,MPI_INT,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
-          MPI_Reduce(&set_to_size,&sum_set_to_size,1,MPI_INT,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
-          MPI_Reduce(&avg_col_size,&sum_avg_col_size,1,MPI_DOUBLE,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
-          MPI_Reduce(&max_col_size,&glb_max_col_size,1,MPI_INT,MPI_MAX,MPI_ROOT,OP_MPI_WORLD);
-          MPI_Reduce(&min_col_size,&glb_min_col_size,1,MPI_INT,MPI_MIN,MPI_ROOT,OP_MPI_WORLD);
-          MPI_Reduce(&num_colors,&max_num_colors,1,MPI_INT,MPI_MAX,MPI_ROOT,OP_MPI_WORLD);
-          int MPI_size;
-          MPI_Comm_size(OP_MPI_WORLD,&MPI_size);
 
-          if (my_rank==MPI_ROOT) op_printf("For map %s%d, avg_from_size: %d, avg_to_size: %d, max. number of used colors: %d, glb_max_color_length: %d, glb_min_color_length: %d, glb_avg_color_length: %f\n",
-                  original_map->name,m,sum_set_from_size/MPI_size,sum_set_to_size/MPI_size,max_num_colors,glb_max_col_size,glb_min_col_size,sum_avg_col_size/MPI_size);
     } else {
       OP_reversed_map_list[m]->color_based_exec_d = NULL;
+
     }
+
+    MPI_Reduce(&set_from_size,&sum_set_from_size,1,MPI_INT,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
+    MPI_Reduce(&set_to_size,&sum_set_to_size,1,MPI_INT,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
+    MPI_Reduce(&avg_col_size,&sum_avg_col_size,1,MPI_DOUBLE,MPI_SUM,MPI_ROOT,OP_MPI_WORLD);
+    MPI_Reduce(&max_col_size,&glb_max_col_size,1,MPI_INT,MPI_MAX,MPI_ROOT,OP_MPI_WORLD);
+    MPI_Reduce(&min_col_size,&glb_min_col_size,1,MPI_INT,MPI_MIN,MPI_ROOT,OP_MPI_WORLD);
+    MPI_Reduce(&num_colors,&max_num_colors,1,MPI_INT,MPI_MAX,MPI_ROOT,OP_MPI_WORLD);
+    int MPI_size;
+    MPI_Comm_size(OP_MPI_WORLD,&MPI_size);
+
+    if (my_rank==MPI_ROOT) op_printf("For map %s%d, avg_from_size: %d, avg_to_size: %d, max. number of used colors: %d, glb_max_color_length: %d, glb_min_color_length: %d, glb_avg_color_length: %f\n",
+            original_map->name,m,sum_set_from_size/MPI_size,sum_set_to_size/MPI_size,max_num_colors,glb_max_col_size,glb_min_col_size,sum_avg_col_size/MPI_size);
+    
   }    
+  
 }
 
 /*******************************************************************************
@@ -4481,7 +4499,7 @@ void create_reversed_mapping() {
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
 
     op_map original_map = OP_map_list[m];
-    op_printf("Reverse map creating and coloring for map %s%d\n",original_map->name,m);
+    op_printf("Reverse map creating for map %s%d\n",original_map->name,m);
 
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
@@ -4576,19 +4594,28 @@ void create_reversed_mapping() {
 
   } //end of reverse mapping creating
 
-  if (OP_repro_greedy_coloring){
-    greedy_global_coloring();
-  } else {
-    coloring_within_process();
+  if (OP_repro_coloring){
+    if (OP_repro_greedy_coloring){
+      greedy_global_coloring();
+    } else {
+      coloring_within_process();
+    }
+    op_move_repro_coloring_device();
   }
-  op_move_repro_coloring_device();
   rev_maps_created = 1;
 }
 
 
-void op_enable_reproducibility(){
+void op_enable_reproducibility(const char* mode){
   reproducible_enabled = 1;
-  op_printf("Reproducible execution enabled\n");
+  if (strcmp(mode, "repr_temp_array") == 0 ){
+    OP_repro_temparray=1;
+    op_printf("Reproducible execution enabled - temporary array method\n");
+  } 
+  if (strcmp(mode, "repr_coloring") == 0) {
+    OP_repro_coloring=1;
+    op_printf("Reproducible execution enabled - coloring method\n");
+  }
 }
 
 

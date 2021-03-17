@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mpi.h>
 
 // global constants
 
@@ -71,7 +72,6 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
-  op_enable_reproducibility();
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
@@ -244,7 +244,11 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
- // op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
+  int MPI_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &MPI_size);
+  char file_dump_name[30];
+  sprintf(file_dump_name, "repr_comp_p_q_np%d.h5", MPI_size);
+  op_fetch_data_hdf5_file(p_q, file_dump_name);       //naming for automatic test
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);

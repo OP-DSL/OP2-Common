@@ -137,9 +137,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
 
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,((op_mpi_buffer)(dat->mpi_buffer))->s_req,MPI_STATUSES_IGNORE);
-    MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->r_num_req,((op_mpi_buffer)(dat->mpi_buffer))->r_req,MPI_STATUSES_IGNORE);
-
     //-----second exchange nonexec elements related to this data array------
     // sanity checks
     if (compare_sets(imp_nonexec_list->set, dat->set) == 0) {
@@ -151,8 +148,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];

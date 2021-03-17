@@ -106,9 +106,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  reproducible = 1
-  repr_temp_array = 0
-  repr_coloring = 1
+
+
+  reproducible=op2_gen_common.reproducible
+  repr_temp_array=op2_gen_common.repr_temp_array
+  repr_coloring=op2_gen_common.repr_coloring
 
   if reproducible and repr_temp_array and repr_coloring:
     repr_coloring = 0
@@ -144,7 +146,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #Optimization settings
     inc_stage=0
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -307,10 +309,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
-            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
             body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
+            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'[(\1)*'+ \
                                op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
     for nc in range(0,len(consts)):
@@ -367,7 +369,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int   *ind_arg_offs, ')
 
     if ninds>0:
-      if op_color2:
+      if op_color2 or repr_coloring:
         code('int start,           ')
         code('int end,             ')
         code('int *col_reord,      ')
@@ -390,7 +392,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
-        if not reproducible:
+        if not (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double"):
           code('<TYP> <ARG>_l[<DIM>];')
           if accs[g_m] == OP_INC:
             FOR('d','0','<DIM>')
@@ -400,7 +402,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             FOR('d','0','<DIM>')
             code('<ARG>_l[d]=<ARG>[d+blockIdx.x*<DIM>];')
             ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2:
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics:
         code('<TYP> <ARG>_l[<DIM>];')
 
     if not op_color2 and not atomics:
@@ -421,7 +423,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # lengthy code for general case with indirection
 #
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not repr_coloring:
       code('')
       if inc_stage==1:
         for g_m in range (0,ninds):
@@ -576,11 +578,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('initialise local variables')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
-          code('<TYP> <ARG>_l[<DIM>];')
-          FOR('d','0','<DIM>')
-          code('<ARG>_l[d] = ZERO_<TYP>;')
-          ENDFOR()
+        if not (repr_coloring and accs[g_m]==OP_INC and typs[g_m]=="double"):
+          if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+            code('<TYP> <ARG>_l[<DIM>];')
+            FOR('d','0','<DIM>')
+            code('<ARG>_l[d] = ZERO_<TYP>;')
+            ENDFOR()
 
       #mapidx declarations
       k = []
@@ -647,7 +650,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('process set elements')
       FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
       for g_m in range (0,nargs):
-        if reproducible and reduct and maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
+        if (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double") and reduct and maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           FOR('d','0','<DIM>')
           code('<ARG>[n+d]=ZERO_<TYP>;')
           ENDFOR()
@@ -669,7 +672,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if accs[m] == OP_READ or accs[m] == OP_WRITE:
           line += rep(indent+'<ARG>,\n',m)
         else:
-          if reproducible:
+          if reproducible and accs[m]==OP_INC and typs[m]=="double":
             line += rep(indent+'<ARG>+n*<DIM>,\n',m)
           else:
             line += rep(indent+'<ARG>_l,\n',m);
@@ -712,7 +715,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # updating for indirect kernels ...
 #
-    if ninds>0 and not op_color2 and not atomics:
+    if ninds>0 and not op_color2 and not atomics and not repr_coloring:
       if ind_inc:
         code('col2 = colors[n+offset_b];')
         ENDIF()
@@ -814,13 +817,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # global reduction
 #
-    if reduct and not reproducible:
+    if reduct:
        code('')
        comm('global reductions')
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
+         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE and not (reproducible and accs[m]==OP_INC and typs[m]=="double"):
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC>(&<ARG>[d+blockIdx.x*<DIM>],<ARG>_l[d]);')
@@ -1049,7 +1052,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     if reduct:
       comm('transfer global reduction data to GPU')
-      if not reproducible:
+      if not (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double"):
         if ninds>0 and not atomics:
           code('int maxblocks = 0;')
           FOR('col','0','Plan->ncolors')
@@ -1065,7 +1068,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
-          if reproducible:
+          if reproducible and accs[g_m]==OP_INC and typs[g_m]=="double":
             code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
           else:
             code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
@@ -1078,9 +1081,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
-          if reproducible:
-            if accs[g_m]==OP_INC:
-              code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
+          if reproducible and accs[g_m]==OP_INC and typs[g_m]=="double":
+            code('reduct_bytes += ROUND_UP(set_size*<ARG>.size);')
           else:
             FOR('b','0','maxblocks')
             FOR('d','0','<DIM>')
@@ -1092,8 +1094,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             ENDFOR()
             code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
       
-      if not reproducible:
-        code('mvReductArraysToDevice(reduct_bytes);')
+      #if not reproducible:
+      code('mvReductArraysToDevice(reduct_bytes);')
       code('')
 
     if repro_if:
@@ -1276,7 +1278,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for m in range(0,nargs):
         g_m = m
         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
-          if reproducible:
+          if reproducible and accs[m]==OP_INC and typs[m]=="double":
             code('reprLocalSum(&<ARG>,set_size,(double*)<ARG>.data);')
             code('<ARG>.data = (char *)<ARG>h;')
             code('op_mpi_repr_inc_reduce_double(&<ARG>,(double*)<ARG>.data);')

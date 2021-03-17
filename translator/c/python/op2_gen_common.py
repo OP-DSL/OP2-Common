@@ -12,6 +12,10 @@ import datetime
 import glob
 import os
 
+reproducible = 1
+repr_temp_array = 0
+repr_coloring = 1
+
 def comment_remover(text):
     """Remove comments from text"""
 

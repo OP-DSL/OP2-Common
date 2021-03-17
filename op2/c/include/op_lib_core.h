@@ -377,7 +377,7 @@ void op_mpi_barrier();
 
 void create_reversed_mapping();
 
-void op_enable_reproducibility();
+void op_enable_reproducibility(const char *mode);
 
 void rev_map_realloc();
 
