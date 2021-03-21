@@ -129,7 +129,7 @@ def get_stride_string_mapnames(g_m,maps,mapnames,set_name):
     idx = mapnames.index(mapnames[g_m])
     return 'opDat'+str(idx+1)+'_stride_OP2CONSTANT'
 
-def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra,bookleaf,stride=[],atomics=0):
+def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra,bookleaf,unknown_size_red,stride=[],atomics=0):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   name = funcs[idx]['function_name']
   if len(stride)==0:
@@ -141,10 +141,10 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
         stride[g_m] = mapnames.index(mapnames[g_m])
   if funcs[idx]['soa_converted'] == 0:
     funcs[idx]['soaflags'] = soaflags
-    if atomics:
+    if atomics or (1 in unknown_size_red):
       funcs[idx]['function_text'] = replace_atomics(funcs[idx]['function_text'],
                           len(funcs[idx]['args']),
-                          funcs[idx]['args'], name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride,atomics)
+                          funcs[idx]['args'], name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,unknown_size_red, stride,atomics)
     funcs[idx]['function_text'] = replace_soa(funcs[idx]['function_text'],
                           len(funcs[idx]['args']),
                           soaflags, name, maps, accs, '', mapnames, repl_inc, hydra, bookleaf,stride,atomics)
@@ -184,18 +184,19 @@ def replace_soa_subroutines(funcs,idx,soaflags,maps,accs,mapnames,repl_inc,hydra
       print(funcs[idx_called]['soaflags'], soaflags2)
     if funcs[idx_called]['soa_converted'] == 1:
       continue 
-    funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,stride2)
+    funcs = replace_soa_subroutines(funcs,idx_called,soaflags2,maps2,accs2,mapnames,repl_inc,hydra,bookleaf,unknown_size_red,stride2,atomics)
   return funcs
 
-def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,stride=[],atomics=0):
-  if not atomics:
-    return text
+def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc,hydra,bookleaf,unknown_size_red,stride=[],atomics=0):
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
   need_istat = 0
   for g_m in range(0,nargs):
-    if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
+    if (maps[g_m]==OP_MAP and accs[g_m]==OP_INC and atomics) or (maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and unknown_size_red[g_m]==1):
+#      print(g_m)
+#      print(maps)
+#      print(accs)
       p = re.compile('\\b'+varlist[g_m]+'\\b')
       nmatches = len(p.findall(text))
       loc1 = 0;
@@ -203,9 +204,13 @@ def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc
       while idd < nmatches:
         loc1 = loc1 + p.search(text[loc1:]).start()
         if idd < 2: #variable declaration in function name, and its type
-          loc1 = loc1 + len(varlist[g_m]) + p.search(text[loc1+ len(varlist[g_m]):]).start()
-          idd = idd + 1
-          continue
+          m = p.search(text[loc1+ len(varlist[g_m]):])
+          if m:
+            loc1 = loc1 + len(varlist[g_m]) + m.start()
+            idd = idd + 1
+            continue
+          else:
+            break
  
         #look for a = a + x expression and swap it for istat = atomicInc(a,x)
         line,beg,end = get_full_line(text,loc1)
@@ -217,10 +222,22 @@ def replace_atomics(text,nargs,varlist,name,maps,accs,set_name,mapnames,repl_inc
           line = line.replace('\n','')
           j = line.find('=')
           expr = re.escape(line[0:j].strip())
-          m = re.search(expr+r'\s*=\s*'+expr+r'\s*(\+|\-)(.*)',line)
-          if m is None:
-              print('ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_INC, but seems not to be: '+line)
-          text = text[:loc1] + 'istat = atomicAdd('+line[0:j].strip()+','+ m.group(1)+ m.group(2)+')' + text[end:]
+          if accs[g_m] == OP_INC:
+            m = re.search(expr+r'\s*=\s*'+expr+r'\s*(\+|\-)(.*)',line)
+            if m is None:
+                print('ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_INC, but seems not to be: '+line)
+            text = text[:loc1] + 'istat = atomicAdd('+line[0:j].strip()+','+ m.group(1)+ m.group(2)+')' + text[end:]
+          elif accs[g_m] == OP_MIN:
+            m = re.search(expr+r'\s*=\s*min\('+expr+r'\s*,(.*)',line)
+            if m is None:
+                print('ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_MIN, but seems not to be: '+line)
+            text = text[:loc1] + 'istat = atomicMin('+line[0:j].strip()+','+ m.group(1) + text[end:]
+          elif accs[g_m] == OP_MAX:
+            m = re.search(expr+r'\s*=\s*max\('+expr+r'\s*,(.*)',line)
+            if m is None:
+                print('ERROR in '+name+' variable '+varlist[g_m]+' supposed to be OP_MIN, but seems not to be: '+line)
+            text = text[:loc1] + 'istat = atomicMax('+line[0:j].strip()+','+ m.group(1) + text[end:]
+
           idd = idd + 1
           loc1 = end
           need_istat = 1

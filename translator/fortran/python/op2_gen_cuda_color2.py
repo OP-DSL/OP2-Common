@@ -289,7 +289,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 #          dims[g_m]
 #          #do nothing
 
+    atomic_reduction = 0
+    if 'MP_FOURIER_CDCH' in name or 'intclineprim' in name or 'accumintegrals' in name:
+      atomic_reduction = 1
     unknown_reduction_size = 0
+    unknown_size_red_atomic = [0]*nargs
     needDimList = []
     for g_m in range(0,nargs):
       if (not dims[g_m].isdigit()):
@@ -297,8 +301,12 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         if found==0:
           needDimList = needDimList + [g_m]
           if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
-            unknown_reduction_size = 1
-            soaflags[g_m] = 1
+            if atomic_reduction == 1:
+              unknown_reduction_size = 2
+              unknown_size_red_atomic[g_m] = 1
+            else:
+              unknown_reduction_size = 1
+              soaflags[g_m] = 1
 
     for idx in needDimList:
       dims[idx] = 'opDat'+str(idx+1)+'Dim'
@@ -394,7 +402,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 #  Reduction kernel function - if an OP_GBL exists
 ##########################################################################
-    if reduct_1dim or unknown_reduction_size:
+    if reduct_1dim or (unknown_reduction_size==1):
       comm('Reduction cuda kernel'); depth = depth +2;
       code('attributes (device) SUBROUTINE ReductionFloat8(sharedDouble8, reductionResult,inputValue,reductionOperation)')
       code('REAL(kind=8), DIMENSION(:), DEVICE :: reductionResult')
@@ -589,13 +597,14 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       util.funlist = [name.lower()]
       util.funlist2 = []
       plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
-      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,[],atomics)
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,unknown_size_red_atomic,[],atomics)
       text = ''
       for func in funcs:
           text = text + '\n' + func['function_text']
       for fun in util.funlist:
         regex = re.compile('\\b'+fun+'\\b',re.I)
         text = regex.sub(fun+'_gpu',text)
+        text = text.replace('cop2rep','!cop2rep')
 
       #strip "use" statements
       i = re.search('\\buse\\b',text.lower())
@@ -685,7 +694,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       if maps[g_m] == OP_GBL:
         if g_m in needDimList:
           code('& opDat'+str(g_m+1)+'Dim, &')
-        if accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX:
+        if (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX) and unknown_size_red_atomic[g_m] != 1:
           if g_m in needDimList:
             code('& scratchDevice'+str(g_m+1)+',   &')
         elif accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
@@ -741,7 +750,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           #and additionally we need registers to store contributions, depending on dim:
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             code(typs[g_m]+' :: opGblDat'+str(g_m+1)+'Device'+name)
-          else:
+          elif unknown_size_red_atomic[g_m]==0:
             if g_m in needDimList:
               code(typs[g_m]+', DEVICE :: scratchDevice'+str(g_m+1)+'(*)')
             else:
@@ -776,14 +785,14 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     code('INTEGER(kind=4) :: i1')
     code('INTEGER(kind=4) :: i2')
-    if unknown_reduction_size:
+    if unknown_reduction_size == 1:
       code('INTEGER(kind=4) :: thrIdx')
 
     if reduct:
         add_real = 0
         add_int = 0
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
+          if maps[g_m] == OP_GBL and accs[g_m] != OP_READ and unknown_size_red_atomic[g_m]==0:
             if 'real' in typs[g_m].lower():
               add_real = 1
             elif 'integer' in typs[g_m].lower():
@@ -802,10 +811,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         code(typs[g_m]+', DIMENSION('+dims[g_m]+') :: opDat'+str(g_m+1)+'Staged')
 
     code('')
-    if unknown_reduction_size:
+    if unknown_reduction_size == 1:
       code('thrIdx = threadIdx%x - 1 + (blockIdx%x - 1) * blockDim%x')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL:
+      if maps[g_m] == OP_GBL and unknown_size_red_atomic[g_m]==0:
         if accs[g_m] == OP_INC:
           if g_m in needDimList:
             DO('i1','0',dims[g_m]) 
@@ -886,7 +895,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
 
 ##########################################################################
-#  CUDA kernel call
+# user kernel call
 ##########################################################################
     if ninds > 0: #indirect kernel call
       line = '  CALL '+name+'_gpu( &'
@@ -921,7 +930,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name+'(1)'
           else:
             if (accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_INC) and g_m in needDimList:
-              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
+              if unknown_size_red_atomic[g_m] == 0:
+                line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
+              else:
+                line = line + indent +'& reductionArrayDevice'+str(g_m+1)+name
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         if g_m < nargs-1:
@@ -964,7 +976,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name+'(1)'
           else:
             if (accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_INC) and g_m in needDimList:
-              line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
+              if unknown_size_red_atomic[g_m] == 0:
+                line = line + indent +'& scratchDevice'+str(g_m+1)+'(thrIdx+1:)'
+              else:
+                line = line + indent +'& reductionArrayDevice'+str(g_m+1)+name
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
         else:
@@ -995,7 +1010,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     #call cuda reduction for each OP_GBL
     code('')
     for g_m in range(0,nargs):
-      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
+      if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX) and unknown_size_red_atomic[g_m] == 0:
         if accs[g_m] == OP_INC:
           op = '0'
         elif accs[g_m] == OP_MIN:
@@ -1174,7 +1189,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             code(typs[g_m]+' :: opDat'+str(g_m+1)+'Host_tmp') #XLF workaround
         if (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
           code(typs[g_m]+', DIMENSION(:), ALLOCATABLE :: reductionArrayHost'+str(g_m+1))
-          if g_m in needDimList:
+          if g_m in needDimList and unknown_size_red_atomic[g_m] == 0:
             code(typs[g_m]+', DIMENSION(:), DEVICE, POINTER :: scratchDevice'+str(g_m+1))
             code('INTEGER(kind=4) :: scratchDevice'+str(g_m+1)+'Size')
           code('INTEGER(kind=4) :: reductionCardinality'+str(g_m+1))
@@ -1252,7 +1267,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         code('')
     else:
       code('')
-      if unknown_reduction_size:
+      if unknown_reduction_size == 1:
         code('blocksPerGrid = 200')
       else:
         code('blocksPerGrid = 600')
@@ -1313,7 +1328,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     #setup for reduction
     for g_m in range(0,nargs):
       if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
-        code('reductionCardinality'+str(g_m+1)+' = blocksPerGrid * 1')
+        if unknown_size_red_atomic[g_m] == 0:
+          code('reductionCardinality'+str(g_m+1)+' = blocksPerGrid * 1')
+        else:
+          code('reductionCardinality'+str(g_m+1)+' = 1')
         code('allocate( reductionArrayHost'+str(g_m+1)+'(reductionCardinality'+str(g_m+1)+'* ('+dims[g_m]+')) )')
         IF ('.not. allocated(reductionArrayDevice'+str(g_m+1)+name+')')
         code('allocate( reductionArrayDevice'+str(g_m+1)+name+'(reductionCardinality'+str(g_m+1)+'* ('+dims[g_m]+')) )')
@@ -1335,7 +1353,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         code('reductionArrayDevice'+str(g_m+1)+name+' = reductionArrayHost'+str(g_m+1)+'')
 
     code('')
-    if unknown_reduction_size:
+    if unknown_reduction_size==1:
       if ninds>0:
         code('blocksPerGrid = 0')
         if not atomics:
@@ -1347,6 +1365,9 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('call prepareScratch(opArgArray,numberOfOpDats,blocksPerGrid*threadsPerBlock)')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN) and (g_m in needDimList):
+          #IF('opArg'+str(g_m+1)+'%dim.gt.20')
+          #code('print *,"'+name+'",'+str(g_m+1)+',opArg'+str(g_m+1)+'%dim')
+          #ENDIF()
           code('scratchDevice'+str(g_m+1)+'Size = opArg'+str(g_m+1)+'%dim*blocksPerGrid*threadsPerBlock')
           code('call c_f_pointer(opArgArray('+str(g_m+1)+')%data_d,scratchDevice'+str(g_m+1)+',(/scratchDevice'+str(g_m+1)+'Size/))')
       
@@ -1378,6 +1399,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock')
       code('')
       IF('blocksPerGrid.gt.0')
+      #code('print *,"'+name+'", blocksPerGrid')
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&')
       if nopts>0:
         code('& optflags, &')
@@ -1401,7 +1423,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
           if (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-            if g_m in needDimList:
+            if g_m in needDimList and unknown_size_red_atomic[g_m] == 0:
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
             code('& opDat'+str(g_m+1)+'Host_tmp, &') #XLF workaround
@@ -1428,12 +1450,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           if g_m in needDimList:
             code('& opArg'+str(g_m+1)+'%dim, &')
           if (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
-            if g_m in needDimList:
+            if g_m in needDimList and unknown_size_red_atomic[g_m] == 0:
               code('& scratchDevice'+str(g_m+1)+', &')
           if accs[g_m] == OP_READ and dims[g_m].isdigit() and int(dims[g_m])==1:
             code('& opDat'+str(g_m+1)+'Host_tmp, &') #XLF workaround
       code('set%setPtr%size)')
-
     code('')
     if not atomics:
       IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
@@ -1498,6 +1519,9 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
 
     code('istat = cudaDeviceSynchronize()')
+    IF('istat.ne.0')
+    code('print *,cudaGetErrorString(istat)')
+    ENDIF()
     code('call op_timers_core(endTime)')
     code('')
     if ninds == 0:

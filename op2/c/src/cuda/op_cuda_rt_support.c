@@ -90,7 +90,7 @@ void __cutilCheckMsg(const char *errorMessage, const char *file,
 //
 
 void op_mvHostToDevice(void **map, int size) {
-  if (!OP_hybrid_gpu)
+  if (!OP_hybrid_gpu || size == 0)
     return;
   void *tmp;
   cutilSafeCall(cudaMalloc(&tmp, size));
