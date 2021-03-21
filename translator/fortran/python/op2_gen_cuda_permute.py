@@ -295,7 +295,9 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
 #          #do nothing
 
 
+    atomic_reduction = 1
     unknown_reduction_size = 0
+    unknown_size_red = [0]*nargs
     needDimList = []
     for g_m in range(0,nargs):
       if (not dims[g_m].isdigit()):
@@ -307,8 +309,11 @@ def op2_gen_cuda_permute(master, date, consts, kernels, hydra, bookleaf):
           needDimList = needDimList + [g_m]
           if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MAX or accs[g_m] == OP_MIN):
             unknown_reduction_size = 1
-            soaflags[g_m] = 1
-            is_soa = 1
+            if atomic_reduction == 1:
+              unknown_size_red[g_m] = 1
+            else:
+              soaflags[g_m] = 1
+              is_soa = 1
 
     for idx in needDimList:
       dims[idx] = 'opDat'+str(idx+1)+'Dim'

@@ -81,7 +81,7 @@ void prepareScratch(op_arg *args, int nargs, int nthreads) {
       req_size += ((args[i].size-1)/8+1)*8*nthreads;
   }
   if (scratch_size < req_size) {
-    if (!scratch) cudaFree(scratch);
+    if (!scratch) cutilSafeCall(cudaFree(scratch));
     cutilSafeCall(cudaMalloc((void**)&scratch, req_size*sizeof(char)));
     scratch_size = req_size;
   }
