@@ -83,7 +83,11 @@ __global__ void op_cuda_spMV(
     map1idx = opDat0Map[n + set_size * 1];
     map2idx = opDat0Map[n + set_size * 2];
     map3idx = opDat0Map[n + set_size * 3];
-    double *arg0_vec[] = {arg0_l, arg1_l, arg2_l, arg3_l};
+    double* arg0_vec[] = {
+      arg0_l,
+      arg1_l,
+      arg2_l,
+      arg3_l};
     const double* arg5_vec[] = {
        &ind_arg1[1 * map0idx],
        &ind_arg1[1 * map1idx],
@@ -139,7 +143,7 @@ void op_par_loop_spMV(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: spMV\n");
   }
-  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);
   if (set_size > 0) {
 
     if ((OP_kernels[3].count==1) || (opDat0_spMV_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
@@ -159,7 +163,7 @@ void op_par_loop_spMV(char const *name, op_set set,
 
     for ( int round=0; round<2; round++ ){
       if (round==1) {
-        op_mpi_wait_all_cuda(nargs, args);
+        op_mpi_wait_all_grouped(nargs, args, 2);
       }
       int start = round==0 ? 0 : set->core_size;
       int end = round==0 ? set->core_size : set->size + set->exec_size;

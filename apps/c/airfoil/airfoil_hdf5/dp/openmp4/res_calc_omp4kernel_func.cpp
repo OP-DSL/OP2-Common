@@ -10,13 +10,15 @@ void res_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
                           int nthread, int opDat0_res_calc_stride_OP2CONSTANT,
                           int opDat2_res_calc_stride_OP2CONSTANT) {
 
-#pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
-    map(to                                                                     \
-        : gm1_ompkernel, eps_ompkernel)                                        \
-        map(to                                                                 \
-            : col_reord [0:set_size1], map0 [0:map0size], map2 [0:map2size],   \
-              data0 [0:dat0size], data2 [0:dat2size], data4 [0:dat4size],      \
-              data6 [0:dat6size])
+#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(       \
+    to : gm1_ompkernel, eps_ompkernel)                                         \
+        map(to : col_reord[0 : set_size1],                                     \
+                           map0[0 : map0size],                                 \
+                                map2[0 : map2size],                            \
+                                     data0[0 : dat0size],                      \
+                                           data2[0 : dat2size],                \
+                                                 data4[0 : dat4size],          \
+                                                       data6[0 : dat6size])
 #pragma omp distribute parallel for schedule(static, 1)
   for ( int e=start; e<end; e++ ){
     int n_op = col_reord[e];
@@ -51,22 +53,20 @@ void res_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
     ri = 1.0f / q1[(0) * opDat2_res_calc_stride_OP2CONSTANT];
     p1 = gm1_ompkernel *
          (q1[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
-          0.5f * ri *
-              (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
-                   q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
-               q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
-                   q1[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+          0.5f * ri * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                           q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                       q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                           q1[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
     vol1 = ri * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
                  q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
 
     ri = 1.0f / q2[(0) * opDat2_res_calc_stride_OP2CONSTANT];
     p2 = gm1_ompkernel *
          (q2[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
-          0.5f * ri *
-              (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
-                   q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
-               q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
-                   q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+          0.5f * ri * (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                           q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                       q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                           q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
     vol2 = ri * (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
                  q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
 
