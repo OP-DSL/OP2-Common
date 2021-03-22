@@ -4,18 +4,32 @@
 
 //user function
 int opDat0_res_calc_stride_OP2CONSTANT;
-int opDat0_res_calc_stride_OP2HOST = -1;
+int opDat0_res_calc_stride_OP2HOST=-1;
 int opDat2_res_calc_stride_OP2CONSTANT;
-int opDat2_res_calc_stride_OP2HOST = -1;
+int opDat2_res_calc_stride_OP2HOST=-1;
 //user function
 
-void res_calc_omp4_kernel(int *map0, int map0size, int *map2, int map2size,
-                          double *data0, int dat0size, double *data2,
-                          int dat2size, double *data4, int dat4size,
-                          double *data6, int dat6size, int *col_reord,
-                          int set_size1, int start, int end, int num_teams,
-                          int nthread, int opDat0_res_calc_stride_OP2CONSTANT,
-                          int opDat2_res_calc_stride_OP2CONSTANT);
+void res_calc_omp4_kernel(
+  int *map0,
+  int map0size,
+  int *map2,
+  int map2size,
+  double *data0,
+  int dat0size,
+  double *data2,
+  int dat2size,
+  double *data4,
+  int dat4size,
+  double *data6,
+  int dat6size,
+  int *col_reord,
+  int set_size1,
+  int start,
+  int end,
+  int num_teams,
+  int nthread,
+  int opDat0_res_calc_stride_OP2CONSTANT,
+  int opDat2_res_calc_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_res_calc(char const *name, op_set set,
@@ -72,15 +86,13 @@ void op_par_loop_res_calc(char const *name, op_set set,
   int ncolors = 0;
   int set_size1 = set->size + set->exec_size;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[2].count == 1) ||
-        (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[2].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       opDat0_res_calc_stride_OP2CONSTANT = opDat0_res_calc_stride_OP2HOST;
     }
-    if ((OP_kernels[2].count == 1) ||
-        (opDat2_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg2))) {
+    if ((OP_kernels[2].count==1) || (opDat2_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg2))) {
       opDat2_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg2);
       opDat2_res_calc_stride_OP2CONSTANT = opDat2_res_calc_stride_OP2HOST;
     }
@@ -112,13 +124,28 @@ void op_par_loop_res_calc(char const *name, op_set set,
       int start = Plan->col_offsets[0][col];
       int end = Plan->col_offsets[0][col+1];
 
-      res_calc_omp4_kernel(map0, map0size, map2, map2size, data0, dat0size,
-                           data2, dat2size, data4, dat4size, data6, dat6size,
-                           col_reord, set_size1, start, end,
-                           part_size != 0 ? (end - start - 1) / part_size + 1
-                                          : (end - start - 1) / nthread,
-                           nthread, opDat0_res_calc_stride_OP2CONSTANT,
-                           opDat2_res_calc_stride_OP2CONSTANT);
+      res_calc_omp4_kernel(
+        map0,
+        map0size,
+        map2,
+        map2size,
+        data0,
+        dat0size,
+        data2,
+        dat2size,
+        data4,
+        dat4size,
+        data6,
+        dat6size,
+        col_reord,
+        set_size1,
+        start,
+        end,
+        part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread,
+        nthread,
+        opDat0_res_calc_stride_OP2CONSTANT,
+        opDat2_res_calc_stride_OP2CONSTANT);
+
     }
     OP_kernels[2].transfer  += Plan->transfer;
     OP_kernels[2].transfer2 += Plan->transfer2;

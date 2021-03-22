@@ -907,7 +907,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
+      code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
       #code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
     IF('set_size > 0')    

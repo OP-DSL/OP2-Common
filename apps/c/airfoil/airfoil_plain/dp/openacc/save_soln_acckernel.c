@@ -4,13 +4,12 @@
 
 //user function
 int direct_save_soln_stride_OP2CONSTANT;
-int direct_save_soln_stride_OP2HOST = -1;
+int direct_save_soln_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void save_soln_openacc( const double *q, double *qold) {
   for (int n = 0; n < 4; n++)
-    qold[(n)*direct_save_soln_stride_OP2CONSTANT] =
-        q[(n)*direct_save_soln_stride_OP2CONSTANT];
+    qold[(n)*direct_save_soln_stride_OP2CONSTANT] = q[(n)*direct_save_soln_stride_OP2CONSTANT];
 }
 
 // host stub function
@@ -38,10 +37,10 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
 
-  if (set_size > 0) {
 
-    if ((OP_kernels[0].count == 1) ||
-        (direct_save_soln_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+  if (set_size >0) {
+
+    if ((OP_kernels[0].count==1) || (direct_save_soln_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       direct_save_soln_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       direct_save_soln_stride_OP2CONSTANT = direct_save_soln_stride_OP2HOST;
     }
@@ -52,7 +51,9 @@ void op_par_loop_save_soln(char const *name, op_set set,
     double* data1 = (double*)arg1.data_d;
     #pragma acc parallel loop independent deviceptr(data0,data1)
     for ( int n=0; n<set->size; n++ ){
-      save_soln_openacc(&data0[n], &data1[n]);
+      save_soln_openacc(
+        &data0[n],
+        &data1[n]);
     }
   }
 

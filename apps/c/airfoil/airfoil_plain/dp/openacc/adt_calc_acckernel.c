@@ -4,44 +4,34 @@
 
 //user function
 int opDat0_adt_calc_stride_OP2CONSTANT;
-int opDat0_adt_calc_stride_OP2HOST = -1;
+int opDat0_adt_calc_stride_OP2HOST=-1;
 int direct_adt_calc_stride_OP2CONSTANT;
-int direct_adt_calc_stride_OP2HOST = -1;
+int direct_adt_calc_stride_OP2HOST=-1;
 //user function
 //#pragma acc routine
 inline void adt_calc_openacc( const double *x1, const double *x2, const double *x3,
                      const double *x4, const double *q, double *adt) {
   double dx, dy, ri, u, v, c;
 
-  ri = 1.0f / q[(0) * direct_adt_calc_stride_OP2CONSTANT];
-  u = ri * q[(1) * direct_adt_calc_stride_OP2CONSTANT];
-  v = ri * q[(2) * direct_adt_calc_stride_OP2CONSTANT];
-  c = sqrt(gam * gm1 *
-           (ri * q[(3) * direct_adt_calc_stride_OP2CONSTANT] -
-            0.5f * (u * u + v * v)));
+  ri = 1.0f / q[(0)*direct_adt_calc_stride_OP2CONSTANT];
+  u = ri * q[(1)*direct_adt_calc_stride_OP2CONSTANT];
+  v = ri * q[(2)*direct_adt_calc_stride_OP2CONSTANT];
+  c = sqrt(gam * gm1 * (ri * q[(3)*direct_adt_calc_stride_OP2CONSTANT] - 0.5f * (u * u + v * v)));
 
-  dx = x2[(0) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x1[(0) * opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x2[(1) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x1[(1) * opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x2[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x1[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x2[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x1[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x3[(0) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x2[(0) * opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x3[(1) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x2[(1) * opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x3[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x3[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x2[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x4[(0) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x3[(0) * opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x4[(1) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x3[(1) * opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x4[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x3[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x4[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x3[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  dx = x1[(0) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x4[(0) * opDat0_adt_calc_stride_OP2CONSTANT];
-  dy = x1[(1) * opDat0_adt_calc_stride_OP2CONSTANT] -
-       x4[(1) * opDat0_adt_calc_stride_OP2CONSTANT];
+  dx = x1[(0)*opDat0_adt_calc_stride_OP2CONSTANT] - x4[(0)*opDat0_adt_calc_stride_OP2CONSTANT];
+  dy = x1[(1)*opDat0_adt_calc_stride_OP2CONSTANT] - x4[(1)*opDat0_adt_calc_stride_OP2CONSTANT];
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   *adt = (*adt) / cfl;
@@ -92,15 +82,13 @@ void op_par_loop_adt_calc(char const *name, op_set set,
 
   int ncolors = 0;
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[1].count == 1) ||
-        (opDat0_adt_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[1].count==1) || (opDat0_adt_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_adt_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       opDat0_adt_calc_stride_OP2CONSTANT = opDat0_adt_calc_stride_OP2HOST;
     }
-    if ((OP_kernels[1].count == 1) ||
-        (direct_adt_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
+    if ((OP_kernels[1].count==1) || (direct_adt_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg4))) {
       direct_adt_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg4);
       direct_adt_calc_stride_OP2CONSTANT = direct_adt_calc_stride_OP2HOST;
     }
@@ -137,8 +125,14 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         map2idx = map0[n + set_size1 * 2];
         map3idx = map0[n + set_size1 * 3];
 
-        adt_calc_openacc(&data0[map0idx], &data0[map1idx], &data0[map2idx],
-                         &data0[map3idx], &data4[n], &data5[1 * n]);
+
+        adt_calc_openacc(
+          &data0[map0idx],
+          &data0[map1idx],
+          &data0[map2idx],
+          &data0[map3idx],
+          &data4[n],
+          &data5[1 * n]);
       }
 
     }

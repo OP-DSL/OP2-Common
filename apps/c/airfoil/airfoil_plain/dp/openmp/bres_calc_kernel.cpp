@@ -27,8 +27,8 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc(3);
-  OP_kernels[3].name = name;
-  OP_kernels[3].count += 1;
+  OP_kernels[3].name      = name;
+  OP_kernels[3].count    += 1;
   op_timers_core(&cpu_t1, &wall_t1);
 
   int  ninds   = 4;
@@ -47,7 +47,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
     op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);
 
@@ -71,6 +71,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
           map0idx = arg0.map_data[n * arg0.map->dim + 0];
           map1idx = arg0.map_data[n * arg0.map->dim + 1];
           map2idx = arg2.map_data[n * arg2.map->dim + 0];
+
 
           bres_calc(
             &((double*)arg0.data)[2 * map0idx],

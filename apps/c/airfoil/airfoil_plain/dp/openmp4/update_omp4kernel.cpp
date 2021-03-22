@@ -4,14 +4,23 @@
 
 //user function
 int direct_update_stride_OP2CONSTANT;
-int direct_update_stride_OP2HOST = -1;
+int direct_update_stride_OP2HOST=-1;
 //user function
 
-void update_omp4_kernel(double *data0, int dat0size, double *data1,
-                        int dat1size, double *data2, int dat2size,
-                        double *data3, int dat3size, double *arg4, int count,
-                        int num_teams, int nthread,
-                        int direct_update_stride_OP2CONSTANT);
+void update_omp4_kernel(
+  double *data0,
+  int dat0size,
+  double *data1,
+  int dat1size,
+  double *data2,
+  int dat2size,
+  double *data3,
+  int dat3size,
+  double *arg4,
+  int count,
+  int num_teams,
+  int nthread,
+  int direct_update_stride_OP2CONSTANT);
 
 // host stub function
 void op_par_loop_update(char const *name, op_set set,
@@ -58,10 +67,9 @@ void op_par_loop_update(char const *name, op_set set,
 
   double arg4_l = arg4h[0];
 
-  if (set_size > 0) {
+  if (set_size >0) {
 
-    if ((OP_kernels[4].count == 1) ||
-        (direct_update_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
+    if ((OP_kernels[4].count==1) || (direct_update_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       direct_update_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
       direct_update_stride_OP2CONSTANT = direct_update_stride_OP2HOST;
     }
@@ -76,11 +84,21 @@ void op_par_loop_update(char const *name, op_set set,
     int dat2size = getSetSizeFromOpArg(&arg2) * arg2.dat->dim;
     double* data3 = (double*)arg3.data_d;
     int dat3size = getSetSizeFromOpArg(&arg3) * arg3.dat->dim;
-    update_omp4_kernel(data0, dat0size, data1, dat1size, data2, dat2size, data3,
-                       dat3size, &arg4_l, set->size,
-                       part_size != 0 ? (set->size - 1) / part_size + 1
-                                      : (set->size - 1) / nthread,
-                       nthread, direct_update_stride_OP2CONSTANT);
+    update_omp4_kernel(
+      data0,
+      dat0size,
+      data1,
+      dat1size,
+      data2,
+      dat2size,
+      data3,
+      dat3size,
+      &arg4_l,
+      set->size,
+      part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread,
+      nthread,
+      direct_update_stride_OP2CONSTANT);
+
   }
 
   // combine reduction data
