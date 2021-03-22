@@ -655,7 +655,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       util.funlist = [name.lower()]
       util.funlist2 = []
       plus_kernels, text = find_function_calls(text,'attributes(device) ',name+'_gpu')
-      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,[],atomics)
+      funcs = util.replace_soa_subroutines(util.funlist2,0,soaflags,maps,accs,mapnames,1,hydra,bookleaf,unknown_size_red_atomic,[],atomics)
       text = ''
       for func in funcs:
           text = text + '\n' + func['function_text']
