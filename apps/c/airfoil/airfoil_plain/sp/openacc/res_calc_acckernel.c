@@ -21,21 +21,19 @@ inline void res_calc_openacc( const float *x1, const float *x2, const float *q1,
 
   ri = 1.0f / q1[(0) * opDat2_res_calc_stride_OP2CONSTANT];
   p1 = gm1 * (q1[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
-              0.5f * ri *
-                  (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
-                       q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
-                   q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
-                       q1[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+              0.5f * ri * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                               q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                           q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                               q1[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
   vol1 = ri * (q1[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
                q1[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
 
   ri = 1.0f / q2[(0) * opDat2_res_calc_stride_OP2CONSTANT];
   p2 = gm1 * (q2[(3) * opDat2_res_calc_stride_OP2CONSTANT] -
-              0.5f * ri *
-                  (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
-                       q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
-                   q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
-                       q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
+              0.5f * ri * (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] *
+                               q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] +
+                           q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] *
+                               q2[(2) * opDat2_res_calc_stride_OP2CONSTANT]));
   vol2 = ri * (q2[(1) * opDat2_res_calc_stride_OP2CONSTANT] * dy -
                q2[(2) * opDat2_res_calc_stride_OP2CONSTANT] * dx);
 

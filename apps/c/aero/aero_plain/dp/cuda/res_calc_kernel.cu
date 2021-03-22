@@ -125,7 +125,11 @@ __global__ void op_cuda_res_calc(
        &ind_arg1[1 * map1idx],
        &ind_arg1[1 * map2idx],
        &ind_arg1[1 * map3idx]};
-    double *arg9_vec[] = {arg9_l, arg10_l, arg11_l, arg12_l};
+    double* arg9_vec[] = {
+      arg9_l,
+      arg10_l,
+      arg11_l,
+      arg12_l};
 
     //user-supplied kernel call
     res_calc_gpu(arg0_vec,
@@ -184,7 +188,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
   }
-  int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);
   if (set_size > 0) {
 
     if ((OP_kernels[0].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
@@ -204,7 +208,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
     for ( int round=0; round<2; round++ ){
       if (round==1) {
-        op_mpi_wait_all_cuda(nargs, args);
+        op_mpi_wait_all_grouped(nargs, args, 2);
       }
       int start = round==0 ? 0 : set->core_size;
       int end = round==0 ? set->core_size : set->size + set->exec_size;
