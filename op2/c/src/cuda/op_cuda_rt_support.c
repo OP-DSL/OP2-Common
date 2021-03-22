@@ -397,6 +397,11 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   return set->size;
 }
 
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+  (void)device;
+  return op_mpi_halo_exchanges(set, nargs, args);
+}
+
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     if ((args[n].opt == 1) && (args[n].argtype == OP_ARG_DAT) &&
@@ -408,6 +413,12 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
   (void)nargs;
   (void)args;
 }

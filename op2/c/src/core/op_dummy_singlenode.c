@@ -42,6 +42,13 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   return set->size;
 }
 
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+  (void)nargs;
+  (void)args;
+  (void)device;
+  return set->size;
+}
+
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
@@ -50,6 +57,12 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
+}
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)nargs;
+  (void)args;
+  (void)device;
 }
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
