@@ -266,7 +266,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   END IF
   call op_timers_core(startTime)
 
-  n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+  n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
   threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
   indirectionDescriptorArray(1) = 0
@@ -306,7 +306,7 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
     IF (i2 .EQ. 1) THEN
       itstart = set%setPtr%core_size
       itend = n_upper
-      CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+      CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
     ELSE
       itstart = 0
       itend = set%setPtr%core_size
@@ -315,17 +315,19 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
     blocksPerGrid = (itend-itstart-1)/threadsPerBlock+1
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
-    CALL op_cuda_bres_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
-    & optflags, &
-    & opDat1Devicebres_calc, &
-    & opDat3Devicebres_calc, &
-    & opDat4Devicebres_calc, &
-    & opDat5Devicebres_calc, &
-    & opMap1Devicebres_calc, &
-    & opMap3Devicebres_calc, &
-    & opDat6Devicebres_calc, &
-    & itstart, itend, &
-    & set%setPtr%size+set%setPtr%exec_size)
+    IF (blocksPerGrid.gt.0) THEN
+      CALL op_cuda_bres_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
+      & optflags, &
+      & opDat1Devicebres_calc, &
+      & opDat3Devicebres_calc, &
+      & opDat4Devicebres_calc, &
+      & opDat5Devicebres_calc, &
+      & opMap1Devicebres_calc, &
+      & opMap3Devicebres_calc, &
+      & opDat6Devicebres_calc, &
+      & itstart, itend, &
+      & set%setPtr%size+set%setPtr%exec_size)
+    END IF
   END DO
 
 
@@ -333,6 +335,9 @@ attributes (host) SUBROUTINE bres_calc_host_gpu( userSubroutine, set, &
   CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
 
   istat = cudaDeviceSynchronize()
+  IF (istat.ne.0) THEN
+    print *,cudaGetErrorString(istat)
+  END IF
   call op_timers_core(endTime)
 
   returnSetKernelTiming = setKernelTime(3 , userSubroutine//C_NULL_CHAR, &

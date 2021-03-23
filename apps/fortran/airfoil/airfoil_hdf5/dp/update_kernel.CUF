@@ -248,7 +248,7 @@ END SUBROUTINE
     END IF
     call op_timers_core(startTime)
 
-    n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+    n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
     threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
@@ -288,7 +288,7 @@ END SUBROUTINE
     set%setPtr%size)
 
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
-      CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+      CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
     END IF
 
 
@@ -304,6 +304,9 @@ END SUBROUTINE
     CALL op_mpi_reduce_double(opArg5,opArg5%data)
 
     istat = cudaDeviceSynchronize()
+    IF (istat.ne.0) THEN
+      print *,cudaGetErrorString(istat)
+    END IF
     call op_timers_core(endTime)
 
     dataTransfer = 0.0

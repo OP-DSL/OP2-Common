@@ -144,7 +144,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
-  n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
+  n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)
 
 #ifdef OP_PART_SIZE_1
   partitionSize = OP_PART_SIZE_1
@@ -207,7 +207,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
 
     DO i1 = 0, actualPlan_bres_calc%ncolors-1, 1
       IF (i1 .EQ. actualPlan_bres_calc%ncolors_core) THEN
-        CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+        CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)
       END IF
 
       nblocks = ncolblk_bres_calc(i1 + 1)
@@ -233,7 +233,7 @@ SUBROUTINE bres_calc_host( userSubroutine, set, &
       blockOffset = blockOffset + nblocks
     END DO
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
-      CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+      CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)
     END IF
 
     CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)

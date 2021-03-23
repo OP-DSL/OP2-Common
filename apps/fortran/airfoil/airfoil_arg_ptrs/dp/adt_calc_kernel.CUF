@@ -235,7 +235,7 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   END IF
   call op_timers_core(startTime)
 
-  n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)
+  n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
   threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
   indirectionDescriptorArray(1) = 0
@@ -276,30 +276,35 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
 
   DO i2 = 0, actualPlan_adt_calc%ncolors - 1, 1
     IF (i2 .EQ. actualPlan_adt_calc%ncolors_core) THEN
-      CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+      CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
     END IF
 
     blocksPerGrid = (color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1
     dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
-    CALL op_cuda_adt_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
-    & opDat1Deviceadt_calc, &
-    & opMap1Deviceadt_calc, &
-    & opDat5Deviceadt_calc, &
-    & opDat6Deviceadt_calc, &
-    & color2_offsets(i2+1), color2_offsets(i2+2), &
-    & pcol_reord,set%setPtr%size+set%setPtr%exec_size)
+    IF (blocksPerGrid.gt.0) THEN
+      CALL op_cuda_adt_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
+      & opDat1Deviceadt_calc, &
+      & opMap1Deviceadt_calc, &
+      & opDat5Deviceadt_calc, &
+      & opDat6Deviceadt_calc, &
+      & color2_offsets(i2+1), color2_offsets(i2+2), &
+      & pcol_reord,set%setPtr%size+set%setPtr%exec_size)
+    END IF
   END DO
 
 
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
-    CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)
+    CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
   END IF
 
 
   CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
 
   istat = cudaDeviceSynchronize()
+  IF (istat.ne.0) THEN
+    print *,cudaGetErrorString(istat)
+  END IF
   call op_timers_core(endTime)
 
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
