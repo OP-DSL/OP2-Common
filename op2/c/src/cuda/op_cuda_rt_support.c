@@ -399,7 +399,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 
 int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
   (void)device;
-  return op_mpi_halo_exchanges(set, nargs, args);
+  return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
 }
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
