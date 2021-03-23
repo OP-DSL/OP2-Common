@@ -72,7 +72,7 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   & 0.0_8, 0.00000_4,0.00000_4, 0)
   call op_timers_core(startTime)
 
-  n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
+  n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)
 
   opSetCore => set%setPtr
 
@@ -86,13 +86,13 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   & opDat1Local, &
   & opDat2Local, &
   & 0, opSetCore%core_size)
-  CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+  CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)
   CALL op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
   & opSetCore%core_size, n_upper)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
-    CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
+    CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)
   END IF
 
 
