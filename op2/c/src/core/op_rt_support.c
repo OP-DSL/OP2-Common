@@ -831,12 +831,12 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
                                             // non_core ones
           if (prev_offset <= set->core_size)
             OP_plans[ip].ncolors_core = ncolors;
-          for (int shifter = 0; shifter < OP_plans[ip].ncolors_core; shifter++)
+          for (int shifter = 0; shifter < OP_plans[ip].ncolors_core-ncolor; shifter++)
             mask |= 1 << shifter;
           if (prev_offset == set->size && indirect_reduce)
             OP_plans[ip].ncolors_owned = ncolors;
           for (int shifter = OP_plans[ip].ncolors_core;
-               indirect_reduce && shifter < OP_plans[ip].ncolors_owned;
+               indirect_reduce && shifter < OP_plans[ip].ncolors_owned-ncolor;
                shifter++)
             mask |= 1 << shifter;
         }
