@@ -435,7 +435,7 @@ void op_mv_halo_list_device() {
         cutilSafeCall(cudaFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(export_nonexec_list_partial_d);
   }
-  export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  export_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
@@ -454,7 +454,7 @@ void op_mv_halo_list_device() {
         cutilSafeCall(cudaFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(import_nonexec_list_partial_d);
   }
-  import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  import_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
