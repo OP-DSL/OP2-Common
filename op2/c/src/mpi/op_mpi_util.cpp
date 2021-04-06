@@ -331,6 +331,7 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
   }
 }
 
+std::vector<unsigned> partial_flags;
 std::vector<unsigned> send_sizes;
 std::vector<unsigned> recv_sizes;
 std::vector<int>      send_neigh_list;
@@ -374,6 +375,11 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
       direct_flag = 0;
 
+/*  printf("Name: %s, %s, set: %s(%d)\n", OP_kernels[OP_kern_curr].name, direct_flag ? "direct": "indirect", set->name, set->index);
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT)
+      printf("\t%s(%d), %s, %d\n", args[n].dat->name, args[n].dat->index, args[n].idx == -1 ? "OP_ID":args[n].map->name,args[n].acc);
+  }*/
   if (direct_flag == 1)
     return size;
 
@@ -385,8 +391,42 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       exec_flag = 1;
     }
   }
+
   double c1,c2,t1,t2;
   op_timers_core(&c1, &t1);
+  partial_flags.resize(nargs);
+  // Fire off any partial halo exchanges that apply
+  for (int n = 0; n < nargs; n++) {
+    partial_flags[n] = 0;
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
+      if (args[n].map != OP_ID) {
+        // Check if dat-map combination was already done or if there is a
+        // mismatch (same dat, diff map)
+        int found = 0;
+        int fallback = 0;
+        for (int m = 0; m < nargs; m++) {
+          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) {
+            partial_flags[n] = partial_flags[m]==1?2:0;
+            found = 1;
+          } else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
+            fallback = 1;
+        }
+        // If there was a map mismatch with other argument, do full halo
+        // exchange
+        if (fallback) continue;
+        else if (!found) { // Otherwise, if partial halo exchange is enabled for
+                           // this map, do it
+          if (OP_map_partial_exchange[args[n].map->index]) {
+            partial_flags[n] = 1;
+            if (device == 1)
+              op_exchange_halo_partial(&args[n], exec_flag);
+            else if (device == 2)
+              op_exchange_halo_partial_cuda(&args[n], exec_flag);
+          }
+        }
+      }
+    }
+  }
   std::vector<int> sets;
   sets.resize(0);
   send_sizes.resize(0);
@@ -395,7 +435,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   recv_neigh_list.resize(0);
   
   for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW) && partial_flags[n] == 0) {
       if ( args[n].idx == -1 && exec_flag == 0) continue; 
 
       //flag, so same dat not checked again
@@ -573,6 +613,12 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
 //    printf("rank %d send %d bytes to %d\n", rank, send_sizes[i], send_neigh_list[i]);
       MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
+    }
+  }
+  for (int n = 0; n < nargs; n++) {
+    if (partial_flags[n]==1) {
+      if (device == 1) op_wait_all(&args[n]);
+      if (device == 2) op_wait_all_cuda(&args[n]);
     }
   }
 
