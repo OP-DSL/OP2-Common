@@ -11,7 +11,7 @@
 
 import re
 import datetime
-import glob
+import glob  
 import os
 import op2_gen_common
 
@@ -113,9 +113,9 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
   for nk in range (0,len(kernels)):
 
 #Optimization settings
-    inc_stage=0
+    inc_stage=1
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -126,7 +126,7 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
     op_color2=0
-#
+#  
 # set logicals
 #
     j = -1
@@ -404,7 +404,7 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
 
       code('__shared__ int    nelem, offset_b;')
       code('')
-      code('HIP_DYNAMIC_SHARED(char,shared[]);')#code('extern __shared__ char shared[];')
+      code('HIP_DYNAMIC_SHARED(char,shared);')#code('extern __shared__ char shared[];')
       code('')
       IF('hipBlockIdx_x+hipBlockIdx_y*hipGridDim_x >= nblocks')
       code('return;')
@@ -460,7 +460,7 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
       if inc_stage==1:
         for g_m in range(0,ninds):
           if indaccs[g_m] == OP_INC:
-            FOR_INC('n','hipTthreadIdx_x','<INDARG>_size*<INDDIM>','hipBlockDim_x')
+            FOR_INC('n','hipThreadIdx_x','<INDARG>_size*<INDDIM>','hipBlockDim_x')
             code('<INDARG>_s[n] = ZERO_<INDTYP>;')
             ENDFOR()
         if ind_inc:
@@ -960,12 +960,12 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapnames[g_m]]
             IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
-            code('hipMemcpyToSymbol(HIP_SYMBOL(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int)));')
+            code('hipMemcpyToSymbol(HIP_SYMBOL(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT), &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
       if dir_soa!=-1:
           IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
           code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
-          code('hipMemcpyToSymbol(HIP_SYMBOL(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int)));')
+          code('hipMemcpyToSymbol(HIP_SYMBOL(direct_'+name+'_stride_OP2CONSTANT),&direct_'+name+'_stride_OP2HOST,sizeof(int));')
           ENDIF()
 
 #
@@ -1289,9 +1289,15 @@ def op2_gen_hip_simple(master, date, consts, kernels,sets, macro_defs):
         num = 'MAX_CONST_SIZE'
 
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_hip['+num+'];')
+  
   code('')
-
-
+  comm('Dummy kernel to make sure constants are not optimized out')
+  code('__global__ void op_internal_this_is_stupid() {')
+  for nc in range(0,len(consts)):
+    code('((int*)&'+str(consts[nc]['name']).replace('"','')+'_hip)[0]=0;')
+  code('}')
+  code('')
+  
   code('')
   code('void op_decl_const_char(int dim, char const *type,')
   code('int size, char *dat, char const *name){')
