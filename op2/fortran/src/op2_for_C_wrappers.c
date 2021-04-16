@@ -81,7 +81,7 @@
 
 #include "../include/op2_for_C_wrappers.h"
 
-op_kernel * OP_kernels;
+extern op_kernel * OP_kernels;
 
 /*
  * Small utility for transforming Fortran OP2 access codes into C OP2 access codes

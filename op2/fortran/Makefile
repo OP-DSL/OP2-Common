@@ -147,16 +147,16 @@ DEBUG_FLAGS = -g
 ifeq ($(OP2_COMPILER),gnu)
   F_INC_MOD       = $(F_OP2_MOD)/gnu
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = gcc
-  CXX             = g++
-  CFLAGS          = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  CFLAGS_SLOW     = -g -O0 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  FC              = gfortran  -DOP2_ARG_POINTERS
-  FFLAGS          = -g -O0 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CC              = gcc #cc
+  CXX             = g++ #CC 
+  CFLAGS          = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS_SLOW     = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FC              = gfortran  -DOP2_ARG_POINTERS -ffixed-line-length-none -ffree-line-length-none #ftn
+  FFLAGS          = -g -O2 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  MPICC           = mpicc
-  MPICXX          = mpicxx
-  MPIF90          = mpif90
+  MPICC           = mpicc #cc
+  MPICXX          = mpicxx #CC
+  MPIF90          = mpif90 #ftn
   NO_MPI_MACRO    = -DNO_MPI
   ALLTARGETS      = core hdf5 f_seq f_openmp f_mpi_seq
 else
@@ -233,12 +233,13 @@ ifeq ($(OP2_COMPILER),intel)
 else
 ifeq ($(OP2_COMPILER),cray)
   F_INC_MOD       = $(F_OP2_MOD)/cray
+  F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
   OPT             = -O2
-  CC              = cc -O2
-  CXX             = CC -O2
+  CC              = cc -O2 -g
+  CXX             = CC -O2 -g
   CFLAGS          = #-std=c99 -Wall
   CFLAGS_SLOW     = #-std=c99 -Wall
-  FC              = ftn
+  FC              = ftn -g -DOP2_ARG_POINTERS
   FFLAGS          = -em -J $(F_INC_MOD)
   FMPI_FLAGS	  = -em -J $(F_MPI_INC_MOD)
   MPICC           = $(CC)

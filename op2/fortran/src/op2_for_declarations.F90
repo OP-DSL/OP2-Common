@@ -2448,16 +2448,16 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_opt_arg_gbl_python_r8_3dim
 
-#ifdef __GFORTRAN__
-  function int_ptr ( arg )
-    integer(4), dimension(:,:), target :: arg
-    integer(4), target :: int_ptr
-
-    int_ptr = arg(1, 1)
-  end function
-#else
-#define int_ptr(arg) arg
-#endif
+!#ifdef __GFORTRAN__
+!  function int_ptr ( arg )
+!    integer(4), dimension(:,:), target :: arg
+!    integer(4), target :: int_ptr
+!
+!    int_ptr = arg(1, 1)
+!  end function
+!#else
+!#define int_ptr(arg) arg
+!#endif
 
   type(op_arg) function op_opt_arg_gbl_python_i4_2dim (opt, dat, dim, type, access )
 
