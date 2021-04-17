@@ -17,11 +17,10 @@ void updateUR_omp4_kernel(
   int nthread){
 
   double arg4_l = *arg4;
-#pragma omp target teams distribute parallel for schedule(                     \
-    static, 1) num_teams(num_teams) thread_limit(nthread)                      \
-        map(to : data0[0 : dat0size], data1[0 : dat1size],                     \
-                                            data2[0 : dat2size],               \
-                                                  data3[0 : dat3size])
+#pragma omp target teams num_teams(num_teams) thread_limit(nthread) map(       \
+    to : data0[0 : dat0size], data1[0 : dat1size], data2[0 : dat2size],        \
+                                                         data3[0 : dat3size])
+#pragma omp distribute parallel for schedule(static, 1)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
     double *u = &data0[1*n_op];
