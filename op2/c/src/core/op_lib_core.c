@@ -457,7 +457,7 @@ int op_free_dat_temp_core(op_dat dat) {
       free((char *)(item->dat)->name);
       free((char *)(item->dat)->type);
       TAILQ_REMOVE(&OP_dat_list, item, entries);
-      free(item->dat);          
+      free(item->dat);
       free(item);
       success = 1;
       break;
@@ -1219,7 +1219,7 @@ unsigned long op_reset_data_ptr(char *data) {
   // long)item_dat->data);
 
   // Download dat from device (if required)
-  op_download_dat(item_dat);
+  // op_download_dat(item_dat);
 
   // reset orig pointer
   // free(data)
@@ -1263,7 +1263,7 @@ unsigned long op_reset_map_ptr(int *map) {
 unsigned long op_copy_map_to_fort(int *map) {
 
   op_map item_map = NULL;
-  int idx = -1;
+  // int idx = -1;
   for (int i = 0; i < OP_map_index; i++) {
     if (OP_map_ptr_list[i] == map) {
       item_map = OP_map_list[i];

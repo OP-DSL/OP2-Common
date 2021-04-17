@@ -145,7 +145,9 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
-  char *d = (char *)xmalloc(set->size * dim * size);
+  if (set == NULL || data == NULL)
+    return NULL;
+  char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
   if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
@@ -153,6 +155,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 
   memcpy(d, data, set->size * dim * size * sizeof(char));
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
@@ -330,10 +333,14 @@ void op_mv_halo_list_device() {
     export_exec_list_disps_d[set->index] = NULL;
 
     //make sure end size is there too
-    OP_export_exec_list[set->index]->disps[OP_export_exec_list[set->index]->ranks_size] = 
-      OP_export_exec_list[set->index]->ranks_size == 0 ? 0 :
-      OP_export_exec_list[set->index]->disps[OP_export_exec_list[set->index]->ranks_size-1] +
-      OP_export_exec_list[set->index]->sizes[OP_export_exec_list[set->index]->ranks_size-1];
+    OP_export_exec_list[set->index]
+        ->disps[OP_export_exec_list[set->index]->ranks_size] =
+        OP_export_exec_list[set->index]->ranks_size == 0
+            ? 0
+            : OP_export_exec_list[set->index]
+                      ->disps[OP_export_exec_list[set->index]->ranks_size - 1] +
+                  OP_export_exec_list[set->index]
+                      ->sizes[OP_export_exec_list[set->index]->ranks_size - 1];
     op_cpHostToDevice((void **)&(export_exec_list_disps_d[set->index]),
                       (void **)&(OP_export_exec_list[set->index]->disps),
                       (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int));
@@ -352,10 +359,16 @@ void op_mv_halo_list_device() {
     export_nonexec_list_disps_d[set->index] = NULL;
 
     //make sure end size is there too
-    OP_export_nonexec_list[set->index]->disps[OP_export_nonexec_list[set->index]->ranks_size] = 
-      OP_export_nonexec_list[set->index]->ranks_size == 0 ? 0 :
-      OP_export_nonexec_list[set->index]->disps[OP_export_nonexec_list[set->index]->ranks_size-1] +
-      OP_export_nonexec_list[set->index]->sizes[OP_export_nonexec_list[set->index]->ranks_size-1];
+    OP_export_nonexec_list[set->index]
+        ->disps[OP_export_nonexec_list[set->index]->ranks_size] =
+        OP_export_nonexec_list[set->index]->ranks_size == 0
+            ? 0
+            : OP_export_nonexec_list[set->index]
+                      ->disps[OP_export_nonexec_list[set->index]->ranks_size -
+                              1] +
+                  OP_export_nonexec_list[set->index]
+                      ->sizes[OP_export_nonexec_list[set->index]->ranks_size -
+                              1];
     op_cpHostToDevice((void **)&(export_nonexec_list_disps_d[set->index]),
                       (void **)&(OP_export_nonexec_list[set->index]->disps),
                       (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
@@ -373,10 +386,14 @@ void op_mv_halo_list_device() {
     import_exec_list_disps_d[set->index] = NULL;
 
     //make sure end size is there too
-    OP_import_exec_list[set->index]->disps[OP_import_exec_list[set->index]->ranks_size] = 
-      OP_import_exec_list[set->index]->ranks_size == 0 ? 0 :
-      OP_import_exec_list[set->index]->disps[OP_import_exec_list[set->index]->ranks_size-1] +
-      OP_import_exec_list[set->index]->sizes[OP_import_exec_list[set->index]->ranks_size-1];
+    OP_import_exec_list[set->index]
+        ->disps[OP_import_exec_list[set->index]->ranks_size] =
+        OP_import_exec_list[set->index]->ranks_size == 0
+            ? 0
+            : OP_import_exec_list[set->index]
+                      ->disps[OP_import_exec_list[set->index]->ranks_size - 1] +
+                  OP_import_exec_list[set->index]
+                      ->sizes[OP_import_exec_list[set->index]->ranks_size - 1];
     op_cpHostToDevice((void **)&(import_exec_list_disps_d[set->index]),
                       (void **)&(OP_import_exec_list[set->index]->disps),
                       (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int));
@@ -395,10 +412,16 @@ void op_mv_halo_list_device() {
     import_nonexec_list_disps_d[set->index] = NULL;
 
     //make sure end size is there too
-    OP_import_nonexec_list[set->index]->disps[OP_import_nonexec_list[set->index]->ranks_size] = 
-      OP_import_nonexec_list[set->index]->ranks_size == 0 ? 0 :
-      OP_import_nonexec_list[set->index]->disps[OP_import_nonexec_list[set->index]->ranks_size-1] +
-      OP_import_nonexec_list[set->index]->sizes[OP_import_nonexec_list[set->index]->ranks_size-1];
+    OP_import_nonexec_list[set->index]
+        ->disps[OP_import_nonexec_list[set->index]->ranks_size] =
+        OP_import_nonexec_list[set->index]->ranks_size == 0
+            ? 0
+            : OP_import_nonexec_list[set->index]
+                      ->disps[OP_import_nonexec_list[set->index]->ranks_size -
+                              1] +
+                  OP_import_nonexec_list[set->index]
+                      ->sizes[OP_import_nonexec_list[set->index]->ranks_size -
+                              1];
     op_cpHostToDevice((void **)&(import_nonexec_list_disps_d[set->index]),
                       (void **)&(OP_import_nonexec_list[set->index]->disps),
                       (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
