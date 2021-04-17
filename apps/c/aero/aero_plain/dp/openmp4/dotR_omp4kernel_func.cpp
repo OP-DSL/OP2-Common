@@ -11,9 +11,10 @@ void dotR_omp4_kernel(
   int nthread){
 
   double arg1_l = *arg1;
-#pragma omp target teams num_teams(num_teams) thread_limit(nthread)            \
-    map(to : data0[0 : dat0size]) map(tofrom : arg1_l) reduction(+ : arg1_l)
-#pragma omp distribute parallel for schedule(static, 1) reduction(+ : arg1_l)
+#pragma omp target teams distribute parallel for schedule(                     \
+    static, 1) num_teams(num_teams) thread_limit(nthread)                      \
+        map(to : data0[0 : dat0size]) map(tofrom : arg1_l)                     \
+            reduction(+ : arg1_l)
   for ( int n_op=0; n_op<count; n_op++ ){
     //variable mapping
     const double *r = &data0[1*n_op];
