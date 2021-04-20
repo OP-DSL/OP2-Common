@@ -944,7 +944,7 @@ static void migrate_all(int my_rank, int comm_size) {
 
   // create partition export lists
   int *temp_list;
-  int count, cap;
+  size_t count, cap;
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
@@ -1058,7 +1058,7 @@ static void migrate_all(int my_rank, int comm_size) {
         char **sbuf = (char **)xmalloc(exp->ranks_size * sizeof(char *));
 
         for (int i = 0; i < exp->ranks_size; i++) {
-          sbuf[i] = (char *)xmalloc(exp->sizes[i] * dat->size);
+          sbuf[i] = (char *)xmalloc(exp->sizes[i] * (size_t)dat->size);
           for (int j = 0; j < exp->sizes[i]; j++) {
             int index = exp->list[exp->disps[i] + j];
             memcpy(&sbuf[i][j * dat->size],
@@ -1071,7 +1071,7 @@ static void migrate_all(int my_rank, int comm_size) {
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
-        char *rbuf = (char *)xmalloc(dat->size * imp->size);
+        char *rbuf = (char *)xmalloc((size_t)dat->size * imp->size);
         for (int i = 0; i < imp->ranks_size; i++) {
           // printf("imported on to %d data %10s, number of elements of size %d
           // | recieving:\n ",
@@ -1088,7 +1088,7 @@ static void migrate_all(int my_rank, int comm_size) {
 
         // delete the data entirs that has been sent and create a
         // modified data array
-        char *new_dat = (char *)xmalloc(dat->size * (set->size + imp->size));
+        char *new_dat = (char *)xmalloc((size_t)dat->size * (set->size + imp->size));
 
         count = 0;
         for (int i = 0; i < dat->set->size; i++) // iterate over old set size
@@ -1103,7 +1103,7 @@ static void migrate_all(int my_rank, int comm_size) {
         memcpy(&new_dat[count * dat->size], (void *)rbuf,
                dat->size * imp->size);
         count = count + imp->size;
-        new_dat = (char *)xrealloc(new_dat, dat->size * count);
+        new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
         op_free(rbuf);
 
         op_free(dat->data);
