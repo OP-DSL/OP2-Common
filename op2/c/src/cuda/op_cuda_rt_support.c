@@ -207,6 +207,25 @@ void op_cuda_exit() {
     OP_plans[ip].blkmap = NULL;
   }
   // cudaDeviceReset ( );
+
+  if (OP_reduct_d!=NULL) cutilSafeCall(cudaFree(OP_reduct_d));
+  if (OP_reduct_h!=NULL) op_free(OP_reduct_h);
+
+  if (reproducible_enabled){
+    for (int n = 0; n < OP_dat_index; n++) {
+      if (op_repr_incs[n].tmp_incs_size_d>0) {
+        cutilSafeCall(cudaFree(op_repr_incs[n].tmp_incs_d));
+        op_repr_incs[n].tmp_incs_size_d=0;
+      }
+    }
+
+    for (int m=0; m<OP_map_index; m++){
+      if (OP_reversed_map_list[m]->reversed_map_d!=NULL) cutilSafeCall(cudaFree(OP_reversed_map_list[m]->reversed_map_d));
+      if (OP_reversed_map_list[m]->row_start_idx_d!=NULL) cutilSafeCall(cudaFree(OP_reversed_map_list[m]->row_start_idx_d));
+      if (OP_reversed_map_list[m]->color_based_exec_d!=NULL) cutilSafeCall(cudaFree(OP_reversed_map_list[m]->color_based_exec_d));
+    }
+
+  }
 }
 
 //
@@ -236,6 +255,19 @@ void reallocReductArrays(int reduct_bytes) {
     cutilSafeCall(cudaMalloc((void **)&OP_reduct_d, OP_reduct_bytes));
   }
 }
+
+void reallocTempArrays(int dat_idx, int req_size){
+  if (req_size > op_repr_incs[dat_idx].tmp_incs_size_d){
+    if (op_repr_incs[dat_idx].tmp_incs_size_d > 0) {
+      cutilSafeCall(cudaFree(op_repr_incs[dat_idx].tmp_incs_d));
+    }
+    op_repr_incs[dat_idx].tmp_incs_size_d=req_size;
+    cutilSafeCall(cudaMalloc((void **)&op_repr_incs[dat_idx].tmp_incs_d, op_repr_incs[dat_idx].tmp_incs_size_d));
+  }
+  return;
+}
+
+
 
 //
 // routines to move constant/reduct arrays

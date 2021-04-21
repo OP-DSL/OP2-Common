@@ -4200,6 +4200,9 @@ void coloring_within_process(){
     OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;
     OP_reversed_map_list[m]->color_based_exec_d = NULL;
     OP_reversed_map_list[m]->color_based_exec_row_starts_d = NULL;
+    
+    OP_reversed_map_list[m]->row_start_idx_d = NULL;
+    OP_reversed_map_list[m]->reversed_map_d = NULL;
 
 
     //just debug infos
@@ -4239,6 +4242,9 @@ void coloring_within_process(){
     
     if (set_from_size <= 0) {
       OP_reversed_map_list[m]->color_based_exec_d = NULL;
+      
+      OP_reversed_map_list[m]->row_start_idx_d = NULL;
+      OP_reversed_map_list[m]->reversed_map_d = NULL;
     }
   } //end of coloring for each map    
 }
@@ -4444,6 +4450,9 @@ void greedy_global_coloring(){
       OP_reversed_map_list[m]->color_based_exec_d = NULL;
       OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;    
       OP_reversed_map_list[m]->color_based_exec_row_starts_d = NULL;
+      
+      OP_reversed_map_list[m]->row_start_idx_d = NULL;
+      OP_reversed_map_list[m]->reversed_map_d = NULL;
 
 //just debug infos
           avg_col_size=0;
@@ -4467,6 +4476,8 @@ void greedy_global_coloring(){
 
     } else {
       OP_reversed_map_list[m]->color_based_exec_d = NULL;
+      OP_reversed_map_list[m]->row_start_idx_d = NULL;
+      OP_reversed_map_list[m]->reversed_map_d = NULL;
 
     }
 
@@ -4522,6 +4533,9 @@ void create_reversed_mapping() {
       rev_map->reversed_map = NULL;
 
       rev_map->row_start_idx = rev_row_start_idx;
+      rev_map->row_start_idx_d = rev_row_start_idx;
+      rev_map->reversed_map_d = NULL;
+      rev_map->color_based_exec_d = NULL;
       OP_reversed_map_list[m] = rev_map;
 
 
@@ -4584,15 +4598,23 @@ void create_reversed_mapping() {
       rev_map->index = original_map->index;
       rev_map->reversed_map = reversed_map;
       rev_map->row_start_idx = rev_row_start_idx;
+      rev_map->reversed_map_d = NULL;
+      rev_map->row_start_idx_d = NULL;
+      rev_map->color_based_exec_d = NULL;
+
+
+
       op_free(rev_row_lens);
       OP_reversed_map_list[m] = rev_map;
 
 
 
       } //end of set_from_size == 0 else
-
-
   } //end of reverse mapping creating
+
+  if (OP_repro_temparray) {
+    op_move_rev_maps_to_device();
+  }
 
   if (OP_repro_coloring){
     if (OP_repro_greedy_coloring){
@@ -4620,11 +4642,27 @@ void op_enable_reproducibility(const char* mode){
 
 
 void rev_map_realloc(){
-    op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
-                                          (OP_dat_index + OP_map_index) * sizeof(op_repr_inc));
+  op_repr_incs = (op_repr_inc *)op_realloc(op_repr_incs,
+                                        (OP_dat_index + OP_map_index) * sizeof(op_repr_inc));
 
-    for (int d = 0; d < OP_dat_index + OP_map_index; d++) {
-      op_repr_incs[d].tmp_incs = NULL;
-      op_repr_incs[d].tmp_incs_size = 0;
-    }
+  for (int d = 0; d < OP_dat_index + OP_map_index; d++) {
+    op_repr_incs[d].tmp_incs = NULL;
+    op_repr_incs[d].tmp_incs_size = 0;
+    op_repr_incs[d].tmp_incs_d = NULL;
+    op_repr_incs[d].tmp_incs_size_d = 0;
+  }
+  return;
+}
+
+void realloc_tmp_incs(int dat_idx, int req_size){
+  if (op_repr_incs[dat_idx].tmp_incs == NULL) {
+    op_repr_incs[dat_idx].tmp_incs = (void *)op_malloc(req_size);
+    op_repr_incs[dat_idx].tmp_incs_size = req_size;
+  }
+  else
+  if (op_repr_incs[dat_idx].tmp_incs_size < req_size) {
+    op_realloc(op_repr_incs[dat_idx].tmp_incs, req_size);
+    op_repr_incs[dat_idx].tmp_incs_size = req_size;
+  }
+  return;
 }

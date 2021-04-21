@@ -219,3 +219,5 @@ void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
 void deviceSync() {}
 
 void rev_map_realloc() {}
+
+void realloc_tmp_incs(int arg_idx, int req_size) {}

@@ -363,6 +363,17 @@ void op_move_repro_coloring_device(){
   }
 }
 
+void op_move_rev_maps_to_device(){
+  for (int m=0; m<OP_map_index; m++){    
+    op_cpHostToDevice((void **)&(OP_reversed_map_list[m]->reversed_map_d),
+                      (void **)&(OP_reversed_map_list[m]->reversed_map),
+                      (OP_map_list[m]->from->size + OP_map_list[m]->from->exec_size) * OP_map_list[m]->dim *sizeof(int));
+    op_cpHostToDevice((void **)&(OP_reversed_map_list[m]->row_start_idx_d),
+                      (void **)&(OP_reversed_map_list[m]->row_start_idx),
+                      (OP_map_list[m]->to->size + OP_map_list[m]->to->exec_size + OP_map_list[m]->to->nonexec_size + 1) * sizeof(int));
+  }
+}
+
 op_set op_decl_set(int size, char const *name) {
   return op_decl_set_core(size, name);
 }

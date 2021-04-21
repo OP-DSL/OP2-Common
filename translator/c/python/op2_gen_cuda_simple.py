@@ -114,24 +114,24 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   if reproducible and repr_temp_array and repr_coloring:
     repr_coloring = 0
-  if reproducible and repr_temp_array:
-    for nk in range (0,len(kernels)):
-      name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
-              ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
-              unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
+  # if reproducible and repr_temp_array:
+  #   for nk in range (0,len(kernels)):
+  #     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
+  #             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
+  #             unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk])
       
-      for i in range(0,nargs):
-        if maps[i] == OP_MAP:
-          for g_m in range(0,ninds):
-            if indaccs[g_m] == OP_RW:
-              print('Warning - OP_RW reproducibility is not supported with temporary array method. Changing to reproducible coloring.')
-              repr_temp_array = 0
-              repr_coloring = 1
-              break
-        if repr_coloring:
-          break
-      if repr_coloring:
-        break
+  #     for i in range(0,nargs):
+  #       if maps[i] == OP_MAP:
+  #         for g_m in range(0,ninds):
+  #           if indaccs[g_m] == OP_RW:
+  #             print('Warning - OP_RW reproducibility is not supported with temporary array method. Changing to reproducible coloring.')
+  #             repr_temp_array = 0
+  #             repr_coloring = 1
+  #             break
+  #       if repr_coloring:
+  #         break
+  #     if repr_coloring:
+  #       break
 
 
   inc_stage=0
@@ -146,17 +146,50 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #Optimization settings
     inc_stage=0
     op_color2_force=0
-    atomics=0
+    atomics=1
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
            unique_args, vectorised, cumulative_indirect_index = op2_gen_common.create_kernel_info(kernels[nk], inc_stage)
 
+    varrrrrr=var
 
+    if reproducible and repr_temp_array:
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP:
+          for g_m in range(0,ninds):
+            if indaccs[g_m] == OP_RW:
+              print('Warning - OP_RW reproducibility is not supported with temporary array method. Changing to reproducible coloring.')
+              repr_temp_array = 0
+              repr_coloring = 1
+              break
+        if repr_coloring:
+          break
+
+    mapnames2=[]
+    repro_if=0
+    repro_prime_map=''
+    if reproducible:
+      mapnames2 = mapnames[:]
+      for i in range(0,len(mapnames)):
+        if mapnames[i].find('[')>=0:
+          mapnames2[i] = mapnames[i][:mapnames[i].find('[')]
+
+      if reproducible:
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames2[g_m] in k):
+                k = k + [mapnames2[g_m]]
+                repro_if=1
+                repro_prime_map=mapnames2[g_m]
     any_soa = 0
     any_soa = any_soa or sum(soaflags)
     op_color2=0
+
+    
 #
 # set logicals
 #
@@ -339,7 +372,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if (indaccs[g_m]==OP_READ):
         code('const <INDTYP> *__restrict <INDARG>,')
       else:
-        code('<INDTYP> *__restrict <INDARG>,')
+        if reproducible and repr_temp_array and indaccs[g_m]==OP_INC and (indtyps[g_m] == 'double' or indtyps[g_m] == 'float'):
+          code('<TYP> *__restrict tmp_incs'+str(g_m)+'_d,')
+        else:
+          code('<INDTYP> *__restrict <INDARG>,')
 
     if nmaps > 0:
       k = []
@@ -369,7 +405,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int   *ind_arg_offs, ')
 
     if ninds>0:
-      if op_color2 or repr_coloring:
+      if op_color2 or (repr_coloring and repro_if):
         code('int start,           ')
         code('int end,             ')
         code('int *col_reord,      ')
@@ -384,7 +420,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
-      code('int   set_size) {    ')
+      if repr_temp_array and repro_if:
+        code('int   set_size,')
+        code('int   prime_map_dim) {    ')
+      else:
+        code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
       code('')
@@ -392,7 +432,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
-        if not (reproducible and accs[g_m]==OP_INC and typs[g_m]=="double"):
+        if not (reproducible and repr_coloring and accs[g_m]==OP_INC and typs[g_m]=="double"):
           code('<TYP> <ARG>_l[<DIM>];')
           if accs[g_m] == OP_INC:
             FOR('d','0','<DIM>')
@@ -402,10 +442,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             FOR('d','0','<DIM>')
             code('<ARG>_l[d]=<ARG>[d+blockIdx.x*<DIM>];')
             ENDFOR()
-      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics:
+      elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and not op_color2 and not atomics and not (repr_coloring and repro_if):
         code('<TYP> <ARG>_l[<DIM>];')
 
-    if not op_color2 and not atomics:
+    if not op_color2 and not atomics and not (repr_coloring and repro_if):
       for m in range (1,ninds+1):
         g_m = m -1
         v = [int(inds[i]==m) for i in range(len(inds))]
@@ -423,7 +463,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # lengthy code for general case with indirection
 #
-    if ninds>0 and not op_color2 and not atomics and not repr_coloring:
+    if ninds>0 and not op_color2 and not atomics and not (repr_coloring and repro_if):
       code('')
       if inc_stage==1:
         for g_m in range (0,ninds):
@@ -578,12 +618,18 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('initialise local variables')
 
       for g_m in range(0,nargs):
-        if not (repr_coloring and accs[g_m]==OP_INC and typs[g_m]=="double"):
+        if not (reproducible and accs[g_m]==OP_INC and (typs[g_m]=="double" or typs[g_m]=="float") and repro_if):
           if maps[g_m]==OP_MAP and accs[g_m]==OP_INC:
             code('<TYP> <ARG>_l[<DIM>];')
             FOR('d','0','<DIM>')
             code('<ARG>_l[d] = ZERO_<TYP>;')
             ENDFOR()
+
+      for g_m in range(0,ninds):
+        if reproducible and repr_temp_array and indaccs[g_m]==OP_INC and (indtyps[g_m] == 'double' or indtyps[g_m] == 'float') and repro_if:
+          FOR('i','0',' prime_map_dim * '+ str(inddims[g_m]))
+          code('tmp_incs'+str(g_m)+'_d[i+n*prime_map_dim * '+str(inddims[g_m])+']=(<TYP>)0.0;\n')
+          ENDFOR()
 
       #mapidx declarations
       k = []
@@ -620,9 +666,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               line = '<TYP>* <ARG>_vec[] = {\n'
             if atomics and accs[g_m] == OP_INC:
               indent = ' '*(depth+2)
-              for n in range(0,nargs):
-                if vectorised[n] == vectorised[g_m]:
-                  line = line + indent + 'arg'+str(n)+'_l,\n'
+              if repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float'):
+                k=0
+                for n in range(0,nargs):
+                  if vectorised[n] == vectorised[g_m]:
+                    line += indent+'&tmp_incs'+str(inds[g_m]-1)+'_d[(n*prime_map_dim+'+str(k)+')*'+str(dims[g_m])+'],\n'
+                    k+=1
+              else:
+                for n in range(0,nargs):
+                  if vectorised[n] == vectorised[g_m]:
+                    line = line + indent + 'arg'+str(n)+'_l,\n'
               line = line[:-2]+'};'
               code(line)
             else:
@@ -682,7 +735,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           if m+1 in unique_args:
             line += rep(indent+'<ARG>_vec,\n',m)
         else:
-          line += rep(indent+'<ARG>_l,\n',m)
+          if reproducible and repro_if and accs[m]==OP_INC and (typs[m] == 'double' or typs[m] == 'float'):
+            if repr_temp_array:
+              k=0
+              for i in range(0,m):
+                if inds[m]==inds[i]:
+                  k+=1
+              line += indent+'&tmp_incs'+str(inds[m]-1)+'_d[(n*prime_map_dim+'+str(k)+')*'+str(dims[m])+'],\n'
+            elif repr_coloring:
+              line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*<DIM>,'+'\n',m)
+          else:
+            line += rep(indent+'<ARG>_l,\n',m)
         a =a+1
       elif maps[m]==OP_MAP:
         if vectorised[m]:
@@ -695,7 +758,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'ind_arg'+str(inds[m]-1)+'+map'+str(mapinds[m])+'idx*<DIM>,'+'\n',m)
         a =a+1
       elif maps[m]==OP_ID:
-        if ninds>0 and not op_color2 and not atomics:
+        if ninds>0 and not op_color2 and not atomics and not (repr_coloring and repro_if):
           if soaflags[m]:
             line += rep(indent+'<ARG>+(n+offset_b),\n',m)
           else:
@@ -788,7 +851,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                 if soaflags[g_m]:
                   code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],<ARG>_l['+str(d)+']);')
                 else:
-                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
+                  if not (repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float')):
+                    code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
               if optflags[g_m]==1:
                 ENDIF()
 
@@ -952,9 +1016,57 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # for reproducible incs method
 #
-    repro_if=0
+    
+    repro_prime_map=''
     if reproducible:
-      if repr_coloring:
+      if repr_temp_array and repro_if:
+        repro_if=0
+        if ninds>0:
+          if nmaps > 0:
+            k = []
+            line='set->size > 0 && '
+            for g_m in range(0,nargs):
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP and (not mapnames2[g_m] in k):
+                k = k + [mapnames2[g_m]]
+                code('op_map prime_map_'+str(mapnames2[g_m])+' = <ARG>.map;\n')
+                code('op_reversed_map rev_map_'+str(mapnames2[g_m])+' = OP_reversed_map_list[prime_map_'+str(mapnames2[g_m])+'->index];\n')
+                line = line + 'rev_map_'+str(mapnames2[g_m])+' != NULL && '
+                code('')
+                repro_if=1
+                repro_prime_map=mapnames2[g_m]
+            
+            if repro_if:
+              IF(line[:-3])
+            
+            for g_map in k:
+              code('int prime_map_'+str(g_map)+'_dim = prime_map_'+str(g_map)+'->dim;\n')
+              code('int set_from_size_'+str(g_map)+' = prime_map_'+str(g_map)+'->from->size + prime_map_'+str(g_map)+'->from->exec_size;\n')
+              code('int set_to_size_'+str(g_map)+' = prime_map_'+str(g_map)+'->to->size + prime_map_'+str(g_map)+'->to->exec_size + prime_map_'+str(g_map)+'->to->nonexec_size;\n')
+              code('')
+            
+            k=[]
+            for g_m in range(0,nargs):              
+              if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+                first=0
+                for i in range(0,g_m+1):
+                  if maps[g_m]==maps[i] and varrrrrr[g_m]==varrrrrr[i]:
+                    first=i
+                    break
+                if not first in k:
+                  k = k + [first] 
+                  code('<TYP> *tmp_incs'+str(first)+'_d = NULL;\n')
+                  if optflags[g_m]==1:
+                    IF('<ARG>.opt')
+                  code('int required_tmp_incs_size'+str(first)+' = set_from_size_'+str(mapnames2[first])+' * prime_map_'+str(mapnames2[first])+'_dim * arg'+str(first)+'.dat->size;\n')
+                  
+
+                  code('reallocTempArrays(arg'+str(first)+'.dat->index, required_tmp_incs_size'+str(first)+');')
+                  code('tmp_incs'+str(first)+'_d = (<TYP> *)op_repr_incs[arg'+str(first)+'.dat->index].tmp_incs_d;\n')
+                  
+                  if optflags[g_m]==1:
+                    ENDIF()
+                  code('')
+      elif repr_coloring and repro_if:
         if ninds>0:
           if nmaps > 0:
             line='set->size > 0 && '
@@ -1111,12 +1223,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('')
         code('int block_offset = 0;')
       if repro_if and repr_coloring:
+        code('op_mpi_wait_all_cuda(nargs, args);')
         FOR('col','0','rev_map->number_of_colors')
       else:
         FOR('col','0','Plan->ncolors')
-      IF('col==Plan->ncolors_core')
-      code('op_mpi_wait_all_cuda(nargs, args);')
-      ENDIF()
+      if not (reproducible and repr_coloring and repro_if):
+        IF('col==Plan->ncolors_core')
+        code('op_mpi_wait_all_cuda(nargs, args);')
+        ENDIF()
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
       code('#else')
@@ -1192,10 +1306,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         IF('col == Plan->ncolors_owned-1')
         code('mvReductArraysToHost(reduct_bytes);')
         ENDIF()
-      if not op_color2:
-        ENDFOR() #TODO sztem ez forditva van...
+      if not op_color2 and not (repr_coloring and repro_if):
+        ENDIF()
         code('block_offset += Plan->ncolblk[col];')
-      ENDIF()
+      ENDFOR()
 
 #
 #
@@ -1225,7 +1339,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('optflags,')
       for m in range(1,ninds+1):
         g_m = invinds[m-1]
-        code('(<TYP> *)<ARG>.data_d,')
+        if reproducible and repr_temp_array and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float'):
+          code('tmp_incs'+str(g_m)+'_d,')
+        else:
+          code('(<TYP> *)<ARG>.data_d,')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -1235,7 +1352,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(<TYP>*)<ARG>.data_d,')
-      code('start,end,set->size+set->exec_size);')
+      if repro_if and repr_temp_array:
+        code('start,end,set->size+set->exec_size,prime_map_'+repro_prime_map+'_dim);')
+      else:
+        code('start,end,set->size+set->exec_size);')
       ENDIF()
       if reduct:
         code('if (round==1) mvReductArraysToHost(reduct_bytes);')
@@ -1261,6 +1381,46 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code(indent+'(<TYP> *) <ARG>.data_d,')
 
       code(indent+'set->size );')
+
+
+
+    #apply increments to actual data
+    if reproducible and repr_temp_array:    
+      if ninds>0:
+        if nmaps > 0:
+          code('int nblocks;')
+          k=[]
+          for g_m in range(0,nargs):              
+            if accs[g_m] == OP_INC and maps[g_m] == OP_MAP:
+              first=0
+              for i in range(0,g_m+1):
+                if maps[g_m]==maps[i] and varrrrrr[g_m]==varrrrrr[i]:
+                  first=i
+                  break
+              
+              if not first in k:   
+                code('')
+                k = k + [first]
+
+                code('nblocks = (set_to_size_'+str(mapnames2[first])+'-1)/nthread+1;')
+                code('apply_tmp_incs<<<nblocks,nthread>>>(tmp_incs'+str(g_m)+'_d, <ARG>.data_d, rev_map_'+str(mapnames2[first])+'->reversed_map_d, rev_map_'+str(mapnames2[first])+'->row_start_idx_d, <ARG>.dim, set_to_size_'+str(mapnames2[first])+');')
+                
+                # FOR('n','0','set_to_size_'+str(mapnames2[first]))
+                # FOR('i','0','rev_map_'+str(mapnames2[first])+'->row_start_idx[n+1] - rev_map_'+str(mapnames2[first])+'->row_start_idx[n]')
+                # FOR('d','0','arg'+str(first)+'.dim')
+                # code('((<TYP>*)arg'+str(first)+'.data)[arg'+str(first)+'.dim * n + d] += \n'+' '*(depth+2)+'tmp_incs'+str(first)+'[rev_map_'+str(mapnames2[first])+'->reversed_map[rev_map_'+str(mapnames2[first])+'->row_start_idx[n]+i] * arg'+str(first)+'.dim + d];')
+                # ENDFOR()
+                # ENDFOR()
+                # ENDFOR()
+                
+
+                #int nblocks = (set_to_size_pecell-1)/nthread+1;
+                #apply_tmp_incs<<<nblocks,nthread>>>(tmp_incs6_d, arg6.data_d, rev_map_pecell->reversed_map_d, rev_map_pecell->row_start_idx_d, arg6.dim, set_to_size_pecell);
+      
+    
+    #if repro_if:
+     # ENDIF() #endif rev_map(g_m)!=NULL
+
 
     if ninds>0 and not atomics:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')

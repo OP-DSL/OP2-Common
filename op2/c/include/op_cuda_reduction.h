@@ -255,4 +255,26 @@ __inline__ __device__ void op_reduction_alt(volatile T *dat_g, T dat_l) {
   }
 }
 
+
+template <class T>
+__global__ void apply_tmp_incs(
+        const T *__restrict tmp_incs_d, 
+        char *__restrict arg_data_d, 
+        const int *__restrict reversed_map_d, 
+        const int *__restrict row_start_idx_d, 
+        const int arg_dim, 
+        const int set_to_size) {
+  int n = threadIdx.x + blockIdx.x * blockDim.x;
+  if (n<set_to_size){
+    for ( int i=0; i<row_start_idx_d[n+1] - row_start_idx_d[n]; i++ ){
+      for ( int d=0; d<arg_dim; d++ ){
+        ((T*)arg_data_d)[arg_dim * n + d] += 
+          tmp_incs_d[reversed_map_d[row_start_idx_d[n]+i] * arg_dim + d];
+      }
+    }
+  }
+  return;
+}
+
+
 #endif /* __OP_CUDA_REDUCTION_H */

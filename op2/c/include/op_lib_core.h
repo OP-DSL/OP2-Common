@@ -167,6 +167,9 @@ typedef struct {
   int *row_start_idx;   /* Helper array for indexing reversed_map */
   int number_of_colors;
   
+  int *reversed_map_d;    /* reversed mapping  on device*/
+  int *row_start_idx_d;   /* Helper array for indexing reversed_map on device */
+
   int *reproducible_coloring;
   int *color_based_exec_row_starts;
   int *color_based_exec_row_starts_d;
@@ -230,7 +233,9 @@ typedef struct {
 
 typedef struct {
     void *tmp_incs; /* temporary increment array for reproducible MPI usage */
+    void *tmp_incs_d; /* temporary increment array for reproducible MPI usage on device*/
     int tmp_incs_size;
+    int tmp_incs_size_d;
 } op_repr_inc;
 
 // struct definition for a double linked list entry to hold an op_dat
@@ -381,6 +386,8 @@ void op_enable_reproducibility(const char *mode);
 
 void rev_map_realloc();
 
+void realloc_tmp_incs(int arg_idx, int req_size);
+
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
@@ -421,6 +428,8 @@ void deviceSync();
 
 
 void reallocReductArrays(int reduct_bytes);
+
+void reallocTempArrays(int dat_idx, int req_size);
 
 #ifdef __cplusplus
 }
