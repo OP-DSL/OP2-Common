@@ -46,6 +46,8 @@ from op2_gen_mpi_vec import op2_gen_mpi_vec
 # import OpenMP and CUDA code generation functions
 from op2_gen_openmp_simple import op2_gen_openmp_simple
 from op2_gen_openmp import op2_gen_openmp
+from op2_gen_openmp_reproducible import op2_gen_openmp_reproducible
+from op2_gen_common import reproducible
 
 from op2_gen_openacc import op2_gen_openacc
 
@@ -931,7 +933,10 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   #code generators for OpenMP parallelisation with MPI
   #op2_gen_openmp(masterFile, date, consts, kernels) # Initial OpenMP code generator
-  op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
+  if reproducible:
+    op2_gen_openmp_reproducible(masterFile, date, consts, kernels) # MPI+GENSEQ version - initial version, no vectorisation
+  else:
+    op2_gen_openmp_simple(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 #  op2_gen_openacc(masterFile, date, consts, kernels) # Simplified and Optimized OpenMP code generator
 
   #code generators for NVIDIA GPUs with CUDA
