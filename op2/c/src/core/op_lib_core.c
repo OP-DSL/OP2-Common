@@ -1200,7 +1200,26 @@ unsigned long op_get_data_ptr(op_dat d) {
   return (unsigned long)(d->data);
 }
 
-unsigned long op_reset_data_ptr(char *data) {
+unsigned long op_get_data_ptr2(unsigned long data) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->orig_ptr == (char*)data) {
+      item_dat = item->dat;
+      break;
+    }
+  }
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for dat with %p pointer\n", data);
+  }
+  op_download_dat(item_dat);
+  return (unsigned long)(item_dat->data);
+  
+}
+
+unsigned long op_reset_data_ptr(char *data, int mode) {
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;
@@ -1223,9 +1242,18 @@ unsigned long op_reset_data_ptr(char *data) {
 
   // reset orig pointer
   // free(data)
-  item->orig_ptr = item_dat->data;
 
-  return (unsigned long)(item->orig_ptr);
+  if (mode == 1) {
+    item->orig_ptr = (char*)(unsigned long)item_dat->index;
+    return (unsigned long)(item->orig_ptr);
+  } else if (mode == 2) {
+    item->orig_ptr = item_dat->data;
+    return (unsigned long)(item->orig_ptr);
+  } else {
+    printf("Unknown mode\n");
+    exit(-1);
+    return 0;
+  }
 }
 
 /*******************************************************************************

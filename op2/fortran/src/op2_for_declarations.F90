@@ -768,9 +768,15 @@ module OP2_Fortran_Declarations
      type(op_dat_core) :: data
    end function
 
-   INTEGER(8) function op_reset_data_ptr_c ( data ) BIND(C,name='op_reset_data_ptr')
+   INTEGER(8) function op_reset_data_ptr_c ( data, mode ) BIND(C,name='op_reset_data_ptr')
      use, intrinsic :: ISO_C_BINDING
      type(c_ptr), value, intent(in) :: data
+     integer(kind=c_int), value :: mode
+   end function
+
+   INTEGER(8) function op_get_data_ptr2 ( data ) BIND(C,name='op_get_data_ptr2')
+     use, intrinsic :: ISO_C_BINDING
+     integer(8), value :: data
    end function
 
    INTEGER(8) function op_get_map_ptr_c ( map ) BIND(C,name='op_get_map_ptr')
@@ -2862,18 +2868,20 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
   end function op_get_data_ptr
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - r8
-  INTEGER(8) function op_reset_data_ptr_r8(data)
+  INTEGER(8) function op_reset_data_ptr_r8(data,mode)
     use, intrinsic :: ISO_C_BINDING
     real(8), dimension(*), target :: data
-    op_reset_data_ptr_r8 = op_reset_data_ptr_c(c_loc(data))
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r8 = op_reset_data_ptr_c(c_loc(data),mode)
 
   end function op_reset_data_ptr_r8
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - i4
-  INTEGER(8) function op_reset_data_ptr_i4(data)
+  INTEGER(8) function op_reset_data_ptr_i4(data,mode)
     use, intrinsic :: ISO_C_BINDING
     integer(4), dimension(*), target :: data
-    op_reset_data_ptr_i4 = op_reset_data_ptr_c(c_loc(data))
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_i4 = op_reset_data_ptr_c(c_loc(data),mode)
 
   end function op_reset_data_ptr_i4
 
