@@ -84,7 +84,7 @@ ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
     CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS = -O3 -xHost -I/opt/cray/pe/hdf5-parallel/1.12.0.2/gnu/9.1/include -I/opt/cray/pe/libsci/20.10.1.2/GNU/9.1/x86_64/include -I/opt/cray/pe/mpich/8.0.16/ofi/gnu/9.1/include -I/opt/cray/pe/dsmml/0.1.2/dsmml//include -I/opt/cray/xpmem/2.2.35-7.0.1.0_1.9__gd50fabf.shasta/include  #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost 
   endif
   CXX       = icpc
   CXXFLAGS  = $(CCFLAGS)

@@ -598,3 +598,18 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
+
+extern "C" int op_mpi_test(op_arg *arg) {
+  int result;
+  if (send_neigh_list.size()>0) {
+    MPI_Test(&send_requests[0],&result,MPI_STATUS_IGNORE);
+    return 1;
+  } else if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
+    if (((op_mpi_buffer)(arg->dat->mpi_buffer))->s_num_req>0) {
+      MPI_Test(((op_mpi_buffer)(arg->dat->mpi_buffer))->s_req,&result,MPI_STATUS_IGNORE);
+      return 1;
+    }
+  }
+  return 0;
+}
+
