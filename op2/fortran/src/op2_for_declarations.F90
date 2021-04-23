@@ -768,15 +768,15 @@ module OP2_Fortran_Declarations
      type(op_dat_core) :: data
    end function
 
+   INTEGER(8) function op_get_data_ptr_int_c ( data ) BIND(C,name='op_get_data_ptr2')
+     use, intrinsic :: ISO_C_BINDING
+     integer(8), value :: data
+   end function
+
    INTEGER(8) function op_reset_data_ptr_c ( data, mode ) BIND(C,name='op_reset_data_ptr')
      use, intrinsic :: ISO_C_BINDING
      type(c_ptr), value, intent(in) :: data
      integer(kind=c_int), value :: mode
-   end function
-
-   INTEGER(8) function op_get_data_ptr2 ( data ) BIND(C,name='op_get_data_ptr2')
-     use, intrinsic :: ISO_C_BINDING
-     integer(8), value :: data
    end function
 
    INTEGER(8) function op_get_map_ptr_c ( map ) BIND(C,name='op_get_map_ptr')
@@ -868,6 +868,11 @@ module OP2_Fortran_Declarations
   interface op_reset_data_ptr
     module procedure op_reset_data_ptr_r8, op_reset_data_ptr_i4
   end interface op_reset_data_ptr
+
+  interface op_get_data_ptr
+    module procedure op_get_data_ptr_int, op_get_data_ptr_dat
+  end interface op_get_data_ptr
+
 
 contains
 
@@ -2860,12 +2865,19 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
   end subroutine op_theta_init
 
   ! get the pointer of the data held in an op_dat
-  INTEGER(8) function op_get_data_ptr(dat)
+  INTEGER(8) function op_get_data_ptr_dat(dat)
     use, intrinsic :: ISO_C_BINDING
     type(op_dat)         :: dat
-    op_get_data_ptr = op_get_data_ptr_c( dat%dataPtr)
+    op_get_data_ptr_dat = op_get_data_ptr_c( dat%dataPtr)
 
-  end function op_get_data_ptr
+  end function op_get_data_ptr_dat
+
+  INTEGER(8) function op_get_data_ptr_int(dat)
+    use, intrinsic :: ISO_C_BINDING
+    integer(8)         :: dat
+    op_get_data_ptr_int = op_get_data_ptr_int_c( dat )
+
+  end function op_get_data_ptr_int
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - r8
   INTEGER(8) function op_reset_data_ptr_r8(data,mode)
