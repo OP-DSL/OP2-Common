@@ -76,7 +76,7 @@ ifeq ($(OP2_COMPILER),pgi)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
   OPENMP = -mp
   CPPLINK = -pgcpplibs
-  ALL_TARGET = airfoil_seq airfoil_openmp airfoil_cuda
+  ALL_TARGET = airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda
 else
 ifeq ($(OP2_COMPILER),intel)
   IC = icc
