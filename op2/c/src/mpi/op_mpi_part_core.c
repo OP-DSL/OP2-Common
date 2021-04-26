@@ -68,6 +68,7 @@ typedef int idx_t;
 #endif
 
 #include <op_lib_mpi.h>
+#include <op_mpi_slope_core.h>
 
 // double min/max
 #include <float.h>
