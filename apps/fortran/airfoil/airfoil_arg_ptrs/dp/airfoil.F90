@@ -36,8 +36,18 @@ program AIRFOIL
   type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
 
   ! arrays used in data
-  integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
-  real(8), dimension(:), allocatable, target :: x, q, qold, adt, res, q_part
+  !integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
+  real*8 x, q, qold, adt, res, q_part
+  pointer (ptr_x,x(*)), (ptr_q,q(*)), (ptr_qold, qold(*)), (ptr_adt, adt(*)), &
+  & (ptr_res,res(*)), (ptr_q_part, q_part(*))
+
+  integer*4  ecell, bound, edge, bedge, becell, cell
+  pointer (ptr_ecell, ecell(*)), (ptr_bound, bound(*)), (ptr_edge, edge(*)), &
+  & (ptr_bedge, bedge(*)), (ptr_becell, becell(*)), (ptr_cell, cell(*))
+
+  !real(8),    dimension(:), allocatable, target :: x_data, q_data, qold_data, adt_data, res_data, q_part_data
+  !integer(4), dimension(:), allocatable, target :: ecell_data, bound_data, edge_data, bedge_data, becell_data, cell_data
+
   real(8), dimension(1:2) :: rms
 
   integer(4) :: snode, scell, sedge, sbedge
@@ -47,6 +57,12 @@ program AIRFOIL
   ! for validation
   REAL(KIND=8) :: diff
   integer(4):: ncelli
+
+  integer(4), parameter :: FILE_ID = 10
+
+  external test_malloc
+  external test_free
+  !integer*8 test_malloc
 
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
@@ -59,30 +75,33 @@ program AIRFOIL
 
   print *, ncell
   ! allocate sets (cannot allocate in subroutine in F90)
-  allocate ( cell ( 4 * ncell ) )
-  allocate ( edge ( 2 * nedge ) )
-  allocate ( ecell ( 2 * nedge ) )
-  allocate ( bedge ( 2 * nbedge ) )
-  allocate ( becell ( nbedge ) )
-  allocate ( bound ( nbedge ) )
+  call test_malloc(ptr_cell, 4 * ncell  * 4)
+  call test_malloc(ptr_edge, 2 * nedge * 4)
+  call test_malloc(ptr_ecell, 2 * nedge * 4)
+  call test_malloc(ptr_bedge, 2 * nbedge * 4)
+  call test_malloc(ptr_becell,    nbedge * 4)
+  call test_malloc(ptr_bound,    nbedge * 4)
 
-  allocate ( x ( 2 * nnode ) )
-  allocate ( q ( 4 * ncell ) )
-  allocate ( qold ( 4 * ncell ) )
-  allocate ( res ( 4 * ncell ) )
-  allocate ( adt ( ncell ) )
+  call test_malloc(ptr_x, 2 * nnode * 8 )
+  call test_malloc(ptr_q, 4 * ncell  * 8)
+  call test_malloc(ptr_qold, 4 * ncell  * 8)
+  call test_malloc(ptr_res, 4 * ncell  * 8)
+  call test_malloc(ptr_adt, ncell  * 8)
 
-  !allocated simply to test op_fetch_data_idx()
-  allocate ( q_part ( 4 * ncell ) )
+  call test_malloc(ptr_q_part,  4 * ncell)
 
   print *, "Getting data"
-  call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
+
+  open ( FILE_ID, file = 'new_grid.dat' )
+
+  call getSetInfo ( nnode, ncell, nedge, nbedge, ptr_cell, ptr_edge, ptr_ecell, ptr_bedge, &
+  & ptr_becell, ptr_bound, ptr_x, ptr_q, ptr_qold, ptr_res, ptr_adt )
 
   ! OP initialisation
   call op_init_base (0,0)
 
   print *, "Initialising constants"
-  call initialise_flow_field ( ncell, q, res )
+  call initialise_flow_field ( ncell, ptr_q, ptr_res )
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"
@@ -99,29 +118,29 @@ program AIRFOIL
 
   print *, "Declaring OP2 maps"
   call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
-  deallocate(edge)
+  call free(ptr_edge)
   call op_decl_map ( edges, cells, 2, ecell, pecell, 'pecell' )
-  deallocate(ecell)
+  call free(ptr_ecell)
   call op_decl_map ( bedges, nodes, 2, bedge, pbedge, 'pbedge' )
-  deallocate(bedge)
+  call free(ptr_bedge)
   call op_decl_map ( bedges, cells, 1, becell, pbecell, 'pbecell' )
-  deallocate(becell)
+  call free(ptr_becell)
   call op_decl_map ( cells, nodes, 4, cell, pcell, 'pcell' )
-  deallocate(cell)
+  call free(ptr_cell)
 
   print *, "Declaring OP2 data"
   call op_decl_dat ( bedges, 1, 'integer' ,bound, p_bound, 'p_bound')
-  deallocate(bound)
+  call free(ptr_bound)
   call op_decl_dat ( nodes, 2, 'real(8)',x, p_x, 'p_x' )
-  deallocate(x)
+  call free(ptr_x)
   call op_decl_dat ( cells, 4, 'real(8)', q, p_q, 'p_q' )
-  deallocate(q)
+  call free(ptr_q)
   call op_decl_dat ( cells, 4, 'real(8)', qold, p_qold, 'p_qold' )
-  deallocate(qold)
+  call free(ptr_qold)
   call op_decl_dat ( cells, 1, 'real(8)', adt, p_adt, 'p_adt' )
-  deallocate(adt)
+  call free(ptr_adt)
   call op_decl_dat ( cells, 4, 'real(8)', res, p_res, 'p_res' )
-  deallocate(res)
+  call free(ptr_res)
 
 
   print *, "Declaring OP2 constants"

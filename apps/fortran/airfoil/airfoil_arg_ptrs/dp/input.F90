@@ -33,7 +33,9 @@ end subroutine getSetSizes
 
 
 ! fill up arrays from file
-subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, becell, bound, x, q, qold, res, adt )
+subroutine getSetInfo ( nnode, ncell, nedge, nbedge, &
+  & ptr_cell, ptr_edge, ptr_ecell, ptr_bedge, ptr_becell, &
+  & ptr_bound, ptr_x, ptr_q, ptr_qold, ptr_res, ptr_adt )
 
   implicit none
 
@@ -41,18 +43,24 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, b
 
   integer(4), intent (in) :: nnode, ncell, nedge, nbedge
 
-  integer(4), dimension( 4 * ncell ) :: cell
-  integer(4), dimension( 2 * nedge ) :: edge
-  integer(4), dimension( 2 * nedge ) :: ecell
-  integer(4), dimension( 2 * nbedge ) :: bedge
-  integer(4), dimension( nbedge ) :: becell
-  integer(4), dimension( nbedge ) :: bound
+  integer(4) cell(*)
+  integer(4) edge(*)
+  integer(4) ecell(*)
+  integer(4) bedge(*)
+  integer(4) becell(*)
+  integer(4) bound(*)
 
-  real(8), dimension( 2 * nnode ) :: x
-  real(8), dimension( 4 * ncell ) :: q
-  real(8), dimension( 4 * ncell ) :: qold
-  real(8), dimension( 4 * ncell ) :: res
-  real(8), dimension( ncell ) :: adt
+  real(8) x(*)
+  real(8) q(*)
+  real(8) qold(*)
+  real(8) res(*)
+  real(8) adt(*)
+
+  pointer (ptr_cell, cell), (ptr_edge, edge), (ptr_ecell, ecell), &
+  &       (ptr_bedge, bedge), (ptr_becell, becell), &
+  &       (ptr_bound, bound), (ptr_x, x), (ptr_q, q), (ptr_qold, qold), &
+  &       (ptr_res, res), (ptr_adt, adt)
+
 
   ! file identifier (10 is arbitrary)
   integer(4), parameter :: FILE_ID = 10
@@ -100,13 +108,15 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, b
 
 end subroutine getSetInfo
 
-subroutine initialise_flow_field ( ncell, q, res )
+subroutine initialise_flow_field ( ncell, ptr_q, ptr_res )
 
   ! formal parameters
   integer(4) :: ncell
 
-  real(8), dimension(:) :: q
-  real(8), dimension(:) :: res
+  real(8) q(*)
+  real(8) res(*)
+
+  pointer (ptr_q, q), (ptr_res, res)
 
   ! local variables
   real(8) :: p, r, u, e
