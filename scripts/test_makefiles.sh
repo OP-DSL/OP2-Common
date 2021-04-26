@@ -55,7 +55,7 @@ export OP2_FORT_CODEGEN_DIR=$PWD
 cd $OP2_INSTALL_PATH/c
 
 
-#<<COMMENT0
+<<COMMENT0
 #<<COMMENT_PGI
 
 
@@ -351,7 +351,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./reduction_mpi_cuda"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./reduction_mpi_openmp"
 
-
 ################################################################################
 ################################################################################
 echo " "
@@ -449,7 +448,7 @@ export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_hdf5_mpi OP_MAPS_BASE_INDEX=0"
 #_openmp_$PART_SIZE_ENV
 
-#COMMENT0
+COMMENT0
 
 ###################################################################################
 ###################################################################################

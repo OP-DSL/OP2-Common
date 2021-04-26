@@ -97,18 +97,29 @@ program AIRFOIL
 
   print *, "Declaring OP2 maps"
   call op_decl_map ( edges, nodes, 2, edge, pedge, 'pedge' )
+  deallocate(edge)
   call op_decl_map ( edges, cells, 2, ecell, pecell, 'pecell' )
+  deallocate(ecell)
   call op_decl_map ( bedges, nodes, 2, bedge, pbedge, 'pbedge' )
+  deallocate(bedge)
   call op_decl_map ( bedges, cells, 1, becell, pbecell, 'pbecell' )
+  deallocate(becell)
   call op_decl_map ( cells, nodes, 4, cell, pcell, 'pcell' )
+  deallocate(cell)
 
   print *, "Declaring OP2 data"
   call op_decl_dat ( bedges, 1, 'integer' ,bound, p_bound, 'p_bound')
+  deallocate(bound)
   call op_decl_dat ( nodes, 2, 'real(8)',x, p_x, 'p_x' )
+  deallocate(x)
   call op_decl_dat ( cells, 4, 'real(8)', q, p_q, 'p_q' )
+  deallocate(q)
   call op_decl_dat ( cells, 4, 'real(8)', qold, p_qold, 'p_qold' )
+  deallocate(qold)
   call op_decl_dat ( cells, 1, 'real(8)', adt, p_adt, 'p_adt' )
+  deallocate(adt)
   call op_decl_dat ( cells, 4, 'real(8)', res, p_res, 'p_res' )
+  deallocate(res)
 
 
   print *, "Declaring OP2 constants"
