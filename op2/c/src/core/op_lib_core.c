@@ -1073,6 +1073,11 @@ void *op_malloc(size_t size) {
 #endif
 }
 
+// malloc to be exposed in Fortran API for use with Cray pointers
+void op_malloc2(void **data, int *size){
+    *data =(void *) malloc(*size);
+}
+
 void *op_calloc(size_t num, size_t size) {
 #ifdef __INTEL_COMPILER
   // void * ptr = _mm_malloc(num*size, OP2_ALIGNMENT);

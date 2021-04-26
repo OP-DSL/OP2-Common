@@ -60,8 +60,8 @@ program AIRFOIL
 
   integer(4), parameter :: FILE_ID = 10
 
-  external test_malloc
-  external test_free
+  !external test_malloc
+  !external test_free
   !integer*8 test_malloc
 
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
@@ -75,20 +75,20 @@ program AIRFOIL
 
   print *, ncell
   ! allocate sets (cannot allocate in subroutine in F90)
-  call test_malloc(ptr_cell, 4 * ncell  * 4)
-  call test_malloc(ptr_edge, 2 * nedge * 4)
-  call test_malloc(ptr_ecell, 2 * nedge * 4)
-  call test_malloc(ptr_bedge, 2 * nbedge * 4)
-  call test_malloc(ptr_becell,    nbedge * 4)
-  call test_malloc(ptr_bound,    nbedge * 4)
+  call op_malloc(ptr_cell, 4 * ncell  * 4)
+  call op_malloc(ptr_edge, 2 * nedge * 4)
+  call op_malloc(ptr_ecell, 2 * nedge * 4)
+  call op_malloc(ptr_bedge, 2 * nbedge * 4)
+  call op_malloc(ptr_becell,    nbedge * 4)
+  call op_malloc(ptr_bound,    nbedge * 4)
 
-  call test_malloc(ptr_x, 2 * nnode * 8 )
-  call test_malloc(ptr_q, 4 * ncell  * 8)
-  call test_malloc(ptr_qold, 4 * ncell  * 8)
-  call test_malloc(ptr_res, 4 * ncell  * 8)
-  call test_malloc(ptr_adt, ncell  * 8)
+  call op_malloc(ptr_x, 2 * nnode * 8 )
+  call op_malloc(ptr_q, 4 * ncell  * 8)
+  call op_malloc(ptr_qold, 4 * ncell  * 8)
+  call op_malloc(ptr_res, 4 * ncell  * 8)
+  call op_malloc(ptr_adt, ncell  * 8)
 
-  call test_malloc(ptr_q_part,  4 * ncell)
+  call op_malloc(ptr_q_part,  4 * ncell)
 
   print *, "Getting data"
 

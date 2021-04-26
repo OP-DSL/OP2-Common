@@ -514,12 +514,13 @@ module OP2_Fortran_Declarations
 
     end subroutine op_timers_f
 
-    integer(kind=c_int) function op_malloc ( bytes ) BIND(C,name='op_malloc')
+    subroutine op_malloc ( ptr, bytes ) BIND(C,name='op_malloc2')
       use, intrinsic :: ISO_C_BINDING
 
+      integer*8 :: ptr
       integer(kind=c_int) :: bytes
 
-    end function op_malloc
+    end subroutine op_malloc
 
     function op_free_dat_temp_c ( dat ) BIND(C,name='op_free_dat_temp_char')
       use, intrinsic :: ISO_C_BINDING
