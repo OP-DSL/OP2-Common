@@ -291,16 +291,25 @@ int main(int argc, char **argv) {
   op_set cells = op_decl_set(ncell, "cells");
 
   op_map pbnodes = op_decl_map(bnodes, nodes, 1, bnode, "pbedge");
+  free(bnode);
   op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
+  free(cell);
 
   op_dat p_xm = op_decl_dat(nodes, 2, "double", xm, "p_x");
+  free(xm);
   op_dat p_phim = op_decl_dat(nodes, 1, "double", phim, "p_phim");
+  free(phim);
   op_dat p_resm = op_decl_dat(nodes, 1, "double", resm, "p_resm");
+  free(resm);
   op_dat p_K = op_decl_dat(cells, 16, "double", K, "p_K");
+  free(K);
 
   op_dat p_V = op_decl_dat(nodes, 1, "double", V, "p_V");
+  free(V);
   op_dat p_P = op_decl_dat(nodes, 1, "double", P, "p_P");
+  free(P);
   op_dat p_U = op_decl_dat(nodes, 1, "double", U, "p_U");
+  free(U);
 
   op_decl_const2("gam",1,"double",&gam);
   op_decl_const2("gm1",1,"double",&gm1);
@@ -434,14 +443,4 @@ int main(int argc, char **argv) {
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
   op_exit();
-
-  free(cell);
-  free(bnode);
-  free(xm);
-  free(phim);
-  free(K);
-  free(resm);
-  free(V);
-  free(P);
-  free(U);
 }

@@ -378,11 +378,12 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->index = OP_dat_index;
   dat->set = set;
   dat->dim = dim;
-  dat->data = data;
+  // dat->data = data;
   // printf("DATASET %s, ptr %p\n", name, data);
-  /*char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
-  memcpy(new_data, data, dim * size * set->size * sizeof(char));
-  dat->data = new_data;*/
+  char *new_data = (char *)op_malloc(dim * size * set->size * sizeof(char));
+  if (data != NULL)
+    memcpy(new_data, data, dim * size * set->size * sizeof(char));
+  dat->data = new_data;
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -1072,6 +1073,11 @@ void *op_malloc(size_t size) {
 #endif
 }
 
+// malloc to be exposed in Fortran API for use with Cray pointers
+void op_malloc2(void **data, int *size){
+    *data =(void *) malloc(*size);
+}
+
 void *op_calloc(size_t num, size_t size) {
 #ifdef __INTEL_COMPILER
   // void * ptr = _mm_malloc(num*size, OP2_ALIGNMENT);
@@ -1216,7 +1222,6 @@ unsigned long op_get_data_ptr2(unsigned long data) {
   }
   op_download_dat(item_dat);
   return (unsigned long)(item_dat->data);
-  
 }
 
 unsigned long op_reset_data_ptr(char *data, int mode) {

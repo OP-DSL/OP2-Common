@@ -72,7 +72,7 @@ ifeq ($(OP2_COMPILER),pgi)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
   OPENMP = -mp
   CPPLINK = -pgcpplibs
-  ALL_TARGET = airfoil_seq airfoil_openmp airfoil_cuda
+  ALL_TARGET = airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda
 else
 ifeq ($(OP2_COMPILER),intel)
   IC = icc
@@ -117,8 +117,9 @@ FMPI_MODS = -I$(F_OP2_MOD)/mpi
 all: $(ALL_TARGET)
 
 airfoil_seq: airfoil_seqfun.F90 airfoil.F90 constants.F90 input.F90
+	$(CC) -DUNDERSCORE -c malloc.c
 	$(FC) $(OPT) $(FMODS) -c constants.F90 airfoil_seqfun.F90 input.F90 airfoil.F90
-	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o -o airfoil_seq -lop2_for_seq $(HDF5_LIB)
+	$(MPIF90) $(OPT) $(FLINK) constants.o airfoil.o input.o airfoil_seqfun.o malloc.o -o airfoil_seq -lop2_for_seq $(HDF5_LIB)
 
 airfoil_genseq: airfoil_op.F90 input.F90 save_soln_seqkernel.F90 adt_calc_seqkernel.F90 \
         res_calc_seqkernel.F90 bres_calc_seqkernel.F90 update_seqkernel.F90 constants.F90 airfoil_seqfun.F90
