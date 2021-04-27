@@ -141,7 +141,7 @@ static int *create_exp_list_2(op_set set, int *temp_list, halo_list h_list,
   int *sizes = (int *)xmalloc(comm_size * sizeof(int));
 
   int index = 0;
-  int total_size = 0;
+  size_t total_size = 0;
 
   // negative values set as an initialisation
   for (int r = 0; r < comm_size; r++) {
@@ -227,8 +227,8 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   (void)my_rank;
   part p_set = OP_part_list[map->to->index];
 
-  int cap = 100;
-  int count = 0;
+  size_t cap = 100;
+  size_t count = 0;
   int *temp_list = (int *)xmalloc(cap * sizeof(int));
 
   halo_list pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
@@ -1076,7 +1076,7 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("imported on to %d data %10s, number of elements of size %d
           // | recieving:\n ",
           //    my_rank, dat->name, imp->size);
-          MPI_Recv(&rbuf[imp->disps[i] * dat->size], dat->size * imp->sizes[i],
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], dat->size * imp->sizes[i],
                    MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
         }
@@ -1158,7 +1158,7 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("\n imported on to %d map %10s, number of elements of size
           // %d | recieving: ",
           //    my_rank, map->name, imp->size);
-          MPI_Recv(&rbuf[imp->disps[i] * map->dim], map->dim * imp->sizes[i],
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * map->dim], map->dim * imp->sizes[i],
                    MPI_INT, imp->ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -1838,7 +1838,7 @@ void op_partition_kway(op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
@@ -2259,7 +2259,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
@@ -2822,7 +2822,7 @@ void op_partition_ptscotch(op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }

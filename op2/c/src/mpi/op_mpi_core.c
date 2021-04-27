@@ -355,9 +355,9 @@ int is_onto_map(op_map map) {
   get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
 
   // mak a copy of the to-set elements of the map
-  int *to_elem_copy = (int *)xmalloc(map->from->size * map->dim * sizeof(int));
+  int *to_elem_copy = (int *)xmalloc((size_t)map->from->size * map->dim * sizeof(int));
   memcpy(to_elem_copy, (void *)map->map,
-         map->from->size * map->dim * sizeof(int));
+         (size_t)map->from->size * map->dim * sizeof(int));
 
   // sort and remove duplicates from to_elem_copy
   quickSort(to_elem_copy, 0, map->from->size * map->dim - 1);
@@ -654,7 +654,7 @@ void op_halo_create() {
     int **sbuf = (int **)xmalloc(e_list->ranks_size * sizeof(int *));
 
     for (int i = 0; i < e_list->ranks_size; i++) {
-      sbuf[i] = (int *)xmalloc(e_list->sizes[i] * map->dim * sizeof(int));
+      sbuf[i] = (int *)xmalloc((size_t)e_list->sizes[i] * map->dim * sizeof(int));
       for (int j = 0; j < e_list->sizes[i]; j++) {
         for (int p = 0; p < map->dim; p++) {
           sbuf[i][j * map->dim + p] =
@@ -672,7 +672,7 @@ void op_halo_create() {
     // mapping tables in each mpi process
     OP_map_list[map->index]->map = (int *)xrealloc(
         OP_map_list[map->index]->map,
-        (map->dim * (map->from->size + i_list->size)) * sizeof(int));
+        (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(int));
 
     int init = map->dim * (map->from->size);
     for (int i = 0; i < i_list->ranks_size; i++) {
@@ -847,7 +847,7 @@ void op_halo_create() {
         char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
 
         for (int i = 0; i < e_list->ranks_size; i++) {
-          sbuf[i] = (char *)xmalloc(e_list->sizes[i] * dat->size);
+          sbuf[i] = (char *)xmalloc((size_t)e_list->sizes[i] * dat->size);
           for (int j = 0; j < e_list->sizes[i]; j++) {
             int set_elem_index = e_list->list[e_list->disps[i] + j];
             memcpy(&sbuf[i][j * dat->size],
@@ -863,7 +863,7 @@ void op_halo_create() {
         // prepare space for the incomming data - realloc each
         // data array in each mpi process
         dat->data =
-            (char *)xrealloc(dat->data, (set->size + i_list->size) * dat->size);
+            (char *)xrealloc(dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
 
         int init = set->size * dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
@@ -908,11 +908,11 @@ void op_halo_create() {
         char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
 
         for (int i = 0; i < e_list->ranks_size; i++) {
-          sbuf[i] = (char *)xmalloc(e_list->sizes[i] * dat->size);
+          sbuf[i] = (char *)xmalloc(e_list->sizes[i] * (size_t)dat->size);
           for (int j = 0; j < e_list->sizes[i]; j++) {
             int set_elem_index = e_list->list[e_list->disps[i] + j];
-            memcpy(&sbuf[i][j * dat->size],
-                   (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+            memcpy(&sbuf[i][j * (size_t)dat->size],
+                   (void *)&dat->data[(size_t)dat->size * (set_elem_index)], dat->size);
           }
           MPI_Isend(sbuf[i], dat->size * e_list->sizes[i], MPI_CHAR,
                     e_list->ranks[i], d, OP_MPI_WORLD, &request_send[i]);
@@ -924,11 +924,11 @@ void op_halo_create() {
 
         dat->data = (char *)xrealloc(
             dat->data,
-            (set->size + exec_i_list->size + i_list->size) * dat->size);
+            (size_t)(set->size + exec_i_list->size + i_list->size) * (size_t)dat->size);
 
-        int init = (set->size + exec_i_list->size) * dat->size;
+        size_t init = (size_t)(set->size + exec_i_list->size) * dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
-          MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
+          MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
                    dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
                    OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
@@ -1023,8 +1023,8 @@ void op_halo_create() {
     halo_list exec_e_list = OP_export_exec_list[dat->set->index];
     halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
 
-    mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
-    mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+    mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
+    mpi_buf->buf_nonexec = (char *)xmalloc((size_t)(nonexec_e_list->size) * (size_t)dat->size);
 
     halo_list exec_i_list = OP_import_exec_list[dat->set->index];
     halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
@@ -1089,17 +1089,17 @@ void op_halo_create() {
         if (compare_sets(set, dat->set) == 1) // if this data array is
         // defined on this set
         {
-          char *new_dat = (char *)xmalloc(set->size * dat->size);
+          char *new_dat = (char *)xmalloc((size_t)set->size * (size_t)dat->size);
           for (int i = 0; i < count; i++) {
-            memcpy(&new_dat[i * dat->size],
-                   &dat->data[core_elems[set->index][i] * dat->size],
+            memcpy(&new_dat[i * (size_t)dat->size],
+                   &dat->data[core_elems[set->index][i] * (size_t)dat->size],
                    dat->size);
           }
           for (int i = 0; i < num_exp; i++) {
-            memcpy(&new_dat[(count + i) * dat->size],
-                   &dat->data[exp_elems[set->index][i] * dat->size], dat->size);
+            memcpy(&new_dat[(count + i) * (size_t)dat->size],
+                   &dat->data[exp_elems[set->index][i] * (size_t)dat->size], dat->size);
           }
-          memcpy(&dat->data[0], &new_dat[0], set->size * dat->size);
+          memcpy(&dat->data[0], &new_dat[0], set->size * (size_t)dat->size);
           op_free(new_dat);
         }
       }
@@ -1110,18 +1110,18 @@ void op_halo_create() {
 
         if (compare_sets(map->from, set) == 1) { // if this mapping is
                                                  // defined from this set
-          int *new_map = (int *)xmalloc(set->size * map->dim * sizeof(int));
+          int *new_map = (int *)xmalloc((size_t)set->size * map->dim * sizeof(int));
           for (int i = 0; i < count; i++) {
-            memcpy(&new_map[i * map->dim],
-                   &map->map[core_elems[set->index][i] * map->dim],
+            memcpy(&new_map[i * (size_t)map->dim],
+                   &map->map[core_elems[set->index][i] * (size_t)map->dim],
                    map->dim * sizeof(int));
           }
           for (int i = 0; i < num_exp; i++) {
-            memcpy(&new_map[(count + i) * map->dim],
-                   &map->map[exp_elems[set->index][i] * map->dim],
+            memcpy(&new_map[(count + i) * (size_t)map->dim],
+                   &map->map[exp_elems[set->index][i] * (size_t)map->dim],
                    map->dim * sizeof(int));
           }
-          memcpy(&map->map[0], &new_map[0], set->size * map->dim * sizeof(int));
+          memcpy(&map->map[0], &new_map[0], set->size * (size_t)map->dim * sizeof(int));
           op_free(new_map);
         }
       }
@@ -1180,10 +1180,10 @@ void op_halo_create() {
               printf("Problem in seperating core elements - \
                   renumbering map\n");
             else
-              OP_map_list[map->index]->map[e * map->dim + j] =
+              OP_map_list[map->index]->map[e * (size_t)map->dim + j] =
                   map->to->core_size + index;
           } else
-            OP_map_list[map->index]->map[e * map->dim + j] = index;
+            OP_map_list[map->index]->map[e * (size_t)map->dim + j] = index;
         }
       }
     }
@@ -1964,7 +1964,7 @@ void op_halo_permap_create() {
         halo_list nonexec_e_list = OP_export_nonexec_list[i];
         ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec = (char *)xrealloc(
             ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec,
-            (nonexec_e_list->size + set_import_buffer_size[i]) * dat->size);
+            (nonexec_e_list->size + set_import_buffer_size[i]) * (size_t)dat->size);
       }
     }
   }
@@ -2004,7 +2004,7 @@ void op_halo_destroy() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
+    dat->data = (char *)xrealloc(dat->data, (size_t)dat->set->size * dat->size);
   }
 
   // free lists
@@ -2485,7 +2485,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   // make a copy of the distributed op_dat on to a distributed temporary op_dat
   //
   op_dat temp_dat = (op_dat)xmalloc(sizeof(op_dat_core));
-  char *data = (char *)xmalloc(dat->set->size * dat->size);
+  char *data = (char *)xmalloc((size_t)dat->set->size * dat->size);
   memcpy(data, dat->data, dat->set->size * dat->size);
 
   //
@@ -2576,7 +2576,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   char **sbuf_char = (char **)xmalloc(pe_list->ranks_size * sizeof(char *));
 
   for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf_char[i] = (char *)xmalloc(pe_list->sizes[i] * dat->size);
+    sbuf_char[i] = (char *)xmalloc((size_t)pe_list->sizes[i] * dat->size);
     for (int j = 0; j < pe_list->sizes[i]; j++) {
       int index = pe_list->list[pe_list->disps[i] + j];
       memcpy(&sbuf_char[i][j * dat->size], (void *)&data[dat->size * (index)],
@@ -2586,7 +2586,7 @@ op_dat op_mpi_get_data(op_dat dat) {
               pe_list->ranks[i], dat->index, OP_MPI_WORLD, &request_send[i]);
   }
 
-  char *rbuf_char = (char *)xmalloc(dat->size * pi_list->size);
+  char *rbuf_char = (char *)xmalloc((size_t)dat->size * pi_list->size);
   for (int i = 0; i < pi_list->ranks_size; i++) {
     MPI_Recv(&rbuf_char[pi_list->disps[i] * dat->size],
              dat->size * pi_list->sizes[i], MPI_CHAR, pi_list->ranks[i],
@@ -2600,7 +2600,7 @@ op_dat op_mpi_get_data(op_dat dat) {
 
   // delete the data entirs that has been sent and create a
   // modified data array
-  char *new_dat = (char *)xmalloc(dat->size * (dat->set->size + pi_list->size));
+  char *new_dat = (char *)xmalloc((size_t)dat->size * (dat->set->size + pi_list->size));
 
   count = 0;
   for (int i = 0; i < dat->set->size; i++) // iterate over old set size
@@ -2615,7 +2615,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   memcpy(&new_dat[count * dat->size], (void *)rbuf_char,
          dat->size * pi_list->size);
   count = count + pi_list->size;
-  new_dat = (char *)xrealloc(new_dat, dat->size * count);
+  new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
   op_free(rbuf_char);
   op_free(data);
   data = new_dat;

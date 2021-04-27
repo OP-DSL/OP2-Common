@@ -238,10 +238,11 @@ void quickSort_2(int arr1[], int arr2[], int left, int right) {
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
 
-void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size) {
+void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size2) {
   if (left < 0 || right <= 0)
     return;
   if (left==right) return;
+  size_t elem_size = elem_size2;
   int i = left, j = right;
   int tmp;
   char *tmp_dat = (char *)xmalloc(sizeof(char) * elem_size);
