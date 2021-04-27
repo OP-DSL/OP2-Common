@@ -1101,7 +1101,7 @@ static void migrate_all(int my_rank, int comm_size) {
         }
 
         memcpy(&new_dat[count * dat->size], (void *)rbuf,
-               dat->size * imp->size);
+               (size_t)dat->size * (size_t)imp->size);
         count = count + imp->size;
         new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
         op_free(rbuf);

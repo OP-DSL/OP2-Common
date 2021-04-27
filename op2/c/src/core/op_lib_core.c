@@ -380,9 +380,9 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->dim = dim;
   // dat->data = data;
   // printf("DATASET %s, ptr %p\n", name, data);
-  char *new_data = (char *)op_malloc(dim * size * set->size * sizeof(char));
+  char *new_data = (char *)op_malloc((size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
   if (data != NULL)
-    memcpy(new_data, data, dim * size * set->size * sizeof(char));
+    memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
   dat->data = new_data;
   dat->data_d = NULL;
   dat->name = copy_str(name);

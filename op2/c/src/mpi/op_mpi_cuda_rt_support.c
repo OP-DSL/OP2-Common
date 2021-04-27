@@ -186,6 +186,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
+  //Check if partitionig is done
   if (OP_import_exec_list==NULL) return;
   //  printf("Downloading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
