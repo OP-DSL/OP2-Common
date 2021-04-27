@@ -45,17 +45,13 @@ program AIRFOIL
   type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
 
   ! arrays used in data
-  !integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
-  real*8 x, q, qold, adt, res, q_part
-  pointer (ptr_x,x(*)), (ptr_q,q(*)), (ptr_qold, qold(*)), (ptr_adt, adt(*)), &
-  & (ptr_res,res(*)), (ptr_q_part, q_part(*))
+  real*8 x(1), q(1), qold(1), adt(1), res(1), q_part(1)
+  pointer (ptr_x,x), (ptr_q,q), (ptr_qold, qold), (ptr_adt, adt), &
+  & (ptr_res,res), (ptr_q_part, q_part)
 
-  integer*4  ecell, bound, edge, bedge, becell, cell
-  pointer (ptr_ecell, ecell(*)), (ptr_bound, bound(*)), (ptr_edge, edge(*)), &
-  & (ptr_bedge, bedge(*)), (ptr_becell, becell(*)), (ptr_cell, cell(*))
-
-  !real(8),    dimension(:), allocatable, target :: x_data, q_data, qold_data, adt_data, res_data, q_part_data
-  !integer(4), dimension(:), allocatable, target :: ecell_data, bound_data, edge_data, bedge_data, becell_data, cell_data
+  integer*4  ecell(1), bound(1), edge(1), bedge(1), becell(1), cell(1)
+  pointer (ptr_ecell, ecell), (ptr_bound, bound), (ptr_edge, edge), &
+  & (ptr_bedge, bedge), (ptr_becell, becell), (ptr_cell, cell)
 
   real(8), dimension(1:2) :: rms
 
@@ -69,10 +65,6 @@ program AIRFOIL
 
   integer(4), parameter :: FILE_ID = 10
 
-  !external test_malloc
-  !external test_free
-  !integer*8 test_malloc
-
   ! read set sizes from input file (input is subdivided in two routines as we cannot allocate arrays in subroutines in
   ! fortran 90)
   print *, "Getting set sizes"
@@ -84,33 +76,33 @@ program AIRFOIL
 
   print *, ncell
   ! allocate sets (cannot allocate in subroutine in F90)
-  call op_malloc(ptr_cell, 4 * ncell  * 4)
-  call op_malloc(ptr_edge, 2 * nedge * 4)
-  call op_malloc(ptr_ecell, 2 * nedge * 4)
-  call op_malloc(ptr_bedge, 2 * nbedge * 4)
-  call op_malloc(ptr_becell,    nbedge * 4)
-  call op_malloc(ptr_bound,    nbedge * 4)
+  call op_memalloc(ptr_cell, 4 * ncell  * 4)
+  call op_memalloc(ptr_edge, 2 * nedge * 4)
+  call op_memalloc(ptr_ecell, 2 * nedge * 4)
+  call op_memalloc(ptr_bedge, 2 * nbedge * 4)
+  call op_memalloc(ptr_becell,    nbedge * 4)
+  call op_memalloc(ptr_bound,    nbedge * 4)
 
-  call op_malloc(ptr_x, 2 * nnode * 8 )
-  call op_malloc(ptr_q, 4 * ncell  * 8)
-  call op_malloc(ptr_qold, 4 * ncell  * 8)
-  call op_malloc(ptr_res, 4 * ncell  * 8)
-  call op_malloc(ptr_adt, ncell  * 8)
+  call op_memalloc(ptr_x, 2 * nnode * 8 )
+  call op_memalloc(ptr_q, 4 * ncell  * 8)
+  call op_memalloc(ptr_qold, 4 * ncell  * 8)
+  call op_memalloc(ptr_res, 4 * ncell  * 8)
+  call op_memalloc(ptr_adt, ncell  * 8)
 
-  call op_malloc(ptr_q_part,  4 * ncell)
+  call op_memalloc(ptr_q_part,  4 * ncell)
 
   print *, "Getting data"
 
   open ( FILE_ID, file = 'new_grid.dat' )
 
-  call getSetInfo ( nnode, ncell, nedge, nbedge, ptr_cell, ptr_edge, ptr_ecell, ptr_bedge, &
-  & ptr_becell, ptr_bound, ptr_x, ptr_q, ptr_qold, ptr_res, ptr_adt )
+  call getSetInfo ( nnode, ncell, nedge, nbedge, cell, edge, ecell, bedge, &
+  & becell, bound, x, q, qold, res, adt )
 
   ! OP initialisation
   call op_init_base_soa(0,0,1)
 
   print *, "Initialising constants"
-  call initialise_flow_field ( ncell, ptr_q, ptr_res )
+  call initialise_flow_field ( ncell, q, res )
 
   ! declare sets, pointers, datasets and global constants (for now, no new partition info)
   print *, "Declaring OP2 sets"

@@ -34,8 +34,8 @@ end subroutine getSetSizes
 
 ! fill up arrays from file
 subroutine getSetInfo ( nnode, ncell, nedge, nbedge, &
-  & ptr_cell, ptr_edge, ptr_ecell, ptr_bedge, ptr_becell, &
-  & ptr_bound, ptr_x, ptr_q, ptr_qold, ptr_res, ptr_adt )
+  & cell, edge, ecell, bedge, becell, &
+  & bound, x, q, qold, res, adt )
 
   implicit none
 
@@ -55,12 +55,6 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, &
   real(8) qold(*)
   real(8) res(*)
   real(8) adt(*)
-
-  pointer (ptr_cell, cell), (ptr_edge, edge), (ptr_ecell, ecell), &
-  &       (ptr_bedge, bedge), (ptr_becell, becell), &
-  &       (ptr_bound, bound), (ptr_x, x), (ptr_q, q), (ptr_qold, qold), &
-  &       (ptr_res, res), (ptr_adt, adt)
-
 
   ! file identifier (10 is arbitrary)
   integer(4), parameter :: FILE_ID = 10
@@ -108,7 +102,7 @@ subroutine getSetInfo ( nnode, ncell, nedge, nbedge, &
 
 end subroutine getSetInfo
 
-subroutine initialise_flow_field ( ncell, ptr_q, ptr_res )
+subroutine initialise_flow_field ( ncell, q, res )
 
   ! formal parameters
   integer(4) :: ncell
@@ -116,7 +110,7 @@ subroutine initialise_flow_field ( ncell, ptr_q, ptr_res )
   real(8) q(*)
   real(8) res(*)
 
-  pointer (ptr_q, q), (ptr_res, res)
+  !pointer (ptr_q, q), (ptr_res, res)
 
   ! local variables
   real(8) :: p, r, u, e
