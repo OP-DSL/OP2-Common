@@ -61,15 +61,15 @@ typedef struct {
   // set related to this list
   op_set set;
   // number of elements in this list
-  size_t size;
+  int size;
   // MPI ranks to be exported to or imported from
   int *ranks;
   // number of MPI neighbors to be exported to or imported from
   int ranks_size;
   // displacements for the starting point of each rank's element list
-  size_t *disps;
+  int *disps;
   // number of elements exported to or imported from each ranks
-  size_t *sizes;
+  int *sizes;
   // the list of all elements
   int *list;
 } halo_list_core;
