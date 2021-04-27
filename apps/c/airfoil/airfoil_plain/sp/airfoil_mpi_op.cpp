@@ -378,17 +378,28 @@ int main(int argc, char **argv) {
   op_set cells = op_decl_set(ncell, "cells");
 
   op_map pedge = op_decl_map(edges, nodes, 2, edge, "pedge");
+  free(edge);
   op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
+  free(ecell);
   op_map pbedge = op_decl_map(bedges, nodes, 2, bedge, "pbedge");
+  free(bedge);
   op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
+  free(becell);
   op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
+  free(cell);
 
   op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
+  free(bound);
   op_dat p_x = op_decl_dat(nodes, 2, "float", x, "p_x");
+  free(x);
   op_dat p_q = op_decl_dat(cells, 4, "float", q, "p_q");
+  free(q);
   op_dat p_qold = op_decl_dat(cells, 4, "float", qold, "p_qold");
+  free(qold);
   op_dat p_adt = op_decl_dat(cells, 1, "float", adt, "p_adt");
+  free(adt);
   op_dat p_res = op_decl_dat(cells, 4, "float", res, "p_res");
+  free(res);
 
   op_decl_const2("gam",1,"float",&gam);
   op_decl_const2("gm1",1,"float",&gm1);
@@ -491,16 +502,4 @@ int main(int argc, char **argv) {
   // print total time for niter interations
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
   op_exit();
-
-  free(cell);
-  free(edge);
-  free(ecell);
-  free(bedge);
-  free(becell);
-  free(bound);
-  free(x);
-  free(q);
-  free(qold);
-  free(res);
-  free(adt);
 }
