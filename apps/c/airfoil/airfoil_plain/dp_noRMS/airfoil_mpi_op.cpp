@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 
 //
 // mpi header file - included by user for user level mpi
@@ -67,6 +68,19 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_lib_mpi.h"
 #include  "op_lib_cpp.h"
+#include <mpi.h>
+
+//#include <op_lib_core.h>
+#include <op_lib_c.h>
+#include <op_util.h>
+
+#include <op_mpi_core.h>
+
+#ifdef SLOPE
+#include "executor.h"
+#include "inspector.h"
+#define TILE_SIZE 5000
+#endif
 
 //
 // op_par_loop declarations
@@ -202,9 +216,150 @@ static void check_scan(int items_received, int items_expected) {
   }
 }
 
+int get_max(int my_rank, const char* name, int* arr, int size){
+  int max = 0;
+  for(int i = 0; i < size; i++){
+    if(max < arr[i]){
+      max = arr[i];
+      // printf("getmax my_rank=%d, name=%s, max=%d size=%d, arr[%d]=%d\n", my_rank, name, max, size, i, arr[i]);
+  } 
+      
+  }
+  return max;
+}
+
+int get_max_value(int* arr, int size){
+  int max = 0;  // assumption: max >= 0
+  for(int i = 0; i < size; i++){
+    if(max < arr[i]){
+      max = arr[i];
+    }  
+  }
+  return max;
+}
+
+int get_max1(int my_rank, const char* name, int* arr, int size){
+  int max = 0;
+  for(int i = 0; i < size; i++){
+    if(max < arr[i]){
+      max = arr[i];
+      // printf("getmax1 my_rank=%d, name=%s, max=%d size=%d, arr[%d]=%d\n", my_rank, name, max, size, i, arr[i]);
+  } 
+      
+  }
+  return max;
+}
+
 //
 // main program
 //
+
+void calculate_max_values(op_set* sets, int set_count, op_map* maps, int map_count,
+std::map<op_set, int>* to_set_to_core_max, std::map<op_set, int>* to_set_to_exec_max, std::map<op_set, int>* to_set_to_nonexec_max){
+
+  std::map<op_set, std::vector<int>> to_set_to_map_index;
+  std::map<op_set, std::vector<int>>::iterator it;
+  op_set to_set;
+
+  for(int i = 0; i < map_count; i ++){
+    to_set = maps[i]->to;
+    it = to_set_to_map_index.find(to_set);
+    if(it != to_set_to_map_index.end()){
+      std::vector<int>* map_ids = &it->second;
+      map_ids->push_back(i);
+    }
+    else{
+      std::vector<int> map_ids;
+      map_ids.push_back(i);
+      to_set_to_map_index.insert(std::pair<op_set, std::vector<int>>(to_set, map_ids));
+    }
+  }
+  
+  for (auto it = to_set_to_map_index.begin(); it != to_set_to_map_index.end(); ++it){
+    //get core max values
+    int core_max[it->second.size()];
+    for(int i = 0; i < it->second.size(); i++){
+      core_max[i] = get_max_value(maps[it->second.at(i)]->map, maps[it->second.at(i)]->from->core_size * maps[it->second.at(i)]->dim);
+    }
+
+    int core_max_of_max = core_max[0];
+    for(int i = 0; i < it->second.size(); i++){
+      if(core_max_of_max < core_max[i])
+        core_max_of_max = core_max[i];
+    }
+    to_set_to_core_max->insert(std::pair<op_set, int>(it->first, core_max_of_max));
+
+    //get exec max values
+    int exec_max[it->second.size()];
+    for(int i = 0; i < it->second.size(); i++){
+      exec_max[i] = get_max_value(maps[it->second.at(i)]->map, 
+      (maps[it->second.at(i)]->from->size +  OP_import_exec_list[maps[it->second.at(i)]->from->index]->size) * maps[it->second.at(i)]->dim);
+    }
+
+    int exec_max_of_max = exec_max[0];
+    for(int i = 0; i < it->second.size(); i++){
+      if(exec_max_of_max < exec_max[i])
+        exec_max_of_max = exec_max[i];
+    }
+    to_set_to_exec_max->insert(std::pair<op_set, int>(it->first, exec_max_of_max));
+
+    //get nonexec max values
+    int nonexec_max[it->second.size()];
+    for(int i = 0; i < it->second.size(); i++){
+      nonexec_max[i] = get_max_value(maps[it->second.at(i)]->map, 
+      (maps[it->second.at(i)]->from->size +  OP_import_exec_list[maps[it->second.at(i)]->from->index]->size + 
+      OP_import_nonexec_list[maps[it->second.at(i)]->from->index]->size) * maps[it->second.at(i)]->dim);
+    }
+
+    int nonexec_max_of_max = nonexec_max[0];
+    for(int i = 0; i < it->second.size(); i++){
+      if(nonexec_max_of_max < nonexec_max[i])
+        nonexec_max_of_max = nonexec_max[i];
+    }
+    to_set_to_nonexec_max->insert(std::pair<op_set, int>(it->first, nonexec_max_of_max));
+  } 
+}
+
+int get_core_size(op_set set, std::map<op_set, int>* to_set_to_core_max){
+
+  std::map<op_set, int>::iterator it;
+  it = to_set_to_core_max->find(set);
+
+  if(it != to_set_to_core_max->end()){
+    return ((it->second - set->core_size +  1) > 0) ? it->second + 1 : set->core_size;
+  }
+  else{
+    return set->core_size;
+  }
+}
+
+int get_exec_size(op_set set, std::map<op_set, int>* to_set_to_core_max, std::map<op_set, int>* to_set_to_exec_max){
+
+  std::map<op_set, int>::iterator it_core, it_exec;
+  it_core = to_set_to_core_max->find(set);
+
+  if(it_core != to_set_to_core_max->end()){
+    it_exec = to_set_to_exec_max->find(set);
+    return ((it_exec->second - it_core->second) > 0) ? (it_exec->second - it_core->second) : 0;
+  }
+  else{
+    return (set->size - set->core_size) + OP_import_exec_list[set->index]->size;
+  }
+}
+
+int get_nonexec_size(op_set set, std::map<op_set, int>* to_set_to_exec_max, std::map<op_set, int>* to_set_to_nonexec_max){
+
+  std::map<op_set, int>::iterator it_exec, it_nonexec;
+  it_exec = to_set_to_exec_max->find(set);
+
+  if(it_exec != to_set_to_exec_max->end()){
+    it_nonexec = to_set_to_nonexec_max->find(set);
+    return ((it_nonexec->second - it_exec->second) > 0) ? (it_nonexec->second - it_exec->second) : 0;
+  }
+  else{
+    return OP_import_nonexec_list[set->index]->size;
+  }
+}
 
 int main(int argc, char **argv) {
   // OP initialisation
@@ -409,10 +564,125 @@ int main(int argc, char **argv) {
   op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
-  // op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
+  op_partition("DONOT", "KWAY", cells, pecell, p_x);  // slope:avoid doing an mpi partitioning
 
   // initialise timers for total execution wall time
+
+  #ifdef SLOPE
+
+  int set_size = 0;
+  op_arg args0[6];
+  args0[0] = op_arg_dat(p_x,0,pcell,2,"double",OP_READ);
+  args0[1] = op_arg_dat(p_x,1,pcell,2,"double",OP_READ);
+  args0[2] = op_arg_dat(p_x,2,pcell,2,"double",OP_READ);
+  args0[3] = op_arg_dat(p_x,3,pcell,2,"double",OP_READ);
+  args0[4] = op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ);
+  args0[5] = op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE);
+
+  op_arg args1[8];
+  args1[0] = op_arg_dat(p_x,0,pedge,2,"double",OP_READ);
+  args1[1] = op_arg_dat(p_x,1,pedge,2,"double",OP_READ);
+  args1[2] = op_arg_dat(p_q,0,pecell,4,"double",OP_READ);
+  args1[3] = op_arg_dat(p_q,1,pecell,4,"double",OP_READ);
+  args1[4] = op_arg_dat(p_adt,0,pecell,1,"double",OP_READ);
+  args1[5] = op_arg_dat(p_adt,1,pecell,1,"double",OP_READ);
+  args1[6] = op_arg_dat(p_res,0,pecell,4,"double",OP_INC);
+  args1[7] = op_arg_dat(p_res,1,pecell,4,"double",OP_INC);
+  
+  op_arg args2[6];
+  args2[0] = op_arg_dat(p_x,0,pbedge,2,"double",OP_READ);
+  args2[1] = op_arg_dat(p_x,1,pbedge,2,"double",OP_READ);
+  args2[2] = op_arg_dat(p_q,0,pbecell,4,"double",OP_READ);
+  args2[3] = op_arg_dat(p_adt,0,pbecell,1,"double",OP_READ);
+  args2[4] = op_arg_dat(p_res,0,pbecell,4,"double",OP_INC);
+  args2[5] = op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ);
+
+  op_arg args3[4];
+  args3[0] = op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ);
+  args3[1] = op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE);
+  args3[2] = op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW);
+  args3[3] = op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ);
+
+
+  int avgTileSize = 5000;
+  if(argc > 1){
+    avgTileSize = atoi(argv[1]);
+  }
+  
+  int seedTilePoint = 0;
+
+  op_set* sets = new op_set[4];
+  sets[0] = nodes;
+  sets[1] = edges;
+  sets[2] = bedges;
+  sets[3] = cells;
+
+  op_map* maps = new op_map[5];
+  maps[0] = pedge;
+  maps[1] = pecell;
+  maps[2] = pbedge;
+  maps[3] = pbecell;
+  maps[4] = pcell;
+
+  std::map<op_set, int> to_set_to_core_max;
+  std::map<op_set, int> to_set_to_exec_max;
+  std::map<op_set, int> to_set_to_nonexec_max;
+
+  calculate_max_values(sets, 4, maps, 5, &to_set_to_core_max, &to_set_to_exec_max, &to_set_to_nonexec_max);
+
+  //sets
+  set_t* sl_nodes = set("nodes", get_core_size(nodes, &to_set_to_core_max) , get_exec_size(nodes, &to_set_to_core_max, &to_set_to_exec_max), 
+    get_nonexec_size(nodes, &to_set_to_exec_max, &to_set_to_nonexec_max));
+  set_t* sl_edges = set("edges", get_core_size(edges, &to_set_to_core_max) , get_exec_size(edges, &to_set_to_core_max, &to_set_to_exec_max), 
+    get_nonexec_size(edges, &to_set_to_exec_max, &to_set_to_nonexec_max));
+  set_t* sl_bedges = set("bedges", get_core_size(bedges, &to_set_to_core_max) , get_exec_size(bedges, &to_set_to_core_max, &to_set_to_exec_max), 
+    get_nonexec_size(bedges, &to_set_to_exec_max, &to_set_to_nonexec_max));
+  set_t* sl_cells = set("cells", get_core_size(cells, &to_set_to_core_max), get_exec_size(cells, &to_set_to_core_max, &to_set_to_exec_max), 
+    get_nonexec_size(cells, &to_set_to_exec_max, &to_set_to_nonexec_max));
+
+  //maps
+  map_t* sl_pcell = map("c2n", sl_cells, sl_nodes, pcell->map, sl_cells->size * pcell->dim);
+  map_t* sl_pedge = map("e2n", sl_edges, sl_nodes, pedge->map, sl_edges->size * pedge->dim);
+  map_t* sl_pecell = map("e2c", sl_edges, sl_cells, pecell->map, sl_edges->size * pecell->dim);
+  map_t* sl_pbedge = map("be2n", sl_bedges, sl_nodes, pbedge->map, sl_bedges->size * pbedge->dim);
+  map_t* sl_pbecell = map("be2c", sl_bedges, sl_cells, pbecell->map, sl_bedges->size * pbecell->dim);
+
+  // descriptors
+  desc_list adtCalcDesc ({desc(sl_pcell, READ),
+                          desc(DIRECT, WRITE)});
+  desc_list resCalcDesc ({desc(sl_pedge, READ),
+                          desc(sl_pecell, READ),
+                          desc(sl_pecell, INC)});
+  desc_list bresCalcDesc ({desc(sl_pbedge, READ),
+                           desc(sl_pbecell, READ),
+                           desc(sl_pbecell, INC)});
+  desc_list updateDesc ({desc(DIRECT, READ),
+                         desc(DIRECT, WRITE)});
+  
+  // inspector_t* insp = insp_init(avgTileSize, ONLY_MPI);
+  inspector_t* insp = insp_init(avgTileSize, OMP_MPI);
+
+  insp_add_parloop (insp, "adtCalc", sl_cells, &adtCalcDesc);
+  insp_add_parloop (insp, "resCalc", sl_edges, &resCalcDesc);
+  insp_add_parloop (insp, "bresCalc", sl_bedges, &bresCalcDesc);
+  insp_add_parloop (insp, "update", sl_cells, &updateDesc);
+ 
+  insp_run (insp, seedTilePoint);
+
+  for (int i = 0; i < comm_size; i++) {
+    if (i == my_rank) {
+      insp_print (insp, LOW);
+      // generate_vtk (insp, HIGH, vertices, mesh->coords, DIM2, rank);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  printf("running executor\n");
+  executor_t* exec = exec_init (insp);
+  int nColors = exec_num_colors (exec);
+
+  #endif
+
   op_timers(&cpu_t1, &wall_t1);
 
   niter = 1000;
@@ -424,9 +694,176 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
 
     //  predictor/corrector update loop
+    #ifdef SLOPE
+    for (int m = 0; m < 2; m++) {
+      for (int i = 0; i < nColors; i++) {
 
-    for (int k = 0; k < 2; k++) {
+        // for all tiles of this color
+        const int nTilesPerColor = exec_tiles_per_color (exec, i);
 
+        #pragma omp parallel for
+        for (int j = 0; j < nTilesPerColor; j++) {
+
+          // execute the tile
+          tile_t* tile = exec_tile_at (exec, i, j, LOCAL);
+          if(!tile)
+            continue;
+         
+          int tileLoopSize;
+
+          // loop adt_calc (calculate area/timstep)
+          iterations_list& lc2n_0 = tile_get_local_map (tile, 0, "c2n");
+          iterations_list& iterations_0 = tile_get_iterations (tile, 0);
+          tileLoopSize = tile_loop_size (tile, 0);
+
+          #pragma omp simd
+          for (int k = 0; k < tileLoopSize; k++) {
+            adt_calc (((double*)(p_x->data)) + lc2n_0[k*4 + 0]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 1]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 2]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 3]*2,
+                      ((double*)(p_q->data)) + iterations_0[k]*4,
+                      ((double*)(p_adt->data)) + iterations_0[k]);
+          }
+
+          // loop res_calc
+          iterations_list& le2n_1 = tile_get_local_map (tile, 1, "e2n");
+          iterations_list& le2c_1 = tile_get_local_map (tile, 1, "e2c");
+          iterations_list& iterations_1 = tile_get_iterations (tile, 1);
+          tileLoopSize = tile_loop_size (tile, 1);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            res_calc (((double*)(p_x->data)) + le2n_1[k*2 + 0]*2,
+                      ((double*)(p_x->data)) + le2n_1[k*2 + 1]*2,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 1]*4,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 0]*1,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 1]*1,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 1]*4);
+          }
+
+          // loop bres_calc
+          iterations_list& lbe2n_2 = tile_get_local_map (tile, 2, "be2n");
+          iterations_list& lbe2c_2 = tile_get_local_map (tile, 2, "be2c");
+          iterations_list& iterations_2 = tile_get_iterations (tile, 2);
+          tileLoopSize = tile_loop_size (tile, 2);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            bres_calc (((double*)(p_x->data)) + lbe2n_2[k*2 + 0]*2,
+                       ((double*)(p_x->data)) + lbe2n_2[k*2 + 1]*2,
+                       ((double*)(p_q->data)) + lbe2c_2[k + 0]*4,
+                       ((double*)(p_adt->data)) + lbe2c_2[k + 0]*1,
+                       ((double*)(p_res->data)) + lbe2c_2[k + 0]*4,
+                       ((int*)(p_bound->data)) + iterations_2[k]);
+          }
+
+          // loop update
+          iterations_list& iterations_3 = tile_get_iterations (tile, 3);
+          tileLoopSize = tile_loop_size (tile, 3);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            update    (((double*)(p_qold->data)) + iterations_3[k]*4,
+                       ((double*)(p_q->data)) + iterations_3[k]*4,
+                       ((double*)(p_res->data)) + iterations_3[k]*4,
+                       ((double*)(p_adt->data)) + iterations_3[k]);
+
+          }
+        }
+      }
+    
+      op_mpi_set_dirtybit(6, args0);
+      op_mpi_set_dirtybit(8, args1);
+      op_mpi_set_dirtybit(6, args2);
+      op_mpi_set_dirtybit(4, args3);
+ 
+      set_size = op_mpi_halo_exchanges(cells, 6, args0);
+      set_size = op_mpi_halo_exchanges(edges, 8, args1);
+      set_size = op_mpi_halo_exchanges(bedges, 6, args2);
+      set_size = op_mpi_halo_exchanges(cells, 4, args3);
+
+      op_mpi_wait_all(6, args0);
+      op_mpi_wait_all(8, args1);
+      op_mpi_wait_all(6, args2);
+      op_mpi_wait_all(4, args3);
+
+
+      for (int i = 0; i < nColors; i++) {
+
+        // for all tiles of this color
+        const int nTilesPerColor = exec_tiles_per_color (exec, i);
+        #pragma omp parallel for
+        for (int j = 0; j < nTilesPerColor; j++) {
+
+          // execute the tile
+          tile_t* tile = exec_tile_at (exec, i, j, EXEC_HALO);
+          if(tile == NULL)
+            continue;
+      
+          int tileLoopSize;
+
+          // loop adt_calc (calculate area/timstep)
+          iterations_list& lc2n_0 = tile_get_local_map (tile, 0, "c2n");
+          iterations_list& iterations_0 = tile_get_iterations (tile, 0);
+          tileLoopSize = tile_loop_size (tile, 0);
+
+          #pragma omp simd
+          for (int k = 0; k < tileLoopSize; k++) {
+            adt_calc (((double*)(p_x->data)) + lc2n_0[k*4 + 0]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 1]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 2]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 3]*2,
+                      ((double*)(p_q->data)) + iterations_0[k]*4,
+                      ((double*)(p_adt->data)) + iterations_0[k]);
+          }
+            
+          // loop res_calc
+          iterations_list& le2n_1 = tile_get_local_map (tile, 1, "e2n");
+          iterations_list& le2c_1 = tile_get_local_map (tile, 1, "e2c");
+          iterations_list& iterations_1 = tile_get_iterations (tile, 1);
+          tileLoopSize = tile_loop_size (tile, 1);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            res_calc (((double*)(p_x->data)) + le2n_1[k*2 + 0]*2,
+                      ((double*)(p_x->data)) + le2n_1[k*2 + 1]*2,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 1]*4,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 0]*1,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 1]*1,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 1]*4);
+          }
+
+          // loop bres_calc
+          iterations_list& lbe2n_2 = tile_get_local_map (tile, 2, "be2n");
+          iterations_list& lbe2c_2 = tile_get_local_map (tile, 2, "be2c");
+          iterations_list& iterations_2 = tile_get_iterations (tile, 2);
+          tileLoopSize = tile_loop_size (tile, 2);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            bres_calc (((double*)(p_x->data)) + lbe2n_2[k*2 + 0]*2,
+                       ((double*)(p_x->data)) + lbe2n_2[k*2 + 1]*2,
+                       ((double*)(p_q->data)) + lbe2c_2[k + 0]*4,
+                       ((double*)(p_adt->data)) + lbe2c_2[k + 0]*1,
+                       ((double*)(p_res->data)) + lbe2c_2[k + 0]*4,
+                       ((int*)(p_bound->data)) + iterations_2[k]);
+          }
+
+          // loop update
+          iterations_list& iterations_3 = tile_get_iterations (tile, 3);
+          tileLoopSize = tile_loop_size (tile, 3);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            update    (((double*)(p_qold->data)) + iterations_3[k]*4,
+                       ((double*)(p_q->data)) + iterations_3[k]*4,
+                       ((double*)(p_res->data)) + iterations_3[k]*4,
+                       ((double*)(p_adt->data)) + iterations_3[k]);
+          }
+        }
+      }
+    }
+    #else
+    for (int m = 0; m < 2; m++) {
       //    calculate area/timstep
       op_par_loop_adt_calc("adt_calc",cells,
                   op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
@@ -456,47 +893,49 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
 
       //    update flow field
-
-      rms = 0.0;
-
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
                   op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ));
+                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ)); 
     }
+    #endif
+  }
+  op_timers(&cpu_t2, &wall_t2);
+  rms = 0.0;
+  op_par_loop_update1("update1",cells,
+              op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
+              op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
+              op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+              op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
+              op_arg_gbl(&rms,1,"double",OP_INC));
 
-    op_timers(&cpu_t2, &wall_t2);
-    rms = 0.0;
 
-    op_par_loop_update1("update1",cells,
-                op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
-                op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
-                op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
-                op_arg_gbl(&rms,1,"double",OP_INC));
+  // print iteration history
+  rms = sqrt(rms / (double)g_ncell);
+  
+  // if (iter % 100 == 0)
+  //   printf(" %d  %10.5e \n", iter, rms);
 
-
-    // print iteration history
-    rms = sqrt(rms / (double)g_ncell);
-    if (iter % 100 == 0)
-      op_printf(" %d  %10.5e \n", iter, rms);
-
-    if (iter % 1000 == 0 &&
-        g_ncell == 720000) { // defailt mesh -- for validation testing
-      // op_printf(" %d  %3.16f \n",iter,rms);
-      double diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);
-      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
-                "expected solution\n",
-                720000, diff);
-      if (diff < 0.00001) {
-        op_printf("This test is considered PASSED\n");
-      } else {
-        op_printf("This test is considered FAILED\n");
-      }
+  // if (iter % 1000 == 0 &&
+  double diff = 0.0;
+  if (niter % 1000 == 0 &&
+      g_ncell == 720000) { // defailt mesh -- for validation testing
+    // printf(" %d  %3.16f \n",iter,rms);
+    diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);
+    op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
+              "expected solution\n",
+              720000, diff);
+    
+    if (diff < 0.00001) {
+      op_printf("This test is considered PASSED\n");
+    } else {
+      op_printf("This test is considered FAILED\n");
     }
   }
 
+  printf("rank=%d, rms=%.30f, diff=%.30f\n", my_rank, rms, diff);
+  
   // output the result dat array to files
   op_print_dat_to_txtfile(p_q, "out_grid_mpi.dat"); // ASCI
   op_print_dat_to_binfile(p_q, "out_grid_mpi.bin"); // Binary
