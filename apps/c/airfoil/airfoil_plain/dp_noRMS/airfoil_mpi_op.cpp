@@ -216,17 +216,8 @@ static void check_scan(int items_received, int items_expected) {
   }
 }
 
-int get_max(int my_rank, const char* name, int* arr, int size){
-  int max = 0;
-  for(int i = 0; i < size; i++){
-    if(max < arr[i]){
-      max = arr[i];
-      // printf("getmax my_rank=%d, name=%s, max=%d size=%d, arr[%d]=%d\n", my_rank, name, max, size, i, arr[i]);
-  } 
-      
-  }
-  return max;
-}
+
+#ifdef SLOPE
 
 int get_max_value(int* arr, int size){
   int max = 0;  // assumption: max >= 0
@@ -237,22 +228,6 @@ int get_max_value(int* arr, int size){
   }
   return max;
 }
-
-int get_max1(int my_rank, const char* name, int* arr, int size){
-  int max = 0;
-  for(int i = 0; i < size; i++){
-    if(max < arr[i]){
-      max = arr[i];
-      // printf("getmax1 my_rank=%d, name=%s, max=%d size=%d, arr[%d]=%d\n", my_rank, name, max, size, i, arr[i]);
-  } 
-      
-  }
-  return max;
-}
-
-//
-// main program
-//
 
 void calculate_max_values(op_set* sets, int set_count, op_map* maps, int map_count,
 std::map<op_set, int>* to_set_to_core_max, std::map<op_set, int>* to_set_to_exec_max, std::map<op_set, int>* to_set_to_nonexec_max){
@@ -360,6 +335,11 @@ int get_nonexec_size(op_set set, std::map<op_set, int>* to_set_to_exec_max, std:
     return OP_import_nonexec_list[set->index]->size;
   }
 }
+#endif
+
+//
+// main program
+//
 
 int main(int argc, char **argv) {
   // OP initialisation
