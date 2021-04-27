@@ -151,6 +151,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  grouped = 0
+
   any_soa = 0
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
@@ -472,8 +474,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
-    #code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
-    code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
+    if grouped:
+      code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
+    else:
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
 
     code('')
     code('opSetCore => set%setPtr')
@@ -516,8 +520,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
       code('& 0, opSetCore%core_size)')
-    #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    if grouped:
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    else:
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     code('CALL op_wrap_'+name+'( &')
     for g_m in range(0,ninds):
       if invinds[g_m] in needDimList:
@@ -541,8 +547,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    if grouped:
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    else:
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
     code('')
 
