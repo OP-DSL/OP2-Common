@@ -415,10 +415,10 @@ int main(int argc, char **argv) {
 
   // print iteration history
   rms = sqrt(rms / (double)g_ncell);
-  if (iter % 100 == 0)
-    op_printf(" %d  %10.5e \n", iter, rms);
+  // if (iter % 100 == 0)
+  //   op_printf(" %d  %10.5e \n", iter, rms);
 
-  if (iter % 1000 == 0 &&
+  if (niter % 1000 == 0 &&
       g_ncell == 720000) { // defailt mesh -- for validation testing
     // op_printf(" %d  %3.16f \n",iter,rms);
     double diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);

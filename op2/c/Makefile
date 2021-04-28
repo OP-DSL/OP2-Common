@@ -338,7 +338,7 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_renumber.o
 
 mpi_slope: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
-	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(SRC)/mpi/op_mpi_slope_core.c\
+	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(SRC)/mpi/op_mpi_slope_core.c \
 	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
@@ -350,7 +350,7 @@ mpi_slope: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_decl.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
 	-o $(OBJ)/op_mpi_rt_support.o
-	$(MPICXX)  -DSLOPE $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+	$(MPICXX) -DSLOPE $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
 	-c $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_part_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) \
