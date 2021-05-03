@@ -1327,3 +1327,4 @@ int op_get_size_local(op_set set) { return set->size; }
  *******************************************************************************/
 
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
+int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
