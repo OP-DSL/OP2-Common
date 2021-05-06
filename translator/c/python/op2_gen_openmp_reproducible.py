@@ -158,7 +158,7 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
 
     repr_omp = 0
     if (reproducible==1):
-      repr_omp = 0
+      repr_omp = 1
 
     j = 0
     for i in range(0,nargs):

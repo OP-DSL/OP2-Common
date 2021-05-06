@@ -148,6 +148,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     op_color2_force=0
     atomics=1
 
+    if (reproducible and repr_coloring and atomics):
+      atomics=0
+
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
@@ -627,9 +630,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       for g_m in range(0,ninds):
         if reproducible and repr_temp_array and indaccs[g_m]==OP_INC and (indtyps[g_m] == 'double' or indtyps[g_m] == 'float') and repro_if:
+          if optflags[invinds[g_m]]==1:
+            IF('optflags & 1<<'+str(optidxs[ invinds[g_m] ]))
           FOR('i','0',' prime_map_dim * '+ str(inddims[g_m]))
           code('tmp_incs'+str(g_m)+'_d[i+n*prime_map_dim * '+str(inddims[g_m])+']=(<TYP>)0.0;\n')
           ENDFOR()
+          if optflags[invinds[g_m]]==1:
+            ENDIF()
 
       #mapidx declarations
       k = []
@@ -844,15 +851,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR()
     if ninds>0 and atomics:
           for g_m in range(0,nargs):
-            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC:
+            if maps[g_m] == OP_MAP and accs[g_m] == OP_INC and not (repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float')):
               if optflags[g_m]==1:
                 IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
                 if soaflags[g_m]:
                   code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],<ARG>_l['+str(d)+']);')
                 else:
-                  if not (repr_temp_array and repro_if and accs[g_m]==OP_INC and (typs[g_m] == 'double' or typs[g_m] == 'float')):
-                    code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
+                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
               if optflags[g_m]==1:
                 ENDIF()
 
@@ -1401,10 +1407,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               if not first in k:   
                 code('')
                 k = k + [first]
-
+                if optflags[g_m]==1:
+                  IF('optflags & 1<<'+str(optidxs[g_m]))
                 code('nblocks = (set_to_size_'+str(mapnames2[first])+'-1)/nthread+1;')
                 code('apply_tmp_incs<<<nblocks,nthread>>>(tmp_incs'+str(g_m)+'_d, <ARG>.data_d, rev_map_'+str(mapnames2[first])+'->reversed_map_d, rev_map_'+str(mapnames2[first])+'->row_start_idx_d, <ARG>.dim, set_to_size_'+str(mapnames2[first])+');')
-                
+                if optflags[g_m]==1:
+                  ENDIF()
                 # FOR('n','0','set_to_size_'+str(mapnames2[first]))
                 # FOR('i','0','rev_map_'+str(mapnames2[first])+'->row_start_idx[n+1] - rev_map_'+str(mapnames2[first])+'->row_start_idx[n]')
                 # FOR('d','0','arg'+str(first)+'.dim')

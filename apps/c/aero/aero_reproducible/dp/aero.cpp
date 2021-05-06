@@ -301,10 +301,10 @@ int main(int argc, char **argv) {
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
 
-  int MPI_size;
-  MPI_Comm_size(MPI_COMM_WORLD, &MPI_size);
-  char file_dump_name[30];
-  sprintf(file_dump_name, "repr_comp_p_phim_np%d.h5", MPI_size);
-  op_fetch_data_hdf5_file(p_phim, file_dump_name);
+  // int MPI_size;
+  // MPI_Comm_size(MPI_COMM_WORLD, &MPI_size);
+  // char file_dump_name[30];
+  // sprintf(file_dump_name, "repr_comp_p_phim_np%d.h5", MPI_size);
+  // op_fetch_data_hdf5_file(p_phim, file_dump_name);
   op_exit();
 }
