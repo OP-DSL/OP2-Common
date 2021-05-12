@@ -37,129 +37,6 @@ static void create_nonexec_ex_export_list(op_set set, int *temp_list,
                      ranks_size, comm_size, my_rank);
 }
 
-halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, int my_rank){
-  if (compare_sets(h_list1->set, h_list2->set) != 1) {
-    printf("ERROR: Invalid set merge");
-    return NULL;
-  }
-  // printf("VALID set merge\n");
-
-  int* h1_ranks = (int *)xmalloc(comm_size * sizeof(int));
-  int* h2_ranks = (int *)xmalloc(comm_size * sizeof(int));
-
-  int* h1_sizes = (int *)xmalloc(comm_size * sizeof(int));
-  int* h2_sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  int* h1_disps = (int *)xmalloc(comm_size * sizeof(int));
-  int* h2_disps = (int *)xmalloc(comm_size * sizeof(int));
-
-  for(int i = 0; i < comm_size; i ++){
-    h1_ranks[i] = -1;
-    h2_ranks[i] = -1;
-    h1_sizes[i] = -1;
-    h2_sizes[i] = -1;
-    h1_disps[i] = -1;
-    h2_disps[i] = -1;
-  }
-
-  for(int i = 0; i < h_list1->ranks_size; i++){
-    h1_ranks[h_list1->ranks[i]] = 1;
-    h1_sizes[h_list1->ranks[i]] = h_list1->sizes[i];
-    h1_disps[h_list1->ranks[i]] = h_list1->disps[i];
-  }
-
-  for(int i = 0; i < h_list2->ranks_size; i++){
-    h2_ranks[h_list2->ranks[i]] = 1;
-    h2_sizes[h_list2->ranks[i]] = h_list2->sizes[i];
-    h2_disps[h_list2->ranks[i]] = h_list2->disps[i];
-  }
-
-  //count cumulative size
-  int merged_size = 0;
-  for(int i = 0; i < comm_size; i++){
-    if(h1_ranks[i] > 0){
-      merged_size++;
-    }
-    else if(h2_ranks[i] > 0){
-      merged_size++;
-    }
-  }
-
-  // if(merged_size == 0){
-  //   printf("EMPTY merged_size=%d %d %d\n", merged_size, h_list1->ranks_size, h_list2->ranks_size);
-  // }
-
-  int *ranks = (int *)xmalloc(comm_size * sizeof(int));
-  int *disps = (int *)xmalloc(comm_size * sizeof(int));
-  int *sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  int index = 0;
-  int total_size = 0;
-  for(int i = 0; i < comm_size; i++){
-    int rank = -1;
-    int size = 0;
-    if(h1_ranks[i] > 0){
-      rank = i;
-      size += h1_sizes[i];
-      total_size += h1_sizes[i];
-    }
-    if(h2_ranks[i] > 0){
-      rank = i;
-      size += h2_sizes[i];
-      total_size += h2_sizes[i];
-    }
-
-    if(rank >= 0){
-      ranks[index] = rank;
-      sizes[index] = size;
-      index++;
-    }
-  }
-
-  disps[0] = 0;
-  for (int i = 0; i < comm_size; i++) {
-    if (i > 0)
-      disps[i] = disps[i - 1] + sizes[i - 1];
-  }
-
-  int* list = (int *)xmalloc(total_size * sizeof(int));
-
-  int disp = 0;
-  int start = 0;
-  index = 0;
-
-  for(int i = 0; i < comm_size; i++){
-    int rank = -1;
-    int size = 0;
-    start = disp;
-    if(h1_ranks[i] > 0){
-      for(int j = 0; j < h1_sizes[i]; j++){
-        list[disp++] = h_list1->list[h1_disps[i] + j];
-      }
-    }
-    if(h2_ranks[i] > 0){
-      for(int j = 0; j < h2_sizes[i]; j++){
-        list[disp++] = h_list2->list[h2_disps[i] + j];
-      }
-    }
-
-    if((disp - 1) > 0)
-      quickSort(list, start, (disp - 1) < 0 ? 0 : (disp - 1));
-  }
-
-  halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
-
-  h_list->set = h_list1->set;
-  h_list->size = total_size;
-  h_list->ranks = ranks;
-  h_list->ranks_size = merged_size;
-  h_list->disps = disps;
-  h_list->sizes = sizes;
-  h_list->list = list;
-
-  return h_list;
-}
-
 void step5_1(int **part_range, int my_rank, int comm_size){
 
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -232,7 +109,8 @@ void step7_1(int **part_range, int my_rank, int comm_size){
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    halo_list exec_set_list = OP_import_nonexec_list[set->index];
+    halo_list exec_set_list = OP_import_exec_list[set->index];
+    halo_list nonexec_set_list = OP_import_nonexec_list[set->index];
 
     // create a temporaty scratch space to hold nonexec export list for this set
     s_i = 0;
@@ -266,15 +144,26 @@ void step7_1(int **part_range, int my_rank, int comm_size){
             if (part != my_rank) {
               int found = -1;
               // check in exec list
-              int rank = binary_search(exec_set_list->ranks, part, 0,
+              int rank1 = binary_search(exec_set_list->ranks, part, 0,
                                        exec_set_list->ranks_size - 1);
+              
+              int rank2 = binary_search(nonexec_set_list->ranks, part, 0,
+                                       nonexec_set_list->ranks_size - 1);
 
-              if (rank >= 0) {
+              if (rank1 >= 0) {
                 found = binary_search(exec_set_list->list, local_index,
-                                      exec_set_list->disps[rank],
-                                      exec_set_list->disps[rank] +
-                                          exec_set_list->sizes[rank] - 1);
+                                      exec_set_list->disps[rank1],
+                                      exec_set_list->disps[rank1] +
+                                          exec_set_list->sizes[rank1] - 1);
               }
+
+              if (rank2 >= 0 && found < 0) {
+                found = binary_search(nonexec_set_list->list, local_index,
+                                      nonexec_set_list->disps[rank2],
+                                      nonexec_set_list->disps[rank2] +
+                                          nonexec_set_list->sizes[rank2] - 1);
+              }
+
 
               if (found < 0) {
                 // not in this partition and not found in
@@ -295,17 +184,6 @@ void step7_1(int **part_range, int my_rank, int comm_size){
     op_free(set_list); // free temp list
     OP_import_nonexec_ex_list[set->index] = h_list;
   }
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    halo_list h_list = OP_import_nonexec_list[set->index];
-    halo_list h_list_ex = OP_import_nonexec_ex_list[set->index];
-    halo_list h_list_merged = merge_halo_lists(h_list, h_list_ex, comm_size, my_rank);
-    OP_import_nonexec_merged_list[set->index] = h_list_merged;
-    OP_import_nonexec_list[set->index] = h_list_merged;  //suneth
-  }
-
 }
 
 void step7_2(int **part_range, int my_rank, int comm_size){
@@ -359,24 +237,14 @@ void step7_2(int **part_range, int my_rank, int comm_size){
     
     OP_export_nonexec_ex_list[set->index] = h_list;
   }
-
-   for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    halo_list h_list = OP_export_nonexec_list[set->index];
-    halo_list h_list_ex = OP_export_nonexec_ex_list[set->index];
-    halo_list h_list_merged = merge_halo_lists(h_list, h_list_ex, comm_size, my_rank);
-    OP_export_nonexec_merged_list[set->index] = h_list_merged;
-    OP_export_nonexec_list[set->index] = h_list_merged;  //suneth
-  }
 }
 
 void step7_3(int **part_range, int my_rank, int comm_size){
     for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    halo_list i_list = OP_import_nonexec_list[set->index];
-    halo_list e_list = OP_export_nonexec_list[set->index];
+    halo_list i_list = OP_import_nonexec_ex_list[set->index];
+    halo_list e_list = OP_export_nonexec_ex_list[set->index];
 
     // for each data array
     op_dat_entry *item;
@@ -410,12 +278,13 @@ void step7_3(int **part_range, int my_rank, int comm_size){
         // prepare space for the incomming nonexec-data - realloc each
         // data array in each mpi process
         halo_list exec_i_list = OP_import_exec_list[set->index];
+        halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
         dat->data = (char *)xrealloc(
             dat->data,
-            (set->size + exec_i_list->size + i_list->size) * dat->size);
+            (set->size + exec_i_list->size + nonexec_i_list->size + i_list->size) * dat->size);
 
-        int init = (set->size + exec_i_list->size) * dat->size;
+        int init = (set->size + exec_i_list->size + nonexec_i_list->size) * dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
                    dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
@@ -445,6 +314,7 @@ void step8_1(int **part_range, int my_rank, int comm_size){
 
         halo_list exec_set_list = OP_import_exec_list[set->index];
         halo_list nonexec_set_list = OP_import_nonexec_list[set->index];
+        halo_list nonexec_ex_set_list = OP_import_nonexec_ex_list[set->index];
 
         halo_list exec_map_list = OP_import_exec_list[map->from->index];
         halo_list nonexec_map_list = OP_import_nonexec_list[map->from->index];
@@ -471,6 +341,9 @@ void step8_1(int **part_range, int my_rank, int comm_size){
               int rank2 = binary_search(nonexec_set_list->ranks, part, 0,
                                         nonexec_set_list->ranks_size - 1);
 
+              int rank3 = binary_search(nonexec_ex_set_list->ranks, part, 0,
+                                        nonexec_ex_set_list->ranks_size - 1);
+
               if (rank1 >= 0) {
                 found = binary_search(exec_set_list->list, local_index,
                                       exec_set_list->disps[rank1],
@@ -490,6 +363,17 @@ void step8_1(int **part_range, int my_rank, int comm_size){
                 if (found >= 0) {
                   OP_map_list[map->index]->map[e * map->dim + j] =
                       found + set->size + exec_set_list->size;
+                }
+              }
+
+              if (rank3 >= 0 && found < 0) {
+                found = binary_search(nonexec_ex_set_list->list, local_index,
+                                      nonexec_ex_set_list->disps[rank3],
+                                      nonexec_ex_set_list->disps[rank3] +
+                                          nonexec_ex_set_list->sizes[rank3] - 1);
+                if (found >= 0) {
+                  OP_map_list[map->index]->map[e * map->dim + j] =
+                      found + set->size + exec_set_list->size + nonexec_set_list->size;
                 }
               }
 
@@ -565,6 +449,7 @@ void op_halo_create_slope() {
   
   /*-STEP 7 - Exchange non-execute set elements/data using the import/export
    * lists--*/
+  step7(part_range, my_rank, comm_size);
   step7_1(part_range, my_rank, comm_size);
   step7_2(part_range, my_rank, comm_size);
   step7_3(part_range, my_rank, comm_size);
