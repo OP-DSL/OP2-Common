@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mpi.h>
 
 // global constants
 
@@ -126,8 +127,8 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc, argv, 2);
-  op_enable_reproducibility();
+  op_init_soa(argc, argv, 2,1);
+  op_enable_reproducibility("repr_temp_array");
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
@@ -220,6 +221,7 @@ int main(int argc, char **argv) {
   // main time-marching loop
 
   niter = 1000;
+  niter = 100;
 
   for (int iter = 1; iter <= niter; iter++) {
 
@@ -278,7 +280,8 @@ int main(int argc, char **argv) {
 
     rms = sqrt(rms / (double)g_ncell);
 
-    if (iter % 100 == 0)
+  //  if (iter % 100 == 0)
+    if (iter % 10 == 0)
       op_printf(" %d  %3.15E \n", iter, rms);
 
     if (iter % 1000 == 0 &&
@@ -298,19 +301,13 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
 
-
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
- // op_fetch_data_hdf5_file(p_q, "repr_comp_p_q.h5");       //naming for automatic test
-
-  // printf("Root process = %d\n",op_is_root());
-
-  // output the result dat array to files
-  // op_dump_to_hdf5("new_grid_out.h5"); //writes data as it is held on each
-  // process (under MPI)
-
-  // compress using
-  // ~/hdf5/bin/h5repack -f GZIP=9 new_grid.h5 new_grid_pack.h5
+  int MPI_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &MPI_size);
+  char file_dump_name[30];
+  sprintf(file_dump_name, "repr_comp_p_q_np%d.h5", MPI_size);
+  op_fetch_data_hdf5_file(p_q, file_dump_name);       //naming for automatic test
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
