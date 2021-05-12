@@ -301,7 +301,7 @@ int get_core_size(op_set set, std::map<op_set, int>* to_set_to_core_max){
   it = to_set_to_core_max->find(set);
 
   if(it != to_set_to_core_max->end()){
-    return ((it->second - set->core_size +  1) > 0) ? it->second + 1 : set->core_size;
+    return it->second + 1;
   }
   else{
     return set->core_size;
