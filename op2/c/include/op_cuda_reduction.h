@@ -277,4 +277,28 @@ __global__ void apply_tmp_incs(
 }
 
 
+template <class T>
+__global__ void apply_tmp_incs_soa(
+        const T *__restrict tmp_incs_d, 
+        char *__restrict arg_data_d, 
+        const int *__restrict reversed_map_d, 
+        const int *__restrict row_start_idx_d, 
+        const int arg_dim, 
+        const int map_dim, 
+        const int set_to_size,
+        const int set_from_size) {
+  int n = threadIdx.x + blockIdx.x * blockDim.x;
+  if (n<set_to_size){
+    for ( int i=row_start_idx_d[n]; i<row_start_idx_d[n+1]; i++ ){
+      for ( int d=0; d<arg_dim; d++ ){
+        ((T*)arg_data_d)[n+d*set_to_size] += 
+          //tmp_incs_d[reversed_map_d[row_start_idx_d[n]+i] * arg_dim + d];
+          tmp_incs_d[d*map_dim*set_from_size + reversed_map_d[i]%map_dim*set_from_size + reversed_map_d[i]/map_dim]; 
+      }
+    }
+  }
+  return;
+}
+
+
 #endif /* __OP_CUDA_REDUCTION_H */
