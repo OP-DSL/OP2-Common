@@ -44,11 +44,15 @@
 
 
 // headers for reproducible MPI reduce
-#ifdef HAVE_REPRO 
+#ifdef HAVE_REPRO
+#ifdef __cplusplus 
   extern "C" {
+#endif
   #include <binned.h>
   #include <binnedMPI.h>
+#ifdef __cplusplus 
   }
+#endif
 #endif
 
 //#include <op_lib_core.h>

@@ -127,8 +127,8 @@ void op_par_loop_update(char const *, op_set,
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2,1);
-  op_enable_reproducibility("repr_temp_array");
+  op_init(argc, argv, 2);
+  op_enable_reproducibility("repr_coloring");
 
   int renumber = 0;
   for (int i = 1; i < argc; ++i)
@@ -221,7 +221,6 @@ int main(int argc, char **argv) {
   // main time-marching loop
 
   niter = 1000;
-  niter = 100;
 
   for (int iter = 1; iter <= niter; iter++) {
 
@@ -280,8 +279,7 @@ int main(int argc, char **argv) {
 
     rms = sqrt(rms / (double)g_ncell);
 
-  //  if (iter % 100 == 0)
-    if (iter % 10 == 0)
+    if (iter % 100 == 0)
       op_printf(" %d  %3.15E \n", iter, rms);
 
     if (iter % 1000 == 0 &&

@@ -167,3 +167,23 @@ int reductionSize (op_arg *args, int nargs)
   if (max_size > 64000) printf("Error, too much shared memory requested\n");
   return max_size;
 }
+
+op_reversed_map_core op_get_reversed_map(op_arg *arg) {
+  return *OP_reversed_map_list[arg->map->index];
+}
+
+void op_reproducible_sum(op_arg *arg, int setsize, double *array) {
+  if (arg->opt==0) return;
+  reprLocalSum(arg,setsize,array);
+  // combine reduction data
+  op_mpi_repr_inc_reduce_double(arg,(double*)arg->data);
+}
+
+double* op_get_reproducible_tmparray(op_arg *arg, int *from_size, int *to_size) {
+  if (arg->opt==0) {return NULL;}
+  *from_size = arg->map->from->size + arg->map->from->exec_size;
+  *to_size = arg->map->to->size + arg->map->to->exec_size + arg->map->to->nonexec_size;
+  int required_tmp_incs_size = *from_size * arg->map->dim * arg->dat->size;
+  realloc_tmp_incs(arg->dat->index, required_tmp_incs_size);
+  return (double*)op_repr_incs[arg->dat->index].tmp_incs;
+}

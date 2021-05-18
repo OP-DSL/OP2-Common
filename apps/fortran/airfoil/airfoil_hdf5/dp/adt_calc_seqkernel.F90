@@ -108,6 +108,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
 
   opSetCore => set%setPtr
 
+
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opDat1MapDim = getMapDimFromOpArg(opArg1)
   opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)

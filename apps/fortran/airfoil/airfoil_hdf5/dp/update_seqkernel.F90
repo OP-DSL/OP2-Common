@@ -21,23 +21,26 @@ SUBROUTINE op_wrap_update( &
   & opDat3Local, &
   & opDat4Local, &
   & opDat5Local, &
+  & exec_size, &
   & bottom,top)
   implicit none
+  INTEGER(kind=4) exec_size
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
   real(8) opDat3Local(4,*)
   real(8) opDat4Local(1,*)
-  real(8) opDat5Local(2)
+  real(8) opDat5Local(2,exec_size)
   INTEGER(kind=4) bottom,top,i1
 
   DO i1 = bottom, top-1, 1
 ! kernel call
+    opDat5Local(:,i1+1) = 0.0
   CALL update( &
     & opDat1Local(1,i1+1), &
     & opDat2Local(1,i1+1), &
     & opDat3Local(1,i1+1), &
     & opDat4Local(1,i1+1), &
-    & opDat5Local(1) &
+    & opDat5Local(1,i1+1) &
     & )
   END DO
 END SUBROUTINE
@@ -98,8 +101,10 @@ SUBROUTINE update_host( userSubroutine, set, &
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)
+  call prepareScratch(opArgArray, numberOfOpDats, n_upper)
 
   opSetCore => set%setPtr
+
 
   opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
   opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
@@ -109,7 +114,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   CALL c_f_pointer(opArg2%data,opDat2Local,(/opDat2Cardinality/))
   CALL c_f_pointer(opArg3%data,opDat3Local,(/opDat3Cardinality/))
   CALL c_f_pointer(opArg4%data,opDat4Local,(/opDat4Cardinality/))
-  CALL c_f_pointer(opArg5%data,opDat5Local, (/opArg5%dim/))
+  CALL c_f_pointer(opArgArray(5)%data_d,opDat5Local, (/opArg5%dim*n_upper/))
 
 
   CALL op_wrap_update( &
@@ -118,6 +123,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opDat3Local, &
   & opDat4Local, &
   & opDat5Local, &
+  & n_upper, &
   & 0, opSetCore%core_size)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_update( &
@@ -126,6 +132,7 @@ SUBROUTINE update_host( userSubroutine, set, &
   & opDat3Local, &
   & opDat4Local, &
   & opDat5Local, &
+  & n_upper, &
   & opSetCore%core_size, n_upper)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
@@ -134,8 +141,7 @@ SUBROUTINE update_host( userSubroutine, set, &
 
   CALL op_mpi_set_dirtybit(numberOfOpDats,opArgArray)
 
-  CALL op_mpi_reduce_double(opArg5,opArg5%data)
-
+  call op_reproducible_sum(opArg5, opSetCore%size, opDat5Local)
   call op_timers_core(endTime)
 
   dataTransfer = 0.0

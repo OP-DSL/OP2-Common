@@ -3944,7 +3944,7 @@ void create_neighbour_list(int map_id, int *& neighbors_start_idxs, int *&neighb
   op_exchange_halo(&connections_glbl_dat_arg, 1);
   op_wait_all(&connections_glbl_dat_arg);
 
-  std::vector<std::map<int,int>> neighbors_sets(set_from_size + 1);
+  std::vector<std::map<int,int> > neighbors_sets(set_from_size + 1);
   neighbors_start_idxs = (int *)op_realloc(neighbors_start_idxs,(set_from_size + 1) * sizeof(int));
   neighbors_start_idxs[0] = 0;
 
@@ -4251,6 +4251,9 @@ void coloring_within_process(){
 
 
 extern int **OP_map_ptr_list;
+#ifdef __cplusplus
+extern "C"
+#endif
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
                       op_set prime_set, int *prime_map, double *coords) {
   op_dat_entry *item;
