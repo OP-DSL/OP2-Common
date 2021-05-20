@@ -149,7 +149,7 @@ def get_stride_string(g_m,maps,mapnames,name,repr_temp_inc=0):
     return '(gridDim%x*blockDim%x)'
   else:
     if repr_temp_inc:
-      return 'opMap_'+str(mapnames[g_m])+'_stride_temp_inc_OP2CONSTANT'
+      return 'opMap_'+str(mapnames[g_m])+'_'+name+'_stride_temp_inc_OP2CONSTANT'
     else:
       idx = mapnames.index(mapnames[g_m])
       return 'opDat'+str(idx)+'_'+name+'_stride_OP2CONSTANT'

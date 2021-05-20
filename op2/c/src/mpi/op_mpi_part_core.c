@@ -4073,44 +4073,44 @@ void coloring_within_process(){
     
     while (global_done < op_world_size )
     {
-              if (!local_done){
-                                    for (int i=0; i<original_map->from->size; i++){
-                                            if (repr_colors[i]==-1){
-                                              int my_hash=hash(OP_set_global_ids_list[original_map->from->index]->global_ids[i],iteration);
-                                              bool is_min=1;
-                                              bool is_max=1;
-                                                                for (int j=neighbors_start_idxs[i]; j<neighbors_start_idxs[i+1]; j++){
-                                                                      if (neighbors_local[j]>=0){
-                                                                        if (repr_colors[neighbors_local[j]]==-1 || repr_colors[neighbors_local[j]]>=low_col ){
-                                                                          int neigh_hash=hash(neighbors[j],iteration);
-                                                                          if (neigh_hash<=my_hash) {
-                                                                            is_min=0;
-                                                                          } else if (neigh_hash>=my_hash) {
-                                                                            is_max=0;
-                                                                          }
-                                                                        }
-                                                                      } else {
-                                                                              if (ghost_cols[-neighbors_local[j]] == -1 ){
-                                                                                int neigh_hash=hash(neighbors[j],iteration);
-                                                                                      if (neigh_hash<=my_hash) {
-                                                                                        is_min=0;
-                                                                                      } else if (neigh_hash>=my_hash) {
-                                                                                        is_max=0;
-                                                                                      }
-                                                                              }
-                                                                      }
-                                                                }     
-
-                                                                if (is_min) {
-                                                                  repr_colors[i]=low_col;
-                                                                  non_colored_elements--;           
-                                                                } else if (is_max) {
-                                                                  repr_colors[i]=high_col;
-                                                                  non_colored_elements--;               
-                                                                }
-                                            }       
-                                }
+      if (!local_done){
+        for (int i=0; i<original_map->from->size; i++){
+          if (repr_colors[i]==-1){
+            int my_hash=hash(OP_set_global_ids_list[original_map->from->index]->global_ids[i],iteration);
+            bool is_min=1;
+            bool is_max=1;
+            for (int j=neighbors_start_idxs[i]; j<neighbors_start_idxs[i+1]; j++){
+              if (neighbors_local[j]>=0){
+                if (repr_colors[neighbors_local[j]]==-1 || repr_colors[neighbors_local[j]]>=low_col ){
+                  int neigh_hash=hash(neighbors[j],iteration);
+                  if (neigh_hash<=my_hash) {
+                    is_min=0;
+                  } else if (neigh_hash>=my_hash) {
+                    is_max=0;
                   }
+                }
+              } else {
+                if (ghost_cols[-neighbors_local[j]] == -1 ){
+                  int neigh_hash=hash(neighbors[j],iteration);
+                  if (neigh_hash<=my_hash) {
+                    is_min=0;
+                  } else if (neigh_hash>=my_hash) {
+                    is_max=0;
+                  }
+                }
+              }
+            }     
+
+            if (is_min) {
+              repr_colors[i]=low_col;
+              non_colored_elements--;           
+            } else if (is_max) {
+              repr_colors[i]=high_col;
+              non_colored_elements--;               
+            }
+          }       
+        }
+      }
         
       if (non_colored_elements==0) local_done = 1;
       
