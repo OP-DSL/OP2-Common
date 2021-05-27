@@ -125,6 +125,20 @@ module OP2_Fortran_RT_Support
 
   end type op_plan
 
+  type, BIND(C) :: op_reversed_map_core
+    integer(kind=c_int) :: index
+    type(c_ptr) :: reversed_map 
+    type(c_ptr) :: row_start_idx
+    integer(kind=c_int) :: number_of_colors
+    type(c_ptr) :: reversed_map_d
+    type(c_ptr) :: row_start_idx_d
+    type(c_ptr) :: reproducible_coloring
+    type(c_ptr) :: color_based_exec_row_starts
+    type(c_ptr) :: color_based_exec_row_starts_d
+    type(c_ptr) :: color_based_exec
+    type(c_ptr) :: color_based_exec_d
+    type(c_ptr) :: from_elements_sorted_by_global_id 
+  end type op_reversed_map_core
 
   interface
 
@@ -250,6 +264,26 @@ module OP2_Fortran_RT_Support
       type(c_ptr), value, intent(in) :: ptr
 
     end subroutine
+
+    subroutine op_reproducible_sum_c(arg, set_size, array) BIND(C,name='op_reproducible_sum')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: set_size
+      type(op_arg) :: arg
+      type(c_ptr), value, intent(in) :: array
+
+    end subroutine
+
+    type(c_ptr) function op_get_reproducible_tmparray_c(arg, from_size, to_size) BIND(C,name='op_get_reproducible_tmparray')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(c_ptr) :: from_size, to_size
+      type(op_arg) :: arg
+
+    end function op_get_reproducible_tmparray_c
 
     integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args) BIND(C,name='op_mpi_halo_exchanges')
 
@@ -422,6 +456,15 @@ module OP2_Fortran_RT_Support
 
     end function setKernelTime
 
+    function op_get_reversed_map( arg ) BIND(C,name='op_get_reversed_map')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      import :: op_reversed_map_core
+      type(op_arg) :: arg
+      type(op_reversed_map_core) :: op_get_reversed_map
+    end function op_get_reversed_map
+
   end interface
 
   contains
@@ -494,5 +537,27 @@ module OP2_Fortran_RT_Support
 
     call op_dat_write_index_c(set%setCPtr, c_loc(dat))
   end subroutine
+  
+  subroutine op_reproducible_sum(arg, set_size, array)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    integer(kind=c_int), value :: set_size
+    type(op_arg) :: arg
+    real(8), dimension(*), target :: array
+
+    call op_reproducible_sum_c(arg,set_size,c_loc(array(1)))
+
+  end subroutine
+
+  type(c_ptr) function op_get_reproducible_tmparray(arg, from_size, to_size) 
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), target :: from_size, to_size
+      type(op_arg) :: arg
+
+      op_get_reproducible_tmparray = op_get_reproducible_tmparray_c(arg, c_loc(from_size), c_loc(to_size))
+   end function op_get_reproducible_tmparray
 
 end module OP2_Fortran_RT_Support

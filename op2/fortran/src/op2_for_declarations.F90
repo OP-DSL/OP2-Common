@@ -152,6 +152,7 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: argtype
     integer(kind=c_int) :: sent
     integer(kind=c_int) :: opt
+    type(c_ptr)         :: local_sum
 
   end type op_arg
 
@@ -292,6 +293,14 @@ module OP2_Fortran_Declarations
       use, intrinsic :: ISO_C_BINDING
 
     end subroutine op_exit_c
+
+    subroutine op_enable_reproducibility_c ( name ) BIND(C,name='op_enable_reproducibility')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      character(kind=c_char,len=1), intent(in)  :: name(*)
+
+    end subroutine op_enable_reproducibility_c
 
     subroutine op_register_set_c (idx, set) BIND(C,name='op_register_set')
       use, intrinsic :: ISO_C_BINDING
@@ -1024,6 +1033,13 @@ contains
     op_get_set = set
   end function op_get_set
 
+  subroutine op_enable_reproducibility ( opname )
+
+    character(kind=c_char,len=*) :: opName
+
+    call op_enable_reproducibility_c ( opname//char(0) )
+
+  end subroutine op_enable_reproducibility
 
   subroutine op_decl_set ( setsize, set, opname )
 

@@ -370,12 +370,17 @@ def op2_gen_seq(master, date, consts, kernels):
 #
 # kernel call for indirect version
 #
+    trivial_is_on=0
     if ninds>0:      
       if repro_if and repr_coloring:
         code('op_mpi_wait_all(nargs, args);')
-        FOR('col','0','rev_map->number_of_colors')
-        FOR('i','rev_map->color_based_exec_row_starts[col]', 'rev_map->color_based_exec_row_starts[col + 1]')
-        code('int n = rev_map->color_based_exec[i];')
+        if trivial_is_on:
+          FOR('i','0','prime_map->from->size+prime_map->from->exec_size')
+          code('int n = rev_map->color_based_exec[i];')
+        else:
+          FOR('col','0','rev_map->number_of_colors')
+          FOR('i','rev_map->color_based_exec_row_starts[col]', 'rev_map->color_based_exec_row_starts[col + 1]')
+          code('int n = rev_map->color_based_exec[i];')
       else: 
         code('op_mpi_wait_all(nargs, args);')
         FOR('n','0','set_size')
@@ -471,7 +476,7 @@ def op2_gen_seq(master, date, consts, kernels):
         else:
            line = line +');'
       code(line)
-      if reproducible and repr_coloring and repro_if:
+      if reproducible and repr_coloring and repro_if and not trivial_is_on:
         ENDFOR()
       ENDFOR()
 

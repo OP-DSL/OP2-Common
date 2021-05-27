@@ -201,8 +201,8 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
         code('op_arg <ARG>,')
 
     if repr_omp:
-      for m in range (0,nargs):
-        if maps[m]==OP_GBL and accs[m] != OP_READ:
+      for g_m in range (0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m] != OP_READ:
           code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')

@@ -39,6 +39,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <sys/time.h>
+#include <omp.h>
 
 
 
@@ -806,14 +807,17 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   /* TODO: properly??*/
   if (data == NULL)
     arg.opt = 0;
-  if (reproducible_enabled){
+  if (reproducible_enabled && acc==OP_INC && arg.type==doublestr ){
     if (repr_red_arg_available >= repr_red_arg_count) {
-      repr_red_arg_count++;
+      repr_red_arg_count+=dim;
       repr_red_args = (double_binned**) op_realloc(repr_red_args, repr_red_arg_count * sizeof( double_binned* ) );
-      repr_red_args[repr_red_arg_count-1]=binned_dballoc(3);
+      for (int d=0; d<dim; d++){
+        repr_red_args[repr_red_arg_count-dim+d]=binned_dballoc(3);  
+      }
+      
     }
     arg.local_sum=repr_red_args[repr_red_arg_available];
-    repr_red_arg_available++;
+    repr_red_arg_available+=dim;
   }
   return arg;
 }
@@ -1364,9 +1368,34 @@ int op_get_size_local(op_set set) { return set->size; }
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
 void reprLocalSum(op_arg *arg, int set_size, double *red) {
     
+  double_binned** accum = (double_binned**)op_malloc(omp_get_max_threads()*sizeof(double_binned*));
   for (int d=0; d<arg->dim; d++){
-    binned_dbsetzero(3, arg->local_sum);
-    binnedBLAS_dbdsum(3, set_size, red+d, arg->dim, arg->local_sum);
+
+    for (int th=0; th<omp_get_max_threads(); th++ ){
+       accum[th]=binned_dballoc(3);  
+      binned_dbsetzero(3, accum[th]);
+    }
+
+   // #pragma omp parallel for
+    for (int th=0; th<omp_get_max_threads(); th++){
+      int begin=(set_size/omp_get_max_threads())*th;
+      int end=(set_size/omp_get_max_threads())*(th+1);
+
+      if (th=omp_get_max_threads()-1){
+        end=set_size;
+      }      
+     
+      binnedBLAS_dbdsum(3, end-begin, red+begin*arg->dim+d, arg->dim,  accum[th]);
+      
+
+    }
+
+
+    binned_dbsetzero(3, &arg->local_sum[d]);
+    for (int th=0; th<omp_get_max_threads(); th++){
+      // binnedBLAS_dbdsum(3, omp_get_max_threads(), accum, 1, &arg->local_sum[d]);
+      binned_dbdbadd(3,accum[th],&arg->local_sum[d]);
+    }
   }
     
 }

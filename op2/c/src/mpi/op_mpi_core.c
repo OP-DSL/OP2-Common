@@ -44,11 +44,15 @@
 
 
 // headers for reproducible MPI reduce
-#ifdef HAVE_REPRO 
+#ifdef HAVE_REPRO
+#ifdef __cplusplus 
   extern "C" {
+#endif
   #include <binned.h>
   #include <binnedMPI.h>
+#ifdef __cplusplus 
   }
+#endif
 #endif
 
 //#include <op_lib_core.h>
@@ -2386,13 +2390,14 @@ void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
       result = &result_static;
  
   //binned scattered 
-    if (arg->acc == OP_INC) // global reduction
+    if (arg->acc == OP_INC && (strcmp(arg->type, "double") == 0 || strcmp(arg->type, "r8") == 0 ||
+      strcmp(arg->type, "real*8") == 0)) // global reduction
     {
       double_binned* binned_result = (double_binned *)op_malloc(binned_dbsize(3));
       for (int i=0; i<arg->dim; i++) {
 
           binned_dbsetzero(3,binned_result);
-          MPI_Allreduce(arg->local_sum, binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
+          MPI_Allreduce(&arg->local_sum[i], binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
                     
           result[i]=binned_ddbconv(3,binned_result);   
           

@@ -60,6 +60,7 @@ import op2_gen_mpivec
 from op2_gen_mpivec import *
 
 
+import util
 #import cuda code generation function
 import op2_gen_cuda
 from op2_gen_cuda import *
@@ -1002,6 +1003,17 @@ for a in range(init_ctr,len(sys.argv)):
     fid.write(text)
     fid.close()
 
+  if util.reproducible:
+      fid = open(src_file.replace('.','_op.'), 'r')
+      text = fid.read()
+      fid.close()
+      if util.repr_temp_array:
+        text=re.sub(r'((\s*)call op_init.*)',r'\1\2call op_enable_reproducibility("repr_temp_array")',text)
+      elif util.repr_coloring:
+        text=re.sub(r'((\s*)call op_init.*)',r'\1\2call op_enable_reproducibility("repr_coloring")',text)
+      fid = open(src_file.replace('.','_op.'), 'w')
+      fid.write(text)
+      fid.close()
   f.close()
 #end of loop over input source files
 

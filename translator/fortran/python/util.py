@@ -32,6 +32,11 @@
 import sys
 import re
 import os
+
+reproducible = 1
+repr_temp_array = 0
+repr_coloring = 1
+
 def arg_parse(text,j):
 
     depth = 0

@@ -358,9 +358,6 @@ void op_theta_init(op_export_handle handle, int *sp_id, double *dtheta1,
                    double *dtheta2, double *alpha);
 
 void op_move_to_device();
-#ifdef __cplusplus
-}
-#endif
 
 /*******************************************************************************
 * External functions defined in op_mpi_(cuda)_rt_support.c
@@ -372,5 +369,8 @@ void op_wait_all(op_arg *arg);
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
 void op_wait_all_cuda(op_arg *arg);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __OP_MPI_CORE_H */

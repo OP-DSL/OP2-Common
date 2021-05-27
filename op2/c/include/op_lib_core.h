@@ -49,11 +49,15 @@
 #include <strings.h>
 #include <sys/queue.h> //contains double linked list implementation
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 #include "binned.h"
 #include "reproBLAS.h"
 #include "binnedBLAS.h"
+#ifdef __cplusplus
 }
+#endif
 
 #ifndef OP2_ALIGNMENT
 #define OP2_ALIGNMENT 64
@@ -81,7 +85,9 @@ typedef unsigned long long ull;
    4 or above   report use of old plans
    7 or above   report positive checks in op_plan_check
 */
+#ifdef __cplusplus
 extern "C" {
+#endif
 extern int OP_diags;
 extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
@@ -98,7 +104,9 @@ extern int repr_red_arg_count;
 extern int repr_red_arg_available;
 extern double_binned** repr_red_args;
 
+#ifdef __cplusplus
 }
+#endif
 
 /*
  * enum list for op_par_loop

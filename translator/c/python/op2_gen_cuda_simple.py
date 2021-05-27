@@ -173,7 +173,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     any_soa = any_soa or sum(soaflags)
     op_color2=0
 
-    
+    if (repro_if and repr_coloring and any_soa):
+      op_color2_force=1
 #
 # set logicals
 #
@@ -1106,7 +1107,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # kernel call for indirect version
 #
-    if ninds>0 and not atomics:
+    if ninds>0 and not atomics and not (repr_coloring and repro_if and any_soa):
       if inc_stage==1 and ind_inc:
         code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);')
       elif op_color2:
@@ -1432,7 +1433,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
                 if optflags[g_m]==1:
                   ENDIF()
 
-    if ninds>0 and not atomics:
+    if ninds>0 and not atomics and not (op_color2 and repr_coloring and repro_if and any_soa):
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
