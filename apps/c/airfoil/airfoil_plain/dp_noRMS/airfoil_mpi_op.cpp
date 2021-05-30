@@ -75,6 +75,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include <op_util.h>
 
 #include <op_mpi_core.h>
+#include <op_mpi_slope_core.h>
 
 #ifdef SLOPE
 #include "executor.h"
@@ -219,122 +220,7 @@ static void check_scan(int items_received, int items_expected) {
 
 #ifdef SLOPE
 
-int get_max_value(int* arr, int size){
-  int max = 0;  // assumption: max >= 0
-  for(int i = 0; i < size; i++){
-    if(max < arr[i]){
-      max = arr[i];
-    }  
-  }
-  return max;
-}
 
-void calculate_max_values(op_set* sets, int set_count, op_map* maps, int map_count,
-std::map<op_set, int>* to_set_to_core_max, std::map<op_set, int>* to_set_to_exec_max, std::map<op_set, int>* to_set_to_nonexec_max){
-
-  std::map<op_set, std::vector<int>> to_set_to_map_index;
-  std::map<op_set, std::vector<int>>::iterator it;
-  op_set to_set;
-
-  for(int i = 0; i < map_count; i ++){
-    to_set = maps[i]->to;
-    it = to_set_to_map_index.find(to_set);
-    if(it != to_set_to_map_index.end()){
-      std::vector<int>* map_ids = &it->second;
-      map_ids->push_back(i);
-    }
-    else{
-      std::vector<int> map_ids;
-      map_ids.push_back(i);
-      to_set_to_map_index.insert(std::pair<op_set, std::vector<int>>(to_set, map_ids));
-    }
-  }
-  
-  for (auto it = to_set_to_map_index.begin(); it != to_set_to_map_index.end(); ++it){
-    //get core max values
-    int core_max[it->second.size()];
-    for(int i = 0; i < it->second.size(); i++){
-      core_max[i] = get_max_value(maps[it->second.at(i)]->map, maps[it->second.at(i)]->from->core_size * maps[it->second.at(i)]->dim);
-    }
-
-    int core_max_of_max = core_max[0];
-    for(int i = 0; i < it->second.size(); i++){
-      if(core_max_of_max < core_max[i])
-        core_max_of_max = core_max[i];
-    }
-    to_set_to_core_max->insert(std::pair<op_set, int>(it->first, core_max_of_max));
-
-    //get exec max values
-    int exec_max[it->second.size()];
-    for(int i = 0; i < it->second.size(); i++){
-      exec_max[i] = get_max_value(maps[it->second.at(i)]->map, 
-      (maps[it->second.at(i)]->from->size +  OP_import_exec_list[maps[it->second.at(i)]->from->index]->size) * maps[it->second.at(i)]->dim);
-    }
-
-    int exec_max_of_max = exec_max[0];
-    for(int i = 0; i < it->second.size(); i++){
-      if(exec_max_of_max < exec_max[i])
-        exec_max_of_max = exec_max[i];
-    }
-    to_set_to_exec_max->insert(std::pair<op_set, int>(it->first, exec_max_of_max));
-
-    //get nonexec max values
-    int nonexec_max[it->second.size()];
-    for(int i = 0; i < it->second.size(); i++){
-      nonexec_max[i] = get_max_value(maps[it->second.at(i)]->map, 
-      (maps[it->second.at(i)]->from->size +  OP_import_exec_list[maps[it->second.at(i)]->from->index]->size + 
-      OP_import_nonexec_list[maps[it->second.at(i)]->from->index]->size) * maps[it->second.at(i)]->dim);
-    }
-
-    int nonexec_max_of_max = nonexec_max[0];
-    for(int i = 0; i < it->second.size(); i++){
-      if(nonexec_max_of_max < nonexec_max[i])
-        nonexec_max_of_max = nonexec_max[i];
-    }
-    to_set_to_nonexec_max->insert(std::pair<op_set, int>(it->first, nonexec_max_of_max));
-  } 
-}
-
-int get_core_size(op_set set, std::map<op_set, int>* to_set_to_core_max){
-
-  std::map<op_set, int>::iterator it;
-  it = to_set_to_core_max->find(set);
-
-  if(it != to_set_to_core_max->end()){
-    return it->second + 1;
-  }
-  else{
-    return set->core_size;
-  }
-}
-
-int get_exec_size(op_set set, std::map<op_set, int>* to_set_to_core_max, std::map<op_set, int>* to_set_to_exec_max){
-
-  std::map<op_set, int>::iterator it_core, it_exec;
-  it_core = to_set_to_core_max->find(set);
-
-  if(it_core != to_set_to_core_max->end()){
-    it_exec = to_set_to_exec_max->find(set);
-    return ((it_exec->second - it_core->second) > 0) ? (it_exec->second - it_core->second) : 0;
-  }
-  else{
-    return (set->size - set->core_size) + OP_import_exec_list[set->index]->size;
-  }
-}
-
-int get_nonexec_size(op_set set, std::map<op_set, int>* to_set_to_exec_max, std::map<op_set, int>* to_set_to_nonexec_max){
-
-  std::map<op_set, int>::iterator it_exec, it_nonexec;
-  it_exec = to_set_to_exec_max->find(set);
-
-  if(it_exec != to_set_to_exec_max->end()){
-    it_nonexec = to_set_to_nonexec_max->find(set);
-    return ((it_nonexec->second - it_exec->second) > 0) ? (it_nonexec->second - it_exec->second) : 0;
-  }
-  else{
-    return OP_import_nonexec_list[set->index]->size;
-  }
-}
 #endif
 
 //
@@ -604,21 +490,23 @@ int main(int argc, char **argv) {
   maps[3] = pbecell;
   maps[4] = pcell;
 
-  std::map<op_set, int> to_set_to_core_max;
-  std::map<op_set, int> to_set_to_exec_max;
-  std::map<op_set, int> to_set_to_nonexec_max;
+  int set_count = 4;
+  int to_sets[set_count + 1]; // + 1 to store the element count of the array in the 0th location
+  int to_set_to_core_max[set_count + 1];
+  int to_set_to_exec_max[set_count + 1];
+  int to_set_to_nonexec_max[set_count + 1];
 
-  calculate_max_values(sets, 4, maps, 5, &to_set_to_core_max, &to_set_to_exec_max, &to_set_to_nonexec_max);
+  calculate_max_values(sets, set_count, maps, 5, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
 
   //sets
-  set_t* sl_nodes = set("nodes", get_core_size(nodes, &to_set_to_core_max) , get_exec_size(nodes, &to_set_to_core_max, &to_set_to_exec_max), 
-    get_nonexec_size(nodes, &to_set_to_exec_max, &to_set_to_nonexec_max));
-  set_t* sl_edges = set("edges", get_core_size(edges, &to_set_to_core_max) , get_exec_size(edges, &to_set_to_core_max, &to_set_to_exec_max), 
-    get_nonexec_size(edges, &to_set_to_exec_max, &to_set_to_nonexec_max));
-  set_t* sl_bedges = set("bedges", get_core_size(bedges, &to_set_to_core_max) , get_exec_size(bedges, &to_set_to_core_max, &to_set_to_exec_max), 
-    get_nonexec_size(bedges, &to_set_to_exec_max, &to_set_to_nonexec_max));
-  set_t* sl_cells = set("cells", get_core_size(cells, &to_set_to_core_max), get_exec_size(cells, &to_set_to_core_max, &to_set_to_exec_max), 
-    get_nonexec_size(cells, &to_set_to_exec_max, &to_set_to_nonexec_max));
+  set_t* sl_nodes = set("nodes", get_core_size(nodes, to_sets, to_set_to_core_max) , get_exec_size(nodes, to_sets, to_set_to_core_max, to_set_to_exec_max), 
+    get_nonexec_size(nodes, to_sets, to_set_to_exec_max, to_set_to_nonexec_max));
+  set_t* sl_edges = set("edges", get_core_size(edges, to_sets, to_set_to_core_max) , get_exec_size(edges, to_sets, to_set_to_core_max, to_set_to_exec_max), 
+    get_nonexec_size(edges, to_sets, to_set_to_exec_max, to_set_to_nonexec_max));
+  set_t* sl_bedges = set("bedges", get_core_size(bedges, to_sets, to_set_to_core_max) , get_exec_size(bedges, to_sets, to_set_to_core_max, to_set_to_exec_max), 
+    get_nonexec_size(bedges, to_sets, to_set_to_exec_max, to_set_to_nonexec_max));
+  set_t* sl_cells = set("cells", get_core_size(cells, to_sets, to_set_to_core_max), get_exec_size(cells, to_sets, to_set_to_core_max, to_set_to_exec_max), 
+    get_nonexec_size(cells, to_sets, to_set_to_exec_max, to_set_to_nonexec_max));
 
   //maps
   map_t* sl_pcell = map("c2n", sl_cells, sl_nodes, pcell->map, sl_cells->size * pcell->dim);

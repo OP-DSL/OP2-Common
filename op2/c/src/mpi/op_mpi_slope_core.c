@@ -513,3 +513,132 @@ void op_halo_destroy_slope() {
   op_single_halo_destroy(OP_import_nonexec_merged_list);
   op_single_halo_destroy(OP_export_nonexec_merged_list);
 }
+
+int get_max_value(int* arr, int from, int to){
+  int max = 0;  // assumption: max >= 0
+  for(int i = from; i < to; i++){
+    if(max < arr[i]){
+      max = arr[i];
+    }  
+  }
+  return max;
+}
+
+int find_element_in(int* arr, int element){
+  for(int i = 1; i <= arr[0]; i++){
+    if(arr[i] == element){
+      return i;
+    }
+  }
+  return -1;
+}
+
+void calculate_max_values(op_set* sets, int set_count, op_map* maps, int map_count, int* to_sets, 
+int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_nonexec_max, int my_rank){
+
+  int* to_set_to_map_index[set_count + 1];
+  to_sets[0] = 0;
+  op_set to_set;
+  
+  for(int i = 0; i < map_count; i++){
+    to_set = maps[i]->to;
+    int index = find_element_in(to_sets, to_set->index);
+    if(index != -1){
+      int* map_ids = (int*)(to_set_to_map_index[index]);
+      map_ids[0] = map_ids[0] + 1;
+      map_ids[map_ids[0]] = i;    }
+    else{
+      int* map_ids = (int *)malloc((map_count + 1)* sizeof(int)); // +1 to store the element count of the array in the 0th location
+      map_ids[0] = 0;
+      map_ids[0] = map_ids[0] + 1;
+      map_ids[map_ids[0]] = i;
+
+      to_sets[0] = to_sets[0] + 1;
+      to_sets[to_sets[0]] = to_set->index;
+      to_set_to_map_index[to_sets[0]] = (int*)map_ids;
+    }
+  }
+  
+  for(int set_index = 1; set_index <= to_sets[0]; set_index++){
+    int* map_ids = (int*)(to_set_to_map_index[set_index]);
+    int core_max[map_ids[0]];
+    for(int i = 1; i <= map_ids[0]; i++){
+      core_max[i - 1] = get_max_value(maps[map_ids[i]]->map, 0, maps[map_ids[i]]->from->core_size * maps[map_ids[i]]->dim);
+    }
+    
+    int core_max_of_max = core_max[0];
+    for(int i = 0; i < map_ids[0]; i++){
+      if(core_max_of_max < core_max[i])
+        core_max_of_max = core_max[i];
+    }
+    to_set_to_core_max[set_index] = core_max_of_max;
+
+    //get exec max values
+    int exec_max[map_ids[0]];
+    for(int i = 1; i <= map_ids[0]; i++){
+      exec_max[i - 1] = get_max_value(maps[map_ids[i]]->map, maps[map_ids[i]]->from->core_size * maps[map_ids[i]]->dim,
+      (maps[map_ids[i]]->from->size +  OP_import_exec_list[maps[map_ids[i]]->from->index]->size) * maps[map_ids[i]]->dim);
+    }
+
+    int exec_max_of_max = exec_max[0];
+    for(int i = 0; i < map_ids[0]; i++){
+      if(exec_max_of_max < exec_max[i])
+        exec_max_of_max = exec_max[i];
+    }
+    to_set_to_exec_max[set_index] = exec_max_of_max;
+
+    //get nonexec max values
+    int nonexec_max[map_ids[0]];
+    for(int i = 1; i <= map_ids[0]; i++){
+      nonexec_max[i - 1] = get_max_value(maps[map_ids[i]]->map, (maps[map_ids[i]]->from->size +  OP_import_exec_list[maps[map_ids[i]]->from->index]->size) * maps[map_ids[i]]->dim,
+      (maps[map_ids[i]]->from->size +  OP_import_exec_list[maps[map_ids[i]]->from->index]->size + 
+      OP_import_nonexec_list[maps[map_ids[i]]->from->index]->size) * maps[map_ids[i]]->dim);
+    }
+
+    int nonexec_max_of_max = nonexec_max[0];
+    for(int i = 0; i < map_ids[0]; i++){
+      if(nonexec_max_of_max < nonexec_max[i])
+        nonexec_max_of_max = nonexec_max[i];
+    }
+    to_set_to_nonexec_max[set_index] = nonexec_max_of_max;
+  }
+
+  for(int set_index = 1; set_index <= to_sets[0]; set_index++){
+    int* map_ids = (int*)(to_set_to_map_index[set_index]);
+    free(map_ids);
+  }
+}
+
+int get_core_size(op_set set, int* to_sets, int* to_set_to_core_max){
+
+  int index = find_element_in(to_sets, set->index);
+  if(index != -1){
+    return to_set_to_core_max[index] + 1;
+  }else{
+    return set->core_size;
+  }
+}
+
+int get_exec_size(op_set set, int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max){
+
+  int index = find_element_in(to_sets, set->index);
+  if(index != -1){
+    int it_core = to_set_to_core_max[index];
+    int it_exec = to_set_to_exec_max[index];
+    return ((it_exec - it_core) > 0) ? (it_exec - it_core) : 0;
+  }else{
+    return (set->size - set->core_size) + OP_import_exec_list[set->index]->size;
+  }
+}
+
+int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_set_to_nonexec_max){
+
+  int index = find_element_in(to_sets, set->index);
+  if(index != -1){
+    int it_exec = to_set_to_exec_max[index];
+    int it_nonexec = to_set_to_nonexec_max[index];
+    return ((it_nonexec - it_exec) > 0) ? (it_nonexec - it_exec) : 0;
+  }else{
+    return OP_import_nonexec_list[set->index]->size;
+  }
+}
