@@ -772,6 +772,56 @@ module OP2_Fortran_Declarations
 
     end subroutine op_theta_init_c
 
+    subroutine calculate_max_values_c ( sets, set_count, maps, map_count, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank ) BIND(C,name='calculate_max_values')
+
+      use ISO_C_BINDING
+
+      implicit none
+
+      type(c_ptr), dimension(*), intent(in) :: sets
+      integer(kind=c_int), value :: set_count
+      type(c_ptr), dimension(*), intent(in) :: maps
+      integer(kind=c_int), value :: map_count
+      type(c_ptr), value, intent(in) :: to_sets
+      type(c_ptr), value, intent(in) :: to_set_to_core_max
+      type(c_ptr), value, intent(in) :: to_set_to_exec_max
+      type(c_ptr), value, intent(in) :: to_set_to_nonexec_max
+      integer(kind=c_int), value :: my_rank
+
+    end subroutine calculate_max_values_c
+
+    INTEGER(8) function get_core_size_c( set, to_sets, to_set_to_core_max ) BIND(C,name='get_core_size')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in) :: set
+      type(c_ptr), value, intent(in) :: to_sets
+      type(c_ptr), value, intent(in) :: to_set_to_core_max
+
+    end function
+
+    INTEGER(8) function get_exec_size_c( set, to_sets, to_set_to_core_max, to_set_to_exec_max ) BIND(C,name='get_exec_size')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in) :: set
+      type(c_ptr), value, intent(in) :: to_sets
+      type(c_ptr), value, intent(in) :: to_set_to_core_max
+      type(c_ptr), value, intent(in) :: to_set_to_exec_max
+
+    end function
+
+    INTEGER(8) function get_nonexec_size_c( set, to_sets, to_set_to_exec_max, to_set_to_nonexec_max ) BIND(C,name='get_nonexec_size')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in) :: set
+      type(c_ptr), value, intent(in) :: to_sets
+      type(c_ptr), value, intent(in) :: to_set_to_exec_max
+      type(c_ptr), value, intent(in) :: to_set_to_nonexec_max
+
+    end function
+
     subroutine set_maps_base_c (base) BIND(C,name='set_maps_base')
       use ISO_C_BINDING
       integer(c_int), value :: base
@@ -2890,6 +2940,76 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     call op_theta_init_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp), c_loc(alpha) )
 
   end subroutine op_theta_init
+
+  subroutine calculate_max_values ( sets, set_count, maps, map_count, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank )
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set), dimension(:), target :: sets
+    integer(kind=c_int), value :: set_count
+    type(op_map), dimension(:), target :: maps
+    integer(kind=c_int), value :: map_count
+    integer(kind=c_int), dimension(:), target :: to_sets
+    integer(kind=c_int), dimension(:), target :: to_set_to_core_max
+    integer(kind=c_int), dimension(:), target :: to_set_to_exec_max
+    integer(kind=c_int), dimension(:), target :: to_set_to_nonexec_max
+    integer(kind=c_int), value :: my_rank
+
+    type(c_ptr), dimension(set_count), target :: sets_c
+    type(c_ptr), dimension(map_count), target :: maps_c
+    integer(kind=c_int) :: j
+
+    do j = 1, set_count                
+        sets_c(j) = sets(j)%setCptr  
+    end do
+
+    do j = 1, map_count                
+        maps_c(j) = maps(j)%mapCptr  
+    end do
+
+    call calculate_max_values_c ( sets_c, set_count, maps_c, map_count, c_loc(to_sets), c_loc(to_set_to_core_max), c_loc(to_set_to_exec_max), c_loc(to_set_to_nonexec_max), my_rank )
+
+  end subroutine calculate_max_values
+
+
+  INTEGER(8) function get_core_size ( set, to_sets, to_set_to_core_max )
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), dimension(:), target :: to_sets
+    integer(kind=c_int), dimension(:), target :: to_set_to_core_max
+
+    get_core_size = get_core_size_c ( set%setCPtr, c_loc(to_sets), c_loc(to_set_to_core_max) )
+
+  end function get_core_size
+
+  INTEGER(8) function get_exec_size ( set, to_sets, to_set_to_core_max, to_set_to_exec_max )
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), dimension(:), target :: to_sets
+    integer(kind=c_int), dimension(:), target :: to_set_to_core_max
+    integer(kind=c_int), dimension(:), target :: to_set_to_exec_max
+
+    get_exec_size = get_exec_size_c ( set%setCPtr, c_loc(to_sets), c_loc(to_set_to_core_max), c_loc(to_set_to_exec_max) )
+
+  end function get_exec_size
+
+  INTEGER(8) function get_nonexec_size ( set, to_sets, to_set_to_exec_max, to_set_to_nonexec_max )
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), dimension(:), target :: to_sets
+    integer(kind=c_int), dimension(:), target :: to_set_to_exec_max
+    integer(kind=c_int), dimension(:), target :: to_set_to_nonexec_max
+
+    get_nonexec_size = get_nonexec_size_c ( set%setCPtr, c_loc(to_sets), c_loc(to_set_to_exec_max), c_loc(to_set_to_nonexec_max) )
+
+  end function get_nonexec_size
 
   ! get the pointer of the data held in an op_dat
   INTEGER(8) function op_get_data_ptr_dat(dat)
