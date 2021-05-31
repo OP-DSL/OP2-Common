@@ -336,7 +336,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   // partition the "from" set
   for (int i = 0; i < map->from->size; i++) {
     int part, local_index;
-    int found_parts[map->dim];
+    int *found_parts = (int*)xmalloc(sizeof(int)*map->dim);
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
@@ -363,6 +363,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
     partition[i] = find_mode(found_parts, map->dim);
+    op_free(found_parts);
   }
 
   OP_part_list[map->from->index]->elem_part = partition;
