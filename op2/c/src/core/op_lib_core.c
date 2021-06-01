@@ -393,6 +393,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->buffer_d = NULL;
   dat->buffer_d_r = NULL;
   dat->dirty_hd = 0;
+  dat->dirtybit = 1;
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;
