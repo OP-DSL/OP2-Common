@@ -8,6 +8,7 @@ __device__ void updateUR_gpu( double *u, double *r, const double *p, double *v,
   *u += (*alpha) * (*p);
   *r -= (*alpha) * (*v);
   *v = 0.0f;
+
 }
 
 // CUDA kernel function
@@ -84,7 +85,6 @@ void op_par_loop_updateUR(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_5;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;

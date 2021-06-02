@@ -39,6 +39,7 @@ __device__ void spMV_gpu( double **v, const double *K, const double **p) {
   v[2][0] += K[8 + 3] * p[3][0];
   v[3][0] += K[8 + 3] * p[2][0];
   v[3][0] += K[15] * p[3][0];
+
 }
 
 // CUDA kernel function
@@ -52,32 +53,33 @@ __global__ void op_cuda_spMV(
   int *col_reord,
   int   set_size) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if(tid + start >= end) return;
-  int n = col_reord[tid + start];
-  //initialise local variables
-  int map0idx;
-  int map1idx;
-  int map2idx;
-  int map3idx;
-  map0idx = opDat0Map[n + set_size * 0];
-  map1idx = opDat0Map[n + set_size * 1];
-  map2idx = opDat0Map[n + set_size * 2];
-  map3idx = opDat0Map[n + set_size * 3];
-  double* arg0_vec[] = {
-     &ind_arg0[1 * map0idx],
-     &ind_arg0[1 * map1idx],
-     &ind_arg0[1 * map2idx],
-     &ind_arg0[1 * map3idx]};
-  const double* arg5_vec[] = {
-     &ind_arg1[1 * map0idx],
-     &ind_arg1[1 * map1idx],
-     &ind_arg1[1 * map2idx],
-     &ind_arg1[1 * map3idx]};
+  if (tid + start < end) {
+    int n = col_reord[tid + start];
+    //initialise local variables
+    int map0idx;
+    int map1idx;
+    int map2idx;
+    int map3idx;
+    map0idx = opDat0Map[n + set_size * 0];
+    map1idx = opDat0Map[n + set_size * 1];
+    map2idx = opDat0Map[n + set_size * 2];
+    map3idx = opDat0Map[n + set_size * 3];
+    double* arg0_vec[] = {
+       &ind_arg0[1 * map0idx],
+       &ind_arg0[1 * map1idx],
+       &ind_arg0[1 * map2idx],
+       &ind_arg0[1 * map3idx]};
+    const double* arg5_vec[] = {
+       &ind_arg1[1 * map0idx],
+       &ind_arg1[1 * map1idx],
+       &ind_arg1[1 * map2idx],
+       &ind_arg1[1 * map3idx]};
 
-  //user-supplied kernel call
-  spMV_gpu(arg0_vec,
+    //user-supplied kernel call
+    spMV_gpu(arg0_vec,
          arg4+n*16,
          arg5_vec);
+  }
 }
 
 
@@ -132,14 +134,14 @@ void op_par_loop_spMV(char const *name, op_set set,
 
   if (set->size > 0 && rev_map != NULL ) {
 
-    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     op_mpi_wait_all_cuda(nargs, args);
     //execute plan
+
+    int block_offset = 0;
+    op_mpi_wait_all_cuda(nargs, args);
     for ( int col=0; col<rev_map->number_of_colors; col++ ){
-      if (col==Plan->ncolors_core) {
-        op_mpi_wait_all_cuda(nargs, args);
-      }
       #ifdef OP_BLOCK_SIZE_3
       int nthread = OP_BLOCK_SIZE_3;
       #else

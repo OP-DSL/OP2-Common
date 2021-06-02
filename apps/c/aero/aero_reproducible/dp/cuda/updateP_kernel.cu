@@ -5,6 +5,7 @@
 //user function
 __device__ void updateP_gpu( const double *r, double *p, const double *beta) {
   *p = (*beta) * (*p) + (*r);
+
 }
 
 // CUDA kernel function
@@ -73,7 +74,6 @@ void op_par_loop_updateP(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_7;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;

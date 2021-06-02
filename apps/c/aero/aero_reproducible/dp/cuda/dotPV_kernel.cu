@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void dotPV_gpu( const double *p, const double *v, double *c) { *c += (*p) * (*v); }
+__device__ void dotPV_gpu( const double *p, const double *v, double *c) { *c += (*p) * (*v); 
+}
 
 // CUDA kernel function
 __global__ void op_cuda_dotPV(
@@ -24,6 +25,9 @@ __global__ void op_cuda_dotPV(
           arg1+n*1,
           arg2+n*1);
   }
+
+  //global reductions
+
 }
 
 
@@ -42,7 +46,7 @@ void op_par_loop_dotPV(char const *name, op_set set,
   args[2] = arg2;
 
   // initialise timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double cpu_t1, cpu_t2, wall_t1, wall_t2,t1,t2,move,comp,reduce;
   op_timing_realloc(4);
   op_timers_core(&cpu_t1, &wall_t1);
   OP_kernels[4].name      = name;
@@ -61,11 +65,10 @@ void op_par_loop_dotPV(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_4;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
-
+op_timers_core(&cpu_t1, &t1);
     //transfer global reduction data to GPU
     int reduct_bytes = 0;
     int reduct_size  = 0;
@@ -76,6 +79,10 @@ void op_par_loop_dotPV(char const *name, op_set set,
     arg2.data   = OP_reduct_h + reduct_bytes;
     arg2.data_d = OP_reduct_d + reduct_bytes;
     reduct_bytes += ROUND_UP(set_size*arg2.size);
+    //mvReductArraysToDevice(reduct_bytes);
+cudaDeviceSynchronize();
+op_timers_core(&cpu_t1, &t2);
+move = t2-t1;
 
     int nshared = reduct_size*nthread;
     op_cuda_dotPV<<<nblocks,nthread,nshared>>>(
@@ -83,12 +90,21 @@ void op_par_loop_dotPV(char const *name, op_set set,
       (double *) arg1.data_d,
       (double *) arg2.data_d,
       set->size );
+cudaDeviceSynchronize();
+op_timers_core(&cpu_t1, &t1);
+comp = t1-t2;
     //transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
+cudaDeviceSynchronize();
+op_timers_core(&cpu_t1, &t2);
+move += (t2-t1);
     reprLocalSum(&arg2,set_size,(double*)arg2.data);
     arg2.data = (char *)arg2h;
     op_mpi_repr_inc_reduce_double(&arg2,(double*)arg2.data);
+op_timers_core(&cpu_t1, &t1);
+reduce = t1-t2;
   }
+//printf("%g %g %g\n", comp,move,reduce);
   op_mpi_set_dirtybit_cuda(nargs, args);
   cutilSafeCall(cudaDeviceSynchronize());
   //update kernel record

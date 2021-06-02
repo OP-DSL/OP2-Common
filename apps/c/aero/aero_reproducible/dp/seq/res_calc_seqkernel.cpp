@@ -53,7 +53,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     op_map prime_map = arg9.map;
     op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
@@ -63,10 +63,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
       for ( int col=0; col<rev_map->number_of_colors; col++ ){
         for ( int i=rev_map->color_based_exec_row_starts[col]; i<rev_map->color_based_exec_row_starts[col + 1]; i++ ){
           int n = rev_map->color_based_exec[i];
-          int map0idx = arg0.map_data[n * arg0.map->dim + 0];
-          int map1idx = arg0.map_data[n * arg0.map->dim + 1];
-          int map2idx = arg0.map_data[n * arg0.map->dim + 2];
-          int map3idx = arg0.map_data[n * arg0.map->dim + 3];
+          int map0idx;
+          int map1idx;
+          int map2idx;
+          int map3idx;
+          map0idx = arg0.map_data[n * arg0.map->dim + 0];
+          map1idx = arg0.map_data[n * arg0.map->dim + 1];
+          map2idx = arg0.map_data[n * arg0.map->dim + 2];
+          map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
           const double* arg0_vec[] = {
              &((double*)arg0.data)[2 * map0idx],

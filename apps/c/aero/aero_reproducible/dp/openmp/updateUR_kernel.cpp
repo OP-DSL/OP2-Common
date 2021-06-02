@@ -32,7 +32,7 @@ void op_par_loop_updateUR(char const *name, op_set set,
     printf(" kernel routine w/o indirection:  updateUR");
   }
 
-  op_mpi_halo_exchanges(set, nargs, args);
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
   // set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
@@ -40,22 +40,18 @@ void op_par_loop_updateUR(char const *name, op_set set,
     int nthreads = 1;
   #endif
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
-    // execute plan
     #pragma omp parallel for
-    for ( int thr=0; thr<nthreads; thr++ ){
-      int start  = (set->size* thr)/nthreads;
-      int finish = (set->size*(thr+1))/nthreads;
-      for ( int n=start; n<finish; n++ ){
-        updateUR(
-          &((double*)arg0.data)[1*n],
-          &((double*)arg1.data)[1*n],
-          &((double*)arg2.data)[1*n],
-          &((double*)arg3.data)[1*n],
-          (double*)arg4.data);
-      }
+    for ( int n=0; n<set_size; n++ ){
+      updateUR(
+        &((double*)arg0.data)[1*n],
+        &((double*)arg1.data)[1*n],
+        &((double*)arg2.data)[1*n],
+        &((double*)arg3.data)[1*n],
+        (double*)arg4.data);
     }
+    // combine reduction data
   }
 
   // combine reduction data

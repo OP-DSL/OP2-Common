@@ -3,7 +3,8 @@
 //
 
 //user function
-__device__ void dotR_gpu( const double *r, double *c) { *c += (*r) * (*r); }
+__device__ void dotR_gpu( const double *r, double *c) { *c += (*r) * (*r); 
+}
 
 // CUDA kernel function
 __global__ void op_cuda_dotR(
@@ -22,6 +23,9 @@ __global__ void op_cuda_dotR(
     dotR_gpu(arg0+n*1,
          arg1+n*1);
   }
+
+  //global reductions
+
 }
 
 
@@ -57,7 +61,6 @@ void op_par_loop_dotR(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_6;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -72,6 +75,7 @@ void op_par_loop_dotR(char const *name, op_set set,
     arg1.data   = OP_reduct_h + reduct_bytes;
     arg1.data_d = OP_reduct_d + reduct_bytes;
     reduct_bytes += ROUND_UP(set_size*arg1.size);
+//    mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
     op_cuda_dotR<<<nblocks,nthread,nshared>>>(

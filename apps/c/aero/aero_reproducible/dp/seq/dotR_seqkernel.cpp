@@ -39,7 +39,7 @@ void op_par_loop_dotR(char const *name, op_set set,
     red1[i]=0;
   }
 
-  if (set->size >0) {
+  if (set_size > 0) {
 
     for ( int n=0; n<set_size; n++ ){
       dotR(

@@ -209,7 +209,7 @@ void op_cuda_exit() {
   // cudaDeviceReset ( );
 
   if (OP_reduct_d!=NULL) cutilSafeCall(cudaFree(OP_reduct_d));
-  if (OP_reduct_h!=NULL) op_free(OP_reduct_h);
+  if (OP_reduct_h!=NULL) cutilSafeCall(cudaFreeHost(OP_reduct_h)); //op_free(OP_reduct_h);
 
   if (reproducible_enabled){
     for (int n = 0; n < OP_dat_index; n++) {
@@ -247,11 +247,14 @@ void reallocConstArrays(int consts_bytes) {
 void reallocReductArrays(int reduct_bytes) {
   if (reduct_bytes > OP_reduct_bytes) {
     if (OP_reduct_bytes > 0) {
-      free(OP_reduct_h);
+      //free(OP_reduct_h);
+      cutilSafeCall(cudaFreeHost(OP_reduct_h));
       cutilSafeCall(cudaFree(OP_reduct_d));
     }
     OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
-    OP_reduct_h = (char *)malloc(OP_reduct_bytes);
+    //OP_reduct_h = (char *)malloc(OP_reduct_bytes);
+
+    cutilSafeCall(cudaHostAlloc((void **)&OP_reduct_h, OP_reduct_bytes, cudaHostAllocDefault));
     cutilSafeCall(cudaMalloc((void **)&OP_reduct_d, OP_reduct_bytes));
   }
 }

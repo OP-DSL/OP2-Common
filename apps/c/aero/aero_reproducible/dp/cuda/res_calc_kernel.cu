@@ -16,36 +16,36 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
 
     double a = 0;
     for (int m = 0; m < 4; m++)
-      det_x_xi += Ng2_xi[4 * i + 16 + m] * x[m][1];
+      det_x_xi += Ng2_xi_cuda[4 * i + 16 + m] * x[m][1];
     for (int m = 0; m < 4; m++)
-      N_x[m] = det_x_xi * Ng2_xi[4 * i + m];
+      N_x[m] = det_x_xi * Ng2_xi_cuda[4 * i + m];
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][0];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][0];
     for (int m = 0; m < 4; m++)
-      N_x[4 + m] = a * Ng2_xi[4 * i + 16 + m];
+      N_x[4 + m] = a * Ng2_xi_cuda[4 * i + 16 + m];
 
     det_x_xi *= a;
 
     a = 0;
     for (int m = 0; m < 4; m++)
-      a += Ng2_xi[4 * i + m] * x[m][1];
+      a += Ng2_xi_cuda[4 * i + m] * x[m][1];
     for (int m = 0; m < 4; m++)
-      N_x[m] -= a * Ng2_xi[4 * i + 16 + m];
+      N_x[m] -= a * Ng2_xi_cuda[4 * i + 16 + m];
 
     double b = 0;
     for (int m = 0; m < 4; m++)
-      b += Ng2_xi[4 * i + 16 + m] * x[m][0];
+      b += Ng2_xi_cuda[4 * i + 16 + m] * x[m][0];
     for (int m = 0; m < 4; m++)
-      N_x[4 + m] -= b * Ng2_xi[4 * i + m];
+      N_x[4 + m] -= b * Ng2_xi_cuda[4 * i + m];
 
     det_x_xi -= a * b;
 
     for (int j = 0; j < 8; j++)
       N_x[j] /= det_x_xi;
 
-    double wt1 = wtg2[i] * det_x_xi;
+    double wt1 = wtg2_cuda[i] * det_x_xi;
 
 
     double u[2] = {0.0, 0.0};
@@ -54,8 +54,8 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
       u[1] += N_x[4 + j] * phim[j][0];
     }
 
-    double Dk = 1.0 + 0.5 * gm1 * (m2 - (u[0] * u[0] + u[1] * u[1]));
-    double rho = pow(Dk, gm1i);
+    double Dk = 1.0 + 0.5 * gm1_cuda * (m2_cuda - (u[0] * u[0] + u[1] * u[1]));
+    double rho = pow(Dk, gm1i_cuda);
     double rc2 = rho / Dk;
 
     for (int j = 0; j < 4; j++) {
@@ -70,6 +70,7 @@ __device__ void res_calc_gpu( const double **x, const double **phim, double *K,
       }
     }
   }
+
 }
 
 // CUDA kernel function
@@ -86,44 +87,45 @@ __global__ void op_cuda_res_calc(
   int *col_reord,
   int   set_size) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if(tid + start >= end) return;
-  int n = col_reord[tid + start];
-  //initialise local variables
-  int map0idx;
-  int map1idx;
-  int map2idx;
-  int map3idx;
-  map0idx = opDat0Map[n + set_size * 0];
-  map1idx = opDat0Map[n + set_size * 1];
-  map2idx = opDat0Map[n + set_size * 2];
-  map3idx = opDat0Map[n + set_size * 3];
-  const double* arg0_vec[] = {
-     &ind_arg0[2 * map0idx],
-     &ind_arg0[2 * map1idx],
-     &ind_arg0[2 * map2idx],
-     &ind_arg0[2 * map3idx]};
-  const double* arg4_vec[] = {
-     &ind_arg1[1 * map0idx],
-     &ind_arg1[1 * map1idx],
-     &ind_arg1[1 * map2idx],
-     &ind_arg1[1 * map3idx]};
-  double* arg9_vec[] = {
-     &ind_arg2[1 * map0idx],
-     &ind_arg2[1 * map1idx],
-     &ind_arg2[1 * map2idx],
-     &ind_arg2[1 * map3idx]};
-  double* arg13_vec[] = {
-     &ind_arg3[2 * map0idx],
-     &ind_arg3[2 * map1idx],
-     &ind_arg3[2 * map2idx],
-     &ind_arg3[2 * map3idx]};
+  if (tid + start < end) {
+    int n = col_reord[tid + start];
+    //initialise local variables
+    int map0idx;
+    int map1idx;
+    int map2idx;
+    int map3idx;
+    map0idx = opDat0Map[n + set_size * 0];
+    map1idx = opDat0Map[n + set_size * 1];
+    map2idx = opDat0Map[n + set_size * 2];
+    map3idx = opDat0Map[n + set_size * 3];
+    const double* arg0_vec[] = {
+       &ind_arg0[2 * map0idx],
+       &ind_arg0[2 * map1idx],
+       &ind_arg0[2 * map2idx],
+       &ind_arg0[2 * map3idx]};
+    const double* arg4_vec[] = {
+       &ind_arg1[1 * map0idx],
+       &ind_arg1[1 * map1idx],
+       &ind_arg1[1 * map2idx],
+       &ind_arg1[1 * map3idx]};
+    double* arg9_vec[] = {
+       &ind_arg2[1 * map0idx],
+       &ind_arg2[1 * map1idx],
+       &ind_arg2[1 * map2idx],
+       &ind_arg2[1 * map3idx]};
+    double* arg13_vec[] = {
+       &ind_arg3[2 * map0idx],
+       &ind_arg3[2 * map1idx],
+       &ind_arg3[2 * map2idx],
+       &ind_arg3[2 * map3idx]};
 
-  //user-supplied kernel call
-  res_calc_gpu(arg0_vec,
+    //user-supplied kernel call
+    res_calc_gpu(arg0_vec,
              arg4_vec,
              arg8+n*16,
              arg9_vec,
              arg13_vec);
+  }
 }
 
 
@@ -220,14 +222,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
 
   if (set->size > 0 && rev_map != NULL ) {
 
-    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
 
     op_mpi_wait_all_cuda(nargs, args);
     //execute plan
+
+    int block_offset = 0;
+    op_mpi_wait_all_cuda(nargs, args);
     for ( int col=0; col<rev_map->number_of_colors; col++ ){
-      if (col==Plan->ncolors_core) {
-        op_mpi_wait_all_cuda(nargs, args);
-      }
       #ifdef OP_BLOCK_SIZE_0
       int nthread = OP_BLOCK_SIZE_0;
       #else

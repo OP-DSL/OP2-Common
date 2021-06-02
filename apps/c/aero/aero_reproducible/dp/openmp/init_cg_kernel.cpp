@@ -48,22 +48,19 @@ void op_par_loop_init_cg(char const *name, op_set set,
       arg1_l[d+thr*64]=ZERO_double;
     }
   }
-
-  
   int reduct_bytes = 0;
-  reduct_bytes = ROUND_UP(arg1.dim*sizeof(double)*set_size);  
+
+  reduct_bytes += ROUND_UP(arg1.dim*sizeof(double)*set_size);
   reallocReductArrays(reduct_bytes);
-  
+
   reduct_bytes=0;
   double* red1 = (double*)(OP_reduct_h+reduct_bytes);
   reduct_bytes+=arg1.dim*sizeof(double)*set_size;
-  
-  for (int i=0; i<arg1.dim*set_size; i++){
-      red1[i]=0;
+  for ( int i=0; i<arg1.dim*set_size; i++ ){
+    red1[i]=0;
   }
-  
-  
-  if (set->size >0) {
+
+  if (set_size > 0) {
 
     // execute plan
     #pragma omp parallel for
@@ -73,25 +70,24 @@ void op_par_loop_init_cg(char const *name, op_set set,
       for ( int n=start; n<finish; n++ ){
         init_cg(
           &((double*)arg0.data)[1*n],
-//          &arg1_l[64*omp_get_thread_num()],
-          &red1[1*n],
+          &arg1_l[64*omp_get_thread_num()],
           &((double*)arg2.data)[1*n],
           &((double*)arg3.data)[1*n],
           &((double*)arg4.data)[1*n]);
       }
     }
+    // combine reduction data
+    for ( int thr=0; thr<nthreads; thr++ ){
+      for ( int d=0; d<1; d++ ){
+        arg1h[d] += arg1_l[d+thr*64];
+      }
+    }
+    op_mpi_reduce(&arg1,arg1h);
   }
 
   reprLocalSum(&arg1,set_size,red1);
-  
   // combine reduction data
-  for ( int thr=0; thr<nthreads; thr++ ){
-    for ( int d=0; d<1; d++ ){
-      arg1h[d] += arg1_l[d+thr*64];
-    }
-  }
-//  op_mpi_reduce(&arg1,arg1h);
-  op_mpi_repr_inc_reduce_double(&arg1,arg1h);
+  op_mpi_repr_inc_reduce_double(&arg1,(double*)arg1.data);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record

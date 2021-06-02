@@ -8,6 +8,7 @@ __device__ void init_cg_gpu( const double *r, double *c, double *u, double *v, d
   *p = *r;
   *u = 0;
   *v = 0;
+
 }
 
 // CUDA kernel function
@@ -33,6 +34,9 @@ __global__ void op_cuda_init_cg(
             arg3+n*1,
             arg4+n*1);
   }
+
+  //global reductions
+
 }
 
 
@@ -74,12 +78,12 @@ void op_par_loop_init_cg(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_2;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
 
     //transfer global reduction data to GPU
+    int maxblocks = nblocks;
     int reduct_bytes = 0;
     int reduct_size  = 0;
     reduct_bytes += ROUND_UP(set_size*arg1.size);
@@ -89,6 +93,7 @@ void op_par_loop_init_cg(char const *name, op_set set,
     arg1.data   = OP_reduct_h + reduct_bytes;
     arg1.data_d = OP_reduct_d + reduct_bytes;
     reduct_bytes += ROUND_UP(set_size*arg1.size);
+    mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
     op_cuda_init_cg<<<nblocks,nthread,nshared>>>(

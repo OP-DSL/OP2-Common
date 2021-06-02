@@ -7,6 +7,7 @@ __device__ void update_gpu( double *phim, double *res, const double *u, double *
   *phim -= *u;
   *res = 0.0;
   *rms += (*u) * (*u);
+
 }
 
 // CUDA kernel function
@@ -30,6 +31,9 @@ __global__ void op_cuda_update(
            arg2+n*1,
            arg3+n*1);
   }
+
+  //global reductions
+
 }
 
 
@@ -69,7 +73,6 @@ void op_par_loop_update(char const *name, op_set set,
       int nthread = OP_BLOCK_SIZE_8;
     #else
       int nthread = OP_block_size;
-    //  int nthread = 128;
     #endif
 
     int nblocks = 200;
@@ -84,6 +87,7 @@ void op_par_loop_update(char const *name, op_set set,
     arg3.data   = OP_reduct_h + reduct_bytes;
     arg3.data_d = OP_reduct_d + reduct_bytes;
     reduct_bytes += ROUND_UP(set_size*arg3.size);
+    mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
     op_cuda_update<<<nblocks,nthread,nshared>>>(
