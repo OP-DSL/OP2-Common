@@ -181,7 +181,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                  OP_import_nonexec_list[set->index]->size;
 
   // initialize data bits to 0
-  dat->data = (char *)xcalloc(set_size * dim * size, 1);
+  for (size_t i = 0; i < set_size * dim * size; i++)
+    dat->data[i] = 0;
   dat->user_managed = 0;
 
   // transpose
