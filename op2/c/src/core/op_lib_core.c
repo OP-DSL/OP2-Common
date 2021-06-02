@@ -1366,30 +1366,29 @@ int op_get_size_local(op_set set) { return set->size; }
  *******************************************************************************/
 
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
+
+double_binned** accum = NULL;
+
 void reprLocalSum(op_arg *arg, int set_size, double *red) {
-    
-  double_binned** accum = (double_binned**)op_malloc(omp_get_max_threads()*sizeof(double_binned*));
-  for (int d=0; d<arg->dim; d++){
-
-    for (int th=0; th<omp_get_max_threads(); th++ ){
-       accum[th]=binned_dballoc(3);  
-      binned_dbsetzero(3, accum[th]);
-    }
-
-   // #pragma omp parallel for
+  
+  if (accum == NULL) {  
+    accum = (double_binned**)op_malloc(omp_get_max_threads()*sizeof(double_binned*));
+    for (int th=0; th<omp_get_max_threads(); th++ )
+       accum[th]=binned_dballoc(3);
+  }
+  for (int d= 0 ; d < arg->dim; d++) {
+    #pragma omp parallel for
     for (int th=0; th<omp_get_max_threads(); th++){
       int begin=(set_size/omp_get_max_threads())*th;
       int end=(set_size/omp_get_max_threads())*(th+1);
 
-      if (th=omp_get_max_threads()-1){
+      if (th==omp_get_max_threads()-1){
         end=set_size;
       }      
      
+      binned_dbsetzero(3, accum[th]);
       binnedBLAS_dbdsum(3, end-begin, red+begin*arg->dim+d, arg->dim,  accum[th]);
-      
-
     }
-
 
     binned_dbsetzero(3, &arg->local_sum[d]);
     for (int th=0; th<omp_get_max_threads(); th++){
@@ -1397,6 +1396,5 @@ void reprLocalSum(op_arg *arg, int set_size, double *red) {
       binned_dbdbadd(3,accum[th],&arg->local_sum[d]);
     }
   }
-    
 }
   
