@@ -113,9 +113,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   for nk in range (0,len(kernels)):
 
 #Optimization settings
-    inc_stage=0
+    inc_stage=1
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \

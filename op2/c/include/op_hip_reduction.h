@@ -46,12 +46,131 @@
  * reduction routine for arbitrary datatypes
  */
 
+template <op_access reduction>
+__inline__ __device__ void op_reduction(volatile int *dat_g, int dat_l) {
+  /*extern __shared__ volatile double temp2[];
+  __shared__ volatile int *temp;
+  temp = (T *)temp2;*/
+  HIP_DYNAMIC_SHARED(int,tempint);
+//  __shared__ int *temp;
+//  temp = (T*)temp2;
+
+  int dat_t;
+
+  __syncthreads(); /* important to finish all previous activity */
+
+  int tid = hipThreadIdx_x;
+  tempint[tid] = dat_l;
+
+  // first, cope with hipBlockDim_x perhaps not being a power of 2
+
+  __syncthreads();
+
+  int d = 1 << (31 - __clz(((int)hipBlockDim_x - 1)));
+  // d = hipBlockDim_x/2 rounded up to nearest power of 2
+
+  if (tid + d < hipBlockDim_x) {
+    dat_t = tempint[tid + d];
+
+    switch (reduction) {
+    case OP_INC:
+      dat_l = dat_l + dat_t;
+      break;
+    case OP_MIN:
+      if (dat_t < dat_l)
+        dat_l = dat_t;
+      break;
+    case OP_MAX:
+      if (dat_t > dat_l)
+        dat_l = dat_t;
+      break;
+    }
+
+    tempint[tid] = dat_l;
+  }
+
+  // second, do reductions involving more than one warp
+
+  for (d >>= 1; d > warpSize; d >>= 1) {
+    __syncthreads();
+
+    if (tid < d) {
+      dat_t = tempint[tid + d];
+
+      switch (reduction) {
+      case OP_INC:
+        dat_l = dat_l + dat_t;
+        break;
+      case OP_MIN:
+        if (dat_t < dat_l)
+          dat_l = dat_t;
+        break;
+      case OP_MAX:
+        if (dat_t > dat_l)
+          dat_l = dat_t;
+        break;
+      }
+
+      tempint[tid] = dat_l;
+    }
+  }
+
+  // third, do reductions involving just one warp
+
+  __syncthreads();
+
+  if (tid < warpSize) {
+    for (; d > 0; d >>= 1) {
+      //__syncwarp();
+      if (tid < d) {
+        dat_t = tempint[tid + d];
+
+        switch (reduction) {
+        case OP_INC:
+          dat_l = dat_l + dat_t;
+          break;
+        case OP_MIN:
+          if (dat_t < dat_l)
+            dat_l = dat_t;
+          break;
+        case OP_MAX:
+          if (dat_t > dat_l)
+            dat_l = dat_t;
+          break;
+        }
+
+        tempint[tid] = dat_l;
+      }
+    }
+
+    // finally, update global reduction variable
+
+    if (tid == 0) {
+      switch (reduction) {
+      case OP_INC:
+        *dat_g = *dat_g + dat_l;
+        break;
+      case OP_MIN:
+        if (dat_l < *dat_g)
+          *dat_g = dat_l;
+        break;
+      case OP_MAX:
+        if (dat_l > *dat_g)
+          *dat_g = dat_l;
+        break;
+      }
+    }
+  }
+}
+
 template <op_access reduction, class T>
 __inline__ __device__ void op_reduction(volatile T *dat_g, T dat_l) {
   /*extern __shared__ volatile double temp2[];
   __shared__ volatile T *temp;
   temp = (T *)temp2;*/
   HIP_DYNAMIC_SHARED(T,temp);
+//  __shared__ T *temp;
+//  temp = (T*)temp2;
 
   T dat_t;
 
