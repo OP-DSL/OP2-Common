@@ -70,11 +70,11 @@ endif
 #
 ifeq ($(OP2_COMPILER),gnu)
   ifdef DEBUG
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O0
-  CXXFLAGS = -fPIC -DUNIX -Wall -g -O0 #-g -Wextra
+  CCFLAGS  = -std=c99 -DUNIX -Wall -g -O0
+  CXXFLAGS = -DUNIX -Wall -g -O0 #-g -Wextra
   else
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O3
-  CXXFLAGS = -fPIC -DUNIX -Wall -g -O3 #-g -Wextra
+  CCFLAGS  = -std=c99 -DUNIX -g -O3
+  CXXFLAGS = -DUNIX -g -O3 #-g -Wextra
   endif
   CXX      = g++
   MPICXX   = $(MPICPP_PATH)
