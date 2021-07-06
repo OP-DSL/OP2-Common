@@ -152,8 +152,8 @@ ifeq ($(OP2_COMPILER),gnu)
   CFLAGS          = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   CFLAGS_SLOW     = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   FC              = gfortran   #ftn
-  FFLAGS          = -g -O2 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -ffixed-line-length-none -ffree-line-length-none
-  FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -ffixed-line-length-none -ffree-line-length-none
+  FFLAGS          = -g -O2 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -DOP2_ARG_POINTERS -ffixed-line-length-none -ffree-line-length-none
+  FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -DOP2_ARG_POINTERS -ffixed-line-length-none -ffree-line-length-none
   MPICC           = mpicc #cc
   MPICXX          = mpicxx #CC
   MPIF90          = mpif90 #ftn
