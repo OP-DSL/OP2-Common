@@ -847,16 +847,16 @@ void op_halo_create() {
         char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
 
         for (int i = 0; i < e_list->ranks_size; i++) {
-          sbuf[i] = (char *)xmalloc((size_t)e_list->sizes[i] * dat->size);
+          sbuf[i] = (char *)xmalloc((size_t)e_list->sizes[i] * (size_t)dat->size);
           for (int j = 0; j < e_list->sizes[i]; j++) {
             int set_elem_index = e_list->list[e_list->disps[i] + j];
-            memcpy(&sbuf[i][j * dat->size],
-                   (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+            memcpy(&sbuf[i][j * (size_t)dat->size],
+                   (void *)&dat->data[(size_t)dat->size * (set_elem_index)], dat->size);
           }
           // printf("export from %d to %d data %10s, number of elements of size
           // %d | sending:\n ",
           //    my_rank,e_list->ranks[i],dat->name,e_list->sizes[i]);
-          MPI_Isend(sbuf[i], dat->size * e_list->sizes[i], MPI_CHAR,
+          MPI_Isend(sbuf[i], (size_t)dat->size * e_list->sizes[i], MPI_CHAR,
                     e_list->ranks[i], d, OP_MPI_WORLD, &request_send[i]);
         }
 
@@ -865,10 +865,10 @@ void op_halo_create() {
         dat->data =
             (char *)xrealloc(dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
 
-        int init = set->size * dat->size;
+        int init = set->size * (size_t)dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
-          MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
-                   dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
+          MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
+                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
                    OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -914,7 +914,7 @@ void op_halo_create() {
             memcpy(&sbuf[i][j * (size_t)dat->size],
                    (void *)&dat->data[(size_t)dat->size * (set_elem_index)], dat->size);
           }
-          MPI_Isend(sbuf[i], dat->size * e_list->sizes[i], MPI_CHAR,
+          MPI_Isend(sbuf[i], (size_t)dat->size * e_list->sizes[i], MPI_CHAR,
                     e_list->ranks[i], d, OP_MPI_WORLD, &request_send[i]);
         }
 
@@ -926,10 +926,10 @@ void op_halo_create() {
             dat->data,
             (size_t)(set->size + exec_i_list->size + i_list->size) * (size_t)dat->size);
 
-        size_t init = (size_t)(set->size + exec_i_list->size) * dat->size;
+        size_t init = (size_t)(set->size + exec_i_list->size) * (size_t)dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
-                   dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
+                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
                    OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -1410,8 +1410,8 @@ void op_halo_create() {
       if (compare_sets(dat->set, set) == 1) {
         halo_list exec_imp = OP_import_exec_list[set->index];
         halo_list nonexec_imp = OP_import_nonexec_list[set->index];
-        tot_halo_size = tot_halo_size + exec_imp->size * dat->size +
-                        nonexec_imp->size * dat->size;
+        tot_halo_size = tot_halo_size + exec_imp->size * (size_t)dat->size +
+                        nonexec_imp->size * (size_t)dat->size;
       }
     }
   }
@@ -2485,7 +2485,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   //
   op_dat temp_dat = (op_dat)xmalloc(sizeof(op_dat_core));
   char *data = (char *)xmalloc((size_t)dat->set->size * dat->size);
-  memcpy(data, dat->data, dat->set->size * dat->size);
+  memcpy(data, dat->data, dat->set->size * (size_t)dat->size);
 
   //
   // use orig_part_range to fill in OP_part_list[set->index]->elem_part with
@@ -2575,20 +2575,20 @@ op_dat op_mpi_get_data(op_dat dat) {
   char **sbuf_char = (char **)xmalloc(pe_list->ranks_size * sizeof(char *));
 
   for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf_char[i] = (char *)xmalloc((size_t)pe_list->sizes[i] * dat->size);
+    sbuf_char[i] = (char *)xmalloc((size_t)pe_list->sizes[i] * (size_t)dat->size);
     for (int j = 0; j < pe_list->sizes[i]; j++) {
       int index = pe_list->list[pe_list->disps[i] + j];
-      memcpy(&sbuf_char[i][j * dat->size], (void *)&data[dat->size * (index)],
+      memcpy(&sbuf_char[i][j * (size_t)dat->size], (void *)&data[(size_t)dat->size * (index)],
              dat->size);
     }
-    MPI_Isend(sbuf_char[i], dat->size * pe_list->sizes[i], MPI_CHAR,
+    MPI_Isend(sbuf_char[i], (size_t)dat->size * pe_list->sizes[i], MPI_CHAR,
               pe_list->ranks[i], dat->index, OP_MPI_WORLD, &request_send[i]);
   }
 
   char *rbuf_char = (char *)xmalloc((size_t)dat->size * pi_list->size);
   for (int i = 0; i < pi_list->ranks_size; i++) {
-    MPI_Recv(&rbuf_char[pi_list->disps[i] * dat->size],
-             dat->size * pi_list->sizes[i], MPI_CHAR, pi_list->ranks[i],
+    MPI_Recv(&rbuf_char[pi_list->disps[i] * (size_t)dat->size],
+             (size_t)dat->size * pi_list->sizes[i], MPI_CHAR, pi_list->ranks[i],
              dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
   }
 
@@ -2605,14 +2605,14 @@ op_dat op_mpi_get_data(op_dat dat) {
   for (int i = 0; i < dat->set->size; i++) // iterate over old set size
   {
     if (OP_part_list[dat->set->index]->elem_part[i] == my_rank) {
-      memcpy(&new_dat[count * dat->size], (void *)&data[dat->size * i],
+      memcpy(&new_dat[count * (size_t)dat->size], (void *)&data[(size_t)dat->size * i],
              dat->size);
       count++;
     }
   }
 
-  memcpy(&new_dat[count * dat->size], (void *)rbuf_char,
-         dat->size * pi_list->size);
+  memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf_char,
+         (size_t)dat->size * pi_list->size);
   count = count + pi_list->size;
   new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
   op_free(rbuf_char);
@@ -2731,15 +2731,15 @@ static void op_reset_halo(op_arg *arg) {
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
     // initialise import halo data to NaN
-    int double_count = imp_exec_list->size * dat->size / sizeof(double);
-    double_count += imp_nonexec_list->size * dat->size / sizeof(double);
+    int double_count = imp_exec_list->size * (size_t)dat->size / sizeof(double);
+    double_count += imp_nonexec_list->size * (size_t)dat->size / sizeof(double);
     double *NaN = (double *)xmalloc(double_count * sizeof(double));
     for (int i = 0; i < double_count; i++)
       NaN[i] = (double)NAN; // 0.0/0.0;
 
-    int init = dat->set->size * dat->size;
-    memcpy(&(dat->data[init]), NaN, dat->size * imp_exec_list->size +
-                                        dat->size * imp_nonexec_list->size);
+    int init = dat->set->size * (size_t)dat->size;
+    memcpy(&(dat->data[init]), NaN, (size_t)dat->size * imp_exec_list->size +
+                                        (size_t)dat->size * imp_nonexec_list->size);
     op_free(NaN);
   }
 }
@@ -2905,7 +2905,7 @@ void op_mpi_perf_comm(void *k_i, op_dat dat) {
   halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
   halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
   int tot_halo_size =
-      (exp_exec_list->size + exp_nonexec_list->size) * dat->size;
+      (exp_exec_list->size + exp_nonexec_list->size) * (size_t)dat->size;
 
   op_mpi_kernel *kernel_entry = (op_mpi_kernel *)k_i;
   int num_indices = kernel_entry->num_indices;
@@ -3746,7 +3746,7 @@ void op_export_data(op_export_handle handle, op_dat dat) {
     for (int i = 0; i < handle->num_ifaces; i++) {
       for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
         int bufsize =
-            3 * sizeof(int) + handle->nodelist_send_size[i][j] * dat->size;
+            3 * sizeof(int) + handle->nodelist_send_size[i][j] * (size_t)dat->size;
         handle->send_buf[i][j] =
             (char *)xrealloc(handle->send_buf[i][j], bufsize);
       }
@@ -3774,7 +3774,7 @@ void op_export_data(op_export_handle handle, op_dat dat) {
           printf("Error in OP2 packing export data %i %i\n", node,
                  dat->set->size);
 
-        memcpy(&handle->send_buf[i][j][bufp], &dat->data[node * dat->size],
+        memcpy(&handle->send_buf[i][j][bufp], &dat->data[node * (size_t)dat->size],
                dat->size);
         bufp += dat->size;
       }
@@ -4060,7 +4060,7 @@ void op_import_data(op_import_handle handle, op_dat dat) {
       for (int k = 0; k < handle->node_size_per_int[i]; k++) {
         memcpy(&handle->interp_dist[handle->nodelist_per_int[i][k]],
                &handle->recv_buf[i][j][k * recv_dat_size], sizeof(double));
-        memcpy(&dat->data[handle->nodelist_per_int[i][k] * dat->size],
+        memcpy(&dat->data[handle->nodelist_per_int[i][k] * (size_t)dat->size],
                &handle->recv_buf[i][j][sizeof(double) + k * recv_dat_size],
                dat->size);
       }
@@ -4073,7 +4073,7 @@ void op_import_data(op_import_handle handle, op_dat dat) {
                  sizeof(double));
           if (dist < handle->interp_dist[handle->nodelist_per_int[i][k]]) {
             handle->interp_dist[handle->nodelist_per_int[i][k]] = dist;
-            memcpy(&dat->data[handle->nodelist_per_int[i][k] * dat->size],
+            memcpy(&dat->data[handle->nodelist_per_int[i][k] * (size_t)dat->size],
                    &handle->recv_buf[i][j][sizeof(double) + k * recv_dat_size],
                    dat->size);
           }

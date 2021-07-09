@@ -121,7 +121,7 @@ ifeq ($(OP2_COMPILER),cray)
   CXX      = CC
   CXXFLAGS = $(CCFLAGS)
   MPICXX   = CC
-  MPIFLAGS = $(CXXFLAGS)
+  MPIFLAGS = $(CXXFLAGS) #-fsanitize=signed-integer-overflow,unsigned-integer-overflow
 else
 ifeq ($(OP2_COMPILER),clang)
   ifdef DEBUG

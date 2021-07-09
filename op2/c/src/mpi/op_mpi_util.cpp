@@ -85,7 +85,7 @@ void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
   int count = dat->set->size;
 
   T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  memcpy(l_array, (void *)&(dat->data[0]), (size_t)dat->size * count);
   int l_size = count;
   size_t elem_size = dat->dim;
   int *recevcnts = (int *)xmalloc(comm_size * sizeof(int));
@@ -117,8 +117,8 @@ void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
            dat->name);
     MPI_Abort(OP_MPI_IO_WORLD, -1);
   }
-  memcpy((void *)usr_ptr, (void *)&g_array[low * dat->size],
-         (high + 1) * dat->size);
+  memcpy((void *)usr_ptr, (void *)&g_array[low * (size_t)dat->size],
+         (high + 1) * (size_t)dat->size);
 
   free(l_array);
   free(recevcnts);
@@ -171,7 +171,7 @@ void write_file(op_dat dat, const char *file_name) {
   int count = dat->set->size;
 
   T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  memcpy(l_array, (void *)&(dat->data[0]), (size_t)dat->size * count);
 
   int l_size = count;
   int elem_size = dat->dim;
@@ -282,10 +282,10 @@ void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *b
     unsigned buf_pos = neigh_offsets[buf_rankpos];
     for (int j = 0; j < eel->sizes[i]; j++) {
       unsigned set_elem_index = eel->list[eel->disps[i] + j];
-      memcpy(&buffer[buf_pos + j * arg.dat->size],
-               (void *)&arg.dat->data[arg.dat->size * (set_elem_index)], arg.dat->size);
+      memcpy(&buffer[buf_pos + j * (size_t)arg.dat->size],
+               (void *)&arg.dat->data[(size_t)arg.dat->size * (set_elem_index)], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += eel->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += eel->sizes[i] * (size_t)arg.dat->size;
   }
   for (int i = 0; i < enl->ranks_size; i++) {
     int dest_rank = enl->ranks[i];
@@ -293,10 +293,10 @@ void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *b
     unsigned buf_pos = neigh_offsets[buf_rankpos];
     for (int j = 0; j < enl->sizes[i]; j++) {
       unsigned set_elem_index = enl->list[enl->disps[i] + j];
-      memcpy(&buffer[buf_pos + j * arg.dat->size],
-               (void *)&arg.dat->data[arg.dat->size * (set_elem_index)], arg.dat->size);
+      memcpy(&buffer[buf_pos + j * (size_t)arg.dat->size],
+               (void *)&arg.dat->data[(size_t)arg.dat->size * (set_elem_index)], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += enl->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += enl->sizes[i] * (size_t)arg.dat->size;
   }
 }
 
@@ -311,10 +311,10 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
       // if (*(double*)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)] !=
       //     *(double*)&buffer[buf_pos + j * arg.dat->size])
       //     printf("Mismatch\n");
-      memcpy((void *)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)], 
-              &buffer[buf_pos + j * arg.dat->size], arg.dat->size);
+      memcpy((void *)&arg.dat->data[(size_t)arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)], 
+              &buffer[buf_pos + j * (size_t)arg.dat->size], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += iel->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += iel->sizes[i] * (size_t)arg.dat->size;
   }
   for (int i = 0; i < inl->ranks_size; i++) {
     int dest_rank = inl->ranks[i];
@@ -324,10 +324,10 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
       // if (*(double*)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)] !=
       //     *(double*)&buffer[buf_pos + j * arg.dat->size])
       //     printf("Mismatch2\n");
-      memcpy((void *)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)], 
-              &buffer[buf_pos + j * arg.dat->size], arg.dat->size);
+      memcpy((void *)&arg.dat->data[(size_t)arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)], 
+              &buffer[buf_pos + j * (size_t)arg.dat->size], (size_t)arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += inl->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += inl->sizes[i] * (size_t)arg.dat->size;
   }
 }
 
@@ -487,22 +487,22 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
       for (int i = 0; i < imp_exec_list->ranks_size; i++) {
         int idx = std::distance(recv_neigh_list.begin(), std::lower_bound(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i]));
-        recv_sizes[idx] += args[n].dat->size * imp_exec_list->sizes[i];
+        recv_sizes[idx] += (size_t)args[n].dat->size * imp_exec_list->sizes[i];
       }
       halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
       for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
         int idx = std::distance(recv_neigh_list.begin(), std::lower_bound(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i]));
-        recv_sizes[idx] += args[n].dat->size * imp_nonexec_list->sizes[i];
+        recv_sizes[idx] += (size_t)args[n].dat->size * imp_nonexec_list->sizes[i];
       }
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
       for (int i = 0; i < exp_exec_list->ranks_size; i++) {
         int idx = std::distance(send_neigh_list.begin(), std::lower_bound(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i]));
-        send_sizes[idx] += args[n].dat->size * exp_exec_list->sizes[i];
+        send_sizes[idx] += (size_t)args[n].dat->size * exp_exec_list->sizes[i];
       }
       halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
       for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
         int idx = std::distance(send_neigh_list.begin(), std::lower_bound(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i]));
-        send_sizes[idx] += args[n].dat->size * exp_nonexec_list->sizes[i];
+        send_sizes[idx] += (size_t)args[n].dat->size * exp_nonexec_list->sizes[i];
       }      
     }
   }
