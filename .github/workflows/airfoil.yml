@@ -1,0 +1,61 @@
+name: Airfoil
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types: 
+      - created
+
+defaults:
+  run:
+    working-directory: apps/c/airfoil/airfoil_plain/dp
+
+jobs:
+  airfoil-c-seq:
+
+    runs-on: ubuntu-latest
+
+    env:
+      OP2_COMPILER: gnu
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          token: ${{ github.token }}
+
+      - run: echo "OP2_INSTALL_PATH=$GITHUB_WORKSPACE/op2" >> $GITHUB_ENV
+
+      - name: Build OP2 backend
+        working-directory: op2/c
+        run: make core seq
+
+      # - name: Remove airfoil build flags
+      #   run: |
+      #     sed -e 's/-arch\sx86_64//g' -i Makefile 
+
+      - name: Build seq airfoil
+        run: make airfoil_seq
+
+      - name: Get airfoil mesh data
+        run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
+
+      - name: Run airfoil
+        run: ./airfoil_seq > output.log                      
+
+      - name: Validate airfoil
+        run: grep -q "This test is considered PASSED" output.log || exit 1
+        # Fail the job with a non-zero exit if the airfoil validation fails
+     
+
+  # airfoil-c-genseq:
+  #   TODO: ...
+
+
+  # airfoil-c-cuda:
+  #   TODO: ...
