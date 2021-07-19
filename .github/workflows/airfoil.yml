@@ -11,14 +11,20 @@ on:
     types: 
       - created
 
-defaults:
-  run:
-    working-directory: apps/c/airfoil/airfoil_plain/dp
 
 jobs:
-  airfoil-c-seq:
-
+  airfoil-seq:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        language: [ 'c' ] # TODO: Add support for 'f'
+        mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
+        # TODO: optimisation: [ 'seq', 'genseq', 'cuda' ]
+
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.language }}/airfoil/airfoil_${{ matrix.mesh }}/dp
 
     env:
       OP2_COMPILER: gnu
@@ -29,33 +35,29 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - run: echo "OP2_INSTALL_PATH=$GITHUB_WORKSPACE/op2" >> $GITHUB_ENV
+      - name: Set OP2_INSTALL_PATH
+        run: echo "OP2_INSTALL_PATH=$GITHUB_WORKSPACE/op2" >> $GITHUB_ENV
 
       - name: Build OP2 backend
-        working-directory: op2/c
+        working-directory: op2/${{ matrix.language }}
         run: make core seq
-
-      # - name: Remove airfoil build flags
-      #   run: |
-      #     sed -e 's/-arch\sx86_64//g' -i Makefile 
 
       - name: Build seq airfoil
         run: make airfoil_seq
 
       - name: Get airfoil mesh data
+        if: ${{ matrix.mesh == 'plain' }}
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
       - name: Run airfoil
         run: ./airfoil_seq > output.log                      
 
-      - name: Validate airfoil
+      - name: Validate airfoil output
         run: grep -q "This test is considered PASSED" output.log || exit 1
         # Fail the job with a non-zero exit if the airfoil validation fails
-     
 
-  # airfoil-c-genseq:
-  #   TODO: ...
-
-
-  # airfoil-c-cuda:
-  #   TODO: ...
+      - name: Archive airfoil output
+        uses: actions/upload-artifact@v2
+        with:
+          name: airfoil-${{ matrix.mesh }}-${{ matrix.language }}-seq-output
+          path: output.log 
