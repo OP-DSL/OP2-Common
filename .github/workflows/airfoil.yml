@@ -50,14 +50,14 @@ jobs:
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
       - name: Run airfoil
-        run: ./airfoil_seq > output.log                      
+        run: ./airfoil_seq > output.txt                      
 
       - name: Validate airfoil output
-        run: grep -q "This test is considered PASSED" output.log || exit 1
+        run: grep -q "This test is considered PASSED" output.txt || exit 1
         # Fail the job with a non-zero exit if the airfoil validation fails
 
       - name: Archive airfoil output
         uses: actions/upload-artifact@v2
         with:
           name: airfoil-${{ matrix.mesh }}-${{ matrix.language }}-seq-output
-          path: output.log 
+          path: output.txt 
