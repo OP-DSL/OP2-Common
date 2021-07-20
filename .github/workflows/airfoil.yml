@@ -11,16 +11,15 @@ on:
     types: 
       - created
 
-
 jobs:
-  airfoil-seq:
+  validate-airfoil:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        language: [ 'c' ] # TODO: Add support for 'f'
         mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
-        # TODO: optimisation: [ 'seq', 'genseq', 'cuda' ]
+        language: [ 'c' ] # TODO: Add support for 'fortran'
+        optimisation: [ 'seq' ] # TODO: Add support for 'genseq', 'cuda' etc ...
 
     defaults:
       run:
@@ -28,6 +27,7 @@ jobs:
 
     env:
       OP2_COMPILER: gnu
+      OP2_INSTALL_PATH: "$(GITHUB_WORKSPACE)/op2"
 
     steps:
       - name: Checkout repository
@@ -35,29 +35,45 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - name: Set OP2_INSTALL_PATH
-        run: echo "OP2_INSTALL_PATH=$GITHUB_WORKSPACE/op2" >> $GITHUB_ENV
+      # - name: Install gfortran
+      #   if: ${{ matrix.language == 'fortran' }}
+      #   run: apt update && apt install -y gfortran
+
+      # - name: Install CUDA
+      #   if: ${{ matrix.optimisation == 'cuda' }}
+      #   run: ???
 
       - name: Build OP2 backend
         working-directory: op2/${{ matrix.language }}
         run: make core seq
 
-      - name: Build seq airfoil
-        run: make airfoil_seq
+      # - name: Run OP2 translator
+      #   if: ${{ matrix.optimisation != 'seq' }}
+      #   run: python3 $GITHUB_WORKSPACE/translator/${{ matrix.language }}/python/op2.py airfoil.*
+
+      - name: Build airfoil
+        run: make airfoil_${{ matrix.optimisation }}
 
       - name: Get airfoil mesh data
         if: ${{ matrix.mesh == 'plain' }}
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
       - name: Run airfoil
-        run: ./airfoil_seq > output.txt                      
+        run: ./airfoil_${{ matrix.optimisation }} > ~/output.txt                      
 
       - name: Validate airfoil output
-        run: grep -q "This test is considered PASSED" output.txt || exit 1
+        run: grep -q "This test is considered PASSED" ~/output.txt || exit 1
         # Fail the job with a non-zero exit if the airfoil validation fails
 
       - name: Archive airfoil output
         uses: actions/upload-artifact@v2
         with:
           name: airfoil-${{ matrix.mesh }}-${{ matrix.language }}-seq-output
-          path: output.txt 
+          path: ~/output.txt 
+  
+
+  # analyse-airfoil:
+  #   runs-on: ubuntu-latest
+  #   needs: validate
+  #   steps:
+  #     TODO: Fetch app output artifact from validate job, extract runtime metric, compare runtime metric with historical artifacts
