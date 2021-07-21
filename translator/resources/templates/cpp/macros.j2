@@ -1,0 +1,9 @@
+
+{# Surround caller with op_opt conditional block #}
+{% macro op_opt(arg) %}
+{% if arg.opt %}
+if (opArg{{ arg.i+1 }}.opt)
+{ {{ caller() }}
+}
+{% else %}{{ caller() }}{% endif %}
+{% endmacro %}
