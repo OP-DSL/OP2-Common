@@ -1,0 +1,92 @@
+# Standard library imports
+from __future__ import annotations
+from typing import List, ClassVar, Tuple
+from types import MethodType
+from pathlib import Path
+
+# Application imports
+from util import find, safeFind
+from store import Kernel, Application
+from optimisation import Opt
+from language import Lang
+from jinja import env
+import optimisation
+import op as OP
+import fortran
+import cpp
+
+
+# A scheme is ...
+class Scheme(object):
+  instances: ClassVar[List[Scheme]] = []
+
+  def __init__(self, lang: Lang, opt: Opt, loop_host_template: Path, make_stub_template: Path = None) -> None:
+    if Scheme.find(lang, opt):
+      exit('duplicate scheme')
+
+    self.__class__.instances.append(self)
+    self.lang = lang
+    self.opt = opt
+    self.loop_host_template = loop_host_template
+    self.make_stub_template = make_stub_template
+
+
+  @classmethod
+  def all(cls) -> List[Opt]:
+    return cls.instances
+
+
+  @classmethod
+  def find(cls, lang: Lang, opt: Opt) -> Opt:
+    return safeFind(cls.all(), lambda s: s.lang == lang and s.opt == opt)
+
+
+  def __str__(self) -> str:
+    return self.lang.name + '-' + self.opt.name
+
+
+  def genLoopHost(self, loop: OP.Loop, i: int) -> Tuple[str, str]:
+    # Load the loop host template
+    template = env.get_template(str(self.loop_host_template))
+    extension = self.loop_host_template.suffixes[-2][1:]
+
+    # Generate source from the template
+    return template.render(parloop=loop, opt=self.opt, id=i), extension
+
+
+  def genMakeStub(self, paths: List[Path]) -> str:
+    if self.make_stub_template is None:
+      exit('No Make stub template registered for {self}')
+
+    # Load the make stub template
+    template = env.get_template(str(self.make_stub_template))
+
+    source_paths = [ path.name for path in paths ]
+    object_paths = [ path.with_suffix('.o') for path in paths ]
+
+    return template.render(
+      source_paths=source_paths,
+      object_paths=object_paths,
+      opt=self.opt,
+    )
+
+
+  def translateKernel(self, kernel: Kernel, app: Application) -> str:
+    raise NotImplementedError(f'no kernel translator registered for the "{self}" scheme')
+
+
+
+# Register schemes here ...
+
+cseq = Scheme(cpp.lang, optimisation.seq, Path('cpp/seq/loop_host.cpp.j2'))
+
+fseq  = Scheme(fortran.lang, optimisation.seq,  Path('fortran/seq/loop_host.F90.j2'),  Path('fortran/seq/make_stub.make.j2'))
+fvec  = Scheme(fortran.lang, optimisation.vec,  Path('fortran/vec/loop_host.F90.j2'),  Path('fortran/vec/make_stub.make.j2'))
+fomp  = Scheme(fortran.lang, optimisation.omp,  Path('fortran/omp/loop_host.F90.j2'),  Path('fortran/omp/make_stub.make.j2'))
+fcuda = Scheme(fortran.lang, optimisation.cuda, Path('fortran/cuda/loop_host.CUF.j2'), Path('fortran/cuda/make_stub.make.j2'))
+
+from fortran.translator.kernels import cuda
+fcuda.translateKernel = MethodType(cuda.translateKernel, fcuda) # type: ignore
+
+from fortran.translator.kernels import vec
+fvec.translateKernel = MethodType(vec.translateKernel, fvec) # type: ignore
