@@ -1,0 +1,110 @@
+
+{# Template imports #}
+{% from 'cpp/macros.j2' import op_opt %}
+{% from 'macros.j2' import comma %}
+
+{# !!! W.I.P !!! #}
+
+// user function
+#include "{{ parloop.kernel }}.h"
+
+// host stub function
+void op_par_loop_{{ parloop.name }}_host(
+  char const *name, 
+  op_set set,
+  {% for arg in parloop.args %}
+  op_arg arg{{ arg.i }}{{ comma(loop) }}       
+  {% endfor %}
+) {
+
+  int nargs = {{ parloop.args | length }};
+  op_arg args[{{ parloop.args | length }}];
+
+  {% for arg in parloop.args %}
+  args[{{ arg.i }}] = arg{{ arg.i }};
+  {% endfor %}
+
+  // initialise timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timing_realloc({{ id }});
+  op_timers_core(&cpu_t1, &wall_t1);
+
+  if (OP_diags>2) {
+    printf(" kernel routine {{ 'with' if parloop.indirection else 'w/o' }} indirection: {{ parloop.name }}\n");
+  }
+
+  int set_size = op_mpi_halo_exchanges(set, nargs, args);
+
+  if (set_size > 0) {
+    for (int n=0; n<set_size; n++) {
+      {% if parloop.indirection %}
+      if (n == set->core_size) {
+        op_mpi_wait_all(nargs, args);
+      }
+      {# Idxs #}
+      {% for arg in parloop.indirectIdxs %}
+      {%- call op_opt(arg) %}  
+      int mapIdx_{{ arg.map }}_{{ arg.idx }} = arg{{ arg.i }}.map_data[n * arg{{ arg.i }}.map->dim + {{ arg.idx }}];
+      {%- endcall %}
+      {% endfor %}
+      {# TODO: vec #}
+      {% endif %}
+
+
+      {{ parloop.kernel }}(
+      {% for arg in parloop.args %}
+      {% if arg.indirect %}
+      {# TODO: vec #}
+        &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * mapIdx_{{ arg.map }}_{{ arg.idx }}]{{ comma(loop) }}
+      {% elif arg.direct %}
+        &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
+      {% elif arg.global_ %}
+        ({{ arg.typ }}*)arg{{ arg.i }}.data{{ comma(loop) }}
+      {% endif %}
+      {% endfor %}
+      );
+    }
+  }
+
+  {% if parloop.indirection %}
+  if (set_size == 0 || set_size == set->core_size) {
+    op_mpi_wait_all(nargs, args);
+  }
+  {% endif %}
+
+  // combine reduction data
+  {% for arg in parloop.globals %} 
+  {% if arg.acc != 'OP_READ' and arg.typ in ('int', 'float', 'double') %}
+  op_mpi_reduce_{{ arg.typ }}(&arg{{ arg.i }},({{ arg.typ }}*)arg{{ arg.i }}.data);
+  {% endif %}
+  {% endfor %}
+  op_mpi_set_dirtybit(nargs, args);
+
+  // update kernel record
+  op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[{{ id }}].name      = name;
+  OP_kernels[{{ id }}].count    += 1;
+  OP_kernels[{{ id }}].time     += wall_t2 - wall_t1;
+
+  {%- if not parloop.indirection %}
+  {# No indirection #}
+  {% for arg in parloop.args %}
+  {% if arg is not global %}
+  {%- call op_opt(arg) %}  
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size{% if arg.acc != 'OP_READ' %} * 2.0f{% endif %};
+  {%- endcall %}
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  {# Indirection #}
+  {% for arg in parloop.uniqueVars %}
+  {%- call op_opt(arg) %}  
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size{% if arg is not r_or_w_acc %} * 2.0f{% endif %};
+  {%- endcall %}
+  {% endfor %}
+
+  {% for arg in parloop.indirectMaps %}
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.map->dim * 4.0f;
+  {% endfor %}
+  {% endif %}
+}

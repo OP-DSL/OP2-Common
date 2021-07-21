@@ -1,0 +1,8 @@
+open-fortran-parser
+cached-property
+python-dotenv
+clang
+jinja2
+pytest
+pylint
+mypy
