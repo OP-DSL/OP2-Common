@@ -1,0 +1,10 @@
+
+
+{# Surround caller with op_opt conditional block #}
+{% macro op_opt(arg) %}
+{% if arg.opt %}
+IF opArg{{ arg.i+1 }}%opt == 1 THEN{{ caller() }}
+END IF
+{% else %}{{ caller() }}{% endif %}
+{% endmacro %}
+
