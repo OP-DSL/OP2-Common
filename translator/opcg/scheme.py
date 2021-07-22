@@ -79,6 +79,7 @@ class Scheme(object):
 # Register schemes here ...
 
 cseq = Scheme(cpp.lang, optimisation.seq, Path('cpp/seq/loop_host.cpp.j2'))
+comp = Scheme(cpp.lang, optimisation.omp, Path('cpp/omp/loop_host.cpp.j2'))
 
 fseq  = Scheme(fortran.lang, optimisation.seq,  Path('fortran/seq/loop_host.F90.j2'),  Path('fortran/seq/make_stub.make.j2'))
 fvec  = Scheme(fortran.lang, optimisation.vec,  Path('fortran/vec/loop_host.F90.j2'),  Path('fortran/vec/make_stub.make.j2'))

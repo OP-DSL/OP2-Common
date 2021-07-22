@@ -17,7 +17,7 @@ class Location:
   file: str
   line: int
   column: int
-  
+
   def __init__(self, file: str, line: int, column: int) -> None:
     self.file = file
     self.line = line
@@ -55,9 +55,9 @@ class Program:
 
 
   def __init__(self, path: Path) -> None:
-    self.path = path 
-    self.init = None 
-    self.exit = False 
+    self.path = path
+    self.init = None
+    self.exit = False
     self.sets = []
     self.maps = []
     self.datas = []
@@ -75,19 +75,19 @@ class Program:
   def recordExit(self) -> None:
     self.exit = True
 
-  
+
   def __str__(self) -> str:
     return f"{'init, ' if self.init else ''}{len(self.consts)} constants, {len(self.loops)} loops{', exit' if self.exit else ''}"
 
-  
+
 
 class Kernel:
   name: str
   path: Path
   ast: Any # TODO: Update typing
   params: List[Tuple[str, str]]
-  
-  
+
+
   def __init__(self, name: str, path: Path, ast: Any, params: List[Tuple[str, str]]):
     self.name = name
     self.path = path
@@ -148,9 +148,9 @@ class Application:
       prev = safeFind(self.consts, lambda c: c.ptr == const.ptr)
 
       if prev and const.dim != prev.dim:
-        raise ParseError(f'dim mismatch in repeated decleration of "{const.ptr}" const') 
+        raise ParseError(f'dim mismatch in repeated decleration of "{const.ptr}" const')
       elif prev and const.dim != prev.dim:
-        raise ParseError(f'size mismatch in repeated decleration of "{const.ptr}" const') 
+        raise ParseError(f'size mismatch in repeated decleration of "{const.ptr}" const')
 
     # Validate loop calls
     for loop in self.loops:
@@ -158,7 +158,7 @@ class Application:
       if prev:
         for i, (arg_a, arg_b) in enumerate(zip(prev.args, loop.args)):
           if arg_a.acc != arg_b.acc:
-            raise ParseError(f'varying access types for arg {i} in {loop.kernel} par loops') 
+            raise ParseError(f'varying access types for arg {i} in {loop.kernel} par loops')
           # TODO: Consider more compatability issues
 
       # Validate loop dataset
@@ -171,7 +171,7 @@ class Application:
           # Look for the referenced data
           data_ = safeFind(self.datas, lambda d: d.ptr == arg.var)
 
-          # Validate the data referenced in the arg 
+          # Validate the data referenced in the arg
           if not data_:
             raise OpError(f'undefined data "{arg.var}" referenced in par loop arg', arg.loc)
           elif arg.typ != data_.typ:
@@ -227,7 +227,7 @@ class Application:
 
       if len(loop.args) != kernel.paramCount:
         raise ParseError(f'incorrect number of args passed to the {kernel} kernel', loop.loc)
-        
+
       for i, (param, arg) in enumerate(zip(kernel.params, loop.args)):
         if arg.typ != param[1]:
           raise ParseError(f'argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1]}', arg.loc)
@@ -269,5 +269,3 @@ class Application:
   def loops(self) -> List[OP.Loop]:
     loops = flattern(program.loops for program in self.programs)
     return uniqueBy(loops, lambda l: l.kernel)
-
-
