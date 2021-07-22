@@ -32,6 +32,7 @@ def main(argv=None) -> None:
   parser.add_argument('-o', '--out', help='Output directory', type=isDirPath, default='.')
   parser.add_argument('-p', '--prefix', help='Output File Prefix', type=isValidPrefix, default='op')
   parser.add_argument('-soa', '--soa', help='Structs of Arrays', action='store_true')
+  parser.add_argument('-t', '--thread_timing', help='Use thread timers', action='store_true')
   parser.add_argument('-I', help='Header Include', type=isDirPath, action='append', nargs='+', default=['.'])
 
   # Positional args
@@ -120,6 +121,9 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
 
     app.kernels.append(kernel)
 
+  for loop in app.loops:
+    loop.thread_timing = args.thread_timing
+    
   return app
 
 

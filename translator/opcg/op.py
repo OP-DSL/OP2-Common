@@ -67,7 +67,7 @@ class Map:
     self.dim = dim
     self.ptr = ptr
     self.loc = loc
-  
+
 
 class Data:
   set: str
@@ -115,16 +115,17 @@ class Arg:
   map: Optional[str] # Indirect mapping indentifier
   idx: Optional[int] # Indirect mapping index
   opt: Optional[str]
-
+  map1st: Optional[int] # First arg to use this arg's map
+  arg1st: Optional[int] # First arg to use this arg's dat
 
   def __init__(
-    self, 
-    var: str, 
-    dim: int, 
-    typ: str, 
-    acc: str, 
+    self,
+    var: str,
+    dim: int,
+    typ: str,
+    acc: str,
     loc: Location,
-    map_: str = None, 
+    map_: str = None,
     idx: int = None
   ) -> None:
     self.var = var
@@ -149,14 +150,15 @@ class Arg:
 
   @property
   def global_(self) -> bool:
-    return self.map is None 
+    return self.map is None
 
 
 class Loop:
   kernel: str
   set: str
   loc: Location
-  args: List[Arg] 
+  args: List[Arg]
+  thread_timing: bool
 
 
   def __init__(self, kernel: str, set_: str, loc: Location, args: List[Arg]) -> None:
@@ -164,12 +166,26 @@ class Loop:
     self.set = set_
     self.loc = loc
     self.args = args
+    seenMaps = {}
+    seenArgs = {}
     for i, arg in enumerate(args):
       arg.i = i
+      if arg.var in seenArgs.keys():
+          arg.arg1st = seenArgs[arg.var]
+      else:
+          seenArgs[arg.var] = arg.i
+          arg.arg1st = arg.i
+
+    for arg in self.indirects:
+      if arg.map in seenMaps.keys():
+          arg.map1st = seenMaps[arg.map]
+      else:
+          seenMaps[arg.map] = arg.i
+          arg.map1st = arg.i
 
 
   @property
-  def name(self) -> str: 
+  def name(self) -> str:
     return self.kernel
 
 
@@ -212,7 +228,7 @@ class Loop:
   def indirectIdxs(self) -> List[Arg]:
     return uniqueBy(self.indirects, lambda a: (a.map, a.idx))
 
-  
+
   @cached_property
   def indirectionDescriptor(self) -> List[int]:
     descriptor = []
@@ -224,7 +240,7 @@ class Loop:
             descriptor.append(i)
       else:
         descriptor.append(-1)
-        
+
     return descriptor
 
 
@@ -237,3 +253,10 @@ class Loop:
   def multiDimReduction(self) -> bool:
     return self.reduction and any( arg.dim > 1 for arg in self.globals )
 
+
+  def mapIdxLookup(self, map : str, idx : int) -> int:
+      for i, arg in enumerate(self.indirectIdxs):
+          if arg.map == map and arg.idx == idx:
+              return i
+
+      return -1
