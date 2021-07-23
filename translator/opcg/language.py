@@ -18,16 +18,18 @@ class Lang(object):
   source_exts: List[str]
   include_ext: str
   zero_idx: bool
+  kernel_dir: bool
 
 
   def __init__(
-    self, 
-    name: str, 
-    com_delim: str, 
-    types: List[str], 
-    source_exts: List[str], 
-    include_ext: str, 
-    zero_idx: bool = True
+    self,
+    name: str,
+    com_delim: str,
+    types: List[str],
+    source_exts: List[str],
+    include_ext: str,
+    zero_idx: bool = True,
+    kernel_dir: bool = False
   ) -> None:
     self.__class__.instances.append(self)
     self.name = name
@@ -36,6 +38,7 @@ class Lang(object):
     self.source_exts = source_exts
     self.include_ext = include_ext
     self.zero_idx = zero_idx
+    self.kernel_dir = kernel_dir
 
 
   def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
@@ -71,4 +74,3 @@ class Lang(object):
   @classmethod
   def find(cls, name: str) -> Lang:
     return find(cls.all(), lambda l: name == l.name or name in l.source_exts)
-

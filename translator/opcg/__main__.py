@@ -156,7 +156,12 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
     source, extension = scheme.genLoopHost(loop, i)
 
     # Form output file path
-    path = Path(args.out, f'{loop.name}_{scheme.opt.name}kernel.{extension}')
+    path = None
+    if scheme.lang.kernel_dir:
+      Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
+      path = Path(args.out, scheme.opt.name, f'{loop.name}_{scheme.opt.name}kernel.{extension}')
+    else:
+      path = Path(args.out, f'{loop.name}_{scheme.opt.name}kernel.{extension}')
 
     # Write the generated source file
     with open(path, 'w') as file:
@@ -170,7 +175,12 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
   # Generate master kernel file
   source, extension = scheme.genMasterKernel(app)
   appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
-  path = Path(args.out, f'{appname}_{scheme.opt.name}kernel.{extension}')
+  path = None
+  if scheme.lang.kernel_dir:
+    Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
+    path = Path(args.out, scheme.opt.name, f'{appname}_{scheme.opt.name}kernels.{extension}')
+  else:
+    path = Path(args.out, f'{appname}_{scheme.opt.name}kernels.{extension}')
   with open(path, 'w') as file:
     file.write(f'\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n')
     file.write(source)

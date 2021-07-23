@@ -108,7 +108,7 @@ class Kernel:
 class Application:
   programs: List[Program]
   kernels: List[Kernel]
-  
+
 
   def __init__(self):
     self.programs = []
@@ -154,6 +154,8 @@ class Application:
 
     # Validate loop calls
     for loop in self.loops:
+      kern = safeFind(self.kernels, lambda k: k.name == loop.kernel)
+      loop.kernelPath = str(kern.path)
       prev = safeFind(self.loops, lambda l: l.kernel == loop.kernel)
       if prev:
         for i, (arg_a, arg_b) in enumerate(zip(prev.args, loop.args)):
