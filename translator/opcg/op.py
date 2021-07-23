@@ -161,6 +161,7 @@ class Loop:
   loc: Location
   args: List[Arg]
   thread_timing: bool
+  kernelPath: str
 
 
   def __init__(self, kernel: str, set_: str, loc: Location, args: List[Arg]) -> None:
