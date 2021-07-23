@@ -94,13 +94,15 @@ class Data:
 class Const:
   ptr: str
   dim: int
+  typ: str
   debug: str
   loc: Location
 
 
-  def __init__(self, ptr: str, dim: int, debug: str, loc: Location) -> None:
+  def __init__(self, ptr: str, dim: int, typ: str, debug: str, loc: Location) -> None:
     self.ptr = ptr
     self.dim = dim
+    self.typ = typ
     self.debug = debug
     self.loc = loc
 

@@ -123,7 +123,7 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
 
   for loop in app.loops:
     loop.thread_timing = args.thread_timing
-    
+
   return app
 
 
@@ -166,6 +166,18 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
       if args.verbose:
         print(f'Generated loop host {i} of {len(app.loops)}: {path}')
+
+  # Generate master kernel file
+  source, extension = scheme.genMasterKernel(app)
+  appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
+  path = Path(args.out, f'{appname}_{scheme.opt.name}kernel.{extension}')
+  with open(path, 'w') as file:
+    file.write(f'\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n')
+    file.write(source)
+    generated_paths.append(path)
+
+    if args.verbose:
+      print(f'Generated master kernel file: {path}')
 
   # Generate program translations
   for i, program in enumerate(app.programs, 1):
