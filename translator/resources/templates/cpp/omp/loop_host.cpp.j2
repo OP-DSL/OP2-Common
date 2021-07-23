@@ -3,7 +3,7 @@
 {% from 'macros.j2' import comma %}
 
 // user function
-#include "{{ parloop.kernel }}.h"
+#include "../{{ parloop.kernelPath }}"
 
 // host stub function
 void op_par_loop_{{ parloop.name }}_host(
@@ -13,6 +13,12 @@ void op_par_loop_{{ parloop.name }}_host(
   op_arg arg{{ arg.i }}{{ comma(loop) }}
   {% endfor %}
 ) {
+
+  {% for glb in parloop.globals %}
+  {% if glb.acc != "OP_READ" %}
+  {{ glb.typ }} *arg{{ glb.i }}h = ({{ glb.typ }} *)arg{{ glb.i }}.data;
+  {% endif %}
+  {% endfor %}
 
   int nargs = {{ parloop.args | length }};
   op_arg args[{{ parloop.args | length }}];
@@ -66,13 +72,13 @@ void op_par_loop_{{ parloop.name }}_host(
   // allocate and initialise arrays for global reduction
   {% for glb in parloop.globals %}
   {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
-  {{ glb.typ }} {{ glb.var }}_l[nthreads*64];
+  {{ glb.typ }} arg{{ glb.i }}_l[nthreads*64];
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
       {% if glb.acc == "OP_INC" %}
-      {{ glb.var }}_l[d+thr*64] = ZERO_{{ glb.typ }};
+      arg{{ glb.i }}_l[d+thr*64] = ZERO_{{ glb.typ }};
       {% else %}
-      {{ glb.var }}_l[d+thr*64] = {{ glb.var }}h[d];
+      arg{{ glb.i }}_l[d+thr*64] = arg{{ glb.i }}h[d];
       {% endif %}
     }
   }
@@ -154,19 +160,19 @@ void op_par_loop_{{ parloop.name }}_host(
         {% if glb.acc == "OP_INC" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            {{ glb.var }}h[d] += {{ glb.var }}_l[d+thr*64];
+            arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d+thr*64];
           }
         }
         {% elif glb.acc == "OP_MIN" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            {{ glb.var }}h[d] = MIN({{ glb.var }}h[d], {{ glb.var }}_l[d+thr*64]);
+            arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
           }
         }
         {% elif glb.acc == "OP_MAX" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            {{ glb.var }}h[d] = MAX({{ glb.var }}h[d], {{ glb.var }}_l[d+thr*64]);
+            arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
           }
         }
         {% endif %}
@@ -235,25 +241,25 @@ void op_par_loop_{{ parloop.name }}_host(
   {% if glb.acc == "OP_INC" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      {{ glb.var }}h[d] += {{ glb.var }}_l[d+thr*64];
+      arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d+thr*64];
     }
   }
   {% elif glb.acc == "OP_MIN" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      {{ glb.var }}h[d] = MIN({{ glb.var }}h[d], {{ glb.var }}_l[d+thr*64]);
+      arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
     }
   }
   {% elif glb.acc == "OP_MAX" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      {{ glb.var }}h[d] = MAX({{ glb.var }}h[d], {{ glb.var }}_l[d+thr*64]);
+      arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
     }
   }
   {% endif %}
   {% endif %}
   {% if glb.acc != "OP_READ" %}
-  op_mpi_reduce(&{{ glb.var }},{{ glb.var }}h);
+  op_mpi_reduce(&arg{{ glb.i }},arg{{ glb.i }}h);
   {% endif %}
   {% endfor %}
   op_mpi_set_dirtybit(nargs, args);
@@ -271,9 +277,9 @@ void op_par_loop_{{ parloop.name }}_host(
   {% for arg in parloop.args %}
   {% if not arg.global_ %}
   {% if arg.acc == "OP_READ" %}
-  OP_kernels[{{ id }}].transfer += (float)set->size * {{ arg.var }}.size;
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size;
   {% else %}
-  OP_kernels[{{ id }}].transfer += (float)set->size * {{ arg.var }}.size * 2.0f;
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size * 2.0f;
   {% endif %}
   {% endif %}
   {% endfor %}
