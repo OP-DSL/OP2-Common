@@ -20,15 +20,16 @@ import cpp
 class Scheme(object):
   instances: ClassVar[List[Scheme]] = []
 
-  def __init__(self, lang: Lang, opt: Opt, loop_host_template: Path, make_stub_template: Path = None) -> None:
+  def __init__(self, lang: Lang, opt: Opt, loop_host_template: Path, make_stub_template: Path = None, master_kernel_template: Path = None) -> None:
     if Scheme.find(lang, opt):
       exit('duplicate scheme')
 
     self.__class__.instances.append(self)
     self.lang = lang
     self.opt = opt
-    self.loop_host_template = loop_host_template
-    self.make_stub_template = make_stub_template
+    self.loop_host_template     = loop_host_template
+    self.make_stub_template     = make_stub_template
+    self.master_kernel_template = master_kernel_template
 
 
   @classmethod
@@ -53,10 +54,20 @@ class Scheme(object):
     # Generate source from the template
     return template.render(parloop=loop, opt=self.opt, id=i), extension
 
+  def genMasterKernel(self, app) -> Tuple[str, str]:
+    if self.master_kernel_template is None:
+      exit(f'No master kernel template registered for {self}')
+    # Load the loop host template
+    template = env.get_template(str(self.master_kernel_template))
+    extension = self.master_kernel_template.suffixes[-2][1:]
+
+    # Generate source from the template
+    return template.render(app=app, opt=self.opt), extension
+
 
   def genMakeStub(self, paths: List[Path]) -> str:
     if self.make_stub_template is None:
-      exit('No Make stub template registered for {self}')
+      exit(f'No Make stub template registered for {self}')
 
     # Load the make stub template
     template = env.get_template(str(self.make_stub_template))
@@ -78,8 +89,8 @@ class Scheme(object):
 
 # Register schemes here ...
 
-cseq = Scheme(cpp.lang, optimisation.seq, Path('cpp/seq/loop_host.cpp.j2'))
-comp = Scheme(cpp.lang, optimisation.omp, Path('cpp/omp/loop_host.cpp.j2'))
+cseq = Scheme(cpp.lang, optimisation.seq, Path('cpp/seq/loop_host.cpp.j2'), None, Path('cpp/seq/master_kernel.cpp.j2'))
+comp = Scheme(cpp.lang, optimisation.omp, Path('cpp/omp/loop_host.cpp.j2'), None, Path('cpp/omp/master_kernel.cpp.j2'))
 
 fseq  = Scheme(fortran.lang, optimisation.seq,  Path('fortran/seq/loop_host.F90.j2'),  Path('fortran/seq/make_stub.make.j2'))
 fvec  = Scheme(fortran.lang, optimisation.vec,  Path('fortran/vec/loop_host.F90.j2'),  Path('fortran/vec/make_stub.make.j2'))

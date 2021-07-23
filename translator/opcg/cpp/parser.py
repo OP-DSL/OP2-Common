@@ -17,7 +17,7 @@ import op as OP
 macro_instances = {} # TODO: Cleanup
 
 
-def parseKernel(self, path: Path, name: str) -> Kernel:  
+def parseKernel(self, path: Path, name: str) -> Kernel:
   # Invoke Clang parser on kernel source
   translation_unit = Index.create().parse(path)
 
@@ -56,12 +56,12 @@ def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
 
   # Invoke Clang parser on the program source
   translation_unit = Index.create().parse(
-    path, 
-    args=args, 
+    path,
+    args=args,
     options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
   )
 
-  # Throw the parse error first parse error caught in the diagnostics 
+  # Throw the parse error first parse error caught in the diagnostics
   error = next(iter(translation_unit.diagnostics), None)
   if error:
     raise ParseError(error.spelling, parseLocation(error))
@@ -73,7 +73,7 @@ def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
   for child in translation_unit.cursor.get_children():
     # Ignore macro definitions and cursors outside of the program file
     if child.kind != CursorKind.MACRO_DEFINITION and child.location.file.name == translation_unit.spelling:
-      # Collect the locations and identifiers of macro instances 
+      # Collect the locations and identifiers of macro instances
       if child.kind == CursorKind.MACRO_INSTANTIATION:
         macro_instances[(child.location.line, child.location.column)] = child.displayname
       # Populate with the top-level cursors from the target file
@@ -104,13 +104,13 @@ def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
 
       elif name == 'op_decl_set':
         program.sets.append(parseSet(args, ptr, loc))
-      
+
       elif name == 'op_decl_map':
         program.maps.append(parseMap(args, ptr, loc))
-      
+
       elif name == 'op_decl_dat':
         program.datas.append(parseDat(args, ptr, loc))
-      
+
       elif name == 'op_decl_const':
         program.consts.append(parseConst(args, loc))
 
@@ -163,12 +163,13 @@ def parseConst(nodes: List[Cursor], loc: Location) -> OP.Const:
   if len(nodes) != 3:
     raise ParseError('incorrect number of args passed to op_decl_const', loc)
 
+  # TODO dim may not be literal
   dim  = parseIntLit(nodes[0], signed=False)
   typ  = parseStringLit(nodes[1])
   ptr = parseIdentifier(nodes[2])
   debug = ptr
 
-  return OP.Const(ptr, dim, debug, loc)
+  return OP.Const(ptr, dim, typ, debug, loc)
 
 
 def parseLoop(nodes: List[Cursor], loc: Location) -> OP.Loop:
@@ -178,7 +179,7 @@ def parseLoop(nodes: List[Cursor], loc: Location) -> OP.Loop:
   # Parse loop kernel and set
   kernel = parseIdentifier(nodes[0])
   _  = parseStringLit(nodes[1])
-  set_ = parseIdentifier(nodes[2]) 
+  set_ = parseIdentifier(nodes[2])
 
   loop_args = []
 
@@ -232,7 +233,7 @@ def parseOptArgDat(nodes: List[Cursor], loc: Location) -> OP.Arg:
 
   # Parse standard argDat arguments
   dat = parseArgDat(nodes[1:], loc)
-  
+
   # Return augmented dat
   dat.opt = opt
   return dat
@@ -248,7 +249,7 @@ def parseArgGbl(nodes: List[Cursor], loc: Location) -> OP.Arg:
   dim = parseIntLit(nodes[1], signed=False)
   typ = parseStringLit(nodes[2])
   acc = macro_instances[(nodes[3].location.line, nodes[3].location.column)] # TODO: Cleanup
-  
+
   return OP.Arg(var, dim, typ, acc, loc)
 
 
@@ -261,7 +262,7 @@ def parseOptArgGbl(nodes: List[Cursor], loc: Location) -> OP.Arg:
 
   # Parse standard argGbl arguments
   dat = parseArgGbl(nodes[1:], loc)
-  
+
   # Return augmented dat
   dat.opt = opt
   return dat
@@ -301,8 +302,8 @@ def parseIntLit(node: Cursor, signed: bool = True) -> int:
   # Assume the literal is not negated
   negation = False
 
-  # Check if the node is wrapped in a valid unary negation 
-  if signed and node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling == '-': 
+  # Check if the node is wrapped in a valid unary negation
+  if signed and node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling == '-':
     negation = True
     node = descend(node)
 
@@ -351,4 +352,3 @@ def parseLocation(node: Cursor) -> Location:
 
 def descend(node: Cursor) -> Optional[Cursor]:
   return next(node.get_children(), None)
-  
