@@ -6,14 +6,14 @@
 {# !!! W.I.P !!! #}
 
 // user function
-#include "{{ parloop.kernel }}.h"
+#include "../{{ parloop.kernelPath }}"
 
 // host stub function
 void op_par_loop_{{ parloop.name }}_host(
-  char const *name, 
+  char const *name,
   op_set set,
   {% for arg in parloop.args %}
-  op_arg arg{{ arg.i }}{{ comma(loop) }}       
+  op_arg arg{{ arg.i }}{{ comma(loop) }}
   {% endfor %}
 ) {
 
@@ -43,7 +43,7 @@ void op_par_loop_{{ parloop.name }}_host(
       }
       {# Idxs #}
       {% for arg in parloop.indirectIdxs %}
-      {%- call op_opt(arg) %}  
+      {%- call op_opt(arg) %}
       int mapIdx_{{ arg.map }}_{{ arg.idx }} = arg{{ arg.i }}.map_data[n * arg{{ arg.i }}.map->dim + {{ arg.idx }}];
       {%- endcall %}
       {% endfor %}
@@ -73,7 +73,7 @@ void op_par_loop_{{ parloop.name }}_host(
   {% endif %}
 
   // combine reduction data
-  {% for arg in parloop.globals %} 
+  {% for arg in parloop.globals %}
   {% if arg.acc != 'OP_READ' and arg.typ in ('int', 'float', 'double') %}
   op_mpi_reduce_{{ arg.typ }}(&arg{{ arg.i }},({{ arg.typ }}*)arg{{ arg.i }}.data);
   {% endif %}
@@ -90,7 +90,7 @@ void op_par_loop_{{ parloop.name }}_host(
   {# No indirection #}
   {% for arg in parloop.args %}
   {% if arg is not global %}
-  {%- call op_opt(arg) %}  
+  {%- call op_opt(arg) %}
   OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size{% if arg.acc != 'OP_READ' %} * 2.0f{% endif %};
   {%- endcall %}
   {% endif %}
@@ -98,7 +98,7 @@ void op_par_loop_{{ parloop.name }}_host(
   {% else %}
   {# Indirection #}
   {% for arg in parloop.uniqueVars %}
-  {%- call op_opt(arg) %}  
+  {%- call op_opt(arg) %}
   OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size{% if arg is not r_or_w_acc %} * 2.0f{% endif %};
   {%- endcall %}
   {% endfor %}
