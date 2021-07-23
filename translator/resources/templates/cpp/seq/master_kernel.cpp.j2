@@ -1,0 +1,21 @@
+{# Template imports #}
+{% from 'cpp/macros.j2' import op_opt %}
+{% from 'macros.j2' import comma %}
+
+// global constants
+{% for constant in app.consts %}
+{% if constant.dim == 1 %}
+extern {{ constant.typ }} {{ constant.ptr }};
+{% else %}
+extern {{ constant.typ }} {{ constant.ptr }}[{{ constant.dim }}];
+{% endif %}
+{% endfor %}
+
+// header
+{# TODO: user_types #}
+#include "op_lib_cpp.h"
+
+// user kernel files
+{% for parloop in app.loops %}
+#include "{{ parloop.name }}_{{ opt.name }}kernel.cpp"
+{% endfor %}
