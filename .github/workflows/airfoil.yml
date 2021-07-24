@@ -16,10 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
         language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq', 'genseq' ] # TODO: Add support for 'vec', 'cuda' etc ...
+        optimisation: [ 'seq', 'genseq', 'vec' ] # TODO: Add support for 'cuda' etc ...
 
     defaults:
       run:
