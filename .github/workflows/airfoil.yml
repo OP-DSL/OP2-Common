@@ -20,7 +20,7 @@ jobs:
       matrix:
         mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
         language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq', 'genseq', 'vec' ] # TODO: Add support for 'cuda' etc ...
+        optimisation: [ 'seq', 'genseq', 'vec', 'openmp' ] # TODO: Add support for 'cuda' etc ...
 
     defaults:
       run:
@@ -46,7 +46,7 @@ jobs:
 
       - name: Build OP2 backend
         working-directory: op2/${{ matrix.language.name }}
-        run: make core seq
+        run: make core seq openmp # TODO: Only build targets required for active the matrix config
 
       - name: Run OP2 translator
         if: ${{ matrix.optimisation != 'seq' }}
