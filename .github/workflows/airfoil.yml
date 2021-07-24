@@ -19,7 +19,7 @@ jobs:
       matrix:
         mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
         language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq' ] # TODO: Add support for 'genseq', 'cuda' etc ...
+        optimisation: [ 'seq', 'genseq' ] # TODO: Add support for 'vec', 'cuda' etc ...
 
     defaults:
       run:
@@ -35,9 +35,9 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      # - name: Install gfortran
-      #   if: ${{ matrix.language.name == 'fortran' }}
-      #   run: apt update && apt install -y gfortran
+      - name: Install gfortran
+        if: ${{ matrix.language.name == 'fortran' }}
+        run: apt update && apt install -y gfortran
 
       # - name: Install CUDA
       #   if: ${{ matrix.optimisation == 'cuda' }}
