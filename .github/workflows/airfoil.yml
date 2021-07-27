@@ -16,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
         language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq', 'genseq', 'vec', 'openmp' ] # TODO: Add support for 'cuda' etc ...
+        optimisation: [ 'seq', 'genseq', 'vec', 'openmp' ] # TODO: Add support for 'cuda'
+        mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
 
     defaults:
       run:
@@ -29,6 +29,7 @@ jobs:
     env:
       OP2_COMPILER: gnu
       OP2_INSTALL_PATH: "$(GITHUB_WORKSPACE)/op2"
+      NV_ARCH: Pascal
 
     steps:
       - name: Checkout repository
@@ -36,13 +37,22 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - name: Install gfortran
-        if: ${{ matrix.language.name == 'fortran' }}
-        run: apt update && apt install -y gfortran
+      # - name: Install gfortran # TODO: Cache this step
+      #   if: ${{ matrix.language.name == 'fortran' }}
+      #   run: apt update && apt install -y gfortran
 
-      # - name: Install CUDA
+      # - name: Install CUDA Toolkit # TODO: Cache this step
+      #   uses: Jimver/cuda-toolkit@v0.2.4
       #   if: ${{ matrix.optimisation == 'cuda' }}
-      #   run: ???
+      #   id: install-cuda-toolkit
+      #   with:
+      #     cuda: '11.2.2'
+      #     method: 'network'
+      #     sub-packages: '[ "cudart", "nvcc" ]'
+   
+      # - name: Link CUDA runtime
+      #   if: ${{ matrix.optimisation == 'cuda' }}
+      #   run: sudo ln -s "${{steps.install-cuda-toolkit.outputs.CUDA_PATH}}"/lib64/libcudart.so /usr/lib/libcudart.so
 
       - name: Build OP2 backend
         working-directory: op2/${{ matrix.language.name }}
@@ -55,7 +65,7 @@ jobs:
       - name: Build airfoil
         run: make airfoil_${{ matrix.optimisation }}
 
-      - name: Get airfoil mesh data
+      - name: Get airfoil mesh data # TODO: Replace with a smaller mesh
         if: ${{ matrix.mesh == 'plain' }}
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
@@ -69,7 +79,7 @@ jobs:
       - name: Archive airfoil output
         uses: actions/upload-artifact@v2
         with:
-          name: airfoil-${{ matrix.mesh }}-${{ matrix.language.name }}-${{ matrix.optimisation }}-output
+          name: airfoil-${{ matrix.language.name }}-${{ matrix.optimisation }}-${{ matrix.mesh }}-output
           path: ~/output.txt 
   
 
