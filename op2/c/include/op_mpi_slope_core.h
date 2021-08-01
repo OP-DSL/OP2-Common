@@ -43,6 +43,11 @@ void op_halo_destroy_slope();
 void op_single_halo_destroy(halo_list* h_list);
 halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, int my_rank);
 
+int inverse_map_values(int* map_values, int map_dim, int map_size, int** inv_map_out, int** inv_offset_out);
+int inverse_map(op_map map, int** inv_map_out, int** inv_offset_out);
+int* get_map_values_from_elements(op_map map, int* indices, int indices_count);
+halo_list* extend_halo_list(halo_list* h_list, int my_rank, int comm_size);
+
 void step5_1(int **part_range, int my_rank, int comm_size);
 void step7_1(int **part_range, int my_rank, int comm_size);
 void step7_2(int **part_range, int my_rank, int comm_size);

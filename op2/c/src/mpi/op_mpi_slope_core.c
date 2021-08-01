@@ -37,6 +37,305 @@ static void create_nonexec_ex_export_list(op_set set, int *temp_list,
                      ranks_size, comm_size, my_rank);
 }
 
+
+halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, int my_rank){
+
+  if(!h_list1 && !h_list2){
+    return NULL;
+  }
+  if(!h_list1 && h_list2){
+    return h_list2;
+  }
+  if(h_list1 && !h_list2){
+    return h_list1;
+  }
+
+  if(h_list1->ranks_size == 0 && h_list2->ranks_size == 0){
+    return h_list1;
+  }
+  if(h_list1->ranks_size == 0 && h_list2->ranks_size != 0){
+    return h_list2;
+  }
+  if(h_list1->ranks_size != 0 && h_list2->ranks_size == 0){
+    return h_list1;
+  }
+
+  if (compare_sets(h_list1->set, h_list2->set) != 1) {
+    printf("ERROR: Invalid set merge");
+    return NULL;
+  }
+
+  int* h1_ranks = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_ranks = (int *)xmalloc(comm_size * sizeof(int));
+
+  int* h1_sizes = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  int* h1_disps = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_disps = (int *)xmalloc(comm_size * sizeof(int));
+
+  int *ranks = (int *)xmalloc(comm_size * sizeof(int));
+  int *disps = (int *)xmalloc(comm_size * sizeof(int));
+  int *sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  for(int i = 0; i < comm_size; i ++){
+    h1_ranks[i] = -99;
+    h2_ranks[i] = -99;
+    h1_sizes[i] = -99;
+    h2_sizes[i] = -99;
+    h1_disps[i] = -99;
+    h2_disps[i] = -99;
+    ranks[i] = -99;
+    disps[i] = -99;
+    sizes[i] = -99;
+  }
+
+  for(int i = 0; i < h_list1->ranks_size; i++){
+    h1_ranks[h_list1->ranks[i]] = 1;
+    h1_sizes[h_list1->ranks[i]] = h_list1->sizes[i];
+    h1_disps[h_list1->ranks[i]] = h_list1->disps[i];
+  }
+
+  for(int i = 0; i < h_list2->ranks_size; i++){
+    h2_ranks[h_list2->ranks[i]] = 1;
+    h2_sizes[h_list2->ranks[i]] = h_list2->sizes[i];
+    h2_disps[h_list2->ranks[i]] = h_list2->disps[i];
+  }
+
+  //count cumulative size
+  int merged_size = 0;
+  for(int i = 0; i < comm_size; i++){
+    if(h1_ranks[i] > 0){
+      merged_size++;
+    }
+    else if(h2_ranks[i] > 0){
+      merged_size++;
+    }
+  }
+  
+  int total_size = 0;
+  for(int i = 0; i < comm_size; i++){
+    if(h1_ranks[i] > 0){
+      total_size += h1_sizes[i];
+    }
+    if(h2_ranks[i] > 0){
+      total_size += h2_sizes[i];
+    }
+  }
+  int* list = (int *)xmalloc(total_size * sizeof(int)); // max total size of the list
+
+  int disp = 0;
+  int start = 0;
+  int index = 0;
+  total_size = 0;
+
+  
+  for(int i = 0; i < comm_size; i++){
+    int rank = -1;
+    int size = 0;
+    start = disp;
+    if(h1_ranks[i] > 0){
+      rank = i;
+      for(int j = 0; j < h1_sizes[i]; j++){
+        list[disp++] = h_list1->list[h1_disps[i] + j];
+      }
+    }
+    if(h2_ranks[i] > 0){
+      rank = i;
+      for(int j = 0; j < h2_sizes[i]; j++){
+        list[disp++] = h_list2->list[h2_disps[i] + j];
+      }
+    }
+
+    if(disp > start){
+      quickSort(&list[start], 0, (disp - start - 1));
+      int new_size = removeDups(&list[start], (disp - start));
+      disp = start + new_size;
+    }
+
+    if(h1_ranks[i] > 0 || h2_ranks[i] > 0){
+      ranks[index] = rank;
+      sizes[index] = disp - start;
+      total_size += sizes[index];
+      index++;
+    }
+  }
+
+  disps[0] = 0;
+  for (int i = 0; i < comm_size; i++) {
+    if (i > 0)
+      disps[i] = disps[i - 1] + sizes[i - 1];
+  }
+
+  halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
+
+  h_list->set = h_list1->set;
+  h_list->size = total_size;
+  h_list->ranks = ranks;
+  h_list->ranks_size = merged_size;
+  h_list->disps = disps;
+  h_list->sizes = sizes;
+  h_list->list = list;
+
+  op_free(h_list1->ranks);
+  op_free(h_list1->disps);
+  op_free(h_list1->sizes);
+  op_free(h_list1->list);
+  op_free(h_list1);
+
+  op_free(h_list2->ranks);
+  op_free(h_list2->disps);
+  op_free(h_list2->sizes);
+  op_free(h_list2->list);
+  op_free(h_list2);
+
+
+  op_free(h1_ranks);
+  op_free(h2_ranks);
+  op_free(h1_sizes);
+  op_free(h2_sizes);
+  op_free(h1_disps);
+  op_free(h2_disps);
+
+  return h_list;
+}
+
+int get_max_value(int* arr, int from, int to){
+  int max = 0;  // assumption: max >= 0
+  for(int i = from; i < to; i++){
+    if(max < arr[i]){
+      max = arr[i];
+    }  
+  }
+  return max;
+}
+
+int inverse_map_values(int* map_values, int map_dim, int map_size, int** inv_map_out, int** inv_offset_out){
+
+  int to_set_size = get_max_value(map_values, 0, map_size) + 1; // map->to->size;
+
+  int* inv_map = (int *)xmalloc(map_size * sizeof(int));
+  int* inv_offset = (int*)xmalloc((to_set_size + 1) * sizeof(int));
+  int* inserted = (int*)xmalloc((to_set_size + 1) * sizeof(int));
+
+  for(int i = 0; i < to_set_size + 1; i++){
+    inv_offset[i] = 0;
+    inserted[i] = 0;
+  }
+
+  for(int i = 0; i < map_size; i++){
+    inv_map[i] = -1;
+  }
+
+  for(int i = 0; i < map_size; i++){
+    inv_offset[map_values[i] + 1]++;
+  }
+
+  inv_offset[0] = 0;
+  for(int i = 1; i < to_set_size + 1; i++){
+      inv_offset[i] += inv_offset[i - 1];
+  }
+
+  for(int i = 0; i < map_size; i += map_dim){
+    for(int j = 0; j < map_dim; j++){
+      int entry = map_values[i + j];
+      if(entry < 0){
+        continue;
+      }
+      inv_map[inv_offset[entry] + inserted[entry]] = i / map_dim;
+      inserted[entry]++;
+    }
+  }
+  op_free(inserted);
+  *inv_map_out = inv_map;
+  *inv_offset_out = inv_offset;
+
+  return to_set_size;
+}
+
+int inverse_map(op_map map, int** inv_map_out, int** inv_offset_out){
+  return inverse_map_values(map->map, map->dim, map->from->size * map->dim, inv_map_out, inv_offset_out);
+}
+
+int* get_map_values_from_elements(op_map map, int* elements, int element_count){
+
+  int* map_values = (int *)xmalloc(element_count * map->dim * sizeof(int));
+
+  for(int i = 0; i < element_count; i++){
+    for(int j = 0; j < map->dim; j++){
+      map_values[i * map->dim + j] = map->map[elements[i] * map->dim + j];
+    }
+  }
+  return map_values;
+}
+
+halo_list* extend_halo_list(halo_list* h_lists_in, int my_rank, int comm_size){
+  
+  halo_list* h_list_ext = (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
+
+  int s_i;
+  int* set_list;
+  int cap_s = 1000; // keep track of the temp array capacities
+
+  for (int s = 0; s < OP_set_index; s++) {
+
+    op_set set = OP_set_list[s];
+    s_i = 0;
+    cap_s = 1000;
+    set_list = (int *)xmalloc(cap_s * sizeof(int));
+
+    for (int m = 0; m < OP_map_index; m++) { // for each maping table
+      op_map map = OP_map_list[m];
+      if (compare_sets(map->from, set) == 1) { // need to select mappings
+                                                 // FROM this set
+        int* inv_map;
+        int* inv_map_offsets;
+        int inv_map_size = inverse_map(map, &inv_map, &inv_map_offsets);
+
+        halo_list h_list = h_lists_in[map->from->index];
+
+        for(int h = 0; h < h_list->ranks_size; h++){
+
+          int* map_values = get_map_values_from_elements(map, &h_list->list[h_list->disps[h]], h_list->sizes[h]);
+
+          int* inv_values;
+          int* inv_value_offsets;
+          int inv_map_values_size = inverse_map_values(map_values, map->dim, h_list->sizes[h] * map->dim, &inv_values, &inv_value_offsets);
+
+          for(int i = 0; i < inv_map_values_size; i++){
+            if((inv_value_offsets[i + 1] - inv_value_offsets[i]) > 0){
+              if((inv_map_size + 1 > i) && ((inv_map_offsets[i + 1] - inv_map_offsets[i]) > 0) ){
+
+                for(int j = inv_value_offsets[i]; j < inv_value_offsets[i + 1]; j++){
+
+                  if (s_i + (inv_map_values_size * (inv_value_offsets[i + 1] - inv_value_offsets[i]) * 2) >= cap_s) {
+                    cap_s = cap_s * 2;
+                    set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
+                  }
+
+                  set_list[(s_i)++] = h_list->ranks[h];
+                  set_list[(s_i)++] = inv_map[j];
+                }
+              }
+            }
+          }
+          op_free(map_values);
+          op_free(inv_values);
+          op_free(inv_value_offsets);
+        }
+        op_free(inv_map);
+        op_free(inv_map_offsets);
+      }
+    }
+
+    halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
+    create_export_list(set, set_list, h_list, s_i, comm_size, my_rank);
+    h_list_ext[set->index] = h_list;
+    op_free(set_list);
+  }
+  return h_list_ext;
+}
+
 void step5_1(int **part_range, int my_rank, int comm_size){
 
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -428,6 +727,19 @@ void op_halo_create_slope() {
   /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
   step1(part_range, my_rank, comm_size);
+
+  // extend exec halo region
+  for(int i = 0; i < 1; i++){
+    halo_list* h_list_ext = extend_halo_list(OP_export_exec_list, my_rank, comm_size);
+
+    for (int s = 0; s < OP_set_index; s++) {
+      op_set set = OP_set_list[s];
+      halo_list h_list_merged = merge_halo_lists(OP_export_exec_list[set->index], h_list_ext[set->index], comm_size, my_rank);
+      OP_export_exec_list[set->index] = h_list_merged;
+    }
+  }
+  
+ 
   
   /*---- STEP 2 - construct import lists for mappings and execute sets------*/
   step2(part_range, my_rank, comm_size);
@@ -492,7 +804,7 @@ void op_halo_create_slope() {
 
 void op_single_halo_destroy(halo_list* h_list){
 
-   for (int s = 0; s < OP_set_index; s++) {
+  for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
 
     op_free(h_list[set->index]->ranks);
@@ -512,16 +824,6 @@ void op_halo_destroy_slope() {
   op_single_halo_destroy(OP_export_nonexec_ex_list);
   op_single_halo_destroy(OP_import_nonexec_merged_list);
   op_single_halo_destroy(OP_export_nonexec_merged_list);
-}
-
-int get_max_value(int* arr, int from, int to){
-  int max = 0;  // assumption: max >= 0
-  for(int i = from; i < to; i++){
-    if(max < arr[i]){
-      max = arr[i];
-    }  
-  }
-  return max;
 }
 
 int find_element_in(int* arr, int element){
