@@ -57,8 +57,8 @@ void step8_1(int **part_range, int my_rank, int comm_size);
 int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_set_to_nonexec_max);
 int get_exec_size(op_set set, int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max);
 int get_core_size(op_set set, int* to_sets, int* to_set_to_core_max);
-void calculate_max_values(op_set* sets, int set_count, op_map* maps, int map_count, int* to_sets,
-int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_nonexec_max, int my_rank);
+void calculate_max_values(op_set from_set, op_set to_set, int map_dim, int* map_values,
+int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_nonexec_max, int my_rank);
 int find_element_in(int* arr, int element);
 int get_max_value(int* arr, int from, int to);
 

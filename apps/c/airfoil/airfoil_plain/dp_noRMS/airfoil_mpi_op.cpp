@@ -496,8 +496,19 @@ int main(int argc, char **argv) {
   int to_set_to_exec_max[set_count + 1];
   int to_set_to_nonexec_max[set_count + 1];
 
-  calculate_max_values(sets, set_count, maps, 5, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+    for(int i = 0; i < set_count + 1; i++){
+    to_sets[i] = 0;
+    to_set_to_core_max[i] = 0;
+    to_set_to_exec_max[i] = 0;
+    to_set_to_nonexec_max[i] = 0;
+  }
 
+  calculate_max_values(edges, nodes, 2, pedge->map, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+  calculate_max_values(edges, cells, 2, pecell->map, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+  calculate_max_values(bedges, nodes, 2, pbedge->map, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+  calculate_max_values(bedges, cells, 1, pbecell->map, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+  calculate_max_values(cells, nodes, 4, pcell->map, to_sets, to_set_to_core_max, to_set_to_exec_max, to_set_to_nonexec_max, my_rank);
+  
   //sets
   set_t* sl_nodes = set("nodes", get_core_size(nodes, to_sets, to_set_to_core_max) , get_exec_size(nodes, to_sets, to_set_to_core_max, to_set_to_exec_max), 
     get_nonexec_size(nodes, to_sets, to_set_to_exec_max, to_set_to_nonexec_max));
