@@ -123,9 +123,10 @@ void op_par_loop_{{ parloop.name }}_host(
           {% for arg in parloop.indirectIdxs %}
           int map{{ loop.index - 1 }}idx;
           {% endfor %}
-          {# TODO: currently ignoring optflags #}
           {% for arg in parloop.indirectIdxs %}
+          {%- call op_opt(arg) %}
           map{{ loop.index - 1 }}idx = arg{{ arg.map1st }}.map_data[n * arg{{ arg.map1st }}.map->dim + {{ arg.idx }}];
+          {%- endcall %}
           {% endfor %}
           {% endif %}
 
@@ -273,8 +274,8 @@ void op_par_loop_{{ parloop.name }}_host(
   OP_kernels[{{ id }}].time += wall_t2 - wall_t1;
   {% endif %}
   {% if not parloop.indirection %}
-  {# TODO: optflags #}
   {% for arg in parloop.args %}
+  {%- call op_opt(arg) %}
   {% if not arg.global_ %}
   {% if arg.acc == "OP_READ" %}
   OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size;
@@ -282,6 +283,7 @@ void op_par_loop_{{ parloop.name }}_host(
   OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size * 2.0f;
   {% endif %}
   {% endif %}
+  {%- endcall %}
   {% endfor %}
   {% endif %}
 }
