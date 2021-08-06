@@ -227,6 +227,11 @@ class Loop:
 
 
   @cached_property
+  def opts(self) -> bool:
+    return [ arg for arg in self.args if arg.opt is not None ]
+
+
+  @cached_property
   def globals(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.global_ ]
 
