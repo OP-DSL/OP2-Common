@@ -155,6 +155,11 @@ class Arg:
     return self.map is None
 
 
+  @property
+  def vec(self) -> bool:
+    return self.idx is not None and self.idx < -1
+
+
 class Loop:
   kernel: str
   set: str
@@ -162,6 +167,7 @@ class Loop:
   args: List[Arg]
   thread_timing: bool
   kernelPath: str
+  nargs: int
 
 
   def __init__(self, kernel: str, set_: str, loc: Location, args: List[Arg]) -> None:
@@ -171,20 +177,33 @@ class Loop:
     self.args = args
     seenMaps = {}
     seenArgs = {}
-    for i, arg in enumerate(args):
+
+    # Assign loop argument index to each arg (accounting for vec args)
+    i = 0
+    for arg in self.args:
       arg.i = i
       if arg.var in seenArgs.keys():
-          arg.arg1st = seenArgs[arg.var]
+        arg.arg1st = seenArgs[arg.var]
       else:
-          seenArgs[arg.var] = arg.i
-          arg.arg1st = arg.i
+        seenArgs[arg.var] = arg.i
+        arg.arg1st = arg.i
+      if arg.vec:
+        i += abs(arg.idx)
+      else:
+        i += 1
 
+    # Store in each arg, which arg first uses the relevant map (for code gen)
     for arg in self.indirects:
       if arg.map in seenMaps.keys():
-          arg.map1st = seenMaps[arg.map]
+        arg.map1st = seenMaps[arg.map]
       else:
-          seenMaps[arg.map] = arg.i
-          arg.map1st = arg.i
+        seenMaps[arg.map] = arg.i
+        arg.map1st = arg.i
+
+    # Number of args for this loop accounting for vec args
+    self.nargs = len(self.args)
+    for arg in self.vecs:
+      self.nargs += abs(arg.idx) - 1
 
 
   @property
@@ -213,6 +232,11 @@ class Loop:
 
 
   @cached_property
+  def vecs(self) -> List[Arg]:
+    return [ arg for arg in self.args if arg.vec ]
+
+
+  @cached_property
   def uniqueVars(self) -> List[Arg]:
     return uniqueBy(self.args, lambda a: a.var)
 
@@ -229,7 +253,19 @@ class Loop:
 
   @cached_property
   def indirectIdxs(self) -> List[Arg]:
-    return uniqueBy(self.indirects, lambda a: (a.map, a.idx))
+    res = []
+    for arg in self.indirects:
+      if arg.idx < 0:
+        for i in range(0, abs(arg.idx)):
+          tmpArg = Arg(arg.var, arg.dim, arg.typ, arg.acc, arg.loc, arg.map, i)
+          tmpArg.i = arg.i
+          tmpArg.opt = arg.opt
+          tmpArg.map1st = arg.map1st
+          tmpArg.arg1st = arg.arg1st
+          res.append(tmpArg)
+      else:
+        res.append(arg)
+    return uniqueBy(res, lambda a: (a.map, a.idx))
 
 
   @cached_property
@@ -240,7 +276,11 @@ class Loop:
       if arg.indirect:
         for i, a in enumerate(self.indirectVars):
           if a.var == arg.var:
-            descriptor.append(i)
+            if arg.vec:
+              for x in range(0, abs(arg.idx)):
+                descriptor.append(i)
+            else:
+              descriptor.append(i)
       else:
         descriptor.append(-1)
 
