@@ -1,6 +1,6 @@
 
 {# Template imports #}
-{% from 'cpp/macros.j2' import op_opt %}
+{% from 'cpp/macros.j2' import op_opt, op_host_stub_args %}
 {% from 'macros.j2' import comma %}
 
 {# !!! W.I.P !!! #}
@@ -17,25 +17,7 @@ void op_par_loop_{{ parloop.name }}_host(
   {% endfor %}
 ) {
 
-  int nargs = {{ parloop.nargs }};
-  op_arg args[{{ parloop.nargs }}];
-
-  {% for arg in parloop.args %}
-  {% if arg.vec %}
-  arg{{ arg.i }}.idx = 0;
-  args[{{ arg.i }}] = arg{{ arg.i }};
-  for(int v = 1; v < {{ arg.idx | abs }}; v++) {
-    {# TODO: may need to be arg1st instead of i here #}
-    {% if arg.opt is not none %}
-    op_opt_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
-    {% else %}
-    op_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
-    {% endif %}
-  }
-  {% else %}
-  args[{{ arg.i }}] = arg{{ arg.i }};
-  {% endif %}
-  {% endfor %}
+  {{ op_host_stub_args(parloop) }}
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
