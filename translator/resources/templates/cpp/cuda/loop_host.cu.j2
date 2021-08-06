@@ -1,0 +1,88 @@
+{# Template imports #}
+{% from 'cpp/macros.j2' import op_opt, op_host_stub_args %}
+{% from 'macros.j2' import comma %}
+
+{# TODO: soa #}
+// user function
+{# TODO: kernel translation and output it here #}
+
+// CUDA kernel function
+__global__ void op_cuda_{{ parloop.name }}(
+  {# TODO: int optflags, #}
+  {# TODO #}
+) {
+  {# TODO #}
+}
+
+// host stub function
+void op_par_loop_{{ parloop.name }}(
+  char const *name,
+  op_set set,
+  {% for arg in parloop.args %}
+  op_arg arg{{ arg.i }}{{ comma(loop) }}
+  {% endfor %}
+) {
+  {% for glb in parloop.globals %}
+  {{ glb.typ }} *arg{{ glb.i }}h = ({{ glb.typ }} *)arg{{ glb.i }}.data;
+  {% endfor %}
+
+  {{ op_host_stub_args(parloop) }}
+
+  {% if parloop.opts | length > 0 %}
+  {# TODO: account for vec args #}
+  int optflags = 0;
+  {% for arg in parloop.opts %}
+  if(args[{{ arg.i }}]).opt) {
+    {# TODO: calc optidxs, accounting for indirection #}
+    optflags |= 1 << ;
+  }
+  {% endfor %}
+  {% endif %}
+
+  // initialise timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timing_realloc({{ id }});
+  op_timers_core(&cpu_t1, &wall_t1);
+  OP_kernels[{{ id }}].name   = name;
+  OP_kernels[{{ id }}].count += 1;
+
+  {% if parloop.indirection %}
+  int ninds = {{ parloop.indirectVars | length }};
+  int inds[{{ parloop.nargs }}] = { {% for indDesc in parloop.indirectionDescriptor %} {{ indDesc }}{{ comma(loop) }} {% endfor %} };
+  {# TODO: if not atomics #}
+  {% endif %}
+
+  if (OP_diags>2) {
+    printf(" kernel routine {{ 'with' if parloop.indirection else 'w/o' }} indirection: {{ parloop.name }}\n");
+  }
+
+  int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);
+
+  {# TODO: if indirection and not atomics #}
+
+  {# TODO: change from if there are globals to if there are OP_READ or OP_WRITE globals #}
+  {% if parloop.globals | length > 0 %}
+  // transfer constants to GPU
+  int consts_bytes = 0;
+  {% for glb in parloop.globals %}
+  {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
+  consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
+  {% endif %}
+  {% endfor %}
+  reallocConstArrays(consts_bytes);
+  consts_bytes = 0;
+  {% for glb in parloop.globals %}
+  {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
+  arg{{ glb.i }}.data   = OP_consts_h + consts_bytes;
+  arg{{ glb.i }}.data_d = OP_consts_d + consts_bytes;
+  for(int d = 0; d < {{ glb.dim }}; d++) {
+    (({{ glb.typ }} *)arg{{ glb.i }}.data)[d] = arg{{ glb.i }}h[d];
+  }
+  consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
+  {% endif %}
+  {% endfor %}
+  mvConstArraysToDevice(consts_bytes);
+  {% endif %}
+
+  {# TODO: if anysoa #}
+}

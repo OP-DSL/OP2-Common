@@ -7,3 +7,24 @@ if (opArg{{ arg.i+1 }}.opt)
 }
 {% else %}{{ caller() }}{% endif %}
 {% endmacro %}
+{% macro op_host_stub_args(parloop) %}
+int nargs = {{ parloop.nargs }};
+  op_arg args[{{ parloop.nargs }}];
+
+  {% for arg in parloop.args %}
+  {% if arg.vec %}
+  arg{{ arg.i }}.idx = 0;
+  args[{{ arg.i }}] = arg{{ arg.i }};
+  for(int v = 1; v < {{ arg.idx | abs }}; v++) {
+    {# TODO: may need to be arg1st instead of i here #}
+    {% if arg.opt is not none %}
+    args[{{ arg.i }} + v] = op_opt_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
+    {% else %}
+    args[{{ arg.i }} + v] = op_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
+    {% endif %}
+  }
+  {% else %}
+  args[{{ arg.i }}] = arg{{ arg.i }};
+  {% endif %}
+  {% endfor %}
+{% endmacro %}
