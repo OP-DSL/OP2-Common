@@ -17,11 +17,24 @@ void op_par_loop_{{ parloop.name }}_host(
   {% endfor %}
 ) {
 
-  int nargs = {{ parloop.args | length }};
-  op_arg args[{{ parloop.args | length }}];
+  int nargs = {{ parloop.nargs }};
+  op_arg args[{{ parloop.nargs }}];
 
   {% for arg in parloop.args %}
+  {% if arg.vec %}
+  arg{{ arg.i }}.idx = 0;
   args[{{ arg.i }}] = arg{{ arg.i }};
+  for(int v = 1; v < {{ arg.idx | abs }}; v++) {
+    {# TODO: may need to be arg1st instead of i here #}
+    {% if arg.opt is not none %}
+    op_opt_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
+    {% else %}
+    op_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
+    {% endif %}
+  }
+  {% else %}
+  args[{{ arg.i }}] = arg{{ arg.i }};
+  {% endif %}
   {% endfor %}
 
   // initialise timers
@@ -41,21 +54,37 @@ void op_par_loop_{{ parloop.name }}_host(
       if (n == set->core_size) {
         op_mpi_wait_all(nargs, args);
       }
-      {# Idxs #}
+      {% for arg in parloop.indirectIdxs %}
+      int map{{ loop.index - 1 }}idx;
+      {% endfor %}
       {% for arg in parloop.indirectIdxs %}
       {%- call op_opt(arg) %}
-      int mapIdx_{{ arg.map }}_{{ arg.idx }} = arg{{ arg.i }}.map_data[n * arg{{ arg.i }}.map->dim + {{ arg.idx }}];
+      map{{ loop.index - 1 }}idx = arg{{ arg.map1st }}.map_data[n * arg{{ arg.map1st }}.map->dim + {{ arg.idx }}];
       {%- endcall %}
+
       {% endfor %}
-      {# TODO: vec #}
       {% endif %}
 
+      {% for arg in parloop.vecs %}
+      {% if arg.acc == "OP_READ" %}
+      const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+      {% else %}
+      {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+      {% endif %}
+        {% for i in range(0, arg.idx | abs) %}
+        &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+        {% endfor %}
+      };
+      {% endfor %}
 
       {{ parloop.kernel }}(
       {% for arg in parloop.args %}
       {% if arg.indirect %}
-      {# TODO: vec #}
-        &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * mapIdx_{{ arg.map }}_{{ arg.idx }}]{{ comma(loop) }}
+      {% if arg.vec %}
+        arg{{ arg.i }}_vec{{ comma(loop) }}
+      {% else %}
+        &(({{ arg.typ }}*)arg{{ arg.arg1st }}.data)[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx]{{ comma(loop) }}
+      {% endif %}
       {% elif arg.direct %}
         &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
       {% elif arg.global_ %}
