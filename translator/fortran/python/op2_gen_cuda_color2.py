@@ -1164,6 +1164,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('INTEGER(kind=4) :: i1')
       code('INTEGER(kind=4) :: i2')
       code('INTEGER(kind=4) :: i10')
+      if not atomics:
+        code('REAL(kind=4) :: dataTransfer, dataTransfer2')
       code('')
 
     else: #direct loop
@@ -1243,6 +1245,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     code('')
     #code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
     code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)')
+    if not atomics:
+      IF('n_upper.GT.0')
     code('threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)')
     code('')
 
@@ -1457,6 +1461,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       code('set%setPtr%size)')
     code('')
     if not atomics:
+      ENDIF()
       IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
       #code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
       code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)')
@@ -1473,6 +1478,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     if reduct:
       #reductions
+      IF('n_upper.GT.0')
       for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX):
           if optflags[g_m] == 1:
@@ -1501,6 +1507,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
             ENDIF()
           code('deallocate( reductionArrayHost'+str(g_m+1)+' )')
 #          code('deallocate( reductionArrayDevice'+str(g_m+1)+' )')
+      ENDIF()
+      for g_m in range(0,nargs):
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
           if optflags[g_m] == 1:
             IF('opArg'+str(g_m+1)+'%opt == 1')
@@ -1538,14 +1546,22 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
           else:
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size * getSetSizeFromOpArg(opArg'+str(g_m+1)+') * 2.d0')
 
-    code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
 
     if ninds > 0:
       if not atomics:
-        code('& endTime-startTime, actualPlan_'+name+'%transfer,actualPlan_'+name+'%transfer2, 1)')
+        code('dataTransfer = 0.0')
+        code('dataTransfer2 = 0.0')
+        IF('n_upper.GT.0')
+        code('dataTransfer = actualPlan_'+name+'%transfer')
+        code('dataTransfer2 = actualPlan_'+name+'%transfer2')
+        ENDIF()
+        code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
+        code('& endTime-startTime, dataTransfer,dataTransfer2, 1)')
       else:
+        code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
         code('& endTime-startTime, 0.00000_4, 0.00000_4, 1)')
     else:
+      code('returnSetKernelTiming = setKernelTime('+str(nk)+' , userSubroutine//C_NULL_CHAR, &')
       code('& endTime-startTime, dataTransfer, 0.00000_4, 1)')
 
     code('calledTimes = calledTimes + 1')
