@@ -344,6 +344,7 @@ char *send_buffer_device = NULL;
 char *recv_buffer_host = NULL;
 char *recv_buffer_device = NULL;
 int op2_grp_counter = 0;
+int op2_grp_tag = 1234;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
   int size = set->size;
@@ -497,10 +498,14 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   recv_requests.resize(recv_neigh_list.size());
   
   //Non-blocking receive
+//  int rank;
+//  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   unsigned curr_offset = 0;
+  op2_grp_tag++;
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
     char *buf = (device==2 && OP_gpu_direct) ? recv_buffer_device : recv_buffer_host;
-    MPI_Irecv(buf + curr_offset, recv_sizes[i], MPI_CHAR, recv_neigh_list[i], 0 ,OP_MPI_WORLD, &recv_requests[i]);
+    //printf("rank %d recv %d bytes from %d\n", rank, recv_sizes[i], recv_neigh_list[i]);
+    MPI_Irecv(buf + curr_offset, recv_sizes[i], MPI_CHAR, recv_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &recv_requests[i]);
     curr_offset += recv_sizes[i];
   }
 
@@ -518,7 +523,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       //   printf("%g ", b[el]);
       // printf("\n");
 
-      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
+      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
     }
   } else if (device == 2 && !OP_gpu_direct) {
@@ -556,8 +561,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
-    //   int rank;
-    // MPI_Comm_rank(OP_MPI_WORLD, &rank);
+//       int rank;
+//     MPI_Comm_rank(OP_MPI_WORLD, &rank);
     //   printf("export from %d to %d, number of elements of size %d | sending:\n ",
     //                   rank, send_neigh_list[i],
     //                   send_sizes[i]);
@@ -565,7 +570,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     //   for (int el = 0; el <send_sizes[i]/8; el++)
     //     printf("%g ", b[el]);
     //   printf("\n");
-      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
+//    printf("rank %d send %d bytes to %d\n", rank, send_sizes[i], send_neigh_list[i]);
+      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
     }
   }
