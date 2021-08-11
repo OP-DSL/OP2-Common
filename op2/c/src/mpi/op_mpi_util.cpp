@@ -650,3 +650,12 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
+
+
+extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  if (recv_neigh_list.size()>0) {
+    int result;
+    MPI_Test(&recv_requests[0],&result,MPI_STATUS_IGNORE);
+  }
+}
+

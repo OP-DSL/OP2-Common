@@ -329,6 +329,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
       char **send_buffer_device, char **recv_buffer_device, int device, 
       unsigned size_send, unsigned size_recv);
 int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device);
+void op_mpi_test_all_grouped(int nargs, op_arg *args);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
 
 
