@@ -210,6 +210,7 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   INTEGER(kind=4) :: i1
   INTEGER(kind=4) :: i2
   INTEGER(kind=4) :: i10
+  REAL(kind=4) :: dataTransfer, dataTransfer2
 
   INTEGER(kind=4), SAVE :: calledTimes=0
   INTEGER(kind=4) :: istat
@@ -236,64 +237,66 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
-  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
+  IF (n_upper.GT.0) THEN
+    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
-  indirectionDescriptorArray(1) = 0
-  indirectionDescriptorArray(2) = 0
-  indirectionDescriptorArray(3) = 0
-  indirectionDescriptorArray(4) = 0
-  indirectionDescriptorArray(5) = -1
-  indirectionDescriptorArray(6) = -1
+    indirectionDescriptorArray(1) = 0
+    indirectionDescriptorArray(2) = 0
+    indirectionDescriptorArray(3) = 0
+    indirectionDescriptorArray(4) = 0
+    indirectionDescriptorArray(5) = -1
+    indirectionDescriptorArray(6) = -1
 
-  numberOfIndirectOpDats = 1
+    numberOfIndirectOpDats = 1
 
-  partitionSize = getPartitionSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
+    partitionSize = getPartitionSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
-  planRet_adt_calc = FortranPlanCaller( &
-  & userSubroutine//C_NULL_CHAR, &
-  & set%setCPtr, &
-  & partitionSize, &
-  & numberOfOpDats, &
-  & opArgArray, &
-  & numberOfIndirectOpDats, &
-  & indirectionDescriptorArray,4)
+    planRet_adt_calc = FortranPlanCaller( &
+    & userSubroutine//C_NULL_CHAR, &
+    & set%setCPtr, &
+    & partitionSize, &
+    & numberOfOpDats, &
+    & opArgArray, &
+    & numberOfIndirectOpDats, &
+    & indirectionDescriptorArray,4)
 
-  opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-  opMap1Cardinality = set%setPtr%size * getMapDimFromOpArg(opArg1)
-  opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)
-  opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
-
-
-  CALL c_f_pointer(opArg1%data_d,opDat1Deviceadt_calc,(/opDat1Cardinality/))
-  CALL c_f_pointer(opArg1%map_data_d,opMap1Deviceadt_calc,(/opMap1Cardinality/))
-  CALL c_f_pointer(opArg5%data_d,opDat5Deviceadt_calc,(/opDat5Cardinality/))
-  CALL c_f_pointer(opArg6%data_d,opDat6Deviceadt_calc,(/opDat6Cardinality/))
-
-  CALL c_f_pointer(planRet_adt_calc,actualPlan_adt_calc)
-  CALL c_f_pointer(actualPlan_adt_calc%color2_offsets,color2_offsets,(/actualPlan_adt_calc%ncolors+1/))
-  CALL c_f_pointer(actualPlan_adt_calc%col_reord,pcol_reord,(/set%setPtr%size+set%setPtr%exec_size/))
+    opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+    opMap1Cardinality = set%setPtr%size * getMapDimFromOpArg(opArg1)
+    opDat5Cardinality = opArg5%dim * getSetSizeFromOpArg(opArg5)
+    opDat6Cardinality = opArg6%dim * getSetSizeFromOpArg(opArg6)
 
 
-  DO i2 = 0, actualPlan_adt_calc%ncolors - 1, 1
-    IF (i2 .EQ. actualPlan_adt_calc%ncolors_core) THEN
-      CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
-    END IF
+    CALL c_f_pointer(opArg1%data_d,opDat1Deviceadt_calc,(/opDat1Cardinality/))
+    CALL c_f_pointer(opArg1%map_data_d,opMap1Deviceadt_calc,(/opMap1Cardinality/))
+    CALL c_f_pointer(opArg5%data_d,opDat5Deviceadt_calc,(/opDat5Cardinality/))
+    CALL c_f_pointer(opArg6%data_d,opDat6Deviceadt_calc,(/opDat6Cardinality/))
 
-    blocksPerGrid = (color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1
-    dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
-
-    IF (blocksPerGrid.gt.0) THEN
-      CALL op_cuda_adt_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
-      & opDat1Deviceadt_calc, &
-      & opMap1Deviceadt_calc, &
-      & opDat5Deviceadt_calc, &
-      & opDat6Deviceadt_calc, &
-      & color2_offsets(i2+1), color2_offsets(i2+2), &
-      & pcol_reord,set%setPtr%size+set%setPtr%exec_size)
-    END IF
-  END DO
+    CALL c_f_pointer(planRet_adt_calc,actualPlan_adt_calc)
+    CALL c_f_pointer(actualPlan_adt_calc%color2_offsets,color2_offsets,(/actualPlan_adt_calc%ncolors+1/))
+    CALL c_f_pointer(actualPlan_adt_calc%col_reord,pcol_reord,(/set%setPtr%size+set%setPtr%exec_size/))
 
 
+    DO i2 = 0, actualPlan_adt_calc%ncolors - 1, 1
+      IF (i2 .EQ. actualPlan_adt_calc%ncolors_core) THEN
+        CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
+      END IF
+
+      blocksPerGrid = (color2_offsets(i2+2)-color2_offsets(i2+1)-1)/threadsPerBlock+1
+      dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
+
+      IF (blocksPerGrid.gt.0) THEN
+        CALL op_cuda_adt_calc <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>> (&
+        & opDat1Deviceadt_calc, &
+        & opMap1Deviceadt_calc, &
+        & opDat5Deviceadt_calc, &
+        & opDat6Deviceadt_calc, &
+        & color2_offsets(i2+1), color2_offsets(i2+2), &
+        & pcol_reord,set%setPtr%size+set%setPtr%exec_size)
+      END IF
+    END DO
+
+
+  END IF
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
     CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
   END IF
@@ -307,8 +310,14 @@ attributes (host) SUBROUTINE adt_calc_host_gpu( userSubroutine, set, &
   END IF
   call op_timers_core(endTime)
 
+  dataTransfer = 0.0
+  dataTransfer2 = 0.0
+  IF (n_upper.GT.0) THEN
+    dataTransfer = actualPlan_adt_calc%transfer
+    dataTransfer2 = actualPlan_adt_calc%transfer2
+  END IF
   returnSetKernelTiming = setKernelTime(1 , userSubroutine//C_NULL_CHAR, &
-  & endTime-startTime, actualPlan_adt_calc%transfer,actualPlan_adt_calc%transfer2, 1)
+  & endTime-startTime, dataTransfer,dataTransfer2, 1)
   calledTimes = calledTimes + 1
 END SUBROUTINE
 
