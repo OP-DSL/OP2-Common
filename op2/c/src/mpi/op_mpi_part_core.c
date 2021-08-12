@@ -50,6 +50,7 @@
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_util.h>
+#include <limits.h>
 
 // ptscotch header
 #ifdef HAVE_PTSCOTCH
@@ -1068,7 +1069,10 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("export from %d to %d data %10s, number of elements of size
           // %d | sending:\n ",
           //    my_rank,exp->ranks[i],dat->name,exp->sizes[i]);
-          MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
+          //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
+          //          d, OP_PART_WORLD, &request_send[i]);
+          if ((size_t)dat->size * exp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Isend(sbuf[i], (size_t)dat->size * exp->sizes[i], MPI_CHAR, exp->ranks[i],
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
@@ -1077,8 +1081,12 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("imported on to %d data %10s, number of elements of size %d
           // | recieving:\n ",
           //    my_rank, dat->name, imp->size);
-          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp->sizes[i],
-                   MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
+          //MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp->sizes[i],
+          //         MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
+          //         MPI_STATUS_IGNORE);
+          if ((size_t)dat->size * imp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size * imp->sizes[i],
+                   MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
         }
 
