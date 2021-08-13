@@ -96,14 +96,14 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL || data == NULL)
     return NULL;
-  char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
+  /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
   if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }
   memcpy(d, data, sizeof(char) * set->size * dim * size);
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
-  // op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);*/
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   op_dat_entry *item;
   op_dat_entry *tmp_item;
@@ -132,7 +132,9 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                   OP_import_nonexec_list[set->index]->size;
 
   // initialize data bits to 0
-  dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
+  //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
+  for (size_t i = 0; i < (set->size + halo_size) * dim * size; i++)
+    dat->data[i] = 0;
   dat->user_managed = 0;
 
   // need to allocate mpi_buffers for this new temp_dat

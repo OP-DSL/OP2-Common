@@ -69,7 +69,6 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
-  // free(data);
   return dat;
 }
 
@@ -80,8 +79,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   char *data = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, data, name);
 
-  dat->data =
-      (char *)op_calloc(set->size * dim * size, 1); // initialize data bits to 0
+  for (size_t i = 0; i < set->size * dim * size; i++)
+    dat->data[i] = 0;
   dat->user_managed = 0;
   return dat;
 }

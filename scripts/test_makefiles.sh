@@ -351,6 +351,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./reduction_mpi_cuda"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./reduction_mpi_openmp"
 
+#COMMENT0
 
 ################################################################################
 ################################################################################
@@ -510,6 +511,7 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_plain/dp
 pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=28
 validate "./airfoil_openmp OP_MAPS_BASE_INDEX=0"
@@ -522,9 +524,11 @@ cd $OP2_APPS_DIR/fortran/airfoil/airfoil_arg_ptrs/dp
 pwd
 export PART_SIZE_ENV=128
 validate "./airfoil_seq OP_MAPS_BASE_INDEX=0"
+validate "./airfoil_genseq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_cuda OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=28
 validate "./airfoil_openmp  OP_MAPS_BASE_INDEX=0"
+#COMMENT0
 
 echo " "
 echo " "
@@ -532,7 +536,7 @@ echo "=======================> Running Airfoil Fortran HDF5 DP built with PGI Co
 cd $OP2_APPS_DIR/fortran/airfoil/airfoil_hdf5/dp
 pwd
 export PART_SIZE_ENV=128
-validate "./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0"
+#validate "./airfoil_hdf5_seq OP_MAPS_BASE_INDEX=0"
 validate "./airfoil_hdf5_cuda OP_MAPS_BASE_INDEX=0"
 export OMP_NUM_THREADS=28
 validate "./airfoil_hdf5_openmp OP_MAPS_BASE_INDEX=0"
@@ -555,7 +559,6 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_
 ###################################################################################
 ###################################################################################
 
-#COMMENT0
 
 echo " "
 echo " "

@@ -340,6 +340,13 @@ module OP2_Fortran_Declarations
 
     end function
 
+    INTEGER(kind=c_int) function op_get_size_local_full_c ( set ) BIND(C,name='op_get_size_local_full')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
 
     type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
@@ -513,6 +520,14 @@ module OP2_Fortran_Declarations
       real(kind=c_double) :: cpu, et
 
     end subroutine op_timers_f
+
+    subroutine op_memalloc ( ptr, bytes ) BIND(C,name='op_malloc2')
+      use, intrinsic :: ISO_C_BINDING
+
+      integer*8 :: ptr
+      integer(kind=c_int) :: bytes
+
+    end subroutine op_memalloc
 
     function op_free_dat_temp_c ( dat ) BIND(C,name='op_free_dat_temp_char')
       use, intrinsic :: ISO_C_BINDING
@@ -2054,6 +2069,18 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     op_get_size_local_exec = op_get_size_local_exec_c ( set%setCPtr )
 
   end function op_get_size_local_exec
+
+  INTEGER function op_get_size_local_full (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local_full = op_get_size_local_full_c ( set%setCPtr )
+
+  end function op_get_size_local_full
 
   type(op_arg) function op_arg_gbl_python_r8_scalar ( dat, dim, type, access )
 

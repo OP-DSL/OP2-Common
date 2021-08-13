@@ -14,14 +14,14 @@ include ../../../../make-common.inc
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O0 -g -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -O3 -g -fPIC -DUNIX -Wall -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O0 -g -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -g -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   # CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp

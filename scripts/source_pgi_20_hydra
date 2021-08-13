@@ -36,12 +36,12 @@ export LD_LIBRARY_PATH=/rr-home/shared/hydra/apps_pgi/hdf5/Ver1.8.18/lib:$LD_LIB
 #export LD_LIBRARY_PATH=/rr-home/shared/hydra/apps_pgi-V2/hdf5/Ver1.8.18/hdf5_par/lib:$LD_LIBRARY_PATH
 
 #NVIDIA CUDA
-module load cuda/toolkit-10.2.89 #works telos
-#module load cuda/toolkit-10.0.130
-export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
-export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
-#export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
-#export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
+#module load cuda/toolkit-10.2.89 #works telos
+module load cuda/toolkit-10.0.130
+#export CUDA_INSTALL_PATH=/opt/cuda/10.2.89/toolkit/
+#export CUDA_HOME=/opt/cuda/10.2.89/toolkit/
+export CUDA_INSTALL_PATH=/opt/cuda/10.0.130/toolkit/
+export CUDA_HOME=/opt/cuda/10.0.130/toolkit/
 
 if [ "$(hostname)" == 'telos' ]; then
   export NV_ARCH=Volta

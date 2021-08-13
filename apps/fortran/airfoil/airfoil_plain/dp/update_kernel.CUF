@@ -249,44 +249,46 @@ END SUBROUTINE
     call op_timers_core(startTime)
 
     n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
-    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
+    IF (n_upper.GT.0) THEN
+      threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
-    blocksPerGrid = 600
-    dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
+      blocksPerGrid = 600
+      dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
-    opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-    opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
-    opDat3Cardinality = opArg3%dim * getSetSizeFromOpArg(opArg3)
-    opDat4Cardinality = opArg4%dim * getSetSizeFromOpArg(opArg4)
-    opDat5Cardinality = opArg5%dim
+      opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+      opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
+      opDat3Cardinality = opArg3%dim * getSetSizeFromOpArg(opArg3)
+      opDat4Cardinality = opArg4%dim * getSetSizeFromOpArg(opArg4)
+      opDat5Cardinality = opArg5%dim
 
 
-    CALL c_f_pointer(opArg1%data_d,opDat1Deviceupdate,(/opDat1Cardinality/))
-    CALL c_f_pointer(opArg2%data_d,opDat2Deviceupdate,(/opDat2Cardinality/))
-    CALL c_f_pointer(opArg3%data_d,opDat3Deviceupdate,(/opDat3Cardinality/))
-    CALL c_f_pointer(opArg4%data_d,opDat4Deviceupdate,(/opDat4Cardinality/))
-    CALL c_f_pointer(opArg5%data,opDat5Host,(/opDat5Cardinality/))
+      CALL c_f_pointer(opArg1%data_d,opDat1Deviceupdate,(/opDat1Cardinality/))
+      CALL c_f_pointer(opArg2%data_d,opDat2Deviceupdate,(/opDat2Cardinality/))
+      CALL c_f_pointer(opArg3%data_d,opDat3Deviceupdate,(/opDat3Cardinality/))
+      CALL c_f_pointer(opArg4%data_d,opDat4Deviceupdate,(/opDat4Cardinality/))
+      CALL c_f_pointer(opArg5%data,opDat5Host,(/opDat5Cardinality/))
 
-    reductionCardinality5 = blocksPerGrid * 1
-    allocate( reductionArrayHost5(reductionCardinality5* (2)) )
-    IF (.not. allocated(reductionArrayDevice5update)) THEN
-      allocate( reductionArrayDevice5update(reductionCardinality5* (2)) )
+      reductionCardinality5 = blocksPerGrid * 1
+      allocate( reductionArrayHost5(reductionCardinality5* (2)) )
+      IF (.not. allocated(reductionArrayDevice5update)) THEN
+        allocate( reductionArrayDevice5update(reductionCardinality5* (2)) )
+      END IF
+
+      DO i10 = 0, reductionCardinality5 - 1, 1
+        reductionArrayHost5(i10 * (2) + 1 : i10 * (2) + (2)) = 0.0
+      END DO
+
+      reductionArrayDevice5update = reductionArrayHost5
+
+      CALL op_cuda_update <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &
+      & opDat1Deviceupdate, &
+      & opDat2Deviceupdate, &
+      & opDat3Deviceupdate, &
+      & opDat4Deviceupdate, &
+      set%setPtr%size)
+
     END IF
-
-    DO i10 = 0, reductionCardinality5 - 1, 1
-      reductionArrayHost5(i10 * (2) + 1 : i10 * (2) + (2)) = 0.0
-    END DO
-
-    reductionArrayDevice5update = reductionArrayHost5
-
-    CALL op_cuda_update <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &
-    & opDat1Deviceupdate, &
-    & opDat2Deviceupdate, &
-    & opDat3Deviceupdate, &
-    & opDat4Deviceupdate, &
-    set%setPtr%size)
-
     IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
       CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
     END IF
@@ -294,13 +296,15 @@ END SUBROUTINE
 
     CALL op_mpi_set_dirtybit_cuda(numberOfOpDats,opArgArray)
 
-    reductionArrayHost5 = reductionArrayDevice5update
+    IF (n_upper.GT.0) THEN
+      reductionArrayHost5 = reductionArrayDevice5update
 
-    DO i10 = 0, reductionCardinality5 - 1, 1
-      opDat5Host(1:2) = opDat5Host(1:2) + reductionArrayHost5(i10 * (2) + 1 : i10 * (2) + (2))
-    END DO
+      DO i10 = 0, reductionCardinality5 - 1, 1
+        opDat5Host(1:2) = opDat5Host(1:2) + reductionArrayHost5(i10 * (2) + 1 : i10 * (2) + (2))
+      END DO
 
-    deallocate( reductionArrayHost5 )
+      deallocate( reductionArrayHost5 )
+    END IF
     CALL op_mpi_reduce_double(opArg5,opArg5%data)
 
     istat = cudaDeviceSynchronize()

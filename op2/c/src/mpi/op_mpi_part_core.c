@@ -50,6 +50,7 @@
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_util.h>
+#include <limits.h>
 
 // ptscotch header
 #ifdef HAVE_PTSCOTCH
@@ -141,7 +142,7 @@ static int *create_exp_list_2(op_set set, int *temp_list, halo_list h_list,
   int *sizes = (int *)xmalloc(comm_size * sizeof(int));
 
   int index = 0;
-  int total_size = 0;
+  size_t total_size = 0;
 
   // negative values set as an initialisation
   for (int r = 0; r < comm_size; r++) {
@@ -227,8 +228,8 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   (void)my_rank;
   part p_set = OP_part_list[map->to->index];
 
-  int cap = 100;
-  int count = 0;
+  size_t cap = 100;
+  size_t count = 0;
   int *temp_list = (int *)xmalloc(cap * sizeof(int));
 
   halo_list pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
@@ -336,7 +337,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   // partition the "from" set
   for (int i = 0; i < map->from->size; i++) {
     int part, local_index;
-    int found_parts[map->dim];
+    int *found_parts = (int*)xmalloc(sizeof(int)*map->dim);
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
@@ -363,6 +364,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
     partition[i] = find_mode(found_parts, map->dim);
+    op_free(found_parts);
   }
 
   OP_part_list[map->from->index]->elem_part = partition;
@@ -1061,13 +1063,16 @@ static void migrate_all(int my_rank, int comm_size) {
           sbuf[i] = (char *)xmalloc(exp->sizes[i] * (size_t)dat->size);
           for (int j = 0; j < exp->sizes[i]; j++) {
             int index = exp->list[exp->disps[i] + j];
-            memcpy(&sbuf[i][j * dat->size],
-                   (void *)&dat->data[dat->size * (index)], dat->size);
+            memcpy(&sbuf[i][j * (size_t)dat->size],
+                   (void *)&dat->data[(size_t)dat->size * (index)], dat->size);
           }
           // printf("export from %d to %d data %10s, number of elements of size
           // %d | sending:\n ",
           //    my_rank,exp->ranks[i],dat->name,exp->sizes[i]);
-          MPI_Isend(sbuf[i], dat->size * exp->sizes[i], MPI_CHAR, exp->ranks[i],
+          //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
+          //          d, OP_PART_WORLD, &request_send[i]);
+          if ((size_t)dat->size * exp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Isend(sbuf[i], (size_t)dat->size * exp->sizes[i], MPI_CHAR, exp->ranks[i],
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
@@ -1076,7 +1081,11 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("imported on to %d data %10s, number of elements of size %d
           // | recieving:\n ",
           //    my_rank, dat->name, imp->size);
-          MPI_Recv(&rbuf[imp->disps[i] * dat->size], dat->size * imp->sizes[i],
+          //MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp->sizes[i],
+          //         MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
+          //         MPI_STATUS_IGNORE);
+          if ((size_t)dat->size * imp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size * imp->sizes[i],
                    MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
         }
@@ -1094,14 +1103,14 @@ static void migrate_all(int my_rank, int comm_size) {
         for (int i = 0; i < dat->set->size; i++) // iterate over old set size
         {
           if (OP_part_list[set->index]->elem_part[i] == my_rank) {
-            memcpy(&new_dat[count * dat->size],
-                   (void *)&dat->data[dat->size * i], dat->size);
+            memcpy(&new_dat[count * (size_t)dat->size],
+                   (void *)&dat->data[(size_t)dat->size * i], dat->size);
             count++;
           }
         }
 
-        memcpy(&new_dat[count * dat->size], (void *)rbuf,
-               dat->size * imp->size);
+        memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf,
+               (size_t)dat->size * (size_t)imp->size);
         count = count + imp->size;
         new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
         op_free(rbuf);
@@ -1158,7 +1167,7 @@ static void migrate_all(int my_rank, int comm_size) {
           // printf("\n imported on to %d map %10s, number of elements of size
           // %d | recieving: ",
           //    my_rank, map->name, imp->size);
-          MPI_Recv(&rbuf[imp->disps[i] * map->dim], map->dim * imp->sizes[i],
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * map->dim], map->dim * imp->sizes[i],
                    MPI_INT, imp->ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -1838,7 +1847,7 @@ void op_partition_kway(op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
@@ -2259,7 +2268,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
@@ -2822,7 +2831,7 @@ void op_partition_ptscotch(op_map primary_map) {
       (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[imp_list->disps[i] * primary_map->dim],
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
              primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }

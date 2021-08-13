@@ -147,14 +147,15 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL || data == NULL)
     return NULL;
-  char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
+  /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
   if (d == NULL && set->size>0) {
     printf(" op_decl_dat_char error -- error allocating memory to dat\n");
     exit(-1);
   }
 
   memcpy(d, data, set->size * dim * size * sizeof(char));
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);*/
+  op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   op_dat_entry *item;
   op_dat_entry *tmp_item;
@@ -180,19 +181,20 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                  OP_import_nonexec_list[set->index]->size;
 
   // initialize data bits to 0
-  dat->data = (char *)xcalloc(set_size * dim * size, 1);
+  for (size_t i = 0; i < set_size * dim * size; i++)
+    dat->data[i] = 0;
   dat->user_managed = 0;
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall(
         cudaMalloc((void **)&(dat->buffer_d_r),
-                   dat->size * (OP_import_exec_list[set->index]->size +
+                   (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
   }
 
   op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                    dat->size * set_size);
+                    (size_t)dat->size * set_size);
 
   // need to allocate mpi_buffers for this new temp_dat
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
@@ -200,8 +202,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   halo_list exec_e_list = OP_export_exec_list[set->index];
   halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
 
-  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
-  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * (size_t)dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * (size_t)dat->size);
 
   halo_list exec_i_list = OP_import_exec_list[set->index];
   halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
@@ -221,7 +223,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   // need to allocate device buffers for mpi comms for this new temp_dat
   cutilSafeCall(
       cudaMalloc((void **)&(dat->buffer_d),
-                 dat->size * (OP_export_exec_list[set->index]->size +
+                 (size_t)dat->size * (OP_export_exec_list[set->index]->size +
                               OP_export_nonexec_list[set->index]->size)));
 
   return dat;
@@ -251,35 +253,35 @@ void op_mv_halo_device(op_set set, op_dat dat) {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-    int element_size = dat->size / dat->dim;
-    for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
-        for (int c = 0; c < element_size; c++) {
+    char *temp_data = (char *)malloc((size_t)dat->size * set_size * sizeof(char));
+    size_t element_size = (size_t)dat->size / dat->dim;
+    for (size_t i = 0; i < dat->dim; i++) {
+      for (size_t j = 0; j < set_size; j++) {
+        for (size_t c = 0; c < element_size; c++) {
           temp_data[element_size * i * set_size + element_size * j + c] =
-              dat->data[dat->size * j + element_size * i + c];
+              dat->data[(size_t)dat->size * j + element_size * i + c];
         }
       }
     }
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      dat->size * set_size);
+                      (size_t)dat->size * set_size);
     free(temp_data);
 
     if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
     cutilSafeCall(
         cudaMalloc((void **)&(dat->buffer_d_r),
-                   dat->size * (OP_import_exec_list[set->index]->size +
+                   (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
 
   } else {
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                      dat->size * set_size);
+                      (size_t)dat->size * set_size);
   }
   dat->dirty_hd = 0;
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
   cutilSafeCall(
       cudaMalloc((void **)&(dat->buffer_d),
-                 dat->size * (OP_export_exec_list[set->index]->size +
+                 (size_t)dat->size * (OP_export_exec_list[set->index]->size +
                               OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));
 }
@@ -433,7 +435,7 @@ void op_mv_halo_list_device() {
         cutilSafeCall(cudaFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(export_nonexec_list_partial_d);
   }
-  export_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  export_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
@@ -452,7 +454,7 @@ void op_mv_halo_list_device() {
         cutilSafeCall(cudaFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(import_nonexec_list_partial_d);
   }
-  import_nonexec_list_partial_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  import_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
@@ -702,22 +704,22 @@ void op_upload_all() {
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-        char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-        int element_size = dat->size / dat->dim;
-        for (int i = 0; i < dat->dim; i++) {
-          for (int j = 0; j < set_size; j++) {
-            for (int c = 0; c < element_size; c++) {
+        char *temp_data = (char *)malloc((size_t)dat->size * set_size * sizeof(char));
+        size_t element_size = (size_t)dat->size / dat->dim;
+        for (size_t i = 0; i < dat->dim; i++) {
+          for (size_t j = 0; j < set_size; j++) {
+            for (size_t c = 0; c < element_size; c++) {
               temp_data[element_size * i * set_size + element_size * j + c] =
-                  dat->data[dat->size * j + element_size * i + c];
+                  dat->data[(size_t)dat->size * j + element_size * i + c];
             }
           }
         }
-        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, dat->size * set_size,
+        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, (size_t)dat->size * set_size,
                                  cudaMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
-        cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, dat->size * set_size,
+        cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, (size_t)dat->size * set_size,
                                  cudaMemcpyHostToDevice));
         dat->dirty_hd = 0;
       }

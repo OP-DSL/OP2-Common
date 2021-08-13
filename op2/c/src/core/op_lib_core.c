@@ -56,6 +56,7 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
 
 int OP_mpi_test_frequency = 1<<30;
+int OP_partial_exchange = 0;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -168,6 +169,11 @@ void op_set_args(int argc, char *argv) {
   if (pch != NULL) {
     OP_auto_soa = 1;
     op_printf("\n Enabling Automatic AoS->SoA Conversion\n");
+  }
+  pch = strstr(argv, "OP_PARTIAL_EXCHANGE");
+  if (pch != NULL) {
+    OP_partial_exchange = 1;
+    op_printf("\n Enabling partial MPI halo exchanges\n");
   }
   pch = strstr(argv, "OP_HYBRID_BALANCE=");
   if (pch != NULL) {
@@ -385,11 +391,12 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->index = OP_dat_index;
   dat->set = set;
   dat->dim = dim;
-  dat->data = data;
+  // dat->data = data;
   // printf("DATASET %s, ptr %p\n", name, data);
-  /*char *new_data = (char*)op_malloc(dim * size * set->size * sizeof(char));
-  memcpy(new_data, data, dim * size * set->size * sizeof(char));
-  dat->data = new_data;*/
+  char *new_data = (char *)op_malloc((size_t)dim * (size_t)size * (size_t)(set->size+set->exec_size+set->nonexec_size) * sizeof(char));
+  if (data != NULL)
+    memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
+  dat->data = new_data;
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
@@ -399,6 +406,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->buffer_d = NULL;
   dat->buffer_d_r = NULL;
   dat->dirty_hd = 0;
+  dat->dirtybit = 1;
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;
@@ -1079,6 +1087,11 @@ void *op_malloc(size_t size) {
 #endif
 }
 
+// malloc to be exposed in Fortran API for use with Cray pointers
+void op_malloc2(void **data, int *size){
+    *data =(void *) malloc(*size);
+}
+
 void *op_calloc(size_t num, size_t size) {
 #ifdef __INTEL_COMPILER
   // void * ptr = _mm_malloc(num*size, OP2_ALIGNMENT);
@@ -1223,7 +1236,6 @@ unsigned long op_get_data_ptr2(unsigned long data) {
   }
   op_download_dat(item_dat);
   return (unsigned long)(item_dat->data);
-  
 }
 
 unsigned long op_reset_data_ptr(char *data, int mode) {
@@ -1329,6 +1341,5 @@ int op_get_size_local(op_set set) { return set->size; }
  *******************************************************************************/
 
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
-
-int op_get_mpi_test_frequency() {return OP_mpi_test_frequency;}
-
+int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
+int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }

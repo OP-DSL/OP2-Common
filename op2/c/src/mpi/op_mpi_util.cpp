@@ -85,7 +85,7 @@ void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
   int count = dat->set->size;
 
   T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  memcpy(l_array, (void *)&(dat->data[0]), (size_t)dat->size * count);
   int l_size = count;
   size_t elem_size = dat->dim;
   int *recevcnts = (int *)xmalloc(comm_size * sizeof(int));
@@ -117,8 +117,8 @@ void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
            dat->name);
     MPI_Abort(OP_MPI_IO_WORLD, -1);
   }
-  memcpy((void *)usr_ptr, (void *)&g_array[low * dat->size],
-         (high + 1) * dat->size);
+  memcpy((void *)usr_ptr, (void *)&g_array[low * (size_t)dat->size],
+         (high + 1) * (size_t)dat->size);
 
   free(l_array);
   free(recevcnts);
@@ -171,7 +171,7 @@ void write_file(op_dat dat, const char *file_name) {
   int count = dat->set->size;
 
   T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), dat->size * count);
+  memcpy(l_array, (void *)&(dat->data[0]), (size_t)dat->size * count);
 
   int l_size = count;
   int elem_size = dat->dim;
@@ -282,10 +282,10 @@ void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *b
     unsigned buf_pos = neigh_offsets[buf_rankpos];
     for (int j = 0; j < eel->sizes[i]; j++) {
       unsigned set_elem_index = eel->list[eel->disps[i] + j];
-      memcpy(&buffer[buf_pos + j * arg.dat->size],
-               (void *)&arg.dat->data[arg.dat->size * (set_elem_index)], arg.dat->size);
+      memcpy(&buffer[buf_pos + j * (size_t)arg.dat->size],
+               (void *)&arg.dat->data[(size_t)arg.dat->size * (set_elem_index)], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += eel->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += eel->sizes[i] * (size_t)arg.dat->size;
   }
   for (int i = 0; i < enl->ranks_size; i++) {
     int dest_rank = enl->ranks[i];
@@ -293,10 +293,10 @@ void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *b
     unsigned buf_pos = neigh_offsets[buf_rankpos];
     for (int j = 0; j < enl->sizes[i]; j++) {
       unsigned set_elem_index = enl->list[enl->disps[i] + j];
-      memcpy(&buffer[buf_pos + j * arg.dat->size],
-               (void *)&arg.dat->data[arg.dat->size * (set_elem_index)], arg.dat->size);
+      memcpy(&buffer[buf_pos + j * (size_t)arg.dat->size],
+               (void *)&arg.dat->data[(size_t)arg.dat->size * (set_elem_index)], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += enl->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += enl->sizes[i] * (size_t)arg.dat->size;
   }
 }
 
@@ -311,10 +311,10 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
       // if (*(double*)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)] !=
       //     *(double*)&buffer[buf_pos + j * arg.dat->size])
       //     printf("Mismatch\n");
-      memcpy((void *)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)], 
-              &buffer[buf_pos + j * arg.dat->size], arg.dat->size);
+      memcpy((void *)&arg.dat->data[(size_t)arg.dat->size * (arg.dat->set->size + iel->disps[i] + j)], 
+              &buffer[buf_pos + j * (size_t)arg.dat->size], arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += iel->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += iel->sizes[i] * (size_t)arg.dat->size;
   }
   for (int i = 0; i < inl->ranks_size; i++) {
     int dest_rank = inl->ranks[i];
@@ -324,13 +324,14 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
       // if (*(double*)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)] !=
       //     *(double*)&buffer[buf_pos + j * arg.dat->size])
       //     printf("Mismatch2\n");
-      memcpy((void *)&arg.dat->data[arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)], 
-              &buffer[buf_pos + j * arg.dat->size], arg.dat->size);
+      memcpy((void *)&arg.dat->data[(size_t)arg.dat->size * (arg.dat->set->size + iel->size + inl->disps[i] + j)], 
+              &buffer[buf_pos + j * (size_t)arg.dat->size], (size_t)arg.dat->size);
     }
-    neigh_offsets[buf_rankpos] += inl->sizes[i] * arg.dat->size;
+    neigh_offsets[buf_rankpos] += inl->sizes[i] * (size_t)arg.dat->size;
   }
 }
 
+std::vector<unsigned> partial_flags;
 std::vector<unsigned> send_sizes;
 std::vector<unsigned> recv_sizes;
 std::vector<int>      send_neigh_list;
@@ -344,6 +345,7 @@ char *send_buffer_device = NULL;
 char *recv_buffer_host = NULL;
 char *recv_buffer_device = NULL;
 int op2_grp_counter = 0;
+int op2_grp_tag = 1234;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
   int size = set->size;
@@ -373,6 +375,11 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
       direct_flag = 0;
 
+/*  printf("Name: %s, %s, set: %s(%d)\n", OP_kernels[OP_kern_curr].name, direct_flag ? "direct": "indirect", set->name, set->index);
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT)
+      printf("\t%s(%d), %s, %d\n", args[n].dat->name, args[n].dat->index, args[n].idx == -1 ? "OP_ID":args[n].map->name,args[n].acc);
+  }*/
   if (direct_flag == 1)
     return size;
 
@@ -384,8 +391,42 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       exec_flag = 1;
     }
   }
+
   double c1,c2,t1,t2;
   op_timers_core(&c1, &t1);
+  partial_flags.resize(nargs);
+  // Fire off any partial halo exchanges that apply
+  for (int n = 0; n < nargs; n++) {
+    partial_flags[n] = 0;
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
+      if (args[n].map != OP_ID) {
+        // Check if dat-map combination was already done or if there is a
+        // mismatch (same dat, diff map)
+        int found = 0;
+        int fallback = 0;
+        for (int m = 0; m < nargs; m++) {
+          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) {
+            partial_flags[n] = partial_flags[m]==1?2:0;
+            found = 1;
+          } else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
+            fallback = 1;
+        }
+        // If there was a map mismatch with other argument, do full halo
+        // exchange
+        if (fallback) continue;
+        else if (!found) { // Otherwise, if partial halo exchange is enabled for
+                           // this map, do it
+          if (OP_map_partial_exchange[args[n].map->index]) {
+            partial_flags[n] = 1;
+            if (device == 1)
+              op_exchange_halo_partial(&args[n], exec_flag);
+            else if (device == 2)
+              op_exchange_halo_partial_cuda(&args[n], exec_flag);
+          }
+        }
+      }
+    }
+  }
   std::vector<int> sets;
   sets.resize(0);
   send_sizes.resize(0);
@@ -394,7 +435,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   recv_neigh_list.resize(0);
   
   for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW) && partial_flags[n] == 0) {
       if ( args[n].idx == -1 && exec_flag == 0) continue; 
 
       //flag, so same dat not checked again
@@ -446,22 +487,22 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       halo_list imp_exec_list = OP_import_exec_list[args[n].dat->set->index];
       for (int i = 0; i < imp_exec_list->ranks_size; i++) {
         int idx = std::distance(recv_neigh_list.begin(), std::lower_bound(recv_neigh_list.begin(), recv_neigh_list.end(), imp_exec_list->ranks[i]));
-        recv_sizes[idx] += args[n].dat->size * imp_exec_list->sizes[i];
+        recv_sizes[idx] += (size_t)args[n].dat->size * imp_exec_list->sizes[i];
       }
       halo_list imp_nonexec_list = OP_import_nonexec_list[args[n].dat->set->index];
       for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
         int idx = std::distance(recv_neigh_list.begin(), std::lower_bound(recv_neigh_list.begin(), recv_neigh_list.end(), imp_nonexec_list->ranks[i]));
-        recv_sizes[idx] += args[n].dat->size * imp_nonexec_list->sizes[i];
+        recv_sizes[idx] += (size_t)args[n].dat->size * imp_nonexec_list->sizes[i];
       }
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
       for (int i = 0; i < exp_exec_list->ranks_size; i++) {
         int idx = std::distance(send_neigh_list.begin(), std::lower_bound(send_neigh_list.begin(), send_neigh_list.end(), exp_exec_list->ranks[i]));
-        send_sizes[idx] += args[n].dat->size * exp_exec_list->sizes[i];
+        send_sizes[idx] += (size_t)args[n].dat->size * exp_exec_list->sizes[i];
       }
       halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
       for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
         int idx = std::distance(send_neigh_list.begin(), std::lower_bound(send_neigh_list.begin(), send_neigh_list.end(), exp_nonexec_list->ranks[i]));
-        send_sizes[idx] += args[n].dat->size * exp_nonexec_list->sizes[i];
+        send_sizes[idx] += (size_t)args[n].dat->size * exp_nonexec_list->sizes[i];
       }      
     }
   }
@@ -497,10 +538,14 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   recv_requests.resize(recv_neigh_list.size());
   
   //Non-blocking receive
+//  int rank;
+//  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   unsigned curr_offset = 0;
+  op2_grp_tag++;
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
     char *buf = (device==2 && OP_gpu_direct) ? recv_buffer_device : recv_buffer_host;
-    MPI_Irecv(buf + curr_offset, recv_sizes[i], MPI_CHAR, recv_neigh_list[i], 0 ,OP_MPI_WORLD, &recv_requests[i]);
+    //printf("rank %d recv %d bytes from %d\n", rank, recv_sizes[i], recv_neigh_list[i]);
+    MPI_Irecv(buf + curr_offset, recv_sizes[i], MPI_CHAR, recv_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &recv_requests[i]);
     curr_offset += recv_sizes[i];
   }
 
@@ -518,7 +563,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       //   printf("%g ", b[el]);
       // printf("\n");
 
-      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
+      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
     }
   } else if (device == 2 && !OP_gpu_direct) {
@@ -556,8 +601,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
-    //   int rank;
-    // MPI_Comm_rank(OP_MPI_WORLD, &rank);
+//       int rank;
+//     MPI_Comm_rank(OP_MPI_WORLD, &rank);
     //   printf("export from %d to %d, number of elements of size %d | sending:\n ",
     //                   rank, send_neigh_list[i],
     //                   send_sizes[i]);
@@ -565,8 +610,15 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     //   for (int el = 0; el <send_sizes[i]/8; el++)
     //     printf("%g ", b[el]);
     //   printf("\n");
-      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], 0 ,OP_MPI_WORLD, &send_requests[i]);
+//    printf("rank %d send %d bytes to %d\n", rank, send_sizes[i], send_neigh_list[i]);
+      MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
+    }
+  }
+  for (int n = 0; n < nargs; n++) {
+    if (partial_flags[n]==1) {
+      if (device == 1) op_wait_all(&args[n]);
+      if (device == 2) op_wait_all_cuda(&args[n]);
     }
   }
 
@@ -599,17 +651,10 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
-extern "C" int op_mpi_test(op_arg *arg) {
-  int result;
-  if (send_neigh_list.size()>0) {
-    MPI_Test(&send_requests[0],&result,MPI_STATUS_IGNORE);
-    return 1;
-  } else if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
-    if (((op_mpi_buffer)(arg->dat->mpi_buffer))->s_num_req>0) {
-      MPI_Test(((op_mpi_buffer)(arg->dat->mpi_buffer))->s_req,&result,MPI_STATUS_IGNORE);
-      return 1;
-    }
+extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  if (recv_neigh_list.size()>0) {
+    int result;
+    MPI_Test(&recv_requests[0],&result,MPI_STATUS_IGNORE);
   }
-  return 0;
 }
 

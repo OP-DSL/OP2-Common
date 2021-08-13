@@ -150,25 +150,27 @@ attributes (host) SUBROUTINE save_soln_host_gpu( userSubroutine, set, &
   call op_timers_core(startTime)
 
   n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)
-  threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
+  IF (n_upper.GT.0) THEN
+    threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)
 
 
-  blocksPerGrid = 600
-  dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
+    blocksPerGrid = 600
+    dynamicSharedMemorySize = reductionSize(opArgArray,numberOfOpDats) * threadsPerBlock
 
-  opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
-  opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
-
-
-  CALL c_f_pointer(opArg1%data_d,opDat1Devicesave_soln,(/opDat1Cardinality/))
-  CALL c_f_pointer(opArg2%data_d,opDat2Devicesave_soln,(/opDat2Cardinality/))
+    opDat1Cardinality = opArg1%dim * getSetSizeFromOpArg(opArg1)
+    opDat2Cardinality = opArg2%dim * getSetSizeFromOpArg(opArg2)
 
 
-  CALL op_cuda_save_soln <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &
-  & opDat1Devicesave_soln, &
-  & opDat2Devicesave_soln, &
-  set%setPtr%size)
+    CALL c_f_pointer(opArg1%data_d,opDat1Devicesave_soln,(/opDat1Cardinality/))
+    CALL c_f_pointer(opArg2%data_d,opDat2Devicesave_soln,(/opDat2Cardinality/))
 
+
+    CALL op_cuda_save_soln <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &
+    & opDat1Devicesave_soln, &
+    & opDat2Devicesave_soln, &
+    set%setPtr%size)
+
+  END IF
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)) THEN
     CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)
   END IF
