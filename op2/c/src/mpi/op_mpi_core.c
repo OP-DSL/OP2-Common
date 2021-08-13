@@ -1466,9 +1466,9 @@ void op_halo_permap_create() {
 
   OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
-    OP_map_partial_exchange[i] = (double)reduced_map_halo_sizes[i] <
+    OP_map_partial_exchange[i] = OP_partial_exchange && (double)reduced_map_halo_sizes[i] <
     (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
-     if (rank == 0) printf("Mapping %s partially exchanged: %d (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i],
+     if (OP_partial_exchange) op_printf("Mapping %s partially exchanged: %d (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i],
      reduced_map_halo_sizes[i],
      reduced_total_halo_sizes[OP_map_list[i]->to->index]);
   }

@@ -82,6 +82,7 @@ extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
 extern int OP_mpi_test_frequency;
+extern int OP_partial_exchange;
 
 /*
  * enum list for op_par_loop

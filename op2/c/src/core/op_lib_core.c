@@ -56,6 +56,7 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
 
 int OP_mpi_test_frequency = 1<<30;
+int OP_partial_exchange = 0;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -168,6 +169,11 @@ void op_set_args(int argc, char *argv) {
   if (pch != NULL) {
     OP_auto_soa = 1;
     op_printf("\n Enabling Automatic AoS->SoA Conversion\n");
+  }
+  pch = strstr(argv, "OP_PARTIAL_EXCHANGE");
+  if (pch != NULL) {
+    OP_partial_exchange = 1;
+    op_printf("\n Enabling partial MPI halo exchanges\n");
   }
   pch = strstr(argv, "OP_HYBRID_BALANCE=");
   if (pch != NULL) {
