@@ -391,7 +391,10 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       if repr_temp_array:
         text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("repr_temp_array");',text)
       elif repr_coloring:
-        text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("repr_coloring");',text)
+        if trivial_coloring:
+          text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("trivial_repr_coloring");',text)
+        else:
+          text=re.sub(r'((\s*)op_init.*)',r'\1\2op_enable_reproducibility("repr_coloring");',text)
 
 
     # check for op_init/op_exit/op_partition/op_hdf5 calls

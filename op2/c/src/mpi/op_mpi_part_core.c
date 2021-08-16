@@ -4713,7 +4713,7 @@ void create_reversed_mapping() {
   if (OP_repro_temparray) {
     op_move_rev_maps_to_device();
   }
-  int OP_repro_trivial_coloring=0;
+  
   if (OP_repro_coloring){
     if (OP_repro_greedy_coloring){
       greedy_global_coloring();
@@ -4737,6 +4737,11 @@ void op_enable_reproducibility(const char* mode){
   if (strcmp(mode, "repr_coloring") == 0) {
     OP_repro_coloring=1;
     op_printf("Reproducible execution enabled - coloring method\n");
+  }
+  if (strcmp(mode, "trivial_repr_coloring") == 0) {
+    OP_repro_coloring=1;
+    OP_repro_trivial_coloring=1;
+    op_printf("Reproducible execution enabled - trivial coloring method\n");
   }
 }
 

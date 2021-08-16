@@ -115,6 +115,7 @@ def op2_gen_seq(master, date, consts, kernels):
     reproducible=op2_gen_common.reproducible
     repr_temp_array=op2_gen_common.repr_temp_array
     repr_coloring=op2_gen_common.repr_coloring
+    trivial_coloring=op2_gen_common.trivial_coloring
 
     if reproducible:
       mapnames2 = mapnames[:]
@@ -370,11 +371,10 @@ def op2_gen_seq(master, date, consts, kernels):
 #
 # kernel call for indirect version
 #
-    trivial_is_on=0
     if ninds>0:      
       if repro_if and repr_coloring:
         code('op_mpi_wait_all(nargs, args);')
-        if trivial_is_on:
+        if trivial_coloring:
           FOR('i','0','prime_map->from->size+prime_map->from->exec_size')
           code('int n = rev_map->color_based_exec[i];')
         else:
@@ -476,7 +476,7 @@ def op2_gen_seq(master, date, consts, kernels):
         else:
            line = line +');'
       code(line)
-      if reproducible and repr_coloring and repro_if and not trivial_is_on:
+      if reproducible and repr_coloring and repro_if and not trivial_coloring:
         ENDFOR()
       ENDFOR()
 
