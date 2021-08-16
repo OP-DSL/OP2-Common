@@ -253,38 +253,9 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDIF()
 
     code('')
-<<<<<<< HEAD
     #code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
     code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
-
-    if (reduct or ninds==0) and repr_omp:
-      comm(' set number of threads')
-      code('#ifdef _OPENMP')
-      code('  int nthreads = omp_get_max_threads();')
-      code('#else')
-      code('  int nthreads = 1;')
-      code('#endif')
-
-    if reduct and repr_omp:
-      code('')
-      comm(' allocate and initialise arrays for global reduction')
-      for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
-          code('<TYP> <ARG>_l[nthreads*64];')
-          FOR('thr','0','nthreads')
-          if accs[g_m]==OP_INC:
-            FOR('d','0','<DIM>')
-            code('<ARG>_l[d+thr*64]=ZERO_<TYP>;')
-            ENDFOR()
-          else:
-            FOR('d','0','<DIM>')
-            code('<ARG>_l[d+thr*64]=<ARG>h[d];')
-            ENDFOR()
-          ENDFOR()      
-=======
-    code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
  
->>>>>>> 636dddca (omp repro codegen seperated from gen_seq)
 #
 # Prepare reduction arrays for reproducible global reduction 
 #

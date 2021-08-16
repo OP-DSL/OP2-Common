@@ -26,7 +26,7 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
 #  CPPFLAGS	= -fPIC -DUNIX -Wall -O0 -g -Wextra
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall #-O0 -g -Wextra
+  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -fopenmp #-O0 -g -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
 #  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC

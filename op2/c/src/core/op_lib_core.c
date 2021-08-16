@@ -40,7 +40,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-
+#include <omp.h>
 
 
 /*

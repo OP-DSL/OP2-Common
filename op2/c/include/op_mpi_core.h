@@ -373,9 +373,6 @@ void op_wait_all(op_arg *arg);
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
 void op_wait_all_cuda(op_arg *arg);
-#ifdef __cplusplus
-}
-#endif
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send);
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
