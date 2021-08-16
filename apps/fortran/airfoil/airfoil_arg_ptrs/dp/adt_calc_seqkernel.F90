@@ -21,17 +21,21 @@ SUBROUTINE op_wrap_adt_calc( &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
-  & bottom,top)
+  & bottom,top,argc,args,testfreq)
   implicit none
   real(8) opDat1Local(2,*)
   real(8) opDat5Local(4,*)
   real(8) opDat6Local(1,*)
   INTEGER(kind=4) opDat1Map(*)
   INTEGER(kind=4) opDat1MapDim
-  INTEGER(kind=4) bottom,top,i1
+  INTEGER(kind=4) bottom,top,i1,argc,testfreq
+  type ( op_arg ) , DIMENSION(6) :: args
   INTEGER(kind=4) map1idx, map2idx, map3idx, map4idx
 
   DO i1 = bottom, top-1, 1
+    IF (mod(i1,testfreq).eq.0) THEN
+      call op_mpi_test_all(argc,args)
+    END IF
     map1idx = opDat1Map(1 + i1 * opDat1MapDim + 0)+1
     map2idx = opDat1Map(1 + i1 * opDat1MapDim + 1)+1
     map3idx = opDat1Map(1 + i1 * opDat1MapDim + 2)+1
@@ -88,10 +92,11 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   INTEGER(kind=4) :: opDat6Cardinality
 
 
-  INTEGER(kind=4) :: i1
+  INTEGER(kind=4) :: i1, testfreq
   REAL(kind=4) :: dataTransfer
 
   numberOfOpDats = 6
+  testfreq = op_mpi_get_test_frequency()
 
   opArgArray(1) = opArg1
   opArgArray(2) = opArg2
@@ -124,7 +129,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
-  & 0, opSetCore%core_size)
+  & 0, opSetCore%core_size,numberOfOpDats,opArgArray,testfreq)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_adt_calc( &
   & opDat1Local, &
@@ -132,7 +137,7 @@ SUBROUTINE adt_calc_host( userSubroutine, set, &
   & opDat6Local, &
   & opDat1Map, &
   & opDat1MapDim, &
-  & opSetCore%core_size, n_upper)
+  & opSetCore%core_size, n_upper,numberOfOpDats,opArgArray,2147483647)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF

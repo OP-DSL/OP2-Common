@@ -18,13 +18,17 @@ CONTAINS
 SUBROUTINE op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
-  & bottom,top)
+  & bottom,top,argc,args,testfreq)
   implicit none
   real(8) opDat1Local(4,*)
   real(8) opDat2Local(4,*)
-  INTEGER(kind=4) bottom,top,i1
+  INTEGER(kind=4) bottom,top,i1,argc,testfreq
+  type ( op_arg ) , DIMENSION(2) :: args
 
   DO i1 = bottom, top-1, 1
+    IF (mod(i1,testfreq).eq.0) THEN
+      call op_mpi_test_all(argc,args)
+    END IF
 ! kernel call
   CALL save_soln( &
     & opDat1Local(1,i1+1), &
@@ -60,10 +64,11 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   INTEGER(kind=4) :: opDat2Cardinality
 
 
-  INTEGER(kind=4) :: i1
+  INTEGER(kind=4) :: i1, testfreq
   REAL(kind=4) :: dataTransfer
 
   numberOfOpDats = 2
+  testfreq = op_mpi_get_test_frequency()
 
   opArgArray(1) = opArg1
   opArgArray(2) = opArg2
@@ -85,12 +90,12 @@ SUBROUTINE save_soln_host( userSubroutine, set, &
   CALL op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
-  & 0, opSetCore%core_size)
+  & 0, opSetCore%core_size,numberOfOpDats,opArgArray,testfreq)
   CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   CALL op_wrap_save_soln( &
   & opDat1Local, &
   & opDat2Local, &
-  & opSetCore%core_size, n_upper)
+  & opSetCore%core_size, n_upper,numberOfOpDats,opArgArray,2147483647)
   IF ((n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)) THEN
     CALL op_mpi_wait_all(numberOfOpDats,opArgArray)
   END IF
