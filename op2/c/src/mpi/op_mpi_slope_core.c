@@ -210,7 +210,7 @@ int get_max_value(int* arr, int from, int to){
   return max;
 }
 
-int inverse_map_values(int* map_values, int map_dim, int map_size, int** inv_map_out, int** inv_offset_out){
+int inverse_map_values(int* map_values, int* element_indices, int map_dim, int map_size, int** inv_map_out, int** inv_offset_out){
 
   int to_set_size = get_max_value(map_values, 0, map_size) + 1; // map->to->size;
 
@@ -242,7 +242,12 @@ int inverse_map_values(int* map_values, int map_dim, int map_size, int** inv_map
       if(entry < 0){
         continue;
       }
-      inv_map[inv_offset[entry] + inserted[entry]] = i / map_dim;
+      if(element_indices){
+        inv_map[inv_offset[entry] + inserted[entry]] = element_indices[i / map_dim];
+      }else{
+        inv_map[inv_offset[entry] + inserted[entry]] = i / map_dim;
+      }
+        
       inserted[entry]++;
     }
   }
@@ -254,7 +259,7 @@ int inverse_map_values(int* map_values, int map_dim, int map_size, int** inv_map
 }
 
 int inverse_map(op_map map, int** inv_map_out, int** inv_offset_out){
-  return inverse_map_values(map->map, map->dim, map->from->size * map->dim, inv_map_out, inv_offset_out);
+  return inverse_map_values(map->map, NULL, map->dim, map->from->size * map->dim, inv_map_out, inv_offset_out);
 }
 
 int* get_map_values_from_elements(op_map map, int* elements, int element_count){
@@ -300,21 +305,23 @@ halo_list* extend_halo_list(halo_list* h_lists_in, int my_rank, int comm_size){
 
           int* inv_values;
           int* inv_value_offsets;
-          int inv_map_values_size = inverse_map_values(map_values, map->dim, h_list->sizes[h] * map->dim, &inv_values, &inv_value_offsets);
+          int inv_map_values_size = inverse_map_values(map_values, &h_list->list[h_list->disps[h]], map->dim, h_list->sizes[h] * map->dim, &inv_values, &inv_value_offsets);
 
-          for(int i = 0; i < inv_map_values_size; i++){
+          for(int i = 0; i < inv_map_values_size; i++){   //iteraing over the nodes of nodes->edges in exec halo
             if((inv_value_offsets[i + 1] - inv_value_offsets[i]) > 0){
-              if((inv_map_size + 1 > i) && ((inv_map_offsets[i + 1] - inv_map_offsets[i]) > 0) ){
+              if((inv_map_size > i) && ((inv_map_offsets[i + 1] - inv_map_offsets[i]) > 0) ){
 
-                for(int j = inv_value_offsets[i]; j < inv_value_offsets[i + 1]; j++){
+                for(int j = inv_map_offsets[i]; j < inv_map_offsets[i + 1]; j++){
 
-                  if (s_i + (inv_map_values_size * (inv_value_offsets[i + 1] - inv_value_offsets[i]) * 2) >= cap_s) {
+                  if (s_i + (inv_map_values_size * (inv_map_offsets[i + 1] - inv_map_offsets[i]) * 2) >= cap_s) {
                     cap_s = cap_s * 2;
                     set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
                   }
 
-                  set_list[(s_i)++] = h_list->ranks[h];
-                  set_list[(s_i)++] = inv_map[j];
+                  if (binary_search(inv_values, inv_map[j], inv_value_offsets[i], inv_value_offsets[i + 1] - 1) < 0) {
+                    set_list[(s_i)++] = h_list->ranks[h];
+                    set_list[(s_i)++] = inv_map[j];
+                  }
                 }
               }
             }
