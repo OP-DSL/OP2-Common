@@ -127,6 +127,7 @@ else
 ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
 #  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda5.5,cc35
+#  PGI_CUDA_FORT_FLAGS=-Mcuda=cc70,cuda11.4
    PGI_CUDA_FORT_FLAGS=-Mcuda=cc70,cuda10.2
 endif
 endif
