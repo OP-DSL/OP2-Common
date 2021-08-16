@@ -53,6 +53,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       for ( int i=0; i<SIMD_VEC; i++ ){
         dat1[i] = 0.0;
       }
+      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
+        op_mpi_test_all(nargs, args);
       if ((n + SIMD_VEC >= set->core_size) &&
           (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);

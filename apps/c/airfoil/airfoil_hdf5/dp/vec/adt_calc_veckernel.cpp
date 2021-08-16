@@ -115,6 +115,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
+      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
+        op_mpi_test_all(nargs, args);
       if ((n + SIMD_VEC >= set->core_size) &&
           (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
