@@ -224,7 +224,7 @@ typedef struct {
   int sent; /* flag to indicate if this argument has
                data in flight under non-blocking MPI comms*/
   int opt;  /* flag to indicate if this argument is in use */
-  double_binned *local_sum; /*Local sum for reproducible incs*/
+  double_binned **local_sum; /*Local sum for reproducible incs*/
 } op_arg;
 
 typedef struct {

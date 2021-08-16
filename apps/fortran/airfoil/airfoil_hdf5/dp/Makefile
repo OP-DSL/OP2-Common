@@ -63,10 +63,10 @@ endif
 ifeq ($(OP2_COMPILER),gnu)
   CC = gcc
   FC = gfortran
-  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi -lmpi_cxx
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi #-lmpi_cxx
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) #$(MPI_INC) $(MPI_LIB)
-  OPT = -O2 -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
+  OPT = -O2 -g -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
   OPENMP = -fopenmp
   CPPLINK = -lstdc++
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \

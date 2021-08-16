@@ -810,13 +810,14 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   if (data == NULL)
     arg.opt = 0;
   if (reproducible_enabled){
-    if (repr_red_arg_available >= repr_red_arg_count) {
-      repr_red_arg_count++;
+    if (repr_red_arg_available + arg.dim >= repr_red_arg_count) {
+      repr_red_arg_count+=arg.dim;
       repr_red_args = (double_binned**) op_realloc(repr_red_args, repr_red_arg_count * sizeof( double_binned* ) );
-      repr_red_args[repr_red_arg_count-1]=binned_dballoc(3);
+      for (int d = 0; d < arg.dim; d++)
+        repr_red_args[repr_red_arg_available+d]=binned_dballoc(3);
     }
-    arg.local_sum=repr_red_args[repr_red_arg_available];
-    repr_red_arg_available++;
+    arg.local_sum=&repr_red_args[repr_red_arg_available];
+    repr_red_arg_available+=arg.dim;
   }
   return arg;
 }
@@ -1422,10 +1423,10 @@ void reprLocalSum(op_arg *arg, int set_size, double *red) {
       binnedBLAS_dbdsum(3, end-begin, red+begin*arg->dim+d, arg->dim,  accum[th]);
     }
 
-    binned_dbsetzero(3, &arg->local_sum[d]);
+    binned_dbsetzero(3, arg->local_sum[d]);
     for (int th=0; th<omp_get_max_threads(); th++){
-      // binnedBLAS_dbdsum(3, omp_get_max_threads(), accum, 1, &arg->local_sum[d]);
-      binned_dbdbadd(3,accum[th],&arg->local_sum[d]);
+      // binnedBLAS_dbdsum(3, omp_get_max_threads(), accum, 1, arg->local_sum[d]);
+      binned_dbdbadd(3,accum[th],arg->local_sum[d]);
     }
   }
 }

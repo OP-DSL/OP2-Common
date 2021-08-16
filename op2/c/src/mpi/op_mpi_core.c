@@ -2396,7 +2396,7 @@ void op_mpi_repr_inc_reduce_double(op_arg *arg, double *data) {
       for (int i=0; i<arg->dim; i++) {
 
           binned_dbsetzero(3,binned_result);
-          MPI_Allreduce(arg->local_sum, binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
+          MPI_Allreduce(arg->local_sum[i], binned_result, 1, binnedMPI_DOUBLE_BINNED(3), binnedMPI_DBDBADD(3), OP_MPI_WORLD);
                     
           result[i]=binned_ddbconv(3,binned_result);   
           
