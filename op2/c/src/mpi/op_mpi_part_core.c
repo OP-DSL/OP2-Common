@@ -4619,7 +4619,7 @@ void create_reversed_mapping() {
   if (OP_repro_temparray) {
     op_move_rev_maps_to_device();
   }
-
+  
   if (OP_repro_coloring){
     if (OP_repro_greedy_coloring){
       greedy_global_coloring();
