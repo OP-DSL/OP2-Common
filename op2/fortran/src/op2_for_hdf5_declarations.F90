@@ -109,6 +109,7 @@ module OP2_Fortran_hdf5_Declarations
 
   interface op_fetch_data_hdf5_file2
     module procedure op_fetch_data_hdf5_file2_real_8, &
+                     op_fetch_data_hdf5_file2_real2_8, &
                      op_fetch_data_hdf5_file2_integer_4
   end interface op_fetch_data_hdf5_file2
 
