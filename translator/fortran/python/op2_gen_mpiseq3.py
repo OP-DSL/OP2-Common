@@ -389,7 +389,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         if repro_reduction>=0 and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
           repro_mult = ',exec_size'
         if g_m in needDimList:
-          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim,'+repro_mult+')')
+          code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim'+repro_mult+')')
         else:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+repro_mult+')')
     if nmaps > 0:

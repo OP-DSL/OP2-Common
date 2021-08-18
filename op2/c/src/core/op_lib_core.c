@@ -1403,7 +1403,10 @@ int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_si
 double_binned** accum = NULL;
 
 void reprLocalSum(op_arg *arg, int set_size, double *red) {
-  
+  if (!reproducible_enabled) {
+   op_printf("Reproducibility not enabled - please call op_enable_reproducibility after op_init!\n");
+   exit(-1); 
+  }
   if (accum == NULL) {  
     accum = (double_binned**)op_malloc(omp_get_max_threads()*sizeof(double_binned*));
     for (int th=0; th<omp_get_max_threads(); th++ )

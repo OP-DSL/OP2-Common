@@ -4019,6 +4019,9 @@ void coloring_within_process(){
     op_reversed_map rev_map = OP_reversed_map_list[m];
  //   int* reversed_map = OP_reversed_map_list[m];
 
+    int max_deg_glbl = max_degree_glbl(m);
+    if (max_deg_glbl == 0) continue;
+
     op_printf("Reproducible distributed coloring for map %s%d\n",original_map->name,m);
     int set_from_size =
         original_map->from->size + original_map->from->exec_size;
@@ -4042,9 +4045,6 @@ void coloring_within_process(){
     int* repr_colors = (int*) color_dat->data;
     for (int i=0; i<set_from_size+original_map->from->nonexec_size; i++){ repr_colors[i]=-1; }
     
-    int max_deg_glbl = max_degree_glbl(m);
-
-
     ss.clear();
     ss << "ghost_colors-" << original_map->name << m;
     tmp = ss.str();
