@@ -337,7 +337,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           k = k + [mapnames[g_m]]
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-    code('& bottom,top)')
+    code('& bottom,top,argc,args,testfreq)')
     code('implicit none')
     for g_m in range(0,ninds):
       if invinds[g_m] in needDimList:
@@ -367,7 +367,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
 
-    code('INTEGER(kind=4) bottom,top,i1')
+    code('INTEGER(kind=4) bottom,top,i1,argc,testfreq')
+    code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: args')
     if nmaps > 0:
       k = []
       line = 'INTEGER(kind=4) '
@@ -380,6 +381,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 #    if ind_inc == 0 and reduct == 0:
 #      code('!DIR$ simd')
     DO('i1','bottom','top')
+    IF('mod(i1,testfreq).eq.0')
+    if grouped:
+      code('call op_mpi_test_all_grouped(argc,args)')
+    else:
+      code('call op_mpi_test_all(argc,args)')
+    ENDIF()
     k = []
     for g_m in range(0,nargs):
       if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
@@ -457,11 +464,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
 
     code('')
-    code('INTEGER(kind=4) :: i1')
+    code('INTEGER(kind=4) :: i1, testfreq')
     code('REAL(kind=4) :: dataTransfer')
 
     code('')
     code('numberOfOpDats = '+str(nargs))
+    code('testfreq = op_mpi_get_test_frequency()')
     code('')
 
     for g_m in range(0,nargs):
@@ -519,7 +527,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             k = k + [mapnames[g_m]]
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-      code('& 0, opSetCore%core_size)')
+      code('& 0, opSetCore%core_size,numberOfOpDats,opArgArray,testfreq)')
     if grouped:
       code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
     else:
@@ -543,7 +551,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     #code('& 0, n_upper)')
-    code('& opSetCore%core_size, n_upper)')
+    code('& opSetCore%core_size, n_upper,numberOfOpDats,opArgArray,2147483647)')
 
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')

@@ -96,6 +96,8 @@ def op2_gen_seq(master, date, consts, kernels):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  grouped = 0
+
   any_soa = 0
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
@@ -229,8 +231,10 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    #code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
-    code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
+    if grouped:
+      code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
+    else:
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
     code('')
     IF('set_size > 0')
@@ -241,9 +245,13 @@ def op2_gen_seq(master, date, consts, kernels):
 #
     if ninds>0:
       FOR('n','0','set_size')
+      code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
+      code('  op_mpi_test_all(nargs,args);')
       IF('n==set->core_size')
-      #code('op_mpi_wait_all(nargs, args);')
-      code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       if nmaps > 0:
         k = []

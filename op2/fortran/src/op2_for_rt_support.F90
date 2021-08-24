@@ -284,6 +284,10 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    integer(kind=c_int) function op_get_mpi_test_frequency() BIND(C,name='op_get_mpi_test_frequency')
+      use, intrinsic :: ISO_C_BINDING
+    end function
+
     subroutine op_mpi_wait_all_grouped (argsNumber, args, device) BIND(C,name='op_mpi_wait_all_grouped')
 
       use, intrinsic :: ISO_C_BINDING
@@ -294,6 +298,30 @@ module OP2_Fortran_RT_Support
       integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
 
     end subroutine
+
+    subroutine op_mpi_test_all (argsNumber, args) BIND(C,name='op_mpi_test_all')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end subroutine
+
+    subroutine op_mpi_test_all_grouped (argsNumber, args) BIND(C,name='op_mpi_test_all_grouped')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end subroutine
+
+    integer(kind=c_int) function op_mpi_get_test_frequency() BIND(C,name='op_mpi_get_test_frequency')
+      use, intrinsic :: ISO_C_BINDING
+    end function
 
     subroutine op_mpi_set_dirtybit (argsNumber, args) BIND(C,name='op_mpi_set_dirtybit')
 
@@ -497,8 +525,8 @@ module OP2_Fortran_RT_Support
     call op_renumber_c (base_map%mapPtr)
 
   end subroutine
-  
-  subroutine op_renumber_ptr (prime_map)  
+
+  subroutine op_renumber_ptr (prime_map)
     use, intrinsic :: ISO_C_BINDING
 
     implicit none

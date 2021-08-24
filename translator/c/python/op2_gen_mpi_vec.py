@@ -105,6 +105,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  grouped = 0
+
   any_soa = 0
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
@@ -362,7 +364,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    code('int exec_size = op_mpi_halo_exchanges(set, nargs, args);')
+    if grouped:
+      code('int exec_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
+    else:
+      code('int exec_size = op_mpi_halo_exchanges(set, nargs, args);')
 
     code('')
     IF('exec_size >0')
@@ -391,8 +396,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
 
+      code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
+      code('  op_mpi_test_all(nargs,args);')
       IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
-      code('op_mpi_wait_all(nargs, args);')
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       for g_m in range(0,nargs):
         if do_gen_direct_simd_arrays:
@@ -526,7 +536,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('#endif')
       depth = depth +2
       IF('n==set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       if nmaps > 0:
         k = []
@@ -651,7 +664,10 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     #zero set size issues
     if ninds>0:
       IF('exec_size == 0 || exec_size == set->core_size')
-      code('op_mpi_wait_all(nargs, args);')
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
       ENDIF()
 
 #

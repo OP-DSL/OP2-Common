@@ -65,6 +65,16 @@ void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   (void)device;
 }
 
+void op_mpi_test_all(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   (void)nargs;
   (void)args;

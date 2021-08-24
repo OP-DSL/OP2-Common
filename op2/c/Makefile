@@ -36,7 +36,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
     MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
   else
-    MPICPP_PATH = mpic++
+    MPICPP_PATH ?= mpic++
   endif
   endif
 
@@ -46,7 +46,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
     MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX_PATH = mpicxx
+    MPICXX_PATH ?= mpicxx
   endif
   endif
 
@@ -56,13 +56,13 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
     MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC_PATH = mpicc
+    MPICC_PATH = ?mpicc
   endif
   endif
 else
-  MPICPP_PATH = mpic++
-  MPICXX_PATH = mpicxx
-  MPICC_PATH  = mpicc
+  MPICPP_PATH ?= mpic++
+  MPICXX_PATH ?= mpicxx
+  MPICC_PATH  ?= mpicc
 endif
 
 #
@@ -84,7 +84,7 @@ ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
     CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS = -O3 -xHost #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost 
   endif
   CXX       = icpc
   CXXFLAGS  = $(CCFLAGS)
@@ -121,7 +121,7 @@ ifeq ($(OP2_COMPILER),cray)
   CXX      = CC
   CXXFLAGS = $(CCFLAGS)
   MPICXX   = CC
-  MPIFLAGS = $(CXXFLAGS)
+  MPIFLAGS = $(CXXFLAGS) #-fsanitize=signed-integer-overflow,unsigned-integer-overflow
 else
 ifeq ($(OP2_COMPILER),clang)
   ifdef DEBUG
@@ -203,7 +203,7 @@ PTSCOTCH_INC += -DHAVE_PTSCOTCH
 PTSCOTCH_LIB += -lptscotch -lptscotcherr
 
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC = -I$(HDF5_INSTALL_PATH)/include
+  HDF5_INC = -I$(HDF5_INSTALL_PATH)/include -I$(HDF5_INSTALL_PATH)/gnu/9.1/include
   HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
