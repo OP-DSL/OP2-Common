@@ -31,10 +31,6 @@ __global__ void op_cuda_update(
   double *arg4,
   int   set_size ) {
 
-  double arg4_l[1];
-  for ( int d=0; d<1; d++ ){
-    arg4_l[d]=ZERO_double;
-  }
 
   //process set elements
   for ( int n=threadIdx.x+blockIdx.x*blockDim.x; n<set_size; n+=blockDim.x*gridDim.x ){
@@ -111,7 +107,6 @@ void op_par_loop_update(char const *name, op_set set,
     arg4.data   = OP_reduct_h + reduct_bytes;
     arg4.data_d = OP_reduct_d + reduct_bytes;
     reduct_bytes += ROUND_UP(set_size*arg4.size);
-    mvReductArraysToDevice(reduct_bytes);
 
     int nshared = reduct_size*nthread;
     op_cuda_update<<<nblocks,nthread,nshared>>>(

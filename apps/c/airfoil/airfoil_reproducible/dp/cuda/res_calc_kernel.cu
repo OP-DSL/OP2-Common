@@ -6,8 +6,6 @@ __constant__ int opDat0_res_calc_stride_OP2CONSTANT;
 int opDat0_res_calc_stride_OP2HOST=-1;
 __constant__ int opDat2_res_calc_stride_OP2CONSTANT;
 int opDat2_res_calc_stride_OP2HOST=-1;
-__constant__ int opMap_pecell_stride_temp_inc_OP2CONSTANT;
-int opMap_pecell_stride_temp_inc_OP2HOST;
 //user function
 __device__ void res_calc_gpu( const double *x1, const double *x2, const double *q1,
                      const double *q2, const double *adt1, const double *adt2,
@@ -28,19 +26,19 @@ __device__ void res_calc_gpu( const double *x1, const double *x2, const double *
   mu = 0.5f * ((*adt1) + (*adt2)) * eps_cuda;
 
   f = 0.5f * (vol1 * q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] + vol2 * q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]) + mu * (q1[(0)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(0)*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[(0)*opMap_pecell_stride_temp_inc_OP2CONSTANT] += f;
-  res2[(0)*opMap_pecell_stride_temp_inc_OP2CONSTANT] -= f;
+  res1[(0)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(0)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
   f = 0.5f * (vol1 * q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p1 * dy + vol2 * q2[(1)*opDat2_res_calc_stride_OP2CONSTANT] + p2 * dy) +
       mu * (q1[(1)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(1)*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[(1)*opMap_pecell_stride_temp_inc_OP2CONSTANT] += f;
-  res2[(1)*opMap_pecell_stride_temp_inc_OP2CONSTANT] -= f;
+  res1[(1)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(1)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
   f = 0.5f * (vol1 * q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p1 * dx + vol2 * q2[(2)*opDat2_res_calc_stride_OP2CONSTANT] - p2 * dx) +
       mu * (q1[(2)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(2)*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[(2)*opMap_pecell_stride_temp_inc_OP2CONSTANT] += f;
-  res2[(2)*opMap_pecell_stride_temp_inc_OP2CONSTANT] -= f;
+  res1[(2)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(2)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
   f = 0.5f * (vol1 * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p1) + vol2 * (q2[(3)*opDat2_res_calc_stride_OP2CONSTANT] + p2)) + mu * (q1[(3)*opDat2_res_calc_stride_OP2CONSTANT] - q2[(3)*opDat2_res_calc_stride_OP2CONSTANT]);
-  res1[(3)*opMap_pecell_stride_temp_inc_OP2CONSTANT] += f;
-  res2[(3)*opMap_pecell_stride_temp_inc_OP2CONSTANT] -= f;
+  res1[(3)*opDat2_res_calc_stride_OP2CONSTANT] += f;
+  res2[(3)*opDat2_res_calc_stride_OP2CONSTANT] -= f;
 
 }
 
@@ -49,16 +47,16 @@ __global__ void op_cuda_res_calc(
   const double *__restrict ind_arg0,
   const double *__restrict ind_arg1,
   const double *__restrict ind_arg2,
-  double *__restrict tmp_incs3_d,
+  double *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
   int start,
   int end,
-  int   set_size,
-  int   prime_map_dim) {
+  int *col_reord,
+  int   set_size) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid + start < end) {
-    int n = tid + start;
+    int n = col_reord[tid + start];
     //initialise local variables
     int map0idx;
     int map1idx;
@@ -70,20 +68,14 @@ __global__ void op_cuda_res_calc(
     map3idx = opDat2Map[n + set_size * 1];
 
     //user-supplied kernel call
-    for ( int d=0; d<4; d++ ){
-      tmp_incs3_d[map2idx+d*opMap_pecell_stride_temp_inc_OP2CONSTANT]=(double)0.0;
-    }
-    for ( int d=0; d<4; d++ ){
-      tmp_incs3_d[map3idx+d*opMap_pecell_stride_temp_inc_OP2CONSTANT]=(double)0.0;
-    }
     res_calc_gpu(ind_arg0+map0idx,
              ind_arg0+map1idx,
              ind_arg1+map2idx,
              ind_arg1+map3idx,
              ind_arg2+map2idx*1,
              ind_arg2+map3idx*1,
-             tmp_incs3_d+map2idx,
-             tmp_incs3_d+map3idx);
+             ind_arg3+map2idx,
+             ind_arg3+map3idx);
   }
 }
 
@@ -125,20 +117,19 @@ void op_par_loop_res_calc(char const *name, op_set set,
   if (OP_diags>2) {
     printf(" kernel routine with indirection: res_calc\n");
   }
+
+  //get plan
+  #ifdef OP_PART_SIZE_2
+    int part_size = OP_PART_SIZE_2;
+  #else
+    int part_size = OP_part_size;
+  #endif
+
   int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);
-  op_map prime_map_pecell = arg6.map;
-  op_reversed_map rev_map_pecell = OP_reversed_map_list[prime_map_pecell->index];
+  op_map prime_map = arg6.map;
+  op_reversed_map rev_map = OP_reversed_map_list[prime_map->index];
 
-  if (set->size > 0 && rev_map_pecell != NULL ) {
-    int prime_map_pecell_dim = prime_map_pecell->dim;
-    int set_from_size_pecell = prime_map_pecell->from->size + prime_map_pecell->from->exec_size;
-    int set_to_size_pecell = prime_map_pecell->to->size + prime_map_pecell->to->exec_size + prime_map_pecell->to->nonexec_size;
-
-    double *tmp_incs6_d = NULL;
-    int required_tmp_incs_size6 = set_from_size_pecell * prime_map_pecell_dim * arg6.dat->size;
-    reallocTempArrays(arg6.dat->index, required_tmp_incs_size6);
-    tmp_incs6_d = (double *)op_repr_incs[arg6.dat->index].tmp_incs_d;
-
+  if (set->size > 0 && rev_map != NULL ) {
 
     if ((OP_kernels[2].count==1) || (opDat0_res_calc_stride_OP2HOST != getSetSizeFromOpArg(&arg0))) {
       opDat0_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg0);
@@ -148,40 +139,32 @@ void op_par_loop_res_calc(char const *name, op_set set,
       opDat2_res_calc_stride_OP2HOST = getSetSizeFromOpArg(&arg2);
       cudaMemcpyToSymbol(opDat2_res_calc_stride_OP2CONSTANT, &opDat2_res_calc_stride_OP2HOST,sizeof(int));
     }
-    if ((OP_kernels[2].count==1) || (opMap_pecell_stride_temp_inc_OP2HOST != set_from_size_pecell* prime_map_pecell_dim)) {
-      opMap_pecell_stride_temp_inc_OP2HOST = set_from_size_pecell* prime_map_pecell_dim;
-      cudaMemcpyToSymbol(opMap_pecell_stride_temp_inc_OP2CONSTANT, &opMap_pecell_stride_temp_inc_OP2HOST,sizeof(int));
-    }
-    //set CUDA execution parameters
-    #ifdef OP_BLOCK_SIZE_2
-      int nthread = OP_BLOCK_SIZE_2;
-    #else
-      int nthread = OP_block_size;
-    #endif
-
     op_mpi_wait_all_cuda(nargs, args);
-    for ( int round=0; round<2; round++ ){
-      if (round==1) {
-        op_mpi_wait_all_cuda(nargs, args);
-      }
-      int start = round==0 ? 0 : set->core_size;
-      int end = round==0 ? set->core_size : set->size + set->exec_size;
-      if (end-start>0) {
-        int nblocks = (end-start-1)/nthread+1;
-        op_cuda_res_calc<<<nblocks,nthread>>>(
-        (double *)arg0.data_d,
-        (double *)arg2.data_d,
-        (double *)arg4.data_d,
-        tmp_incs6_d,
-        arg0.map_data_d,
-        arg2.map_data_d,
-        start,end,set->size+set->exec_size,prime_map_pecell_dim);
-      }
-    }
-    int nblocks;
+    //execute plan
+    op_mpi_wait_all_cuda(nargs, args);
+    for ( int col=0; col<rev_map->number_of_colors; col++ ){
+      #ifdef OP_BLOCK_SIZE_2
+      int nthread = OP_BLOCK_SIZE_2;
+      #else
+      int nthread = OP_block_size;
+      #endif
 
-    nblocks = (set_to_size_pecell-1)/nthread+1;
-    apply_tmp_incs_soa<<<nblocks,nthread>>>(tmp_incs6_d, arg6.data_d, rev_map_pecell->reversed_map_d, rev_map_pecell->row_start_idx_d, arg6.dim, prime_map_pecell_dim,set_to_size_pecell,set_from_size_pecell);
+      int start = rev_map->color_based_exec_row_starts[col];
+      int end = rev_map->color_based_exec_row_starts[col+1];
+      int nblocks = (end - start - 1)/nthread + 1;
+      op_cuda_res_calc<<<nblocks,nthread>>>(
+      (double *)arg0.data_d,
+      (double *)arg2.data_d,
+      (double *)arg4.data_d,
+      (double *)arg6.data_d,
+      arg0.map_data_d,
+      arg2.map_data_d,
+      start,
+      end,
+      rev_map->color_based_exec_d,
+      set->size+set->exec_size);
+
+    }
   }
   op_mpi_set_dirtybit_cuda(nargs, args);
   cutilSafeCall(cudaDeviceSynchronize());
