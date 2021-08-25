@@ -18,6 +18,26 @@ greedycolfile=${outputdir}/greedycol.log
 distfile=${outputdir}/distcol.log    
 buildfile=${outputdir}/build.log    
 
+tmp_file_GPU=${OP2_INSTALL_PATH}/../scripts/reprotests/tmp_count_file_GPU
+touch $tmp_file_GPU
+
+#parameter: tmp_file_GPU
+calc_runtime () {    
+    local runtime=$(grep -oP "Max total runtime =\w*\K.*" $1)
+    local plantimes=$(grep -oP "Total plan time:\w*\K.*" $1)
+
+    #echo --- $runtime ---
+    #echo === $plantimes ===
+    avg_plantime=0
+    for i in $plantimes
+    do
+        avg_plantime=$(awk "BEGIN {print $avg_plantime+$i; exit}")
+    done
+    len_plant=$(wc -w <<< "$plantimes")
+    avg_plantime=$(awk "BEGIN {print $avg_plantime/$len_plant; exit}")
+    runtime=$(awk "BEGIN {print $runtime-$avg_plantime; exit}")
+    echo $runtime
+}
 
 echo "build log file: $buildfile"
 echo "non reproducible file: $norepfile"
@@ -31,6 +51,8 @@ cd ${OP2_INSTALL_PATH}/../translator/c/python
 sed -i 's/reproducible = ./reproducible = 0/g' op2_gen_common.py
 sed -i 's/repr_temp_array = ./repr_temp_array = 0/g' op2_gen_common.py
 sed -i 's/repr_coloring = ./repr_coloring = 0/g' op2_gen_common.py
+sed -i 's/trivial_coloring = ./trivial_coloring = 0/g' op2_gen_common.py
+
 
 cd ${OP2_INSTALL_PATH}/../apps/c/airfoil/airfoil_reproducible/dp
 ${OP2_INSTALL_PATH}/../translator/c/python/op2.py airfoil.cpp &>> $buildfile
@@ -54,6 +76,7 @@ cd ${OP2_INSTALL_PATH}/../translator/c/python
 sed -i 's/reproducible = ./reproducible = 1/g' op2_gen_common.py
 sed -i 's/repr_temp_array = ./repr_temp_array = 1/g' op2_gen_common.py
 sed -i 's/repr_coloring = ./repr_coloring = 0/g' op2_gen_common.py
+sed -i 's/trivial_coloring = ./trivial_coloring = 0/g' op2_gen_common.py
 
 cd ${OP2_INSTALL_PATH}/../apps/c/airfoil/airfoil_reproducible/dp
 ${OP2_INSTALL_PATH}/../translator/c/python/op2.py airfoil.cpp &>> $buildfile
@@ -77,6 +100,7 @@ cd ${OP2_INSTALL_PATH}/../translator/c/python
 sed -i 's/reproducible = ./reproducible = 1/g' op2_gen_common.py
 sed -i 's/repr_temp_array = ./repr_temp_array = 0/g' op2_gen_common.py
 sed -i 's/repr_coloring = ./repr_coloring = 1/g' op2_gen_common.py
+sed -i 's/trivial_coloring = ./trivial_coloring = 0/g' op2_gen_common.py
 
 cd ${OP2_INSTALL_PATH}/../apps/c/airfoil/airfoil_reproducible/dp
 ${OP2_INSTALL_PATH}/../translator/c/python/op2.py airfoil.cpp &>> $buildfile
@@ -105,8 +129,8 @@ echo "done"
 #rm -f *coloring.h5
 #cd ${OP2_INSTALL_PATH}/../apps/c/aero/aero_reproducible/dp/
 #rm -f *coloring.h5
-#cd ${MG_CFD_APP_PATH}
-#rm -f *coloring.h5
+##cd ${MG_CFD_APP_PATH}
+##rm -f *coloring.h5
 #
 #cd ${OP2_INSTALL_PATH}/../apps/c/airfoil/airfoil_reproducible/dp/
 #echo "airfoil"
@@ -144,40 +168,55 @@ do
     ls -la | grep "new_grid.h5 " | grep -o "/new_grid.*" | tr '\n' '\0'
     echo ""
     echo "norepro"
-    arr_airfoil_nonrepro+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./airfoil_mpi_cuda_norepro 2>&1 | tee -a $norepfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./airfoil_mpi_cuda_norepro 2>&1 | tee -a $norepfile > $tmp_file_GPU
+    arr_airfoil_nonrepro+=($(calc_runtime $tmp_file_GPU))
+
     echo "temparray"
-    arr_airfoil_temparray+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./airfoil_mpi_cuda_temparray 2>&1 | tee -a $temparrayfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./airfoil_mpi_cuda_temparray 2>&1 | tee -a $temparrayfile > $tmp_file_GPU
+    arr_airfoil_temparray+=($(calc_runtime $tmp_file_GPU))
+
     echo "greedycol"
-    arr_airfoil_greedycol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./airfoil_mpi_cuda_reprcolor -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./airfoil_mpi_cuda_reprcolor -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile  > $tmp_file_GPU
+    arr_airfoil_greedycol+=($(calc_runtime $tmp_file_GPU))
+
     echo "distcol"
-    arr_airfoil_distrcol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./airfoil_mpi_cuda_reprcolor 2>&1 | tee -a $distfile | grep -oP "Max total runtime = \K.*"))
-    
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./airfoil_mpi_cuda_reprcolor 2>&1 | tee -a $distfile > $tmp_file_GPU
+    arr_airfoil_distrcol+=($(calc_runtime $tmp_file_GPU))
+
     cd ${OP2_INSTALL_PATH}/../apps/c/aero/aero_reproducible/dp/
 
     echo -n "Aero_mpi_cuda np${NP}, input: "
     ls -la | grep "FE_grid.h5 " | grep -o "/FE_grid.*" | tr '\n' '\0'
     echo ""
     echo "norepro"
-    arr_aero_nonrepro+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./aero_mpi_cuda_norepro 2>&1 | tee -a $norepfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./aero_mpi_cuda_norepro 2>&1 | tee -a $norepfile  > $tmp_file_GPU
+    arr_aero_nonrepro+=($(calc_runtime $tmp_file_GPU))
     echo "temparray"
-    arr_aero_temparray+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./aero_mpi_cuda_temparray 2>&1 | tee -a $temparrayfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./aero_mpi_cuda_temparray 2>&1 | tee -a $temparrayfile  > $tmp_file_GPU
+    arr_aero_temparray+=($(calc_runtime $tmp_file_GPU))
     echo "greedycol"
-    arr_aero_greedycol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./aero_mpi_cuda_reprcolor -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./aero_mpi_cuda_reprcolor -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile > $tmp_file_GPU
+    arr_aero_greedycol+=($(calc_runtime $tmp_file_GPU))
     echo "distcol"
-    arr_aero_distrcol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap ./aero_mpi_cuda_reprcolor 2>&1 | tee -a $distfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2 ./aero_mpi_cuda_reprcolor 2>&1 | tee -a $distfile > $tmp_file_GPU
+    arr_aero_distrcol+=($(calc_runtime $tmp_file_GPU))
 
 
     cd ${MG_CFD_APP_PATH}
     echo -n "mg-cfd_mpi_cuda np${NP}, input loc: ${MG_CFD_APP_PATH}"
     echo " "
     echo "norepro"
-    arr_mgcfd_nonrepro+=($(mpirun -mca io ^ompio -np $NP ~/numawrap  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_norepro -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $norepfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_norepro -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $norepfile > $tmp_file_GPU
+    arr_mgcfd_nonrepro+=($(calc_runtime $tmp_file_GPU))
     echo "temparray"
-    arr_mgcfd_temparray+=($(mpirun -mca io ^ompio -np $NP ~/numawrap  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_temparray -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $temparrayfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_temparray -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $temparrayfile > $tmp_file_GPU
+    arr_mgcfd_temparray+=($(calc_runtime $tmp_file_GPU))
     echo "greedycol"
-    arr_mgcfd_greedycol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_genseq_reprcolor -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_genseq_reprcolor -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 -op_repro_greedy_coloring 2>&1 | tee -a $greedycolfile > $tmp_file_GPU
+    arr_mgcfd_greedycol+=($(calc_runtime $tmp_file_GPU))
     echo "distcol"
-    arr_mgcfd_distrcol+=($(mpirun -mca io ^ompio -np $NP ~/numawrap  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_genseq_reprcolor -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $distfile | grep -oP "Max total runtime = \K.*"))
+    OMP_NUM_THREADS=12 mpirun -mca io ^ompio -np $NP ~/numawrap_omp2  ../MG-CFD-app-OP2/bin/mgcfd_mpi_cuda_genseq_reprcolor -i input-mgcfd.dat -m ptscotch OP_PART_SIZE=128 OP_BLOCK_SIZE=128 2>&1 | tee -a $distfile > $tmp_file_GPU
+    arr_mgcfd_distrcol+=($(calc_runtime $tmp_file_GPU))
     
 done
 
@@ -202,3 +241,4 @@ do
     echo "${arr_mgcfd_nonrepro[$index]};${arr_mgcfd_temparray[$index]};${arr_mgcfd_greedycol[$index]};${arr_mgcfd_distrcol[$index]}"; 
 done
 
+rm $tmp_file_GPU

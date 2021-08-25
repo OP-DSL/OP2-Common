@@ -261,7 +261,7 @@ airfoil_mpi_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp \
                 seq/bres_calc_seqkernel.cpp  bres_calc.h \
                 seq/update_seqkernel.cpp     update.h    \
                 Makefile
-		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
+		$(MPICPP) $(VAR) $(CPPFLAGS) $(OMPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
 		$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. $(REPRO_MPI_INC) \
 		airfoil_op.cpp -lm seq/airfoil_seqkernels.cpp -Wl,--start-group $(OP2_LIB) -lop2_mpi \
 		$(PARMETIS_LIB) $(PTSCOTCH_LIB)  $(HDF5_LIB) $(REPRO_MPI_LIB) -Wl,--end-group -o airfoil_mpi_genseq
@@ -355,7 +355,7 @@ airfoil_mpi_openacc: airfoil_op.cpp openacc/airfoil_acckernels.c \
 #
 
 airfoil_mpi_cuda: airfoil_op.cpp cuda/airfoil_kernels_mpi_cu.o Makefile
-		  $(MPICPP) $(MPIFLAGS) airfoil_op.cpp -lm cuda/airfoil_kernels_mpi_cu.o \
+		  $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_op.cpp -lm cuda/airfoil_kernels_mpi_cu.o \
 		  $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(REPRO_MPI_INC)\
 		  $(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) \
 		  $(HDF5_LIB) $(CUDA_LIB) -lcudart $(REPRO_MPI_LIB) -o airfoil_mpi_cuda
