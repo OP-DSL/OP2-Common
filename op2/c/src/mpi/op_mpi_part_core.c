@@ -4292,6 +4292,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 
 
   }
+
 void greedy_global_coloring(){
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -4501,6 +4502,70 @@ void greedy_global_coloring(){
   
 }
 
+
+void trivial_coloring_within_process(){
+	int op_world_size;
+	MPI_Comm_size(OP_MPI_WORLD, &op_world_size);
+	int my_rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+	// Create coloring for reprudicble execution
+	for (int m = 0; m < OP_map_index; m++) { // for each maping table
+		op_map original_map = OP_map_list[m];
+		op_reversed_map rev_map = OP_reversed_map_list[m];
+		//   int* reversed_map = OP_reversed_map_list[m];
+
+		op_printf("Reproducible distributed coloring for map %s%d\n",original_map->name,m);
+		int set_from_size =
+			original_map->from->size + original_map->from->exec_size;
+		int set_to_size = original_map->to->size + original_map->to->exec_size +
+			original_map->to->nonexec_size;
+
+		int* repr_colors = (int*)op_malloc(set_from_size*sizeof(int));
+
+		for (int i=0; i<set_from_size; i++){ repr_colors[i]=-1; }
+
+		color_dats[m] = NULL;
+
+
+		int max_color=0;
+		for (int i=0; i<set_from_size; i++){
+			repr_colors[i]=OP_set_global_ids_list[original_map->from->index]->global_ids[i];
+			max_color = (repr_colors[i] > max_color) ? repr_colors[i] : max_color;
+		}
+		int num_colors = max_color +1;
+
+		int* color_based_exec_row_starts = (int*) op_malloc((num_colors+1)*sizeof(int));
+		int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
+
+		std::map<int,int>color_b_exec_sorter;
+		for (int i=0; i<set_from_size; i++){
+			color_b_exec_sorter[repr_colors[i]]=i;
+		}
+		int id=0;
+		for (auto it=color_b_exec_sorter.begin(); it!=color_b_exec_sorter.end(); it++){
+			color_based_exec[id++]=it->second;
+		}
+
+		OP_reversed_map_list[m]->reproducible_coloring = repr_colors;
+		OP_reversed_map_list[m]->number_of_colors = set_from_size;
+		OP_reversed_map_list[m]->color_based_exec = color_based_exec;
+		OP_reversed_map_list[m]->color_based_exec_row_starts = color_based_exec_row_starts;
+		OP_reversed_map_list[m]->color_based_exec_d = NULL;
+		OP_reversed_map_list[m]->color_based_exec_row_starts_d = NULL;
+
+		OP_reversed_map_list[m]->row_start_idx_d = NULL;
+		OP_reversed_map_list[m]->reversed_map_d = NULL;
+
+		if (set_from_size <= 0) {
+			OP_reversed_map_list[m]->color_based_exec_d = NULL;
+
+			OP_reversed_map_list[m]->row_start_idx_d = NULL;
+			OP_reversed_map_list[m]->reversed_map_d = NULL;
+		}
+	} //end of coloring for each map    
+}
+
+
 /*******************************************************************************
 * Create reversed mapping for reproducible MPI execution
 *******************************************************************************/
@@ -4623,6 +4688,8 @@ void create_reversed_mapping() {
   if (OP_repro_coloring){
     if (OP_repro_greedy_coloring){
       greedy_global_coloring();
+		} else if (OP_repro_trivial_coloring){
+			trivial_coloring_within_process();  
     } else {
       coloring_within_process();
     }
@@ -4675,3 +4742,4 @@ void realloc_tmp_incs(int dat_idx, int req_size){
   }
   return;
 }
+

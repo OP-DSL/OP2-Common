@@ -222,7 +222,7 @@ ifeq ($(OP2_COMPILER),intel)
   CXX             = icpc 
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
   CFLAGS_SLOW          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981
-  FC              = ifort $(OPT) #-DOP2_ARG_POINTERS
+  FC              = ifort $(OPT) -DOP2_ARG_POINTERS
   FFLAGS          = -module $(F_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
   FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) $(DEBUG_FLAGS) -warn interfaces -gen-interfaces
   MPICC           = $(MPICC_PATH) $(OPT)

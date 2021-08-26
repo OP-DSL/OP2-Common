@@ -33,9 +33,9 @@ import sys
 import re
 import os
 
-reproducible = 1
+reproducible = 0
 repr_temp_array = 0
-repr_coloring = 1
+repr_coloring = 0
 trivial_coloring = 0  #only relevant on CPU, no OMP
 
 def arg_parse(text,j):
