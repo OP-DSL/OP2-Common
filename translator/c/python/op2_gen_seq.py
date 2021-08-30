@@ -271,7 +271,7 @@ def op2_gen_seq(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             if optflags[g_m]:
-              IF('arg'+str(invmapinds[inds[g_m]-1])+'.opt')
+              IF('arg'+str(g_m)+'.opt')
             else:
               k = k + [mapinds[g_m]]
             code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
