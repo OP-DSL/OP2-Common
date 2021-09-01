@@ -178,7 +178,6 @@ def op2_gen_seq(master, date, consts, kernels):
     code('int nargs = '+str(nargs)+';')
     code('op_arg args['+str(nargs)+'];')
     code('')
-
     for g_m in range (0,nargs):
       u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
       if len(u) > 0 and vectorised[g_m] > 0:
@@ -271,7 +270,11 @@ def op2_gen_seq(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
             if optflags[g_m]:
-              IF('arg'+str(g_m)+'.opt')
+              if vectorised[g_m]:
+                index = vectorised.index(vectorised[g_m])
+              else:
+                index = g_m
+              IF('arg'+str(index)+'.opt')
             else:
               k = k + [mapinds[g_m]]
             code('map'+str(mapinds[g_m])+'idx = arg'+str(invmapinds[inds[g_m]-1])+'.map_data[n * arg'+str(invmapinds[inds[g_m]-1])+'.map->dim + '+str(idxs[g_m])+'];')
