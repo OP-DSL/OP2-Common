@@ -809,8 +809,11 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   /* TODO: properly??*/
   if (data == NULL)
     arg.opt = 0;
+
+  //if (reproducible_enabled && acc==OP_INC && arg.type==doublestr ){
   if (reproducible_enabled){
-    if (repr_red_arg_available + arg.dim >= repr_red_arg_count) {
+    //if (repr_red_arg_available + arg.dim >= repr_red_arg_count) {
+    if (repr_red_arg_available >= repr_red_arg_count) {
       repr_red_arg_count+=arg.dim;
       repr_red_args = (double_binned**) op_realloc(repr_red_args, repr_red_arg_count * sizeof( double_binned* ) );
       for (int d = 0; d < arg.dim; d++)
