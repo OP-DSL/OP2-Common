@@ -22,7 +22,7 @@ PART_SIZE_ENV ?= 128
 # set flags for NVCC compilation and linking
 #
 ifndef NV_ARCH
-  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=Kepler
   NV_ARCH=Kepler
 endif
 ifeq ($(NV_ARCH),Fermi)
@@ -33,6 +33,10 @@ ifeq ($(NV_ARCH),Kepler)
 else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=cc60
+else
+ifeq ($(NV_ARCH),Volta)
+  CODE_GEN_CUDA=cc70,cuda10.2
+endif
 endif
 endif
 endif
@@ -70,6 +74,7 @@ ifeq ($(OP2_COMPILER),pgi)
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O2
+  CUDA_LIBS = -L$(CUDA_MATH_LIBS) -lcublas -lcublasLt
   OPENMP = -mp
   CPPLINK = -pgcpplibs
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_openmp airfoil_cuda
@@ -82,7 +87,7 @@ ifeq ($(OP2_COMPILER),intel)
   MPI_INC = -I$(MPI_INSTALL_PATH)/include
   MPIF90 = $(FC) $(MPI_INC) $(MPI_LIB)
   OPENMP = -qopenmp
-  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g -xHost -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
+  OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xHost -parallel -qopt-report -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   #OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -xMIC-AVX512 -parallel -qopt-report=5 -fno-alias -inline-forceinline -vec-threshold0 -align array32byte -align rec32byte -DVECTORIZE
   CPPLINK = -lstdc++
   ALL_TARGET = airfoil_seq airfoil_genseq airfoil_vec airfoil_openmp
@@ -153,7 +158,7 @@ airfoil_cuda: airfoil_op.F90 save_soln_kernel.CUF adt_calc_kernel.CUF input.F90 
 	res_calc_kernel.CUF bres_calc_kernel.CUF update_kernel.CUF constants.F90 input.F90 cudaConfigurationParams.F95
 	$(FC) $(OPT) $(OPT_CUDA) $(FMODS)/cuda $(FMODS) $(FLINK) -DOP2_WITH_CUDAFOR cudaConfigurationParams.F95 constants.F90 input.F90 airfoil_seqfun.F90 \
 	save_soln_kernel.CUF update_kernel.CUF bres_calc_kernel.CUF \
-	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda $(HDF5_LIB)
+	res_calc_kernel.CUF adt_calc_kernel.CUF airfoil_op.F90 -o airfoil_cuda -lop2_for_cuda $(HDF5_LIB) $(CUDA_LIBS)
 
 
 airfoil_openmp4: airfoil_op.F90 save_soln_omp4kernel.F90 adt_calc_omp4kernel.F90 input.F90 airfoil_seqfun.F90 \

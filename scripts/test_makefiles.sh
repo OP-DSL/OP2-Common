@@ -27,18 +27,20 @@ function validate {
 #export CLANG_SOURCE=source_clang
 
 #Kos
-export NV_ARCH=Pascal
-export CUDA_VISIBLE_DEVICES=0,1
-export INTEL_SOURCE=source_intel_18
-export PGI_SOURCE=source_pgi_20_hydra
-export CLANG_SOURCE=source_clang_kos
-
-#Telos
-#export NV_ARCH=Volta
-#export CUDA_VISIBLE_DEVICES=0
+#export NV_ARCH=Pascal
+#export CUDA_VISIBLE_DEVICES=0,1
 #export INTEL_SOURCE=source_intel_18
+#export PGI_SOURCE=source_pgi_nvidia-hpc-21.7
 #export PGI_SOURCE=source_pgi_20_hydra
 #export CLANG_SOURCE=source_clang_kos
+
+#Telos
+export NV_ARCH=Volta
+export CUDA_VISIBLE_DEVICES=0
+export INTEL_SOURCE=source_intel_18
+#export PGI_SOURCE=source_pgi_20_hydra
+export PGI_SOURCE=source_pgi_nvidia-hpc-21.7
+export CLANG_SOURCE=source_clang_kos
 
 
 export CURRENT_DIR=$PWD
@@ -555,6 +557,7 @@ validate "$MPI_INSTALL_PATH/bin/mpirun -np 14 ./airfoil_hdf5_mpi_openmp OP_MAPS_
 validate "./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 2 ./airfoil_hdf5_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192 OP_MAPS_BASE_INDEX=0"
 
+#COMMENT0
 
 ###################################################################################
 ###################################################################################
