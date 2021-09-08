@@ -29,7 +29,7 @@ PTSCOTCH_LIB    = -L$(PTSCOTCH_INSTALL_PATH)/lib/ -lptscotch \
 # set flags for NVCC compilation and linking
 #
 ifndef NV_ARCH
-  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=KEPLER
+  MESSAGE=select an NVIDA device to compile in CUDA, e.g. make NV_ARCH=Kepler
   NV_ARCH=Kepler
 endif
 ifeq ($(NV_ARCH),Fermi)
@@ -42,7 +42,7 @@ ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=cc60
 else
 ifeq ($(NV_ARCH),Volta)
-  CODE_GEN_CUDA=cc70
+  CODE_GEN_CUDA=cc70,cuda10.2
 endif
 endif
 endif
@@ -82,9 +82,9 @@ ifeq ($(OP2_COMPILER),pgi)
   OPT = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -g
   OPT_CUDA = -DOP_PART_SIZE_1=$(PART_SIZE_ENV) -O3 -Mcuda=$(CODE_GEN_CUDA),fastmath,ptxinfo,$(PGI_REG_COUNT),lineinfo -DOP2_WITH_CUDAFOR #-Minline,reshape
   OPT_ACC = -O3 -acc -ta=nvidia,$(CODE_GEN_CUDA),$(PGI_REG_COUNT),lineinfo -Mcuda=fastmath,ptxinfo -Minfo=accel #-Minline=reshape
+  CUDA_LIBS = -L$(CUDA_MATH_LIBS) -lcublas -lcublasLt
   OPENMP = -mp
   CPPLINK = -pgc++libs -lstdc++
-  CUDA_LIBS = -L$(CUDA_MATH_LIBS) -lcublas -lcublasLt
   ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp airfoil_hdf5_cuda \
@@ -245,7 +245,7 @@ airfoil_hdf5_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_accke
 		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
 		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_openacc $(FLINK) -lop2_for_cuda -lop2_hdf5 \
-		$(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+		$(HDF5_LIB) -lz $(MPI_LIB) $(CUDA_LIBS) $(CPPLINK)
 
 airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_acckernel.F90 input.F90 airfoil_seqfun.F90 \
 	res_calc_acckernel.F90 bres_calc_acckernel.F90 update_acckernel.F90 constants.F90 input.F90
@@ -253,7 +253,7 @@ airfoil_hdf5_mpi_openacc: airfoil_hdf5_op.F90 save_soln_acckernel.F90 adt_calc_a
 		constants.F90 input.F90 airfoil_seqfun.F90 save_soln_acckernel.F90 \
 		update_acckernel.F90 bres_calc_acckernel.F90 res_calc_acckernel.F90 adt_calc_acckernel.F90 \
 		airfoil_hdf5_op.F90 -o airfoil_hdf5_mpi_openacc $(FLINK) -lop2_for_mpi_cuda  \
-		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CPPLINK)
+		$(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -lz $(MPI_LIB) $(CUDA_LIBS) $(CPPLINK)
 
 
 
