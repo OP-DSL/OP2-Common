@@ -424,6 +424,16 @@ void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   (void)args;
 }
 
+void op_mpi_test_all(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
