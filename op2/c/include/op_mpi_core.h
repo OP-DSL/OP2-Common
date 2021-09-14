@@ -295,6 +295,8 @@ void op_mpi_put_data(op_dat dat);
 
 void op_mpi_init_custom(int argc, char **argv, int diags, MPI_Fint custom);
 
+void op_mpi_init_custom_soa(int argc, char **argv, int diags, MPI_Fint custom, int soa);
+
 FILE * op_print_file_open(const char *line);
 
 void op_print_file_close(FILE *fp);

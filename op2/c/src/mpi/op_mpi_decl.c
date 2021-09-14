@@ -92,6 +92,12 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
 }
 
+//allows a custom communicator to be passed in directly as a single value - with SOA support
+void op_mpi_init_custom_soa(int argc, char **argv, int diags, MPI_Fint custom, int soa) {
+  OP_auto_soa = soa;
+  op_mpi_init_custom(argc, argv, diags, custom);
+}
+
 //allows a custom communicator to be passed in directly as a single value
 void op_mpi_init_custom(int argc, char **argv, int diags, MPI_Fint custom) {
   int flag = 0;
