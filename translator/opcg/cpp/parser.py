@@ -41,7 +41,7 @@ def parseKernel(self, path: Path, name: str) -> Kernel:
   return Kernel(name, path, translation_unit.cursor, params)
 
 
-def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
+def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
   # Locate OP2 install
   op2_install = os.getenv('OP2_INSTALL_PATH')
   if not op2_install:
@@ -115,7 +115,7 @@ def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
         program.consts.append(parseConst(args, loc))
 
       elif name == 'op_par_loop':
-        program.loops.append(parseLoop(args, loc))
+        program.loops.append(parseLoop(args, loc, soa))
 
       elif name == 'op_exit':
         program.recordExit()
@@ -172,7 +172,7 @@ def parseConst(nodes: List[Cursor], loc: Location) -> OP.Const:
   return OP.Const(ptr, dim, typ, debug, loc)
 
 
-def parseLoop(nodes: List[Cursor], loc: Location) -> OP.Loop:
+def parseLoop(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Loop:
   if len(nodes) < 3:
     raise ParseError('incorrect number of args passed to op_par_loop')
 
@@ -191,10 +191,10 @@ def parseLoop(nodes: List[Cursor], loc: Location) -> OP.Loop:
     args = list(node.get_children())[1:]
 
     if name == 'op_arg_dat':
-      loop_args.append(parseArgDat(args, arg_loc))
+      loop_args.append(parseArgDat(args, arg_loc, soa))
 
     elif name == 'op_opt_arg_dat':
-      loop_args.append(parseOptArgDat(args, arg_loc))
+      loop_args.append(parseOptArgDat(args, arg_loc, soa))
 
     elif name == 'op_arg_gbl':
       loop_args.append(parseArgGbl(args, arg_loc))
@@ -208,7 +208,7 @@ def parseLoop(nodes: List[Cursor], loc: Location) -> OP.Loop:
   return OP.Loop(kernel, set_, loc, loop_args)
 
 
-def parseArgDat(nodes: List[Cursor], loc: Location) -> OP.Arg:
+def parseArgDat(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Arg:
   if len(nodes) != 6:
     raise ParseError('incorrect number of args passed to op_arg_dat', loc)
 
@@ -220,11 +220,12 @@ def parseArgDat(nodes: List[Cursor], loc: Location) -> OP.Arg:
   dim  = parseIntLit(nodes[3], signed=False)
   typ  = parseStringLit(nodes[4])
   acc  = macro_instances[(nodes[5].location.line, nodes[5].location.column)] # TODO: Cleanup
+  soa_ = soa and dim > 1
 
-  return OP.Arg(var, dim, typ, acc, loc, map_, idx)
+  return OP.Arg(var, dim, typ, acc, loc, map_, idx, soa_)
 
 
-def parseOptArgDat(nodes: List[Cursor], loc: Location) -> OP.Arg:
+def parseOptArgDat(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Arg:
   if len(nodes) != 7:
     ParseError('incorrect number of args passed to op_opt_arg_dat', loc)
 
@@ -232,7 +233,7 @@ def parseOptArgDat(nodes: List[Cursor], loc: Location) -> OP.Arg:
   opt = parseIdentifier(nodes[0])
 
   # Parse standard argDat arguments
-  dat = parseArgDat(nodes[1:], loc)
+  dat = parseArgDat(nodes[1:], loc, soa)
 
   # Return augmented dat
   dat.opt = opt

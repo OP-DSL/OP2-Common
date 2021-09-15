@@ -57,6 +57,9 @@ def main(argv=None) -> None:
   opt = Opt.find(args.optimisation)
   lang = Lang.find(extension)
 
+  if opt.name == "cuda":
+    opt.config['soa'] = args.soa
+
   if not lang:
     exit(f'Unsupported file extension: {extension}')
 
@@ -100,7 +103,7 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
       print(f'Parsing file {i} of {len(args.file_paths)}: {raw_path}')
 
     # Parse the program
-    program = scheme.lang.parseProgram(Path(raw_path), include_dirs)
+    program = scheme.lang.parseProgram(Path(raw_path), include_dirs, args.soa)
     app.programs.append(program)
 
     if args.verbose:
