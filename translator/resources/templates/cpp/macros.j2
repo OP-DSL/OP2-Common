@@ -7,6 +7,7 @@ if (opArg{{ arg.i+1 }}.opt)
 }
 {% else %}{{ caller() }}{% endif %}
 {% endmacro %}
+
 {% macro op_host_stub_args(parloop) %}
 int nargs = {{ parloop.nargs }};
   op_arg args[{{ parloop.nargs }}];
@@ -27,4 +28,14 @@ int nargs = {{ parloop.nargs }};
   args[{{ arg.i }}] = arg{{ arg.i }};
   {% endif %}
   {% endfor %}
+{% endmacro %}
+
+{% macro op_get_stride(parloop, arg) %}
+{% if arg.direct %}
+direct_{{ parloop.name }}_stride_OP2CONSTANT
+{% elif arg.global_ %}
+(gridDim%x*blockDim%x)
+{% else %}
+opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT
+{% endif %}
 {% endmacro %}

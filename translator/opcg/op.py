@@ -116,9 +116,12 @@ class Arg:
   loc: Location      # Source code location
   map: Optional[str] # Indirect mapping indentifier
   idx: Optional[int] # Indirect mapping index
+  soa: bool          # Does this arg use SoA
   opt: Optional[str]
   map1st: Optional[int] # First arg to use this arg's map
   arg1st: Optional[int] # First arg to use this arg's dat
+  optidx: Optional[int] # Index in list of args with opt set
+  cumulative_ind_idx: Optional[ind] # Cumulative index of indirect OP_INC args
 
   def __init__(
     self,
@@ -128,7 +131,8 @@ class Arg:
     acc: str,
     loc: Location,
     map_: str = None,
-    idx: int = None
+    idx: int = None,
+    soa: bool = False
   ) -> None:
     self.var = var
     self.dim = dim
@@ -137,6 +141,7 @@ class Arg:
     self.loc = loc
     self.map = map_
     self.idx = idx
+    self.soa = soa
     self.opt = None
 
 
@@ -205,57 +210,101 @@ class Loop:
     for arg in self.vecs:
       self.nargs += abs(arg.idx) - 1
 
+    # Index args which uses opts (args with the same dat + map combination have same index)
+    nopts = 0;
+    for arg in self.opts:
+      if arg.i == arg.arg1st:
+        arg.optidx = nopts
+        nopts = nopts + 1
+      else:
+        arg.optidx = self.args[arg.arg1st].optidx
+
+    # Calculate cumulative indirect index of OP_INC args
+    i = 0
+    for arg in self.indirects:
+      if arg.acc == "OP_INC":
+        arg.cumulative_ind_idx = i
+        i = i + 1
 
   @property
   def name(self) -> str:
     return self.kernel
 
-
+  # Returns true if any arg is accessing a dat indirectly
   @cached_property
   def indirection(self) -> bool:
     return len(self.indirects) > 0
 
+  # Returns true if any arg uses SoA
+  @cached_property
+  def any_soa(self) -> bool:
+    return len(self.soas) > 0
 
+  # Returns true if any direct arg uses SoA
+  @cached_property
+  def direct_soa(self) -> bool:
+    return any(arg.direct for arg in self.soas)
+
+  # Gets idx of first direct arg using SoA
+  @cached_property
+  def direct_soa_idx(self) -> bool:
+    if self.direct_soa:
+      for arg in self.args:
+        if arg.direct and arg.soa:
+          return arg.i
+    return -1
+
+  # List of args accessing dats directly
   @cached_property
   def directs(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.direct ]
 
-
+  # List of args accessing dats indirectly
   @cached_property
   def indirects(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.indirect ]
 
-
+  # List of args with an option flag set
   @cached_property
-  def opts(self) -> bool:
+  def opts(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.opt is not None ]
 
-
+  # List of args which are global loop variables
   @cached_property
   def globals(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.global_ ]
 
+  # List of args which are global OP_READ or OP_WRITE loop variables
+  @cached_property
+  def globals_r_w(self) -> List[Arg]:
+    return [ arg for arg in self.args if arg.global_ and (arg.acc == "OP_READ" or arg.acc == "OP_WRITE")]
 
+  # List of args which use vec indexing
   @cached_property
   def vecs(self) -> List[Arg]:
     return [ arg for arg in self.args if arg.vec ]
 
+  # List of args which use SoA
+  @cached_property
+  def soas(self) -> List[Arg]:
+    return [ arg for arg in self.args if arg.soa ]
 
+  # List of args where only the first occurrence of each dat is included
   @cached_property
   def uniqueVars(self) -> List[Arg]:
     return uniqueBy(self.args, lambda a: a.var)
 
-
+  # List of indirect args where only the first occurrence of each dat is included
   @cached_property
   def indirectVars(self) -> List[Arg]:
     return uniqueBy(self.indirects, lambda a: a.var)
 
-
+  # List of indirect args where only the first occurrence of each map is included
   @cached_property
   def indirectMaps(self) -> List[Arg]:
     return uniqueBy(self.indirects, lambda a: a.map)
 
-
+  # List of indirect args where only the first occurrence of each (map, mapping id) pair is included
   @cached_property
   def indirectIdxs(self) -> List[Arg]:
     res = []
@@ -272,7 +321,7 @@ class Loop:
         res.append(arg)
     return uniqueBy(res, lambda a: (a.map, a.idx))
 
-
+  # Index of the dat referenced by the arg (with -1 for direct args)
   @cached_property
   def indirectionDescriptor(self) -> List[int]:
     descriptor = []
@@ -291,17 +340,17 @@ class Loop:
 
     return descriptor
 
-
+  # True if any global reductions used in this loop
   @cached_property
   def reduction(self) -> bool:
     return any( arg.acc != READ for arg in self.globals )
 
-
+  # True if any multi dim (i.e. dimension of the global is > 1) reduction
   @cached_property
   def multiDimReduction(self) -> bool:
     return self.reduction and any( arg.dim > 1 for arg in self.globals )
 
-
+  # Get the index of the arg which matches the (map, map id) pair
   def mapIdxLookup(self, map : str, idx : int) -> int:
       for i, arg in enumerate(self.indirectIdxs):
           if arg.map == map and arg.idx == idx:
