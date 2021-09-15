@@ -79,7 +79,7 @@ def op_parse_calls(text):
   # remove comments just for this call
   text = comment_remover(text)
 
-  inits = len(re.findall('op_init', text))
+  inits = len(re.findall('op_mpi_init_custom', text))
   exits = len(re.findall('op_exit', text))
   parts = len(re.findall('op_partition', text))
   hdf5s = len(re.findall('hdf5', text))
@@ -243,7 +243,7 @@ def get_arg_gbl(arg_string, k):
 
 def append_init_soa(text):
   text = re.sub('\\bop_init\\b\\s*\((.*)\)','op_init_soa(\\1,1)', text)
-  text = re.sub('\\bop_mpi_init\\b\\s*\((.*)\)','op_mpi_init_soa(\\1,1)', text)
+  text = re.sub('\\bop_mpi_init_custom\\b\\s*\((.*)\)','op_mpi_init_custom_soa(\\1,1)', text)
   return text
 
 def op_par_loop_parse(text):
@@ -356,6 +356,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       text = f.read()
 
     local_defs = op_parse_macro_defs(text)
+
     for k in list(local_defs.keys()):
       if (k in macro_defs) and (local_defs[k] != macro_defs[k]):
         msg = "WARNING: Have found two different definitions for macro '{}': '{}' and '{}'. Using the first definition.".format(k, macro_defs[k], local_defs[k])
@@ -421,6 +422,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         const_args[i]['dim'] = int(const_args[i]['dim'])
 
     # check for repeats
+
+
     nconsts = 0
     for i in range(0, len(const_args)):
       repeat = 0
