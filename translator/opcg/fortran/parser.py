@@ -58,8 +58,8 @@ def parseKernel(self, path: Path, name: str) -> Kernel:
 
   return Kernel(name, path, ast, params)
 
-
-def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
+# soa argument is currently only used in C++ parser
+def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
   # Parse AST
   ast = parse(path)
 

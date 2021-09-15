@@ -1,17 +1,424 @@
 {# Template imports #}
-{% from 'cpp/macros.j2' import op_opt, op_host_stub_args %}
+{% from 'cpp/macros.j2' import op_opt, op_host_stub_args, op_get_stride %}
 {% from 'macros.j2' import comma %}
 
-{# TODO: soa #}
+{% if parloop.any_soa %}
+{% for arg in parloop.indirectMaps %}
+__constant__ int opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT;
+int opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST = -1;
+{% endfor %}
+{% if parloop.direct_soa %}
+__constant__ int direct_{{ parloop.name }}_stride_OP2CONSTANT;
+int direct_{{ parloop.name }}_stride_OP2HOST = -1;
+{% endif %}
+{% endif %}
+
+{# TODO: includes from kernel function header file #}
 // user function
 {# TODO: kernel translation and output it here #}
 
 // CUDA kernel function
 __global__ void op_cuda_{{ parloop.name }}(
-  {# TODO: int optflags, #}
-  {# TODO #}
+  {% if parloop.opts | length > 0 %}
+  int optflags,
+  {% endif %}
+  {% for arg in parloop.indirectVars %}
+  {% if arg.acc == "OP_READ" %}
+  const {{ arg.typ }} *__restrict ind_arg{{ arg.i }},
+  {% else %}
+  {{ arg.typ }} *__restrict ind_arg{{ arg.i }},
+  {% endif %}
+  {% endfor %}
+  {% for arg in parloop.indirectMaps %}
+  const int *__restrict opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map,
+  {% endfor %}
+  {% for arg in parloop.args %}
+  {% if arg.direct %}
+  {% if arg.acc == "OP_READ" %}
+  const {{ arg.typ }} *__restrict arg{{ arg.i }},
+  {% else %}
+  {{ arg.typ }} *arg{{ arg.i }},
+  {% endif %}
+  {% elif arg.global_ %}
+  {% if arg.acc == "OP_READ" %}const {% endif %}{{ arg.typ }} *arg{{ arg.i }},
+  {% endif %}
+  {% endfor %}
+  {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
+  int   *ind_map,
+  short *arg_map,
+  int   *ind_arg_sizes,
+  int   *ind_arg_offs,
+  {% endif %}
+  {% if parloop.indirection %}
+  {% if opt.config['op_color2'] %}
+  int start,
+  int end,
+  int *col_reord,
+  {% elif not opt.config['atomics'] %}
+  int block_offset,
+  int *blkmap,
+  int *offset,
+  int *nelems,
+  int *ncolors,
+  int *colors,
+  int nblocks,
+  {% else %}
+  int start,
+  int end,
+  {% endif %}
+  {% endif %}
+  int set_size
 ) {
-  {# TODO #}
+  {% for arg in parloop.args %}
+  {% if arg.global_ and arg.acc != "OP_READ" and arg.acc != "OP_WRITE" %}
+  {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
+  for(int d = 0; d < {{ arg.dim }}; d++) {
+    {% if arg.acc == "OP_INC" %}
+    arg{{ arg.i }}_l[d] = ZERO_{{ arg.typ }};
+    {% else %}
+    arg{{ arg.i }}_l[d] = arg{{ arg.i }}[d + blockIdx.x * {{ arg.dim }}];
+    {% endif %}
+  }
+  {% elif arg.indirect and arg.acc == "OP_INC" and not opt.config['op_color2'] and not opt.config['atomics'] %}
+  {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
+  {% endif %}
+  {% endfor %}
+
+  {# TODO: check this as not 100% sure (line 376) #}
+  {% if not opt.config['op_color2'] and not opt.config['atomics'] %}
+  {% for arg in parloop.vecs %}
+  {% if arg.indirect %}
+  {{ arg.typ }} *arg{{ arg.i }}_vec[] = {
+    {% for i in range(0, arg.idx | abs) %}
+    arg{{ arg.i }}_l{{ comma(loop) }}
+    {% endfor %}
+  };
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
+  {% if opt.config['inc_stage'] == 1 %}
+  {% for arg in parloop.indirects %}
+  {% if arg.acc == "OP_INC" %}
+  __shared__  int  *ind_arg{{ arg.i }}_map, ind_arg{{ arg.i }}_size;
+  __shared__  {{ arg.typ }} *ind_arg{{ arg.i }}_s;
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+  {% if opt.config['ind_inc'] %}
+  __shared__ int nelems2, ncolor;
+  {% endif %}
+  __shared__ int nelem, offset_b;
+  extern __shared__ char shared[];
+  if(blockIdx.x + blockIdx.y * gridDim.x >= nblocks) {
+    return;
+  }
+
+  if(threadIdx.x == 0) {
+    // get sizes and shift pointers and direct-mapped data
+    int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];
+    nelem = nelems[blockId];
+    offset_b = offset[blockId];
+    {% if opt.config['ind_inc'] %}
+    nelems2 = blockDim.x*(1+(nelem-1)/blockDim.x);
+    ncolor = ncolors[blockId];
+    {% endif %}
+    {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
+    {# TODO: sort out inds_staged and related #}
+    {% endif %}
+  }
+
+  __syncthreads(); // make sure all of above completed
+
+  {% if opt.config['inc_stage'] == 1 %}
+  {% for arg in parloop.indirects %}
+  {% if arg.acc == "OP_INC" %}
+  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size*{{ arg.dim }}; n += blockDim.x) {
+    ind_arg{{ arg.i }}_s[n] = ZERO_{{ arg.typ }};
+  }
+  {% endif %}
+  {% endfor %}
+  {% if opt.config['ind_inc'] %}
+  __syncthreads();
+  {% endif %}
+  {% endif %}
+
+  {% if opt.config['ind_inc'] %}
+  for(int n = threadIdx.x; n < nelems2; n += blockDim.x) {
+    int col2 = -1;
+    {% for arg in parloop.indirectIdxs %}
+    int map{{ loop.index - 1 }}idx;
+    {% endfor %}
+    if(n < nelem) {
+      // initialise local variables
+      {% for arg in parloop.indirects %}
+      {% if arg.acc == "OP_INC" %}
+      for(int d = 0; d < {{ arg.dim }}; d++) {
+        arg{{ arg.i }}_l[d] = ZERO_{{ arg.typ }};
+      }
+      {% endif %}
+      {% endfor %}
+  {% else %}
+  for(int n = threadIdx.x; n < nelem; n += blockDim.x) {
+    {% for arg in parloop.indirectIdxs %}
+    int map{{ loop.index - 1 }}idx;
+    {% endfor %}
+  {% endif %}
+    {% for arg in parloop.indirectIdxs %}
+    {% if arg.opt is none %}
+    map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + offset_b + set_size * {{ arg.idx }}];
+    {% endif %}
+    {% endfor %}
+    {% for arg in parloop.indirectIdxs %}
+    {% if arg.opt is not none %}
+    if(optflags & 1 << {{ arg.optidx }}) {
+      map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + offset_b + set_size * {{ arg.idx }}];
+    }
+    {% endif %}
+    {% endfor %}
+    {% for arg in parloop.vecs %}
+    {% if arg.acc != "OP_INC" %}
+    {% if arg.acc == "OP_READ" %}
+    const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+    {% else %}
+    {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+    {% endif %}
+      {% for i in range(0, arg.idx | abs) %}
+      {% if arg.soa %}
+      &ind_arg{{ arg.arg1st }}[map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+      {% else %}
+      &ind_arg{{ arg.arg1st }}[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+      {% endif %}
+      {% endfor %}
+    };
+    {% endif %}
+    {% endfor %}
+  {% elif parloop.indirection %}
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if(tid + start < end) {
+    {% if opt.config['atomics'] %}
+    int n = tid + start;
+    {% else %}
+    int n = col_reord[tid + start];
+    {% endif %}
+    // initialise local variables
+    {% for arg in parloop.indirects %}
+    {% if arg.acc == "OP_INC" %}
+    {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
+    for(int d = 0; d < {{ arg.dim }}; d++) {
+      arg{{ arg.i }}_l[d] = ZERO_{{ arg.typ }};
+    }
+    {% endif %}
+    {% endfor %}
+    {% for arg in parloop.indirectIdxs %}
+    int map{{ loop.index - 1 }}idx;
+    {% endfor %}
+    {% for arg in parloop.indirectIdxs %}
+    {% if arg.opt is none %}
+    map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + set_size * {{ arg.idx }}];
+    {% endif %}
+    {% endfor %}
+    {% for arg in parloop.indirectIdxs %}
+    {% if arg.opt is not none %}
+    if(optflags & 1 << {{ arg.optidx }}) {
+      map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + set_size * {{ arg.idx }}];
+    }
+    {% endif %}
+    {% endfor %}
+    {% for arg in parloop.vecs %}
+    {% if arg.acc == "OP_READ" %}
+    const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+    {% else %}
+    {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
+    {% endif %}
+      {% if opt.config['atomics'] and arg.acc == "OP_INC" %}
+      {# TODO: vec stuff (line 592) #}
+      {% else %}
+      {% for i in range(0, arg.idx | abs) %}
+      {% if arg.soa %}
+      &ind_arg{{ arg.arg1st }}[map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+      {% else %}
+      &ind_arg{{ arg.arg1st }}[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+    };
+    {% endfor %}
+  {% else %}
+  // process set elements
+  for(int n = threadIdx.x+blockIdx.x*blockDim.x; n < set_size; n += blockDim.x*gridDim.x) {
+  {% endif %}
+    // user-supplied kernel call
+    {{ parloop.name }}_gpu(
+      {% for arg in parloop.args %}
+      {% if arg.global_ %}
+      {% if arg.acc == "OP_READ" or arg.acc == "OP_WRITE" %}
+      arg{{ arg.i }}{{ comma(loop) }}
+      {% else %}
+      arg{{ arg.i }}_l{{ comma(loop) }}
+      {% endif %}
+      {% elif arg.indirect and arg.acc == "OP_INC" and not opt.config['op_color2'] %}
+      {% if arg.vec %}
+      arg{{ arg.i }}_vec{{ comma(loop) }}
+      {% else %}
+      arg{{ arg.i }}_l{{ comma(loop) }}
+      {% endif %}
+      {% elif arg.indirect %}
+      {% if arg.vec %}
+      arg{{ arg.i }}_vec{{ comma(loop) }}
+      {% else %}
+      {% if arg.soa %}
+      ind_arg{{ arg.i }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx{{ comma(loop) }}
+      {% else %}
+      ind_arg{{ arg.i }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx*{{ arg.dim }}{{ comma(loop) }}
+      {% endif %}
+      {% endif %}
+      {% elif arg.direct %}
+      {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
+      {% if arg.soa %}
+      arg{{ arg.i }} + (n + offset_b){{ comma(loop) }}
+      {% else %}
+      arg{{ arg.i }} + (n + offset_b) * {{ arg.dim }}{{ comma(loop) }}
+      {% endif %}
+      {% else %}
+      {% if arg.soa %}
+      arg{{ arg.i }} + n{{ comma(loop) }}
+      {% else %}
+      arg{{ arg.i }} + n * {{ arg.dim }}{{ comma(loop) }}
+      {% endif %}
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+    );
+    {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
+    {% if opt.config['ind_inc'] %}
+    col2 = colors[n + offset_b];
+    }
+
+    // store local variables
+    {% if opt.config['inc_stage'] == 1 %}
+    {% for arg in parloop.indirects %}
+    {% if arg.acc == "OP_INC" %}
+    int arg{{ arg.i }}_map;
+    {% endif %}
+    {% endfor %}
+    if(col2 >= 0) {
+      {% for arg in parloop.indirects %}
+      {% if arg.acc == "OP_INC" %}
+      arg{{ arg.i }}_map = arg_map[{{ arg.cumulative_ind_idx }} * set_size + n + offset_b];
+      {% endif %}
+      {% endfor %}
+    }
+    {% endif %}
+    for(int col = 0; col < ncolor; col++) {
+      if(col2 == col) {
+        {% if opt.config['inc_stage'] == 1 %}
+        {% for arg in parloop.indirects %}
+        {% if arg.acc == "OP_INC" %}
+        {% if arg.opt %}
+        if(optflags & 1 << {{ arg.optidx }}) {
+        {% endif %}
+        {% for d in range(0, arg.dim) %}
+        {% if arg.soa %}
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.i }}_size];
+        {% else %}
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}];
+        {% endif %}
+        {% endfor %}
+        {% for d in range(0, arg.dim) %}
+        {% if arg.soa %}
+        ind_arg{{ arg.i }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.i }}_size] = arg{{ arg.i }}_l[{{ d }}];
+        {% else %}
+        ind_arg{{ arg.i }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% if arg.opt %}
+        }
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        {% for arg in parloop.indirects %}
+        {% if arg.acc == "OP_INC" %}
+        {% for d in range(0, arg.dim) %}
+        {# TODO: this will potentially break with vec args #}
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}];
+        {% endfor %}
+        {% for d in range(0, arg.dim) %}
+        ind_arg{{ arg.i }}_s[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+      }
+      __syncthreads();
+    }
+    {% endif %}
+    {% endif %}
+    {% if parloop.indirection and opt.config['atomics'] %}
+    {% for arg in parloop.indirects %}
+    {% if arg.acc == "OP_INC" %}
+    {% if arg.opt %}
+    if(optflags & 1 << {{ arg.optidx }}) {
+    {% endif %}
+    {% for d in range(0, arg.dim) %}
+    {% if arg.soa %}
+    atomicAdd(&ind_arg{{ arg.i }}[{{ d }} * {{ op_get_stride(parloop, arg) }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx], arg{{ arg.i }}_l[{{ d }}]);
+    {% else %}
+    atomicAdd(&ind_arg{{ arg.i }}[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}], arg{{ arg.i }}_l[{{ d }}]);
+    {% endif %}
+    {% endfor %}
+    {% if arg.opt %}
+    }
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+  }
+
+  {% if opt.config['inc_stage'] %}
+  {% for arg in parloop.indirects %}
+  {% if arg.acc == "OP_INC" %}
+  {% if arg.opt %}
+  if(optflags & 1 << {{ arg.optidx }}) {
+  {% endif %}
+  {% if arg.soa %}
+  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size; n += blockDim.x) {
+    {% for d in range(0, arg.dim) %}
+    arg{{ arg.i }}_l[{{ d }}] = ind_arg{{ arg.i }}_s[n + {{ d }} * ind_arg{{ arg.i }}_size] + ind_arg{{ arg.i }}[ind_arg{{ arg.i }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}];
+    {% endfor %}
+    {% for d in range(0, arg.dim) %}
+    ind_arg{{ arg.i }}[ind_arg{{ arg.i }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}] =  arg{{ arg.i }}_l[{{ d }}];
+    {% endfor %}
+  }
+  {% else %}
+  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size * {{ arg.dim }}; n += blockDim.x) {
+    ind_arg{{ arg.i }}[n % {{ arg.dim }} + ind_arg{{ arg.i }}_map[n / {{ arg.dim }}] * {{ arg.dim }}] += ind_arg{{ arg.i }}_s[n];
+  }
+  {% endif %}
+  {% if arg.opt %}
+  }
+  {% endif %}
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+  {% if parloop.reduction %}
+  // global reductions
+  {% for glb in parloop.globals %}
+  {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
+  for(int d = 0; d < {{ glb.dim }}; d++) {
+    {% if glb.acc == "OP_INC" %}
+    op_reduction<OP_INC>(&arg{{ glb.i }}[d + blockIdx.x * {{ glb.dim }}], arg{{ glb.i }}_l[d]);
+    {% elif glb.acc == "OP_MIN" %}
+    op_reduction<OP_MIN>(&arg{{ glb.i }}[d + blockIdx.x * {{ glb.dim }}], arg{{ glb.i }}_l[d]);
+    {% elif glb.acc == "OP_MAX" %}
+    op_reduction<OP_MAX>(&arg{{ glb.i }}[d + blockIdx.x * {{ glb.dim }}], arg{{ glb.i }}_l[d]);
+    {% endif %}
+  }
+  {% endif %}
+  {% endfor %}
+  {% endif %}
 }
 
 // host stub function
@@ -33,8 +440,7 @@ void op_par_loop_{{ parloop.name }}(
   int optflags = 0;
   {% for arg in parloop.opts %}
   if(args[{{ arg.i }}]).opt) {
-    {# TODO: calc optidxs, accounting for indirection #}
-    optflags |= 1 << ;
+    optflags |= 1 << {{ arg.optidx }};
   }
   {% endfor %}
   {% endif %}
@@ -49,7 +455,14 @@ void op_par_loop_{{ parloop.name }}(
   {% if parloop.indirection %}
   int ninds = {{ parloop.indirectVars | length }};
   int inds[{{ parloop.nargs }}] = { {% for indDesc in parloop.indirectionDescriptor %} {{ indDesc }}{{ comma(loop) }} {% endfor %} };
-  {# TODO: if not atomics #}
+  {% if not opt.config['atomics'] %}
+  // get plan
+  #ifdef OP_PART_SIZE_{{ id }}
+    int part_size = OP_PART_SIZE_{{ id }};
+  #else
+    int part_size = OP_part_size;
+  #endif
+  {% endif %}
   {% endif %}
 
   if (OP_diags>2) {
@@ -58,31 +471,313 @@ void op_par_loop_{{ parloop.name }}(
 
   int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);
 
-  {# TODO: if indirection and not atomics #}
+  if(set_size > 0) {
+    {% if parloop.indirection and not opt.config['atomics'] %}
+    {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_INC);
+    {% elif opt.config['op_color2'] %}
+    op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);
+    {% else %}
+    op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
+    {% endif %}
+    {% endif %}
 
-  {# TODO: change from if there are globals to if there are OP_READ or OP_WRITE globals #}
-  {% if parloop.globals | length > 0 %}
-  // transfer constants to GPU
-  int consts_bytes = 0;
-  {% for glb in parloop.globals %}
-  {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
-  consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
-  {% endif %}
-  {% endfor %}
-  reallocConstArrays(consts_bytes);
-  consts_bytes = 0;
-  {% for glb in parloop.globals %}
-  {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
-  arg{{ glb.i }}.data   = OP_consts_h + consts_bytes;
-  arg{{ glb.i }}.data_d = OP_consts_d + consts_bytes;
-  for(int d = 0; d < {{ glb.dim }}; d++) {
-    (({{ glb.typ }} *)arg{{ glb.i }}.data)[d] = arg{{ glb.i }}h[d];
+    {% if parloop.globals_r_w | length > 0 %}
+    // transfer constants to GPU
+    int consts_bytes = 0;
+    {% for glb in parloop.globals %}
+    {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
+    consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
+    {% endif %}
+    {% endfor %}
+    reallocConstArrays(consts_bytes);
+    consts_bytes = 0;
+    {% for glb in parloop.globals %}
+    {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
+    arg{{ glb.i }}.data   = OP_consts_h + consts_bytes;
+    arg{{ glb.i }}.data_d = OP_consts_d + consts_bytes;
+    for(int d = 0; d < {{ glb.dim }}; d++) {
+      (({{ glb.typ }} *)arg{{ glb.i }}.data)[d] = arg{{ glb.i }}h[d];
+    }
+    consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
+    {% endif %}
+    {% endfor %}
+    mvConstArraysToDevice(consts_bytes);
+    {% endif %}
+
+    {% if parloop.any_soa %}
+    {% for arg in parloop.indirectMaps %}
+    if((OP_kernels[{{ id }}].count==1) || (opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ arg.i }}))) {
+      opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST = getSetSizeFromOpArg(&arg{{ arg.i }});
+      cudaMemcpyToSymbol(opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT, &opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST,sizeof(int));
+    }
+    {% endfor %}
+    {% if parloop.direct_soa %}
+    if((OP_kernels[{{ id }}].count==1) || (direct_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ parloop.direct_soa_idx }}))) {
+      direct_{{ parloop.name }}_stride_OP2HOST = getSetSizeFromOpArg(&arg{{ parloop.direct_soa_idx }});
+      cudaMemcpyToSymbol(direct_{{ parloop.name }}_stride_OP2CONSTANT,&direct_{{ parloop.name }}_stride_OP2HOST,sizeof(int));
+    }
+    {% endif %}
+    {% endif %}
+
+    {% if not parloop.indirection or opt.config['atomics'] %}
+    // set CUDA execution parameters
+    #ifdef OP_BLOCK_SIZE_{{ id }}
+      int nthread = OP_BLOCK_SIZE_{{ id }};
+    #else
+      int nthread = OP_block_size;
+    #endif
+    {% if not parloop.indirection %}
+    int nblocks = 200;
+    {% endif %}
+    {% endif %}
+
+    {% if parloop.reduction %}
+    // transfer global reduction data to GPU
+    {% if parloop.indirection and not opt.config['atomics'] %}
+    int maxblocks = 0;
+    for(int col = 0; col < Plan->ncolors; col++) {
+      maxblocks = MAX(maxblocks,Plan->ncolblk[col]);
+    }
+    {% elif parloop.indirection and opt.config['atomics'] %}
+    int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;
+    {% else %}
+    int maxblocks = nblocks;
+    {% endif %}
+    int reduct_bytes = 0;
+    int reduct_size  = 0;
+    {% for glb in parloop.globals %}
+    {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
+    reduct_bytes += ROUND_UP(maxblocks*{{ glb.dim }}*sizeof({{ glb.typ }}));
+    reduct_size   = MAX(reduct_size,sizeof({{ glb.typ }}));
+    {% endif %}
+    {% endfor %}
+    reallocReductArrays(reduct_bytes);
+    reduct_bytes = 0;
+    {% for glb in parloop.globals %}
+    {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
+    arg{{ glb.i }}.data   = OP_reduct_h + reduct_bytes;
+    arg{{ glb.i }}.data_d = OP_reduct_d + reduct_bytes;
+    for(int b = 0; b < maxblocks; b++) {
+      for(int d = 0; d < {{ glb.dim }}; d++) {
+      {% if glb.acc == "OP_INC" %}
+        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}] = ZERO_{{ glb.typ }};
+      {% else %}
+        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}] = arg{{ glb.i }}h[d];
+      {% endif %}
+      }
+    }
+    reduct_bytes += ROUND_UP(maxblocks*{{ glb.dim }}*sizeof({{ glb.typ }}));
+    {% endif %}
+    {% endfor %}
+    mvReductArraysToDevice(reduct_bytes);
+    {% endif %}
+
+    {# Kernel call for indirect version #}
+    {% if parloop.indirection and not opt.config['atomics'] %}
+    // execute plan
+    {% if not opt.config['op_color2'] %}
+    int block_offset = 0;
+    {% endif %}
+    for(int col = 0; col < Plan->ncolors; col++) {
+      if(col == Plan->ncolors_core) {
+        op_mpi_wait_all_grouped(nargs, args, 2);
+      }
+
+      #ifdef OP_BLOCK_SIZE_{{ id }}
+        int nthread = OP_BLOCK_SIZE_{{ id }};
+      #else
+        int nthread = OP_block_size;
+      #endif
+
+      {% if opt.config['op_color2'] %}
+      int start = Plan->col_offsets[0][col];
+      int end = Plan->col_offsets[0][col+1];
+      int nblocks = (end - start - 1)/nthread + 1;
+      {% else %}
+      dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
+        Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
+      if(Plan->ncolblk[col] > 0) {
+      {% endif %}
+
+      {% if parloop.reduction or (opt.config['ind_inc'] and opt.config['inc_stage'] == 1) %}
+      {% if parloop.reduction and opt.config['inc_stage'] == 1 %}
+      int nshared = MAX(Plan->nshared,reduct_size*nthread);
+      {% elif parloop.reduction %}
+      int nshared = reduct_size*nthread;
+      {% else %}
+      int nshared = Plan->nsharedCol[col];
+      {% endif %}
+      op_cuda_{{ parloop.name }}<<<nblocks,nthread,nshared>>>(
+      {% else %}
+      op_cuda_{{ parloop.name }}<<<nblocks,nthread>>>(
+      {% endif %}
+        {% if parloop.opts | length > 0 %}
+        optflags,
+        {% endif %}
+        {% for arg in parloop.indirectVars %}
+        ({{ arg.typ }} *)arg{{ arg.i }}.data_d,
+        {% endfor %}
+        {% for arg in parloop.indirectMaps %}
+        arg{{ arg.i }}.map_data_d,
+        {% endfor %}
+        {% for arg in parloop.args %}
+        {% if arg.direct or arg.global_ %}
+        ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
+        {% endif %}
+        {% endfor %}
+        {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
+        Plan->ind_map,
+        Plan->loc_map,
+        Plan->ind_sizes,
+        Plan->ind_offs,
+        {% elif opt.config['op_color2'] %}
+        start,
+        end,
+        Plan->col_reord,
+        {% else %}
+        block_offset,
+        Plan->blkmap,
+        Plan->offset,
+        Plan->nelems,
+        Plan->nthrcol,
+        Plan->thrcol,
+        Plan->ncolblk[col],
+        {% endif %}
+        set->size+set->exec_size);
+      {% if parloop.reduction %}
+      // transfer global reduction data back to CPU
+      if(col == Plan->ncolors_owned-1) {
+        mvReductArraysToHost(reduct_bytes);
+      }
+      {% endif %}
+      {% if not opt.config['op_color2'] %}
+      }
+      block_offset += Plan->ncolblk[col];
+      {% endif %}
+    }
+    {% elif parloop.indirection and opt.config['atomics'] %}
+    for(int round = 0; round < {% if parloop.reduction %}3{% else %}2{% endif %}; round++) {
+      if(round == 1) {
+        op_mpi_wait_all_grouped(nargs, args, 2);
+      }
+      {% if parloop.reduction %}
+      int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);
+      int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);
+      {% else %}
+      int start = round==0 ? 0 : set->core_size;
+      int end = round==0 ? set->core_size : set->size + set->exec_size;
+      {% endif %}
+      if(end-start>0) {
+        int nblocks = (end-start-1)/nthread+1;
+        {% if parloop.reduction %}
+        int nshared = reduct_size*nthread;
+        op_cuda_{{ parloop.name }}<<<nblocks,nthread,nshared>>>(
+        {% else %}
+        op_cuda_{{ parloop.name }}<<<nblocks,nthread>>>(
+        {% endif %}
+          {% if parloop.opts | length > 0 %}
+          optflags,
+          {% endif %}
+          {% for arg in parloop.indirectVars %}
+          ({{ arg.typ }} *)arg{{ arg.i }}.data_d,
+          {% endfor %}
+          {% for arg in parloop.indirectMaps %}
+          arg{{ arg.i }}.map_data_d,
+          {% endfor %}
+          {% for arg in parloop.args %}
+          {% if arg.direct or arg.global_ %}
+          ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
+          {% endif %}
+          {% endfor %}
+          start,end,set->size+set->exec_size);
+      }
+      {% if parloop.reduction %}
+      if (round==1) mvReductArraysToHost(reduct_bytes);
+      {% endif %}
+    }
+    {% else %}
+    {# Kernel call for direct version #}
+    {% if parloop.reduction %}
+    int nshared = reduct_size*nthread;
+    op_cuda_{{ parloop.name }}<<<nblocks,nthread,nshared>>>(
+    {% else %}
+    op_cuda_{{ parloop.name }}<<<nblocks,nthread>>>(
+    {% endif %}
+      {% if parloop.opts | length > 0 %}
+      optflags,
+      {% endif %}
+      {% for arg in parloop.args %}
+      ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
+      {% endfor %}
+      set->size);
+    {% endif %}
+
+    {% if indirection and not opt.config['atomics'] %}
+    OP_kernels[{{ id }}].transfer  += Plan->transfer;
+    OP_kernels[{{ id }}].transfer2 += Plan->transfer2;
+    {% endif %}
+
+    {# transfer global reduction initial data #}
+    {% if parloop.reduction %}
+    {% if not parloop.indirection %}
+    // transfer global reduction data back to CPU
+    mvReductArraysToHost(reduct_bytes);
+    {% endif %}
+    {% for glb in parloop.globals %}
+    {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
+    for(int b = 0; b < maxblocks; b++) {
+      for(int d = 0; d < {{ glb.dim }}; d++) {
+        {% if glb.acc == "OP_INC" %}
+        arg{{ glb.i }}h[d] = arg{{ glb.i }}h[d] + (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}];
+        {% elif glb.acc == "OP_MIN" %}
+        arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d],(({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}]);
+        {% elif glb.acc == "OP_MAX" %}
+        arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d],(({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}]);
+        {% endif %}
+      }
+    }
+    arg{{ glb.i }}.data = (char *)arg{{ glb.i }}h;
+    op_mpi_reduce(&arg{{ glb.i }},arg{{ glb.i }}h);
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    {% for glb in parloop.globals %}
+    {% if glb.acc == "OP_WRITE" %}
+    mvConstArraysToHost(consts_bytes);
+    {% endif %}
+    {% endfor %}
+
+    {% for glb in parloop.globals %}
+    {% if glb.acc == "OP_WRITE" %}
+    for(int d = 0; d < {{ glb.dim }}; d++) {
+      arg{{ glb.i }}h[d] = (({{ glb.typ }} *)arg{{ glb.i }}.data)[d];
+    }
+    arg{{ glb.i }}.data = (char *)arg{{ glb.i }}h;
+    op_mpi_reduce(&arg{{ glb.i }},arg{{ glb.i }}h);
+    {% endif %}
+    {% endfor %}
   }
-  consts_bytes += ROUND_UP({{ glb.dim }} * sizeof({{ glb.typ }}));
-  {% endif %}
-  {% endfor %}
-  mvConstArraysToDevice(consts_bytes);
-  {% endif %}
 
-  {# TODO: if anysoa #}
+  op_mpi_set_dirtybit_cuda(nargs, args);
+  {# update kernel record #}
+  cutilSafeCall(cudaDeviceSynchronize());
+  // update kernel record
+  op_timers_core(&cpu_t2, &wall_t2);
+  OP_kernels[{{ id }}].time     += wall_t2 - wall_t1;
+
+  {% if not parloop.indirection %}
+  {% for arg in parloop.args %}
+  {%- call op_opt(arg) %}
+  {% if not arg.global_ %}
+  {% if arg.acc == "OP_READ" %}
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size;
+  {% else %}
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size * 2.0f;
+  {% endif %}
+  {% endif %}
+  {%- endcall %}
+  {% endfor %}
+  {% endif %}
 }

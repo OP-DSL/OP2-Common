@@ -51,7 +51,10 @@ class Opt(object):
 seq = Opt('seq', False)
 
 cuda = Opt('cuda', True, config={
-  'atomics': True
+  'atomics': True,
+  'ind_inc': False,
+  'inc_stage': 0,
+  'soa': False
 })
 
 omp = Opt('omp', False)
