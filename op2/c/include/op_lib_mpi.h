@@ -50,6 +50,9 @@ extern halo_list *OP_import_exec_list; // IEH list
 extern halo_list *OP_import_nonexec_list; // INH list
 extern halo_list *OP_export_nonexec_list; // ENH list
 
+extern halo_list* OP_aug_export_exec_lists[10];  // 10 levels for now
+extern halo_list* OP_aug_import_exec_lists[10];  // 10 levels for now
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int **orig_part_range;
