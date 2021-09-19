@@ -494,46 +494,12 @@ int is_onto_map(op_map map) {
 }
 
 /*******************************************************************************
- * Main MPI halo creation routine
+ * Main MPI halo creation routine steps 1-12
  *******************************************************************************/
 
-void op_halo_create() {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-  op_timers(&cpu_t1, &wall_t1); // timer start for list create
-
-  // create new communicator for OP mpi operation
-  int my_rank, comm_size;
-  // MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_WORLD);
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  /* Compute global partition range information for each set*/
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
-
-  // save this partition range information if it is not already saved during
-  // a call to some partitioning routine
-  if (orig_part_range == NULL) {
-    orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-    for (int s = 0; s < OP_set_index; s++) {
-      op_set set = OP_set_list[s];
-      orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-      for (int j = 0; j < comm_size; j++) {
-        orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-        orig_part_range[set->index][2 * j + 1] =
-            part_range[set->index][2 * j + 1];
-      }
-    }
-  }
+void step1(int **part_range, int my_rank, int comm_size){
 
   OP_export_exec_list = (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
-
-  /*----- STEP 1 - Construct export lists for execute set elements and related
-    mapping table entries -----*/
-
   // declare temporaty scratch variables to hold set export lists and mapping
   // table export lists
   int s_i;
@@ -583,8 +549,9 @@ void op_halo_create() {
     OP_export_exec_list[set->index] = h_list;
     op_free(set_list); // free temp list
   }
+}
 
-  /*---- STEP 2 - construct import lists for mappings and execute sets------*/
+void step2(int **part_range, int my_rank, int comm_size){
 
   OP_import_exec_list = (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
 
@@ -640,8 +607,9 @@ void op_halo_create() {
                        comm_size, my_rank);
     OP_import_exec_list[set->index] = h_list;
   }
+}
 
-  /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
+void step3(int **part_range, int my_rank, int comm_size){
 
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
@@ -690,9 +658,9 @@ void op_halo_create() {
       op_free(sbuf[i]);
     op_free(sbuf);
   }
+}
 
-  /*-- STEP 4 - Create import lists for non-execute set elements using mapping
-    table entries including the additional mapping table entries --*/
+void step4(int **part_range, int my_rank, int comm_size){
 
   OP_import_nonexec_list =
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
@@ -700,9 +668,9 @@ void op_halo_create() {
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
 
   // declare temporaty scratch variables to hold non-exec set export lists
-  s_i = 0;
-  set_list = NULL;
-  cap_s = 1000; // keep track of the temp array capacity
+  int s_i = 0;
+  int *set_list = NULL;
+  int cap_s = 1000; // keep track of the temp array capacity
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
@@ -768,8 +736,12 @@ void op_halo_create() {
     op_free(set_list); // free temp list
     OP_import_nonexec_list[set->index] = h_list;
   }
+}
 
-  /*----------- STEP 5 - construct non-execute set export lists -------------*/
+void step5(int **part_range, int my_rank, int comm_size){
+
+  int *neighbors, *sizes;
+  int ranks_size;
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
@@ -821,10 +793,9 @@ void op_halo_create() {
                                ranks_size, comm_size, my_rank);
     OP_export_nonexec_list[set->index] = h_list;
   }
+}
 
-  /*-STEP 6 - Exchange execute set elements/data using the import/export
-   * lists--*/
-
+void step6(int **part_range, int my_rank, int comm_size){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     halo_list i_list = OP_import_exec_list[set->index];
@@ -882,10 +853,9 @@ void op_halo_create() {
       }
     }
   }
+}
 
-  /*-STEP 7 - Exchange non-execute set elements/data using the import/export
-   * lists--*/
-
+void step7(int **part_range, int my_rank, int comm_size){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     halo_list i_list = OP_import_nonexec_list[set->index];
@@ -940,9 +910,9 @@ void op_halo_create() {
       }
     }
   }
+}
 
-  /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
-
+void step8(int **part_range, int my_rank, int comm_size){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
@@ -986,7 +956,7 @@ void op_halo_create() {
                                           exec_set_list->sizes[rank1] - 1);
                 if (found >= 0) {
                   OP_map_list[map->index]->map[e * map->dim + j] =
-                      found + map->to->size;
+                      found + map->to->size;  
                 }
               }
 
@@ -997,7 +967,7 @@ void op_halo_create() {
                                           nonexec_set_list->sizes[rank2] - 1);
                 if (found >= 0) {
                   OP_map_list[map->index]->map[e * map->dim + j] =
-                      found + set->size + exec_set_list->size;
+                      found + set->size + exec_set_list->size;           
                 }
               }
 
@@ -1011,9 +981,9 @@ void op_halo_create() {
       }
     }
   }
+}
 
-  /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
-
+void step9(int **part_range, int my_rank, int comm_size){
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
@@ -1048,13 +1018,10 @@ void op_halo_create() {
     op_dat dat = item->dat;
     dat->dirtybit = 0;
   }
+}
 
-  /*-STEP 10 -------------------- Separate core
-   * elements------------------------*/
-
-  int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
-  int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
-
+void step10(int **part_range, int **core_elems, int **exp_elems, int my_rank, int comm_size){
+ 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
@@ -1188,10 +1155,9 @@ void op_halo_create() {
       }
     }
   }
+}
 
-  /*-STEP 11 ----------- Save the original set element
-   * indexes------------------*/
-
+void step11(int **part_range, int **core_elems, int **exp_elems, int my_rank, int comm_size){
   // if OP_part_list is empty, (i.e. no previous partitioning done) then
   // create it and store the seperation of elements using core_elems
   // and exp_elems
@@ -1258,24 +1224,10 @@ void op_halo_create() {
     set->exec_size = OP_import_exec_list[set->index]->size;
     set->nonexec_size = OP_import_nonexec_list[set->index]->size;
   }
+}
 
-  /*-STEP 12 ---------- Clean up and Compute rough halo size
-   * numbers------------*/
-
-  for (int i = 0; i < OP_set_index; i++) {
-    op_free(part_range[i]);
-    op_free(core_elems[i]);
-    op_free(exp_elems[i]);
-  }
-  op_free(part_range);
-  op_free(exp_elems);
-  op_free(core_elems);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for list create
-  // compute import/export lists creation time
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
+void step12(int **part_range, int max_time, int my_rank, int comm_size){
+  
   // compute avg/min/max set sizes and exec sizes accross the MPI universe
   int avg_size = 0, min_size = 0, max_size = 0;
   for (int s = 0; s < OP_set_index; s++) {
@@ -1425,6 +1377,103 @@ void op_halo_create() {
     printf("Average (worst case) Halo size = %d Bytes\n",
            avg_halo_size / comm_size);
   }
+}
+
+/*******************************************************************************
+ * Main MPI halo creation routine
+ *******************************************************************************/
+
+void op_halo_create() {
+  // declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+  op_timers(&cpu_t1, &wall_t1); // timer start for list create
+
+  // create new communicator for OP mpi operation
+  int my_rank, comm_size;
+  // MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_WORLD);
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
+  /* Compute global partition range information for each set*/
+  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
+
+  // save this partition range information if it is not already saved during
+  // a call to some partitioning routine
+  if (orig_part_range == NULL) {
+    orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+    for (int s = 0; s < OP_set_index; s++) {
+      op_set set = OP_set_list[s];
+      orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+      for (int j = 0; j < comm_size; j++) {
+        orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
+        orig_part_range[set->index][2 * j + 1] =
+            part_range[set->index][2 * j + 1];
+      }
+    }
+  }
+
+  /*----- STEP 1 - Construct export lists for execute set elements and related
+    mapping table entries -----*/
+  step1(part_range, my_rank, comm_size);
+  
+  /*---- STEP 2 - construct import lists for mappings and execute sets------*/
+  step2(part_range, my_rank, comm_size);
+  
+  /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
+  step3(part_range, my_rank, comm_size);
+
+  /*-- STEP 4 - Create import lists for non-execute set elements using mapping
+    table entries including the additional mapping table entries --*/
+  step4(part_range, my_rank, comm_size);
+
+  /*----------- STEP 5 - construct non-execute set export lists -------------*/
+  step5(part_range, my_rank, comm_size);
+
+  /*-STEP 6 - Exchange execute set elements/data using the import/export
+   * lists--*/
+  step6(part_range, my_rank, comm_size);
+  
+  /*-STEP 7 - Exchange non-execute set elements/data using the import/export
+   * lists--*/
+  step7(part_range, my_rank, comm_size);
+
+  /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
+  step8(part_range, my_rank, comm_size);
+
+  /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
+  step9(part_range, my_rank, comm_size);
+
+  /*-STEP 10 -------------------- Separate core
+   * elements------------------------*/
+  int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
+  int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
+  step10(part_range, core_elems, exp_elems, my_rank, comm_size);
+
+  /*-STEP 11 ----------- Save the original set element
+   * indexes------------------*/
+  step11(part_range, core_elems, exp_elems, my_rank, comm_size);
+
+  /*-STEP 12 ---------- Clean up and Compute rough halo size
+   * numbers------------*/
+  for (int i = 0; i < OP_set_index; i++) {
+    op_free(part_range[i]);
+    op_free(core_elems[i]);
+    op_free(exp_elems[i]);
+  }
+  op_free(part_range);
+  op_free(exp_elems);
+  op_free(core_elems);
+
+  op_timers(&cpu_t2, &wall_t2); // timer stop for list create
+  // compute import/export lists creation time
+  time = wall_t2 - wall_t1;
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+  step12(part_range, max_time, my_rank, comm_size);
+
 }
 
 /*******************************************************************************
@@ -2008,46 +2057,46 @@ void op_halo_destroy() {
   }
 
   // free lists
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
+  // for (int s = 0; s < OP_set_index; s++) {
+  //   op_set set = OP_set_list[s];
 
-    op_free(OP_import_exec_list[set->index]->ranks);
-    op_free(OP_import_exec_list[set->index]->disps);
-    op_free(OP_import_exec_list[set->index]->sizes);
-    op_free(OP_import_exec_list[set->index]->list);
-    op_free(OP_import_exec_list[set->index]);
+  //   op_free(OP_import_exec_list[set->index]->ranks);
+  //   op_free(OP_import_exec_list[set->index]->disps);
+  //   op_free(OP_import_exec_list[set->index]->sizes);
+  //   op_free(OP_import_exec_list[set->index]->list);
+  //   op_free(OP_import_exec_list[set->index]);
 
-    op_free(OP_import_nonexec_list[set->index]->ranks);
-    op_free(OP_import_nonexec_list[set->index]->disps);
-    op_free(OP_import_nonexec_list[set->index]->sizes);
-    op_free(OP_import_nonexec_list[set->index]->list);
-    op_free(OP_import_nonexec_list[set->index]);
+  //   op_free(OP_import_nonexec_list[set->index]->ranks);
+  //   op_free(OP_import_nonexec_list[set->index]->disps);
+  //   op_free(OP_import_nonexec_list[set->index]->sizes);
+  //   op_free(OP_import_nonexec_list[set->index]->list);
+  //   op_free(OP_import_nonexec_list[set->index]);
 
-    op_free(OP_export_exec_list[set->index]->ranks);
-    op_free(OP_export_exec_list[set->index]->disps);
-    op_free(OP_export_exec_list[set->index]->sizes);
-    op_free(OP_export_exec_list[set->index]->list);
-    op_free(OP_export_exec_list[set->index]);
+  //   op_free(OP_export_exec_list[set->index]->ranks);
+  //   op_free(OP_export_exec_list[set->index]->disps);
+  //   op_free(OP_export_exec_list[set->index]->sizes);
+  //   op_free(OP_export_exec_list[set->index]->list);
+  //   op_free(OP_export_exec_list[set->index]);
 
-    op_free(OP_export_nonexec_list[set->index]->ranks);
-    op_free(OP_export_nonexec_list[set->index]->disps);
-    op_free(OP_export_nonexec_list[set->index]->sizes);
-    op_free(OP_export_nonexec_list[set->index]->list);
-    op_free(OP_export_nonexec_list[set->index]);
-  }
-  op_free(OP_import_exec_list);
-  op_free(OP_import_nonexec_list);
-  op_free(OP_export_exec_list);
-  op_free(OP_export_nonexec_list);
+  //   op_free(OP_export_nonexec_list[set->index]->ranks);
+  //   op_free(OP_export_nonexec_list[set->index]->disps);
+  //   op_free(OP_export_nonexec_list[set->index]->sizes);
+  //   op_free(OP_export_nonexec_list[set->index]->list);
+  //   op_free(OP_export_nonexec_list[set->index]);
+  // }
+  // op_free(OP_import_exec_list);
+  // op_free(OP_import_nonexec_list);
+  // op_free(OP_export_exec_list);
+  // op_free(OP_export_nonexec_list);
 
-  item = NULL;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  }
+  // item = NULL;
+  // TAILQ_FOREACH(item, &OP_dat_list, entries) {
+  //   op_dat dat = item->dat;
+  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+  // }
 
   // MPI_Comm_free(&OP_MPI_WORLD);
 }

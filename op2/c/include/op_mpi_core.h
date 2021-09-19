@@ -378,4 +378,21 @@ void op_scatter_sync();
 }
 #endif
 
+/*******************************************************************************
+ * Main MPI halo creation routine steps 1-12
+ *******************************************************************************/
+ 
+void step1(int **part_range, int my_rank, int comm_size);
+void step2(int **part_range, int my_rank, int comm_size);
+void step3(int **part_range, int my_rank, int comm_size);
+void step4(int **part_range, int my_rank, int comm_size);
+void step5(int **part_range, int my_rank, int comm_size);
+void step6(int **part_range, int my_rank, int comm_size);
+void step7(int **part_range, int my_rank, int comm_size);
+void step8(int **part_range, int my_rank, int comm_size);
+void step9(int **part_range, int my_rank, int comm_size);
+void step10(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
+void step11(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
+void step12(int **part_range, int max_time, int my_rank, int comm_size);
+
 #endif /* __OP_MPI_CORE_H */
