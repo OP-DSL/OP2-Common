@@ -209,7 +209,7 @@ airfoil_mpi_comm_avoid: airfoil_mpi_op.cpp seq/airfoil_mpi_seqkernels.cpp \
                 seq/res_calc2_seqkernel.cpp   res_calc2.h  \
                 Makefile
 	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
-                $(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq -I. \
+                $(PARMETIS_INC) $(PTSCOTCH_INC) -DCOMM_AVOID -Iseq -I. \
                 airfoil_mpi_op.cpp -lm seq/airfoil_mpi_seqkernels.cpp $(OP2_LIB) -lop2_mpi_comm_avoid \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_comm_avoid
 

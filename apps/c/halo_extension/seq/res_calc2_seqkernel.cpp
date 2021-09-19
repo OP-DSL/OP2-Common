@@ -31,11 +31,14 @@ void op_par_loop_res_calc2(char const *name, op_set set,
   }
 
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
+
+#ifdef COMM_AVOID
   int exec_size = 0;
   for(int l = 0; l < 1; l++){
     exec_size += OP_aug_import_exec_lists[l][set->index]->size;
   }
   set_size = set->size + exec_size;
+#endif
 
   if (set_size > 0) {
 
@@ -64,9 +67,11 @@ void op_par_loop_res_calc2(char const *name, op_set set,
   if (set_size == 0 || set_size == set->core_size) {
     op_mpi_wait_all(nargs, args);
   }
+
+#ifndef COMM_AVOID
   // combine reduction data
   op_mpi_set_dirtybit(nargs, args);
-
+#endif
   // update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
   OP_kernels[1].name      = name;
