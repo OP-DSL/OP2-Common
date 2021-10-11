@@ -160,6 +160,12 @@ void op_set_args(int argc, char *argv) {
     OP_mpi_test_frequency = atoi(temp + 13);
     op_printf("\n OP_mpi_test_frequency  = %d \n", OP_mpi_test_frequency);
   }
+  pch = strstr(argv, "OP_DIAGS=");
+  if (pch != NULL) {
+	  strncpy(temp, pch, 25);
+	  OP_diags = atoi(temp + 9);
+	  op_printf("\n OP_diags  = %d \n", OP_diags);
+  }
   pch = strstr(argv, "-gpudirect");
   if (pch != NULL) {
     OP_gpu_direct = 1;

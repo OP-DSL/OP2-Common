@@ -1224,8 +1224,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # update kernel record
 #
-
+    IF('OP_diags>1')
     code('cutilSafeCall(cudaDeviceSynchronize());')
+    ENDIF()
     comm('update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
