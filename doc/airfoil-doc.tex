@@ -546,7 +546,7 @@ airfoil_kernels_mpi_cu.o: airfoil_kernels.cu \
 \end{figure}
 
 \newpage\newpage
-\section{OP2 Example Application Directory Structure and Cmake Build Process}\label{structure}
+\section{OP2 Example Application Directory Structure}\label{structure}
 
 Airfoil is one of several example applications that is available with the public OP2 release. Currently there are
 three example applications: Airfoil, Aero and Jac\footnote{jac1 and jac2 implement the same application but jac2
@@ -556,9 +556,7 @@ hdf5 I/O and plain ASCI file I/O (as an example of user specified I/O). The \tex
 each gives the single- and double-precision versions of the application. These versions have been used extensively in
 our published work for performance benchmarking of OP2. 
 
-Each individual application can be built by invoking \texttt{make} in the respective directory. There is also a cmake
-build process that will build all the applications (for all back-ends). Invoking  ./cmake.local within in the
-\texttt{OP2-Common/apps/c} directory will build and install the applications in \texttt{OP2-Common/apps/c/bin}. More
+Each individual application can be built by invoking \texttt{make} in the respective directory. More
 details are given in the README file. 
 
 \vspace{-10pt}
