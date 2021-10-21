@@ -60,7 +60,7 @@
 #include <op_hdf5.h>
 #include <op_lib_mpi.h>
 
-#include "../externlib/op_hdf5_common.c"
+#include "../externlib/op_hdf5_common.cpp"
 
 //
 // MPI Communicator for parallel I/O

@@ -53,7 +53,7 @@
 
 #include <op_util.h> //just to include xmalloc routine
 
-#include "op_hdf5_common.c"
+#include "op_hdf5_common.cpp"
 
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file

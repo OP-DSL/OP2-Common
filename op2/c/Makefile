@@ -215,71 +215,71 @@ all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda openmp4
 mklib:
 	@mkdir -p $(LIB) $(OBJ)
 
-core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
+core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.cpp
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.cpp -o $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.cpp -o $(OBJ)/op_util.o
 
-hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+hdf5: mklib $(SRC)/externlib/op_hdf5.cpp $(INC)/op_hdf5.h
+	$(CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.cpp \
 	-o $(OBJ)/op_hdf5.o
 
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/op_hdf5.o $(OBJ)/op_util.o
 
-seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.c -o $(OBJ)/op_seq.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.cpp $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/sequential/op_seq.cpp -o $(OBJ)/op_seq.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.cpp -o $(OBJ)/op_dummy_singlenode.o
 	ar -r $(LIB)/libop2_seq.a $(OBJ)/op_lib_core.o $(OBJ)/op_seq.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
 
-cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.c \
-	$(SRC)/cuda/op_cuda_rt_support.c $(OBJ)/op_lib_core.o
+cuda: mklib $(INC)/op_cuda_rt_support.h $(INC)/op_cuda_reduction.h $(SRC)/cuda/op_cuda_decl.cpp \
+	$(SRC)/cuda/op_cuda_rt_support.cpp $(OBJ)/op_lib_core.o
 
 	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(CUDA_ALIGNE_FLAG) $(CUDA_INC) -I$(INC) \
-	-c $(SRC)/cuda/op_cuda_decl.c -o $(OBJ)/op_cuda_decl.o
-	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.c \
+	-c $(SRC)/cuda/op_cuda_decl.cpp -o $(OBJ)/op_cuda_decl.o
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(CUDA_INSTALL_PATH)/include -I$(INC) -c $(SRC)/cuda/op_cuda_rt_support.cpp \
 	-o $(OBJ)/op_cuda_rt_support.o
-	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -c $(SRC)/core/op_rt_support.cpp -o $(OBJ)/op_rt_support.o
 
 	ar -r $(LIB)/libop2_cuda.a $(OBJ)/op_cuda_rt_support.o \
 	$(OBJ)/op_cuda_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
-openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.c \
-	$(SRC)/openmp4/op_openmp4_rt_support.c $(OBJ)/op_lib_core.o
+openmp4: mklib $(INC)/op_rt_support.h $(SRC)/openmp4/op_openmp4_decl.cpp \
+	$(SRC)/openmp4/op_openmp4_rt_support.cpp $(OBJ)/op_lib_core.o
 
 	$(CXX) -DSET_CUDA_CACHE_CONFIG $(CCFLAGS) $(OMP4FLAGS) -I$(INC) \
-	-c $(SRC)/openmp4/op_openmp4_decl.c -o $(OBJ)/op_openmp4_decl.o
-	$(CXX) $(CXXFLAGS) $(OMP4FLAGS) -I$(INC) -c $(SRC)/openmp4/op_openmp4_rt_support.c \
+	-c $(SRC)/openmp4/op_openmp4_decl.cpp -o $(OBJ)/op_openmp4_decl.o
+	$(CXX) $(CXXFLAGS) $(OMP4FLAGS) -I$(INC) -c $(SRC)/openmp4/op_openmp4_rt_support.cpp \
 	-o $(OBJ)/op_openmp4_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp -o $(OBJ)/op_rt_support.o
 
 	ar -r $(LIB)/libop2_openmp4.a $(OBJ)/op_openmp4_rt_support.o \
 	$(OBJ)/op_openmp4_decl.o $(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o
 
-openmp: mklib $(SRC)/openmp/op_openmp_decl.c $(OBJ)/op_lib_core.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.c -o $(OBJ)/op_openmp_decl.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c -o $(OBJ)/op_rt_support.o
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.c -o $(OBJ)/op_dummy_singlenode.o
+openmp: mklib $(SRC)/openmp/op_openmp_decl.cpp $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/openmp/op_openmp_decl.cpp -o $(OBJ)/op_openmp_decl.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp -o $(OBJ)/op_rt_support.o
+	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_dummy_singlenode.cpp -o $(OBJ)/op_dummy_singlenode.o
 
 	ar -r $(LIB)/libop2_openmp.a $(OBJ)/op_openmp_decl.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o $(OBJ)/op_dummy_singlenode.o
 
-mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
-	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c \
-	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
+mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.cpp \
+	$(SRC)/mpi/op_mpi_part_core.cpp $(SRC)/mpi/op_mpi_core.cpp \
+	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.cpp $(OBJ)/op_lib_core.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.cpp \
 	-o $(OBJ)/op_mpi_core.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.cpp \
 	-o $(OBJ)/op_mpi_decl.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.cpp \
 	-o $(OBJ)/op_mpi_rt_support.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
-	-c $(SRC)/mpi/op_mpi_part_core.c \
+	-c $(SRC)/mpi/op_mpi_part_core.cpp \
 	-o $(OBJ)/op_mpi_part_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) \
-	-c $(SRC)/mpi/op_mpi_hdf5.c \
+	-c $(SRC)/mpi/op_mpi_hdf5.cpp \
 	-o $(OBJ)/op_mpi_hdf5.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
@@ -296,27 +296,27 @@ mpi_seq: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(OBJ)/op_mpi_util.o \
 	$(OBJ)/op_renumber.o
 
-mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
-	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
+mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.cpp \
+	$(SRC)/mpi/op_mpi_core.cpp $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.cpp \
 	$(OBJ)/op_lib_core.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.cpp \
 	-o $(OBJ)/op_mpi_core.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.cpp \
 	-o $(OBJ)/op_rt_support.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
-	-c $(SRC)/cuda/op_cuda_rt_support.c \
+	-c $(SRC)/cuda/op_cuda_rt_support.cpp \
 	-o $(OBJ)/op_cuda_rt_support.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
-	-c $(SRC)/mpi/op_mpi_cuda_rt_support.c \
+	-c $(SRC)/mpi/op_mpi_cuda_rt_support.cpp \
 	-o $(OBJ)/op_mpi_cuda_rt_support.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -I$(CUDA_INSTALL_PATH)/include \
-	-c $(SRC)/mpi/op_mpi_cuda_decl.c \
+	-c $(SRC)/mpi/op_mpi_cuda_decl.cpp \
 	-o $(OBJ)/op_mpi_cuda_decl.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
-	-c $(SRC)/mpi/op_mpi_part_core.c \
+	-c $(SRC)/mpi/op_mpi_part_core.cpp \
 	-o $(OBJ)/op_mpi_part_core.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) $(HDF5_INC) \
-	-c $(SRC)/mpi/op_mpi_hdf5.c \
+	-c $(SRC)/mpi/op_mpi_hdf5.cpp \
 	-o $(OBJ)/op_mpi_hdf5.o
 	nvcc $(NVCCFLAGS) -I$(INC) -I $(MPI_INSTALL_PATH)/include \
 	-lcudart -c $(SRC)/mpi/op_mpi_cuda_kernels.cu \
