@@ -32,7 +32,7 @@
 
 ! Implementation of serial reference op_par_loop functions
 
-#include "../include/op2_reference_macros.h"
+#include <fortran/op2_reference_macros.h>
 
 ! FORTRAN interface of C-based reference implementation
 module OP2_Fortran_Reference

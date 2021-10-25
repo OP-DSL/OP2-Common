@@ -41,16 +41,13 @@
 #include <string.h>
 #include <math.h>
 
-#include "../include/op2_C_reference.h"
-#include "../include/op2_reference_macros.h"
-#include "../include/op2_for_C_wrappers.h"
+#include <fortran/op2_C_reference.h>
+#include <fortran/op2_reference_macros.h>
+#include <fortran/op2_for_C_wrappers.h>
 
 #include <op_lib_core.h>
 
-#ifdef NO_MPI
-
-#else
-
+#ifdef OPMPI
 #include <op_lib_mpi.h>
 #endif
 

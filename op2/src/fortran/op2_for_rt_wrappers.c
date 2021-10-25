@@ -34,8 +34,8 @@
 #include <op_rt_support.h>
 #include <op_lib_c.h>
 
-#include "../include/op2_for_C_wrappers.h"
-#include "../include/op2_for_rt_wrappers.h"
+#include <fortran/op2_for_C_wrappers.h>
+#include <fortran/op2_for_rt_wrappers.h>
 
 extern int OP_plan_index, OP_plan_max;
 extern op_plan * OP_plans;

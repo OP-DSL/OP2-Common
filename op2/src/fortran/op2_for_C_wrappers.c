@@ -71,15 +71,13 @@
 #include <op_lib_c.h>
 
 
-#ifdef NO_MPI
-
-#else
+#ifdef OPMPI
 #include <mpi.h>
 #include <op_mpi_core.h>
 #include <op_lib_mpi.h>
 #endif
 
-#include "../include/op2_for_C_wrappers.h"
+#include <fortran/op2_for_C_wrappers.h>
 
 extern op_kernel * OP_kernels;
 
@@ -358,21 +356,8 @@ void print_type (op_arg * arg)
   printf ("String is %s\n", arg->type);
 }
 
-#ifdef NO_MPI
+#ifdef OPMPI
 
-int op_mpi_size () {
-  return 1;
-}
-
-void op_mpi_rank (int * rank) {
-  *rank = 0;
-}
-
-void op_barrier () {
-}
-
-
-#else
 int op_mpi_size () {
   int size;
   MPI_Comm_size (OP_MPI_WORLD, &size);
@@ -416,6 +401,20 @@ void printDat_noGather (op_dat dat) {
 
   fclose (fileptr);
 }
+
+#else
+
+int op_mpi_size () {
+  return 1;
+}
+
+void op_mpi_rank (int * rank) {
+  *rank = 0;
+}
+
+void op_barrier () {
+}
+
 #endif
 
 bool isCNullPointer (void * ptr) {
