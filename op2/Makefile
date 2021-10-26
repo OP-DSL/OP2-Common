@@ -69,11 +69,11 @@ endif
 #
 ifeq ($(OP2_COMPILER),gnu)
   ifdef DEBUG
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O0
-  CXXFLAGS = -fPIC -DUNIX -Wall -g -O0 #-g -Wextra
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O0 -MMD -MP
+  CXXFLAGS = -fPIC -DUNIX -Wall -g -O0 -MMD -MP #-g -Wextra
   else
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O3
-  CXXFLAGS = -fPIC -DUNIX -Wall -g -O3 #-g -Wextra
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O3 -MMD -MP
+  CXXFLAGS = -fPIC -DUNIX -Wall -g -O3 -MMD -MP #-g -Wextra
   endif
   CXX      = g++
   MPICXX   = $(MPICPP_PATH)
@@ -222,12 +222,12 @@ FFLAGS += $(INC)
 
 AR = ar rcs
 
-.PHONY: all clean \
-	hdf5 seq cuda openmp openmp4 mpi_seq mpi_cuda \
-	f_hdf5 f_seq f_cuda f_openmp f_openmp4 f_mpi_seq f_mpi_cuda
+OP2_LIBS = hdf5 seq cuda openmp openmp4 mpi mpi_cuda
+OP2_FOR_LIBS = $(foreach lib, $(OP2_LIBS), f_$(lib))
 
-all: hdf5 seq cuda openmp openmp4 mpi_seq mpi_cuda \
-	f_hdf5 f_seq f_openmp f_openmp4 f_mpi_seq
+.PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)
+
+all: $(OP2_LIBS) $(OP2_FOR_LIBS)
 
 clean:
 	-rm -rf $(OBJ)
@@ -378,76 +378,25 @@ $(OBJ)/%.o: src/%.cpp | $(OBJ)
 $(OBJ)/%.o: src/%.c | $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-
-# Static library composition
-$(LIB)/libop2_hdf5.a: $(OP2_HDF5) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_hdf5.a: $(OP2_FOR_HDF5) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_seq.a: $(OP2_SEQ) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_seq.a: $(OP2_FOR_SEQ) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_cuda.a: $(OP2_CUDA) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_cuda.a: $(OP2_FOR_CUDA) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_openmp.a: $(OP2_OPENMP) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_openmp.a: $(OP2_FOR_OPENMP) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_openmp4.a: $(OP2_OPENMP4) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_openmp4.a: $(OP2_FOR_OPENMP4) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_mpi.a: $(OP2_MPI) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_mpi.a: $(OP2_FOR_MPI) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_mpi_cuda.a: $(OP2_MPI_CUDA) | $(LIB)
-	$(AR) $@ $?
-
-$(LIB)/libop2_for_mpi_cuda.a: $(OP2_FOR_MPI_CUDA) | $(LIB)
-	$(AR) $@ $?
+# Include auto-generated dependencies for C/CXX sources (if they exist)
+-include $(shell find $(OBJ) -type f -name "*.d")
 
 
-# Compatability PHONY rules
-hdf5: $(LIB)/libop2_hdf5.a
+# Helper function to upper-case a string
+UPPERCASE = $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
 
-f_hdf5: $(LIB)/libop2_for_hdf5.a
+# Template for generating the library rules libop2_$1.a and libop2_for_$1.a
+# and the compatability PHONY rules $1 and f_$1
+define OP2_LIB_template =
+$$(LIB)/libop2_$(1).a: $$(OP2_$(call UPPERCASE,$(1))) | $$(LIB)
+	$(AR) $$@ $$?
 
-seq: $(LIB)/libop2_seq.a
+$$(LIB)/libop2_for_$(1).a: $$(OP2_FOR_$(call UPPERCASE,$(1))) | $$(LIB)
+	$(AR) $$@ $$?
 
-f_seq: $(LIB)/libop2_for_seq.a
+$(1): $$(LIB)/libop2_$(1).a
+f_$(1): $$(LIB)/libop2_for_$(1).a
+endef
 
-cuda: $(LIB)/libop2_cuda.a
-
-f_cuda: $(LIB)/libop2_for_cuda.a
-
-openmp: $(LIB)/libop2_openmp.a
-
-f_openmp: $(LIB)/libop2_for_openmp.a
-
-openmp4: $(LIB)/libop2_openmp4.a
-
-f_openmp4: $(LIB)/libop2_for_openmp4.a
-
-mpi_seq: $(LIB)/libop2_mpi.a
-
-f_mpi_seq: $(LIB)/libop2_for_mpi.a
-
-mpi_cuda: $(LIB)/libop2_mpi_cuda.a
-
-f_mpi_cuda: $(LIB)/libop2_for_mpi_cuda.a
+# Expand the template for all of the libraries (seq, ..., mpi_cuda)
+$(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_template,$(lib))))
