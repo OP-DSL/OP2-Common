@@ -3,7 +3,7 @@
 //
 
 //user function
-inline void update(const double *qold, double *q, double *res,
+inline void update(const double *qold, double *q, float *res,
                    const double *adt, double *rms) {
   double del, adti, rmsl;
 
@@ -37,13 +37,13 @@ void op_par_loop_update(char const *name, op_set set,
   args[4] = arg4;
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,double_ALIGN);
   ALIGNED_double       double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr2 = (double *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,double_ALIGN);
+  ALIGNED_double       float * __restrict__ ptr2 = (float *) arg2.data;
+  DECLARE_PTR_ALIGNED(ptr2,float_ALIGN);
   ALIGNED_double const double * __restrict__ ptr3 = (double *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3,double_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
