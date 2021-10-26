@@ -156,13 +156,13 @@ ifeq ($(OP2_COMPILER),intel-sycl)
   else
     CCFLAGS  = -g -O3 -fPIC
   endif
-  CXX       = clang++
-  SYCLCXX   = clang++
+  CXX       = dpcpp
+  SYCLCXX   = dpcpp
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -std=c++11 -fsycl -I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
+  SYCL_FLAGS = -fsycl #-I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
