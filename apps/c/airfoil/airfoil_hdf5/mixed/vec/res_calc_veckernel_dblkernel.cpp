@@ -41,11 +41,7 @@ inline void res_calc(const double *x1, const double *x2, const double *q1,
 #if defined __clang__ || defined __GNUC__
 __attribute__((always_inline))
 #endif
-inline void
-res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
-             const double q1[][SIMD_VEC], const double q2[][SIMD_VEC],
-             const double adt1[][SIMD_VEC], const double adt2[][SIMD_VEC],
-             double res1[][SIMD_VEC], double res2[][SIMD_VEC], int idx) {
+inline void res_calc_vec( const double x1[][SIMD_VEC], const double x2[][SIMD_VEC], const double q1[][SIMD_VEC], const double q2[][SIMD_VEC], const double adt1[][SIMD_VEC], const double adt2[][SIMD_VEC], double res1[][SIMD_VEC], double res2[][SIMD_VEC], int idx ) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -75,6 +71,7 @@ res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
   res1[3][idx] = f;
   res2[3][idx] -= f;
+
 }
 #endif
 
@@ -102,21 +99,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[7] = arg7;
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr2 = (double *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr3 = (double *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr4 = (double *) arg4.data;
-  DECLARE_PTR_ALIGNED(ptr4, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr4,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr5 = (double *) arg5.data;
-  DECLARE_PTR_ALIGNED(ptr5, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr6 = (double *) arg6.data;
-  DECLARE_PTR_ALIGNED(ptr6, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr7 = (double *) arg7.data;
-  DECLARE_PTR_ALIGNED(ptr7, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr5,double_ALIGN);
+  ALIGNED_double       float * __restrict__ ptr6 = (float *) arg6.data;
+  DECLARE_PTR_ALIGNED(ptr6,float_ALIGN);
+  ALIGNED_double       float * __restrict__ ptr7 = (float *) arg7.data;
+  DECLARE_PTR_ALIGNED(ptr7,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -134,10 +131,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-        op_mpi_test_all(nargs, args);
-      if ((n + SIMD_VEC >= set->core_size) &&
-          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
+      if ((n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[2][SIMD_VEC];
@@ -235,6 +229,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
       map2idx = arg2.map_data[n * arg2.map->dim + 0];
       map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
+      ALIGNED_double double dat6[4];
+      ALIGNED_double double dat7[4];
+        dat6[0] = 0.0;
+        dat6[1] = 0.0;
+        dat6[2] = 0.0;
+        dat6[3] = 0.0;
+
+        dat7[0] = 0.0;
+        dat7[1] = 0.0;
+        dat7[2] = 0.0;
+        dat7[3] = 0.0;
+
       res_calc(
         &(ptr0)[2 * map0idx],
         &(ptr1)[2 * map1idx],
@@ -242,8 +248,18 @@ void op_par_loop_res_calc(char const *name, op_set set,
         &(ptr3)[4 * map3idx],
         &(ptr4)[1 * map2idx],
         &(ptr5)[1 * map3idx],
-        &(ptr6)[4 * map2idx],
-        &(ptr7)[4 * map3idx]);
+        dat6,
+        dat7);
+
+        (ptr6)[4*map2idx + 0] += dat6[0];
+        (ptr6)[4*map2idx + 1] += dat6[1];
+        (ptr6)[4*map2idx + 2] += dat6[2];
+        (ptr6)[4*map2idx + 3] += dat6[3];
+
+        (ptr7)[4*map3idx + 0] += dat7[0];
+        (ptr7)[4*map3idx + 1] += dat7[1];
+        (ptr7)[4*map3idx + 2] += dat7[2];
+        (ptr7)[4*map3idx + 3] += dat7[3];
     }
   }
 

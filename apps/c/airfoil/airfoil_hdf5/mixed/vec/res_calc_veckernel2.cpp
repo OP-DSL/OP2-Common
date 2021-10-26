@@ -5,7 +5,7 @@
 //user function
 inline void res_calc(const double *x1, const double *x2, const double *q1,
                      const double *q2, const double *adt1, const double *adt2,
-                     double *res1, double *res2) {
+                     float *res1, float *res2) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
@@ -41,11 +41,7 @@ inline void res_calc(const double *x1, const double *x2, const double *q1,
 #if defined __clang__ || defined __GNUC__
 __attribute__((always_inline))
 #endif
-inline void
-res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
-             const double q1[][SIMD_VEC], const double q2[][SIMD_VEC],
-             const double adt1[][SIMD_VEC], const double adt2[][SIMD_VEC],
-             double res1[][SIMD_VEC], double res2[][SIMD_VEC], int idx) {
+inline void res_calc_vec( const double x1[][SIMD_VEC], const double x2[][SIMD_VEC], const double q1[][SIMD_VEC], const double q2[][SIMD_VEC], const double adt1[][SIMD_VEC], const double adt2[][SIMD_VEC], float res1[][SIMD_VEC], float res2[][SIMD_VEC], int idx ) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
@@ -75,6 +71,7 @@ res_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
   f = 0.5f * (vol1 * (q1[3][idx] + p1) + vol2 * (q2[3][idx] + p2)) + mu * (q1[3][idx] - q2[3][idx]);
   res1[3][idx] = f;
   res2[3][idx] -= f;
+
 }
 #endif
 
@@ -102,21 +99,21 @@ void op_par_loop_res_calc(char const *name, op_set set,
   args[7] = arg7;
   //create aligned pointers for dats
   ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr2 = (double *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr3 = (double *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr4 = (double *) arg4.data;
-  DECLARE_PTR_ALIGNED(ptr4, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr4,double_ALIGN);
   ALIGNED_double const double * __restrict__ ptr5 = (double *) arg5.data;
-  DECLARE_PTR_ALIGNED(ptr5, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr6 = (double *) arg6.data;
-  DECLARE_PTR_ALIGNED(ptr6, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr7 = (double *) arg7.data;
-  DECLARE_PTR_ALIGNED(ptr7, double_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr5,double_ALIGN);
+  ALIGNED_double       float * __restrict__ ptr6 = (float *) arg6.data;
+  DECLARE_PTR_ALIGNED(ptr6,float_ALIGN);
+  ALIGNED_double       float * __restrict__ ptr7 = (float *) arg7.data;
+  DECLARE_PTR_ALIGNED(ptr7,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -134,10 +131,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-        op_mpi_test_all(nargs, args);
-      if ((n + SIMD_VEC >= set->core_size) &&
-          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
+      if ((n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_double double dat0[2][SIMD_VEC];
@@ -146,8 +140,8 @@ void op_par_loop_res_calc(char const *name, op_set set,
       ALIGNED_double double dat3[4][SIMD_VEC];
       ALIGNED_double double dat4[1][SIMD_VEC];
       ALIGNED_double double dat5[1][SIMD_VEC];
-      ALIGNED_double double dat6[4][SIMD_VEC];
-      ALIGNED_double double dat7[4][SIMD_VEC];
+      ALIGNED_float float dat6[4][SIMD_VEC];
+      ALIGNED_float float dat7[4][SIMD_VEC];
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx0_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 0];

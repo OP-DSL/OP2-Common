@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
   op_dat p_q = op_decl_dat_hdf5(cells, 4, "double", file, "p_q");
   op_dat p_qold = op_decl_dat_hdf5(cells, 4, "double", file, "p_qold");
   op_dat p_adt = op_decl_dat_hdf5(cells, 1, "double", file, "p_adt");
-  op_dat p_res = op_decl_dat_hdf5(cells, 4, "double", file, "p_res");
+  op_dat p_res = op_decl_dat_hdf5(cells, 4, "float", file, "p_res");
 
   op_dat p_test = op_decl_dat_hdf5(cells, 4, "double", file, "p_test");
   if (p_test == NULL)
@@ -195,7 +195,6 @@ int main(int argc, char **argv) {
   // write back original data just to compare you read the file correctly
   // do an h5diff between new_grid_out.h5 and new_grid.h5 to
   // compare two hdf5 files
-  op_dump_to_hdf5("new_grid_out.h5");
 
   op_write_const_hdf5("gam", 1, "double", (char *)&gam, "new_grid_out.h5");
   op_write_const_hdf5("gm1", 1, "double", (char *)&gm1, "new_grid_out.h5");
@@ -251,15 +250,15 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_q,1,pecell,4,"double",OP_READ),
                   op_arg_dat(p_adt,0,pecell,1,"double",OP_READ),
                   op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
-                  op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
+                  op_arg_dat(p_res,0,pecell,4,"float",OP_INC),
+                  op_arg_dat(p_res,1,pecell,4,"float",OP_INC));
 
       op_par_loop_bres_calc("bres_calc",bedges,
                   op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
                   op_arg_dat(p_x,1,pbedge,2,"double",OP_READ),
                   op_arg_dat(p_q,0,pbecell,4,"double",OP_READ),
                   op_arg_dat(p_adt,0,pbecell,1,"double",OP_READ),
-                  op_arg_dat(p_res,0,pbecell,4,"double",OP_INC),
+                  op_arg_dat(p_res,0,pbecell,4,"float",OP_INC),
                   op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
 
       //    update flow field
@@ -269,7 +268,7 @@ int main(int argc, char **argv) {
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
-                  op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+                  op_arg_dat(p_res,-1,OP_ID,4,"float",OP_RW),
                   op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
                   op_arg_gbl(&rms,1,"double",OP_INC));
     }
@@ -307,7 +306,7 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  //op_fetch_data_hdf5_file(p_q, "file_name.h5");
+//  op_fetch_data_hdf5_file(p_q, "file_name.h5");
 
   // printf("Root process = %d\n",op_is_root());
 
