@@ -53,20 +53,9 @@ numawrap*
 *.optrpt
 
 #directories
-op2/c/lib/
-op2/c/build/
-op2/c/obj/
-op2/c/CMakeFiles/
-op2/fortran/lib/
-op2/fortran/obj/
+op2/lib/
+op2/obj/
+op2/mod/
 
 #docs
 doc/*.pdf
-./op2/c/lib/
-./op2/c/build/
-./op2/c/obj/
-./op2/c/CMakeFiles/
-./op2/fortran/lib/
-./op2/fortran/obj/
-./apps/c/build/
-./apps/c/bin/

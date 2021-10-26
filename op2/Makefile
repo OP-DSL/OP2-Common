@@ -222,6 +222,26 @@ FFLAGS += $(INC)
 
 AR = ar rcs
 
+
+
+OP2_BASE_FOR = $(addprefix $(OBJ)/, \
+	op2_for_declarations.o \
+	op2_for_reference.o \
+	op2_for_rt_support.o \
+	op2_for_rt_wrappers.o)
+
+OP2_BASE_MPI_FOR = $(OP2_BASE_FOR) $(addprefix $(OBJ)/, \
+	op2_C_reference+mpi.o \
+	op2_for_C_wrappers+mpi.o \
+	op2_for_hdf5_declarations.o)
+
+OP2_BASE_FOR += $(addprefix $(OBJ)/, \
+	op2_C_reference.o \
+	op2_for_C_wrappers.o)
+
+
+
+
 OP2_HDF5 = $(addprefix $(OBJ)/, \
 	op_util.o \
 	op_hdf5.o)
@@ -235,14 +255,8 @@ OP2_SEQ = $(addprefix $(OBJ)/, \
 	op_seq.o \
 	op_dummy_singlenode.o)
 
-OP2_SEQ_FOR = $(OP2_SEQ) $(addprefix $(OBJ)/, \
-	op_dummy_wrappers.o \
-	op2_for_C_wrappers.o \
-	op2_for_rt_wrappers.o \
-	op2_for_rt_support.o \
-	op2_C_reference.o \
-	op2_for_reference.o \
-	op2_for_declarations.o)
+OP2_SEQ_FOR = $(OP2_SEQ) $(OP2_BASE_FOR) $(addprefix $(OBJ)/, \
+	op_dummy_wrappers.o)
 
 OP2_CUDA = $(addprefix $(OBJ)/, \
 	op_lib_core.o \
@@ -250,14 +264,8 @@ OP2_CUDA = $(addprefix $(OBJ)/, \
 	op_cuda_decl.o \
 	op_cuda_rt_support.o)
 
-OP2_CUDA_FOR = $(OP2_CUDA) $(addprefix $(OBJ)/, \
-	op2_for_C_wrappers.o \
-	op2_for_rt_wrappers.o \
+OP2_CUDA_FOR = $(OP2_CUDA) $(OP2_BASE_FOR) $(addprefix $(OBJ)/, \
 	op2_for_rt_wrappers_cuda.o \
-	op2_for_rt_support.o \
-	op2_C_reference.o \
-	op2_for_reference.o \
-	op2_for_declarations.o \
 	cudaConfigurationParams.o)
 
 OP2_OPENMP = $(addprefix $(OBJ)/, \
@@ -266,14 +274,8 @@ OP2_OPENMP = $(addprefix $(OBJ)/, \
 	op_openmp_decl.o \
 	op_dummy_singlenode.o)
 
-OP2_OPENMP_FOR = $(OP2_OPENMP) $(addprefix $(OBJ)/, \
-	op2_for_C_wrappers.o \
-	op2_for_rt_wrappers.o \
-	op_dummy_wrappers.o \
-	op2_for_rt_support.o \
-	op2_C_reference.o \
-	op2_for_reference.o \
-	op2_for_declarations.o)
+OP2_OPENMP_FOR = $(OP2_OPENMP) $(OP2_BASE_FOR) $(addprefix $(OBJ)/, \
+	op_dummy_wrappers.o)
 
 OP2_OPENMP4 = $(addprefix $(OBJ)/, \
 	op_lib_core.o \
@@ -282,14 +284,8 @@ OP2_OPENMP4 = $(addprefix $(OBJ)/, \
 	op_openmp4_rt_support.o \
 	op_dummy_singlenode.o)
 
-OP2_OPENMP4_FOR = $(OP2_OPENMP4) $(addprefix $(OBJ)/, \
-	op2_for_C_wrappers.o \
-	op2_for_rt_wrappers.o \
-	op_dummy_wrappers.o \
-	op2_for_rt_support.o \
-	op2_C_reference.o \
-	op2_for_reference.o \
-	op2_for_declarations.o)
+OP2_OPENMP4_FOR = $(OP2_OPENMP4) $(OP2_BASE_FOR) $(addprefix $(OBJ)/, \
+	op_dummy_wrappers.o)
 
 OP2_MPI = $(addprefix $(OBJ)/, \
 	op_lib_core.o \
@@ -303,15 +299,8 @@ OP2_MPI = $(addprefix $(OBJ)/, \
 	op_mpi_util.o \
 	op_renumber.o)
 
-OP2_MPI_FOR = $(OP2_MPI) $(addprefix $(OBJ)/, \
-	op2_for_C_wrappers+mpi.o \
-	op2_for_rt_wrappers.o \
-	op2_for_rt_support.o \
-	op_dummy_wrappers+mpi.o \
-	op2_C_reference+mpi.o \
-	op2_for_reference.o \
-	op2_for_declarations.o \
-	op2_for_hdf5_declarations.o)
+OP2_MPI_FOR = $(OP2_MPI) $(OP2_BASE_MPI_FOR) $(addprefix $(OBJ)/, \
+	op_dummy_wrappers+mpi.o)
 
 OP2_MPI_CUDA = $(addprefix $(OBJ)/, \
 	op_lib_core.o \
@@ -327,15 +316,10 @@ OP2_MPI_CUDA = $(addprefix $(OBJ)/, \
 	op_mpi_util.o \
 	op_renumber.o)
 
-OP2_MPI_CUDA_FOR = $(OP2_MPI_CUDA) $(addprefix $(OBJ)/, \
-	op2_for_C_wrappers+mpi.o \
-	op2_for_rt_wrappers.o \
-	op2_for_rt_wrappers_cuda.o \
-	op2_for_rt_support.o \
-	op2_C_reference+mpi.o \
-	op2_for_reference.o \
-	op2_for_declarations.o \
-	op2_for_hdf5_declarations.o)
+OP2_MPI_CUDA_FOR = $(OP2_MPI_CUDA) $(OP2_BASE_MPI_FOR) $(addprefix $(OBJ)/, \
+	op2_for_rt_wrappers_cuda.o)
+
+
 
 .PHONY: all clean \
 	hdf5 seq cuda openmp openmp4 mpi_seq mpi_cuda \
@@ -357,18 +341,23 @@ $(MOD):
 
 
 
-$(OBJ)/op2_for_reference.o: src/fortran/op2_for_reference.F90 | $(OBJ) $(MOD)
-	$(shell cpp $(INC) src/fortran/op2_for_reference.F90 | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" \
-		> $(OBJ)/op2_for_reference+cpp.F90)
-	$(FC) $(FFLAGS) -c $(OBJ)/op2_for_reference+cpp.F90 -o $@
-
 $(OBJ)/%.o: src/fortran/%.c | $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ)/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(CC) $(CFLAGS) -DOPMPI -c $< -o $@
 
-$(OBJ)/%.o: src/fortran/%.F90 | $(OBJ) $(MOD)
+# Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
+$(OBJ)/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
+	$(FC) $(FFLAGS) -c $< -o $@
+
+# Manually run C preprocessor on op2_for_reference.F90 to generate the op_par_loop subroutines
+$(OBJ)/op2_for_reference.o: src/fortran/op2_for_reference.F90 $(OBJ)/op2_for_declarations.o | $(OBJ) $(MOD)
+	$(shell cpp $(INC) src/fortran/op2_for_reference.F90 | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" \
+		> $(OBJ)/op2_for_reference+cpp.F90)
+	$(FC) $(FFLAGS) -c $(OBJ)/op2_for_reference+cpp.F90 -o $@
+
+$(OBJ)/%.o: src/fortran/%.F90 $(OBJ)/op2_for_declarations.o | $(OBJ) $(MOD)
 	$(FC) $(FFLAGS) -c $< -o $@
 
 
