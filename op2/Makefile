@@ -1,8 +1,10 @@
 include ../makefiles/common.mk
 
-LIB = lib
-OBJ = obj
-MOD = mod
+LIB = $(OP2_BUILD_DIR)/lib
+OBJ = $(OP2_BUILD_DIR)/obj
+MOD = $(OP2_BUILD_DIR)/mod
+
+FFLAGS += $(F_MOD_OUT_OPT)$(MOD)
 
 OP2_LIBS = hdf5 seq cuda openmp openmp4 mpi mpi_cuda
 OP2_FOR_LIBS = $(foreach lib,$(OP2_LIBS),f_$(lib))
@@ -120,29 +122,29 @@ $(MOD):
 
 # Rules for files with a specific compilation setup
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
-	$(MPICXX) $(MPIFLAGS) $(INC) -c $< -o $@
+	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/cuda/%+mpi.o: src/cuda/%.cpp | $(OBJ)
-	$(MPICXX) $(MPIFLAGS) $(INC) -DOPMPI -c $< -o $@
+	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
 
 $(OBJ)/cuda/%.o: src/cuda/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(INC) -DSET_CUDA_CACHE_CONFIG -c $< -o $@
 
 $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
-	$(CXX) $(CXXFLAGS) $(INC) $(OMP4FLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
-	$(MPICXX) $(MPIFLAGS) $(INC) -c $< -o $@
+	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
-	$(NVCXX) $(NVCXXFLAGS) $(INC) $(MPI_INC) -lcudart -c $< -o $@
+	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(CC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(INC) -c $< -o $@
+	$(FC) $(FFLAGS) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
 # Manually run C preprocessor on op2_for_reference.F90 to generate the op_par_loop subroutines
 $(OBJ)/fortran/op2_for_reference+cpp.F90: src/fortran/op2_for_reference.F90 | $(OBJ)
@@ -150,10 +152,10 @@ $(OBJ)/fortran/op2_for_reference+cpp.F90: src/fortran/op2_for_reference.F90 | $(
 
 # Compile the expanded $(OBJ)/fortran/{}+cpp.F90 file(s)
 $(OBJ)/fortran/%.o: $(OBJ)/fortran/%+cpp.F90 $(OBJ)/fortran/op2_for_declarations.o | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(INC) -c $< -o $@
+	$(FC) $(FFLAGS) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
 $(OBJ)/fortran/%.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations.o | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(INC) -c $< -o $@
+	$(FC) $(FFLAGS) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
 # Catch-all rules
 $(OBJ)/%.o: src/%.cpp | $(OBJ)
