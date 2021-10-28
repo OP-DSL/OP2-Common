@@ -6,12 +6,39 @@ MOD = $(OP2_BUILD_DIR)/mod
 
 FFLAGS += $(F_MOD_OUT_OPT)$(MOD)
 
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(CUDA_INC)
+
+
 OP2_LIBS = hdf5 seq cuda openmp openmp4 mpi mpi_cuda
 OP2_FOR_LIBS = $(foreach lib,$(OP2_LIBS),f_$(lib))
 
+OP2_BUILDABLE_LIBS = seq openmp
+
+ifdef HDF5_INSTALL_PATH
+	OP2_BUILDABLE_LIBS += hdf5
+endif
+
+ifdef CUDA_INSTALL_PATH
+	OP2_BUILDABLE_LIBS += cuda
+ifdef MPI_INSTALL_PATH
+	OP2_BUILDABLE_LIBS += mpi_cuda
+endif
+endif
+
+ifdef MPI_INSTALL_PATH
+	OP2_BUILDABLE_LIBS += mpi
+endif
+
+ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
+	OP2_BUILDABLE_LIBS += openmp4
+endif
+
+OP2_FOR_BUILDABLE_LIBS = $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
+
+
 .PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)
 
-all: $(OP2_LIBS) $(OP2_FOR_LIBS)
+all: $(OP2_BUILDABLE_LIBS) $(OP2_FOR_BUILDABLE_LIBS)
 
 clean:
 	-rm -rf $(OBJ)
@@ -121,6 +148,9 @@ $(MOD):
 
 
 # Rules for files with a specific compilation setup
+$(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
+	$(CXX) $(CXXFLAGS) $(INC) $(MPI_INC) -c $< -o $@
+
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
@@ -137,10 +167,10 @@ $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
-	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
+	$(NVCC) $(NVCCFLAGS) $(INC) $(MPI_INC) -c $< -o $@
 
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
-	$(CC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
+	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
