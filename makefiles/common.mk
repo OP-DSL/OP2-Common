@@ -1,6 +1,11 @@
 SHELL = /bin/sh
 .SUFFIXES:
 
+# Helper function to upper-case a string
+define UPPERCASE =
+$(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
+endef
+
 # Get the makefiles directory (where this file is)
 MAKEFILES_DIR := $(shell dirname $(realpath \
 				 $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST))))
@@ -11,13 +16,23 @@ OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
 OP2_INC ?= -I$(ROOT_DIR)/op2/include
 OP2_LIB ?= -L$(OP2_BUILD_DIR)/lib
 
-AR = ar rcs
+OP2_LIBS := hdf5 seq cuda openmp openmp4 mpi mpi_cuda
+OP2_FOR_LIBS := $(foreach lib,$(OP2_LIBS),f_$(lib))
+
+# Generate helper variables OP2_LIB_HDF5, OP2_LIB_SEQ, ...
+define OP2_LIB_template =
+OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1)
+endef
+
+$(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_template,$(lib))))
+
+AR := ar rcs
 
 ifdef CUDA_INSTALL_PATH
   include $(MAKEFILES_DIR)/nvcc.mk
 
   CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
-  CUDA_LIB ?= -lcudart
+  CUDA_LIB ?= -I$(CUDA_INSTALL_PATH)/lib -lcudart
 endif
 
 ifdef MPI_INSTALL_PATH
@@ -36,7 +51,7 @@ endif
 
 ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_INC += -I$(PTSCOTCH_INSTALL_PATH)/include -DHAVE_PTSCOTCH
-  PTSCOTCH_LIB += -L$(PTSCOTCH_INSTALL_PATH)/lib -lscotch -lptscotch -lptscotcherr
+  PTSCOTCH_LIB += -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
 endif
 
 ifdef HDF5_INSTALL_PATH

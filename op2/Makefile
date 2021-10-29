@@ -1,41 +1,39 @@
 include ../makefiles/common.mk
 
-LIB = $(OP2_BUILD_DIR)/lib
-OBJ = $(OP2_BUILD_DIR)/obj
-MOD = $(OP2_BUILD_DIR)/mod
+LIB ?= $(OP2_BUILD_DIR)/lib
+OBJ ?= $(OP2_BUILD_DIR)/obj
+MOD ?= $(OP2_BUILD_DIR)/mod
 
 FFLAGS += $(F_MOD_OUT_OPT)$(MOD)
-
 INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(CUDA_INC)
 
 
-OP2_LIBS = hdf5 seq cuda openmp openmp4 mpi mpi_cuda
-OP2_FOR_LIBS = $(foreach lib,$(OP2_LIBS),f_$(lib))
-
-OP2_BUILDABLE_LIBS = seq openmp
+# Calculate the libraries that we can actually build
+OP2_BUILDABLE_LIBS := seq openmp
 
 ifdef HDF5_INSTALL_PATH
-	OP2_BUILDABLE_LIBS += hdf5
+  OP2_BUILDABLE_LIBS += hdf5
 endif
 
 ifdef CUDA_INSTALL_PATH
-	OP2_BUILDABLE_LIBS += cuda
+  OP2_BUILDABLE_LIBS += cuda
 ifdef MPI_INSTALL_PATH
-	OP2_BUILDABLE_LIBS += mpi_cuda
+  OP2_BUILDABLE_LIBS += mpi_cuda
 endif
 endif
 
 ifdef MPI_INSTALL_PATH
-	OP2_BUILDABLE_LIBS += mpi
+  OP2_BUILDABLE_LIBS += mpi
 endif
 
 ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
-	OP2_BUILDABLE_LIBS += openmp4
+  OP2_BUILDABLE_LIBS += openmp4
 endif
 
-OP2_FOR_BUILDABLE_LIBS = $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
+OP2_FOR_BUILDABLE_LIBS := $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
 
 
+# Build rules
 .PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)
 
 all: $(OP2_BUILDABLE_LIBS) $(OP2_FOR_BUILDABLE_LIBS)
@@ -199,13 +197,9 @@ ifneq ($(wildcard $(OBJ)),)
 -include $(shell find $(OBJ) -type f -name "*.d")
 endif
 
-
-# Helper function to upper-case a string
-UPPERCASE = $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
-
 # Template for generating the library rules libop2_$1.a and libop2_for_$1.a
 # and the compatability PHONY rules $1 and f_$1
-define OP2_LIB_template =
+define OP2_LIB_RULES_template =
 $$(LIB)/libop2_$(1).a: $$(OP2_$(call UPPERCASE,$(1))) | $$(LIB)
 	$(AR) $$@ $$?
 
@@ -217,4 +211,4 @@ f_$(1): $$(LIB)/libop2_for_$(1).a
 endef
 
 # Expand the template for all of the libraries (seq, ..., mpi_cuda)
-$(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_template,$(lib))))
+$(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_RULES_template,$(lib))))

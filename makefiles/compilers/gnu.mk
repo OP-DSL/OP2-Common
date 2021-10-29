@@ -6,11 +6,11 @@ BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
 BASE_FFLAGS = -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none
 
 ifndef DEBUG
-	BASE_CPPFLAGS += -O3
-	BASE_FFLAGS += -O3
+  BASE_CPPFLAGS += -O3
+  BASE_FFLAGS += -O3
 else
-	BASE_CPPFLAGS += -g -Og
-	BASE_FFLAGS += -g -Og
+  BASE_CPPFLAGS += -g -Og
+  BASE_FFLAGS += -g -Og
 endif
 
 CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
