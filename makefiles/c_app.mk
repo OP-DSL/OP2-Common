@@ -117,4 +117,5 @@ $(APP_NAME)_cuda_hyb: $(APP_NAME)_op.cpp cuda/$(APP_NAME)_hybkernels_gpu.o cuda/
 $(APP_NAME)_mpi_cuda_hyb: $(APP_NAME)_mpi_op.cpp cuda/$(APP_NAME)_mpi_hybkernels_gpu.o cuda/$(APP_NAME)_mpi_hybkernels_cpu.o
 	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_MPI_CUDA) -o $@
 
+# TODO: sort out the headers with missing includes
 # -include $(wildcard *.d)

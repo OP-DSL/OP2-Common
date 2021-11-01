@@ -11,6 +11,20 @@ MAKEFILES_DIR := $(shell dirname $(realpath \
 				 $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST))))
 
 ROOT_DIR := $(shell realpath $(MAKEFILES_DIR)/../)
+
+# Include profile #! PRE section
+ifdef OP2_PROFILE
+  OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE)
+
+  $(shell awk '/#!\s+PRE/, /(#!\s+POST|END)/' $(OP2_PROFILE_FILE) > \
+      $(MAKEFILES_DIR)/profile.pre.mk)
+
+  $(shell awk '/#!\s+POST/, /(#!\s+PRE|END)/' $(OP2_PROFILE_FILE) > \
+      $(MAKEFILES_DIR)/profile.post.mk)
+
+  include $(MAKEFILES_DIR)/profile.pre.mk
+endif
+
 OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
 
 OP2_INC ?= -I$(ROOT_DIR)/op2/include
@@ -58,6 +72,10 @@ ifdef HDF5_INSTALL_PATH
   HDF5_LIB += -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
 
+ifndef OP2_COMPILER
+  $(warning OP2_COMPILER undefined: define or use an OP2_PROFILE)
+endif
+
 include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
@@ -78,3 +96,8 @@ $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),$(OP2_LIB_EX
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
+
+# Include profile #! POST section
+ifdef OP2_PROFILE_FILE
+  include $(MAKEFILES_DIR)/profile.post.mk
+endif

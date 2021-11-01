@@ -31,6 +31,10 @@ source_*
 *.mod
 numawrap*
 
+# generated profiles
+makefiles/profile.pre.mk
+makefiles/profile.post.mk
+
 #python
 *.pyc
 
