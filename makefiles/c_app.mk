@@ -55,10 +55,10 @@ GENERATED_MPI := $(APP_NAME)_mpi_op.cpp \
 	cuda/$(APP_NAME)_mpi_hybkernels.cu
 
 $(GENERATED)&: $(APP_NAME).cpp
-	$(ROOT_DIR)/translator/c/python/op2.py $(APP_NAME).cpp
+	$(ROOT_DIR)/translator/c/op2.py $(APP_NAME).cpp
 
 $(GENERATED_MPI)&: $(APP_NAME)_mpi.cpp
-	$(ROOT_DIR)/translator/c/python/op2.py $(APP_NAME)_mpi.cpp
+	$(ROOT_DIR)/translator/c/op2.py $(APP_NAME)_mpi.cpp
 
 $(APP_NAME)_seq: $(APP_NAME).cpp
 	$(CXX) $(CXXFLAGS) $(OP2_INC) $^ $(OP2_LIB_SEQ) -o $@
