@@ -16,15 +16,14 @@ OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
 OP2_INC ?= -I$(ROOT_DIR)/op2/include
 OP2_LIB ?= -L$(OP2_BUILD_DIR)/lib
 
-OP2_LIBS := hdf5 seq cuda openmp openmp4 mpi mpi_cuda
-OP2_FOR_LIBS := $(foreach lib,$(OP2_LIBS),f_$(lib))
+OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
+OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
-# Generate helper variables OP2_LIB_HDF5, OP2_LIB_SEQ, ...
-define OP2_LIB_template =
-OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1)
-endef
+OP2_LIBS_MPI := mpi mpi_cuda
+OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
 
-$(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_template,$(lib))))
+OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)
+OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
 
 AR := ar rcs
 
@@ -56,7 +55,26 @@ endif
 
 ifdef HDF5_INSTALL_PATH
   HDF5_INC += -I$(HDF5_INSTALL_PATH)/include
-  HDF5_LIB += -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm
+  HDF5_LIB += -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
 
 include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
+
+# Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
+define OP2_LIB_template =
+OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1) $(2)
+endef
+
+OP2_LIB_EXTRA =
+OP2_LIB_EXTRA_MPI = $(PARMETIS_LIB) $(PTSCOTCH_LIB)
+
+ifeq ($(OP2_LIBS_WITH_HDF5),true)
+  OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_LIB)
+  OP2_LIB_EXTRA_MPI += -lop2_hdf5 $(HDF5_LIB)
+endif
+
+$(foreach lib,$(OP2_LIBS_SINGLE_NODE),$(eval $(call OP2_LIB_template,$(lib),$(OP2_LIB_EXTRA))))
+$(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),$(OP2_LIB_EXTRA_MPI))))
+
+OP2_LIB_CUDA += $(CUDA_LIB)
+OP2_LIB_MPI_CUDA += $(CUDA_LIB)
