@@ -129,7 +129,8 @@ OP2_MPI_CUDA = $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_renumber.o)
 
 OP2_FOR_MPI_CUDA = $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda.o)
+	op2_for_rt_wrappers_cuda.o \
+	cudaConfigurationParams.o)
 
 
 # Directory rules
