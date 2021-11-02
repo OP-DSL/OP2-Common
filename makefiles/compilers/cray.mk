@@ -2,6 +2,10 @@ CC ?= cc
 CXX ?= CC
 FC ?= ftn
 
+MPICC ?= cc
+MPICXX ?= CC
+MPIFC ?= ftn
+
 BASE_CPPFLAGS =
 BASE_FFLAGS =
 

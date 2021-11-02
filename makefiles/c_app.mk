@@ -15,7 +15,7 @@ ifdef CUDA_INSTALL_PATH
   BUILDABLE_APP_VARIANTS += cuda cuda_hyb
 endif
 
-ifdef MPI_INSTALL_PATH
+ifdef MPICXX
   BUILDABLE_APP_VARIANTS += $(foreach variant,$(BUILDABLE_APP_VARIANTS),mpi_$(variant))
 endif
 
