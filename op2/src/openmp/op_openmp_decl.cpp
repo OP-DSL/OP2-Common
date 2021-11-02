@@ -53,6 +53,10 @@ void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
   op_init_core(argc, argv, diags);
 }
@@ -62,6 +66,10 @@ void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
   OP_auto_soa = soa;
   op_mpi_init(argc, argv, diags, global, local);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
