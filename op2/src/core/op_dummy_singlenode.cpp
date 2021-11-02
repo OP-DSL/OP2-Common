@@ -36,6 +36,10 @@
 
 #include "op_lib_core.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
@@ -241,3 +245,6 @@ void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
 void deviceSync() {}
 
+#ifdef __cplusplus
+}
+#endif
