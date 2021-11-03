@@ -49,12 +49,9 @@ endif
 include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
 include $(MAKEFILES_DIR)/nvcc.mk
 
-CUDA_INC ?=
-CUDA_LIB ?= -lcudart
-
 ifdef CUDA_INSTALL_PATH
-  CUDA_INC := -I$(CUDA_INSTALL_PATH)/include $(CUDA_INC)
-  CUDA_LIB := -L$(CUDA_INSTALL_PATH)/lib $(CUDA_LIB)
+  CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
+  CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib -lcudart
 endif
 
 ifndef MPICC
@@ -70,27 +67,20 @@ endif
 endif
 
 PARMETIS_INC ?= -DHAVE_PARMETIS -DPARMETIS_VER_4
-PARMETIS_LIB ?= -lparmetis -lmetis
-
 ifdef PARMETIS_INSTALL_PATH
   PARMETIS_INC := -I$(PARMETIS_INSTALL_PATH)/include $(PARMETIS_INC)
-  PARMETIS_LIB := -L$(PARMETIS_INSTALL_PATH)/lib $(PARMETIS_LIB)
+  PARMETIS_LIB ?= -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
 endif
 
 PTSCOTCH_INC ?= -DHAVE_PTSCOTCH
-PTSCOTCH_LIB ?= -lptscotch -lscotch -lptscotcherr
-
 ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_INC := -I$(PTSCOTCH_INSTALL_PATH)/include $(PTSCOTCH_INC)
-  PTSCOTCH_LIB := -L$(PTSCOTCH_INSTALL_PATH)/lib $(PTSCOTCH_LIB)
+  PTSCOTCH_LIB ?= -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
 endif
 
-HDF5_INC ?=
-HDF5_LIB ?= -l:libhdf5.a -ldl -lm -lz
-
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC := -I$(HDF5_INSTALL_PATH)/include $(HDF5_INC)
-  HDF5_LIB := -L$(HDF5_INSTALL_PATH)/lib $(HDF5_LIB)
+  HDF5_INC ?= -I$(HDF5_INSTALL_PATH)/include $(HDF5_INC)
+  HDF5_LIB ?= -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...

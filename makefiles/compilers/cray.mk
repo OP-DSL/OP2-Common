@@ -7,18 +7,18 @@ MPICC = cc
 MPICXX = CC
 MPIFC = ftn
 
-BASE_CPPFLAGS =
+BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
 BASE_FFLAGS =
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
   BASE_FFLAGS += -O3
 else
-  BASE_CPPFLAGS += -g -O0
-  BASE_FFLAGS += -g -O0
+  BASE_CPPFLAGS += -g -Og
+  BASE_FFLAGS += -g -Og
 endif
 
-CFLAGS ?= -h std=c99 $(BASE_CPPFLAGS)
+CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
 CXXFLAGS ?= $(BASE_CPPFLAGS)
 FFLAGS ?= $(BASE_FFLAGS)
 
