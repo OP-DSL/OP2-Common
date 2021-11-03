@@ -1,6 +1,7 @@
-CC ?= xlc_r
-CXX ?= xlc++_r
-FC ?= xlf_r
+# Compiler executables and flags
+CC = xlc_r
+CXX = xlc++_r
+FC = xlf_r
 
 BASE_CPPFLAGS = -MMD -MP -Wall -pedantic
 BASE_FFLAGS =
@@ -19,7 +20,7 @@ FFLAGS ?= $(BASE_FFLAGS)
 
 F_MOD_OUT_OPT ?= -qmoddir=
 
-
+# Available OpenMP features
 OMP_CPPFLAGS ?= -qsmp=omp
 OMP_FFLAGS ?= -qsmp=omp
 

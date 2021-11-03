@@ -1,5 +1,6 @@
 # TODO: PGI_CUDA_FORT_FLAGS? F_HAS_CUDA? -pgc++libs?
 
+# Compiler executables and flags
 CC ?= pgcc
 CXX ?= pgc++
 FC ?= pgfortran
@@ -21,7 +22,7 @@ FFLAGS ?= $(BASE_FFLAGS)
 
 F_MOD_OUT_OPT ?= -module #
 
-
+# Available OpenMP features
 OMP_CPPFLAGS ?= -mp
 OMP_FFLAGS ?= -mp
 

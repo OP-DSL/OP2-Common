@@ -42,6 +42,12 @@ OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
 
 AR := ar rcs
 
+ifndef OP2_COMPILER
+  $(warning OP2_COMPILER undefined: define or use an OP2_PROFILE)
+endif
+
+include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
+
 ifdef CUDA_INSTALL_PATH
   include $(MAKEFILES_DIR)/nvcc.mk
 
@@ -49,6 +55,7 @@ ifdef CUDA_INSTALL_PATH
   CUDA_LIB ?= -I$(CUDA_INSTALL_PATH)/lib -lcudart
 endif
 
+ifndef MPICC
 ifdef MPI_INSTALL_PATH
   MPICC ?= $(MPI_INSTALL_PATH)/bin/mpicc
   MPICXX ?= $(MPI_INSTALL_PATH)/bin/mpic++
@@ -56,6 +63,7 @@ ifdef MPI_INSTALL_PATH
 
   MPI_INC ?= -I$(MPI_INSTALL_PATH)/include
   MPI_LIB ?= -L$(MPI_INSTALL_PATH)/lib -lmpi
+endif
 endif
 
 ifdef PARMETIS_INSTALL_PATH
@@ -72,12 +80,6 @@ ifdef HDF5_INSTALL_PATH
   HDF5_INC += -I$(HDF5_INSTALL_PATH)/include
   HDF5_LIB += -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
-
-ifndef OP2_COMPILER
-  $(warning OP2_COMPILER undefined: define or use an OP2_PROFILE)
-endif
-
-include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
 define OP2_LIB_template =

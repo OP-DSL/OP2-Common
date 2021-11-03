@@ -1,10 +1,11 @@
-CC ?= cc
-CXX ?= CC
-FC ?= ftn
+# Compiler executables and flags
+CC = cc
+CXX = CC
+FC = ftn
 
-MPICC ?= cc
-MPICXX ?= CC
-MPIFC ?= ftn
+MPICC = cc
+MPICXX = CC
+MPIFC = ftn
 
 BASE_CPPFLAGS =
 BASE_FFLAGS =
@@ -23,11 +24,11 @@ FFLAGS ?= $(BASE_FFLAGS)
 
 F_MOD_OUT_OPT ?= -em -J
 
-
+# Available OpenMP features
 OMP_CPPFLAGS ?=
 OMP_FFLAGS ?=
 
-# The compiler enable OpenMP by default for -O1 and up
+# The compiler enables OpenMP by default for -O1 and up
 CPP_HAS_OMP ?= true
 F_HAS_OMP ?= true
 

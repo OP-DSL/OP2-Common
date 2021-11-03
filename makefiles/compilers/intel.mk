@@ -1,6 +1,7 @@
-CC ?= icc
-CXX ?= icpc
-FC ?= ifort
+# Compiler executables and flags
+CC = icc
+CXX = icpc
+FC = ifort
 
 BASE_CPPFLAGS = -MMD -MP -Wall
 BASE_FFLAGS = -warn all
@@ -19,7 +20,7 @@ FFLAGS ?= $(BASE_FFLAGS)
 
 F_MOD_OUT_OPT ?= -module #
 
-
+# Available OpenMP features
 OMP_CPPFLAGS ?= -qopenmp
 OMP_FFLAGS ?= -qopenmp
 

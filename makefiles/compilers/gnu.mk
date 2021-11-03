@@ -1,6 +1,7 @@
-CC ?= gcc
-CXX ?= g++
-FC ?= gfortran
+# Compiler executables and flags
+CC = gcc
+CXX = g++
+FC = gfortran
 
 BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
 BASE_FFLAGS = -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none
@@ -19,7 +20,7 @@ FFLAGS ?= $(BASE_FFLAGS)
 
 F_MOD_OUT_OPT ?= -J
 
-
+# Available OpenMP features
 OMP_CPPFLAGS ?= -fopenmp
 OMP_FFLAGS ?= -fopenmp
 
