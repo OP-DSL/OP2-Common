@@ -15,15 +15,15 @@ ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   OP2_BUILDABLE_LIBS += openmp4
 endif
 
-ifneq ($(shell which $(NVCC)),)
+ifneq ($(shell which $(NVCC) 2> /dev/null),)
   OP2_BUILDABLE_LIBS += cuda
 
-  ifneq ($(shell which $(MPICC)),)
+  ifneq ($(shell which $(MPICC) 2> /dev/null),)
     OP2_BUILDABLE_LIBS += mpi_cuda
   endif
 endif
 
-ifneq ($(shell which $(MPICC)),)
+ifneq ($(shell which $(MPICC) 2> /dev/null),)
   OP2_BUILDABLE_LIBS += mpi
 endif
 

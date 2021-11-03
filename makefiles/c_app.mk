@@ -11,11 +11,11 @@ ifeq ($(CPP_HAS_OMP4),true)
   BUILDABLE_APP_VARIANTS += openmp4
 endif
 
-ifneq ($(shell which $(NVCC)),)
+ifneq ($(shell which $(NVCC) 2> /dev/null),)
   BUILDABLE_APP_VARIANTS += cuda cuda_hyb
 endif
 
-ifneq ($(shell which $(MPICC)),)
+ifneq ($(shell which $(MPICC) 2> /dev/null),)
   BUILDABLE_APP_VARIANTS += $(foreach variant,$(BUILDABLE_APP_VARIANTS),mpi_$(variant))
 endif
 
