@@ -1,5 +1,5 @@
 ifndef NV_ARCH
-	$(warning Set NV_ARCH={Fermi|Kepler|...|Volta} to generate targeted CUDA code)
+  $(warning Set NV_ARCH={Fermi|Kepler|...|Volta} to generate targeted CUDA code)
 endif
 
 ifeq ($(NV_ARCH),Fermi)
