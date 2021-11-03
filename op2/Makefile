@@ -9,29 +9,13 @@ INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(CUDA_INC)
 
 
 # Calculate the libraries that we can actually build
-OP2_BUILDABLE_LIBS := seq openmp
-
-ifdef HDF5_INSTALL_PATH
-  OP2_BUILDABLE_LIBS += hdf5
-endif
-
-ifdef CUDA_INSTALL_PATH
-  OP2_BUILDABLE_LIBS += cuda
-ifdef MPI_INSTALL_PATH
-  OP2_BUILDABLE_LIBS += mpi_cuda
-endif
-endif
-
-ifdef MPI_INSTALL_PATH
-  OP2_BUILDABLE_LIBS += mpi
-endif
+OP2_BUILDABLE_LIBS := hdf5 seq openmp cuda mpi mpi_cuda
 
 ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   OP2_BUILDABLE_LIBS += openmp4
 endif
 
 OP2_FOR_BUILDABLE_LIBS := $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
-
 
 # Build rules
 .PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)

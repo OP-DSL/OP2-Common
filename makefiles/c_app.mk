@@ -1,7 +1,7 @@
 ALL_APP_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
 ALL_APP_VARIANTS := $(ALL_APP_VARIANTS) $(foreach variant,$(ALL_APP_VARIANTS),mpi_$(variant))
 
-BUILDABLE_APP_VARIANTS := seq genseq
+BUILDABLE_APP_VARIANTS := seq genseq cuda cuda_hyb
 
 ifeq ($(CPP_HAS_OMP),true)
   BUILDABLE_APP_VARIANTS += vec openmp
@@ -11,13 +11,7 @@ ifeq ($(CPP_HAS_OMP4),true)
   BUILDABLE_APP_VARIANTS += openmp4
 endif
 
-ifdef CUDA_INSTALL_PATH
-  BUILDABLE_APP_VARIANTS += cuda cuda_hyb
-endif
-
-ifdef MPICXX
-  BUILDABLE_APP_VARIANTS += $(foreach variant,$(BUILDABLE_APP_VARIANTS),mpi_$(variant))
-endif
+BUILDABLE_APP_VARIANTS += $(foreach variant,$(BUILDABLE_APP_VARIANTS),mpi_$(variant))
 
 VARIANT_FILTER ?= %
 VARIANT_FILTER_OUT ?=

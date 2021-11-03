@@ -28,5 +28,11 @@ else
   NVCC_OPT = -g -O0
 endif
 
-NVCC ?= $(CUDA_INSTALL_PATH)/bin/nvcc
 NVCCFLAGS ?= $(NVCC_GEN) -m64 -Xptxas=-v $(NVCC_OPT)
+
+ifdef CUDA_INSTALL_PATH
+  NVCC ?= $(CUDA_INSTALL_PATH)/bin/nvcc
+else
+  NVCC ?= nvcc
+endif
+
