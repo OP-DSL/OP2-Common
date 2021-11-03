@@ -148,7 +148,7 @@ $(MOD):
 
 # Rules for files with a specific compilation setup
 $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
-	$(CXX) $(CXXFLAGS) $(INC) $(MPI_INC) -c $< -o $@
+	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
@@ -166,7 +166,7 @@ $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
-	$(NVCC) $(NVCCFLAGS) $(INC) $(MPI_INC) -c $< -o $@
+	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@

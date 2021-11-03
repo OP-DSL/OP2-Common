@@ -42,16 +42,24 @@
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
 
-#include <mpi.h>
-
 // use uthash from - http://troydhanson.github.com/uthash/
 #include <uthash.h>
+
+#ifndef OP_MPI_CORE_NOMPI
+#include <mpi.h>
 
 /** Define the root MPI process **/
 #ifdef MPI_ROOT
 #undef MPI_ROOT
 #endif
 #define MPI_ROOT 0
+
+/** extern variables for halo creation and exchange**/
+extern MPI_Comm OP_MPI_WORLD;
+extern MPI_Comm OP_MPI_GLOBAL;
+
+#endif /* OP_MPI_CORE_NOMPI */
+// Structs that don't need the MPI include
 
 /*******************************************************************************
 * MPI halo list data type
@@ -135,6 +143,9 @@ typedef struct {
   int cap;
 } op_mpi_kernel;
 
+// Structs and functions that use MPI definitions
+#ifndef OP_MPI_CORE_NOMPI
+
 /*******************************************************************************
 * Buffer struct used in non-blocking mpi halo sends/receives
 *******************************************************************************/
@@ -156,6 +167,8 @@ typedef struct {
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
 
+#endif /* OP_MPI_CORE_NOMPI */
+
 /** external variables **/
 
 extern int OP_part_index;
@@ -173,6 +186,9 @@ extern int **import_nonexec_list_partial_d;
 extern int *set_import_buffer_size;
 extern int **import_exec_list_disps_d;
 extern int **import_nonexec_list_disps_d;
+
+// Structs and functions that use MPI definitions
+#ifndef OP_MPI_CORE_NOMPI
 
 /*******************************************************************************
 * Data Type to hold sliding planes info
@@ -379,4 +395,5 @@ void op_scatter_sync();
 }
 #endif
 
+#endif /* OP_MPI_CORE_NOMPI */
 #endif /* __OP_MPI_CORE_H */

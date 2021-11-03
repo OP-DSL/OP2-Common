@@ -57,12 +57,13 @@ endif
 
 ifndef MPICC
 ifdef MPI_INSTALL_PATH
-  MPICC ?= $(MPI_INSTALL_PATH)/bin/mpicc
-  MPICXX ?= $(MPI_INSTALL_PATH)/bin/mpic++
-  MPIFC ?= $(MPI_INSTALL_PATH)/bin/mpifort
-
-  MPI_INC ?= -I$(MPI_INSTALL_PATH)/include
-  MPI_LIB ?= -L$(MPI_INSTALL_PATH)/lib -lmpi
+  MPICC = $(MPI_INSTALL_PATH)/bin/mpicc
+  MPICXX = $(MPI_INSTALL_PATH)/bin/mpic++
+  MPIFC = $(MPI_INSTALL_PATH)/bin/mpifort
+else
+  MPICC = mpicc
+  MPICXX = mpic++
+  MPIFC = mpifort
 endif
 endif
 
