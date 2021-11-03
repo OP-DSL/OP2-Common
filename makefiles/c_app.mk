@@ -28,6 +28,8 @@ BUILDABLE_APP_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
 ALL_APP_VARIANTS := $(foreach variant,$(ALL_APP_VARIANTS),$(APP_NAME)_$(variant))
 BUILDABLE_APP_VARIANTS := $(foreach variant,$(BUILDABLE_APP_VARIANTS),$(APP_NAME)_$(variant))
 
+.PHONY: all generate clean
+
 all: $(BUILDABLE_APP_VARIANTS)
 
 clean:
@@ -38,27 +40,9 @@ clean:
 	-rm -f out_grid_mpi.bin
 	-rm -f out_grid_mpi.dat
 
-GENERATED := $(APP_NAME)_op.cpp \
-	seq/$(APP_NAME)_seqkernels.cpp \
-	vec/$(APP_NAME)_veckernels.cpp \
-	openmp/$(APP_NAME)_kernels.cpp \
-	openmp4/$(APP_NAME)_omp4kernels.cpp \
-	cuda/$(APP_NAME)_kernels.cu \
-	cuda/$(APP_NAME)_hybkernels.cu \
-
-GENERATED_MPI := $(APP_NAME)_mpi_op.cpp \
-	seq/$(APP_NAME)_mpi_seqkernels.cpp \
-	vec/$(APP_NAME)_mpi_veckernels.cpp \
-	openmp/$(APP_NAME)_mpi_kernels.cpp \
-	openmp4/$(APP_NAME)_mpi_omp4kernels.cpp \
-	cuda/$(APP_NAME)_mpi_kernels.cu \
-	cuda/$(APP_NAME)_mpi_hybkernels.cu
-
-$(GENERATED)&: $(APP_NAME).cpp
-	$(ROOT_DIR)/translator/c/op2.py $(APP_NAME).cpp
-
-$(GENERATED_MPI)&: $(APP_NAME)_mpi.cpp
-	$(ROOT_DIR)/translator/c/op2.py $(APP_NAME)_mpi.cpp
+generate:
+	[ -f $(APP_NAME).cpp ] && $(ROOT_DIR)/translator/c/op2.py $(APP_NAME).cpp
+	[ -f $(APP_NAME)_mpi.cpp ] && $(ROOT_DIR)/translator/c/op2.py $(APP_NAME)_mpi.cpp
 
 $(APP_NAME)_seq: $(APP_NAME).cpp
 	$(CXX) $(CXXFLAGS) $(OP2_INC) $^ $(OP2_LIB_SEQ) -o $@
