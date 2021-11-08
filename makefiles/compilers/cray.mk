@@ -25,10 +25,9 @@ FFLAGS ?= $(BASE_FFLAGS)
 F_MOD_OUT_OPT ?= -em -J
 
 # Available OpenMP features
-OMP_CPPFLAGS ?=
-OMP_FFLAGS ?=
+OMP_CPPFLAGS ?= -fopenmp
+OMP_FFLAGS ?= -fopenmp
 
-# The compiler enables OpenMP by default for -O1 and up
 CPP_HAS_OMP ?= true
 F_HAS_OMP ?= true
 

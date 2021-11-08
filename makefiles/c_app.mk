@@ -37,12 +37,12 @@ clean:
 	-rm -rf seq vec openmp openmp4 cuda openacc
 	-rm -f *_op.cpp
 	-rm -f *.d
-	-rm -f out_grid_mpi.bin
-	-rm -f out_grid_mpi.dat
+	-rm -f out_grid.*
+	-rm -f out_grid_mpi.*
 
 generate:
-	[ -f $(APP_NAME).cpp ] && $(ROOT_DIR)/translator/c/op2.py $(APP_NAME).cpp
-	[ -f $(APP_NAME)_mpi.cpp ] && $(ROOT_DIR)/translator/c/op2.py $(APP_NAME)_mpi.cpp
+	[ ! -f $(APP_NAME).cpp ] || $(ROOT_DIR)/translator/c/op2.py $(APP_NAME).cpp
+	[ ! -f $(APP_NAME)_mpi.cpp ] || $(ROOT_DIR)/translator/c/op2.py $(APP_NAME)_mpi.cpp
 
 $(APP_NAME)_seq: $(APP_NAME).cpp
 	$(CXX) $(CXXFLAGS) $(OP2_INC) $^ $(OP2_LIB_SEQ) -o $@
