@@ -78,8 +78,9 @@ ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_LIB ?= -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
 endif
 
+HDF5_INC ?=
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC ?= -I$(HDF5_INSTALL_PATH)/include $(HDF5_INC)
+  HDF5_INC := -I$(HDF5_INSTALL_PATH)/include $(HDF5_INC)
   HDF5_LIB ?= -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
 
