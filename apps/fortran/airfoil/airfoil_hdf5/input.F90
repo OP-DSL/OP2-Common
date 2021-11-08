@@ -32,7 +32,7 @@ subroutine getSetSizes ( nnode, ncell, nedge, nbedge )
   open ( FILE_ID, file = currDir )
 
   ! first line includes number of cells, nodes, edges and bedges
-  read ( FILE_ID, "(1x,I6,1x,I6,1x,I7,1x,I4)" ) nnode, ncell, nedge, nbedge
+  read ( FILE_ID, * ) nnode, ncell, nedge, nbedge
 
   ! not closing file because it will be used below
 
