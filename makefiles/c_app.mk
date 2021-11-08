@@ -1,7 +1,7 @@
 ALL_APP_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
 ALL_APP_VARIANTS := $(ALL_APP_VARIANTS) $(foreach variant,$(ALL_APP_VARIANTS),mpi_$(variant))
 
-BUILDABLE_APP_VARIANTS := seq genseq cuda cuda_hyb
+BUILDABLE_APP_VARIANTS := seq genseq
 
 ifeq ($(CPP_HAS_OMP),true)
   BUILDABLE_APP_VARIANTS += vec openmp
