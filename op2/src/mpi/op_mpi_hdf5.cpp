@@ -68,6 +68,10 @@
 
 MPI_Comm OP_MPI_HDF5_WORLD;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int compute_local_size_weight(int global_size, int mpi_comm_size,
                               int mpi_rank) {
   int *hybrid_flags = (int *)xmalloc(mpi_comm_size * sizeof(int));
@@ -1476,3 +1480,7 @@ void op_fetch_data_hdf5_file_path(op_dat dat, char const *file_name,
                                   char const *path_name) {
   op_fetch_data_hdf5(dat, file_name, path_name);
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -77,6 +77,10 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 // used for checking if partial halo exchanges
 // are to be performed
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //
 // MPI Communicator for partitioning
 //
@@ -3769,3 +3773,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   }
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 }
+
+#ifdef __cplusplus
+}
+#endif

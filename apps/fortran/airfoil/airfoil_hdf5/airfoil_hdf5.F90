@@ -184,7 +184,7 @@ program AIRFOIL
       if ((mod(niter,1000) .eq. 0) .AND. (ncelli == 720000) ) then
         diff=ABS((100.0_8*(rms(2)/0.0001060114637578_8))-100.0_8)
         !write (*,*) niter,"  ",rms(2)
-        WRITE(*,'(a,i,a,e16.7,a)')"Test problem with ", ncelli , &
+        WRITE(*,'(a,i0,a,e16.7,a)')"Test problem with ", ncelli , &
         & " cells is within ",diff,"% of the expected solution"
         if(diff.LT.0.00001) THEN
           WRITE(*,*)"This test is considered PASSED"

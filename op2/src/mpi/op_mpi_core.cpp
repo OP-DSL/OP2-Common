@@ -97,6 +97,10 @@ op_export_handle *OP_export_list = NULL;
 // Timing
 double t1, t2, c1, c2;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
@@ -4152,3 +4156,7 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
     }
   }
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,4 +1,4 @@
-APP_NAME = reduction
+APP_NAME := reduction
 
 include ../../../makefiles/common.mk
 include ../../../makefiles/c_app.mk

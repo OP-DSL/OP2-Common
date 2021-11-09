@@ -18,6 +18,8 @@ CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
 CXXFLAGS ?= $(BASE_CPPFLAGS)
 FFLAGS ?= $(BASE_FFLAGS)
 
+CXXLINK ?= -lstdc++
+
 F_MOD_OUT_OPT ?= -J
 
 # Available OpenMP features

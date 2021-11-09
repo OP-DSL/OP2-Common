@@ -3,7 +3,7 @@
  * http://www.opensource.org/licenses/bsd-license.php
  *
  * This file is part of the OP2 distribution.
- *
+
  * Copyright (c) 2011, Mike Giles and others. Please see the AUTHORS file in
  * the main source directory for a full list of copyright holders.
  * All rights reserved.
@@ -58,6 +58,10 @@
 /*******************************************************************************
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 op_set op_decl_set_hdf5(char const *file, char const *name) {
   // HDF5 APIs definitions
@@ -1106,3 +1110,7 @@ void op_fetch_data_hdf5_file_path(op_dat dat, char const *file_name,
                                   char const *path_name) {
   op_fetch_data_hdf5(dat, file_name, path_name);
 }
+
+#ifdef __cplusplus
+}
+#endif
