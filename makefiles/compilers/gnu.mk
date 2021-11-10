@@ -4,7 +4,7 @@ CXX = g++
 FC = gfortran
 
 BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
-BASE_FFLAGS = -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none
+BASE_FFLAGS = -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none -fcray-pointer
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
