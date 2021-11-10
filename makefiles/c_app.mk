@@ -7,7 +7,7 @@ ifeq ($(CPP_HAS_OMP),true)
   BUILDABLE_APP_VARIANTS += vec openmp
 endif
 
-ifeq ($(CPP_HAS_OMP4),true)
+ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   BUILDABLE_APP_VARIANTS += openmp4
 endif
 
@@ -69,10 +69,10 @@ $(APP_NAME)_mpi_openmp: $(APP_NAME)_mpi_op.cpp openmp/$(APP_NAME)_mpi_kernels.cp
 	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_MPI) -o $@
 
 $(APP_NAME)_openmp4: $(APP_NAME)_op.cpp openmp4/$(APP_NAME)_omp4kernels.cpp
-	$(CXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_OPENMP) -o $@
+	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_OPENMP4) -o $@
 
 $(APP_NAME)_mpi_openmp4: $(APP_NAME)_mpi_op.cpp openmp4/$(APP_NAME)_mpi_omp4kernels.cpp
-	$(MPICXX) $(CXXFLAGS) $(OMP4_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_MPI) -o $@
+	$(MPICXX) $(CXXFLAGS) $(OMP_OFFLOAD_CPPFLAGS) $(OP2_INC) $^ $(OP2_LIB_MPI) -o $@
 
 cuda/%_kernels.o: cuda/%_kernels.cu
 	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c $^ -o $@
