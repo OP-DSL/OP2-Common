@@ -4669,6 +4669,7 @@ void create_reversed_mapping() {
       rev_map->row_start_idx = rev_row_start_idx;
       rev_map->reversed_map_d = NULL;
       rev_map->row_start_idx_d = NULL;
+
       rev_map->color_based_exec_d = NULL;
 
 
