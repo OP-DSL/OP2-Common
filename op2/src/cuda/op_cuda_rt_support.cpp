@@ -57,6 +57,7 @@
 
 typedef struct cudaDeviceProp cudaDeviceProp_t;
 
+
 // arrays for global constants and reductions
 
 int OP_consts_bytes = 0, OP_reduct_bytes = 0;
@@ -66,6 +67,10 @@ char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 //
 // CUDA utility functions
 //
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void __cudaSafeCall(cudaError_t err, const char *file, const int line) {
   if (cudaSuccess != err) {
@@ -544,4 +549,8 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 }
 
 int op_is_root() { return 1; }
+#endif
+
+#ifdef __cplusplus
+}
 #endif

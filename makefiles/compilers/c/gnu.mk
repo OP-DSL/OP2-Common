@@ -1,40 +1,23 @@
 # Compiler executables and flags
-CC = cc
-CXX = CC
-FC = ftn
-
-MPICC = cc
-MPICXX = CC
-MPIFC = ftn
+CC = gcc
+CXX = g++
 
 BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
-BASE_FFLAGS =
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
-  BASE_FFLAGS += -O3
 else
   BASE_CPPFLAGS += -g -Og
-  BASE_FFLAGS += -g -Og
 endif
 
 CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
 CXXFLAGS ?= $(BASE_CPPFLAGS)
-FFLAGS ?= $(BASE_FFLAGS)
 
-CXXLINK ?= -lc++
-
-F_MOD_OUT_OPT ?= -em -J
+CXXLINK ?= -lstdc++
 
 # Available OpenMP features
 OMP_CPPFLAGS ?= -fopenmp
-OMP_FFLAGS ?= -fopenmp
-
 CPP_HAS_OMP ?= true
-F_HAS_OMP ?= true
 
 OMP_OFFLOAD_CPPFLAGS ?=
-OMP_OFFLOAD_FFLAGS ?=
-
 CPP_HAS_OMP_OFFLOAD ?= false
-F_HAS_OMP_OFFLOAD ?= false

@@ -42,6 +42,10 @@
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //
 // CUDA-specific OP2 functions
 //
@@ -240,11 +244,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 void op_renumber(op_map base) { (void)base; }
 
-#ifdef __cplusplus
-extern "C"
-#endif
-    void
-    op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr){};
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
@@ -403,3 +403,6 @@ void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
 
 void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
 
+#ifdef __cplusplus
+}
+#endif

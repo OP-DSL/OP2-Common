@@ -90,5 +90,5 @@ $(APP_NAME)_openmp4: constants.F90 $(GEN_KERNELS_OMP4) $(APP_NAME)_seqfun.F90 in
 $(APP_NAME)_mpi_openmp4: constants.F90 $(GEN_KERNELS_OMP4) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_openmp4
 	$(MPIFC) $(FFLAGS) $(OMP_OFFLOAD_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
 
-# $(APP_NAME)_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/cuda
-# 	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_CUDA) $(CXXLINK) -o $@
+$(APP_NAME)_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/cuda
+	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD_CUDA) $(OP2_MOD) $^ $(OP2_LIB_FOR_CUDA) $(CXXLINK) -o $@

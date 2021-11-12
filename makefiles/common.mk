@@ -14,7 +14,7 @@ ROOT_DIR := $(shell realpath $(MAKEFILES_DIR)/../)
 
 # Include profile #! PRE section
 ifdef OP2_PROFILE
-  OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE)
+  OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
 
   $(shell awk '/#!\s+PRE/, /(#!\s+POST|END)/' $(OP2_PROFILE_FILE) > \
       $(MAKEFILES_DIR)/profile.pre.mk)
@@ -30,6 +30,7 @@ OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
 OP2_INC ?= -I$(ROOT_DIR)/op2/include
 OP2_LIB ?= -L$(OP2_BUILD_DIR)/lib
 OP2_MOD ?= -I$(OP2_BUILD_DIR)/mod
+OP2_MOD_CUDA ?= $(OP2_MOD)/cuda
 
 OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
@@ -42,29 +43,48 @@ OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
 
 AR := ar rcs
 
-ifndef OP2_COMPILER
-  $(warning OP2_COMPILER undefined: define or use an OP2_PROFILE)
+ifdef OP2_COMPILER
+  OP2_C_COMPILER ?= $(OP2_COMPILER)
+  OP2_F_COMPILER ?= $(OP2_COMPILER)
+  OP2_C_CUDA_COMPILER ?= nvhpc
 endif
 
-include $(MAKEFILES_DIR)/compilers/$(OP2_COMPILER).mk
-include $(MAKEFILES_DIR)/nvcc.mk
+ifdef OP2_C_COMPILER
+  include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
+else
+  $(warning OP2_C_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
+endif
+
+ifdef OP2_F_COMPILER
+  include $(MAKEFILES_DIR)/compilers/fortran/$(OP2_F_COMPILER).mk
+else
+  $(warning OP2_F_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
+endif
+
+ifdef OP2_C_CUDA_COMPILER
+  include $(MAKEFILES_DIR)/compilers/c_cuda/$(OP2_C_CUDA_COMPILER).mk
+else
+  $(warning OP2_C_CUDA_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
+endif
+
+ifeq ($(F_HAS_CUDA),true)
+  CUDA_FFLAGS += -DOP2_WITH_CUDAFOR
+endif
 
 ifdef CUDA_INSTALL_PATH
   CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
-  CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib -lcudart
+  CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64 \
+	      -L$(CUDA_INSTALL_PATH)/lib \
+	      -lcudart
 endif
 
-ifndef MPICC
 ifdef MPI_INSTALL_PATH
-  MPICC := $(MPI_INSTALL_PATH)/bin/mpicc
-  MPICXX := $(MPI_INSTALL_PATH)/bin/mpic++
-  MPIFC := $(MPI_INSTALL_PATH)/bin/mpifort
-else
-  MPICC := mpicc
-  MPICXX := mpic++
-  MPIFC := mpifort
+  MPI_BIN ?= $(MPI_INSTALL_PATH)/bin/
 endif
-endif
+
+MPICC ?= $(MPI_BIN)mpicc
+MPICXX ?= $(MPI_BIN)mpicxx
+MPIFC ?= $(MPI_BIN)mpif90
 
 CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK
 CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK
@@ -93,11 +113,11 @@ OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1) $(2)
 OP2_LIB_FOR_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_for_$(1) $(3)
 endef
 
-OP2_LIB_EXTRA =
-OP2_LIB_EXTRA_MPI = $(PARMETIS_LIB) $(PTSCOTCH_LIB)
+OP2_LIB_EXTRA +=
+OP2_LIB_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB)
 
-OP2_LIB_FOR_EXTRA = $(OP2_LIB_EXTRA)
-OP2_LIB_FOR_EXTRA_MPI = $(OP2_LIB_EXTRA_MPI)
+OP2_LIB_FOR_EXTRA += $(OP2_LIB_EXTRA)
+OP2_LIB_FOR_EXTRA_MPI += $(OP2_LIB_EXTRA_MPI)
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
   OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_LIB)

@@ -1,4 +1,4 @@
-include $(MAKEFILES_DIR)/compilers/gnu.mk
+include $(MAKEFILES_DIR)/compilers/c/gnu.mk
 
 CC = clang
 CXX = clang++

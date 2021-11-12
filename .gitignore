@@ -50,9 +50,7 @@ makefiles/profile.post.mk
 *.pyg.*
 *.optrpt
 *.lst
-
-#opt files
-*.optrpt
+*.swp
 
 #opt files
 *.optrpt
