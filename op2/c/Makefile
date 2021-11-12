@@ -207,6 +207,13 @@ ifdef HDF5_INSTALL_PATH
   HDF5_LIB = -L$(HDF5_INSTALL_PATH)/lib
 endif
 HDF5_LIB += -lhdf5 -lz
+# Detect if HDF5 was built as parallel:
+H5_HAVE_PARALLEL = $(shell grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" $(HDF5_INSTALL_PATH)/include/H5pubconf.h)
+ifneq ($(H5_HAVE_PARALLEL),)
+	HDF5_CXX=$(MPICXX)
+else
+	HDF5_CXX=$(CXX)
+endif
 
 .PHONY: clean mklib
 
@@ -220,9 +227,8 @@ core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+	$(HDF5_CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
 	-o $(OBJ)/op_hdf5.o
-
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/op_hdf5.o $(OBJ)/op_util.o
 
 seq: mklib core $(INC)/op_seq.h $(SRC)/sequential/op_seq.c $(OBJ)/op_lib_core.o
