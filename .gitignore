@@ -31,9 +31,11 @@ source_*
 *.mod
 numawrap*
 
+!makefiles/compilers/c_cuda
+
 # generated profiles
-makefiles/profile.pre.mk
-makefiles/profile.post.mk
+makefiles/.profile.pre.mk
+makefiles/.profile.post.mk
 
 #python
 *.pyc

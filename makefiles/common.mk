@@ -17,12 +17,12 @@ ifdef OP2_PROFILE
   OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
 
   $(shell awk '/#!\s+PRE/, /(#!\s+POST|END)/' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/profile.pre.mk)
+      $(MAKEFILES_DIR)/.profile.pre.mk)
 
   $(shell awk '/#!\s+POST/, /(#!\s+PRE|END)/' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/profile.post.mk)
+      $(MAKEFILES_DIR)/.profile.post.mk)
 
-  include $(MAKEFILES_DIR)/profile.pre.mk
+  include $(MAKEFILES_DIR)/.profile.pre.mk
 endif
 
 OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
@@ -138,5 +138,5 @@ OP2_LIB_MPI_CUDA += $(CUDA_LIB)
 
 # Include profile #! POST section
 ifdef OP2_PROFILE_FILE
-  include $(MAKEFILES_DIR)/profile.post.mk
+  include $(MAKEFILES_DIR)/.profile.post.mk
 endif
