@@ -26,12 +26,14 @@ ifneq ($(shell which $(MPICC) 2> /dev/null),)
   OP2_BUILDABLE_LIBS += mpi
 endif
 
-OP2_FOR_BUILDABLE_LIBS := $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
+ifneq ($(shell which $(FC) 2> /dev/null),)
+  OP2_BUILDABLE_LIBS += $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
+endif
 
 # Build rules
 .PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)
 
-all: $(OP2_BUILDABLE_LIBS) $(OP2_FOR_BUILDABLE_LIBS)
+all: $(OP2_BUILDABLE_LIBS)
 
 clean:
 	-rm -rf $(OBJ)
