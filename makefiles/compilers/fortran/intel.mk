@@ -10,8 +10,8 @@ else
 endif
 
 FFLAGS ?= $(BASE_FFLAGS)
-
 F_MOD_OUT_OPT ?= -module #
+F_HAS_PARALLEL_BUILDS ?= true
 
 # Available OpenMP features
 OMP_FFLAGS ?= -qopenmp

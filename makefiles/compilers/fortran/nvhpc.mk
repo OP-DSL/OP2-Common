@@ -1,5 +1,3 @@
-# TODO: PGI_CUDA_FORT_FLAGS? F_HAS_CUDA? -pgc++libs?
-
 # Compiler executables and flags
 FC ?= nvfortran
 
@@ -12,8 +10,10 @@ else
 endif
 
 FFLAGS ?= $(BASE_FFLAGS)
-
 F_MOD_OUT_OPT ?= -module #
+
+# NVFORTRAN and parallel builds do not mix well...
+F_HAS_PARALLEL_BUILDS ?= false
 
 # Available OpenMP features
 OMP_FFLAGS ?= -mp

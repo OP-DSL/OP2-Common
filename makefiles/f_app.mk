@@ -1,17 +1,25 @@
+ifneq ($(F_HAS_PARALLEL_BUILDS),true)
+  .NOTPARALLEL:
+endif
+
 PART_SIZE_ENV ?= 128
 FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
-ALL_APP_VARIANTS := seq genseq vec openmp openmp4
+ALL_APP_VARIANTS := seq genseq vec openmp openmp4 cuda
 ALL_APP_VARIANTS := $(ALL_APP_VARIANTS) $(foreach variant,$(ALL_APP_VARIANTS),mpi_$(variant))
 
 BUILDABLE_APP_VARIANTS := seq genseq
 
 ifeq ($(F_HAS_OMP),true)
-	BUILDABLE_APP_VARIANTS += vec openmp
+  BUILDABLE_APP_VARIANTS += vec openmp
 endif
 
 ifeq ($(F_HAS_OMP_OFFLOAD),true)
-	BUILDABLE_APP_VARIANTS += openmp4
+  BUILDABLE_APP_VARIANTS += openmp4
+endif
+
+ifeq ($(F_HAS_CUDA),true)
+  BUILDABLE_APP_VARIANTS += cuda
 endif
 
 ifneq ($(shell which $(MPIFC) 2> /dev/null),)
@@ -51,7 +59,7 @@ all: $(BUILDABLE_APP_VARIANTS)
 clean:
 	-rm -f $(ALL_APP_VARIANTS)
 	-rm -f $(GENERATED)
-	-rm -f *.mod
+	-rm -f *.o
 	-rm -rf mod
 
 generate:
@@ -92,3 +100,6 @@ $(APP_NAME)_mpi_openmp4: constants.F90 $(GEN_KERNELS_OMP4) $(APP_NAME)_seqfun.F9
 
 $(APP_NAME)_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/cuda
 	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD_CUDA) $(OP2_MOD) $^ $(OP2_LIB_FOR_CUDA) $(CXXLINK) -o $@
+
+$(APP_NAME)_mpi_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_cuda
+	$(MPIFC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD_CUDA) $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI_CUDA) $(CXXLINK) -o $@
