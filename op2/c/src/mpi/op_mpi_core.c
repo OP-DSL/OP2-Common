@@ -3076,12 +3076,31 @@ void op_mpi_exit() {
     op_free(OP_export_list);
 }
 
+#ifndef COMM_AVOID
 int getSetSizeFromOpArg(op_arg *arg) {
   return arg->opt ? (arg->dat->set->size +
                      OP_import_exec_list[arg->dat->set->index]->size +
                      OP_import_nonexec_list[arg->dat->set->index]->size)
                   : 0;
 }
+#else
+int getSetSizeFromOpArg(op_arg *arg) {
+
+  int exec_levels = 2;
+  int exec_size = 0;
+
+  if(arg->opt){
+    for(int l = 0; l < exec_levels; l++){
+      exec_size += OP_aug_import_exec_lists[l][arg->dat->set->index]->size;
+    }
+  }
+
+  return arg->opt ? (arg->dat->set->size +
+                     exec_size +
+                     OP_import_nonexec_list[arg->dat->set->index]->size)
+                  : 0;
+}
+#endif
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
@@ -3116,7 +3135,11 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      #ifndef COMM_AVOID
       size = set->size + set->exec_size;
+      #else
+      size = set->size + OP_aug_import_exec_lists[0][set->index]->size;
+      #endif
       exec_flag = 1;
     }
   }

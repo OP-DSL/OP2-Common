@@ -340,13 +340,13 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 mpi_comm_avoid: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(SRC)/mpi/op_mpi_comm_avoid.c \
 	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
+	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_comm_avoid.c \
 	-o $(OBJ)/op_mpi_comm_avoid.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
+	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_decl.o
 	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \
 	-o $(OBJ)/op_mpi_rt_support.o

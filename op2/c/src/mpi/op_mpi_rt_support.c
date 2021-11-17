@@ -234,7 +234,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 
     //-------first exchange exec elements related to this data array--------
     int set_elem_index;
-    int exec_levels = 1;
+    int exec_levels = 2;
     int imp_exec_size = 0;
     int prev_exec_size = 0;
     for(int l = 0; l < exec_levels; l++){
@@ -257,7 +257,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
           set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                      ->buf_exec[exp_exec_list->disps[i] * dat->size +
+                      ->buf_aug_exec[l][exp_exec_list->disps[i] * dat->size +
                                 j * dat->size],
                 (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
         }
@@ -267,7 +267,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         //   printf("%g ", b[el]);
         // printf("\n");
         MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                      ->buf_exec[exp_exec_list->disps[i] * dat->size],
+                      ->buf_aug_exec[l][exp_exec_list->disps[i] * dat->size],
                   dat->size * exp_exec_list->sizes[i], MPI_CHAR,
                   exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                   &((op_mpi_buffer)(dat->mpi_buffer))

@@ -110,6 +110,174 @@ void check_augmented_part_range(int* parts, int set_index, int value, int my_ran
   }
 }
 
+halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, int my_rank){
+
+  if(!h_list1 && !h_list2){
+    return NULL;
+  }
+  if(!h_list1 && h_list2){
+    return h_list2;
+  }
+  if(h_list1 && !h_list2){
+    return h_list1;
+  }
+
+  if(h_list1->ranks_size == 0 && h_list2->ranks_size == 0){
+    return h_list1;
+  }
+  if(h_list1->ranks_size == 0 && h_list2->ranks_size != 0){
+    return h_list2;
+  }
+  if(h_list1->ranks_size != 0 && h_list2->ranks_size == 0){
+    return h_list1;
+  }
+
+  if (compare_sets(h_list1->set, h_list2->set) != 1) {
+    printf("ERROR: Invalid set merge");
+    return NULL;
+  }
+
+  int* h1_ranks = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_ranks = (int *)xmalloc(comm_size * sizeof(int));
+
+  int* h1_sizes = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  int* h1_disps = (int *)xmalloc(comm_size * sizeof(int));
+  int* h2_disps = (int *)xmalloc(comm_size * sizeof(int));
+
+  int *ranks = (int *)xmalloc(comm_size * sizeof(int));
+  int *disps = (int *)xmalloc(comm_size * sizeof(int));
+  int *sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  for(int i = 0; i < comm_size; i ++){
+    h1_ranks[i] = -99;
+    h2_ranks[i] = -99;
+    h1_sizes[i] = -99;
+    h2_sizes[i] = -99;
+    h1_disps[i] = -99;
+    h2_disps[i] = -99;
+    ranks[i] = -99;
+    disps[i] = -99;
+    sizes[i] = -99;
+  }
+
+  for(int i = 0; i < h_list1->ranks_size; i++){
+    h1_ranks[h_list1->ranks[i]] = 1;
+    h1_sizes[h_list1->ranks[i]] = h_list1->sizes[i];
+    h1_disps[h_list1->ranks[i]] = h_list1->disps[i];
+  }
+
+  for(int i = 0; i < h_list2->ranks_size; i++){
+    h2_ranks[h_list2->ranks[i]] = 1;
+    h2_sizes[h_list2->ranks[i]] = h_list2->sizes[i];
+    h2_disps[h_list2->ranks[i]] = h_list2->disps[i];
+  }
+
+  //count cumulative size
+  int merged_size = 0;
+  for(int i = 0; i < comm_size; i++){
+    if(h1_ranks[i] > 0){
+      merged_size++;
+    }
+    else if(h2_ranks[i] > 0){
+      merged_size++;
+    }
+  }
+  
+  int total_size = 0;
+  for(int i = 0; i < comm_size; i++){
+    if(h1_ranks[i] > 0){
+      total_size += h1_sizes[i];
+    }
+    if(h2_ranks[i] > 0){
+      total_size += h2_sizes[i];
+    }
+  }
+  int* list = (int *)xmalloc(total_size * sizeof(int)); // max total size of the list
+
+  int disp = 0;
+  int start = 0;
+  int index = 0;
+  total_size = 0;
+
+  
+  for(int i = 0; i < comm_size; i++){
+    int rank = -1;
+    int size = 0;
+    start = disp;
+    if(h1_ranks[i] > 0){
+      rank = i;
+      for(int j = 0; j < h1_sizes[i]; j++){
+        list[disp++] = h_list1->list[h1_disps[i] + j];
+      }
+    }
+    if(h2_ranks[i] > 0){
+      rank = i;
+      for(int j = 0; j < h2_sizes[i]; j++){
+        list[disp++] = h_list2->list[h2_disps[i] + j];
+      }
+    }
+
+    if(disp > start){
+      quickSort(&list[start], 0, (disp - start - 1));
+      int new_size = removeDups(&list[start], (disp - start));
+
+      if(new_size != disp - start){
+        printf("ERROR duplicates new_size=%d prev_size=%d\n", new_size, disp - start);
+      }else{
+        printf("Merging duplicates new_size=%d prev_size=%d\n", new_size, disp - start);
+      }
+      disp = start + new_size;
+    }
+
+    if(h1_ranks[i] > 0 || h2_ranks[i] > 0){
+      ranks[index] = rank;
+      sizes[index] = disp - start;
+      total_size += sizes[index];
+      index++;
+    }
+  }
+
+  disps[0] = 0;
+  for (int i = 0; i < comm_size; i++) {
+    if (i > 0)
+      disps[i] = disps[i - 1] + sizes[i - 1];
+  }
+
+  halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
+
+  h_list->set = h_list1->set;
+  h_list->size = total_size;
+  h_list->ranks = ranks;
+  h_list->ranks_size = merged_size;
+  h_list->disps = disps;
+  h_list->sizes = sizes;
+  h_list->list = list;
+
+  // op_free(h_list1->ranks);
+  // op_free(h_list1->disps);
+  // op_free(h_list1->sizes);
+  // op_free(h_list1->list);
+  // op_free(h_list1);
+
+  // op_free(h_list2->ranks);
+  // op_free(h_list2->disps);
+  // op_free(h_list2->sizes);
+  // op_free(h_list2->list);
+  // op_free(h_list2);
+
+
+  op_free(h1_ranks);
+  op_free(h2_ranks);
+  op_free(h1_sizes);
+  op_free(h2_sizes);
+  op_free(h1_disps);
+  op_free(h2_disps);
+
+  return h_list;
+}
+
 halo_list* create_handshake_h_list(halo_list * h_lists, int **part_range, int my_rank, int comm_size){
 
   halo_list* handshake_h_list = (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
@@ -716,23 +884,20 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
 
     op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
-    int exec_e_size = 0;
+    mpi_buf->buf_aug_exec = (char **)xmalloc(exec_levels * sizeof(char *));
     int exec_e_ranks_size = 0;
-    for(int l = 0; l < exec_levels; l++){
-      exec_e_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
-      exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
-    }
-    
-    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-    mpi_buf->buf_exec = (char *)xmalloc((exec_e_size) * dat->size);
-    mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size + nonexec_i_list->size) * dat->size);
-
     int exec_i_ranks_size = 0;
     for(int l = 0; l < exec_levels; l++){
+      halo_list exec_e_list = OP_aug_export_exec_lists[l][dat->set->index];
+      mpi_buf->buf_aug_exec[l] = (char *)xmalloc((exec_e_list->size) * dat->size);
+      exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
       exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
     }
+
+    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
+    mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+
+    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
 
     mpi_buf->s_req = (MPI_Request *)xmalloc(
         sizeof(MPI_Request) *
@@ -754,6 +919,7 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
     dat->dirtybit = 0;
   }
 }
+
 
 void step10_halo(int exec_levels, int **part_range, int **core_elems, int **exp_elems, int my_rank, int comm_size){
  
@@ -1037,7 +1203,7 @@ void op_halo_create_comm_avoid() {
     }
   }
 
-  int exec_levels = 5;
+  int exec_levels = 2;
   
   for(int l = 0; l < exec_levels; l++){
     /*----- STEP 1 - Construct export lists for execute set elements and related

@@ -121,6 +121,68 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   return out_dat;
 }
 
+#ifdef COMM_AVOID
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
+                             char const *name) {
+  printf("op_decl_dat_temp_char COMM_AVOID\n");
+
+  char *d = NULL;
+  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
+
+  // create empty data block to assign to this temporary dat (including the
+  // halos)
+  int exec_levels = 2;
+  int halo_size = 0;
+  for(int l = 0; l < exec_levels; l++){
+    halo_size += OP_aug_import_exec_lists[l][set->index]->size;
+  }
+  halo_size += OP_import_nonexec_list[set->index]->size;
+
+  // initialize data bits to 0
+  //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
+  for (size_t i = 0; i < (set->size + halo_size) * dim * size; i++)
+    dat->data[i] = 0;
+  dat->user_managed = 0;
+
+  // need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  // int exec_e_list_size = 0;
+  int exec_e_list_rank_size = 0;
+  int exec_i_list_rank_size = 0;
+
+  mpi_buf->buf_aug_exec = (char **)xmalloc(exec_levels * sizeof(char *));
+
+  for(int l = 0; l < exec_levels; l++){
+    // exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+    mpi_buf->buf_aug_exec[l] = (char *)xmalloc((OP_aug_export_exec_lists[l][set->index]->size) * dat->size);
+
+    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size;
+    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size;
+  }
+
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+
+  // mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_e_list_rank_size + nonexec_e_list->ranks_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_i_list_rank_size + nonexec_i_list->ranks_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  dat->mpi_buffer = mpi_buf;
+
+  return dat;
+}
+#else
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
   char *d = NULL;
@@ -163,9 +225,15 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   return dat;
 }
+#endif
 
 int op_free_dat_temp_char(op_dat dat) {
   // need to free mpi_buffers used in this op_dat
+  int exec_levels = 2;
+  for(int l = 0; l < exec_levels; l++){
+    free(((op_mpi_buffer)(dat->mpi_buffer))->buf_aug_exec[l]);
+  }
+  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_aug_exec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
