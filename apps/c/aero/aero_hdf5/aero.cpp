@@ -45,7 +45,6 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
 // OP header file
 //
 
-#include "op_lib_mpi.h"
 #include "op_seq.h"
 
 //

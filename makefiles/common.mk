@@ -101,10 +101,27 @@ ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_LIB ?= -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
 endif
 
-HDF5_INC ?=
 ifdef HDF5_INSTALL_PATH
-  HDF5_INC := -I$(HDF5_INSTALL_PATH)/include $(HDF5_INC)
-  HDF5_LIB ?= -L$(HDF5_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
+  HDF5_IS_PAR = $(shell grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" \
+		$(HDF5_INSTALL_PATH)/include/H5pubconf.h)
+
+  ifneq ($(HDF5_IS_PAR),)
+    HDF5_PAR_INSTALL_PATH = $(HDF5_INSTALL_PATH)
+  else
+    HDF5_SEQ_INSTALL_PATH = $(HDF5_INSTALL_PATH)
+  endif 
+endif
+
+HDF5_SEQ_INC ?=
+ifdef HDF5_SEQ_INSTALL_PATH
+  HDF5_SEQ_INC := -I$(HDF5_SEQ_INSTALL_PATH)/include $(HDF5_SEQ_INC)
+  HDF5_SEQ_LIB ?= -L$(HDF5_SEQ_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
+endif
+
+HDF5_PAR_INC ?=
+ifdef HDF5_PAR_INSTALL_PATH
+  HDF5_PAR_INC := -I$(HDF5_PAR_INSTALL_PATH)/include $(HDF5_PAR_INC)
+  HDF5_PAR_LIB ?= -L$(HDF5_PAR_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
 endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
@@ -120,11 +137,11 @@ OP2_LIB_FOR_EXTRA += $(OP2_LIB_EXTRA)
 OP2_LIB_FOR_EXTRA_MPI += $(OP2_LIB_EXTRA_MPI)
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
-  OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_LIB)
-  OP2_LIB_EXTRA_MPI += -lop2_hdf5 $(HDF5_LIB)
+  OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_SEQ_LIB)
+  OP2_LIB_EXTRA_MPI += $(HDF5_PAR_LIB)
 
-  OP2_LIB_FOR_EXTRA += -lop2_for_hdf5 $(HDF5_LIB)
-  OP2_LIB_FOR_EXTRA_MPI += -lop2_for_hdf5 $(HDF5_LIB)
+  OP2_LIB_FOR_EXTRA += -lop2_for_hdf5_seq $(HDF5_SEQ_LIB)
+  OP2_LIB_FOR_EXTRA_MPI += $(HDF5_PAR_LIB)
 endif
 
 $(foreach lib,$(OP2_LIBS_SINGLE_NODE),$(eval $(call OP2_LIB_template,$(lib),\

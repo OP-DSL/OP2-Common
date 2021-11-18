@@ -5,10 +5,14 @@ OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
 
-INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(CUDA_INC)
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(CUDA_INC)
 
 # Calculate the libraries that we can actually build
-OP2_BUILDABLE_LIBS := hdf5 seq openmp
+OP2_BUILDABLE_LIBS := seq openmp
+
+ifdef HDF5_SEQ_INSTALL_PATH
+  OP2_BUILDABLE_LIBS += hdf5
+endif
 
 ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   OP2_BUILDABLE_LIBS += openmp4
@@ -159,7 +163,7 @@ $(MOD)/%:
 
 # Rules for files with a specific compilation setup
 $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
-	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INC) $(HDF5_SEQ_INC) -c $< -o $@
 
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
@@ -174,7 +178,7 @@ $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
-	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
+	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
 	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@

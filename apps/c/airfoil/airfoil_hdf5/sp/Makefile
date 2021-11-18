@@ -1,18 +1,23 @@
 APP_NAME := airfoil
-OP2_LIBS_WITH_HDF5 := true
 
-VARIANT_FILTER := mpi_%
+APP_ENTRY := $(APP_NAME).cpp
+APP_ENTRY_MPI := $(APP_ENTRY)
+
+OP2_LIBS_WITH_HDF5 := true
 
 include ../../../../../makefiles/common.mk
 include ../../../../../makefiles/c_app.mk
 
 .PHONY: clean_convert_mesh
 
-all: convert_mesh
+ifdef HDF5_PAR_INSTALL_PATH
+  all: convert_mesh
+endif
+
 clean: clean_convert_mesh
 
 convert_mesh: convert_mesh.cpp
-	$(MPICXX) $(CXXFLAGS) $(OP2_INC) $(HDF5_INC) $^ $(OP2_LIB_MPI) -o $@
+	$(MPICXX) $(CXXFLAGS) $(OP2_INC) $(HDF5_PAR_INC) $^ $(OP2_LIB_MPI) -o $@
 
 clean_convert_mesh:
 	-rm -f convert_mesh
