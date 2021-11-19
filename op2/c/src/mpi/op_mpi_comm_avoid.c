@@ -884,16 +884,21 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
 
     op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
-    mpi_buf->buf_aug_exec = (char **)xmalloc(exec_levels * sizeof(char *));
+    int exec_e_list_size = 0;
+    int exec_i_list_size = 0;
     int exec_e_ranks_size = 0;
     int exec_i_ranks_size = 0;
+
     for(int l = 0; l < exec_levels; l++){
-      halo_list exec_e_list = OP_aug_export_exec_lists[l][dat->set->index];
-      mpi_buf->buf_aug_exec[l] = (char *)xmalloc((exec_e_list->size) * dat->size);
+      exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
+      exec_i_list_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
       exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
       exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
     }
 
+    mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
+    mpi_buf->buf_recv= (char *)xmalloc(exec_i_list_size * dat->size);
+    
     halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
     mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
@@ -1391,4 +1396,8 @@ int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_
   }else{
     return OP_import_nonexec_list[set->index]->size;
   }
+}
+
+int get_size_of_exec_level(op_set set, int level){
+  return OP_aug_import_exec_lists[level][set->index]->size;
 }

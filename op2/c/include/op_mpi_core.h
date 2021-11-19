@@ -152,8 +152,8 @@ typedef struct {
   int s_num_req;
   // number of receive MPI_Reqests in flight at a given time for this op_dat
   int r_num_req;
-  // buffer holding augmented exec halo to be exported;
-  char **buf_aug_exec;
+  // buffer holding received exec halo;
+  char *buf_recv;
 } op_mpi_buffer_core;
 
 typedef op_mpi_buffer_core *op_mpi_buffer;

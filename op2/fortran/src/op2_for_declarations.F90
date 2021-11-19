@@ -810,6 +810,12 @@ module OP2_Fortran_Declarations
      type(c_ptr), value, intent(in) :: map
    end function
 
+   INTEGER(kind=c_int) function get_size_of_exec_level_c( set, level ) BIND(C,name='get_size_of_exec_level')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: set
+      integer(kind=c_int), value :: level
+   end function
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -2947,6 +2953,15 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     op_copy_map_to_fort = op_copy_map_to_fort_c(c_loc(map))
 
   end function op_copy_map_to_fort
+
+  INTEGER(8) function get_size_of_exec_level ( set, level )
+    use, intrinsic :: ISO_C_BINDING
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), value :: level
+
+    get_size_of_exec_level = get_size_of_exec_level_c( set%setCPtr, level )
+
+  end function get_size_of_exec_level
 
 end module OP2_Fortran_Declarations
 

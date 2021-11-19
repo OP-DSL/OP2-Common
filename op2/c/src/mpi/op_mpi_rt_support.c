@@ -224,11 +224,14 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 
   arg->sent = 0; // reset flag
 
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
-    //    printf("Exchanging Halo of data array %10s\n",dat->name);
+      //  printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
     halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
@@ -236,12 +239,16 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     int set_elem_index;
     int exec_levels = 2;
     int imp_exec_size = 0;
-    int prev_exec_size = 0;
+    int exp_exec_size = 0;
+    int prev_exp_exec_size = 0;
+    int prev_imp_exec_size = 0;
     for(int l = 0; l < exec_levels; l++){
       halo_list imp_exec_list = OP_aug_import_exec_lists[l][dat->set->index];
       halo_list exp_exec_list = OP_aug_export_exec_lists[l][dat->set->index];
-      prev_exec_size = imp_exec_size;
+      prev_imp_exec_size = imp_exec_size;
       imp_exec_size += imp_exec_list->size;
+      prev_exp_exec_size = exp_exec_size;
+      exp_exec_size += exp_exec_list->size;
       // sanity checks
       if (compare_sets(imp_exec_list->set, dat->set) == 0) {
         printf("Error: Import list and set mismatch\n");
@@ -257,7 +264,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
           set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                      ->buf_aug_exec[l][exp_exec_list->disps[i] * dat->size +
+                      ->buf_exec[prev_exp_exec_size * dat->size + exp_exec_list->disps[i] * dat->size +
                                 j * dat->size],
                 (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
         }
@@ -267,14 +274,14 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         //   printf("%g ", b[el]);
         // printf("\n");
         MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                      ->buf_aug_exec[l][exp_exec_list->disps[i] * dat->size],
+                      ->buf_exec[prev_exp_exec_size * dat->size + exp_exec_list->disps[i] * dat->size],
                   dat->size * exp_exec_list->sizes[i], MPI_CHAR,
                   exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                   &((op_mpi_buffer)(dat->mpi_buffer))
-                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);       
       }
 
-      int init = (dat->set->size + prev_exec_size) * dat->size;
+      int init = (dat->set->size + prev_imp_exec_size) * dat->size;
       for (int i = 0; i < imp_exec_list->ranks_size; i++) {
         //      printf("import exec on to %d from %d set %10s data %10s, number of elements of size %d start=%d| recieving:\n ",
         //           my_rank, imp_exec_list->ranks[i], dat->set->name, dat->name,

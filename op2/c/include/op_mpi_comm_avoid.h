@@ -50,4 +50,6 @@ int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_n
 int find_element_in(int* arr, int element);
 int get_max_value(int* arr, int from, int to);
 
+int get_size_of_exec_level(op_set set, int level);
+
 #endif /* __OP_MPI_COMM_AVOID_H */
