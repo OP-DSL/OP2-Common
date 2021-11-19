@@ -1,0 +1,11 @@
+# Latex artifacts
+*.log
+*.aux
+*.toc
+*.out
+*.backup
+*.blg
+*.bbl
+*.pyg.*
+*.lst
+*.pdf

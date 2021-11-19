@@ -1,66 +1,17 @@
-# Compiled Object files
-*.slo
-*.lo
+# Compilation artifacts
 *.o
-*_cu.o
-*.d
-# Compiled Dynamic libraries
-*.so
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*_seq
-*_openmp
-*_openmp4
-*_cuda
-*_mpi
-*_vec
-*_genseq
-*_cuda_hyb
-*.dat
-*_sycl
-*_openacc
-source_*
-#*.txt
-#*.dat
-*_mpi
-*.h5
-*.bin
-#fortran
+*.lo
 *.mod
-numawrap*
+*.d
+*.optrpt
 
-!makefiles/compilers/c_cuda
+# Compiled libraries
+*.so
+*.a
 
-# generated profiles
-makefiles/.profile.pre.mk
-makefiles/.profile.post.mk
-
-#python
+# Python artifacts
 *.pyc
 
-#latex
-*.log
-*.aux
-*.toc
-*.out
-*.backup
-*.blg
-*.bbl
+# Miscellaneous
 *~
-*.pyg.*
-*.optrpt
-*.lst
 *.swp
-
-#opt files
-*.optrpt
-
-#directories
-op2/lib/
-op2/obj/
-op2/mod/
-
-#docs
-doc/*.pdf
