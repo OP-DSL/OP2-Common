@@ -149,4 +149,4 @@ cuda/$(APP_NAME)_mpi_hybkernels_cpu.o: .generated
 
 
 # TODO: sort out the headers with missing includes
-# -include $(wildcard *.d)
+-include $(wildcard *.d)
