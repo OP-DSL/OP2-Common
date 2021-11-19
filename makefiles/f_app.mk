@@ -121,7 +121,7 @@ endef
 
 $(eval $(call RULE_template, seq,,                               SEQ,     MPI,))
 $(eval $(call RULE_template, genseq,,                            SEQ,     MPI,))
-$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE, OPENMP,  MPI,))
-$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS)            , OPENMP,  MPI,))
+$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE, SEQ,     MPI,))
+$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS),             OPENMP,  MPI,))
 $(eval $(call RULE_template, openmp4, $(OMP_OFFLOAD_FFLAGS),     OPENMP4, MPI,))
 $(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS),            CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))

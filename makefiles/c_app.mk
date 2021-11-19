@@ -74,7 +74,7 @@ clean:
 SEQ_SRC := $(APP_ENTRY)
 MPI_SEQ_SRC := $(APP_ENTRY_MPI)
 
-define SRC_template = 
+define SRC_template =
 $(1)_SRC := $$(APP_ENTRY_OP) $$(subst %,$$(APP_ENTRY_BASENAME),$(2))
 MPI_$(1)_SRC := $$(APP_ENTRY_MPI_OP) $$(subst %,$$(APP_ENTRY_MPI_BASENAME),$(2))
 endef
@@ -93,47 +93,43 @@ CUDA_HYB_SRC := $(APP_ENTRY_OP) \
 MPI_CUDA_HYB_SRC := $(APP_ENTRY_MPI_OP) \
 	cuda/$(APP_NAME)_mpi_hybkernels_cpu.o cuda/$(APP_NAME)_mpi_hybkernels_gpu.o
 
-$(APP_NAME)_seq: $(SEQ_SRC)
-	$(CXX) $(CXXFLAGS) $(OP2_INC) $^ $(OP2_LIB_SEQ) -o $@
 
-$(APP_NAME)_mpi_seq: $(MPI_SEQ_SRC)
-	$(MPICXX) $(CXXFLAGS) $(OP2_INC) $^ $(OP2_LIB_MPI) -o $@
+# $(1) = variant name
+# $(2) = additional flags
+# $(3) = OP2 library for sequential variant
+# $(4) = OP2 library for parallel variant
+define RULE_template_base =
+$$(APP_NAME)_$(1): .generated
+	$$(CXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(3)) -o $$@
 
-$(APP_NAME)_genseq: .generated
-	$(CXX) $(CXXFLAGS) $(OP2_INC) $(GENSEQ_SRC) $(OP2_LIB_SEQ) -o $@
+$$(APP_NAME)_mpi_$(1): .generated
+	$$(MPICXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$(MPI_$(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(4)) -o $$@
+endef
 
-$(APP_NAME)_mpi_genseq: .generated
-	$(MPICXX) $(CXXFLAGS) $(OP2_INC) $(MPI_GENSEQ_SRC) $(OP2_LIB_MPI) -o $@
+# the same as RULE_template_base but it first strips its arguments of extra space
+define RULE_template =
+$(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)))
+endef
 
-$(APP_NAME)_vec: .generated
-	$(CXX) $(CXXFLAGS) -DVECTORIZE $(OMP_CPPFLAGS) $(OP2_INC) $(VEC_SRC) $(OP2_LIB_SEQ) -o $@
+$(eval $(call RULE_template, seq,,                                  SEQ,     MPI))
+$(eval $(call RULE_template, genseq,,                               SEQ,     MPI))
+$(eval $(call RULE_template, vec,      $(OMP_CPPFLAGS) -DVECTORIZE, SEQ,     MPI))
+$(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS),             OPENMP,  MPI))
+$(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS),     OPENMP4, MPI))
+$(eval $(call RULE_template, cuda,,                                 CUDA,    MPI_CUDA))
+$(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),             CUDA,    MPI_CUDA))
 
-$(APP_NAME)_mpi_vec: .generated
-	$(MPICXX) $(CXXFLAGS) -DVECTORIZE $(OMP_CPPFLAGS) $(OP2_INC) $(MPI_VEC_SRC) $(OP2_LIB_MPI) -o $@
+$(APP_NAME)_cuda: cuda/$(APP_NAME)_kernels.o
+$(APP_NAME)_mpi_cuda: cuda/$(APP_NAME)_mpi_kernels.o
 
-$(APP_NAME)_openmp: .generated
-	$(CXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $(OPENMP_SRC) $(OP2_LIB_OPENMP) -o $@
-
-$(APP_NAME)_mpi_openmp: .generated
-	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $(MPI_OPENMP_SRC) $(OP2_LIB_MPI) -o $@
-
-$(APP_NAME)_openmp4: .generated
-	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CPPFLAGS) $(OP2_INC) $(OPENMP4_SRC) $(OP2_LIB_OPENMP4) -o $@
-
-$(APP_NAME)_mpi_openmp4: .generated
-	$(MPICXX) $(CXXFLAGS) $(OMP_OFFLOAD_CPPFLAGS) $(OP2_INC) $(MPI_OPENMP4_SRC) $(OP2_LIB_MPI) -o $@
+$(APP_NAME)_cuda_hyb: cuda/$(APP_NAME)_hybkernels_gpu.o cuda/$(APP_NAME)_hybkernels_cpu.o
+$(APP_NAME)_mpi_cuda_hyb: cuda/$(APP_NAME)_mpi_hybkernels_gpu.o cuda/$(APP_NAME)_mpi_hybkernels_cpu.o
 
 cuda/$(APP_NAME)_kernels.o: .generated
 	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_BASENAME)_kernels.cu -o $@
 
 cuda/$(APP_NAME)_mpi_kernels.o: .generated
 	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_MPI_BASENAME)_kernels.cu -o $@
-
-$(APP_NAME)_cuda: .generated cuda/$(APP_NAME)_kernels.o
-	$(CXX) $(CXXFLAGS) $(OP2_INC) $(CUDA_SRC) $(OP2_LIB_CUDA) -o $@
-
-$(APP_NAME)_mpi_cuda: .generated cuda/$(APP_NAME)_mpi_kernels.o
-	$(MPICXX) $(CXXFLAGS) $(OP2_INC) $(MPI_CUDA_SRC) $(OP2_LIB_MPI_CUDA) -o $@
 
 cuda/$(APP_NAME)_hybkernels_gpu.o: .generated
 	$(NVCC) $(NVCCFLAGS) -DOP_HYBRID_GPU -DGPUPASS $(OP2_INC) \
@@ -151,11 +147,6 @@ cuda/$(APP_NAME)_mpi_hybkernels_cpu.o: .generated
 	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) -x c++ -DOP_HYBRID_GPU $(OP2_INC) \
 		-c cuda/$(APP_ENTRY_MPI_BASENAME)_hybkernels.cu -o $@
 
-$(APP_NAME)_cuda_hyb: .generated cuda/$(APP_NAME)_hybkernels_gpu.o cuda/$(APP_NAME)_hybkernels_cpu.o
-	$(CXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $(CUDA_HYB_SRC) $(OP2_LIB_CUDA) -o $@
-
-$(APP_NAME)_mpi_cuda_hyb: .generated cuda/$(APP_NAME)_mpi_hybkernels_gpu.o cuda/$(APP_NAME)_mpi_hybkernels_cpu.o
-	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) $(OP2_INC) $(MPI_CUDA_HYB_SRC) $(OP2_LIB_MPI_CUDA) -o $@
 
 # TODO: sort out the headers with missing includes
 # -include $(wildcard *.d)
