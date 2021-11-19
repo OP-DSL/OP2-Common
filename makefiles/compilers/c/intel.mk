@@ -13,7 +13,7 @@ endif
 CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
 CXXFLAGS ?= $(BASE_CPPFLAGS)
 
-CXXLINK ?= -lstdc++ -lirc
+CXXLINK ?= -lstdc++ -lirc -lsvml
 
 # Available OpenMP features
 OMP_CPPFLAGS ?= -qopenmp

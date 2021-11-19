@@ -1,3 +1,5 @@
+TRANSLATOR ?= $(ROOT_DIR)/translator/fortran/op2_fortran.py
+
 ifneq ($(F_HAS_PARALLEL_BUILDS),true)
   .NOTPARALLEL:
 endif
@@ -5,101 +7,111 @@ endif
 PART_SIZE_ENV ?= 128
 FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
-ALL_APP_VARIANTS := seq genseq vec openmp openmp4 cuda
-ALL_APP_VARIANTS := $(ALL_APP_VARIANTS) $(foreach variant,$(ALL_APP_VARIANTS),mpi_$(variant))
+APP_ENTRY ?= $(APP_NAME).F90
+APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
+APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.F90
 
-BUILDABLE_APP_VARIANTS := seq genseq
+BASE_VARIANTS := seq genseq vec openmp openmp4 cuda
+
+ALL_VARIANTS := $(BASE_VARIANTS)
+ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
+ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
+
+BUILDABLE_VARIANTS := seq genseq
 
 ifeq ($(F_HAS_OMP),true)
-  BUILDABLE_APP_VARIANTS += vec openmp
+  BUILDABLE_VARIANTS += vec openmp
 endif
 
 ifeq ($(F_HAS_OMP_OFFLOAD),true)
-  BUILDABLE_APP_VARIANTS += openmp4
+  BUILDABLE_VARIANTS += openmp4
 endif
 
 ifeq ($(F_HAS_CUDA),true)
-  BUILDABLE_APP_VARIANTS += cuda
+  BUILDABLE_VARIANTS += cuda
 endif
 
 ifneq ($(shell which $(MPIFC) 2> /dev/null),)
-  BUILDABLE_APP_VARIANTS += $(foreach variant,$(BUILDABLE_APP_VARIANTS),mpi_$(variant))
+  BUILDABLE_VARIANTS += $(foreach variant,$(BUILDABLE_VARIANTS),mpi_$(variant))
 endif
+
+BUILDABLE_VARIANTS := $(foreach variant,$(BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
 
 VARIANT_FILTER ?= %
 VARIANT_FILTER_OUT ?=
 
-BUILDABLE_APP_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
-						  $(filter $(VARIANT_FILTER),$(BUILDABLE_APP_VARIANTS)))
-
-ALL_APP_VARIANTS := $(foreach variant,$(ALL_APP_VARIANTS),$(APP_NAME)_$(variant))
-BUILDABLE_APP_VARIANTS := $(foreach variant,$(BUILDABLE_APP_VARIANTS),$(APP_NAME)_$(variant))
+BUILDABLE_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
+                      $(filter $(VARIANT_FILTER),$(BUILDABLE_VARIANTS)))
 
 KERNELS = $(patsubst %.inc,%,$(wildcard *.inc))
 KERNEL_SOURCES = $(wildcard *.inc) $(wildcard *.inc2)
 
-GEN_KERNELS = $(foreach kernel,$(KERNELS),$(kernel)_kernel.F90)
-GEN_KERNELS_SEQ = $(foreach kernel,$(KERNELS),$(kernel)_seqkernel.F90)
+GEN_KERNELS_GENSEQ = $(foreach kernel,$(KERNELS),$(kernel)_seqkernel.F90)
 GEN_KERNELS_VEC = $(foreach kernel,$(KERNELS),$(kernel)_veckernel.F90)
-GEN_KERNELS_OMP4 = $(foreach kernel,$(KERNELS),$(kernel)_omp4kernel.F90)
+GEN_KERNELS_OPENMP = $(foreach kernel,$(KERNELS),$(kernel)_kernel.F90)
+GEN_KERNELS_OPENMP4 = $(foreach kernel,$(KERNELS),$(kernel)_omp4kernel.F90)
 GEN_KERNELS_CUDA = $(foreach kernel,$(KERNELS),$(kernel)_kernel.CUF)
 
 GENERATED = \
-	$(APP_NAME)_op.F90 \
-	$(GEN_KERNELS) \
-	$(GEN_KERNELS_SEQ) \
+	$(APP_ENTRY_OP) \
+	$(GEN_KERNELS_GENSEQ) \
 	$(GEN_KERNELS_VEC) \
-	$(GEN_KERNELS_OMP4) \
+	$(GEN_KERNELS_OPENMP) \
+	$(GEN_KERNELS_OPENMP4) \
 	$(GEN_KERNELS_CUDA)
 
 .PHONY: all generate clean
 
-all: $(BUILDABLE_APP_VARIANTS)
+all: $(BUILDABLE_VARIANTS)
 
 clean:
-	-rm -f $(ALL_APP_VARIANTS)
-	-rm -f $(GENERATED)
-	-rm -f *.o
-	-rm -rf mod
+	-$(RM) $(ALL_VARIANTS)
+	-$(RM) $(GENERATED)
+	-$(RM) .generated
+	-$(RM) *.o
+	-$(RM) -r mod
 
-generate:
-	[ ! -f $(APP_NAME).F90 ] || $(ROOT_DIR)/translator/fortran/op2_fortran.py $(APP_NAME).F90
+.generated: $(APP_ENTRY)
+	$(TRANSLATOR) $<
+	@touch $@
 
 mod/%:
 	@mkdir -p $@
 
-$(APP_NAME)_seq: constants.F90 $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME).F90 | mod/seq
-	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_SEQ) $(CXXLINK) -o $@
+SEQ_SRC := constants.F90 $(APP_ENTRY_BASENAME)_seqfun.F90 input.F90 $(APP_ENTRY)
 
-$(APP_NAME)_mpi_seq: constants.F90 $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME).F90 | mod/mpi_seq
-	$(MPIFC) $(FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
+# $(1) = variant name
+define SRC_template =
+$(1)_SRC := constants.F90 $$(GEN_KERNELS_$(1)) $(APP_ENTRY_BASENAME)_seqfun.F90 input.F90 $(APP_ENTRY_OP)
+endef
 
-$(APP_NAME)_genseq: constants.F90 $(GEN_KERNELS_SEQ) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/genseq
-	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_SEQ) $(CXXLINK) -o $@
+$(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
+	$(eval $(call SRC_template,$(call UPPERCASE,$(variant)))))
 
-$(APP_NAME)_mpi_genseq: constants.F90 $(GEN_KERNELS_SEQ) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_genseq
-	$(MPIFC) $(FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
+# $(1) = variant name
+# $(2) = additional flags
+# $(3) = OP2 library for sequential variant 
+# $(4) = OP2 library for parallel variant 
+# $(5) = extra module dependencies
+define RULE_template_base =
+$$(APP_NAME)_$(1): .generated | mod/$(1)
+	$$(FC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
+		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
 
-$(APP_NAME)_vec: constants.F90 $(GEN_KERNELS_VEC) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/vec
-	$(FC) $(FFLAGS) $(OMP_FFLAGS) -DVECTORIZE $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_SEQ) $(CXXLINK) -o $@
+$$(APP_NAME)_mpi_$(1): .generated | mod/mpi_$(1)
+	$$(MPIFC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
+		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
 
-$(APP_NAME)_mpi_vec: constants.F90 $(GEN_KERNELS_VEC) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_vec
-	$(MPIFC) $(FFLAGS) $(OMP_FFLAGS) -DVECTORIZE $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
+endef
 
-$(APP_NAME)_openmp: constants.F90 $(GEN_KERNELS) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/openmp
-	$(FC) $(FFLAGS) $(OMP_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_OPENMP) $(CXXLINK) -o $@
+# the same as RULE_template_base but it first strips its arguments of extra space
+define RULE_template = 
+$(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
+endef
 
-$(APP_NAME)_mpi_openmp: constants.F90 $(GEN_KERNELS) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_openmp
-	$(MPIFC) $(FFLAGS) $(OMP_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
-
-$(APP_NAME)_openmp4: constants.F90 $(GEN_KERNELS_OMP4) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/openmp4
-	$(FC) $(FFLAGS) $(OMP_OFFLOAD_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_OPENMP) $(CXXLINK) -o $@
-
-$(APP_NAME)_mpi_openmp4: constants.F90 $(GEN_KERNELS_OMP4) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_openmp4
-	$(MPIFC) $(FFLAGS) $(OMP_OFFLOAD_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI) $(CXXLINK) -o $@
-
-$(APP_NAME)_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/cuda
-	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD_CUDA) $(OP2_MOD) $^ $(OP2_LIB_FOR_CUDA) $(CXXLINK) -o $@
-
-$(APP_NAME)_mpi_cuda: constants.F90 $(GEN_KERNELS_CUDA) $(APP_NAME)_seqfun.F90 input.F90 $(APP_NAME)_op.F90 | mod/mpi_cuda
-	$(MPIFC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$| $(OP2_MOD_CUDA) $(OP2_MOD) $^ $(OP2_LIB_FOR_MPI_CUDA) $(CXXLINK) -o $@
+$(eval $(call RULE_template, seq,,                               SEQ,     MPI,))
+$(eval $(call RULE_template, genseq,,                            SEQ,     MPI,))
+$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE, OPENMP,  MPI,))
+$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS)            , OPENMP,  MPI,))
+$(eval $(call RULE_template, openmp4, $(OMP_OFFLOAD_FFLAGS),     OPENMP4, MPI,))
+$(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS),            CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))

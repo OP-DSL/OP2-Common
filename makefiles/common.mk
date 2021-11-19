@@ -7,10 +7,10 @@ $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
 endef
 
 # Get the makefiles directory (where this file is)
-MAKEFILES_DIR := $(shell dirname $(realpath \
-				 $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST))))
+MAKEFILES_DIR != dirname $(realpath \
+	$(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))
 
-ROOT_DIR := $(shell realpath $(MAKEFILES_DIR)/../)
+ROOT_DIR != realpath $(MAKEFILES_DIR)/../
 
 # Include profile #! PRE section
 ifdef OP2_PROFILE
@@ -86,8 +86,9 @@ MPICC ?= $(MPI_BIN)mpicc
 MPICXX ?= $(MPI_BIN)mpicxx
 MPIFC ?= $(MPI_BIN)mpif90
 
-CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK
-CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK
+# Anti MPI C++ binding measures
+CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
+CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
 
 PARMETIS_INC ?= -DHAVE_PARMETIS -DPARMETIS_VER_4
 ifdef PARMETIS_INSTALL_PATH
@@ -102,8 +103,8 @@ ifdef PTSCOTCH_INSTALL_PATH
 endif
 
 ifdef HDF5_INSTALL_PATH
-  HDF5_IS_PAR = $(shell grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" \
-		$(HDF5_INSTALL_PATH)/include/H5pubconf.h)
+  HDF5_IS_PAR != grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" \
+	              $(HDF5_INSTALL_PATH)/include/H5pubconf.h
 
   ifneq ($(HDF5_IS_PAR),)
     HDF5_PAR_INSTALL_PATH = $(HDF5_INSTALL_PATH)
@@ -115,13 +116,15 @@ endif
 HDF5_SEQ_INC ?=
 ifdef HDF5_SEQ_INSTALL_PATH
   HDF5_SEQ_INC := -I$(HDF5_SEQ_INSTALL_PATH)/include $(HDF5_SEQ_INC)
-  HDF5_SEQ_LIB ?= -L$(HDF5_SEQ_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
+  HDF5_SEQ_LIB ?= -L$(HDF5_SEQ_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_SEQ_INSTALL_PATH)/lib \
+		  -lhdf5 -ldl -lm -lz
 endif
 
 HDF5_PAR_INC ?=
 ifdef HDF5_PAR_INSTALL_PATH
   HDF5_PAR_INC := -I$(HDF5_PAR_INSTALL_PATH)/include $(HDF5_PAR_INC)
-  HDF5_PAR_LIB ?= -L$(HDF5_PAR_INSTALL_PATH)/lib -l:libhdf5.a -ldl -lm -lz
+  HDF5_PAR_LIB ?= -L$(HDF5_PAR_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_PAR_INSTALL_PATH)/lib \
+		  -lhdf5 -ldl -lm -lz
 endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
@@ -130,17 +133,14 @@ OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1) $(2)
 OP2_LIB_FOR_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_for_$(1) $(3)
 endef
 
-OP2_LIB_EXTRA +=
 OP2_LIB_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB)
-
-OP2_LIB_FOR_EXTRA += $(OP2_LIB_EXTRA)
-OP2_LIB_FOR_EXTRA_MPI += $(OP2_LIB_EXTRA_MPI)
+OP2_LIB_FOR_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB)
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
   OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_SEQ_LIB)
   OP2_LIB_EXTRA_MPI += $(HDF5_PAR_LIB)
 
-  OP2_LIB_FOR_EXTRA += -lop2_for_hdf5_seq $(HDF5_SEQ_LIB)
+  OP2_LIB_FOR_EXTRA += -lop2_for_hdf5 $(HDF5_SEQ_LIB)
   OP2_LIB_FOR_EXTRA_MPI += $(HDF5_PAR_LIB)
 endif
 
