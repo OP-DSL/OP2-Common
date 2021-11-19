@@ -43,6 +43,16 @@ VARIANT_FILTER_OUT ?=
 BUILDABLE_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
                       $(filter $(VARIANT_FILTER),$(BUILDABLE_VARIANTS)))
 
+ifeq ($(OP2_LIBS_WITH_HDF5),true)
+  ifndef HDF5_SEQ_INSTALL_PATH
+    BUILDABLE_VARIANTS := $(filter $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
+  endif
+
+  ifndef HDF5_PAR_INSTALL_PATH
+    BUILDABLE_VARIANTS := $(filter-out $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
+  endif
+endif
+
 KERNELS = $(patsubst %.inc,%,$(wildcard *.inc))
 KERNEL_SOURCES = $(wildcard *.inc) $(wildcard *.inc2)
 
@@ -90,8 +100,8 @@ $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
 
 # $(1) = variant name
 # $(2) = additional flags
-# $(3) = OP2 library for sequential variant 
-# $(4) = OP2 library for parallel variant 
+# $(3) = OP2 library for sequential variant
+# $(4) = OP2 library for parallel variant
 # $(5) = extra module dependencies
 define RULE_template_base =
 $$(APP_NAME)_$(1): .generated | mod/$(1)
@@ -105,7 +115,7 @@ $$(APP_NAME)_mpi_$(1): .generated | mod/mpi_$(1)
 endef
 
 # the same as RULE_template_base but it first strips its arguments of extra space
-define RULE_template = 
+define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
