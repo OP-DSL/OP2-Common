@@ -75,7 +75,7 @@ ifdef CUDA_INSTALL_PATH
   CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
   CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64 \
 	      -L$(CUDA_INSTALL_PATH)/lib \
-	      -lcudart
+	      -lculibos -lpthread -lrt -ldl -lcudart_static
 endif
 
 ifdef MPI_INSTALL_PATH

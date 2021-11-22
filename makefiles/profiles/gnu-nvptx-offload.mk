@@ -1,9 +1,0 @@
-#! PRE
-OP2_COMPILER = gnu
-
-#! POST
-OMP_OFFLOAD_CPPFLAGS = -foffload=nvptx-none -foffload="-O3"
-OMP_OFFLOAD_FFLAGS = $(OMP_OFFLOAT_CPPFLAGS)
-
-CPP_HAS_OMP_OFFLOAD = true
-F_HAS_OMP_OFFLOAD = true

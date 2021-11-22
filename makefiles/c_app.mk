@@ -34,6 +34,9 @@ endif
 
 ifneq ($(and $(wildcard ./$(APP_ENTRY_MPI)),$(shell which $(MPICC) 2> /dev/null)),)
   BUILDABLE_VARIANTS += $(foreach variant,$(BASE_BUILDABLE_VARIANTS),$(APP_NAME)_mpi_$(variant))
+
+  # TODO/openmp4 MPI + OpenMP4 offload build not (yet) supported
+  BUILDABLE_VARIANTS := $(filter-out %_mpi_openmp4,$(BUILDABLE_VARIANTS)) 
 endif
 
 VARIANT_FILTER ?= %
@@ -62,6 +65,7 @@ clean:
 	-$(RM) *_op.cpp
 	-$(RM) .generated .generated
 	-$(RM) *.d
+	-$(RM) *.o
 	-$(RM) out_grid.*
 	-$(RM) out_grid_mpi.*
 
@@ -83,6 +87,10 @@ $(eval $(call SRC_template,GENSEQ,seq/%_seqkernels.cpp))
 $(eval $(call SRC_template,VEC,vec/%_veckernels.cpp))
 $(eval $(call SRC_template,OPENMP,openmp/%_kernels.cpp))
 $(eval $(call SRC_template,OPENMP4,openmp4/%_omp4kernels.cpp))
+
+#  TODO/openmp4 perhaps include this in _omp4kernels.cpp?
+OPENMP4_SRC += openmp4/$(APP_ENTRY_BASENAME)_omp4kernel_funcs.cpp
+MPI_OPENMP4_SRC += openmp4/$(APP_ENTRY_BASENAME)_omp4kernel_funcs.cpp
 
 CUDA_SRC := $(APP_ENTRY_OP) cuda/$(APP_NAME)_kernels.o
 MPI_CUDA_SRC := $(APP_ENTRY_MPI_OP) cuda/$(APP_NAME)_mpi_kernels.o
@@ -111,13 +119,13 @@ define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)))
 endef
 
-$(eval $(call RULE_template, seq,,                                  SEQ,     MPI))
-$(eval $(call RULE_template, genseq,,                               SEQ,     MPI))
-$(eval $(call RULE_template, vec,      $(OMP_CPPFLAGS) -DVECTORIZE, SEQ,     MPI))
-$(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS),             OPENMP,  MPI))
-$(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS),     OPENMP4, MPI))
-$(eval $(call RULE_template, cuda,,                                 CUDA,    MPI_CUDA))
-$(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),             CUDA,    MPI_CUDA))
+$(eval $(call RULE_template, seq,,                                              SEQ,     MPI))
+$(eval $(call RULE_template, genseq,,                                           SEQ,     MPI))
+$(eval $(call RULE_template, vec,      $(OMP_CPPFLAGS) -DVECTORIZE,             SEQ,     MPI))
+$(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS),                         OPENMP,  MPI))
+$(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS) -DOP2_WITH_OMP4, OPENMP4,    ))
+$(eval $(call RULE_template, cuda,,                                             CUDA,    MPI_CUDA))
+$(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),                         CUDA,    MPI_CUDA))
 
 $(APP_NAME)_cuda: cuda/$(APP_NAME)_kernels.o
 $(APP_NAME)_mpi_cuda: cuda/$(APP_NAME)_mpi_kernels.o
@@ -147,6 +155,4 @@ cuda/$(APP_NAME)_mpi_hybkernels_cpu.o: .generated
 	$(MPICXX) $(CXXFLAGS) $(OMP_CPPFLAGS) -x c++ -DOP_HYBRID_GPU $(OP2_INC) \
 		-c cuda/$(APP_ENTRY_MPI_BASENAME)_hybkernels.cu -o $@
 
-
-# TODO: sort out the headers with missing includes
 -include $(wildcard *.d)

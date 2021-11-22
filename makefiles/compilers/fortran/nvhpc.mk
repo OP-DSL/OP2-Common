@@ -19,9 +19,6 @@ F_HAS_PARALLEL_BUILDS ?= false
 OMP_FFLAGS ?= -mp
 F_HAS_OMP ?= true
 
-OMP_OFFLOAD_FFLAGS ?=
-F_HAS_OMP_OFFLOAD ?= false
-
 # Available CUDA features
 ifeq ($(NV_ARCH),Fermi)
   FC_CUDA_GEN = cc20
@@ -42,6 +39,9 @@ endif
 endif
 endif
 endif
+
+OMP_OFFLOAD_FFLAGS ?= -mp=gpu -gpu=$(FC_CUDA_GEN)
+F_HAS_OMP_OFFLOAD ?= true
 
 CUDA_FFLAGS ?= -Mcuda=$(FC_CUDA_GEN),fastmath,ptxinfo,lineinfo
 F_HAS_CUDA ?= true

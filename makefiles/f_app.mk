@@ -11,7 +11,7 @@ APP_ENTRY ?= $(APP_NAME).F90
 APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
 APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.F90
 
-BASE_VARIANTS := seq genseq vec openmp openmp4 cuda
+BASE_VARIANTS := seq genseq vec openmp cuda
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -23,9 +23,10 @@ ifeq ($(F_HAS_OMP),true)
   BUILDABLE_VARIANTS += vec openmp
 endif
 
-ifeq ($(F_HAS_OMP_OFFLOAD),true)
-  BUILDABLE_VARIANTS += openmp4
-endif
+# TODO/openmp4 add omp declare target
+# ifeq ($(F_HAS_OMP_OFFLOAD),true)
+#   BUILDABLE_VARIANTS += openmp4
+# endif
 
 ifeq ($(F_HAS_CUDA),true)
   BUILDABLE_VARIANTS += cuda
@@ -119,9 +120,9 @@ define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
-$(eval $(call RULE_template, seq,,                               SEQ,     MPI,))
-$(eval $(call RULE_template, genseq,,                            SEQ,     MPI,))
-$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE, SEQ,     MPI,))
-$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS),             OPENMP,  MPI,))
-$(eval $(call RULE_template, openmp4, $(OMP_OFFLOAD_FFLAGS),     OPENMP4, MPI,))
-$(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS),            CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))
+$(eval $(call RULE_template, seq,,                                           SEQ,     MPI,))
+$(eval $(call RULE_template, genseq,,                                        SEQ,     MPI,))
+$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE,             SEQ,     MPI,))
+$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS),                         OPENMP,  MPI,))
+$(eval $(call RULE_template, openmp4, $(OMP_OFFLOAD_FFLAGS) -DOP2_WITH_OMP4, OPENMP4,    ,))
+$(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS),                        CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))

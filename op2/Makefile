@@ -110,7 +110,6 @@ OP2_FOR_OPENMP = $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_OPENMP4 = $(OP2_BASE) $(addprefix $(OBJ)/,\
-	core/op_dummy_singlenode.o \
 	openmp4/op_openmp4_decl.o \
 	openmp4/op_openmp4_rt_support.o)
 
