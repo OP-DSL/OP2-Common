@@ -235,6 +235,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             repro_reduction = i
       repro_loop = ind_inc or ind_rw
 
+    #if we have an indirect RW, we can't do temp array
     if (reproducible==1 and repr_temp_array==1 and ind_rw==1) or (repr_temp_array==1 and repr_coloring==1):
       repr_temp_array=0
       repr_coloring=1
@@ -364,6 +365,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       code('& exec_size, &') 
     if ind_inc and repro_loop and repr_coloring:
       code('& color_based_exec_row_starts, color_based_exec, num_colors)')
+    elif ind_inc and repro_loop and repr_temp_array:
+      code('& row_start_idx, reversed_map, &')
+      for g_m in range(0,ninds):
+        code('& opDat'+str(invinds[g_m]+1)+'Tmp, &')
     else:
       code('& bottom,top)')
     code('implicit none')
@@ -403,6 +408,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     if ind_inc and repro_loop and repr_coloring:
       code('INTEGER(kind=4) num_colors,i1,i2,c')
       code('integer(kind=4) color_based_exec_row_starts(*), color_based_exec(*)')
+    if ind_inc and repro_loop and repr_temp_array:
+      code('integer(kind=4) :: row_start_idx(*), reversed_map(*)')
+      for g_m in range(0, ninds):
+          code(typs[invinds[g_m]]+' opDat'+str(invinds[g_m]+1)+'Tmp(*)')
+
     else:
       code('INTEGER(kind=4) bottom,top,i1')
     if nmaps > 0:
@@ -434,13 +444,27 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if repro_reduction>=0 and maps[g_m] == OP_GBL and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
         code('opDat'+str(g_m+1)+'Local(:,i1+1) = 0.0')
+    if ind_inc and repro_loop and repr_temp_array:
+      for g_m in range(0, ninds):
+        if invinds[g_m] in needDimList:
+          datdim = 'opDat'+str(invinds[g_m]+1)+'Dim'
+        else:
+          datdim = str(dims[g_m])
+        code('opDat'+str(invinds[g_m]+1)+'Tmp(i1*'+datdim+'*opDat'+str(invmapinds[g_m]+1)+'MapDim+1:(i1+1)*'+datdim+'*opDat'+str(invmapinds[g_m]+1)+'MapDim) = 0.0_8')
     line = 'CALL '+name+'( &'
     indent = '\n'+' '*depth
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         line = line + indent + '& opDat'+str(g_m+1)+'Local(1,i1+1)'
       if maps[g_m] == OP_MAP:
-        line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
+        if ind_inc and repro_loop and repr_temp_array:
+          if g_m in needDimList:
+            datdim = 'opDat'+str(g_m+1)+'Dim' 
+          else:
+            datdim = str(dims[g_m])
+          line = line + indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Tmp((i1*opDat'+str(invmapinds[g_m]+1)+'MapDim + '+idxs[g_m]+')*'+datdim+'+1)'
+        else:
+          line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
       if maps[g_m] == OP_GBL:
         if repro_reduction>=0 and accs[g_m] == OP_INC and (typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4'):
           line = line + indent +'& opDat'+str(g_m+1)+'Local(1,i1+1)'
@@ -513,6 +537,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       code('type(op_reversed_map_core) :: rev_map')
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec_row_starts')
       code('INTEGER(kind=4), POINTER, DIMENSION(:) :: color_based_exec')
+  elif ind_inc and repro_loop and repr_temp_array:
+      code('type(op_reversed_map_core) :: rev_map')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: row_start_idx')
+      code('INTEGER(kind=4), POINTER, DIMENSION(:) :: reversed_map')
+      code('INTEGER(kind=4) :: repr_from_size, repr_to_size')
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP and accs[i] == OP_INC:
+          code(typs[i]+', POINTER, DIMENSION(:) :: opDat'+str(i+1)+'TmpPtr')
     code('')
     code('INTEGER(kind=4) :: i1')
     code('REAL(kind=4) :: dataTransfer')
@@ -553,6 +585,18 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       code('call c_f_pointer(rev_map%color_based_exec, color_based_exec, (/opSetCore%size+opSetCore%exec_size/))')
     code('')
 
+    if ind_inc and repro_loop and repr_temp_array:
+      done=0
+      for i in range(0,nargs):
+        if maps[i] == OP_MAP and accs[i] == OP_INC:
+          if done == 0:
+            code('rev_map = op_get_reversed_map(opArg'+str(j+1)+')')
+            code('call c_f_pointer(rev_map%row_start_idx, row_start_idx, (/getSetSizeFromOpArg(opArg'+str(i+1)+')+1/))')
+            code('call c_f_pointer(rev_map%reversed_map, reversed_map, (/row_start_idx(getSetSizeFromOpArg(opArg'+str(i+1)+'))/))')
+            done = 1
+          code('call c_f_pointer(op_get_reproducible_tmparray(opArg'+str(i+1)+',repr_from_size, repr_to_size,opDat'+str(i+1)+'TmpPtr, (/n_upper * getMapDimFromOpArg(opArg'+str(i+1)+') * opArg'+str(i+1)+'%dim/))')
+          
+
     for g_m in range(0,ninds):
       code('opDat'+str(invinds[g_m]+1)+'Cardinality = opArg'+str(invinds[g_m]+1)+'%dim * getSetSizeFromOpArg(opArg'+str(invinds[g_m]+1)+')')
       code('opDat'+str(invinds[g_m]+1)+'MapDim = getMapDimFromOpArg(opArg'+str(invinds[g_m]+1)+')')
@@ -574,7 +618,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('')
 
     code('')
-    if not (repro_loop and repr_coloring):
+    if not (repro_loop and (repr_coloring or repr_temp_array)):
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,ninds):
         if invinds[g_m] in needDimList:
@@ -626,6 +670,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         code('& color_based_exec_row_starts, color_based_exec, n_upper)')
       else:
         code('& color_based_exec_row_starts, color_based_exec, rev_map%number_of_colors)')
+    elif repro_loop and repr_temp_array:
+      code('& row_start_idx, reversed_map, &')
+      for g_m in range(0,ninds):
+        code('& opDat'+str(invinds[g_m]+1)+'TmpPtr, &')
     else:
       code('& opSetCore%core_size, n_upper)')
 
