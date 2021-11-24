@@ -45,28 +45,28 @@ clean:
 	-rm -rf $(MOD)
 
 # Base set of objects shared across multiple libraries
-OP2_BASE = $(addprefix $(OBJ)/core/,\
+OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_lib_core.o \
 	op_rt_support.o)
 
-OP2_FOR_BASE = $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations.o \
 	op2_for_reference.o \
 	op2_for_rt_support.o \
 	op2_for_rt_wrappers.o)
 
-OP2_FOR_BASE_CUDA = $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_BASE_CUDA := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations+cuda.o \
 	op2_for_reference.o \
 	op2_for_rt_support+cuda.o \
 	op2_for_rt_wrappers.o)
 
-OP2_FOR_BASE_MPI = $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_BASE_MPI := $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op2_C_reference+mpi.o \
 	op2_for_C_wrappers+mpi.o \
 	op2_for_hdf5_declarations.o)
 
-OP2_FOR_BASE_MPI_CUDA = $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_BASE_MPI_CUDA := $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_C_reference+mpi.o \
 	op2_for_C_wrappers+mpi.o \
 	op2_for_hdf5_declarations+cuda.o)
@@ -80,43 +80,43 @@ OP2_FOR_BASE_CUDA += $(addprefix $(OBJ)/fortran/,\
 	op2_for_C_wrappers.o)
 
 # Complete object composition for each library
-OP2_HDF5 = $(addprefix $(OBJ)/,\
+OP2_HDF5 := $(addprefix $(OBJ)/,\
 	externlib/op_util.o \
 	externlib/op_hdf5.o)
 
-OP2_FOR_HDF5 = $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_HDF5 := $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
 	op2_for_hdf5_declarations.o)
 
-OP2_SEQ = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_SEQ := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	sequential/op_seq.o)
 
-OP2_FOR_SEQ = $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
-OP2_CUDA = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl.o \
 	cuda/op_cuda_rt_support.o)
 
-OP2_FOR_CUDA = $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
 
-OP2_OPENMP = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	openmp/op_openmp_decl.o)
 
-OP2_FOR_OPENMP = $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
-OP2_OPENMP4 = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_OPENMP4 := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	openmp4/op_openmp4_decl.o \
 	openmp4/op_openmp4_rt_support.o)
 
-OP2_FOR_OPENMP4 = $(OP2_OPENMP4) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_OPENMP4 := $(OP2_OPENMP4) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
-OP2_MPI = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_decl.o \
@@ -126,10 +126,10 @@ OP2_MPI = $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_util.o \
 	externlib/op_renumber.o)
 
-OP2_FOR_MPI = $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
 
-OP2_MPI_CUDA = $(OP2_BASE) $(addprefix $(OBJ)/,\
+OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_rt_support+mpi.o \
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
@@ -141,7 +141,7 @@ OP2_MPI_CUDA = $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_util.o \
 	externlib/op_renumber.o)
 
-OP2_FOR_MPI_CUDA = $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
+OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
 
