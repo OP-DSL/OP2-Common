@@ -150,6 +150,7 @@ typedef struct {
   int dirty_hd;     /* flag to indicate dirty status on host and device */
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
+  char *aug_data;   /* augmented data on host */
 } op_dat_core;
 
 typedef op_dat_core *op_dat;

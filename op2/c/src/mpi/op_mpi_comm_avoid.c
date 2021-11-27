@@ -21,6 +21,9 @@ halo_list* OP_import_part_range_list;
 halo_list* OP_aug_export_exec_lists[10];  // 10 levels for now
 halo_list* OP_aug_import_exec_lists[10];  // 10 levels for now
 
+halo_list *OP_merged_import_exec_list;
+halo_list *OP_merged_export_exec_list;
+
 
 void print_array(int* arr, int size, const char* name, int my_rank){
   for(int i = 0; i < size; i++){
@@ -29,6 +32,9 @@ void print_array(int* arr, int size, const char* name, int my_rank){
 }
 
 void print_halo(halo_list h_list, const char* name, int my_rank){
+  if(h_list == NULL)
+    return;
+    
   printf("print_halo my_rank=%d, name=%s\n", my_rank, name);
   printf("print_halo my_rank=%d, name=%s, set=%s, size=%d\n", my_rank, name, h_list->set->name, h_list->size);
 
@@ -110,7 +116,7 @@ void check_augmented_part_range(int* parts, int set_index, int value, int my_ran
   }
 }
 
-halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, int my_rank){
+halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int sort, int my_rank, int comm_size){
 
   if(!h_list1 && !h_list2){
     return NULL;
@@ -220,7 +226,8 @@ halo_list merge_halo_lists(halo_list h_list1, halo_list h_list2, int comm_size, 
     }
 
     if(disp > start){
-      quickSort(&list[start], 0, (disp - start - 1));
+      if(sort == 1)
+        quickSort(&list[start], 0, (disp - start - 1));
       int new_size = removeDups(&list[start], (disp - start));
 
       if(new_size != disp - start){
@@ -885,20 +892,16 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
     op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
     int exec_e_list_size = 0;
-    int exec_i_list_size = 0;
     int exec_e_ranks_size = 0;
     int exec_i_ranks_size = 0;
 
     for(int l = 0; l < exec_levels; l++){
       exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
-      exec_i_list_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
       exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
       exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
     }
 
     mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
-    mpi_buf->buf_recv= (char *)xmalloc(exec_i_list_size * dat->size);
-    
     halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
     mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
@@ -1151,6 +1154,29 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
   }
 }
 
+void merge_exec_halos(int exec_levels, int my_rank, int comm_size){
+
+  OP_merged_import_exec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+  OP_merged_export_exec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    OP_merged_import_exec_list[set->index] = NULL;
+    OP_merged_export_exec_list[set->index] = NULL;
+  }
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    for(int l = 0; l < exec_levels; l++){
+      OP_merged_import_exec_list[set->index] = merge_halo_lists(OP_merged_import_exec_list[set->index], 
+      OP_aug_import_exec_lists[l][set->index], 0, my_rank, comm_size);
+      OP_merged_export_exec_list[set->index] = merge_halo_lists(OP_merged_export_exec_list[set->index], 
+      OP_aug_export_exec_lists[l][set->index], 0, my_rank, comm_size);
+    }
+  }
+  
+}
+
 /*******************************************************************************
  * Main MPI halo creation routine
  *******************************************************************************/
@@ -1261,6 +1287,9 @@ void op_halo_create_comm_avoid() {
   /*-STEP 11 ----------- Save the original set element
    * indexes------------------*/
   step11_halo(exec_levels, part_range, core_elems, exp_elems, my_rank, comm_size);
+
+  // This is to facilitate halo exchange in one message for multiple extended exec layers
+  merge_exec_halos(exec_levels, my_rank, comm_size);
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/

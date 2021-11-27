@@ -148,13 +148,11 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
   int exec_e_list_size = 0;
-  int exec_i_list_size = 0;
   int exec_e_list_rank_size = 0;
   int exec_i_list_rank_size = 0;
 
   for(int l = 0; l < exec_levels; l++){
     exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
-    exec_i_list_size += OP_aug_import_exec_lists[l][set->index]->size;
 
     exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size;
     exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size;
@@ -163,7 +161,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
 
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
-  mpi_buf->buf_recv = (char *)xmalloc((exec_i_list_size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
   halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
@@ -229,11 +226,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
 int op_free_dat_temp_char(op_dat dat) {
   // need to free mpi_buffers used in this op_dat
-  int exec_levels = 2;
-  // for(int l = 0; l < exec_levels; l++){
-  //   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_aug_exec[l]);
-  // }
-  // free(((op_mpi_buffer)(dat->mpi_buffer))->buf_aug_exec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
   free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
