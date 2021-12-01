@@ -55,7 +55,7 @@ ifeq ($(OP2_LIBS_WITH_HDF5),true)
   endif
 endif
 
-.PHONY: all generate clean
+.PHONY: all clean
 
 all: $(BUILDABLE_VARIANTS)
 

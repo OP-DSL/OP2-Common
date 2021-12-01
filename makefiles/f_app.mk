@@ -71,7 +71,7 @@ GENERATED = \
 	$(GEN_KERNELS_OPENMP4) \
 	$(GEN_KERNELS_CUDA)
 
-.PHONY: all generate clean
+.PHONY: all clean
 
 all: $(BUILDABLE_VARIANTS)
 
