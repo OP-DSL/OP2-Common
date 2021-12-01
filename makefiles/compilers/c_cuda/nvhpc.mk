@@ -1,4 +1,8 @@
-NVCC ?= nvcc
+ifdef CUDA_INSTALL_PATH
+  NVCC ?= $(CUDA_INSTALL_PATH)/bin/nvcc
+else
+  NVCC ?= nvcc
+endif
 
 ifndef NV_ARCH
   $(warning Set NV_ARCH={Fermi|Kepler|...|Volta} to generate targeted CUDA code)

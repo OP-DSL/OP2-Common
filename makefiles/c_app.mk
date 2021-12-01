@@ -36,7 +36,7 @@ ifneq ($(and $(wildcard ./$(APP_ENTRY_MPI)),$(shell which $(MPICC) 2> /dev/null)
   BUILDABLE_VARIANTS += $(foreach variant,$(BASE_BUILDABLE_VARIANTS),$(APP_NAME)_mpi_$(variant))
 
   # TODO/openmp4 MPI + OpenMP4 offload build not (yet) supported
-  BUILDABLE_VARIANTS := $(filter-out %_mpi_openmp4,$(BUILDABLE_VARIANTS)) 
+  BUILDABLE_VARIANTS := $(filter-out %_mpi_openmp4,$(BUILDABLE_VARIANTS))
 endif
 
 VARIANT_FILTER ?= %

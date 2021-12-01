@@ -16,10 +16,10 @@ ROOT_DIR != realpath $(MAKEFILES_DIR)/../
 ifdef OP2_PROFILE
   OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
 
-  $(shell awk '/#!\s+PRE/, /(#!\s+POST|END)/' $(OP2_PROFILE_FILE) > \
+  $(shell sed -n '/^#!\s*PRE/,$${p;/^#!\s*POST/q}' $(OP2_PROFILE_FILE) > \
       $(MAKEFILES_DIR)/.profile.pre.mk)
 
-  $(shell awk '/#!\s+POST/, /(#!\s+PRE|END)/' $(OP2_PROFILE_FILE) > \
+  $(shell sed -n '/^#!\s*POST/,$${p;/^#!\s*PRE/q}' $(OP2_PROFILE_FILE) > \
       $(MAKEFILES_DIR)/.profile.post.mk)
 
   include $(MAKEFILES_DIR)/.profile.pre.mk
@@ -75,7 +75,7 @@ ifdef CUDA_INSTALL_PATH
   CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
   CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64 \
 	      -L$(CUDA_INSTALL_PATH)/lib \
-	      -lculibos -lpthread -lrt -ldl -lcudart_static
+	      -lculibos -lcudart_static -lpthread -lrt -ldl
 endif
 
 ifdef MPI_INSTALL_PATH
