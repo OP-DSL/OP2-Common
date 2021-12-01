@@ -57,10 +57,6 @@ jobs:
         working-directory: op2
         run: make -j seq openmp # TODO: Only build targets required for active the matrix config
 
-      - name: Run OP2 translator
-        if: ${{ matrix.optimisation != 'seq' }}
-        run: make generate
-
       - name: Build airfoil
         run: make airfoil_${{ matrix.optimisation }}
 
