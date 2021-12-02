@@ -1,72 +1,17 @@
-# Compiled Object files
-*.slo
-*.lo
+# Compilation artifacts
 *.o
-*_cu.o
-# Compiled Dynamic libraries
-*.so
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*_seq
-*_openmp
-*_openmp4
-*_cuda
-*_mpi
-*_vec
-*_genseq
-*_cuda_hyb
-*.dat
-*_sycl
-*_openacc
-source_*
-#*.txt
-#*.dat
-*_mpi
-*.h5
-*.bin
-#fortran
+*.lo
 *.mod
-numawrap*
+*.d
+*.optrpt
 
-#python
+# Compiled libraries
+*.so
+*.a
+
+# Python artifacts
 *.pyc
 
-#latex
-*.log
-*.aux
-*.toc
-*.out
-*.backup
-*.blg
-*.bbl
+# Miscellaneous
 *~
-*.pyg.*
-*.optrpt
-*.lst
-
-#opt files
-*.optrpt
-
-#opt files
-*.optrpt
-
-#directories
-op2/c/lib/
-op2/c/build/
-op2/c/obj/
-op2/c/CMakeFiles/
-op2/fortran/lib/
-op2/fortran/obj/
-
-#docs
-doc/*.pdf
-./op2/c/lib/
-./op2/c/build/
-./op2/c/obj/
-./op2/c/CMakeFiles/
-./op2/fortran/lib/
-./op2/fortran/obj/
-./apps/c/build/
-./apps/c/bin/
+*.swp
