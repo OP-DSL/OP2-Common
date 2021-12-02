@@ -71,7 +71,7 @@ clean:
 
 .generated: $(APP_ENTRY) $(APP_ENTRY_MPI)
 	[ ! -f $(APP_ENTRY) ] || $(TRANSLATOR) $(APP_ENTRY)
-	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) == $(APP_ENTRY) ] \
+	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) = $(APP_ENTRY) ] \
 		|| $(TRANSLATOR) $(APP_ENTRY_MPI)
 	@touch $@
 
