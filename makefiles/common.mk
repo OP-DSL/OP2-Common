@@ -71,13 +71,6 @@ ifeq ($(F_HAS_CUDA),true)
   CUDA_FFLAGS += -DOP2_WITH_CUDAFOR
 endif
 
-ifdef CUDA_INSTALL_PATH
-  CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
-  CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64 \
-	      -L$(CUDA_INSTALL_PATH)/lib \
-	      -lculibos -lcudart_static -lpthread -lrt -ldl
-endif
-
 ifdef MPI_INSTALL_PATH
   MPI_BIN ?= $(MPI_INSTALL_PATH)/bin/
 endif
@@ -90,42 +83,8 @@ MPIFC ?= $(MPI_BIN)mpif90
 CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
 CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
 
-PARMETIS_INC ?= -DHAVE_PARMETIS -DPARMETIS_VER_4
-ifdef PARMETIS_INSTALL_PATH
-  PARMETIS_INC := -I$(PARMETIS_INSTALL_PATH)/include $(PARMETIS_INC)
-  PARMETIS_LIB ?= -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
-endif
-
-PTSCOTCH_INC ?= -DHAVE_PTSCOTCH
-ifdef PTSCOTCH_INSTALL_PATH
-  PTSCOTCH_INC := -I$(PTSCOTCH_INSTALL_PATH)/include $(PTSCOTCH_INC)
-  PTSCOTCH_LIB ?= -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
-endif
-
-ifdef HDF5_INSTALL_PATH
-  HDF5_IS_PAR != grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" \
-	              $(HDF5_INSTALL_PATH)/include/H5pubconf.h
-
-  ifneq ($(HDF5_IS_PAR),)
-    HDF5_PAR_INSTALL_PATH = $(HDF5_INSTALL_PATH)
-  else
-    HDF5_SEQ_INSTALL_PATH = $(HDF5_INSTALL_PATH)
-  endif
-endif
-
-HDF5_SEQ_INC ?=
-ifdef HDF5_SEQ_INSTALL_PATH
-  HDF5_SEQ_INC := -I$(HDF5_SEQ_INSTALL_PATH)/include $(HDF5_SEQ_INC)
-  HDF5_SEQ_LIB ?= -L$(HDF5_SEQ_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_SEQ_INSTALL_PATH)/lib \
-		  -lhdf5 -ldl -lm -lz
-endif
-
-HDF5_PAR_INC ?=
-ifdef HDF5_PAR_INSTALL_PATH
-  HDF5_PAR_INC := -I$(HDF5_PAR_INSTALL_PATH)/include $(HDF5_PAR_INC)
-  HDF5_PAR_LIB ?= -L$(HDF5_PAR_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_PAR_INSTALL_PATH)/lib \
-		  -lhdf5 -ldl -lm -lz
-endif
+# Dependencies
+include $(MAKEFILES_DIR)/dependencies.mk
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
 define OP2_LIB_template =
