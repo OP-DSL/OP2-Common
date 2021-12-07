@@ -1,18 +1,20 @@
 # Library dependencies
 CUDA_INC ?=
-CUDA_LIB ?= -lculibos -lcudart_static -lpthread -lrt -ldl
 
 PARMETIS_INC ?= -DHAVE_PARMETIS -DPARMETIS_VER_4
-PARMETIS_LIB ?= -lparmetis -lmetis
-
 PTSCOTCH_INC ?= -DHAVE_PTSCOTCH
-PTSCOTCH_LIB ?= -lptscotch -lscotch -lptscotcherr
-
 HDF5_SEQ_INC ?=
-HDF5_SEQ_LIB ?= -lhdf5 -ldl -lm -lz
-
 HDF5_PAR_INC ?=
-HDF5_PAR_LIB ?= $(HDF5_SEQ_LIB)
+
+ifneq ($(NONSTANDARD_IMPLICIT_LIBS),true)
+  CUDA_LIB ?= -lculibos -lcudart_static -lpthread -lrt -ldl
+
+  PARMETIS_LIB ?= -lparmetis -lmetis
+  PTSCOTCH_LIB ?= -lptscotch -lscotch -lptscotcherr
+
+  HDF5_SEQ_LIB ?= -lhdf5 -ldl -lm -lz
+  HDF5_PAR_LIB ?= $(HDF5_SEQ_LIB)
+endif
 
 # Manually specified dependency paths
 ifdef CUDA_INSTALL_PATH
@@ -55,19 +57,17 @@ endif
 
 # Try to detect variant of implicit HDF5
 ifeq ($(and $(HDF5_SEQ_INSTALL_PATH),$(HDF5_PAR_INSTALL_PATH)),)
-  $(shell $(CXX) $(CXXFLAGS) $(MAKEFILES_DIR)/test_hdf5.cpp $(HDF5_PAR_LIB) \
+  $(shell $(CXX) $(MAKEFILES_DIR)/test_hdf5.cpp $(HDF5_PAR_LIB) \
 	  -o $(MAKEFILES_DIR)/test_hdf5 2> /dev/null)
 
   ifeq  ($(.SHELLSTATUS),0)
     RESULT != $(MAKEFILES_DIR)/test_hdf5
     $(shell rm -f $(MAKEFILES_DIR)/test_hdf5)
 
-    $(info HDF5 implicit check result: $(RESULT))
-
-    ifeq ($(RESULT),0)
-      HDF5_SEQ_INSTALL_PATH := <implicit>
-    else ifeq ($(RESULT),0))
+    ifeq ($(RESULT),1)
       HDF5_PAR_INSTALL_PATH := <implicit>
+    else
+      HDF5_SEQ_INSTALL_PATH := <implicit>
     endif
   endif
 endif
