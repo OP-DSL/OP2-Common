@@ -9,11 +9,7 @@ This repository contains the implementation of the code translation tools and ru
  * `doc`: LaTeX documentation source.
 
 ## Documentation
-Documentation is currently available as a series of PDFs:
- * [C++ User's Manual](https://op-dsl.github.io/docs/OP2/C++_Users_Guide.pdf): An overview of the C/C++ OP2 API, intended for those looking to use OP2.
- * [Airfoil App Walkthrough](https://op-dsl.github.io/docs/OP2/airfoil-doc.pdf): A walkthrough of the `apps/{c, fortran}/airfoil` example application.
- * [OP2 Developer's Guide](https://op-dsl.github.io/docs/OP2/dev.pdf): An overview of the algorithms and implementation details of OP2, intended for those who are developing OP2.
- * [OP2 MPI Developer's Guide](https://op-dsl.github.io/docs/OP2/mpi-dev.pdf): An extension to the main developer's guide that further details issues relating to MPI.
+Documentation is available on [Read the Docs](https://op2-dsl.readthedocs.io/en/latest/).
 
 ## Quick-start
 Firstly, OP2 has a varienty of toolchain dependencies that you will likely be able to obtain from your package manager or programming environment:
