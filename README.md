@@ -1,5 +1,5 @@
 # OP2
-OP2 is a high-level embedded domain specific language for writing **unstructured mesh** algorithms with automatic parellelisation on multi-core and many-core architectures. The API is embedded in both C/C++ and Fortran.
+OP2 is a high-level embedded domain specific language for writing **unstructured mesh** algorithms with automatic parallelisation on multi-core and many-core architectures. The API is embedded in both C/C++ and Fortran.
 
 This repository contains the implementation of the code translation tools and run-time support libraries, and is structured as follows:
  * `op2`: The C/C++ OP2 run-time libraries and Fortran bindings.
