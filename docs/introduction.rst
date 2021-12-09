@@ -1,6 +1,9 @@
 Introduction
 ============
 
+Overview
+--------
+
 `OP2 <https://github.com/OP-DSL/OP2-Common>`_ is a high-level embedded domain specific language (eDSL) for writing **unstructured mesh** algorithms with automatic parellelisation on multi-core and many-core architectures. The API is embedded in both C/C++ and Fortran.
 
 The current OP2 eDSL supports generating code targeting multi-core CPUs with SIMD vectorisation and OpenMP threading, many-core GPUs with CUDA or OpenMP offloading, and distributed memory cluster variants of these using MPI. There is also experimental support for targeting a wider range of GPUs using SYCL and AMD HIP.
