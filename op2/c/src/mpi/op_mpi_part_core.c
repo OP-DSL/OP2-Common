@@ -4537,12 +4537,12 @@ void trivial_coloring_within_process(){
 		int* color_based_exec_row_starts = (int*) op_malloc((num_colors+1)*sizeof(int));
 		int* color_based_exec = (int*)op_malloc(set_from_size*sizeof(int));
 
-		std::map<int,int>color_b_exec_sorter;
+		std::map<int,int> color_b_exec_sorter;
 		for (int i=0; i<set_from_size; i++){
 			color_b_exec_sorter[repr_colors[i]]=i;
 		}
 		int id=0;
-		for (auto it=color_b_exec_sorter.begin(); it!=color_b_exec_sorter.end(); it++){
+		for (typename std::map<int,int>::iterator it=color_b_exec_sorter.begin(); it!=color_b_exec_sorter.end(); it++){
 			color_based_exec[id++]=it->second;
 		}
 
