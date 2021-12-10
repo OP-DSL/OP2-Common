@@ -37,9 +37,13 @@ release = 'latest'
 # ones.
 extensions = [
     'gh-links',
-    'sphinx.ext.mathjax',
     'sphinx_rtd_theme',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.todo',
 ]
+
+# Enable rendering of TODOs
+todo_include_todos = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
