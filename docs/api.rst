@@ -35,9 +35,6 @@ Figure 2 shows the build process for the corresponding CUDA executable. The prep
 
 In looking at the API specification, users may think it is a little verbose in places. For example, users have to re-supply information about the datatype of the datasets being used in a parallel loop. This is a deliberate choice to simplify the task of the preprocessor, and therefore hopefully reduce the chance for errors. It is also motivated by the thought that "programming is easy; it’s debugging which is difficult": writing code isn’t time-consuming, it’s correcting it which takes the time. Therefore, it’s not unreasonable to ask the programmer to supply redundant information, but be assured that the preprocessor or library will check that all redundant information is self-consistent. If you declare a dataset as being of type :c:type:`OP_DOUBLE` and later say that it is of type :c:type:`OP_FLOAT` this will be flagged up as an error at run-time.
 
-.. todo::
-   Bring across LaTeX figures.
-
 Initialisation and Termination
 ------------------------------
 
@@ -113,7 +110,7 @@ Initialisation and Termination
    This routine defines constant data with global scope that can be used in kernel functions.
 
    :param dim: Number of data elements. For maximum efficiency this should be an integer literal.
-   :param type: The type of the data as a string. This can be either intrinsic (`"float"`, `"double"`, `"int"`, `"uint"`, `"ll"`, `"ull"`, or "`bool`") or user-defined.
+   :param type: The type of the data as a string. This can be either intrinsic (:c:expr:`"float"`, :c:expr:`"double"`, :c:expr:`"int"`, :c:expr:`"uint"`, :c:expr:`"ll"`, :c:expr:`"ull"`, or :c:expr:`"bool"`) or user-defined.
    :param dat: A pointer to the data, checked for type consistency at run-time.
 
    .. note::
@@ -165,7 +162,7 @@ Parallel Loops
    :param set: The set to loop over.
    :param ...: The :c:type:`op_arg` arguments passed to each invocation of the kernel.
 
-.. c:function:: op_arg op_arg_gbl(T* data, int dim, char *type, op_access acc)
+.. c:function:: op_arg op_arg_gbl(T *data, int dim, char *type, op_access acc)
 
    This routine defines an :c:type:`op_arg` that may be used either to pass non-constant read-only data or to compute a global sum, maximum or minimum.
 
@@ -277,13 +274,90 @@ For example if an application has 4 processes, 4M nodes and 16M edges, then each
 Other I/O and Utilities
 -----------------------
 
+.. c:function:: void op_printf(const char *format, ...)
+
+   This routine wraps the standard :c:func:`printf()` but only prints on the :c:data:`MPI_ROOT` process.
+
+.. c:function:: void op_fetch_data(op_dat dat, T *data)
+
+   This routine copies data held in an :c:type:`op_dat` from the OP2 backend into a user allocated memory buffer.
+
+   :param dat: The dataset to copy from.
+   :param data: The user allocated buffer to copy into.
+
+   .. warning::
+      The memory buffer provided by the user must be large enough to hold all elements in the :c:type:`op_dat`.
+
+.. c:function:: void op_fetch_data_idx(op_dat dat, T *data, int low, int high)
+
+   This routine is equivalent to :c:func:`op_fetch_data()` but with extra parameters to specify the range of data elements to fetch from the :c:type:`op_dat`.
+
+   :param dat: The dataset to copy from.
+   :param data: The user allocated buffer to copy into.
+   :param low: The index of the first element to be fetched.
+   :param high: The index of the last element to be fetched.
+
+.. c:function:: void op_fetch_data_hdf5_file(op_dat dat, const char *file_name)
+
+   This routine writes the data held in an :c:type:`op_dat` from the OP2 backend into an HDF5 file.
+
+   :param dat: The source dataset.
+   :param file: The name of the HDF5 file to write the dataset into.
+
+.. c:function:: void op_print_dat_to_binfile(op_dat dat, const char *file_name)
+
+   This routine writes the data held in an :c:type:`op_dat` from the OP2 backend into a binary file.
+
+   :param dat: The source dataset.
+   :param file: The name of the binary file to write the dataset into.
+
+.. c:function:: void op_print_dat_to_txtfile(op_dat dat, const char *file_name)
+
+   This routine writes the data held in an :c:type:`op_dat` from the OP2 backend into a text file.
+
+   :param dat: The source dataset.
+   :param file: The name of the text file to write the dataset into.
+
+.. c:function:: int op_is_root()
+
+   This routine allows a convenient way to test if the current process is the MPI root process.
+
+   :retval 1: Process is the MPI root.
+   :retval 0: Process is *not* the MPI root.
+
+.. c:function:: int op_get_size(op_set set)
+
+   This routine gets the global size of an :c:type:`op_set`.
+
+   :param set: The set to query.
+   :returns: The number of elements in the set across all processes.
+
+.. c:function:: void op_dump_to_hdf5(const char *file_name)
+
+   This routine dumps the contents of all :c:type:`op_set`\ s, :c:type:`op_dat`\ s and :c:type:`op_map`\ s to an HDF5 file *as held internally by OP2*, intended for debugging purposes.
+
+   :param file_name: The name of the HDF5 file to write the data into.
+
+.. c:function:: void op_timers(double *cpu, double *et)
+
+   This routine provides the current wall-clock time in seconds since the Epoch using :c:func:`gettimeofday()`.
+
+   :param cpu: Unused.
+   :param et: A variable to hold the time.
+
+.. c:function:: void op_timing_output()
+
+   This routine prints OP2 performance details.
+
+.. c:function:: void op_timings_to_csv(const char *file_name)
+
+   This routine writes OP2 performance details to the specified CSV file. For MPI executables the timings are broken down by rank. For OpenMP executables with the ``OP_TIME_THREADS`` environment variable set, the timings are broken down by thread. For MPI + OpenMP executables with ``OP_TIME_THREADS`` set the timings are broken down per thread per rank.
+
+   :param file_name: The name of the CSV file to write.
+
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
-
-Code Preprocessor
------------------
-
 
 Executing with GPUDirect
 ------------------------
