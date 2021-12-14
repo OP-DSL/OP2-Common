@@ -51,12 +51,12 @@ Initialisation and Termination
 
    The values for **diags_level** are as follows:
 
-   - 0: None.
-   - 1: Error-checking.
-   - 2: Info on plan construction.
-   - 3: Report execution of parallel loops.
-   - 4: Report use of old plans.
-   - 7: Report positive checks in :c:func:`op_plan_check()`
+   - :c:expr:`0`: None.
+   - :c:expr:`1`: Error-checking.
+   - :c:expr:`2`: Info on plan construction.
+   - :c:expr:`3`: Report execution of parallel loops.
+   - :c:expr:`4`: Report use of old plans.
+   - :c:expr:`7`: Report positive checks in :c:func:`op_plan_check()`
 
 .. c:function:: void op_exit()
 
@@ -82,7 +82,31 @@ Initialisation and Termination
 
 .. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat coords)
 
-   This routine controls the partitioning of the sets used for
+   This routine controls the partitioning of the sets used for distributed memory parallel execution.
+
+   :param lib_name: The partitioning library to use, see below.
+   :param lib_routine: The partitioning algorithm to use. Required if using :c:expr:`"PTSCOTCH"` or :c:expr:`"PARMETIS"` as the **lib_name**.
+   :param prime_set: Specifies the set to be partitioned.
+   :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
+   :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
+
+   The current options for **lib_name** are:
+
+   - :c:expr:`"PTSCOTCH"`: The `PT-Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_ library.
+   - :c:expr:`"PARMETIS"`: The `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_ library.
+   - :c:expr:`"INERTIAL"`: Internal 3D recursive inertial bisection partitioning.
+   - :c:expr:`"EXTERNAL"`: External partitioning optionally read in when using HDF5 I/O.
+   - :c:expr:`"RANDOM"`: Random partitioning, intended for debugging purposes.
+
+   The options for **lib_routine** when using :c:expr:`"PTSCOTCH"` are:
+
+   - :c:expr:`"KWAY"`: K-way graph partitioning.
+
+   The options for **lib_routine** when using :c:expr:`"PARMETIS"` are:
+
+   - :c:expr:`"KWAY"`: K-way graph partitioning.
+   - :c:expr:`"GEOM"`: Geometric graph partitioning.
+   - :c:expr:`"GEOMKWAY"`: Geometric followed by k-way graph partitioning.
 
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)
 
@@ -93,7 +117,7 @@ Initialisation and Termination
    :param dat: A pointer to the data, checked for type consistency at run-time.
 
    .. note::
-      If **dim** is 1 then the variable is available in the kernel functions with type :c:type:`T`, otherwise it will be available with type :c:type:`T*`.
+      If **dim** is :c:expr:`1` then the variable is available in the kernel functions with type :c:expr:`T`, otherwise it will be available with type :c:expr:`T*`.
 
    .. warning::
       If the executable is not preprocessed, as is the case with the development sequential build, then you must define an equivalent global scope variable to use the data within the kernels.
@@ -104,7 +128,7 @@ Initialisation and Termination
 
    :param set: The set the data is associated with.
    :param dim: Number of data elements per set element.
-   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see `Dataset Layout`_.
+   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see :ref:`api:Dataset Layout`.
    :param data: Input data of type :c:type:`T` (checked for consistency with **type** at run-time). The data must be provided in AoS form with each of the **dim** elements per set element contiguous in memory.
    :param name: A name to be used for output diagnostics.
 
@@ -132,14 +156,14 @@ OP2 can be directed to ues SoA layout storage by setting the environment variabl
 Parallel Loops
 --------------
 
-.. c:function:: void op_par_loop(void (*kernel)(...), char *name, op_set set, op_arg arg1, op_arg arg2, ..., op_arg argN)
+.. c:function:: void op_par_loop(void (*kernel)(...), char *name, op_set set, ...)
 
    This routine executes a parallelised loop over the given **set**, with arguments provided by the :c:func:`op_arg_gbl()`, :c:func:`op_arg_dat()`, and :c:func:`op_opt_arg_dat()` routines.
 
    :param kernel: The kernel function to execute. The number of arguments to the kernel should match the number of :c:type:`op_arg` arguments provided to this routine.
    :param name: A name to be used for output diagnostics.
    :param set: The set to loop over.
-   :param arg1..N: The arguments passed to each invokation of the kernel.
+   :param ...: The :c:type:`op_arg` arguments passed to each invocation of the kernel.
 
 .. c:function:: op_arg op_arg_gbl(T* data, int dim, char *type, op_access acc)
 
@@ -183,7 +207,7 @@ Parallel Loops
 
       void kernel(float *v1, float *v2, float *v3, ...);
 
-   Alternatively, using a negative **idx** of -3 allows a more succinct declaration:
+   Alternatively, using a negative **idx** of :c:expr:`-3` allows a more succinct declaration:
 
    .. code-block:: C
 

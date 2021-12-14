@@ -39,11 +39,15 @@ extensions = [
     'gh-links',
     'sphinx_rtd_theme',
     'sphinx.ext.mathjax',
+    'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',
 ]
 
 # Enable rendering of TODOs
 todo_include_todos = True
+
+# Prefix each section label with the name of the document it is in
+autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

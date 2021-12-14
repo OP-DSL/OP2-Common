@@ -1,15 +1,7 @@
 Implementation Example - Airfoil
 ================================
 
-Development CPU Version
------------------------
+The airfoil implementation example is currently available in PDF form `here <https://op-dsl.github.io/docs/OP2/airfoil-doc.pdf>`__.
 
-Single Node OpenMP and CUDA Executables
----------------------------------------
-
-Extension to Many-Node MPI Executables
---------------------------------------
-
-Adding HDF5 I/O
----------------
-
+.. warning::
+   This document has not been updated for a significant amount of time; beware that the information contained may be out-of-date.

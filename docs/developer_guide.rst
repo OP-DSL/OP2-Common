@@ -1,29 +1,9 @@
 Developer Guide
 ===============
 
-Parallelisation Strategy
-------------------------
+The developer guide is currently available in PDF form `here <https://op-dsl.github.io/docs/OP2/dev.pdf>`__, with an extension document detailing the MPI implementation `here <https://op-dsl.github.io/docs/OP2/mpi-dev.pdf>`__.
 
-CUDA Parallelisation Strategy
------------------------------
+These documents are intended for anyone looking to develop OP2, or looking for a deeper insight into the operational details. If you just wish to use OP2 in your project then the :ref:`api:OP2 C/C++ Manual` should suffice.
 
-MPI Parallelisation Strategy
-----------------------------
-
-Heterogeneous Backends
-----------------------
-
-Partitioning
-------------
-
-Plan Construction
------------------
-
-Data Layout
------------
-
-:code:`op2[_fortran].py`: Source Preprocessor
----------------------------------------------
-
-Global Reductions
------------------
+.. warning::
+   These documents have not been updated for a significant amount of time; beware that the information contained may be out-of-date.
