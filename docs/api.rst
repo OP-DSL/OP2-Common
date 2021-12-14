@@ -80,6 +80,10 @@ Initialisation and Termination
    :param imap: Mapping table.
    :param name: A name to be used for output diagnostics.
 
+.. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat coords)
+
+   This routine controls the partitioning of the sets used for
+
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)
 
    This routine defines constant data with global scope that can be used in kernel functions.
@@ -88,11 +92,11 @@ Initialisation and Termination
    :param type: The type of the data as a string. This can be either intrinsic (`"float"`, `"double"`, `"int"`, `"uint"`, `"ll"`, `"ull"`, or "`bool`") or user-defined.
    :param dat: A pointer to the data, checked for type consistency at run-time.
 
-.. note::
-   If **dim** is 1 then the variable is available in the kernel functions with type :c:type:`T`, otherwise it will be available with type :c:type:`T*`.
+   .. note::
+      If **dim** is 1 then the variable is available in the kernel functions with type :c:type:`T`, otherwise it will be available with type :c:type:`T*`.
 
-.. warning::
-   If the executable is not preprocessed, as is the case with the development sequential build, then you must define an equivalent global scope variable to use the data within the kernels.
+   .. warning::
+      If the executable is not preprocessed, as is the case with the development sequential build, then you must define an equivalent global scope variable to use the data within the kernels.
 
 .. c:function:: op_dat op_decl_dat(op_set set, int dim, char *type, T *data, char *name)
 
@@ -104,8 +108,8 @@ Initialisation and Termination
    :param data: Input data of type :c:type:`T` (checked for consistency with **type** at run-time). The data must be provided in AoS form with each of the **dim** elements per set element contiguous in memory.
    :param name: A name to be used for output diagnostics.
 
-.. note::
-   At present **dim** must be an integer literal. This restriction will be removed in the future but an integer literal will remain more efficient.
+   .. note::
+      At present **dim** must be an integer literal. This restriction will be removed in the future but an integer literal will remain more efficient.
 
 .. c:function:: op_dat op_decl_dat_temp(op_set set, int dim, char *type, T *data, char *name)
 
@@ -116,6 +120,13 @@ Initialisation and Termination
    This routine releases a temporary dataset defined with :c:func:`op_decl_dat_temp()`
 
    :param dat: The dataset to free.
+
+Dataset Layout
+^^^^^^^^^^^^^^
+
+The dataset storage in OP2 can be configured to use either AoS (Array of Structs) or SoA (Struct of Arrays) layouts. As a default the AoS layout is used, matching what is supplied to :c:func:`op_decl_dat()`, however depending on the access patterns of the kernels and the target hardware platform the SoA layout may perform favourably.
+
+OP2 can be directed to ues SoA layout storage by setting the environment variable ``OP_AUTO_SOA=1`` prior to code translation, or by appending ``:soa`` to the type strings in the :c:func:`op_decl_dat()` calls. The data supplied by the user should remain in the AoS layout.
 
 
 Parallel Loops
@@ -151,7 +162,7 @@ Parallel Loops
    This routine defines an :c:type:`op_arg` that can be used to pass a dataset either directly attached to the target :c:type:`op_set` or attached to an :c:type:`op_set` reachable through a mapping.
 
    :param dat: The dataset.
-   :param idx: The per-set-element index into the map to use. You may pass a negative value here to use a range of indicies - see `Vector Arguments`_. This argument is ignored if the identity mapping is used.
+   :param idx: The per-set-element index into the map to use. You may pass a negative value here to use a range of indicies - see below. This argument is ignored if the identity mapping is used.
    :param map: The mapping to use. Pass :c:data:`OP_ID` for the identity mapping if no mapping indirection is required.
    :param dim: The dimension of the dataset, checked for consistency at run-time.
    :param type: The datatype of the dataset as a string, checked for consistency at run-time.
@@ -164,13 +175,27 @@ Parallel Loops
    - :c:data:`OP_RW`: Read and write.
    - :c:data:`OP_INC`: Increment or global reduction to compute a sum.
 
-.. warning::
-   :c:data:`OP_WRITE` and :c:data:`OP_RW` accesses *must not* have any potential data conflicts. This means that two different elements of the set cannot, through a map, reference the same elements of the dataset.
+   The **idx** parameter accepts both positive values to specify a single per-element map index, where the kernel is passed a single dimension array of data, or negative values to specify a range of mapping indicies leading to the kernel being passed a two-dimensional array of data. If a negative index is provided the first **-idx** mapping indicies are provided to the kernel.
 
-   Furthermore with :c:data:`OP_WRITE` the kernel function *must* set the value of all **dim** components of the dataset. If this is not possible then :c:data:`OP_RW` access should be specified.
+   Consider the example of a kernel that is executed over a set of triangles, and is supplied the verticies via arguments. Using positive **idx** you would need one :c:type:`op_arg` per vertex, leading to a kernel declaration similar to:
 
-.. note::
-   At present **dim** must be an integer literal. This restriction will be removed in the future but an integer literal will remain more efficient.
+   .. code-block:: C
+
+      void kernel(float *v1, float *v2, float *v3, ...);
+
+   Alternatively, using a negative **idx** of -3 allows a more succinct declaration:
+
+   .. code-block:: C
+
+      void kernel(float **v[3], ...);
+
+   .. warning::
+      :c:data:`OP_WRITE` and :c:data:`OP_RW` accesses *must not* have any potential data conflicts. This means that two different elements of the set cannot, through a map, reference the same elements of the dataset.
+
+      Furthermore with :c:data:`OP_WRITE` the kernel function *must* set the value of all **dim** components of the dataset. If this is not possible then :c:data:`OP_RW` access should be specified.
+
+   .. note::
+      At present **dim** must be an integer literal. This restriction will be removed in the future but an integer literal will remain more efficient.
 
 .. c:function:: op_arg op_opt_arg_dat(op_dat dat, int idx, op_map map, int dim, char *type, op_access acc, int flag)
 
@@ -178,19 +203,52 @@ Parallel Loops
 
    The argument must not be dereferenced in the user kernel if **flag** is set to zero. If the value of the flag needs to be passed to the kernel then use an additional :c:func:`op_arg_gbl()` argument.
 
-Advanced Features
------------------
-
-Dataset Layout
-^^^^^^^^^^^^^^
-
-
-
-Vector Arguments
-^^^^^^^^^^^^^^^^
-
 HDF5 I/O
 --------
+
+`HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_ has become the *de facto* format for parallel file I/O, with various other standards like `CGNS <https://cgns.github.io/hdf5.html>`_ layered on top. To make it as easy as possible for users to develop distributed-memory OP2 applications, we provide alternatives to some of the OP2 routines in which the data is read by OP2 from an HDF5 file, instead of being supplied by the user. This is particularly useful for distributed memory MPI systems where the user would otherwise have to manually scatter data arrays over nodes prior to initialisation.
+
+.. c:function:: op_set op_decl_set_hdf5(char* file, char *name)
+
+   Equivalent to :c:func:`op_decl_set()` but takes a **file** instead of **size**, reading in the set size from the HDF5 file using the keyword **name**.
+
+.. c:function:: op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char *file, char *name)
+
+   Equivalent to :c:func:`op_decl_map()` but takes a **file** instead of **imap**, reading in the mappiing table from the HDF5 file using the keyword **name**.
+
+.. c:function:: op_dat op_decl_dat_hdf5(op_set set, int dim, char *type, char *file, char *name)
+
+   Equivalent to :c:func:`op_decl_dat()` but takes a **file** instead of **data**, reading in the dataset from the HDF5 file using the keyword **name**.
+
+.. c:function:: void op_get_const_hdf5(char *name, int dim, char *type, char *data, char *file)
+
+   This routine reads constant data from an HDF5 file.
+
+   :param name: The name of the dataset in the HDF5 file.
+   :param dim: The number of data elements in the dataset.
+   :param type: The string type of the data.
+   :param data: A user-supplied array of at least **dim** capacity to read the data into.
+   :param file: The HDF5 file to read the data from.
+
+   .. note::
+      To use the read data from within a kernel function you must declare it with :c:func:`op_decl_const()`
+
+   .. warning::
+      The number of data elements specified by the **dim** parameter must match the number of data elements present in the HDF5 file.
+
+MPI without HDF5 I/O
+--------------------
+
+If you wish to use the MPI executables but don't want to use the OP2 HDF5 support, you may perform your own file I/O and then provide the data to OP2 using the normal routines. The behaviour of these routines under MPI is as follows:
+
+- :c:func:`op_decl_set()`: The **size** parameter is the number of elements provided by this MPI process.
+- :c:func:`op_decl_map()`: The **imap** parameter provides the part of the mapping table corresponding to the processes share of the **from** set.
+- :c:func:`op_decl_dat()`: The **data** parameter provides the part of the dataset corresponding to the processes share of the **set** set.
+
+For example if an application has 4 processes, 4M nodes and 16M edges, then each process might be responsible for providing 1M nodes and 4M edges.
+
+.. note::
+   This is effectively using simple contiguous block partitioning of the datasets, but it is important to note that this is strictly for I/O and this partitioning will not be used for the parallel computation. OP2 will re-partition the datasets, re-number the mapping tables and then shuffle the data between the MPI processes as required.
 
 Other I/O and Utilities
 -----------------------
@@ -198,3 +256,14 @@ Other I/O and Utilities
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
+
+Code Preprocessor
+-----------------
+
+
+Executing with GPUDirect
+------------------------
+
+OP2 supports execution with GPU direct MPI when using the MPI + CUDA builds. To enable this, simply pass ``-gpudirect`` as a command line argument when running the executable.
+
+You may also have to user certain environment variables depending on MPI implementation, so check your cluster's user-guide.
