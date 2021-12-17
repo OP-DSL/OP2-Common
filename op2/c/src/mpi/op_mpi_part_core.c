@@ -4602,7 +4602,7 @@ void create_reversed_mapping() {
       rev_map->reversed_map = NULL;
 
       rev_map->row_start_idx = rev_row_start_idx;
-      rev_map->row_start_idx_d = rev_row_start_idx;
+      rev_map->row_start_idx_d = NULL;
       rev_map->reversed_map_d = NULL;
       rev_map->color_based_exec_d = NULL;
       OP_reversed_map_list[m] = rev_map;
