@@ -46,11 +46,11 @@ BUILDABLE_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
                       $(filter $(VARIANT_FILTER),$(BUILDABLE_VARIANTS)))
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
-  ifndef HDF5_SEQ_INSTALL_PATH
+  ifneq ($(HAVE_HDF5_SEQ),true)
     BUILDABLE_VARIANTS := $(filter $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
   endif
 
-  ifndef HDF5_PAR_INSTALL_PATH
+  ifneq ($(HAVE_HDF5_PAR),true)
     BUILDABLE_VARIANTS := $(filter-out $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
   endif
 endif

@@ -43,48 +43,66 @@ OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
 
 AR := ar rcs
 
-ifdef OP2_COMPILER
-  OP2_C_COMPILER ?= $(OP2_COMPILER)
-  OP2_F_COMPILER ?= $(OP2_COMPILER)
-  OP2_C_CUDA_COMPILER ?= nvhpc
-endif
-
-ifdef OP2_C_COMPILER
-  include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
-else
-  $(warning OP2_C_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
-
-ifdef OP2_F_COMPILER
-  include $(MAKEFILES_DIR)/compilers/fortran/$(OP2_F_COMPILER).mk
-else
-  $(warning OP2_F_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
-
-ifdef OP2_C_CUDA_COMPILER
-  include $(MAKEFILES_DIR)/compilers/c_cuda/$(OP2_C_CUDA_COMPILER).mk
-else
-  $(warning OP2_C_CUDA_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
-
-ifeq ($(F_HAS_CUDA),true)
-  CUDA_FFLAGS += -DOP2_WITH_CUDAFOR
-endif
-
-ifdef MPI_INSTALL_PATH
-  MPI_BIN ?= $(MPI_INSTALL_PATH)/bin/
-endif
-
-MPICC ?= $(MPI_BIN)mpicc
-MPICXX ?= $(MPI_BIN)mpicxx
-MPIFC ?= $(MPI_BIN)mpif90
-
-# Anti MPI C++ binding measures
-CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
-CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
-
 # Dependencies
-include $(MAKEFILES_DIR)/dependencies.mk
+DEPS_DIR := $(MAKEFILES_DIR)/dependencies
+
+ifneq ($(MAKECMDGOALS),clean)
+  # Compiler definitions
+  include $(MAKEFILES_DIR)/compilers.mk
+
+  ifeq ($HAVE_C),true)
+    include $(DEPS_DIR)/hdf5_seq.mk
+  endif
+
+  ifeq ($(HAVE_C_CUDA),true)
+    include $(DEPS_DIR)/cuda.mk
+  endif
+
+  ifeq ($(HAVE_MPI_C),true)
+    include $(DEPS_DIR)/hdf5_par.mk
+
+    include $(DEPS_DIR)/ptscotch.mk
+    include $(DEPS_DIR)/parmetis.mk
+  endif
+endif
+
+.PHONY: detect
+detect:
+	@echo > /dev/null
+
+ifeq ($(MAKECMDGOALS),detect)
+  # Evaluates to X_LIB if HAVE_X and X_LIB is defined
+  # otherwise evaluates to "implicit" if HAVE_X is defined but not X_LIB
+  # otherwise evaluates to "not found"
+  I_STR = $(if $(HAVE_$(1)),$(if $($(1)_LIB),$($(1)_LIB),implicit),not found)
+
+  $(info Compilers:)
+  $(info .   C: $(if $(HAVE_C),$(CC),not found))
+  $(info .   C++: $(if $(HAVE_C),$(CXX),not found))
+  $(info .   CUDA: $(if $(HAVE_C_CUDA),$(NVCC),not found))
+  $(info .   Fortran: $(if $(HAVE_F),$(FC),not found))
+  $(info )
+  $(info MPI compilers:)
+  $(info .   C: $(if $(HAVE_MPI_C),$(MPICC),not found))
+  $(info .   C++: $(if $(HAVE_MPI_C),$(MPICXX),not found))
+  $(info .   Fortran: $(if $(HAVE_MPI_F),$(MPIFC),not found))
+  $(info )
+  $(info CUDA libraries: $(call I_STR,CUDA))
+  $(info )
+  $(info HDF5 I/O:)
+  $(info .   Sequential: $(call I_STR,HDF5_SEQ))
+  $(info .   Parallel: $(call I_STR,HDF5_PAR))
+  $(info )
+  $(info MPI partitioners:)
+  $(info .   PT-Scotch: $(call I_STR,PTSCOTCH))
+  $(info .   ParMETIS: $(call I_STR,PARMETIS))
+  $(info )
+  $(info Compilation flags:)
+  $(info .    C: $(CFLAGS))
+  $(info .    C++: $(CXXFLAGS))
+  $(info .    CUDA: $(NVCCFLAGS))
+  $(info .    Fortran: $(FFLAGS))
+endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
 define OP2_LIB_template =

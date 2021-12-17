@@ -10,11 +10,11 @@ include ../../../../../makefiles/c_app.mk
 
 .PHONY: clean_convert_mesh
 
-ifdef HDF5_SEQ_INSTALL_PATH
+ifeq ($(HAVE_HDF5_SEQ),true)
   all: convert_mesh
 endif
 
-ifdef HDF5_PAR_INSTALL_PATH
+ifeq ($(HAVE_HDF5_PAR),true)
   all: convert_mesh_mpi
 endif
 
