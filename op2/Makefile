@@ -19,13 +19,11 @@ ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
 endif
 
 MPI_IS_BUILDABLE := false
-ifeq ($(HAVE_HDF5_PAR),true)
-  ifneq ($(shell which $(MPICC) 2> /dev/null),)
-    MPI_IS_BUILDABLE := true
-  endif
+ifeq ($(and $(HAVE_MPI_C),$(HAVE_HDF5_PAR)),true)
+  MPI_IS_BUILDABLE := true
 endif
 
-ifneq ($(shell which $(NVCC) 2> /dev/null),)
+ifeq ($(HAVE_CUDA),true)
   OP2_BUILDABLE_LIBS += cuda
 
   ifeq ($(MPI_IS_BUILDABLE),true)
@@ -37,7 +35,7 @@ ifeq ($(MPI_IS_BUILDABLE),true)
   OP2_BUILDABLE_LIBS += mpi
 endif
 
-ifneq ($(shell which $(FC) 2> /dev/null),)
+ifeq ($(HAVE_F),true)
   OP2_BUILDABLE_LIBS += $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
 endif
 

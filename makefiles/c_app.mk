@@ -23,7 +23,7 @@ ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   BASE_BUILDABLE_VARIANTS += openmp4
 endif
 
-ifneq ($(shell which $(NVCC) 2> /dev/null),)
+ifeq ($(HAVE_CUDA),true)
   BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
 endif
 
@@ -32,7 +32,7 @@ ifneq ($(wildcard ./$(APP_ENTRY)),)
   BUILDABLE_VARIANTS += $(foreach variant,$(BASE_BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
 endif
 
-ifneq ($(and $(wildcard ./$(APP_ENTRY_MPI)),$(shell which $(MPICC) 2> /dev/null)),)
+ifneq ($(and $(wildcard ./$(APP_ENTRY_MPI)),$(HAVE_MPI_C)),)
   BUILDABLE_VARIANTS += $(foreach variant,$(BASE_BUILDABLE_VARIANTS),$(APP_NAME)_mpi_$(variant))
 
   # TODO/openmp4 MPI + OpenMP4 offload build not (yet) supported

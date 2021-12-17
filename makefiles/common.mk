@@ -1,6 +1,8 @@
 SHELL = /bin/sh
 .SUFFIXES:
 
+.DEFAULT_GOAL := all
+
 # Helper function to upper-case a string
 define UPPERCASE =
 $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")

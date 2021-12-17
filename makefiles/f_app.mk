@@ -32,7 +32,7 @@ ifeq ($(F_HAS_CUDA),true)
   BUILDABLE_VARIANTS += cuda
 endif
 
-ifneq ($(shell which $(MPIFC) 2> /dev/null),)
+ifeq ($(HAVE_MPI_F),true)
   BUILDABLE_VARIANTS += $(foreach variant,$(BUILDABLE_VARIANTS),mpi_$(variant))
 endif
 
