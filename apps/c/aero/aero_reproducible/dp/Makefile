@@ -22,8 +22,8 @@ CUDA_LIB	= -L$(CUDA_INSTALL_PATH)/lib64
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-#  CPPFLAGS	= -g -fPIC -DUNIX -Wall
-  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra
+  CPPFLAGS	= -g -fPIC -DUNIX -Wall -O0
+#  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -Wextra -fopenmp
   OMPFLAGS	= -fopenmp
 #  MPICPP	= /usr/bin/mpiCC
   MPICPP        = $(MPI_INSTALL_PATH)/bin/mpicxx
@@ -76,7 +76,8 @@ endif
 endif
 endif
 
-NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+#NVCCFLAGS       = -O3 $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -use_fast_math #-g -G -O0
+NVCCFLAGS       = $(CODE_GEN_CUDA) -m64 -Xptxas -dlcm=ca -Xptxas=-v -g -G -O0
 
 
 #
@@ -149,7 +150,7 @@ aero_mpi: aero.cpp Makefile
 
 aero_mpi_genseq: aero_op.cpp seq/aero_seqkernels.cpp Makefile
 	$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-	$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. $(REPRO_MPI_INC) \
+	$(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq  -I. $(REPRO_MPI_INC)  $(OMPFLAGS) \
 	aero_op.cpp -lm seq/aero_seqkernels.cpp -Wl,--start-group $(OP2_LIB) -lop2_mpi \
 	$(PARMETIS_LIB) $(PTSCOTCH_LIB)  $(HDF5_LIB) $(REPRO_MPI_LIB) -Wl,--end-group -g -o aero_mpi_genseq
 
@@ -167,7 +168,7 @@ aero_mpi_openmp:	aero_op.cpp openmp/aero_kernels.cpp \
 # mpi with CUDA version
 #
 aero_mpi_cuda:	aero_op.cpp cuda/aero_kernels_mpi_cu.o Makefile
-		$(MPICPP) $(VAR) $(MPIFLAGS) aero_op.cpp cuda/aero_kernels_mpi_cu.o \
+		$(MPICPP) $(VAR) $(MPIFLAGS) $(OMPFLAGS)  aero_op.cpp cuda/aero_kernels_mpi_cu.o \
 		$(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) $(REPRO_MPI_INC)\
 		$(OP2_LIB) -lop2_mpi_cuda $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) \
 		$(CUDA_LIB) -lcudart $(REPRO_MPI_LIB) -o aero_mpi_cuda

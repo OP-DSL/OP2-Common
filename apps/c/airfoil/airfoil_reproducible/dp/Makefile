@@ -27,6 +27,7 @@ ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
 #  CPPFLAGS	= -fPIC -DUNIX -Wall -O0 -g -Wextra
   CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -fopenmp #-O0 -g -Wextra
+#  CPPFLAGS	= -fPIC -DUNIX -Wall -fopenmp -O0 -g -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPI_INSTALL_PATH)/bin/mpicxx
 #  MPICPP	= $(MPI_INSTALL_PATH)/bin/mpiCC
@@ -278,9 +279,9 @@ airfoil_mpi_vec: airfoil_op.cpp vec/airfoil_veckernels.cpp \
                 vec/update_veckernel.cpp     update.h    \
                 Makefile
 		$(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) $(HDF5_INC) \
-                $(PARMETIS_INC) $(PTSCOTCH_INC) -Ivec  -I. \
+                $(PARMETIS_INC) $(PTSCOTCH_INC) -Ivec  -I. $(REPRO_MPI_INC) \
                 airfoil_op.cpp -lm vec/airfoil_veckernels.cpp $(OP2_LIB) -lop2_mpi \
-                $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) -o airfoil_mpi_vec
+                $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) $(REPRO_MPI_LIB) -o airfoil_mpi_vec
 
 
 #
