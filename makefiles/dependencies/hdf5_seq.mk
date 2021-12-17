@@ -11,7 +11,7 @@ endif
 
 HDF5_SEQ_TEST = $(CXX) $(HDF5_SEQ_INC_PATH) \
                     $(DEPS_DIR)/tests/hdf5.cpp $(HDF5_SEQ_LIB_PATH) $(HDF5_SEQ_LINK) \
-                    -o $(DEPS_DIR)/tests/hdf5 2> /dev/null
+                    -o $(DEPS_DIR)/tests/hdf5
 
 # Test for sequential HDF5
 $(shell $(HDF5_SEQ_TEST))

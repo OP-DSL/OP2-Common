@@ -14,17 +14,9 @@ MAKEFILES_DIR != dirname $(realpath \
 
 ROOT_DIR != realpath $(MAKEFILES_DIR)/../
 
-# Include profile #! PRE section
+# Include profile
 ifdef OP2_PROFILE
-  OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
-
-  $(shell sed -n '/^#!\s*PRE/,$${p;/^#!\s*POST/q}' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/.profile.pre.mk)
-
-  $(shell sed -n '/^#!\s*POST/,$${p;/^#!\s*PRE/q}' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/.profile.post.mk)
-
-  include $(MAKEFILES_DIR)/.profile.pre.mk
+  include $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
 endif
 
 OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
@@ -52,7 +44,7 @@ ifneq ($(MAKECMDGOALS),clean)
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
 
-  ifeq ($HAVE_C),true)
+  ifeq ($(HAVE_C),true)
     include $(DEPS_DIR)/hdf5_seq.mk
   endif
 
@@ -131,8 +123,3 @@ $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),\
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
-
-# Include profile #! POST section
-ifdef OP2_PROFILE_FILE
-  include $(MAKEFILES_DIR)/.profile.post.mk
-endif

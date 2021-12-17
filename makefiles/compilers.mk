@@ -21,15 +21,15 @@ ifeq ($(F_HAS_CUDA),true)
 endif
 
 # Test if the compilers are present
-ifneq ($(and $(shell which $(CC)),$(shell which $(CXX))),)
+ifneq ($(and $(shell which $(CC) 2> /dev/null),$(shell which $(CXX) 2> /dev/null)),)
   HAVE_C := true
 endif
 
-ifneq ($(shell which $(NVCC)),)
+ifneq ($(shell which $(NVCC) 2> /dev/null),)
   HAVE_C_CUDA := true
 endif
 
-ifneq ($(shell which $(FC)),)
+ifneq ($(shell which $(FC) 2> /dev/null),)
   HAVE_F := true
 endif
 
@@ -42,7 +42,7 @@ MPICC ?= $(MPI_BIN)mpicc
 MPICXX ?= $(MPI_BIN)mpicxx
 MPIFC ?= $(MPI_BIN)mpif90
 
-ifneq ($(and $(shell which $(CC)),$(shell which $(CXX))),)
+ifneq ($(and $(shell which $(CC) 2>/dev/null ),$(shell which $(CXX) 2> /dev/null)),)
   HAVE_MPI_C := true
 
   # Anti MPI C++ binding measures
@@ -50,6 +50,6 @@ ifneq ($(and $(shell which $(CC)),$(shell which $(CXX))),)
   CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
 endif
 
-ifneq ($(shell which $(MPIFC)),)
+ifneq ($(shell which $(MPIFC) 2> /dev/null),)
   HAVE_MPI_F := true
 endif
