@@ -4709,6 +4709,9 @@ void op_enable_reproducibility(const char* mode){
   if (strcmp(mode, "repr_coloring") == 0) {
     OP_repro_coloring=1;
     op_printf("Reproducible execution enabled - coloring method\n");
+  } else if (OP_force_distr_coloring) {    
+    OP_repro_coloring=1;
+    op_printf("Reproducible distributed colorings to be generaterd\n");
   }
   if (strcmp(mode, "trivial_repr_coloring") == 0) {
     OP_repro_coloring=1;

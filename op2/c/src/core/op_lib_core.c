@@ -48,7 +48,7 @@
  */
 
 int OP_diags = 0, OP_part_size = 0, OP_block_size = 64,
-    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_repro_greedy_coloring = 0, 
+    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_repro_greedy_coloring = 0, OP_force_distr_coloring = 0,
     OP_repro_coloring = 0, OP_repro_temparray = 0, OP_repro_trivial_coloring = 0;
 
 double OP_hybrid_balance = 1.0;
@@ -189,6 +189,11 @@ void op_set_args(int argc, char *argv) {
   if (pch != NULL) {
     OP_repro_greedy_coloring = 1;
     op_printf("\n Applying greedy preprocessing method for reproducible coloring\n");
+  }
+  pch = strstr(argv, "-op_force_distr_coloring");
+  if (pch != NULL) {
+    OP_force_distr_coloring = 1;
+    op_printf("\n Forced to generate reproducible gready coloring\n");
   }
 
   pch = strstr(argv, "OP_MAPS_BASE_INDEX=");
