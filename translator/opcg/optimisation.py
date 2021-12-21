@@ -48,7 +48,9 @@ class Opt(object):
 
 # Define optimisations here ...
 
-seq = Opt('seq', False)
+seq = Opt('seq', False, config={
+  'grouped': False
+})
 
 cuda = Opt('cuda', True, config={
   'atomics': True,
@@ -57,6 +59,10 @@ cuda = Opt('cuda', True, config={
   'soa': False
 })
 
-omp = Opt('omp', False)
+omp = Opt('omp', False, config={
+  'grouped': False
+})
 
-vec = Opt('vec', True)
+vec = Opt('vec', True, config={
+  'grouped': False
+})
