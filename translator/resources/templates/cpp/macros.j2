@@ -2,7 +2,7 @@
 {# Surround caller with op_opt conditional block #}
 {% macro op_opt(arg) %}
 {% if arg.opt %}
-if (opArg{{ arg.i+1 }}.opt)
+if (arg{{ arg.i }}.opt)
 { {{ caller() }}
 }
 {% else %}{{ caller() }}{% endif %}
@@ -12,19 +12,18 @@ if (opArg{{ arg.i+1 }}.opt)
 int nargs = {{ parloop.nargs }};
   op_arg args[{{ parloop.nargs }}];
 
-  {% for arg in parloop.args %}
-  {% if arg.vec %}
+  {% for arg in parloop.expanded_args %}
+  {% if arg.vec and arg.idx == 0 %}
   arg{{ arg.i }}.idx = 0;
   args[{{ arg.i }}] = arg{{ arg.i }};
-  for(int v = 1; v < {{ arg.idx | abs }}; v++) {
-    {# TODO: may need to be arg1st instead of i here #}
+  for(int v = 1; v < {{ arg.vec_size }}; v++) {
     {% if arg.opt is not none %}
     args[{{ arg.i }} + v] = op_opt_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
     {% else %}
     args[{{ arg.i }} + v] = op_arg_dat(arg{{ arg.i }}.dat, v, arg{{ arg.i }}.map, {{ arg.dim }}, "{{ arg.typ }}", {{ arg.acc }});
     {% endif %}
   }
-  {% else %}
+  {% elif not arg.vec %}
   args[{{ arg.i }}] = arg{{ arg.i }};
   {% endif %}
   {% endfor %}

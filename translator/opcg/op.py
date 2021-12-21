@@ -118,6 +118,14 @@ class Arg:
   idx: Optional[int] # Indirect mapping index
   soa: bool          # Does this arg use SoA
   opt: Optional[str]
+  vec: bool          # Was this arg a vector arg before being expanded
+  vec_size: int      # The size of the vector arg before it was expanded
+  unique_i: int      # the loop argument index of the unique arg (i.e. arg before vec was expanded)
+  unique: bool       # Does this arg represent the arg pre expansion
+  datInd: int        # First arg to use this arg's dat
+  mapInd: int        # First arg to use this arg's map
+  mapIdxInd: int        # First arg to use this arg's map + idx combination
+  mapIdxIndFirst: bool  # Is this the first arg to use this arg's map + idx combination
   map1st: Optional[int] # First arg to use this arg's map
   arg1st: Optional[int] # First arg to use this arg's dat
   optidx: Optional[int] # Index in list of args with opt set
@@ -132,7 +140,8 @@ class Arg:
     loc: Location,
     map_: str = None,
     idx: int = None,
-    soa: bool = False
+    soa: bool = False,
+    vec: bool = False
   ) -> None:
     self.var = var
     self.dim = dim
@@ -143,6 +152,7 @@ class Arg:
     self.idx = idx
     self.soa = soa
     self.opt = None
+    self.vec = vec
 
 
   @property
@@ -161,8 +171,8 @@ class Arg:
 
 
   @property
-  def vec(self) -> bool:
-    return self.idx is not None and self.idx < -1
+  def vector(self) -> bool:
+    return self.idx is not None and self.idx < 0 and self.indirect
 
 
 class Loop:
@@ -170,6 +180,7 @@ class Loop:
   set: str
   loc: Location
   args: List[Arg]
+  expanded_args: List[Arg]
   thread_timing: bool
   kernelPath: str
   nargs: int
@@ -182,6 +193,68 @@ class Loop:
     self.args = args
     seenMaps = {}
     seenArgs = {}
+    self.expanded_args = []
+
+    for i, arg in enumerate(self.args):
+      arg.i = i
+
+    # Number of arguments for this loop if no vec arguments
+    self.nargs_novec = len(self.args)
+
+    # Create a new list of args by expanding the vec args
+    for arg in self.args:
+      if arg.idx is not None and arg.idx < 0 and arg.indirect:
+        # Expand vec arg into multiple args
+        for i in range(0, arg.idx * -1):
+          tmp = Arg(arg.var, arg.dim, arg.typ, arg.acc, arg.loc, arg.map, i, arg.soa, True)
+          tmp.opt = arg.opt
+          tmp.unique_i = arg.i
+          tmp.vec_size = abs(arg.idx)
+          if i == 0:
+            tmp.unique = True
+          else:
+            tmp.unique = False
+          self.expanded_args.append(tmp)
+      else:
+        arg.unique_i = arg.i
+        arg.unique = True
+        self.expanded_args.append(arg)
+
+    # Number of arguments after expanding vec args
+    self.nargs = len(self.expanded_args)
+
+    # Assign index of first arg to use this combination of map + idx
+    # Also assign a loop argument index to each arg
+    # Assign index of first arg to use this map
+    # Assign index of first arg to use this dat
+    for i, arg in enumerate(self.expanded_args):
+      arg.i = i
+      arg.datInd = i
+      arg.mapInd = i
+      arg.mapIdxInd = i
+      arg.mapIdxIndFirst = True
+      for j in range(0, i):
+        if arg.var == self.expanded_args[j].var:
+          arg.datInd = self.expanded_args[j].datInd
+        if arg.indirect and (arg.map == self.expanded_args[j].map):
+          arg.mapInd = self.expanded_args[j].mapInd
+        if arg.indirect and (arg.map == self.expanded_args[j].map) and (arg.idx == self.expanded_args[j].idx):
+          arg.mapIdxInd = self.expanded_args[j].mapIdxInd
+          arg.mapIdxIndFirst = False
+
+    # Calculate cumulative indirect index of OP_INC args
+    i = 0
+    for arg in self.indirects:
+      if arg.acc == "OP_INC":
+        arg.cumulative_ind_idx = i
+        i = i + 1
+
+    # Number of unique mappings
+    self.nmaps = 0
+    if self.indirection:
+      self.nmaps = max([ arg.mapIdxInd for arg in self.expanded_args ]) + 1
+
+    ### OLD STUFF (Remove once I've checked its no longer needed) ###
 
     # Assign loop argument index to each arg (accounting for vec args)
     i = 0
@@ -192,7 +265,7 @@ class Loop:
       else:
         seenArgs[arg.var] = arg.i
         arg.arg1st = arg.i
-      if arg.vec:
+      if arg.vector:
         i += abs(arg.idx)
       else:
         i += 1
@@ -205,11 +278,6 @@ class Loop:
         seenMaps[arg.map] = arg.i
         arg.map1st = arg.i
 
-    # Number of args for this loop accounting for vec args
-    self.nargs = len(self.args)
-    for arg in self.vecs:
-      self.nargs += abs(arg.idx) - 1
-
     # Index args which uses opts (args with the same dat + map combination have same index)
     nopts = 0;
     for arg in self.opts:
@@ -219,93 +287,87 @@ class Loop:
       else:
         arg.optidx = self.args[arg.arg1st].optidx
 
-    # Calculate cumulative indirect index of OP_INC args
-    i = 0
-    for arg in self.indirects:
-      if arg.acc == "OP_INC":
-        arg.cumulative_ind_idx = i
-        i = i + 1
-
+  # Name of kernel
   @property
   def name(self) -> str:
     return self.kernel
 
   # Returns true if any arg is accessing a dat indirectly
-  @cached_property
+  @property
   def indirection(self) -> bool:
     return len(self.indirects) > 0
 
   # Returns true if any arg uses SoA
-  @cached_property
+  @property
   def any_soa(self) -> bool:
     return len(self.soas) > 0
 
   # Returns true if any direct arg uses SoA
-  @cached_property
+  @property
   def direct_soa(self) -> bool:
     return any(arg.direct for arg in self.soas)
 
   # Gets idx of first direct arg using SoA
-  @cached_property
+  @property
   def direct_soa_idx(self) -> bool:
     if self.direct_soa:
-      for arg in self.args:
+      for arg in self.expanded_args:
         if arg.direct and arg.soa:
           return arg.i
     return -1
 
   # List of args accessing dats directly
-  @cached_property
+  @property
   def directs(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.direct ]
+    return [ arg for arg in self.expanded_args if arg.direct ]
 
   # List of args accessing dats indirectly
-  @cached_property
+  @property
   def indirects(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.indirect ]
+    return [ arg for arg in self.expanded_args if arg.indirect ]
 
   # List of args with an option flag set
-  @cached_property
+  @property
   def opts(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.opt is not None ]
+    return [ arg for arg in self.expanded_args if arg.opt is not None ]
 
   # List of args which are global loop variables
-  @cached_property
+  @property
   def globals(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.global_ ]
+    return [ arg for arg in self.expanded_args if arg.global_ ]
 
   # List of args which are global OP_READ or OP_WRITE loop variables
-  @cached_property
+  @property
   def globals_r_w(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.global_ and (arg.acc == "OP_READ" or arg.acc == "OP_WRITE")]
+    return [ arg for arg in self.expanded_args if arg.global_ and (arg.acc == "OP_READ" or arg.acc == "OP_WRITE")]
 
   # List of args which use vec indexing
-  @cached_property
+  @property
   def vecs(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.vec ]
+    return [ arg for arg in self.expanded_args if arg.vector ]
 
   # List of args which use SoA
-  @cached_property
+  @property
   def soas(self) -> List[Arg]:
-    return [ arg for arg in self.args if arg.soa ]
+    return [ arg for arg in self.expanded_args if arg.soa ]
 
   # List of args where only the first occurrence of each dat is included
-  @cached_property
+  @property
   def uniqueVars(self) -> List[Arg]:
-    return uniqueBy(self.args, lambda a: a.var)
+    return uniqueBy(self.expanded_args, lambda a: a.var)
 
   # List of indirect args where only the first occurrence of each dat is included
-  @cached_property
+  @property
   def indirectVars(self) -> List[Arg]:
     return uniqueBy(self.indirects, lambda a: a.var)
 
   # List of indirect args where only the first occurrence of each map is included
-  @cached_property
+  @property
   def indirectMaps(self) -> List[Arg]:
     return uniqueBy(self.indirects, lambda a: a.map)
 
   # List of indirect args where only the first occurrence of each (map, mapping id) pair is included
-  @cached_property
+  @property
   def indirectIdxs(self) -> List[Arg]:
     res = []
     for arg in self.indirects:
@@ -322,15 +384,15 @@ class Loop:
     return uniqueBy(res, lambda a: (a.map, a.idx))
 
   # Index of the dat referenced by the arg (with -1 for direct args)
-  @cached_property
+  @property
   def indirectionDescriptor(self) -> List[int]:
     descriptor = []
 
-    for arg in self.args:
+    for arg in self.expanded_args:
       if arg.indirect:
         for i, a in enumerate(self.indirectVars):
           if a.var == arg.var:
-            if arg.vec:
+            if arg.vector:
               for x in range(0, abs(arg.idx)):
                 descriptor.append(i)
             else:
@@ -341,12 +403,12 @@ class Loop:
     return descriptor
 
   # True if any global reductions used in this loop
-  @cached_property
+  @property
   def reduction(self) -> bool:
     return any( arg.acc != READ for arg in self.globals )
 
   # True if any multi dim (i.e. dimension of the global is > 1) reduction
-  @cached_property
+  @property
   def multiDimReduction(self) -> bool:
     return self.reduction and any( arg.dim > 1 for arg in self.globals )
 
@@ -357,3 +419,12 @@ class Loop:
               return i
 
       return -1
+
+  # Get the unique arguments (the ones corresponding to the original args)
+  @property
+  def unique(self) -> List[Arg]:
+    return [ arg for arg in self.expanded_args if arg.unique ]
+
+  # Function that allows exceptions to be raised during templating
+  def raise_exception(self, text : str) -> void:
+    exit(text + ". Error from processing \"" + self.name + "\" loop")

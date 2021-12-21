@@ -216,7 +216,7 @@ class Application:
 
             # Adjust min index for vec args
             # TODO check how Fortran OP2 does vec args
-            if arg.vec and lang.zero_idx:
+            if arg.vector and lang.zero_idx:
               min_idx = -map_.dim
 
             # Perform range check
@@ -236,9 +236,9 @@ class Application:
         raise ParseError(f'incorrect number of args passed to the {kernel} kernel', loop.loc)
 
       for i, (param, arg) in enumerate(zip(kernel.params, loop.args)):
-        if not arg.vec and arg.typ != param[1]:
+        if not arg.vector and arg.typ != param[1]:
           raise ParseError(f'argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1]}', arg.loc)
-        elif arg.vec and arg.typ != param[1][:-2]:
+        elif arg.vector and arg.typ != param[1][:-2]:
           raise ParseError(f'argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1][:-2]}', arg.loc)
 
 
