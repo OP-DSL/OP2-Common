@@ -1,15 +1,15 @@
 {# Template imports #}
-{% from 'cpp/macros.j2' import op_opt, op_host_stub_args %}
+{% from 'cpp/macros.j2' import op_opt, op_host_stub_args, op_host_set_mappings, op_host_vec_arg_arrays %}
 {% from 'macros.j2' import comma %}
 
 // user function
 #include "../{{ parloop.kernelPath }}"
 
 // host stub function
-void op_par_loop_{{ parloop.name }}_host(
+void op_par_loop_{{ parloop.name }}(
   char const *name,
   op_set set,
-  {% for arg in parloop.args %}
+  {% for arg in parloop.unique %}
   op_arg arg{{ arg.i }}{{ comma(loop) }}
   {% endfor %}
 ) {
@@ -24,7 +24,7 @@ void op_par_loop_{{ parloop.name }}_host(
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  {% if parloop.thread_timing %}
+  {% if opt.config['thread_timing'] %}
   op_timing_realloc_manytime({{ id }}, omp_get_max_threads());
   {% else %}
   op_timing_realloc({{ id }});
@@ -32,19 +32,21 @@ void op_par_loop_{{ parloop.name }}_host(
   OP_kernels[{{ id }}].name   = name;
   OP_kernels[{{ id }}].count += 1;
   op_timers_core(&cpu_t1, &wall_t1);
-  {% if parloop.thread_timing %}
+  {% if opt.config['thread_timing'] %}
   double non_thread_walltime = 0.0;
   {% endif %}
 
   {% if parloop.indirection %}
   int ninds = {{ parloop.indirectVars | length }};
-  int inds[{{ parloop.nargs }}] = { {% for indDesc in parloop.indirectionDescriptor %} {{ indDesc }}{{ comma(loop) }} {% endfor %} };
+  int inds[{{ parloop.nargs }}] = { {% for ind in parloop.indirectVarInds %} {{ ind }}{{ comma(loop) }} {% endfor %} };
   {% endif %}
+
   if (OP_diags>2) {
     printf(" kernel routine {{ 'with' if parloop.indirection else 'w/o' }} indirection: {{ parloop.name }}\n");
   }
+
   {% if parloop.indirection %}
-  // get plan
+  // Get plan
   #ifdef OP_PART_SIZE_{{ id }}
     int part_size = OP_PART_SIZE_{{ id }};
   #else
@@ -53,8 +55,9 @@ void op_par_loop_{{ parloop.name }}_host(
   {% endif %}
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 
+  {# Set number of threads #}
   {% if parloop.reduction or not parloop.indirection %}
-  // set number of threads
+  // Set number of threads
   #ifdef _OPENMP
     int nthreads = omp_get_max_threads();
   #else
@@ -62,17 +65,18 @@ void op_par_loop_{{ parloop.name }}_host(
   #endif
   {% endif %}
 
+  {# Create arrays for reduction #}
   {% if parloop.reduction %}
-  // allocate and initialise arrays for global reduction
+  // Allocate and initialise arrays for global reduction
   {% for glb in parloop.globals %}
   {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
-  {{ glb.typ }} arg{{ glb.i }}_l[nthreads*64];
+  {{ glb.typ }} arg{{ glb.i }}_l[nthreads * 64];
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
       {% if glb.acc == "OP_INC" %}
-      arg{{ glb.i }}_l[d+thr*64] = ZERO_{{ glb.typ }};
+      arg{{ glb.i }}_l[d + thr * 64] = ZERO_{{ glb.typ }};
       {% else %}
-      arg{{ glb.i }}_l[d+thr*64] = arg{{ glb.i }}h[d];
+      arg{{ glb.i }}_l[d + thr * 64] = arg{{ glb.i }}h[d];
       {% endif %}
     }
   }
@@ -82,15 +86,18 @@ void op_par_loop_{{ parloop.name }}_host(
 
   if(set_size > 0) {
   {% if parloop.indirection %}
-    op_plan *Plan = op_plan_get_stage_upload(name,set,part_size,nargs,args,ninds,inds,OP_STAGE_ALL,0);
-    // execute plan
+    {#
+    #### Kernel call for indirect version ####
+    #}
+    op_plan *Plan = op_plan_get_stage_upload(name, set, part_size, nargs, args, ninds, inds, OP_STAGE_ALL, 0);
+    // Execute plan
     int block_offset = 0;
     for(int col = 0; col < Plan->ncolors; col++) {
-      if(col==Plan->ncolors_core) {
+      if(col == Plan->ncolors_core)
         op_mpi_wait_all(nargs, args);
-      }
+
       int nblocks = Plan->ncolblk[col];
-      {% if parloop.thread_timing %}
+      {% if opt.config['thread_timing'] %}
       // Pause process timing and switch to per-thread timing:
       op_timers_core(&cpu_t2, &wall_t2);
       non_thread_walltime += wall_t2 - wall_t1;
@@ -112,41 +119,28 @@ void op_par_loop_{{ parloop.name }}_host(
         int blockId  = Plan->blkmap[blockIdx + block_offset];
         int nelem    = Plan->nelems[blockId];
         int offset_b = Plan->offset[blockId];
-        for(int n = 0; n < offset_b; n++) {
-          {% if parloop.indirectMaps | length > 0 %}
-          {% for arg in parloop.indirectIdxs %}
-          int map{{ loop.index - 1 }}idx;
-          {% endfor %}
-          {% for arg in parloop.indirectIdxs %}
-          {%- call op_opt(arg) %}
-          map{{ loop.index - 1 }}idx = arg{{ arg.map1st }}.map_data[n * arg{{ arg.map1st }}.map->dim + {{ arg.idx }}];
-          {%- endcall %}
+        for(int n = offset_b; n < offset_b + nelem; n++) {
+          {# Declare and set mappings #}
+          {% filter indent(width=10) %}
+          {{ op_host_set_mappings(parloop) }}
+          {% endfilter %}
 
-          {% endfor %}
-          {% endif %}
+          {# Create vec arguments #}
+          {% filter indent(width=10) %}
+          {{ op_host_vec_arg_arrays(parloop) }}
+          {% endfilter %}
 
-          {% for arg in parloop.vecs %}
-          {% if arg.acc == "OP_READ" %}
-          const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-          {% else %}
-          {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-          {% endif %}
-            {% for i in range(0, arg.idx | abs) %}
-            &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
-            {% endfor %}
-          };
-          {% endfor %}
-
+          {# Actual kernel call #}
           {{ parloop.name }}(
-            {% for arg in parloop.args %}
-            {% if arg.indirect %}
+            {% for arg in parloop.unique %}
+            {% if arg.direct %}
+            &(({{ arg.typ }}*)arg{{ arg.datInd }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
+            {% elif arg.indirect %}
             {% if arg.vec %}
             arg{{ arg.i }}_vec{{ comma(loop) }}
-            {% else %}
-            &(({{ arg.typ }}*)arg{{ arg.arg1st }}.data)[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx]{{ comma(loop) }}
+            {% elif not arg.vec %}
+            &(({{ arg.typ }}*)arg{{ arg.datInd }}.data)[{{ arg.dim }} * map{{ arg.mapIdxInd }}idx]{{ comma(loop) }}
             {% endif %}
-            {% elif arg.direct %}
-            &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
             {% elif arg.global_ %}
             {% if arg.acc != "OP_READ" and arg.acc != "OP_WRITE" %}
             &arg{{ arg.i }}_l[64 * omp_get_thread_num()]{{ comma(loop) }}
@@ -157,39 +151,42 @@ void op_par_loop_{{ parloop.name }}_host(
             {% endfor %}
           );
         }
-        {% if parloop.thread_timing %}
+        {% if opt.config['thread_timing'] %}
         }
         op_timers_core(&thr_cpu_t2, &thr_wall_t2);
         OP_kernels[{{ id }}].times[thr] += thr_wall_t2 - thr_wall_t1;
         {% endif %}
       }
+
       {% if parloop.reduction %}
-      // combine reduction data
-      if(col == Plan->ncolors_owned-1) {
+      // Combine reduction data
+      if(col == Plan->ncolors_owned - 1) {
         {% for glb in parloop.globals %}
         {% if glb.acc == "OP_INC" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d+thr*64];
+            arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d + thr * 64];
           }
         }
         {% elif glb.acc == "OP_MIN" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
+            arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d + thr * 64]);
           }
         }
         {% elif glb.acc == "OP_MAX" %}
         for(int thr = 0; thr < nthreads; thr++) {
           for(int d = 0; d < {{ glb.dim }}; d++) {
-            arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
+            arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d + thr * 64]);
           }
         }
+        {% elif glb.acc != "OP_READ" %}
+        {{ parloop.raise_exception("Internal error: invalid reduction option (must be OP_INC, OP_MIN or OP_MAX)") }}
         {% endif %}
         {% endfor %}
       }
       {% endif %}
-      {% if parloop.thread_timing %}
+      {% if opt.config['thread_timing'] %}
       // Revert to process-level timing:
       op_timers_core(&cpu_t1, &wall_t1);
       {% endif %}
@@ -198,25 +195,29 @@ void op_par_loop_{{ parloop.name }}_host(
     OP_kernels[{{ id }}].transfer  += Plan->transfer;
     OP_kernels[{{ id }}].transfer2 += Plan->transfer2;
   {% else %}
-    // execute plan
-    {% if parloop.thread_timing %}
+    {#
+    #### Kernel call for direct version ####
+    #}
+    // Execute plan
+    {% if opt.config['thread_timing'] %}
     // Pause process timing, and switch to per-thread timing:
     op_timers_core(&cpu_t2, &wall_t2);
     non_thread_walltime += wall_t2 - wall_t1;
     {% endif %}
     #pragma omp parallel for
     for(int thr = 0; thr < nthreads; thr++) {
-      {% if parloop.thread_timing %}
+      {% if opt.config['thread_timing'] %}
       double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;
       op_timers_core(&thr_cpu_t1, &thr_wall_t1);
       {% endif %}
-      int start  = (set->size* thr)/nthreads;
-      int finish = (set->size*(thr+1))/nthreads;
+      int start  = (set->size * thr) / nthreads;
+      int finish = (set->size * (thr + 1)) / nthreads;
       for(int n = start; n < finish; n++) {
+        {# Actual kernel call #}
         {{ parloop.name }}(
-          {% for arg in parloop.args %}
+          {% for arg in parloop.unique %}
           {% if arg.direct %}
-          &(({{ arg.typ }}*)arg{{ arg.i }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
+          &(({{ arg.typ }}*)arg{{ arg.datInd }}.data)[{{ arg.dim }} * n]{{ comma(loop) }}
           {% elif arg.global_ %}
           {% if arg.acc != "OP_READ" and arg.acc != "OP_WRITE" %}
           &arg{{ arg.i }}_l[64 * omp_get_thread_num()]{{ comma(loop) }}
@@ -227,70 +228,71 @@ void op_par_loop_{{ parloop.name }}_host(
           {% endfor %}
         );
       }
-      {% if parloop.thread_timing %}
+      {% if opt.config['thread_timing'] %}
       op_timers_core(&thr_cpu_t2, &thr_wall_t2);
       OP_kernels[{{ id }}].times[thr] += thr_wall_t2 - thr_wall_t1;
       {% endif %}
     }
-    {% if parloop.thread_timing %}
+    {% if opt.config['thread_timing'] %}
     // OpenMP block complete, so switch back to process timing:
     op_timers_core(&cpu_t1, &wall_t1);
     {% endif %}
   {% endif %}
   }
 
+  {# Account for a zero set size #}
   {% if parloop.indirection %}
-  if(set_size == 0 || set_size == set->core_size) {
+  if(set_size == 0 || set_size == set->core_size)
     op_mpi_wait_all(nargs, args);
-  }
   {% endif %}
 
-  // combine reduction data
+  {# Combine reduction data for direct loops #}
+  // Combine reduction data
+  {% if parloop.direct %}
   {% for glb in parloop.globals %}
-  {% if not parloop.indirection %}
   {% if glb.acc == "OP_INC" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d+thr*64];
+      arg{{ glb.i }}h[d] += arg{{ glb.i }}_l[d + thr * 64];
     }
   }
   {% elif glb.acc == "OP_MIN" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
+      arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d + thr * 64]);
     }
   }
   {% elif glb.acc == "OP_MAX" %}
   for(int thr = 0; thr < nthreads; thr++) {
     for(int d = 0; d < {{ glb.dim }}; d++) {
-      arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d+thr*64]);
+      arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], arg{{ glb.i }}_l[d + thr * 64]);
     }
   }
   {% endif %}
+  {% endfor %}
   {% endif %}
+
+  {# Combine reduction data over MPI for all types of loops #}
+  {% for glb in parloop.globals %}
   {% if glb.acc != "OP_READ" %}
-  op_mpi_reduce(&arg{{ glb.i }},arg{{ glb.i }}h);
+  op_mpi_reduce(&arg{{ glb.i }}, arg{{ glb.i }}h);
   {% endif %}
   {% endfor %}
   op_mpi_set_dirtybit(nargs, args);
 
-  // update kernel record
+  // Update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  {% if parloop.thread_timing %}
+  {% if opt.config['thread_timing'] %}
   non_thread_walltime += wall_t2 - wall_t1;
   OP_kernels[{{ id }}].times[0] += non_thread_walltime;
   {% else %}
   OP_kernels[{{ id }}].time += wall_t2 - wall_t1;
   {% endif %}
-  {% if not parloop.indirection %}
+  {% if parloop.direct %}
   {% for arg in parloop.args %}
   {%- call op_opt(arg) %}
   {% if not arg.global_ %}
-  {% if arg.acc == "OP_READ" %}
-  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size;
-  {% else %}
-  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size * 2.0f;
-  {% endif %}
+  OP_kernels[{{ id }}].transfer += (float)set->size * arg{{ arg.i }}.size{{ '' if arg.acc == "OP_READ" else ' * 2.0f' }};
   {% endif %}
   {%- endcall %}
   {% endfor %}
