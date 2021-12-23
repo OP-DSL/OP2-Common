@@ -181,7 +181,6 @@ class Loop:
   loc: Location
   args: List[Arg]
   expanded_args: List[Arg]
-  thread_timing: bool
   kernelPath: str
   nargs: int
 
@@ -297,6 +296,11 @@ class Loop:
   def indirection(self) -> bool:
     return len(self.indirects) > 0
 
+  # Returns true if no arg is accessing a dat indirectly
+  @property
+  def direct(self) -> bool:
+    return not self.indirection
+
   # Returns true if any arg uses SoA
   @property
   def any_soa(self) -> bool:
@@ -383,20 +387,17 @@ class Loop:
         res.append(arg)
     return uniqueBy(res, lambda a: (a.map, a.idx))
 
-  # Index of the dat referenced by the arg (with -1 for direct args)
+  # Indexing the dats referenced by indirect args (with -1 for direct args)
+  # Corresponds to the inds array in the original code gen
   @property
-  def indirectionDescriptor(self) -> List[int]:
+  def indirectVarInds(self) -> List[int]:
     descriptor = []
 
     for arg in self.expanded_args:
       if arg.indirect:
         for i, a in enumerate(self.indirectVars):
           if a.var == arg.var:
-            if arg.vector:
-              for x in range(0, abs(arg.idx)):
-                descriptor.append(i)
-            else:
-              descriptor.append(i)
+            descriptor.append(i)
       else:
         descriptor.append(-1)
 
@@ -405,7 +406,7 @@ class Loop:
   # True if any global reductions used in this loop
   @property
   def reduction(self) -> bool:
-    return any( arg.acc != READ for arg in self.globals )
+    return any( arg.acc != "OP_READ" and arg.acc != "OP_WRITE" for arg in self.globals )
 
   # True if any multi dim (i.e. dimension of the global is > 1) reduction
   @property

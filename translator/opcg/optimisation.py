@@ -60,7 +60,8 @@ cuda = Opt('cuda', True, config={
 })
 
 omp = Opt('omp', False, config={
-  'grouped': False
+  'grouped': False,
+  'thread_timing': False
 })
 
 vec = Opt('vec', True, config={

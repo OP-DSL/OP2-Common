@@ -60,6 +60,9 @@ def main(argv=None) -> None:
   if opt.name == "cuda":
     opt.config['soa'] = args.soa
 
+  if opt.name == "omp":
+    opt.config['thread_timing'] = args.thread_timing
+
   if not lang:
     exit(f'Unsupported file extension: {extension}')
 
@@ -123,9 +126,6 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
     kernel = scheme.lang.parseKernel(Path(kernel_path), kernel_name)
 
     app.kernels.append(kernel)
-
-  for loop in app.loops:
-    loop.thread_timing = args.thread_timing
 
   return app
 
