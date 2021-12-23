@@ -1,5 +1,5 @@
 {# Template imports #}
-{% from 'cpp/macros.j2' import op_opt, op_host_stub_args %}
+{% from 'cpp/macros.j2' import op_opt, op_host_stub_args, op_host_set_mappings, op_host_vec_arg_arrays %}
 {% from 'macros.j2' import comma %}
 // user function
 #include "../{{ parloop.kernelPath }}"
@@ -46,37 +46,15 @@ void op_par_loop_{{ parloop.name }}(
         op_mpi_wait_all(nargs, args);
         {% endif %}
 
-      {# Declare mappings #}
-      {% for arg in parloop.expanded_args %}
-      {% if arg.indirect and arg.mapIdxIndFirst %}
-      int map{{ arg.mapIdxInd }}idx;
-      {% endif %}
-      {% endfor %}
-
-      {# Set mappings (both non-optional and optional) #}
-      {% for arg in parloop.expanded_args %}
-      {% if arg.indirect and arg.mapIdxIndFirst %}
-      {%- call op_opt(arg) %}
-      map{{ arg.mapIdxInd }}idx = arg{{ arg.mapInd }}.map_data[n * arg{{ arg.mapInd }}.map->dim + {{ arg.idx }}];
-      {% endcall %}
-      {% endif %}
-      {% endfor %}
+      {# Declare and set mappings #}
+      {% filter indent(width=6) %}
+      {{ op_host_set_mappings(parloop) }}
+      {% endfilter %}
 
       {# Create vec arguments #}
-      {% for arg in parloop.expanded_args %}
-      {% if arg.vec %}
-      {# First line and open bracket #}
-      {% if arg.idx == 0 %}
-      {{ 'const ' if arg.acc == "OP_READ" else '' }}{{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-      {% endif %}
-      {# Pointer for this arg #}
-        &(({{ arg.typ }}*)arg{{ arg.datInd }}.data)[{{ arg.dim }} * map{{ arg.mapIdxInd }}idx],
-      {# End bracket #}
-      {% if arg.idx == arg.vec_size - 1 %}
-      }
-      {% endif %}
-      {% endif %}
-      {% endfor %}
+      {% filter indent(width=6) %}
+      {{ op_host_vec_arg_arrays(parloop) }}
+      {% endfilter %}
 
       {# Actual kernel call #}
       {{ parloop.name }}(
