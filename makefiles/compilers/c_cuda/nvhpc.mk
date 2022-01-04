@@ -4,10 +4,6 @@ else
   NVCC ?= nvcc
 endif
 
-ifndef NV_ARCH
-  $(warning Set NV_ARCH={Fermi|Kepler|...|Volta} to generate targeted CUDA code)
-endif
-
 ifeq ($(NV_ARCH),Fermi)
   NVCC_GEN = -gencode arch=compute_20,code=sm_21
 else

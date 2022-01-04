@@ -1,5 +1,3 @@
-HDF5_SEQ_LINK ?= -lhdf5 -ldl -lm -lz
-
 ifdef HDF5_INSTALL_PATH
   HDF5_SEQ_INSTALL_PATH ?= $(HDF5_INSTALL_PATH)
 endif
@@ -17,7 +15,7 @@ HDF5_SEQ_TEST = $(CXX) $(HDF5_SEQ_INC_PATH) \
 $(shell $(HDF5_SEQ_TEST))
 
 ifneq ($(.SHELLSTATUS),0)
-  HDF5_SEQ_LINK :=
+  HDF5_SEQ_LINK ?= -lhdf5 -ldl -lm -lz
   $(shell $(HDF5_SEQ_TEST))
 endif
 
@@ -29,6 +27,6 @@ ifeq ($(.SHELLSTATUS),0)
     HAVE_HDF5_SEQ := true
 
     HDF5_SEQ_INC := $(HDF5_SEQ_INC_PATH)
-    HDF5_SEQ_LIB := $(HDF5_SEQ_LIB_PATH) $(HDF5_SEQ_LINK)
+    HDF5_SEQ_LIB := $(strip $(HDF5_SEQ_LIB_PATH) $(HDF5_SEQ_LINK))
   endif
 endif

@@ -64,7 +64,7 @@ endif
 detect:
 	@echo > /dev/null
 
-ifeq ($(MAKECMDGOALS),detect)
+ifneq ($(MAKECMDGOALS),clean)
   # Evaluates to X_LIB if HAVE_X and X_LIB is defined
   # otherwise evaluates to "implicit" if HAVE_X is defined but not X_LIB
   # otherwise evaluates to "not found"
@@ -92,10 +92,11 @@ ifeq ($(MAKECMDGOALS),detect)
   $(info .   ParMETIS: $(call I_STR,PARMETIS))
   $(info )
   $(info Compilation flags:)
-  $(info .    C: $(CFLAGS))
-  $(info .    C++: $(CXXFLAGS))
-  $(info .    CUDA: $(NVCCFLAGS))
-  $(info .    Fortran: $(FFLAGS))
+  $(info .   C: $(CFLAGS))
+  $(info .   C++: $(CXXFLAGS))
+  $(info .   CUDA: $(NVCCFLAGS))
+  $(info .   Fortran: $(FFLAGS))
+  $(info )
 endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...

@@ -1,5 +1,4 @@
 PTSCOTCH_DEF ?= -DHAVE_PTSCOTCH
-PTSCOTCH_LINK ?= -lptscotch -lscotch -lptscotcherr
 
 ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_INC_PATH := -I$(PTSCOTCH_INSTALL_PATH)/include
@@ -13,7 +12,7 @@ PTSCOTCH_TEST = $(MPICXX) $(PTSCOTCH_INC_PATH) \
 $(shell $(PTSCOTCH_TEST))
 
 ifneq ($(.SHELLSTATUS),0)
-  PTSCOTCH_LINK :=
+  PTSCOTCH_LINK ?= -lptscotch -lscotch -lptscotcherr
   $(shell $(PTSCOTCH_TEST))
 endif
 
@@ -22,6 +21,6 @@ ifeq ($(.SHELLSTATUS),0)
 
   HAVE_PTSCOTCH := true
 
-  PTSCOTCH_INC := $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF)
-  PTSCOTCH_LIB := $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK)
+  PTSCOTCH_INC := $(strip $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF))
+  PTSCOTCH_LIB := $(strip $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK))
 endif

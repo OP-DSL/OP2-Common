@@ -42,7 +42,7 @@ MPICC ?= $(MPI_BIN)mpicc
 MPICXX ?= $(MPI_BIN)mpicxx
 MPIFC ?= $(MPI_BIN)mpif90
 
-ifneq ($(and $(shell which $(CC) 2>/dev/null ),$(shell which $(CXX) 2> /dev/null)),)
+ifneq ($(and $(shell which $(MPICC) 2>/dev/null),$(shell which $(MPICXX) 2> /dev/null)),)
   HAVE_MPI_C := true
 
   # Anti MPI C++ binding measures

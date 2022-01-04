@@ -1,4 +1,3 @@
-CUDA_LINK ?= -lculibos -lcudart_static -lpthread -lrt -ldl
 
 ifdef CUDA_INSTALL_PATH
   CUDA_INC_PATH := -I$(CUDA_INSTALL_PATH)/include
@@ -12,7 +11,7 @@ CUDA_TEST = $(CXX) $(CUDA_INC_PATH) \
 $(shell $(CUDA_TEST))
 
 ifneq ($(.SHELLSTATUS),0)
-  CUDA_LINK :=
+  CUDA_LINK ?= -lculibos -lcudart_static -lpthread -lrt -ldl
   $(shell $(CUDA_TEST))
 endif
 
@@ -22,5 +21,5 @@ ifeq ($(.SHELLSTATUS),0)
   HAVE_CUDA := true
 
   CUDA_INC := $(CUDA_INC_PATH)
-  CUDA_LIB := $(CUDA_LIB_PATH) $(CUDA_LINK)
+  CUDA_LIB := $(strip $(CUDA_LIB_PATH) $(CUDA_LINK))
 endif
