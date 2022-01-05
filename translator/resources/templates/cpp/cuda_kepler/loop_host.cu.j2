@@ -1,11 +1,13 @@
 {# Template imports #}
-{% from 'cpp/macros.j2' import op_opt, op_host_stub_args, op_get_stride %}
+{% from 'cpp/macros.j2' import op_opt, op_opt_cuda, op_host_stub_args, op_get_stride, op_host_declare_mappings %}
 {% from 'macros.j2' import comma %}
 
 {% if parloop.any_soa %}
-{% for arg in parloop.indirectMaps %}
-__constant__ int opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT;
-int opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST = -1;
+{% for arg in parloop.expanded_args %}
+{% if arg.indirect and arg.mapInd == arg.i %}
+__constant__ int opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2CONSTANT;
+int opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2HOST = -1;
+{% endif %}
 {% endfor %}
 {% if parloop.direct_soa %}
 __constant__ int direct_{{ parloop.name }}_stride_OP2CONSTANT;
@@ -22,17 +24,17 @@ __global__ void op_cuda_{{ parloop.name }}(
   {% if parloop.opts | length > 0 %}
   int optflags,
   {% endif %}
-  {% for arg in parloop.indirectVars %}
-  {% if arg.acc == "OP_READ" %}
-  const {{ arg.typ }} *__restrict ind_arg{{ arg.i }},
-  {% else %}
-  {{ arg.typ }} *__restrict ind_arg{{ arg.i }},
+  {% for arg in parloop.indirects %}
+  {% if not arg.vec or (arg.vec and arg.idx == 0) %}
+  {{ 'const ' if arg.acc == "OP_READ" else '' }}{{ arg.typ }} *__restrict ind_arg{{ arg.indI }},
   {% endif %}
   {% endfor %}
-  {% for arg in parloop.indirectMaps %}
-  const int *__restrict opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map,
+  {% for arg in parloop.expanded_args %}
+  {% if arg.indirect and arg.mapInd == arg.i %}
+  const int *__restrict opDat{{ arg.i }}Map,
+  {% endif %}
   {% endfor %}
-  {% for arg in parloop.args %}
+  {% for arg in parloop.expanded_args %}
   {% if arg.direct %}
   {% if arg.acc == "OP_READ" %}
   const {{ arg.typ }} *__restrict arg{{ arg.i }},
@@ -40,7 +42,7 @@ __global__ void op_cuda_{{ parloop.name }}(
   {{ arg.typ }} *arg{{ arg.i }},
   {% endif %}
   {% elif arg.global_ %}
-  {% if arg.acc == "OP_READ" %}const {% endif %}{{ arg.typ }} *arg{{ arg.i }},
+  {{ 'const ' if arg.acc == "OP_READ" else '' }}{{ arg.typ }} *arg{{ arg.i }},
   {% endif %}
   {% endfor %}
   {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
@@ -69,7 +71,7 @@ __global__ void op_cuda_{{ parloop.name }}(
   {% endif %}
   int set_size
 ) {
-  {% for arg in parloop.args %}
+  {% for arg in parloop.expanded_args %}
   {% if arg.global_ and arg.acc != "OP_READ" and arg.acc != "OP_WRITE" %}
   {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
   for(int d = 0; d < {{ arg.dim }}; d++) {
@@ -83,26 +85,26 @@ __global__ void op_cuda_{{ parloop.name }}(
   {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
   {% endif %}
   {% endfor %}
-
-  {# TODO: check this as not 100% sure (line 376) #}
   {% if not opt.config['op_color2'] and not opt.config['atomics'] %}
-  {% for arg in parloop.vecs %}
-  {% if arg.indirect %}
-  {{ arg.typ }} *arg{{ arg.i }}_vec[] = {
-    {% for i in range(0, arg.idx | abs) %}
-    arg{{ arg.i }}_l{{ comma(loop) }}
+  {% for arg in parloop.indirects %}
+  {% if arg.vec and arg.idx == 0  and arg.acc == "OP_INC" %}
+  {{ arg.typ }} *arg{{ arg.i }}_vec[{{ arg.vec_size }}] = {
+    {% for ind in range(0, arg.vec_size | abs) %}
+    arg{{ arg.i + ind }}_l{{ comma(loop) }}
     {% endfor %}
   };
   {% endif %}
   {% endfor %}
   {% endif %}
-
+  {#
+  ### Indirection in the general case (i.e. without atomics) ###
+  #}
   {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
   {% if opt.config['inc_stage'] == 1 %}
   {% for arg in parloop.indirects %}
-  {% if arg.acc == "OP_INC" %}
-  __shared__  int  *ind_arg{{ arg.i }}_map, ind_arg{{ arg.i }}_size;
-  __shared__  {{ arg.typ }} *ind_arg{{ arg.i }}_s;
+  {% if (not arg.vec or (arg.vec and arg.idx == 0)) and arg.acc == "OP_INC" %}
+  __shared__  int  *ind_arg{{ arg.indI }}_map, ind_arg{{ arg.indI }}_size;
+  __shared__  {{ arg.typ }} *ind_arg{{ arg.indI }}_s;
   {% endif %}
   {% endfor %}
   {% endif %}
@@ -111,21 +113,20 @@ __global__ void op_cuda_{{ parloop.name }}(
   {% endif %}
   __shared__ int nelem, offset_b;
   extern __shared__ char shared[];
-  if(blockIdx.x + blockIdx.y * gridDim.x >= nblocks) {
+  if(blockIdx.x + blockIdx.y * gridDim.x >= nblocks)
     return;
-  }
 
   if(threadIdx.x == 0) {
-    // get sizes and shift pointers and direct-mapped data
+    // Get sizes and shift pointers and direct-mapped data
     int blockId = blkmap[blockIdx.x + blockIdx.y*gridDim.x  + block_offset];
     nelem = nelems[blockId];
     offset_b = offset[blockId];
     {% if opt.config['ind_inc'] %}
-    nelems2 = blockDim.x*(1+(nelem-1)/blockDim.x);
+    nelems2 = blockDim.x * (1 + (nelem - 1) / blockDim.x);
     ncolor = ncolors[blockId];
     {% endif %}
     {% if opt.config['ind_inc'] and opt.config['inc_stage'] == 1 %}
-    {# TODO: sort out inds_staged and related #}
+    {# TODO: sort out inds_staged and related, lines 427-453 in op2_gen_cuda_simple.py #}
     {% endif %}
   }
 
@@ -133,9 +134,9 @@ __global__ void op_cuda_{{ parloop.name }}(
 
   {% if opt.config['inc_stage'] == 1 %}
   {% for arg in parloop.indirects %}
-  {% if arg.acc == "OP_INC" %}
-  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size*{{ arg.dim }}; n += blockDim.x) {
-    ind_arg{{ arg.i }}_s[n] = ZERO_{{ arg.typ }};
+  {% if (not arg.vec or (arg.vec and arg.idx == 0)) and arg.acc == "OP_INC" %}
+  for(int n = threadIdx.x; n < ind_arg{{ arg.indI }}_size * {{ arg.dim }}; n += blockDim.x) {
+    ind_arg{{ arg.indI }}_s[n] = ZERO_{{ arg.typ }};
   }
   {% endif %}
   {% endfor %}
@@ -147,11 +148,10 @@ __global__ void op_cuda_{{ parloop.name }}(
   {% if opt.config['ind_inc'] %}
   for(int n = threadIdx.x; n < nelems2; n += blockDim.x) {
     int col2 = -1;
-    {% for arg in parloop.indirectIdxs %}
-    int map{{ loop.index - 1 }}idx;
-    {% endfor %}
+    {{ op_host_declare_mappings(parloop) }}
+
     if(n < nelem) {
-      // initialise local variables
+      // Initialise local variables
       {% for arg in parloop.indirects %}
       {% if arg.acc == "OP_INC" %}
       for(int d = 0; d < {{ arg.dim }}; d++) {
@@ -161,40 +161,35 @@ __global__ void op_cuda_{{ parloop.name }}(
       {% endfor %}
   {% else %}
   for(int n = threadIdx.x; n < nelem; n += blockDim.x) {
-    {% for arg in parloop.indirectIdxs %}
-    int map{{ loop.index - 1 }}idx;
-    {% endfor %}
+    {{ op_host_declare_mappings(parloop) }}
   {% endif %}
-    {% for arg in parloop.indirectIdxs %}
-    {% if arg.opt is none %}
-    map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + offset_b + set_size * {{ arg.idx }}];
+    {# Set mappings #}
+    {% for arg in parloop.expanded_args %}
+    {% if arg.indirect and arg.mapIdxIndFirst %}
+    {%- call op_opt_cuda(arg) %}
+    map{{ arg.mapIdxInd }}idx = opDat{{ arg.mapInd }}Map[n + offset_b + set_size * {{ arg.idx }}];
+    {% endcall %}
     {% endif %}
     {% endfor %}
-    {% for arg in parloop.indirectIdxs %}
-    {% if arg.opt is not none %}
-    if(optflags & 1 << {{ arg.optidx }}) {
-      map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + offset_b + set_size * {{ arg.idx }}];
-    }
+    {# Create vec arguments #}
+    {% for arg in parloop.expanded_args %}
+    {% if arg.vec and arg.acc != "OP_INC"%}
+    {# First line and open bracket #}
+    {% if arg.idx == 0 %}
+    {{ 'const ' if arg.acc == "OP_READ" else '' }}{{ arg.typ }}* arg{{ arg.i }}_vec[] = {
     {% endif %}
-    {% endfor %}
-    {% for arg in parloop.vecs %}
-    {% if arg.acc != "OP_INC" %}
-    {% if arg.acc == "OP_READ" %}
-    const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-    {% else %}
-    {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-    {% endif %}
-      {% for i in range(0, arg.idx | abs) %}
-      {% if arg.soa %}
-      &ind_arg{{ arg.arg1st }}[map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
-      {% else %}
-      &ind_arg{{ arg.arg1st }}[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
-      {% endif %}
-      {% endfor %}
+    {# Pointer for this arg #}
+      &ind_arg{{ arg.indI }}[{{ '{{ arg.dim }} * ' if not arg.soa else '' }}map{{ arg.mapIdxInd }}idx],
+    {# End bracket #}
+    {% if arg.idx == arg.vec_size - 1 %}
     };
+    {% endif %}
     {% endif %}
     {% endfor %}
   {% elif parloop.indirection %}
+  {#
+  ### Indirection with atomics/global colouring ###
+  #}
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if(tid + start < end) {
     {% if opt.config['atomics'] %}
@@ -202,7 +197,7 @@ __global__ void op_cuda_{{ parloop.name }}(
     {% else %}
     int n = col_reord[tid + start];
     {% endif %}
-    // initialise local variables
+    // Initialise local variables
     {% for arg in parloop.indirects %}
     {% if arg.acc == "OP_INC" %}
     {{ arg.typ }} arg{{ arg.i }}_l[{{ arg.dim }}];
@@ -211,47 +206,48 @@ __global__ void op_cuda_{{ parloop.name }}(
     }
     {% endif %}
     {% endfor %}
-    {% for arg in parloop.indirectIdxs %}
-    int map{{ loop.index - 1 }}idx;
-    {% endfor %}
-    {% for arg in parloop.indirectIdxs %}
-    {% if arg.opt is none %}
-    map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + set_size * {{ arg.idx }}];
+
+    {% filter indent(width=4) %}
+    {{ op_host_declare_mappings(parloop) }}
+    {% endfilter %}
+    {# Set mappings #}
+    {% for arg in parloop.expanded_args %}
+    {% if arg.indirect and arg.mapIdxIndFirst %}
+    {%- call op_opt_cuda(arg) %}
+    map{{ arg.mapIdxInd }}idx = opDat{{ arg.mapInd }}Map[n + set_size * {{ arg.idx }}];
+    {% endcall %}
     {% endif %}
     {% endfor %}
-    {% for arg in parloop.indirectIdxs %}
-    {% if arg.opt is not none %}
-    if(optflags & 1 << {{ arg.optidx }}) {
-      map{{ loop.index - 1 }}idx = opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}Map[n + set_size * {{ arg.idx }}];
-    }
+    {# Create vec arguments #}
+    {% for arg in parloop.expanded_args %}
+    {% if arg.vec %}
+    {# First line and open bracket #}
+    {% if arg.idx == 0 %}
+    {{ 'const ' if arg.acc == "OP_READ" else '' }}{{ arg.typ }}* arg{{ arg.i }}_vec[] = {
     {% endif %}
-    {% endfor %}
-    {% for arg in parloop.vecs %}
-    {% if arg.acc == "OP_READ" %}
-    const {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-    {% else %}
-    {{ arg.typ }}* arg{{ arg.i }}_vec[] = {
-    {% endif %}
+    {# Pointer for this arg #}
       {% if opt.config['atomics'] and arg.acc == "OP_INC" %}
-      {# TODO: vec stuff (line 592) #}
+      arg{{ arg.i }}_l,
       {% else %}
-      {% for i in range(0, arg.idx | abs) %}
-      {% if arg.soa %}
-      &ind_arg{{ arg.arg1st }}[map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
-      {% else %}
-      &ind_arg{{ arg.arg1st }}[{{ arg.dim }} * map{{ parloop.mapIdxLookup(arg.map, i) }}idx]{{ comma(loop) }}
+      &ind_arg{{ arg.indI }}[{{ arg.dim ~ ' * ' if not arg.soa else '' }}map{{ arg.mapIdxInd }}idx],
       {% endif %}
-      {% endfor %}
-      {% endif %}
+    {# End bracket #}
+    {% if arg.idx == arg.vec_size - 1 %}
     };
+    {% endif %}
+    {% endif %}
     {% endfor %}
   {% else %}
-  // process set elements
-  for(int n = threadIdx.x+blockIdx.x*blockDim.x; n < set_size; n += blockDim.x*gridDim.x) {
+  {#
+  ### No indirection ###
+  #}
+  // Process set elements
+  for(int n = threadIdx.x + blockIdx.x * blockDim.x; n < set_size; n += blockDim.x * gridDim.x) {
   {% endif %}
-    // user-supplied kernel call
+
+    // User supplied kernel call
     {{ parloop.name }}_gpu(
-      {% for arg in parloop.args %}
+      {% for arg in parloop.expanded_args %}
       {% if arg.global_ %}
       {% if arg.acc == "OP_READ" or arg.acc == "OP_WRITE" %}
       arg{{ arg.i }}{{ comma(loop) }}
@@ -259,44 +255,35 @@ __global__ void op_cuda_{{ parloop.name }}(
       arg{{ arg.i }}_l{{ comma(loop) }}
       {% endif %}
       {% elif arg.indirect and arg.acc == "OP_INC" and not opt.config['op_color2'] %}
-      {% if arg.vec %}
+      {% if arg.vec and arg.idx == 0 %}
       arg{{ arg.i }}_vec{{ comma(loop) }}
-      {% else %}
+      {% elif not arg.vec %}
       arg{{ arg.i }}_l{{ comma(loop) }}
       {% endif %}
       {% elif arg.indirect %}
-      {% if arg.vec %}
+      {% if arg.vec and arg.idx == 0 %}
       arg{{ arg.i }}_vec{{ comma(loop) }}
-      {% else %}
-      {% if arg.soa %}
-      ind_arg{{ arg.i }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx{{ comma(loop) }}
-      {% else %}
-      ind_arg{{ arg.i }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx*{{ arg.dim }}{{ comma(loop) }}
-      {% endif %}
+      {% elif not arg.vec %}
+      ind_arg{{ arg.indI }} + map{{ arg.mapIdxInd }}idx{{ ' * ' ~ arg.dim if not arg.soa else '' }}{{ comma(loop) }}
       {% endif %}
       {% elif arg.direct %}
       {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
-      {% if arg.soa %}
-      arg{{ arg.i }} + (n + offset_b){{ comma(loop) }}
+      arg{{ arg.i }} + (n + offset_b){{ ' * ' ~ arg.dim if not arg.soa else '' }}{{ comma(loop) }}
       {% else %}
-      arg{{ arg.i }} + (n + offset_b) * {{ arg.dim }}{{ comma(loop) }}
-      {% endif %}
-      {% else %}
-      {% if arg.soa %}
-      arg{{ arg.i }} + n{{ comma(loop) }}
-      {% else %}
-      arg{{ arg.i }} + n * {{ arg.dim }}{{ comma(loop) }}
-      {% endif %}
+      arg{{ arg.i }} + n{{ ' * ' ~ arg.dim if not arg.soa else '' }}{{ comma(loop) }}
       {% endif %}
       {% endif %}
       {% endfor %}
     );
+    {#
+    ### Indirect kernel update ###
+    #}
     {% if parloop.indirection and not opt.config['op_color2'] and not opt.config['atomics'] %}
     {% if opt.config['ind_inc'] %}
     col2 = colors[n + offset_b];
     }
 
-    // store local variables
+    // Store local variables
     {% if opt.config['inc_stage'] == 1 %}
     {% for arg in parloop.indirects %}
     {% if arg.acc == "OP_INC" %}
@@ -316,38 +303,43 @@ __global__ void op_cuda_{{ parloop.name }}(
         {% if opt.config['inc_stage'] == 1 %}
         {% for arg in parloop.indirects %}
         {% if arg.acc == "OP_INC" %}
-        {% if arg.opt %}
-        if(optflags & 1 << {{ arg.optidx }}) {
-        {% endif %}
+        {%- call op_opt_cuda(arg) %}
         {% for d in range(0, arg.dim) %}
         {% if arg.soa %}
-        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.i }}_size];
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.indI }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.indI }}_size];
         {% else %}
-        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}];
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.indI }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}];
         {% endif %}
         {% endfor %}
         {% for d in range(0, arg.dim) %}
         {% if arg.soa %}
-        ind_arg{{ arg.i }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.i }}_size] = arg{{ arg.i }}_l[{{ d }}];
+        ind_arg{{ arg.indI }}_s[arg{{ arg.i }}_map + {{ d }} * ind_arg{{ arg.indI }}_size] = arg{{ arg.i }}_l[{{ d }}];
         {% else %}
-        ind_arg{{ arg.i }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
+        ind_arg{{ arg.indI }}_s[{{ d }} + arg{{ arg.i }}_map * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
         {% endif %}
         {% endfor %}
-        {% endif %}
-        {% if arg.opt %}
-        }
+        {% endcall %}
         {% endif %}
         {% endfor %}
         {% else %}
         {% for arg in parloop.indirects %}
         {% if arg.acc == "OP_INC" %}
+        {%- call op_opt_cuda(arg) %}
         {% for d in range(0, arg.dim) %}
-        {# TODO: this will potentially break with vec args #}
-        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.i }}_s[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}];
+        {% if arg.soa %}
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.indI }}_s[{{ d }} * {{ op_get_stride(parloop, arg) }} + map{{ arg.mapIdxInd }}idx];
+        {% else %}
+        arg{{ arg.i }}_l[{{ d }}] += ind_arg{{ arg.indI }}_s[{{ d }} + map{{ arg.mapIdxInd }}idx * {{ arg.dim }}];
+        {% endif %}
         {% endfor %}
         {% for d in range(0, arg.dim) %}
-        ind_arg{{ arg.i }}_s[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
+        {% if arg.soa %}
+        ind_arg{{ arg.indI }}_s[{{ d }} * {{ op_get_stride(parloop, arg) }} + map{{ arg.mapIdxInd }}idx] = arg{{ arg.i }}_l[{{ d }}];
+        {% else %}
+        ind_arg{{ arg.indI }}_s[{{ d }} + map{{ arg.mapIdxInd }}idx * {{ arg.dim }}] = arg{{ arg.i }}_l[{{ d }}];
+        {% endif %}
         {% endfor %}
+        {% endcall %}
         {% endif %}
         {% endfor %}
         {% endif %}
@@ -359,19 +351,15 @@ __global__ void op_cuda_{{ parloop.name }}(
     {% if parloop.indirection and opt.config['atomics'] %}
     {% for arg in parloop.indirects %}
     {% if arg.acc == "OP_INC" %}
-    {% if arg.opt %}
-    if(optflags & 1 << {{ arg.optidx }}) {
-    {% endif %}
+    {%- call op_opt_cuda(arg) %}
     {% for d in range(0, arg.dim) %}
     {% if arg.soa %}
-    atomicAdd(&ind_arg{{ arg.i }}[{{ d }} * {{ op_get_stride(parloop, arg) }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx], arg{{ arg.i }}_l[{{ d }}]);
+    atomicAdd(&ind_arg{{ arg.indI }}[{{ d }} * {{ op_get_stride(parloop, arg) }} + map{{ arg.mapIdxInd }}idx], arg{{ arg.i }}_l[{{ d }}]);
     {% else %}
-    atomicAdd(&ind_arg{{ arg.i }}[{{ d }} + map{{ parloop.mapIdxLookup(arg.map, arg.idx) }}idx * {{ arg.dim }}], arg{{ arg.i }}_l[{{ d }}]);
+    atomicAdd(&ind_arg{{ arg.indI }}[{{ d }} + map{{ arg.mapIdxInd }}idx * {{ arg.dim }}], arg{{ arg.i }}_l[{{ d }}]);
     {% endif %}
     {% endfor %}
-    {% if arg.opt %}
-    }
-    {% endif %}
+    {% endcall %}
     {% endif %}
     {% endfor %}
     {% endif %}
@@ -379,32 +367,31 @@ __global__ void op_cuda_{{ parloop.name }}(
 
   {% if opt.config['inc_stage'] %}
   {% for arg in parloop.indirects %}
-  {% if arg.acc == "OP_INC" %}
-  {% if arg.opt %}
-  if(optflags & 1 << {{ arg.optidx }}) {
-  {% endif %}
+  {% if (not arg.vec or (arg.vec and arg.idx == 0)) and arg.acc == "OP_INC" %}
+  {%- call op_opt_cuda(arg) %}
   {% if arg.soa %}
-  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size; n += blockDim.x) {
+  for(int n = threadIdx.x; n < ind_arg{{ arg.indI }}_size; n += blockDim.x) {
     {% for d in range(0, arg.dim) %}
-    arg{{ arg.i }}_l[{{ d }}] = ind_arg{{ arg.i }}_s[n + {{ d }} * ind_arg{{ arg.i }}_size] + ind_arg{{ arg.i }}[ind_arg{{ arg.i }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}];
+    arg{{ arg.i }}_l[{{ d }}] = ind_arg{{ arg.indI }}_s[n + {{ d }} * ind_arg{{ arg.indI }}_size] + ind_arg{{ arg.indI }}[ind_arg{{ arg.indI }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}];
     {% endfor %}
     {% for d in range(0, arg.dim) %}
-    ind_arg{{ arg.i }}[ind_arg{{ arg.i }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}] =  arg{{ arg.i }}_l[{{ d }}];
+    ind_arg{{ arg.indI }}[ind_arg{{ arg.indI }}_map[n] + {{ d }} * {{ op_get_stride(parloop, arg) }}] = arg{{ arg.i }}_l[{{ d }}];
     {% endfor %}
   }
   {% else %}
-  for(int n = threadIdx.x; n < ind_arg{{ arg.i }}_size * {{ arg.dim }}; n += blockDim.x) {
-    ind_arg{{ arg.i }}[n % {{ arg.dim }} + ind_arg{{ arg.i }}_map[n / {{ arg.dim }}] * {{ arg.dim }}] += ind_arg{{ arg.i }}_s[n];
+  for(int n = threadIdx.x; n < ind_arg{{ arg.indI }}_size * {{ arg.dim }}; n += blockDim.x) {
+    ind_arg{{ arg.indI }}[n % {{ arg.dim }} + ind_arg{{ arg.indI }}_map[n / {{ arg.dim }}] * {{ arg.dim }}] += ind_arg{{ arg.indI }}_s[n];
   }
   {% endif %}
-  {% if arg.opt %}
-  }
-  {% endif %}
+  {% endcall %}
   {% endif %}
   {% endfor %}
   {% endif %}
+  {#
+  ### Global reduction ###
+  #}
   {% if parloop.reduction %}
-  // global reductions
+  // Global reductions
   {% for glb in parloop.globals %}
   {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
   for(int d = 0; d < {{ glb.dim }}; d++) {
@@ -421,11 +408,11 @@ __global__ void op_cuda_{{ parloop.name }}(
   {% endif %}
 }
 
-// host stub function
+// Host stub function
 void op_par_loop_{{ parloop.name }}(
   char const *name,
   op_set set,
-  {% for arg in parloop.args %}
+  {% for arg in parloop.unique %}
   op_arg arg{{ arg.i }}{{ comma(loop) }}
   {% endfor %}
 ) {
@@ -436,16 +423,18 @@ void op_par_loop_{{ parloop.name }}(
   {{ op_host_stub_args(parloop) }}
 
   {% if parloop.opts | length > 0 %}
-  {# TODO: account for vec args #}
   int optflags = 0;
   {% for arg in parloop.opts %}
   if(args[{{ arg.i }}]).opt) {
     optflags |= 1 << {{ arg.optidx }};
   }
   {% endfor %}
+  {% if parloop.opts | length > 30 %}
+  {{ parloop.raise_exception("ERROR: too many optional arguments to store flags in an integer") }}
+  {% endif %}
   {% endif %}
 
-  // initialise timers
+  // Initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timing_realloc({{ id }});
   op_timers_core(&cpu_t1, &wall_t1);
@@ -453,10 +442,10 @@ void op_par_loop_{{ parloop.name }}(
   OP_kernels[{{ id }}].count += 1;
 
   {% if parloop.indirection %}
-  int ninds = {{ parloop.indirectVars | length }};
-  int inds[{{ parloop.nargs }}] = { {% for indDesc in parloop.indirectionDescriptor %} {{ indDesc }}{{ comma(loop) }} {% endfor %} };
+  int ninds = {{ parloop.ninds }};
+  int inds[{{ parloop.nargs }}] = { {% for ind in parloop.indirectVarInds %} {{ ind }}{{ comma(loop) }} {% endfor %} };
   {% if not opt.config['atomics'] %}
-  // get plan
+  // Get plan
   #ifdef OP_PART_SIZE_{{ id }}
     int part_size = OP_PART_SIZE_{{ id }};
   #else
@@ -481,9 +470,8 @@ void op_par_loop_{{ parloop.name }}(
     op_plan *Plan = op_plan_get(name,set,part_size,nargs,args,ninds,inds);
     {% endif %}
     {% endif %}
-
     {% if parloop.globals_r_w | length > 0 %}
-    // transfer constants to GPU
+    // Transfer constants to GPU
     int consts_bytes = 0;
     {% for glb in parloop.globals %}
     {% if glb.acc == "OP_READ" or glb.acc == "OP_WRITE" %}
@@ -504,24 +492,27 @@ void op_par_loop_{{ parloop.name }}(
     {% endfor %}
     mvConstArraysToDevice(consts_bytes);
     {% endif %}
-
     {% if parloop.any_soa %}
-    {% for arg in parloop.indirectMaps %}
-    if((OP_kernels[{{ id }}].count==1) || (opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ arg.i }}))) {
-      opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST = getSetSizeFromOpArg(&arg{{ arg.i }});
-      cudaMemcpyToSymbol(opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT, &opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2HOST,sizeof(int));
+    {% for arg in parloop.expanded_args %}
+    {% if arg.indirect and arg.mapInd == arg.i %}
+    if((OP_kernels[{{ id }}].count == 1) || (opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ arg.i }}))) {
+      opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2HOST = getSetSizeFromOpArg(&arg{{ arg.i }});
+      cudaMemcpyToSymbol(opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2CONSTANT, &opDat{{ arg.i }}_{{ parloop.name }}_stride_OP2HOST, sizeof(int));
     }
+    {% endif %}
     {% endfor %}
     {% if parloop.direct_soa %}
-    if((OP_kernels[{{ id }}].count==1) || (direct_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ parloop.direct_soa_idx }}))) {
+    if((OP_kernels[{{ id }}].count == 1) || (direct_{{ parloop.name }}_stride_OP2HOST != getSetSizeFromOpArg(&arg{{ parloop.direct_soa_idx }}))) {
       direct_{{ parloop.name }}_stride_OP2HOST = getSetSizeFromOpArg(&arg{{ parloop.direct_soa_idx }});
-      cudaMemcpyToSymbol(direct_{{ parloop.name }}_stride_OP2CONSTANT,&direct_{{ parloop.name }}_stride_OP2HOST,sizeof(int));
+      cudaMemcpyToSymbol(direct_{{ parloop.name }}_stride_OP2CONSTANT, &direct_{{ parloop.name }}_stride_OP2HOST, sizeof(int));
     }
     {% endif %}
     {% endif %}
-
+    {#
+    ### Transfer global reduction initial data ###
+    #}
     {% if not parloop.indirection or opt.config['atomics'] %}
-    // set CUDA execution parameters
+    // Set CUDA execution parameters
     #ifdef OP_BLOCK_SIZE_{{ id }}
       int nthread = OP_BLOCK_SIZE_{{ id }};
     #else
@@ -531,16 +522,15 @@ void op_par_loop_{{ parloop.name }}(
     int nblocks = 200;
     {% endif %}
     {% endif %}
-
     {% if parloop.reduction %}
-    // transfer global reduction data to GPU
+    // Transfer global reduction data to GPU
     {% if parloop.indirection and not opt.config['atomics'] %}
     int maxblocks = 0;
     for(int col = 0; col < Plan->ncolors; col++) {
-      maxblocks = MAX(maxblocks,Plan->ncolblk[col]);
+      maxblocks = MAX(maxblocks, Plan->ncolblk[col]);
     }
     {% elif parloop.indirection and opt.config['atomics'] %}
-    int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;
+    int maxblocks = (MAX(set->core_size, set->size+set->exec_size - set->core_size) - 1) / nthread + 1;
     {% else %}
     int maxblocks = nblocks;
     {% endif %}
@@ -548,8 +538,8 @@ void op_par_loop_{{ parloop.name }}(
     int reduct_size  = 0;
     {% for glb in parloop.globals %}
     {% if glb.acc != "OP_READ" and glb.acc != "OP_WRITE" %}
-    reduct_bytes += ROUND_UP(maxblocks*{{ glb.dim }}*sizeof({{ glb.typ }}));
-    reduct_size   = MAX(reduct_size,sizeof({{ glb.typ }}));
+    reduct_bytes += ROUND_UP(maxblocks * {{ glb.dim }} * sizeof({{ glb.typ }}));
+    reduct_size   = MAX(reduct_size, sizeof({{ glb.typ }}));
     {% endif %}
     {% endfor %}
     reallocReductArrays(reduct_bytes);
@@ -561,50 +551,48 @@ void op_par_loop_{{ parloop.name }}(
     for(int b = 0; b < maxblocks; b++) {
       for(int d = 0; d < {{ glb.dim }}; d++) {
       {% if glb.acc == "OP_INC" %}
-        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}] = ZERO_{{ glb.typ }};
+        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d + b * {{ glb.dim }}] = ZERO_{{ glb.typ }};
       {% else %}
-        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}] = arg{{ glb.i }}h[d];
+        (({{ glb.typ }} *)arg{{ glb.i }}.data)[d + b * {{ glb.dim }}] = arg{{ glb.i }}h[d];
       {% endif %}
       }
     }
-    reduct_bytes += ROUND_UP(maxblocks*{{ glb.dim }}*sizeof({{ glb.typ }}));
+    reduct_bytes += ROUND_UP(maxblocks * {{ glb.dim }} * sizeof({{ glb.typ }}));
     {% endif %}
     {% endfor %}
     mvReductArraysToDevice(reduct_bytes);
     {% endif %}
-
-    {# Kernel call for indirect version #}
+    {#
+    ### Kernel call for indirect version with no atomics ###
+    #}
     {% if parloop.indirection and not opt.config['atomics'] %}
-    // execute plan
+    // Execute plan
     {% if not opt.config['op_color2'] %}
     int block_offset = 0;
     {% endif %}
     for(int col = 0; col < Plan->ncolors; col++) {
-      if(col == Plan->ncolors_core) {
+      if(col == Plan->ncolors_core)
         op_mpi_wait_all_grouped(nargs, args, 2);
-      }
 
       #ifdef OP_BLOCK_SIZE_{{ id }}
         int nthread = OP_BLOCK_SIZE_{{ id }};
       #else
         int nthread = OP_block_size;
       #endif
-
       {% if opt.config['op_color2'] %}
       int start = Plan->col_offsets[0][col];
-      int end = Plan->col_offsets[0][col+1];
-      int nblocks = (end - start - 1)/nthread + 1;
+      int end = Plan->col_offsets[0][col + 1];
+      int nblocks = (end - start - 1) / nthread + 1;
       {% else %}
       dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],
         Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);
       if(Plan->ncolblk[col] > 0) {
       {% endif %}
-
       {% if parloop.reduction or (opt.config['ind_inc'] and opt.config['inc_stage'] == 1) %}
       {% if parloop.reduction and opt.config['inc_stage'] == 1 %}
-      int nshared = MAX(Plan->nshared,reduct_size*nthread);
+      int nshared = MAX(Plan->nshared, reduct_size * nthread);
       {% elif parloop.reduction %}
-      int nshared = reduct_size*nthread;
+      int nshared = reduct_size * nthread;
       {% else %}
       int nshared = Plan->nsharedCol[col];
       {% endif %}
@@ -615,13 +603,17 @@ void op_par_loop_{{ parloop.name }}(
         {% if parloop.opts | length > 0 %}
         optflags,
         {% endif %}
-        {% for arg in parloop.indirectVars %}
+        {% for arg in parloop.indirects %}
+        {% if not arg.vec or (arg.vec and arg.idx == 0) %}
         ({{ arg.typ }} *)arg{{ arg.i }}.data_d,
+        {% endif %}
         {% endfor %}
-        {% for arg in parloop.indirectMaps %}
+        {% for arg in parloop.expanded_args %}
+        {% if arg.indirect and arg.mapInd == arg.i %}
         arg{{ arg.i }}.map_data_d,
+        {% endif %}
         {% endfor %}
-        {% for arg in parloop.args %}
+        {% for arg in parloop.expanded_args %}
         {% if arg.direct or arg.global_ %}
         ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
         {% endif %}
@@ -631,7 +623,8 @@ void op_par_loop_{{ parloop.name }}(
         Plan->loc_map,
         Plan->ind_sizes,
         Plan->ind_offs,
-        {% elif opt.config['op_color2'] %}
+        {% endif %}
+        {% if opt.config['op_color2'] %}
         start,
         end,
         Plan->col_reord,
@@ -644,10 +637,11 @@ void op_par_loop_{{ parloop.name }}(
         Plan->thrcol,
         Plan->ncolblk[col],
         {% endif %}
-        set->size+set->exec_size);
+        set->size + set->exec_size);
+
       {% if parloop.reduction %}
-      // transfer global reduction data back to CPU
-      if(col == Plan->ncolors_owned-1) {
+      // Transfer global reduction data back to CPU
+      if(col == Plan->ncolors_owned - 1) {
         mvReductArraysToHost(reduct_bytes);
       }
       {% endif %}
@@ -657,10 +651,12 @@ void op_par_loop_{{ parloop.name }}(
       {% endif %}
     }
     {% elif parloop.indirection and opt.config['atomics'] %}
+    {#
+    ### Kernel call for indirect version with atomics ###
+    #}
     for(int round = 0; round < {% if parloop.reduction %}3{% else %}2{% endif %}; round++) {
-      if(round == 1) {
+      if(round == 1)
         op_mpi_wait_all_grouped(nargs, args, 2);
-      }
       {% if parloop.reduction %}
       int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);
       int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);
@@ -668,10 +664,10 @@ void op_par_loop_{{ parloop.name }}(
       int start = round==0 ? 0 : set->core_size;
       int end = round==0 ? set->core_size : set->size + set->exec_size;
       {% endif %}
-      if(end-start>0) {
-        int nblocks = (end-start-1)/nthread+1;
+      if(end - start > 0) {
+        int nblocks = (end - start - 1) / nthread + 1;
         {% if parloop.reduction %}
-        int nshared = reduct_size*nthread;
+        int nshared = reduct_size * nthread;
         op_cuda_{{ parloop.name }}<<<nblocks,nthread,nshared>>>(
         {% else %}
         op_cuda_{{ parloop.name }}<<<nblocks,nthread>>>(
@@ -679,27 +675,33 @@ void op_par_loop_{{ parloop.name }}(
           {% if parloop.opts | length > 0 %}
           optflags,
           {% endif %}
-          {% for arg in parloop.indirectVars %}
+          {% for arg in parloop.indirects %}
+          {% if not arg.vec or (arg.vec and arg.idx == 0) %}
           ({{ arg.typ }} *)arg{{ arg.i }}.data_d,
+          {% endif %}
           {% endfor %}
-          {% for arg in parloop.indirectMaps %}
+          {% for arg in parloop.expanded_args %}
+          {% if arg.indirect and arg.mapInd == arg.i %}
           arg{{ arg.i }}.map_data_d,
+          {% endif %}
           {% endfor %}
-          {% for arg in parloop.args %}
+          {% for arg in parloop.expanded_args %}
           {% if arg.direct or arg.global_ %}
           ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
           {% endif %}
           {% endfor %}
-          start,end,set->size+set->exec_size);
+          start, end, set->size + set->exec_size);
       }
       {% if parloop.reduction %}
       if (round==1) mvReductArraysToHost(reduct_bytes);
       {% endif %}
     }
     {% else %}
-    {# Kernel call for direct version #}
+    {#
+    ### Kernel call for direct version ###
+    #}
     {% if parloop.reduction %}
-    int nshared = reduct_size*nthread;
+    int nshared = reduct_size * nthread;
     op_cuda_{{ parloop.name }}<<<nblocks,nthread,nshared>>>(
     {% else %}
     op_cuda_{{ parloop.name }}<<<nblocks,nthread>>>(
@@ -707,7 +709,7 @@ void op_par_loop_{{ parloop.name }}(
       {% if parloop.opts | length > 0 %}
       optflags,
       {% endif %}
-      {% for arg in parloop.args %}
+      {% for arg in parloop.expanded_args %}
       ({{ arg.typ }}*)arg{{ arg.i }}.data_d,
       {% endfor %}
       set->size);
@@ -718,10 +720,12 @@ void op_par_loop_{{ parloop.name }}(
     OP_kernels[{{ id }}].transfer2 += Plan->transfer2;
     {% endif %}
 
-    {# transfer global reduction initial data #}
+    {#
+    ### Transfer global reduction initial data ###
+    #}
     {% if parloop.reduction %}
     {% if not parloop.indirection %}
-    // transfer global reduction data back to CPU
+    // Transfer global reduction data back to CPU
     mvReductArraysToHost(reduct_bytes);
     {% endif %}
     {% for glb in parloop.globals %}
@@ -729,26 +733,24 @@ void op_par_loop_{{ parloop.name }}(
     for(int b = 0; b < maxblocks; b++) {
       for(int d = 0; d < {{ glb.dim }}; d++) {
         {% if glb.acc == "OP_INC" %}
-        arg{{ glb.i }}h[d] = arg{{ glb.i }}h[d] + (({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}];
+        arg{{ glb.i }}h[d] = arg{{ glb.i }}h[d] + (({{ glb.typ }} *)arg{{ glb.i }}.data)[d + b * {{ glb.dim }}];
         {% elif glb.acc == "OP_MIN" %}
-        arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d],(({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}]);
+        arg{{ glb.i }}h[d] = MIN(arg{{ glb.i }}h[d], (({{ glb.typ }} *)arg{{ glb.i }}.data)[d + b * {{ glb.dim }}]);
         {% elif glb.acc == "OP_MAX" %}
-        arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d],(({{ glb.typ }} *)arg{{ glb.i }}.data)[d+b*{{ glb.dim }}]);
+        arg{{ glb.i }}h[d] = MAX(arg{{ glb.i }}h[d], (({{ glb.typ }} *)arg{{ glb.i }}.data)[d + b * {{ glb.dim }}]);
         {% endif %}
       }
     }
     arg{{ glb.i }}.data = (char *)arg{{ glb.i }}h;
-    op_mpi_reduce(&arg{{ glb.i }},arg{{ glb.i }}h);
+    op_mpi_reduce(&arg{{ glb.i }}, arg{{ glb.i }}h);
     {% endif %}
     {% endfor %}
     {% endif %}
-
     {% for glb in parloop.globals %}
     {% if glb.acc == "OP_WRITE" %}
     mvConstArraysToHost(consts_bytes);
     {% endif %}
     {% endfor %}
-
     {% for glb in parloop.globals %}
     {% if glb.acc == "OP_WRITE" %}
     for(int d = 0; d < {{ glb.dim }}; d++) {
@@ -761,12 +763,13 @@ void op_par_loop_{{ parloop.name }}(
   }
 
   op_mpi_set_dirtybit_cuda(nargs, args);
-  {# update kernel record #}
+  {#
+  ### Update kernel record ###
+  #}
   cutilSafeCall(cudaDeviceSynchronize());
-  // update kernel record
+  // Update kernel record
   op_timers_core(&cpu_t2, &wall_t2);
-  OP_kernels[{{ id }}].time     += wall_t2 - wall_t1;
-
+  OP_kernels[{{ id }}].time += wall_t2 - wall_t1;
   {% if not parloop.indirection %}
   {% for arg in parloop.args %}
   {%- call op_opt(arg) %}

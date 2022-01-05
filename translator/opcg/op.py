@@ -108,11 +108,12 @@ class Const:
 
 
 class Arg:
-  i: int = 0 # Loop argument index
-  var: str   # Dataset identifier
-  dim: int   # Dataset dimension (redundant)
-  typ: str   # Dataset type (redundant)
-  acc: str   # Dataset access operation
+  i: int = 0    # Loop argument index
+  indI: int = 0 # Loop argument index for indirect args
+  var: str      # Dataset identifier
+  dim: int      # Dataset dimension (redundant)
+  typ: str      # Dataset type (redundant)
+  acc: str      # Dataset access operation
   loc: Location      # Source code location
   map: Optional[str] # Indirect mapping indentifier
   idx: Optional[int] # Indirect mapping index
@@ -183,7 +184,7 @@ class Loop:
   expanded_args: List[Arg]
   kernelPath: str
   nargs: int
-
+  ninds: int
 
   def __init__(self, kernel: str, set_: str, loc: Location, args: List[Arg]) -> None:
     self.kernel = kernel
@@ -194,8 +195,13 @@ class Loop:
     seenArgs = {}
     self.expanded_args = []
 
+    ind_i = 0
     for i, arg in enumerate(self.args):
       arg.i = i
+      if arg.indirect:
+        arg.indI = ind_i
+        ind_i += 1
+    self.ninds = ind_i
 
     # Number of arguments for this loop if no vec arguments
     self.nargs_novec = len(self.args)
@@ -208,6 +214,7 @@ class Loop:
           tmp = Arg(arg.var, arg.dim, arg.typ, arg.acc, arg.loc, arg.map, i, arg.soa, True)
           tmp.opt = arg.opt
           tmp.unique_i = arg.i
+          tmp.indI = arg.indI
           tmp.vec_size = abs(arg.idx)
           if i == 0:
             tmp.unique = True
@@ -309,9 +316,9 @@ class Loop:
   # Returns true if any direct arg uses SoA
   @property
   def direct_soa(self) -> bool:
-    return any(arg.direct for arg in self.soas)
+    return any(arg.direct and arg.dim > 1 for arg in self.soas)
 
-  # Gets idx of first direct arg using SoA
+  # Gets index of first direct arg using SoA
   @property
   def direct_soa_idx(self) -> bool:
     if self.direct_soa:

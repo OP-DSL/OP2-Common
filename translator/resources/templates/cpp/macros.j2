@@ -8,6 +8,15 @@ if (arg{{ arg.i }}.opt)
 {% else %}{{ caller() }}{% endif %}
 {% endmacro %}
 
+{# Surround caller with op_opt_cuda conditional block #}
+{% macro op_opt_cuda(arg) %}
+{% if arg.opt %}
+if (optflags & 1 << {{ arg.optidx }})
+{ {{ caller() }}
+}
+{% else %}{{ caller() }}{% endif %}
+{% endmacro %}
+
 {% macro op_host_stub_args(parloop) %}
 int nargs = {{ parloop.nargs }};
   op_arg args[{{ parloop.nargs }}];
@@ -29,13 +38,17 @@ int nargs = {{ parloop.nargs }};
   {% endfor %}
 {% endmacro %}
 
-{% macro op_host_set_mappings(parloop) %}
+{% macro op_host_declare_mappings(parloop) %}
 {# Declare mappings #}
 {% for arg in parloop.expanded_args %}
 {% if arg.indirect and arg.mapIdxIndFirst %}
 int map{{ arg.mapIdxInd }}idx;
 {% endif %}
 {% endfor %}
+{% endmacro %}
+
+{% macro op_host_set_mappings(parloop) %}
+{{ op_host_declare_mappings(parloop) }}
 
 {# Set mappings (both non-optional and optional) #}
 {% for arg in parloop.expanded_args %}
@@ -69,8 +82,8 @@ map{{ arg.mapIdxInd }}idx = arg{{ arg.mapInd }}.map_data[n * arg{{ arg.mapInd }}
 {% if arg.direct %}
 direct_{{ parloop.name }}_stride_OP2CONSTANT
 {% elif arg.global_ %}
-(gridDim%x*blockDim%x)
+(gridDim % x * blockDim % x)
 {% else %}
-opDat{{ parloop.mapIdxLookup(arg.map, arg.idx) }}_{{ parloop.name }}_stride_OP2CONSTANT
+opDat{{ arg.mapInd }}_{{ parloop.name }}_stride_OP2CONSTANT
 {% endif %}
 {% endmacro %}

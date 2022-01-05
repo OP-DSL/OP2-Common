@@ -29,11 +29,11 @@ void op_decl_const_char(int dim, char const *type, int size, char *dat,
 
     {% for constant in app.consts %}{% if loop.first %} {% endif %} if(!strcmp(name,"{{ constant.ptr }}")) {
     {% if constant.dim > 1 %}
-    if(!strcmp(name,"{{ constant.ptr }}") && size>MAX_CONST_SIZE) {
+    if(!strcmp(name, "{{ constant.ptr }}") && size > MAX_CONST_SIZE) {
       printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
     }
     {% endif %}
-    cutilSafeCall(cudaMemcpyToSymbol({{ constant.ptr }}_cuda, dat, dim*size));
+    cutilSafeCall(cudaMemcpyToSymbol({{ constant.ptr }}_cuda, dat, dim * size));
   } else{% endfor %} {
     printf("error: unknown const name\n"); exit(1);
   }
