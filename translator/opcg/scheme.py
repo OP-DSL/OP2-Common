@@ -91,7 +91,7 @@ class Scheme(object):
 
 cseq  = Scheme(cpp.lang, optimisation.seq,  Path('cpp/seq/loop_host.cpp.j2'), None, Path('cpp/seq/master_kernel.cpp.j2'))
 comp  = Scheme(cpp.lang, optimisation.omp,  Path('cpp/omp/loop_host.cpp.j2'), None, Path('cpp/omp/master_kernel.cpp.j2'))
-ccuda = Scheme(cpp.lang, optimisation.cuda, Path('cpp/cuda/loop_host.cu.j2'), None, Path('cpp/cuda/master_kernel.cu.j2'))
+ccuda = Scheme(cpp.lang, optimisation.cuda, Path('cpp/cuda_kepler/loop_host.cu.j2'), None, Path('cpp/cuda_kepler/master_kernel.cu.j2'))
 
 from cpp.translator.kernels import cuda
 ccuda.translateKernel = MethodType(cuda.translateKernel, ccuda)
