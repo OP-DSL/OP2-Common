@@ -37,7 +37,7 @@ void op_par_loop_{{ parloop.name }}(
   {% endif %}
 
   {% if parloop.indirection %}
-  int ninds = {{ parloop.indirectVars | length }};
+  int ninds = {{ parloop.ninds }};
   int inds[{{ parloop.nargs }}] = { {% for ind in parloop.indirectVarInds %} {{ ind }}{{ comma(loop) }} {% endfor %} };
   {% endif %}
 
