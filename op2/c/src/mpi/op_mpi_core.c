@@ -48,6 +48,9 @@
 #include <op_util.h>
 
 #include <op_mpi_core.h>
+#ifdef COMM_AVOID
+// #include <op_comm_avoid_utils.h>
+#endif
 
 //
 // MPI Halo related global variables
@@ -288,6 +291,23 @@ void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
   h_list->disps = disps;
   h_list->sizes = sizes;
   h_list->list = list;
+
+  //suneth
+  h_list->num_levels = 1;
+  h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_sizes[0] = ranks_size;
+  h_list->rank_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->rank_disps[0] = 0;
+  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_disps[0] = 0;
+  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_sizes[0] = total_size;
+
+  int *sizes_by_rank = (int *)xmalloc(comm_size * sizeof(int));
+  h_list->sizes_by_rank = sizes;
+  int *disps_by_rank = (int *)xmalloc(comm_size * sizeof(int));
+  h_list->disps_by_rank = disps;
+  
 }
 
 /*******************************************************************************
@@ -312,6 +332,22 @@ void create_import_list(op_set set, int *temp_list, halo_list h_list,
   h_list->disps = disps;
   h_list->sizes = sizes;
   h_list->list = temp_list;
+
+  //suneth
+  h_list->num_levels = 1;
+  h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_sizes[0] = ranks_size;
+  h_list->rank_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->rank_disps[0] = 0;
+  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_disps[0] = 0;
+  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_sizes[0] = total_size;
+
+  int *sizes_by_rank = (int *)xmalloc(comm_size * sizeof(int));
+  h_list->sizes_by_rank = sizes;
+  int *disps_by_rank = (int *)xmalloc(comm_size * sizeof(int));
+  h_list->disps_by_rank = disps;
 }
 
 /*******************************************************************************

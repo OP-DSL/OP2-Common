@@ -72,6 +72,22 @@ typedef struct {
   int *sizes;
   // the list of all elements
   int *list;
+
+  //suneth
+  // number of halo levels
+  int num_levels;
+  // number of MPI neighbors to be exported to or imported from, multiple halo levels
+  int *ranks_sizes;
+  // displacements for the starting point of each rank list of
+  int *rank_disps;
+  // displacements for the starting point of each rank list of
+  int *level_disps;
+  // number of elements in this list of different levels
+  int *level_sizes;
+  // displacements for the starting point of each rank's element list
+  int *disps_by_rank;
+  // number of elements exported to or imported from each ranks
+  int *sizes_by_rank;
 } halo_list_core;
 
 typedef halo_list_core *halo_list;

@@ -24,7 +24,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O0 -g -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= $(MPICXX_PATH)
@@ -196,7 +196,7 @@ airfoil_mpi_genseq: airfoil_mpi_op.cpp seq/airfoil_mpi_seqkernels.cpp \
                 Makefile
 	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
                 $(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq -I. \
-                airfoil_mpi_op.cpp -lm seq/airfoil_mpi_seqkernels.cpp $(OP2_LIB) -lop2_mpi \
+                airfoil_mpi_op.cpp -lm seq/airfoil_mpi_seqkernels.cpp $(OP2_LIB) -lop2_mpi_comm_avoid \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_genseq
 
 
