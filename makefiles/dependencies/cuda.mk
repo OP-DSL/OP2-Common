@@ -1,4 +1,3 @@
-
 ifdef CUDA_INSTALL_PATH
   CUDA_INC_PATH := -I$(CUDA_INSTALL_PATH)/include
   CUDA_LIB_PATH := -L$(CUDA_INSTALL_PATH)/lib64 -L$(CUDA_INSTALL_PATH)/lib
@@ -20,6 +19,6 @@ ifeq ($(.SHELLSTATUS),0)
 
   HAVE_CUDA := true
 
-  CUDA_INC := $(CUDA_INC_PATH)
+  CUDA_INC := $(strip $(CUDA_INC_PATH) $(CUDA_DEF))
   CUDA_LIB := $(strip $(CUDA_LIB_PATH) $(CUDA_LINK))
 endif

@@ -26,7 +26,7 @@ ifeq ($(.SHELLSTATUS),0)
   ifeq ($(RESULT),1)
     HAVE_HDF5_PAR := true
 
-    HDF5_PAR_INC := $(HDF5_PAR_INC_PATH)
+    HDF5_PAR_INC := $(strip $(HDF5_PAR_INC_PATH) $(HDF5_PAR_DEF))
     HDF5_PAR_LIB := $(strip $(HDF5_PAR_LIB_PATH) $(HDF5_PAR_LINK))
   endif
 endif

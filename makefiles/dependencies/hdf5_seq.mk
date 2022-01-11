@@ -26,7 +26,7 @@ ifeq ($(.SHELLSTATUS),0)
   ifeq ($(RESULT),0)
     HAVE_HDF5_SEQ := true
 
-    HDF5_SEQ_INC := $(HDF5_SEQ_INC_PATH)
+    HDF5_SEQ_INC := $(strip $(HDF5_SEQ_INC_PATH) $(HDF5_SEQ_DEF))
     HDF5_SEQ_LIB := $(strip $(HDF5_SEQ_LIB_PATH) $(HDF5_SEQ_LINK))
   endif
 endif
