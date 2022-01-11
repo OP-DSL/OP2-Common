@@ -10,7 +10,7 @@ INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(CUDA_INC)
 # Calculate the libraries that we can actually build
 OP2_BUILDABLE_LIBS := seq openmp
 
-ifdef HDF5_SEQ_INSTALL_PATH
+ifeq ($(HAVE_HDF5_SEQ),true)
   OP2_BUILDABLE_LIBS += hdf5
 endif
 
@@ -18,19 +18,24 @@ ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
   OP2_BUILDABLE_LIBS += openmp4
 endif
 
-ifneq ($(shell which $(NVCC) 2> /dev/null),)
+MPI_IS_BUILDABLE := false
+ifeq ($(and $(HAVE_MPI_C),$(HAVE_HDF5_PAR)),true)
+  MPI_IS_BUILDABLE := true
+endif
+
+ifeq ($(HAVE_CUDA),true)
   OP2_BUILDABLE_LIBS += cuda
 
-  ifneq ($(shell which $(MPICC) 2> /dev/null),)
+  ifeq ($(MPI_IS_BUILDABLE),true)
     OP2_BUILDABLE_LIBS += mpi_cuda
   endif
 endif
 
-ifneq ($(shell which $(MPICC) 2> /dev/null),)
+ifeq ($(MPI_IS_BUILDABLE),true)
   OP2_BUILDABLE_LIBS += mpi
 endif
 
-ifneq ($(shell which $(FC) 2> /dev/null),)
+ifeq ($(HAVE_F),true)
   OP2_BUILDABLE_LIBS += $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
 endif
 

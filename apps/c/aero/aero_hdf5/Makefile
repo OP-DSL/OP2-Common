@@ -12,7 +12,7 @@ include ../../../../makefiles/c_app.mk
 
 .PHONY: clean_write_hdf5
 
-ifdef HDF5_PAR_INSTALL_PATH
+ifeq ($(HAVE_HDF_PAR),true)
   all: write_hdf5
 endif
 

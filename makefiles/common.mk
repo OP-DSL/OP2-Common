@@ -1,6 +1,8 @@
 SHELL = /bin/sh
 .SUFFIXES:
 
+.DEFAULT_GOAL := all
+
 # Helper function to upper-case a string
 define UPPERCASE =
 $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
@@ -12,17 +14,9 @@ MAKEFILES_DIR != dirname $(realpath \
 
 ROOT_DIR != realpath $(MAKEFILES_DIR)/../
 
-# Include profile #! PRE section
+# Include profile
 ifdef OP2_PROFILE
-  OP2_PROFILE_FILE = $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
-
-  $(shell sed -n '/^#!\s*PRE/,$${p;/^#!\s*POST/q}' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/.profile.pre.mk)
-
-  $(shell sed -n '/^#!\s*POST/,$${p;/^#!\s*PRE/q}' $(OP2_PROFILE_FILE) > \
-      $(MAKEFILES_DIR)/.profile.post.mk)
-
-  include $(MAKEFILES_DIR)/.profile.pre.mk
+  include $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
 endif
 
 OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
@@ -43,88 +37,66 @@ OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
 
 AR := ar rcs
 
-ifdef OP2_COMPILER
-  OP2_C_COMPILER ?= $(OP2_COMPILER)
-  OP2_F_COMPILER ?= $(OP2_COMPILER)
-  OP2_C_CUDA_COMPILER ?= nvhpc
-endif
+# Dependencies
+DEPS_DIR := $(MAKEFILES_DIR)/dependencies
 
-ifdef OP2_C_COMPILER
-  include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
-else
-  $(warning OP2_C_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
+ifneq ($(MAKECMDGOALS),clean)
+  # Compiler definitions
+  include $(MAKEFILES_DIR)/compilers.mk
 
-ifdef OP2_F_COMPILER
-  include $(MAKEFILES_DIR)/compilers/fortran/$(OP2_F_COMPILER).mk
-else
-  $(warning OP2_F_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
+  ifeq ($(HAVE_C),true)
+    include $(DEPS_DIR)/hdf5_seq.mk
+  endif
 
-ifdef OP2_C_CUDA_COMPILER
-  include $(MAKEFILES_DIR)/compilers/c_cuda/$(OP2_C_CUDA_COMPILER).mk
-else
-  $(warning OP2_C_CUDA_COMPILER undefined: define or use OP2_COMPILER or OP2_PROFILE)
-endif
+  ifeq ($(HAVE_C_CUDA),true)
+    include $(DEPS_DIR)/cuda.mk
+  endif
 
-ifeq ($(F_HAS_CUDA),true)
-  CUDA_FFLAGS += -DOP2_WITH_CUDAFOR
-endif
+  ifeq ($(HAVE_MPI_C),true)
+    include $(DEPS_DIR)/hdf5_par.mk
 
-ifdef CUDA_INSTALL_PATH
-  CUDA_INC ?= -I$(CUDA_INSTALL_PATH)/include
-  CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64 \
-	      -L$(CUDA_INSTALL_PATH)/lib \
-	      -lculibos -lcudart_static -lpthread -lrt -ldl
-endif
-
-ifdef MPI_INSTALL_PATH
-  MPI_BIN ?= $(MPI_INSTALL_PATH)/bin/
-endif
-
-MPICC ?= $(MPI_BIN)mpicc
-MPICXX ?= $(MPI_BIN)mpicxx
-MPIFC ?= $(MPI_BIN)mpif90
-
-# Anti MPI C++ binding measures
-CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
-CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
-
-PARMETIS_INC ?= -DHAVE_PARMETIS -DPARMETIS_VER_4
-ifdef PARMETIS_INSTALL_PATH
-  PARMETIS_INC := -I$(PARMETIS_INSTALL_PATH)/include $(PARMETIS_INC)
-  PARMETIS_LIB ?= -L$(PARMETIS_INSTALL_PATH)/lib -lparmetis -lmetis
-endif
-
-PTSCOTCH_INC ?= -DHAVE_PTSCOTCH
-ifdef PTSCOTCH_INSTALL_PATH
-  PTSCOTCH_INC := -I$(PTSCOTCH_INSTALL_PATH)/include $(PTSCOTCH_INC)
-  PTSCOTCH_LIB ?= -L$(PTSCOTCH_INSTALL_PATH)/lib -lptscotch -lscotch -lptscotcherr
-endif
-
-ifdef HDF5_INSTALL_PATH
-  HDF5_IS_PAR != grep "^\s*\#define\s*H5_HAVE_PARALLEL\s*1" \
-	              $(HDF5_INSTALL_PATH)/include/H5pubconf.h
-
-  ifneq ($(HDF5_IS_PAR),)
-    HDF5_PAR_INSTALL_PATH = $(HDF5_INSTALL_PATH)
-  else
-    HDF5_SEQ_INSTALL_PATH = $(HDF5_INSTALL_PATH)
+    include $(DEPS_DIR)/ptscotch.mk
+    include $(DEPS_DIR)/parmetis.mk
   endif
 endif
 
-HDF5_SEQ_INC ?=
-ifdef HDF5_SEQ_INSTALL_PATH
-  HDF5_SEQ_INC := -I$(HDF5_SEQ_INSTALL_PATH)/include $(HDF5_SEQ_INC)
-  HDF5_SEQ_LIB ?= -L$(HDF5_SEQ_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_SEQ_INSTALL_PATH)/lib \
-		  -lhdf5 -ldl -lm -lz
-endif
+.PHONY: detect
+detect:
+	@echo > /dev/null
 
-HDF5_PAR_INC ?=
-ifdef HDF5_PAR_INSTALL_PATH
-  HDF5_PAR_INC := -I$(HDF5_PAR_INSTALL_PATH)/include $(HDF5_PAR_INC)
-  HDF5_PAR_LIB ?= -L$(HDF5_PAR_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_PAR_INSTALL_PATH)/lib \
-		  -lhdf5 -ldl -lm -lz
+ifneq ($(MAKECMDGOALS),clean)
+  # Evaluates to X_LIB if HAVE_X and X_LIB is defined
+  # otherwise evaluates to "implicit" if HAVE_X is defined but not X_LIB
+  # otherwise evaluates to "not found"
+  I_STR = $(if $(HAVE_$(1)),$(if $($(1)_LIB),$($(1)_LIB),implicit),not found)
+
+  $(info Compilers:)
+  $(info .   C: $(if $(HAVE_C),$(CC),not found))
+  $(info .   C++: $(if $(HAVE_C),$(CXX),not found))
+  $(info .   CUDA: $(if $(HAVE_C_CUDA),$(NVCC),not found))
+  $(info .   Fortran: $(if $(HAVE_F),$(FC),not found))
+  $(info )
+  $(info MPI compilers:)
+  $(info .   C: $(if $(HAVE_MPI_C),$(MPICC),not found))
+  $(info .   C++: $(if $(HAVE_MPI_C),$(MPICXX),not found))
+  $(info .   Fortran: $(if $(HAVE_MPI_F),$(MPIFC),not found))
+  $(info )
+  $(info CUDA libraries: $(call I_STR,CUDA))
+  $(info )
+  $(info HDF5 I/O:)
+  $(info .   Sequential: $(call I_STR,HDF5_SEQ))
+  $(info .   Parallel: $(call I_STR,HDF5_PAR))
+  $(info )
+  $(info MPI partitioners:)
+  $(info .   PT-Scotch: $(call I_STR,PTSCOTCH))
+  $(info .   ParMETIS: $(call I_STR,PARMETIS))
+  $(info )
+  $(info Compilation flags:)
+  $(info .   C: $(CFLAGS))
+  $(info .   C++: $(CXXFLAGS))
+  $(info .   CUDA: $(NVCCFLAGS))
+  $(info .   Fortran: $(FFLAGS))
+  $(info )
 endif
 
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
@@ -152,8 +124,3 @@ $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),\
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
-
-# Include profile #! POST section
-ifdef OP2_PROFILE_FILE
-  include $(MAKEFILES_DIR)/.profile.post.mk
-endif
