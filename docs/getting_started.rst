@@ -25,8 +25,8 @@ Library Dependencies
 
 These may also be provided from various package managers and modules, however they must be built with a specific configuration and with the same compiler toolchain that you plan on using to build OP2:
 
-- `(PT-)Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_: Used for mesh partitioning. You must build both the sequential Scotch and parallel PT-Scotch with 32-bit indicies (``-DIDXSIZE=32``) and without threading support (remove ``-DSCOTCH_PTHREAD``).
-- `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_: Used for mesh partitioning.
+- (Optional) `(PT-)Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_: Used for mesh partitioning. You must build both the sequential Scotch and parallel PT-Scotch with 32-bit indicies (``-DIDXSIZE=32``) and without threading support (remove ``-DSCOTCH_PTHREAD``).
+- (Optional) `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_: Used for mesh partitioning.
 - (Optional) `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_: Used for HDF5 I/O. You may build with and without ``--enable-parallel`` (depending on if you need MPI), and then specify both builds via the environment variables listed below.
 
 .. note::
@@ -70,17 +70,20 @@ Then, specify the paths to the library dependency installation directories:
    export CUDA_INSTALL_PATH=<path/to/cuda/toolkit>
 
 .. note::
-   You may not need to specify the ``X_INSTALL_PATH`` varaibles if the include paths and library search paths are automatically injected by your package manager or module system. For some cases where the dependency libraries are built with non-standard names and provided via injection into the compiler executable you may need to set ``NONSTANDARD_IMPLICIT_LIBS=true``.
+   You may not need to specify the ``X_INSTALL_PATH`` varaibles if the include paths and library search paths are automatically injected by your package manager or module system.
+
+Verify the compiler and library setup:
+
+.. code-block:: shell
+
+    make -C op2 detect
 
 Finally, build OP2 and an example app:
 
 .. code-block:: shell
 
-   cd op2
-   make -j$(nproc)
-
-   cd ../apps/c/airfoil/airfoil_plain/dp
-   make -j$(nproc)
+   make -C op2 -j$(nproc)
+   make -C apps/c/airfoil/airfoil_plain/dp -j$(nproc)
 
 .. warning::
    The MPI variants of the libraries and apps will only be built if an ``mpicxx`` executable is found. It is up to you to ensure that the MPI wrapper wraps the compiler you specify via ``OP2_COMPILER``. To manually set the path to the MPI executables you may use ``MPI_INSTALL_PATH``.
