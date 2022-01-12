@@ -29,9 +29,32 @@ With OP2 we want to simplify the first two tasks, while providing as much perfor
 
 To achieve the high performance for large applications, a preprocessor is needed to generate the CUDA code for GPUs or OpenMP code for multicore x86 systems. However, to keep the initial development simple, a development single-threaded executable can be created without any special tools; the user’s main code is simply linked to a set of library routines, most of which do little more than error-checking to assist the debugging process by checking the correctness of the user’s program. Note that this single-threaded version will not execute efficiently. The preprocessor is needed to generate efficient single-threaded and OpenMP code for CPU systems.
 
-Figure 1 shows the build process for a single thread CPU executable. The user’s main program (in this case ``jac.cpp``) uses the OP2 header file ``op_seq.h`` and is linked to the appropriate OP2 libraries using ``g++``, perhaps controlled by a Makefile.
+:numref:`seq-build` shows the build process for a single thread CPU executable. The user’s main program (in this case ``jac.cpp``) uses the OP2 header file ``op_seq.h`` and is linked to the appropriate OP2 libraries using ``g++``, perhaps controlled by a Makefile.
 
-Figure 2 shows the build process for the corresponding CUDA executable. The preprocessor parses the user’s main program and produces a modified main program and a CUDA file which includes a separate file for each of the kernel functions. These are then compiled and linked to the OP libraries using g++ and the NVIDIA CUDA compiler nvcc, again perhaps controlled by a Makefile. Figure 3 shows the OpenMP build process which is very similar to the CUDA process except that it uses ``*.cpp`` files produced by the preprocessor instead of ``*.cu`` files.
+.. _seq-build:
+.. figure:: latex-figures/seq-build.png
+   :width: 60%
+   :align: center
+
+   Build process for a single-threaded development executable.
+
+:numref:`cuda-build` shows the build process for the corresponding CUDA executable. The preprocessor parses the user’s main program and produces a modified main program and a CUDA file which includes a separate file for each of the kernel functions. These are then compiled and linked to the OP libraries using ``g++`` and the NVIDIA CUDA compiler ``nvcc``, again perhaps controlled by a Makefile.
+
+.. _cuda-build:
+.. figure:: latex-figures/cuda-build.png
+   :width: 90%
+   :align: center
+
+   Build process for a CUDA accelerated executable.
+
+:numref:`openmp-build` shows the OpenMP build process which is very similar to the CUDA process except that it uses ``*.cpp`` files produced by the preprocessor instead of ``*.cu`` files.
+
+.. _openmp-build:
+.. figure:: latex-figures/openmp-build.png
+   :width: 90%
+   :align: center
+
+   Build process for an OpenMP accelerated executable.
 
 In looking at the API specification, users may think it is a little verbose in places. For example, users have to re-supply information about the datatype of the datasets being used in a parallel loop. This is a deliberate choice to simplify the task of the preprocessor, and therefore hopefully reduce the chance for errors. It is also motivated by the thought that "programming is easy; it’s debugging which is difficult": writing code isn’t time-consuming, it’s correcting it which takes the time. Therefore, it’s not unreasonable to ask the programmer to supply redundant information, but be assured that the preprocessor or library will check that all redundant information is self-consistent. If you declare a dataset as being of type :c:type:`OP_DOUBLE` and later say that it is of type :c:type:`OP_FLOAT` this will be flagged up as an error at run-time.
 

@@ -46,6 +46,9 @@ extensions = [
 # Enable rendering of TODOs
 todo_include_todos = True
 
+# Enable linking to figures by number
+numfig = True
+
 # Prefix each section label with the name of the document it is in
 autosectionlabel_prefix_document = True
 
@@ -93,7 +96,7 @@ html_theme = 'sphinx_rtd_theme'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
