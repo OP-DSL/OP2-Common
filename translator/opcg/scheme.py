@@ -4,12 +4,11 @@ from pathlib import Path
 from types import MethodType
 from typing import ClassVar, List, Tuple
 
-from jinja2 import env
-
 import cpp
 import fortran
 import op as OP
 import optimisation
+from jinja import env
 from language import Lang
 from optimisation import Opt
 from store import Application, Kernel
