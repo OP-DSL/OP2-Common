@@ -58,43 +58,8 @@ void op_download_dat(op_dat dat) {}
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
-void print_halo_new_1(halo_list h_list, const char* name, int my_rank){
-  printf("print_halo my_rank=%d, name=%s\n", my_rank, name);
-  if(h_list == NULL)
-    return;
-    
-  
-  printf("print_halo my_rank=%d, name=%s, set=%s, size=%d num_levels=%d\n", 
-  my_rank, name, h_list->set->name, h_list->size, h_list->num_levels);
-
-  for(int l = 0; l < h_list->num_levels; l++){
-    printf("print_halo my_rank=%d, name=%s, level=%d start level>>>>>>>>>\n", 
-      my_rank, name, l);
-    for(int i = h_list->rank_disps[l]; i < h_list->rank_disps[l] + h_list->ranks_sizes[l]; i++){
-      printf("print_halo my_rank=%d, name=%s, level=%d to_rank=%d, size=%d, rank_disp=%d level_disp=%d start>>>>>>>>>\n", 
-      my_rank, name, l, h_list->ranks[i], h_list->sizes[i], h_list->rank_disps[l], h_list->level_disps[l]);
-
-      printf("print_halo my_rank=%d, name=%s, level=%d to_rank=%d, size_by_rank=%d, rank_disp_by_rank=%d start>>>>>>>>>\n", 
-      my_rank, name, l, h_list->ranks[i], h_list->sizes_by_rank[i], h_list->disps_by_rank[i]);
-
-      for(int j = h_list->level_disps[l] + h_list->disps[i]; j < h_list->level_disps[l] + h_list->disps[i] + h_list->sizes[i]; j++){
-        printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d value[%d]=%d\n", 
-        my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->level_disps[l] + h_list->disps[i], j, h_list->list[j]);
-      }
-
-      printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, rank_disp=%d level_disp=%d end<<<<<<<<<<\n", 
-      my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->rank_disps[l], h_list->level_disps[l]);
-  
-    }
-    printf("print_halo my_rank=%d, name=%s, level=%d end level<<<<<<<<<<\n", 
-      my_rank, name, l);
-  }
-}
-
-
 #ifndef COMM_AVOID
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-   printf("op_exchange_halo\n");
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -238,23 +203,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 
 #else
 
-#include <execinfo.h>
-void bt(void) {
-    int c, i;
-    void *addresses[10];
-    char **strings;
-
-    c = backtrace(addresses, 10);
-    strings = backtrace_symbols(addresses,c);
-    printf("backtrace returned: %dn", c);
-    for(i = 0; i < c; i++) {
-        // printf("%d: %X ", i, (int)addresses[i]);
-        printf("test %s\n", strings[i]); 
-    }
-  }
-
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-  printf("op_exchange_halo COMM_AVOID\n");
+  printf("op_exchange_halo COMM_AVOID new merged\n");
   op_dat dat = arg->dat;
 
   int my_rank;
@@ -306,6 +256,12 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     int set_elem_index = 0;
     int buf_index = 0;
     int buf_start = 0;
+
+    // double *aa = (double*)&(dat->data[0]);
+    // for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
+    //   printf("testhalo my_rank=%d prevdat=%s [%d]=%g\n", my_rank, 
+    //   dat->name, el, aa[el]);
+
     // printf("0 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, exp_exec_list->ranks_size / exp_exec_list->num_levels);
     for (int r = 0; r < exp_exec_list->ranks_size / exp_exec_list->num_levels; r++) {
       buf_start =  buf_index;
@@ -326,6 +282,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         }
       }
 
+    
+
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_exec[buf_start * dat->size],
                 dat->size * (buf_index - buf_start), MPI_CHAR,
@@ -335,6 +293,13 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         
     }
 
+    // print_halo_new_1(exp_exec_list, "testhalo exp", my_rank);
+
+    //   double *ab = (double*)&(((op_mpi_buffer)(dat->mpi_buffer))
+    //                 ->buf_exec[0 * dat->size]);
+    // for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
+    //   printf("testhalo my_rank=%d bufexec=%s [%d]=%g\n", my_rank, 
+    //   dat->name, el, ab[el]);
     // printf("test: exec done %d %d\n", imp_exec_list->ranks_size, imp_exec_list->num_levels);
 
     // print_halo_new_1(imp_exec_list, "test halo", my_rank);
@@ -423,7 +388,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 void op_unpack(op_arg *arg){
-  
+  printf("op_unpack new version\n");
   // int exec_levels = 2;
   op_dat dat = arg->dat;
   int my_rank;
@@ -431,35 +396,57 @@ void op_unpack(op_arg *arg){
 
   int init = dat->set->size * dat->size;
   halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
+ 
+//  print_halo_new_1(imp_exec_list, "testrx", my_rank);
+
+  // double *aa = (double*)&(dat->data[0]);
+  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
+  //       printf("testrx my_rank=%d prevdat=%s [%d]=%g\n", my_rank, 
+  //       dat->name, el, aa[el]);
+
+  // double *b = (double*)&(dat->aug_data[0]);
+  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
+  //       printf("testrx my_rank=%d augdat=%s [%d]=%g\n", my_rank, 
+  //       dat->name, el, b[el]);
+
   for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
   
     int prev_exec_size = 0;
     for(int l = 0; l < imp_exec_list->num_levels; l++){ // this has to be changed to dat's levels
-    
-      // double *b = (double*)&(dat->aug_data[imp_exec_list->disps[i] * dat->size]);
-      // for (int el = 0; el < (dat->size * imp_exec_list->sizes[i])/8; el++)
-      //   printf("testrx my_rank=%d to_rank=%d dat=%s [%d]=%g\n", my_rank, aug_imp_exec_list->ranks[i], 
+
+      //  double *b = (double*)&(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]);
+      // for (int el = 0; el < (dat->size * imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i])/8; el++)
+      //   printf("testrx my_rank=%d to_rank=%d dat=%s [%d]=%g\n", my_rank, imp_exec_list->ranks[i], 
       //   dat->name, el, b[el]);
-      printf("op_unpack \n");
+
+    
+      
+      // printf("op_unpack \n");
       memcpy(&(dat->data[init + (imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]) * dat->size]), 
             &(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
                             dat->size * imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i]);
 
       
 
-      printf("op_unpack my_rank=%d dat=%s init=%d l=%d i=%d prev_exec_size=%d size=%d leveldisp=%d rankdisp=%d src=%d dest=%d \n", 
-      my_rank, dat->set->name, init, l, i, prev_exec_size, imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i],
-      imp_exec_list->level_disps[l], imp_exec_list->disps_by_rank[i],
-      imp_exec_list->disps_by_rank[i] + prev_exec_size, 
-      imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]);
+      // printf("op_unpack testrx my_rank=%d dat=%s init=%d l=%d i=%d prev_exec_size=%d size=%d leveldisp=%d rankdisp=%d src=%d dest=%d \n", 
+      // my_rank, dat->set->name, init, l, i, prev_exec_size, imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i],
+      // imp_exec_list->level_disps[l], imp_exec_list->disps_by_rank[i],
+      // imp_exec_list->disps_by_rank[i] + prev_exec_size, 
+      // imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]);
 
       prev_exec_size += imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i];
     }
   }
+
+  //  double *c = (double*)&(dat->data[0]);
+  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
+  //       printf("testrx my_rank=%d dat=%s [%d]=%g\n", my_rank, 
+  //       dat->name, el, c[el]);
     
 }
 
 // void op_exchange_halo(op_arg *arg, int exec_flag) {
+//   printf("op_exchange_halo comm avoid\n");
 //   op_dat dat = arg->dat;
 
 //   if (arg->opt == 0)
@@ -504,10 +491,6 @@ void op_unpack(op_arg *arg){
 //       printf("Error: Export list and set mismatch\n");
 //       MPI_Abort(OP_MPI_WORLD, 2);
 //     }
-
-//     // for(int l = 0; l < exec_levels; l++){
-
-//     // }
 
 //     int set_elem_index;
 //     for (int i = 0; i < exp_exec_list->ranks_size; i++) {

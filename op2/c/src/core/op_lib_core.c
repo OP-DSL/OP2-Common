@@ -88,7 +88,7 @@ int compare_sets(op_set set1, op_set set2) {
 }
 
 int is_execlevel_required_for_set(op_set set, int exec_level){
-  if(set->dat_to_execlevels->get_max_val() > exec_level + 1){
+  if(set->dat_to_execlevels->get_max_val() > exec_level){
     return 1;
   }
   // return 0;
@@ -288,10 +288,12 @@ op_set op_decl_set_core(int size, char const *name) {
   set->exec_size = 0;
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
+
   set->dat_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
   set->dat_to_execlevels->init();
   set->execlevel_to_size = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
   set->execlevel_to_size->init();
+
   return set;
 }
 
@@ -406,12 +408,11 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->dirty_hd = 0;
   dat->dirtybit = 1;
 
-  // char *new_aug_data = (char *)op_malloc(dim * size * (set->size+set->exec_size+set->nonexec_size) * sizeof(char));
+  char *new_aug_data = (char *)op_malloc(dim * size * (set->size+set->exec_size+set->nonexec_size) * sizeof(char));
+  // if (data != NULL)
+  //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
+  dat->aug_data = new_aug_data;
 
-  // printf("datsize set=%s setsize=%d exec=%d non=%d\n", set->name, set->size, set->exec_size, set->nonexec_size);
-  // // if (data != NULL)
-  // //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
-  // dat->aug_data = new_aug_data;
   dat->loopchain_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
   dat->loopchain_to_execlevels->init();
 

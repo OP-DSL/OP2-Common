@@ -84,7 +84,7 @@ ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
     CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS = -O3 -xHost -rdynamic #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost #-DCOMM_PERF
   endif
   CXX       = icpc
   CXXFLAGS  = $(CCFLAGS)
@@ -340,8 +340,6 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 mpi_comm_avoid: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(SRC)/mpi/op_mpi_part_core.c $(SRC)/mpi/op_mpi_core.c $(SRC)/mpi/op_mpi_comm_avoid.c \
 	$(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c $(OBJ)/op_lib_core.o
-	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_comm_avoid_utils.c \
-	-o $(OBJ)/op_comm_avoid_utils.o
 	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_comm_avoid.c \
@@ -363,9 +361,7 @@ mpi_comm_avoid: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) -c $(SRC)/externlib/op_renumber.cpp \
 	-o $(OBJ)/op_renumber.o
 
-	ar -r $(LIB)/libop2_mpi_comm_avoid.a \
-	$(OBJ)/op_comm_avoid_utils.o \
-	$(OBJ)/op_mpi_core.o \
+	ar -r $(LIB)/libop2_mpi_comm_avoid.a $(OBJ)/op_mpi_core.o \
 	$(OBJ)/op_mpi_comm_avoid.o \
 	$(OBJ)/op_mpi_part_core.o \
 	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \

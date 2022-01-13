@@ -108,7 +108,6 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 /*
  * structures
  */
-
 // #ifdef COMM_AVOID
 // #include <op_util.h>
 #define OP_ID_ARRAY_SIZE 100
@@ -188,8 +187,6 @@ typedef struct op_id_to_val_core{
 typedef op_id_to_val_core* op_id_to_val;
 // #endif
 
-
-
 typedef struct {
   int index;        /* index */
   int size;         /* number of elements in set */
@@ -237,6 +234,7 @@ typedef struct {
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
+
   op_id_to_val loopchain_to_execlevels;
 } op_dat_core;
 

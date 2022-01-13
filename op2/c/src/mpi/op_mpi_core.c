@@ -48,9 +48,6 @@
 #include <op_util.h>
 
 #include <op_mpi_core.h>
-#ifdef COMM_AVOID
-// #include <op_comm_avoid_utils.h>
-#endif
 
 //
 // MPI Halo related global variables
@@ -307,7 +304,6 @@ void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
   h_list->sizes_by_rank = sizes;
   int *disps_by_rank = (int *)xmalloc(comm_size * sizeof(int));
   h_list->disps_by_rank = disps;
-  
 }
 
 /*******************************************************************************
@@ -3174,7 +3170,10 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
       #ifndef COMM_AVOID
       size = set->size + set->exec_size;
       #else
-      size = set->size + OP_aug_import_exec_lists[0][set->index]->size;
+      printf("test sending size merged_size=%d, level1_size=%d\n", 
+      OP_merged_import_exec_list[set->index]->size, OP_aug_import_exec_lists[0][set->index]->size);
+      size = set->size + OP_merged_import_exec_list[set->index]->size;
+      // size = set->size + OP_aug_import_exec_lists[0][set->index]->size;
       #endif
       exec_flag = 1;
     }
