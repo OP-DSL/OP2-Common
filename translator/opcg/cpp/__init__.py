@@ -1,4 +1,3 @@
-
 # Standard library imports
 from types import MethodType
 import os
@@ -15,19 +14,19 @@ from language import Lang
 
 # Load environment vairables set in .env and set libclang path
 load_dotenv()
-clang.cindex.Config.set_library_file(os.getenv('LIBCLANG_PATH'))
+clang.cindex.Config.set_library_file(os.getenv("LIBCLANG_PATH"))
 
 
 lang = Lang(
-  name='c++',
-  com_delim='//',
-  source_exts=['cpp'],
-  include_ext='h',
-  types=['float', 'double', 'int', 'uint', 'll', 'ull', 'bool'],
-  kernel_dir=True
+    name="c++",
+    com_delim="//",
+    source_exts=["cpp"],
+    include_ext="h",
+    types=["float", "double", "int", "uint", "ll", "ull", "bool"],
+    kernel_dir=True,
 )
 
 
-lang.parseProgram = MethodType(parseProgram, lang) # type: ignore
-lang.parseKernel = MethodType(parseKernel, lang) # type: ignore
-lang.translateProgram = MethodType(translateProgram, lang) # type: ignore
+lang.parseProgram = MethodType(parseProgram, lang)  # type: ignore
+lang.parseKernel = MethodType(parseKernel, lang)  # type: ignore
+lang.translateProgram = MethodType(translateProgram, lang)  # type: ignore
