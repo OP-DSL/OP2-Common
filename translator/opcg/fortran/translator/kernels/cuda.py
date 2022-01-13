@@ -1,13 +1,9 @@
-# Standard imports
 import re
 from typing import Tuple
-
-# Third party imports
 from xml.etree.ElementTree import Element, dump
 
-# Application imports
-from store import Kernel, Application
-from util import SourceBuffer, indexSplit, find
+from store import Application, Kernel
+from util import SourceBuffer, find, indexSplit
 
 
 def translateKernel(self, source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:

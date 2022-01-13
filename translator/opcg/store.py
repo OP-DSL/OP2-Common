@@ -1,14 +1,14 @@
-# Standard library imports
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Tuple, List, Set, Any
-from typing_extensions import Protocol
+
 from os.path import basename
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
-# Application imports
-from op import OpError
-from util import safeFind, flattern, find, uniqueBy
+from typing_extensions import Protocol
+
 import op as OP
+from op import OpError
+from util import find, flattern, safeFind, uniqueBy
 
 if TYPE_CHECKING:
     from language import Lang

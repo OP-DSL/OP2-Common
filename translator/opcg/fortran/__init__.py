@@ -1,11 +1,8 @@
-# Standard library imports
 from types import MethodType
 
-# Application imports
-from fortran.parser import parseProgram, parseKernel
+from fortran.parser import parseKernel, parseProgram
 from fortran.translator.program import translateProgram
 from language import Lang
-
 
 lang = Lang(
     name="fortran",

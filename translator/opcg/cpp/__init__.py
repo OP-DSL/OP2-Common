@@ -1,16 +1,12 @@
-# Standard library imports
-from types import MethodType
 import os
+from types import MethodType
 
-# Third party imports
-from dotenv import load_dotenv
 import clang.cindex
+from dotenv import load_dotenv
 
-# Application imports
-from cpp.parser import parseProgram, parseKernel
+from cpp.parser import parseKernel, parseProgram
 from cpp.translator.program import translateProgram
 from language import Lang
-
 
 # Load environment vairables set in .env and set libclang path
 load_dotenv()
