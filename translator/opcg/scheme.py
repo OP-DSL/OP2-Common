@@ -94,7 +94,7 @@ comp  = Scheme(cpp.lang, optimisation.omp,  Path('cpp/omp/loop_host.cpp.j2'), No
 ccuda = Scheme(cpp.lang, optimisation.cuda, Path('cpp/cuda_kepler/loop_host.cu.j2'), None, Path('cpp/cuda_kepler/master_kernel.cu.j2'))
 
 from cpp.translator.kernels import cuda
-ccuda.translateKernel = MethodType(cuda.translateKernel, ccuda)
+ccuda.translateKernel = MethodType(cuda.translateKernel, ccuda) # type: ignore
 
 fseq  = Scheme(fortran.lang, optimisation.seq,  Path('fortran/seq/loop_host.F90.j2'),  Path('fortran/seq/make_stub.make.j2'))
 fvec  = Scheme(fortran.lang, optimisation.vec,  Path('fortran/vec/loop_host.F90.j2'),  Path('fortran/vec/make_stub.make.j2'))
