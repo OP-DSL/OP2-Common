@@ -130,7 +130,7 @@ class Arg:
   map1st: Optional[int] # First arg to use this arg's map
   arg1st: Optional[int] # First arg to use this arg's dat
   optidx: Optional[int] # Index in list of args with opt set
-  cumulative_ind_idx: Optional[ind] # Cumulative index of indirect OP_INC args
+  cumulative_ind_idx: Optional[int] # Cumulative index of indirect OP_INC args
 
   def __init__(
     self,
@@ -177,12 +177,14 @@ class Arg:
 
 
 class Loop:
-  kernel: str
-  set: str
   loc: Location
+  kernel: str
+  kernelPath: str
+
+  set: str
   args: List[Arg]
   expanded_args: List[Arg]
-  kernelPath: str
+
   nargs: int
   ninds: int
 
@@ -191,8 +193,6 @@ class Loop:
     self.set = set_
     self.loc = loc
     self.args = args
-    seenMaps = {}
-    seenArgs = {}
     self.expanded_args = []
 
     ind_i = 0
@@ -261,37 +261,39 @@ class Loop:
       self.nmaps = max([ arg.mapIdxInd for arg in self.expanded_args ]) + 1
 
     ### OLD STUFF (Remove once I've checked its no longer needed) ###
+    # seenMaps = {}
+    # seenArgs = {}
 
-    # Assign loop argument index to each arg (accounting for vec args)
-    i = 0
-    for arg in self.args:
-      arg.i = i
-      if arg.var in seenArgs.keys():
-        arg.arg1st = seenArgs[arg.var]
-      else:
-        seenArgs[arg.var] = arg.i
-        arg.arg1st = arg.i
-      if arg.vector:
-        i += abs(arg.idx)
-      else:
-        i += 1
+    # # Assign loop argument index to each arg (accounting for vec args)
+    # i = 0
+    # for arg in self.args:
+    #   arg.i = i
+    #   if arg.var in seenArgs.keys():
+    #     arg.arg1st = seenArgs[arg.var]
+    #   else:
+    #     seenArgs[arg.var] = arg.i
+    #     arg.arg1st = arg.i
+    #   if arg.vector:
+    #     i += abs(arg.idx)
+    #   else:
+    #     i += 1
 
-    # Store in each arg, which arg first uses the relevant map (for code gen)
-    for arg in self.indirects:
-      if arg.map in seenMaps.keys():
-        arg.map1st = seenMaps[arg.map]
-      else:
-        seenMaps[arg.map] = arg.i
-        arg.map1st = arg.i
+    # # Store in each arg, which arg first uses the relevant map (for code gen)
+    # for arg in self.indirects:
+    #   if arg.map in seenMaps.keys():
+    #     arg.map1st = seenMaps[arg.map]
+    #   else:
+    #     seenMaps[arg.map] = arg.i
+    #     arg.map1st = arg.i
 
-    # Index args which uses opts (args with the same dat + map combination have same index)
-    nopts = 0;
-    for arg in self.opts:
-      if arg.i == arg.arg1st:
-        arg.optidx = nopts
-        nopts = nopts + 1
-      else:
-        arg.optidx = self.args[arg.arg1st].optidx
+    # # Index args which uses opts (args with the same dat + map combination have same index)
+    # nopts = 0;
+    # for arg in self.opts:
+    #   if arg.i == arg.arg1st:
+    #     arg.optidx = nopts
+    #     nopts = nopts + 1
+    #   else:
+    #     arg.optidx = self.args[arg.arg1st].optidx
 
   # Name of kernel
   @property
@@ -320,7 +322,7 @@ class Loop:
 
   # Gets index of first direct arg using SoA
   @property
-  def direct_soa_idx(self) -> bool:
+  def direct_soa_idx(self) -> int:
     if self.direct_soa:
       for arg in self.expanded_args:
         if arg.direct and arg.soa:
@@ -382,7 +384,7 @@ class Loop:
   def indirectIdxs(self) -> List[Arg]:
     res = []
     for arg in self.indirects:
-      if arg.idx < 0:
+      if arg.idx is not None and arg.idx < 0:
         for i in range(0, abs(arg.idx)):
           tmpArg = Arg(arg.var, arg.dim, arg.typ, arg.acc, arg.loc, arg.map, i)
           tmpArg.i = arg.i
@@ -434,5 +436,5 @@ class Loop:
     return [ arg for arg in self.expanded_args if arg.unique ]
 
   # Function that allows exceptions to be raised during templating
-  def raise_exception(self, text : str) -> void:
+  def raise_exception(self, text : str) -> None:
     exit(text + ". Error from processing \"" + self.name + "\" loop")
