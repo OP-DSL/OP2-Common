@@ -1,15 +1,11 @@
-# Standard library imports
-from typing import Tuple, Dict, List
-from pathlib import Path
 import json
 import os
+from pathlib import Path
+from typing import Dict, List, Tuple
 
-# Third party imports
-from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
+from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
-# Local application imports
 import op as OP
-
 
 # Jinja configuration
 env = Environment(

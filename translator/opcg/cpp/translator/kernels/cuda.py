@@ -1,8 +1,6 @@
-# Standard imports
 from typing import Tuple
 
-# Application imports
-from store import Kernel, Application
+from store import Application, Kernel
 
 
 def translateKernel(self, source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:

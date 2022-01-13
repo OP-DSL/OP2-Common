@@ -1,7 +1,5 @@
-# Standard library imports
 import re
 
-# Application imports
 from store import Program
 from util import SourceBuffer
 

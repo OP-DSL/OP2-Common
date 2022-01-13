@@ -1,17 +1,13 @@
-# Standard library imports
-from typing import Optional, List, Set
-from pathlib import Path
-import re
 import os
+import re
+from pathlib import Path
+from typing import List, Optional, Set
 
-# Third party imports
-from clang.cindex import Index, Config, TranslationUnit, Cursor, CursorKind
+from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit
 
-# Local application imports
-from store import ParseError, Program, Kernel, Location
-from util import enumRegex, safeFind
 import op as OP
-
+from store import Kernel, Location, ParseError, Program
+from util import enumRegex, safeFind
 
 macro_instances = {}  # TODO: Cleanup
 
