@@ -1,23 +1,9 @@
-# Standard library imports
-from typing import (
-    TypeVar,
-    Callable,
-    Generic,
-    Optional,
-    Iterable,
-    List,
-    Any,
-    Set,
-    Tuple,
-    Dict,
-)
-from pathlib import Path
-import subprocess
 import re
+import subprocess
+from pathlib import Path
+from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, TypeVar
 
-# Third party imports
 from cached_property import cached_property
-
 
 # Generic type
 T = TypeVar("T")

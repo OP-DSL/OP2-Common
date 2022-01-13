@@ -1,24 +1,19 @@
-#!/usr/bin/python
-
-# Standard library imports
+import json
+import os
+import re
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from datetime import datetime
 from pathlib import Path
 from typing import List
-import json
-import os
-import re
 
-# Application imports
-from store import Application, ParseError
-from util import getVersion, safeFind
-from optimisation import Opt
-from scheme import Scheme
 from language import Lang
 from op import OpError
+from optimisation import Opt
+from scheme import Scheme
+from store import Application, ParseError
+from util import getVersion, safeFind
 
 
-# Program entrypoint
 def main(argv=None) -> None:
     # Build arg parser
     parser = ArgumentParser(prog="opcg")

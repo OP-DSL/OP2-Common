@@ -1,4 +1,3 @@
-# Standard library
 from setuptools import setup
 
 # TODO: Finish

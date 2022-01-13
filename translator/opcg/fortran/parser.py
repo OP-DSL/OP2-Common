@@ -1,18 +1,14 @@
-# Standard library imports
-from subprocess import CalledProcessError
-from xml.etree.ElementTree import Element, dump
-from pathlib import Path
-from typing import List, Set, Optional
 import re
+from pathlib import Path
+from subprocess import CalledProcessError
+from typing import List, Optional, Set
+from xml.etree.ElementTree import Element, dump
 
-# Third party imports
 import open_fortran_parser as fp
 
-# Local application imports
-from store import ParseError, Program, Kernel, Location
-from util import enumRegex, safeFind
 import op as OP
-
+from store import Kernel, Location, ParseError, Program
+from util import enumRegex, safeFind
 
 # The current current file being parsed
 _current_file: str = "?"
