@@ -3,7 +3,7 @@
 from subprocess import CalledProcessError
 from xml.etree.ElementTree import Element, dump
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Optional
 import re
 
 # Third party imports
@@ -73,7 +73,10 @@ def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Progra
     loc = parseLocation(call)
     name = parseIdentifier(call)
 
-    if call.find('name').attrib['type'] == 'procedure':
+    name_node = call.find('name')
+    assert name_node is not None
+
+    if name_node.attrib['type'] == 'procedure':
       # Collect the call arg nodes
       args = call.findall('name/subscripts/subscript')
 
@@ -291,7 +294,9 @@ def parseOptArgGbl(nodes: List[Element], loc: Location) -> OP.Arg:
   return dat
 
 
-def parseIdentifier(node: Element, regex: str = None) -> str:
+def parseIdentifier(node: Optional[Element], regex: str = None) -> str:
+  assert node is not None
+
   # Parse location
   loc = parseLocation(node)
 
@@ -311,7 +316,9 @@ def parseIdentifier(node: Element, regex: str = None) -> str:
   return value
 
 
-def parseIntLit(node: Element, signed: bool = True) -> int:
+def parseIntLit(node: Optional[Element], signed: bool = True) -> int:
+  assert node is not None
+
   # Parse location
   loc = parseLocation(node)
 
@@ -321,11 +328,15 @@ def parseIntLit(node: Element, signed: bool = True) -> int:
   # Check if the node is wrapped in a valid unary negation
   if signed and node.find('operation'):
     node = node.find('operation')
-    if node.attrib['type'] == 'unary' and node.find('operator') and node.find('operator').attrib['operator'] == '-':
+    assert node is not None
+
+    operator_node = node.find('operator')
+    if node.attrib['type'] == 'unary' and operator_node is not None and operator_node.attrib['operator'] == '-':
       negation = True
       node = node.find('operand')
 
   # Descend to child literal node
+  assert node is not None
   node = node.find('literal')
 
   # Verify and typecheck the literal node
@@ -341,7 +352,9 @@ def parseIntLit(node: Element, signed: bool = True) -> int:
   return -value if negation else value
 
 
-def parseStringLit(node: Element, regex: str = None) -> str:
+def parseStringLit(node: Optional[Element], regex: str = None) -> str:
+  assert node is not None
+
   # Parse location
   loc = parseLocation(node)
 
