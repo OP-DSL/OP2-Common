@@ -1,22 +1,21 @@
-# Standard library imports
 from __future__ import annotations
-from typing import List, ClassVar, Tuple
-from types import MethodType
+
 from pathlib import Path
+from types import MethodType
+from typing import ClassVar, List, Tuple
 
-# Application imports
-from util import find, safeFind
-from store import Kernel, Application
-from optimisation import Opt
-from language import Lang
-from jinja import env
-import optimisation
-import op as OP
-import fortran
+from jinja2 import env
+
 import cpp
+import fortran
+import op as OP
+import optimisation
+from language import Lang
+from optimisation import Opt
+from store import Application, Kernel
+from util import find, safeFind
 
 
-# A scheme is ...
 class Scheme(object):
     instances: ClassVar[List[Scheme]] = []
 
@@ -86,8 +85,6 @@ class Scheme(object):
     def translateKernel(self, kernel: Kernel, app: Application) -> str:
         raise NotImplementedError(f'no kernel translator registered for the "{self}" scheme')
 
-
-# Register schemes here ...
 
 cseq = Scheme(
     cpp.lang,

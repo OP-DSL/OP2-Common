@@ -1,8 +1,7 @@
-# Standard library imports
 from __future__ import annotations
-from typing import List, ClassVar, Dict, Any
 
-# Application imports
+from typing import Any, ClassVar, Dict, List
+
 from util import find
 
 

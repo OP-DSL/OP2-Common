@@ -1,11 +1,10 @@
-# Standard library imports
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Callable, List, ClassVar, Set
-from pathlib import Path
 
-# Application imports
-from store import Program, Kernel, ParseError
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, ClassVar, List, Set
+
+from store import Kernel, ParseError, Program
 from util import find
 
 

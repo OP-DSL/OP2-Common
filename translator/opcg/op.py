@@ -1,12 +1,10 @@
-# Standard library imports
 from __future__ import annotations
-from typing import TYPE_CHECKING, Final, Optional, Dict, List
 
-# Third party imports
+from typing import TYPE_CHECKING, Dict, Final, List, Optional
+
 from cached_property import cached_property
 
-# Application imports
-from util import uniqueBy, find
+from util import find, uniqueBy
 
 if TYPE_CHECKING:
     from store import Location
