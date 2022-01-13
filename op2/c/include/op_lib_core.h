@@ -119,7 +119,6 @@ typedef struct op_id_to_val_core{
     index = 0;
     size = OP_ID_ARRAY_SIZE;
     max_val = 0;
-    printf("test1\n");
   }
   ~op_id_to_val_core(){
     free(ids);

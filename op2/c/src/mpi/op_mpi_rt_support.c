@@ -204,7 +204,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 #else
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-  printf("op_exchange_halo COMM_AVOID new merged\n");
   op_dat dat = arg->dat;
 
   int my_rank;
@@ -234,7 +233,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
-    //    printf("Exchanging Halo of data array %10s\n",dat->name);
+
     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
@@ -257,17 +256,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     int buf_index = 0;
     int buf_start = 0;
 
-    // double *aa = (double*)&(dat->data[0]);
-    // for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
-    //   printf("testhalo my_rank=%d prevdat=%s [%d]=%g\n", my_rank, 
-    //   dat->name, el, aa[el]);
-
-    // printf("0 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, exp_exec_list->ranks_size / exp_exec_list->num_levels);
     for (int r = 0; r < exp_exec_list->ranks_size / exp_exec_list->num_levels; r++) {
       buf_start =  buf_index;
-      // printf("1 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, buf_index);
       for(int l = 0; l < exp_exec_list->num_levels; l++){
-        // printf("2 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, buf_index);
         for (int i = 0; i < exp_exec_list->sizes[exp_exec_list->rank_disps[l] + r]; i++) {
           int level_disp = exp_exec_list->level_disps[l];
           int disp_in_level = exp_exec_list->disps[exp_exec_list->rank_disps[l] + r];
@@ -276,13 +267,10 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
                     ->buf_exec[buf_index * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-          // printf("3 my_rank=%d dat=%s level=%d rank=%d buf_index=%d set_elem_index=%d dat=%d\n", 
-          // my_rank, dat->set->name, l, exp_exec_list->ranks[r], buf_index, set_elem_index, dat->data[set_elem_index]);
+
           buf_index++;
         }
       }
-
-    
 
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_exec[buf_start * dat->size],
@@ -293,31 +281,13 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         
     }
 
-    // print_halo_new_1(exp_exec_list, "testhalo exp", my_rank);
-
-    //   double *ab = (double*)&(((op_mpi_buffer)(dat->mpi_buffer))
-    //                 ->buf_exec[0 * dat->size]);
-    // for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
-    //   printf("testhalo my_rank=%d bufexec=%s [%d]=%g\n", my_rank, 
-    //   dat->name, el, ab[el]);
-    // printf("test: exec done %d %d\n", imp_exec_list->ranks_size, imp_exec_list->num_levels);
-
-    // print_halo_new_1(imp_exec_list, "test halo", my_rank);
-
     for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
-        // printf("test 1: exec done %d %d %d\n", imp_exec_list->ranks_size, imp_exec_list->num_levels,
-        // imp_exec_list->disps_by_rank[i]);// imp_exec_list->sizes_by_rank[i]);
-          //  printf("test import exec on to %d from %d data %10s, number of elements of size %d | recieving:\n ",
-          //       my_rank, imp_exec_list->ranks[i], dat->name,
-          //       imp_exec_list->sizes_by_rank[i]);
 
       MPI_Irecv(&(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size]),
                 dat->size * imp_exec_list->sizes_by_rank[i], MPI_CHAR,
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-
-      // printf("test 2: exec done %d %d\n", imp_exec_list->ranks_size, imp_exec_list->num_levels);
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -337,12 +307,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     set_elem_index = 0;
     buf_index = 0;
     buf_start = 0;
-    // printf("non my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels);
     for (int r = 0; r < exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels; r++) {
       buf_start =  buf_index;
-      // printf("1 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, buf_index);
       for(int l = 0; l < exp_nonexec_list->num_levels; l++){
-        // printf("2 my_rank=%d dat=%s buf_index=%d\n", my_rank, dat->set->name, buf_index);
         for (int i = 0; i < exp_nonexec_list->sizes[exp_nonexec_list->rank_disps[l] + r]; i++) {
           int level_disp = exp_nonexec_list->level_disps[l];
           int disp_in_level = exp_nonexec_list->disps[exp_nonexec_list->rank_disps[l] + r];
@@ -351,8 +318,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
                     ->buf_nonexec[buf_index * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-          // printf("3 non my_rank=%d dat=%s level=%d rank=%d buf_index=%d set_elem_index=%d dat=%d\n", 
-          // my_rank, dat->set->name, l, exp_nonexec_list->ranks[r], buf_index, set_elem_index, dat->data[set_elem_index]);
           buf_index++;
         }
       }
@@ -366,14 +331,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
         
     }
 
-
-    // printf("non test my_rank=%d dat=%s imp_exec_size=%d size=%d levels=%d\n", 
-    // my_rank, dat->set->name, imp_exec_size, imp_exec_list->size, imp_exec_list->num_levels);
-
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
 
      for (int i = 0; i < imp_nonexec_list->ranks_size / imp_nonexec_list->num_levels; i++) {
-
       MPI_Irecv(&(dat->data[nonexec_init + imp_nonexec_list->disps_by_rank[i] * dat->size]),
                 dat->size * imp_nonexec_list->sizes_by_rank[i], MPI_CHAR,
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
@@ -388,256 +348,27 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 void op_unpack(op_arg *arg){
-  printf("op_unpack new version\n");
-  // int exec_levels = 2;
   op_dat dat = arg->dat;
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   int init = dat->set->size * dat->size;
   halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
- 
-//  print_halo_new_1(imp_exec_list, "testrx", my_rank);
-
-  // double *aa = (double*)&(dat->data[0]);
-  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
-  //       printf("testrx my_rank=%d prevdat=%s [%d]=%g\n", my_rank, 
-  //       dat->name, el, aa[el]);
-
-  // double *b = (double*)&(dat->aug_data[0]);
-  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
-  //       printf("testrx my_rank=%d augdat=%s [%d]=%g\n", my_rank, 
-  //       dat->name, el, b[el]);
 
   for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
   
     int prev_exec_size = 0;
     for(int l = 0; l < imp_exec_list->num_levels; l++){ // this has to be changed to dat's levels
 
-      //  double *b = (double*)&(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]);
-      // for (int el = 0; el < (dat->size * imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i])/8; el++)
-      //   printf("testrx my_rank=%d to_rank=%d dat=%s [%d]=%g\n", my_rank, imp_exec_list->ranks[i], 
-      //   dat->name, el, b[el]);
-
-    
-      
-      // printf("op_unpack \n");
       memcpy(&(dat->data[init + (imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]) * dat->size]), 
             &(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
                             dat->size * imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i]);
 
-      
-
-      // printf("op_unpack testrx my_rank=%d dat=%s init=%d l=%d i=%d prev_exec_size=%d size=%d leveldisp=%d rankdisp=%d src=%d dest=%d \n", 
-      // my_rank, dat->set->name, init, l, i, prev_exec_size, imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i],
-      // imp_exec_list->level_disps[l], imp_exec_list->disps_by_rank[i],
-      // imp_exec_list->disps_by_rank[i] + prev_exec_size, 
-      // imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]);
-
       prev_exec_size += imp_exec_list->sizes[imp_exec_list->rank_disps[l] + i];
     }
   }
-
-  //  double *c = (double*)&(dat->data[0]);
-  //     for (int el = 0; el < (dat->set->size + imp_exec_list->size); el++)
-  //       printf("testrx my_rank=%d dat=%s [%d]=%g\n", my_rank, 
-  //       dat->name, el, c[el]);
-    
 }
 
-// void op_exchange_halo(op_arg *arg, int exec_flag) {
-//   printf("op_exchange_halo comm avoid\n");
-//   op_dat dat = arg->dat;
-
-//   if (arg->opt == 0)
-//     return;
-
-//   if (arg->sent == 1) {
-//     printf("Error: Halo exchange already in flight for dat %s\n", dat->name);
-//     fflush(stdout);
-//     MPI_Abort(OP_MPI_WORLD, 2);
-//   }
-//   if (exec_flag == 0 && arg->idx == -1)
-//     return;
-
-//   // For a directly accessed op_dat do not do halo exchanges if not executing
-//   // over
-//   // redundant compute block
-//   if (exec_flag == 0 && arg->idx == -1)
-//     return;
-
-//   arg->sent = 0; // reset flag
-
-//   int exec_levels = 2;
-//   // need to exchange both direct and indirect data sets if they are dirty
-//   if ((arg->acc == OP_READ ||
-//        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
-//       (dat->dirtybit == 1)) {
-//     //    printf("Exchanging Halo of data array %10s\n",dat->name);
-//     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-//     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
-
-//     halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-//     halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
-
-//     //-------first exchange exec elements related to this data array--------
-
-//     // sanity checks
-//     if (compare_sets(imp_exec_list->set, dat->set) == 0) {
-//       printf("Error: Import list and set mismatch\n");
-//       MPI_Abort(OP_MPI_WORLD, 2);
-//     }
-//     if (compare_sets(exp_exec_list->set, dat->set) == 0) {
-//       printf("Error: Export list and set mismatch\n");
-//       MPI_Abort(OP_MPI_WORLD, 2);
-//     }
-
-//     int set_elem_index;
-//     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
-//       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
-//         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
-//         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-//                     ->buf_exec[exp_exec_list->disps[i] * dat->size +
-//                                j * dat->size],
-//                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-//       }
-      
-//       // printf("export exec from %d to %d data %10s, number of elements of size %d | sending:\n ",
-//       //             my_rank, exp_exec_list->ranks[i],
-//       //             dat->name,exp_exec_list->sizes[i]);
-//       // double *b = (double*)&((op_mpi_buffer)(dat->mpi_buffer))
-//       //                ->buf_exec[exp_exec_list->disps[i] * dat->size];
-//       // for (int el = 0; el < (dat->size * exp_exec_list->sizes[i])/8; el++)
-//       //   printf("testsent my_rank=%d from_rank=%d dat=%s [%d]=%g\n", my_rank, exp_exec_list->ranks[i], 
-//       //   dat->name, el, b[el]);
-//       // printf("\n");
-      
-//       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-//                      ->buf_exec[exp_exec_list->disps[i] * dat->size],
-//                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
-//                 exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
-//                 &((op_mpi_buffer)(dat->mpi_buffer))
-//                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-//     }
-
-//     for (int i = 0; i < imp_exec_list->ranks_size; i++) {
-//       //      printf("import exec on to %d from %d data %10s, number of elements
-//       //      of size %d | recieving:\n ",
-//       //           my_rank, imp_exec_list->ranks[i], dat->name,
-//       //           imp_exec_list->sizes[i]);
-
-//       MPI_Irecv(&(dat->aug_data[imp_exec_list->disps[i] * dat->size]),
-//                 dat->size * imp_exec_list->sizes[i], MPI_CHAR,
-//                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
-//                 &((op_mpi_buffer)(dat->mpi_buffer))
-//                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-//     }
-
-//     //-----second exchange nonexec elements related to this data array------
-//     // sanity checks
-//     if (compare_sets(imp_nonexec_list->set, dat->set) == 0) {
-//       printf("Error: Non-Import list and set mismatch");
-//       MPI_Abort(OP_MPI_WORLD, 2);
-//     }
-//     if (compare_sets(exp_nonexec_list->set, dat->set) == 0) {
-//       printf("Error: Non-Export list and set mismatch");
-//       MPI_Abort(OP_MPI_WORLD, 2);
-//     }
-
-//     int rank;
-//     MPI_Comm_rank(OP_MPI_WORLD, &rank);
-//     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
-//       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
-//         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
-//         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-//                     ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size +
-//                                   j * dat->size],
-//                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-//       }
-//       // printf("export nonexec from %d to %d data %10s, number of elements of size %d | sending:\n ",
-//       //                 rank, exp_nonexec_list->ranks[i],
-//       //                 dat->name,exp_nonexec_list->sizes[i]);
-//       // double *b = (double*)&((op_mpi_buffer)(dat->mpi_buffer))
-//       //                ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size];
-//       // for (int el = 0; el < (dat->size * exp_nonexec_list->sizes[i])/8; el++)
-//       //   printf("%g ", b[el]);
-//       // printf("\n");
-//       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-//                      ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size],
-//                 dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
-//                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
-//                 &((op_mpi_buffer)(dat->mpi_buffer))
-//                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-//     }
-//     int imp_exec_size = 0;
-//     for(int l = 0; l < exec_levels; l++){
-//       halo_list imp_exec_list = OP_aug_import_exec_lists[l][dat->set->index];
-//       imp_exec_size += imp_exec_list->size;
-//     }
-
-//     int nonexec_init = (dat->set->size + imp_exec_size) * dat->size;
-//     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
-//       //      printf("import on to %d from %d data %10s, number of elements of
-//       //      size %d | recieving:\n ",
-//       //            my_rank, imp_nonexec_list->ranks[i], dat->name,
-//       //            imp_nonexec_list->sizes[i]);
-//       MPI_Irecv(
-//           &(dat->data[nonexec_init + imp_nonexec_list->disps[i] * dat->size]),
-//           dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
-//           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
-//           &((op_mpi_buffer)(dat->mpi_buffer))
-//                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-//     }
-//     // clear dirty bit
-//     dat->dirtybit = 0;
-//     arg->sent = 1;
-//   }
-// }
-
-// void op_unpack(op_arg *arg){
-  
-//   int exec_levels = 2;
-//   op_dat dat = arg->dat;
-//   int my_rank;
-//   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-
-//   int init = dat->set->size * dat->size;
-//   halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-//   for(int l = 0; l < exec_levels; l++){
-
-//     halo_list aug_imp_exec_list = OP_aug_import_exec_lists[l][dat->set->index];
-
-//     for (int i = 0; i < aug_imp_exec_list->ranks_size; i++) {
-
-//       int prev_exec_size = 0;
-//       int prev_rank_size = 0;
-//       for(int l1 = 0; l1 < l; l1++){
-//         halo_list prev_aug_imp_exec_list = OP_aug_import_exec_lists[l1][dat->set->index];
-//         prev_exec_size += prev_aug_imp_exec_list->size;
-
-//         int prev_rank_index = binary_search(prev_aug_imp_exec_list->ranks, aug_imp_exec_list->ranks[i], 0,
-//                                     prev_aug_imp_exec_list->ranks_size - 1);
-//         if(prev_rank_index >= 0){
-//           prev_rank_size += prev_aug_imp_exec_list->sizes[prev_rank_index];
-          
-//         }
-//       }
-//       // double *b = (double*)&(dat->aug_data[imp_exec_list->disps[i] * dat->size]);
-//       // for (int el = 0; el < (dat->size * imp_exec_list->sizes[i])/8; el++)
-//       //   printf("testrx my_rank=%d to_rank=%d dat=%s [%d]=%g\n", my_rank, aug_imp_exec_list->ranks[i], 
-//       //   dat->name, el, b[el]);
-//       // printf("\n");
-
-//       int rank_index = binary_search(imp_exec_list->ranks, aug_imp_exec_list->ranks[i], 0,
-//                                     imp_exec_list->ranks_size - 1);
-
-//       memcpy(&(dat->data[init + (prev_exec_size + aug_imp_exec_list->disps[i]) * dat->size]), 
-//             &(dat->aug_data[imp_exec_list->disps[rank_index] * dat->size + prev_rank_size * dat->size]),
-//                             dat->size * aug_imp_exec_list->sizes[i]);
-//     }
-//   }
-    
-// }
 #endif
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {

@@ -289,7 +289,6 @@ void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
   h_list->sizes = sizes;
   h_list->list = list;
 
-  //suneth
   h_list->num_levels = 1;
   h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
   h_list->ranks_sizes[0] = ranks_size;
@@ -329,7 +328,6 @@ void create_import_list(op_set set, int *temp_list, halo_list h_list,
   h_list->sizes = sizes;
   h_list->list = temp_list;
 
-  //suneth
   h_list->num_levels = 1;
   h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
   h_list->ranks_sizes[0] = ranks_size;
@@ -3170,10 +3168,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
       #ifndef COMM_AVOID
       size = set->size + set->exec_size;
       #else
-      printf("test sending size merged_size=%d, level1_size=%d\n", 
-      OP_merged_import_exec_list[set->index]->size, OP_aug_import_exec_lists[0][set->index]->size);
       size = set->size + OP_merged_import_exec_list[set->index]->size;
-      // size = set->size + OP_aug_import_exec_lists[0][set->index]->size;
       #endif
       exec_flag = 1;
     }
