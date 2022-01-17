@@ -22,7 +22,6 @@ def main(argv=None) -> None:
     parser.add_argument("-V", "--version", help="Version", action="version", version=getVersion())
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
-    parser.add_argument("-m", "--makefile", help="Create Makefile stub", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath, default=".")
     parser.add_argument("-p", "--prefix", help="Output File Prefix", type=isValidPrefix, default="op")
     parser.add_argument("-soa", "--soa", help="Structs of Arrays", action="store_true")
@@ -239,26 +238,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
                         if args.verbose:
                             print(f"Translated kernel   {i} of {len(app.kernels)}: {new_path}")
-
-    # Generate Makefile
-    if args.makefile and scheme.make_stub_template:
-        path = Path(args.out, "Makefile")
-
-        # Check if the Make target has already been defined
-        found = False
-        if path.is_file():
-            with open(path, "r") as file:
-                found = bool(re.search(f"^{scheme.opt.name}:", file.read(), re.MULTILINE))
-
-        # Append the stub if not found
-        if not found:
-            with open(path, "a") as file:
-                stub = scheme.genMakeStub(generated_paths)
-
-                file.write(stub)
-
-        if args.verbose:
-            print(f'Make target "{scheme.opt.name}" already exists' if found else "Appended Make target stub")
 
 
 def isDirPath(path):
