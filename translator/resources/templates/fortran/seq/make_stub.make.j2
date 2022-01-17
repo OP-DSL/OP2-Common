@@ -1,8 +1,0 @@
-
-seq:
-	$(FC) $(OPT) $(FMODS) -c \
-		constants.F90 input.F90 airfoil_seqfun.F90 \
-		{{ source_paths | join(' ') }}
-	$(MPIF90) $(OPT) $(OPENMP) $(FLINK)	-o airfoil_seq -lop2_for_seq \
-		input.o constants.o airfoil_seqfun.o \
-		{{ object_paths | join(' ') }}
