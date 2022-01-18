@@ -72,6 +72,12 @@ Then, specify the paths to the library dependency installation directories:
 .. note::
    You may not need to specify the ``X_INSTALL_PATH`` varaibles if the include paths and library search paths are automatically injected by your package manager or module system.
 
+If you are using CUDA then you may also specify a comma separated list of target architectures for which to generate code for:
+
+.. code-block:: shell
+
+   export NV_ARCH={Fermi, Kepler, ..., Ampere}[,{Fermi, ...}]
+
 Verify the compiler and library setup:
 
 .. code-block:: shell
