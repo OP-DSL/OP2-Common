@@ -28,6 +28,7 @@ Finally, to build OP2 and any of the apps:
  1. Set either `OP2_COMPILER={gnu, cray, intel, xl, nvhpc}`, or `OP2_{C, C_CUDA, F}_COMPILER={...}` depending on your compiler setup. Alternatively if there is a profile specific to the cluster you are building on in `makefiles/profiles` you may use e.g. `OP2_PROFILE=cirrus-intel`.
  2. (Optional) Set `PTSCOTCH_INSTALL_PATH`, `PARMETIS_INSTALL_PATH`, and `HDF5_{SEQ, PAR}_INSTALL_PATH` to the locations of the respective dependency builds containing `include` and `lib` folders. Certain build environments such as Spack, Nix and certain environment module implementations may already provided the required library directories through the environent or a compiler wrapper; if this is the case you do not need to set these environment variables.
  3. (Optional) Set `CUDA_INSTALL_PATH` to the location of the installed CUDA toolkit.
+ 4. (Optional) Set `NV_ARCH` to a comma separated list of NVIDIA GPU architectures (`Fermi`, `Kepler`, ..., `Ampere`).
  4. Run `make detect` in the `op2` directory to verify that the compilers, libraries and compilation flags are as you intend.
  5. Run `make -j$(nproc)` in the `op2` directory to build the run-time libraries.
  6. Run `make -j$(nproc)` in any of the app directories to build the respective apps.

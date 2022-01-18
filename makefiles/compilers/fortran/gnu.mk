@@ -1,7 +1,7 @@
 # Compiler executables and flags
-FC = gfortran
+FC := gfortran
 
-BASE_FFLAGS = -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none -fcray-pointer
+BASE_FFLAGS := -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none -fcray-pointer
 
 ifndef DEBUG
   BASE_FFLAGS += -O3

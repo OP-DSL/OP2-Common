@@ -4,6 +4,21 @@ ifdef OP2_COMPILER
   OP2_C_CUDA_COMPILER ?= nvhpc
 endif
 
+# Process CUDA_GEN and NV_ARCH until CUDA_GEN is a whitespace separated list of
+# numerical CUDA architectures
+CUDA_GEN := $(subst $(COMMA),$(SPACE),$(CUDA_GEN))
+
+CUDA_GEN_Fermi   := 20
+CUDA_GEN_Kepler  := 35
+CUDA_GEN_Maxwell := 50
+CUDA_GEN_Pascal  := 60
+CUDA_GEN_Volta   := 70
+CUDA_GEN_Ampere  := 80
+
+NV_ARCH := $(subst $(COMMA),$(SPACE),$(NV_ARCH))
+$(foreach arch,$(NV_ARCH),$(eval CUDA_GEN += $(CUDA_GEN_$(arch))))
+
+# Include the relevant compiler makefiles
 ifdef OP2_C_COMPILER
   include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
 endif

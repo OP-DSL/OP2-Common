@@ -1,7 +1,7 @@
 # Compiler executables and flags
-FC = ifort
+FC := ifort
 
-BASE_FFLAGS = -warn all
+BASE_FFLAGS := -warn all
 
 ifndef DEBUG
   BASE_FFLAGS += -O3

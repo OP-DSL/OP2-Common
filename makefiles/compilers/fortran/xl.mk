@@ -1,7 +1,7 @@
 # Compiler executables and flags
-FC = xlf_r
+FC := xlf_r
 
-BASE_FFLAGS =
+BASE_FFLAGS :=
 
 ifndef DEBUG
   BASE_FFLAGS += -O3

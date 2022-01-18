@@ -1,8 +1,8 @@
 # Compiler executables and flags
-FC = ftn
-MPIFC = ftn
+FC := ftn
+MPIFC := ftn
 
-BASE_FFLAGS =
+BASE_FFLAGS :=
 
 ifndef DEBUG
   BASE_FFLAGS += -O3

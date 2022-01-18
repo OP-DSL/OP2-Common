@@ -8,6 +8,11 @@ define UPPERCASE =
 $(shell echo "$(1)" | tr "[:lower:]" "[:upper:]")
 endef
 
+# Helper variables for comma and space substitution
+COMMA := ,
+SPACE :=
+SPACE +=
+
 # Get the makefiles directory (where this file is)
 MAKEFILES_DIR != dirname $(realpath \
 	$(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))

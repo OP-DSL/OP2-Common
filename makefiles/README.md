@@ -35,7 +35,7 @@ Available OpenMP features:
 #### `compilers/c_cuda`: The C/C++ CUDA compilers
 Basic compiler setup:
  * `NVCC`: The CUDA compiler executable (e.g. `nvcc`).
- * `NVCCFLAGS`: The flags used for CUDA compilation. These are expected to adhere to `DEBUG` and also enable target-specific code generation if `NV_ARCH={Fermi, Kepler, ..., Volta}` is specified.
+ * `NVCCFLAGS`: The flags used for CUDA compilation. These are expected to adhere to `DEBUG` and also enable target-specific code generation for each of the numerical architectures in the `CUDA_GEN` list.
 
 #### `compilers/fortran`: The Fortran compilers
 Basic compiler setup:
@@ -51,7 +51,7 @@ Available OpenMP features:
  * `F_HAS_OMP_OFFLOAD`: Set to `true` if the Fortran compiler supports OpenMP 4.0 offload.
 
 Available CUDA features:
- * `CUDA_FFLAGS`: The flags to enable compilation of CUDA Fortran (`.CUF`) sources. These should enable target-specific code generation if `NV_ARCH={Fermi, Kepler, ..., Volta}` is specified.
+ * `CUDA_FFLAGS`: The flags to enable compilation of CUDA Fortran (`.CUF`) sources. These should enable target-specific code generation for each of the numerical architectures in the `CUDA_GEN` list.
  * `F_HAS_CUDA`: Set to `true` if the Fortran compiler supports CUDA.
 
 ### `dependencies/`: The dependencies
