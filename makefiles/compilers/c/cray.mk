@@ -1,11 +1,11 @@
 # Compiler executables and flags
-CC = cc
-CXX = CC
+CC := cc
+CXX := CC
 
-MPICC = cc
-MPICXX = CC
+MPICC := cc
+MPICXX := CC
 
-BASE_CPPFLAGS = -MMD -MP -Wall -Wextra -pedantic
+BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3

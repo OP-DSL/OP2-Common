@@ -1,8 +1,8 @@
 # Compiler executables and flags
-CC = xlc_r
-CXX = xlc++_r
+CC := xlc_r
+CXX := xlc++_r
 
-BASE_CPPFLAGS = -MMD -MP -Wall -pedantic
+BASE_CPPFLAGS := -MMD -MP -Wall -pedantic
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3

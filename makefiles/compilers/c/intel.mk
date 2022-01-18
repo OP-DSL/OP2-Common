@@ -1,8 +1,8 @@
 # Compiler executables and flags
-CC = icc
-CXX = icpc
+CC := icc
+CXX := icpc
 
-BASE_CPPFLAGS = -MMD -MP -Wall
+BASE_CPPFLAGS := -MMD -MP -Wall
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
