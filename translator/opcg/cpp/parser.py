@@ -43,7 +43,7 @@ def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Progra
         exit("Fatal: OP2_INSTALL_PATH not set")
 
     # Add OP2 includes
-    op2_include = Path(op2_install).joinpath("c/include")
+    op2_include = Path(op2_install).joinpath("include")
     include_dirs.add(op2_include)
 
     # Form Clang args
