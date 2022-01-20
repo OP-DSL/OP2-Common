@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <sstream>
+//#include <sstream>
 #include <string>
 
 #include <op_lib_c.h>
@@ -4741,7 +4741,7 @@ void realloc_tmp_incs(int dat_idx, int req_size){
   }
   else
   if (op_repr_incs[dat_idx].tmp_incs_size < req_size) {
-    op_realloc(op_repr_incs[dat_idx].tmp_incs, req_size);
+    op_repr_incs[dat_idx].tmp_incs = (void*)op_realloc(op_repr_incs[dat_idx].tmp_incs, req_size);
     op_repr_incs[dat_idx].tmp_incs_size = req_size;
   }
   return;
