@@ -79,13 +79,11 @@ class Program:
 class Kernel:
     name: str
     path: Path
-    ast: Any  # TODO: Update typing
     params: List[Tuple[str, str]]
 
-    def __init__(self, name: str, path: Path, ast: Any, params: List[Tuple[str, str]]):
+    def __init__(self, name: str, path: Path, params: List[Tuple[str, str]]):
         self.name = name
         self.path = path
-        self.ast = ast
         self.params = params
 
     @property

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import traceback
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from datetime import datetime
 from pathlib import Path
@@ -177,21 +178,22 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
                 print(f"Generated loop host {i} of {len(app.loops)}: {path}")
 
     # Generate master kernel file
-    source, extension = scheme.genMasterKernel(app)
-    appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
-    path = None
-    if scheme.lang.kernel_dir:
-        Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
-        path = Path(args.out, scheme.opt.name, f"{appname}_{scheme.opt.name}kernels.{extension}")
-    else:
-        path = Path(args.out, f"{appname}_{scheme.opt.name}kernels.{extension}")
-    with open(path, "w") as file:
-        file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n")
-        file.write(source)
-        generated_paths.append(path)
+    if scheme.master_kernel_template != None:
+        source, extension = scheme.genMasterKernel(app)
+        appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
+        path = None
+        if scheme.lang.kernel_dir:
+            Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
+            path = Path(args.out, scheme.opt.name, f"{appname}_{scheme.opt.name}kernels.{extension}")
+        else:
+            path = Path(args.out, f"{appname}_{scheme.opt.name}kernels.{extension}")
+        with open(path, "w") as file:
+            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n")
+            file.write(source)
+            generated_paths.append(path)
 
-        if args.verbose:
-            print(f"Generated master kernel file: {path}")
+            if args.verbose:
+                print(f"Generated master kernel file: {path}")
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):

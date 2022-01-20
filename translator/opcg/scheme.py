@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MethodType
-from typing import ClassVar, List, Tuple
+from typing import ClassVar, List, Optional, Tuple
 
 import cpp
 import fortran
@@ -18,6 +18,11 @@ from util import find, safeFind
 class Scheme(object):
     instances: ClassVar[List[Scheme]] = []
 
+    lang: Lang
+    opt: Opt
+    loop_host_template: Path
+    master_kernel_template: Optional[Path]
+
     def __init__(
         self,
         lang: Lang,
@@ -29,6 +34,7 @@ class Scheme(object):
             exit("duplicate scheme")
 
         self.__class__.instances.append(self)
+
         self.lang = lang
         self.opt = opt
         self.loop_host_template = loop_host_template
