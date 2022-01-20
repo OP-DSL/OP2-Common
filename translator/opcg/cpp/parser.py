@@ -33,7 +33,7 @@ def parseKernel(self, path: Path, name: str) -> Kernel:
             param = (n.spelling, type)
             params.append(param)
 
-    return Kernel(name, path, translation_unit.cursor, params)
+    return Kernel(name, path, params)
 
 
 def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
