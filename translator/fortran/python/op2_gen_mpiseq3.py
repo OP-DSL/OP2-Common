@@ -462,7 +462,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       if maps[g_m] == OP_MAP:
         if ind_inc and repro_loop and repr_temp_array and accs[g_m] == OP_INC:
           if g_m in needDimList:
-            datdim = 'opDat'+str(g_m+1)+'Dim' 
+            datdim = 'opDat'+str(invinds[inds[g_m]-1]+1)+'Dim' 
           else:
             datdim = str(dims[g_m])
           line = line + indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Tmp((i1*opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')*'+datdim+'+1)'
@@ -490,7 +490,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         if indaccs[g_m] == OP_INC:
           DO('i1','0','to_size')
           DO('i2','row_start_idx(i1+1)','row_start_idx(i1+2)')
-          if g_m in needDimList:
+          if invinds[g_m] in needDimList:
             d = 'opDat'+str(invinds[g_m]+1)+'Dim'
           else:
             d = str(inddims[g_m])
