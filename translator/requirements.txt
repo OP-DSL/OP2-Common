@@ -1,4 +1,4 @@
-open-fortran-parser
+fparser
 cached-property
 python-dotenv
 clang
