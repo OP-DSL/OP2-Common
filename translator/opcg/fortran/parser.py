@@ -63,7 +63,7 @@ def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogra
     return parameters
 
 
-def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: str) -> str:
+def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: str) -> OP.Type:
     type_declaration = None
 
     for candidate_declaration in fpu.walk(subroutine, f2003.Type_Declaration_Stmt):
@@ -84,7 +84,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     if type_spec is None:
         raise ParseError(f"derived types are not allowed for kernel arguments", loc)
 
-    return normaliseType(type_spec.tofortran())
+    return parseType(type_spec.tofortran(), loc)
 
 
 def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
@@ -179,7 +179,7 @@ def parseDat(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Da
 
     set_ = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)
-    typ = normaliseType(parseStringLiteral(args.items[2], loc))
+    typ = parseType(parseStringLiteral(args.items[2], loc), loc)
     ptr = parseIdentifier(args.items[4], loc)
 
     return OP.Data(set_, dim, typ, ptr, loc)
@@ -192,7 +192,7 @@ def parseDatHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> O
     set_ = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)
     ptr = parseIdentifier(args.items[2], loc)
-    typ = normaliseType(parseStringLiteral(args.items[3], loc))
+    typ = parseType(parseStringLiteral(args.items[3], loc), loc)
 
     return OP.Data(set_, dim, typ, ptr, loc)
 
@@ -250,7 +250,7 @@ def parseArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.
     idx = parseIntLiteral(args.items[1], loc)
     map_ = parseIdentifier(args.items[2], loc)
     dim = parseIntLiteral(args.items[3], loc)
-    typ = normaliseType(parseStringLiteral(args.items[4], loc))
+    typ = parseType(parseStringLiteral(args.items[4], loc), loc)
     acc = parseIdentifier(args.items[5], loc)
 
     valid_access_types = enumRegex(OP.DAT_ACCESS_TYPES)
@@ -269,7 +269,7 @@ def parseOptArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> 
     idx = parseIntLiteral(args.items[2], loc)
     map_ = parseIdentifier(args.items[3], loc)
     dim = parseIntLiteral(args.items[4], loc)
-    typ = normaliseType(parseStringLiteral(args.items[5], loc))
+    typ = parseType(parseStringLiteral(args.items[5], loc), loc)
     acc = parseIdentifier(args.items[6], loc)
 
     valid_access_types = enumRegex(OP.DAT_ACCESS_TYPES)
@@ -288,7 +288,7 @@ def parseArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.
 
     var = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)
-    typ = normaliseType(parseStringLiteral(args.items[2], loc))
+    typ = parseType(parseStringLiteral(args.items[2], loc), loc)
     acc = parseIdentifier(args.items[3], loc)
 
     valid_access_types = enumRegex(OP.GBL_ACCESS_TYPES)
@@ -305,7 +305,7 @@ def parseOptArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> 
     opt = parseIdentifier(args.items[0], loc)
     var = parseIdentifier(args.items[1], loc)
     dim = parseIntLiteral(args.items[2], loc)
-    typ = normaliseType(parseStringLiteral(args.items[3], loc))
+    typ = parseType(parseStringLiteral(args.items[3], loc), loc)
     acc = parseIdentifier(args.items[4], loc)
 
     valid_access_types = enumRegex(OP.GBL_ACCESS_TYPES)
@@ -343,5 +343,30 @@ def parseStringLiteral(node: Any, loc: Location) -> str:
     return str(node.items[0][1:-1])
 
 
-def normaliseType(type: str) -> str:
-    return re.sub(r"\s*kind\s*=\s*", "", type.lower())
+def parseType(typ: str, loc: Location) -> OP.Type:
+    typ_clean = typ.strip().lower()
+    typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
+
+    mk_type_regex = lambda t, k: f"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
+
+    integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
+    if integer_match is not None:
+        size = 32
+        if integer_match.groups()[0] is not None:
+            size = int(integer_match.groups()[0]) * 8
+
+        return OP.Int(True, size)
+
+    real_match = re.match(mk_type_regex("real", "(?:rk)?(4|8)"), typ_clean)
+    if real_match is not None:
+        size = 32
+        if real_match.groups()[0] is not None:
+            size = int(real_match.groups()[0]) * 8
+
+        return OP.Float(size)
+
+    logical_match = re.match(mk_type_regex("logical", "(?:lk)?"), typ_clean)
+    if logical_match is not None:
+        return OP.Bool()
+
+    raise ParseError(f'unable to parse type "{typ}"')

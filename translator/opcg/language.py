@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, ClassVar, List, Set
 
+from op import Type
 from store import Kernel, ParseError, Program
 from util import find
 
@@ -47,6 +48,9 @@ class Lang(object):
     # Augment source program to use generated kernel hosts
     def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
         raise NotImplementedError(f'no program translator registered for the "{self.name}" language')
+
+    def formatType(self, typ: Type) -> str:
+        raise NotImplementedError(f'no type formatter registered for the "{self.name}" language')
 
     def __str__(self) -> str:
         return self.name

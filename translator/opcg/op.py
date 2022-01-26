@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Final, List, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, Final, List, Optional, Union, Callable
 
 from cached_property import cached_property
 
@@ -38,6 +39,33 @@ class OpError(Exception):
             return f"OP error: {self.message}"
 
 
+class Type:
+    formatter: Callable[["Type"], str]
+
+    @classmethod
+    def set_formatter(cls, formatter: Callable[["Type"], str]) -> None:
+        cls.formatter = formatter
+
+    def __str__(self) -> str:
+        return self.__class__.formatter(self)
+
+
+@dataclass
+class Int(Type):
+    signed: bool
+    size: int
+
+
+@dataclass
+class Float(Type):
+    size: int
+
+
+@dataclass
+class Bool(Type):
+    pass
+
+
 class Set:
     ptr: str
 
@@ -63,11 +91,11 @@ class Map:
 class Data:
     set: str
     dim: int
-    typ: str
+    typ: Type
     ptr: str
     loc: Location
 
-    def __init__(self, set_: str, dim: int, typ: str, ptr: str, loc: Location) -> None:
+    def __init__(self, set_: str, dim: int, typ: Type, ptr: str, loc: Location) -> None:
         self.set = set_
         self.dim = dim
         self.typ = typ
@@ -78,11 +106,11 @@ class Data:
 class Const:
     ptr: str
     dim: int
-    typ: str
+    typ: Type
     debug: str
     loc: Location
 
-    def __init__(self, ptr: str, dim: int, typ: str, debug: str, loc: Location) -> None:
+    def __init__(self, ptr: str, dim: int, typ: Type, debug: str, loc: Location) -> None:
         self.ptr = ptr
         self.dim = dim
         self.typ = typ
@@ -95,7 +123,7 @@ class Arg:
     indI: int = 0  # Loop argument index for indirect args
     var: str  # Dataset identifier
     dim: int  # Dataset dimension (redundant)
-    typ: str  # Dataset type (redundant)
+    typ: Type  # Dataset type (redundant)
     acc: str  # Dataset access operation
     loc: Location  # Source code location
     map: Optional[str]  # Indirect mapping indentifier
@@ -119,7 +147,7 @@ class Arg:
         self,
         var: str,
         dim: int,
-        typ: str,
+        typ: Type,
         acc: str,
         loc: Location,
         map_: str = None,
