@@ -121,13 +121,6 @@ class Application:
                     data.loc,
                 )
 
-            # Validate type
-            if data.typ not in lang.types:
-                raise OpError(
-                    f'unsupported datatype "{data.typ}" for the {lang.name} language',
-                    data.loc,
-                )
-
         # Validate map declerations
         for map in self.maps:
             # Validate both sets
