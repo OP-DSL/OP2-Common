@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List
 
 from language import Lang
-from op import OpError
+from op import OpError, Type
 from optimisation import Opt
 from scheme import Scheme
 from store import Application, ParseError
@@ -57,6 +57,8 @@ def main(argv=None) -> None:
     # Determine the target language and optimisation
     opt = Opt.find(args.optimisation)
     lang = Lang.find(extension)
+
+    Type.set_formatter(lang.formatType)
 
     if opt.name == "cuda":
         opt.config["soa"] = args.soa
