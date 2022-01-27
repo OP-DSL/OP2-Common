@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Final, List, Optional, Union, Callable
+from typing import TYPE_CHECKING, Callable, Dict, Final, List, Optional, Union
 
 from cached_property import cached_property
 

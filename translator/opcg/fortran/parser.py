@@ -369,4 +369,4 @@ def parseType(typ: str, loc: Location) -> OP.Type:
     if logical_match is not None:
         return OP.Bool()
 
-    raise ParseError(f'unable to parse type "{typ}"')
+    raise ParseError(f'unable to parse type "{typ}"', loc)

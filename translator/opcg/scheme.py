@@ -57,7 +57,7 @@ class Scheme(object):
         extension = self.loop_host_template.suffixes[-2][1:]
 
         # Generate source from the template
-        return template.render(parloop=loop, opt=self.opt, id=i), extension
+        return template.render(OP=OP, parloop=loop, opt=self.opt, id=i), extension
 
     def genMasterKernel(self, app) -> Tuple[str, str]:
         if self.master_kernel_template is None:
@@ -67,7 +67,7 @@ class Scheme(object):
         extension = self.master_kernel_template.suffixes[-2][1:]
 
         # Generate source from the template
-        return template.render(app=app, opt=self.opt), extension
+        return template.render(OP=OP, app=app, opt=self.opt), extension
 
     def translateKernel(self, kernel: Kernel, app: Application) -> str:
         raise NotImplementedError(f'no kernel translator registered for the "{self}" scheme')
