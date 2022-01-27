@@ -4,13 +4,13 @@
 TODO
 ## FORTRAN
 TODO
-## OP-CG
+## OP2-Translator
 
 ### Getting Started
 
-- Navigate to project directory `op-cg`
+- Navigate to project directory `cd translator`
 - Install python packages `pip3 install -r requirements.txt`
-- Invoke the CLI with `python3 opcg`
+- Invoke the CLI with `python3 op2-translator`
 
 ### Requirements
 
@@ -21,7 +21,7 @@ TODO
 ### Brief Code Overview
 
 - `__main__.py`
-  - Entry point of OP-CG. Handles the arguments passed to OP-CG and calls the appropriate parser, validator and code generator.
+  - Entry point of op2-translator. Handles the arguments passed to op2-translator and calls the appropriate parser, validator and code generator.
 - `jinja.py`
   - Configures the Jinja templating engine.
 - `language.py`
