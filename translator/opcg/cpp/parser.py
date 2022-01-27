@@ -28,9 +28,8 @@ def parseKernel(self, path: Path, name: str) -> Kernel:
     params = []
     for n in node.get_children():
         if n.kind == CursorKind.PARM_DECL:
-            type = n.type.get_pointee() or n.type
-            type = re.sub(r"\s*const\s*", "", type.spelling)
-            param = (n.spelling, type)
+            typ = n.type.get_pointee() or n.type
+            param = (n.spelling, parseType(typ.spelling, parseLocation(n)))
             params.append(param)
 
     return Kernel(name, path, params)
@@ -143,7 +142,7 @@ def parseDat(nodes: List[Cursor], ptr: str, loc: Location) -> OP.Data:
 
     set_ = parseIdentifier(nodes[0])
     dim = parseIntLit(nodes[1], signed=False)
-    typ = parseStringLit(nodes[2])
+    typ = parseType(parseStringLit(nodes[2]), loc)
     _ = parseIdentifier(nodes[3])
     debug = parseStringLit(nodes[4])
 
@@ -156,7 +155,7 @@ def parseConst(nodes: List[Cursor], loc: Location) -> OP.Const:
 
     # TODO dim may not be literal
     dim = parseIntLit(nodes[0], signed=False)
-    typ = parseStringLit(nodes[1])
+    typ = parseType(parseStringLit(nodes[1]), loc)
     ptr = parseIdentifier(nodes[2])
     debug = ptr
 
@@ -209,7 +208,7 @@ def parseArgDat(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Arg:
     idx = parseIntLit(nodes[1], signed=True)
     map_ = parseIdentifier(nodes[2]) or OP.ID
     dim = parseIntLit(nodes[3], signed=False)
-    typ = parseStringLit(nodes[4])
+    typ = parseType(parseStringLit(nodes[4]), loc)
     acc = macro_instances[(nodes[5].location.line, nodes[5].location.column)]  # TODO: Cleanup
     soa_ = soa and dim > 1
 
@@ -239,7 +238,7 @@ def parseArgGbl(nodes: List[Cursor], loc: Location) -> OP.Arg:
 
     var = parseIdentifier(nodes[0])
     dim = parseIntLit(nodes[1], signed=False)
-    typ = parseStringLit(nodes[2])
+    typ = parseType(parseStringLit(nodes[2]), loc)
     acc = macro_instances[(nodes[3].location.line, nodes[3].location.column)]  # TODO: Cleanup
 
     return OP.Arg(var, dim, typ, acc, loc)
@@ -335,6 +334,26 @@ def parseStringLit(node: Cursor, regex: str = None) -> str:
         raise ParseError(f"expected string literal matching {regex}")
 
     return value
+
+
+def parseType(typ: str, loc: Location) -> OP.Type:
+    typ_clean = typ.strip()
+    typ_clean = re.sub(r"\s*const\s*", "", typ_clean)
+
+    typ_map = {
+        "int": OP.Int(True, 32),
+        "uint": OP.Int(False, 32),
+        "ll": OP.Int(True, 64),
+        "ull": OP.Int(False, 64),
+        "float": OP.Float(32),
+        "double": OP.Float(64),
+        "bool": OP.Bool(),
+    }
+
+    if typ_clean in typ_map:
+        return typ_map[typ_clean]
+
+    raise ParseError(f'unable to parse type "{typ}"', loc)
 
 
 def parseLocation(node: Cursor) -> Location:
