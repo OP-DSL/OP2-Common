@@ -256,13 +256,13 @@ MODULE {{ parloop.name|upper }}_MODULE
     {% for arg in parloop.globals %}
     {%   if arg.acc != 'OP_READ' %}
     {%     call op_opt(arg) %}
-    {%     if arg.typ in ['real(8)', 'REAL(kind=8)', 'real*8', 'r8'] %}
+    {%     if arg.typ == OP.Float(64) %}
     CALL op_mpi_reduce_double(opArg{{ arg.i+1 }}, opArg{{ arg.i+1 }}%data)
-    {%     elif arg.typ in ['real(4)', 'REAL(kind=4)', 'real*4', 'r4'] %}
+    {%     elif arg.typ == OP.Float(32) %}
     CALL op_mpi_reduce_float(opArg{{ arg.i+1 }}, opArg{{ arg.i+1 }}%data)
-    {%     elif arg.typ in ['integer(4)', 'INTEGER(kind=4)', 'integer*4', 'i4'] %}
-    {CALL op_mpi_reduce_int(opArg{{ arg.i+1 }}, opArg{{ arg.i+1 }}%data)
-    {%     elif arg.typ in ['logical', 'logical*1'] %}
+    {%     elif arg.typ in OP.Int(True, 32) %}
+    CALL op_mpi_reduce_int(opArg{{ arg.i+1 }}, opArg{{ arg.i+1 }}%data)
+    {%     elif arg.typ in OP.Bool() %}
     CALL op_mpi_reduce_bool(opArg{{ arg.i+1 }}, opArg{{ arg.i+1 }}%data)
     {%     endif %}
     {%     endcall %}

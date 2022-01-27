@@ -101,11 +101,11 @@ void op_par_loop_{{ parloop.name }}(
   // Combine reduction data
   {% for arg in parloop.globals %}
   {% if arg.acc != "OP_READ" %}
-  {% if arg.typ == "double" %}
+  {% if arg.typ == OP.Float(64) %}
   op_mpi_reduce_double(&arg{{ arg.i }},({{ arg.typ }}*)arg{{ arg.i }}.data);
-  {% elif arg.typ == "float" %}
+  {% elif arg.typ == OP.Float(32) %}
   op_mpi_reduce_float(&arg{{ arg.i }},({{ arg.typ }}*)arg{{ arg.i }}.data);
-  {% elif arg.typ == "int" %}
+  {% elif arg.typ == OP.Int(True, 32) %}
   op_mpi_reduce_int(&arg{{ arg.i }},({{ arg.typ }}*)arg{{ arg.i }}.data);
   {% else %}
   {{ parloop.raise_exception("Type of global is not supported in OpenACC code generator, please add it") }}
