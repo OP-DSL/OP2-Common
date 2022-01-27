@@ -17,7 +17,7 @@ from util import getVersion, safeFind
 
 def main(argv=None) -> None:
     # Build arg parser
-    parser = ArgumentParser(prog="opcg")
+    parser = ArgumentParser(prog="op2-translator")
 
     # Flags
     parser.add_argument("-V", "--version", help="Version", action="version", version=getVersion())
@@ -172,7 +172,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
         # Write the generated source file
         with open(path, "w") as file:
-            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n")
+            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
             generated_paths.append(path)
 
@@ -190,7 +190,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
         else:
             path = Path(args.out, f"{appname}_{scheme.opt.name}kernels.{extension}")
         with open(path, "w") as file:
-            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n")
+            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
             generated_paths.append(path)
 
@@ -212,7 +212,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
             # Write the translated source file
             with open(new_path, "w") as new_file:
-                new_file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by opcg\n\n")
+                new_file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
                 new_file.write(source)
                 generated_paths.append(new_path)
 
