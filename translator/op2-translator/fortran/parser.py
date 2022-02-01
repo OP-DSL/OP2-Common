@@ -12,7 +12,7 @@ from store import Kernel, Location, ParseError, Program
 from util import enumRegex
 
 
-def parseKernel(self, path: Path, name: str) -> Kernel:
+def parseKernel(path: Path, name: str) -> Kernel:
     reader = FortranFileReader(str(path))
     parser = ParserFactory().create(std="f2003")
 
@@ -87,7 +87,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     return parseType(type_spec.tofortran(), loc)
 
 
-def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
+def parseProgram(path: Path, include_dirs: Set[Path], soa: bool) -> Program:
     reader = FortranFileReader(str(path))
     parser = ParserFactory().create(std="f2003")
 
