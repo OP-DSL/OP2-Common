@@ -102,6 +102,36 @@ class Application:
         self.programs = []
         self.kernels = []
 
+    @property
+    def hasInit(self) -> bool:
+        return any(program.init for program in self.programs)
+
+    @property
+    def hasExit(self) -> bool:
+        return any(program.exit for program in self.programs)
+
+    @property
+    def sets(self) -> List[OP.Set]:
+        return flattern(program.sets for program in self.programs)
+
+    @property
+    def maps(self) -> List[OP.Map]:
+        return flattern(program.maps for program in self.programs)
+
+    @property
+    def datas(self) -> List[OP.Data]:
+        return flattern(program.datas for program in self.programs)
+
+    @property
+    def consts(self) -> List[OP.Const]:
+        consts = flattern(program.consts for program in self.programs)
+        return uniqueBy(consts, lambda c: c.ptr)
+
+    @property
+    def loops(self) -> List[OP.Loop]:
+        loops = flattern(program.loops for program in self.programs)
+        return uniqueBy(loops, lambda l: l.kernel)
+
     def validate(self, lang: Lang) -> None:
         if not self.hasInit:
             print("warning: no call to op_init found")
@@ -265,33 +295,3 @@ class Application:
                         f"argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1][:-2]}",
                         arg.loc,
                     )
-
-    @property
-    def hasInit(self) -> bool:
-        return any(program.init for program in self.programs)
-
-    @property
-    def hasExit(self) -> bool:
-        return any(program.exit for program in self.programs)
-
-    @property
-    def sets(self) -> List[OP.Set]:
-        return flattern(program.sets for program in self.programs)
-
-    @property
-    def maps(self) -> List[OP.Map]:
-        return flattern(program.maps for program in self.programs)
-
-    @property
-    def datas(self) -> List[OP.Data]:
-        return flattern(program.datas for program in self.programs)
-
-    @property
-    def consts(self) -> List[OP.Const]:
-        consts = flattern(program.consts for program in self.programs)
-        return uniqueBy(consts, lambda c: c.ptr)
-
-    @property
-    def loops(self) -> List[OP.Loop]:
-        loops = flattern(program.loops for program in self.programs)
-        return uniqueBy(loops, lambda l: l.kernel)
