@@ -5,48 +5,25 @@ from types import MethodType
 from typing import ClassVar, List, Optional, Tuple
 
 import cpp
+import cpp.translator.kernels.cuda
 import fortran
+import fortran.translator.kernels.cuda
+import fortran.translator.kernels.vec
 import op as OP
 import optimisation
 from jinja import env
 from language import Lang
 from optimisation import Opt
 from store import Application, Kernel
-from util import find, safeFind
+from util import Findable
 
 
-class Scheme(object):
-    instances: ClassVar[List[Scheme]] = []
-
+class Scheme(Findable):
     lang: Lang
     opt: Opt
+
     loop_host_template: Path
     master_kernel_template: Optional[Path]
-
-    def __init__(
-        self,
-        lang: Lang,
-        opt: Opt,
-        loop_host_template: Path,
-        master_kernel_template: Path = None,
-    ) -> None:
-        if Scheme.find(lang, opt):
-            exit("duplicate scheme")
-
-        self.__class__.instances.append(self)
-
-        self.lang = lang
-        self.opt = opt
-        self.loop_host_template = loop_host_template
-        self.master_kernel_template = master_kernel_template
-
-    @classmethod
-    def all(cls) -> List[Opt]:
-        return cls.instances
-
-    @classmethod
-    def find(cls, lang: Lang, opt: Opt) -> Opt:
-        return safeFind(cls.all(), lambda s: s.lang == lang and s.opt == opt)
 
     def __str__(self) -> str:
         return self.lang.name + "-" + self.opt.name
@@ -69,63 +46,84 @@ class Scheme(object):
         # Generate source from the template
         return template.render(OP=OP, app=app, opt=self.opt), extension
 
-    def translateKernel(self, kernel: Kernel, app: Application) -> str:
+    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
         raise NotImplementedError(f'no kernel translator registered for the "{self}" scheme')
 
+    def matches(self, key: tuple[Lang, Opt]) -> bool:
+        return self.lang == key[0] and self.opt == key[1]
 
-cseq = Scheme(
-    cpp.lang,
-    optimisation.seq,
-    Path("cpp/seq/loop_host.cpp.j2"),
-    Path("cpp/seq/master_kernel.cpp.j2"),
-)
 
-comp = Scheme(
-    cpp.lang,
-    optimisation.omp,
-    Path("cpp/omp/loop_host.cpp.j2"),
-    Path("cpp/omp/master_kernel.cpp.j2"),
-)
+class CppSeq(Scheme):
+    lang = Lang.find("cpp")
+    opt = Opt.find("seq")
 
-ccuda = Scheme(
-    cpp.lang,
-    optimisation.cuda,
-    Path("cpp/cuda_kepler/loop_host.cu.j2"),
-    Path("cpp/cuda_kepler/master_kernel.cu.j2"),
-)
+    loop_host_template = Path("cpp/seq/loop_host.cpp.j2")
+    master_kernel_template = Path("cpp/seq/master_kernel.cpp.j2")
 
-from cpp.translator.kernels import cuda
 
-ccuda.translateKernel = MethodType(cuda.translateKernel, ccuda)  # type: ignore
+class CppOpenMP(Scheme):
+    lang = Lang.find("cpp")
+    opt = Opt.find("openmp")
 
-fseq = Scheme(
-    fortran.lang,
-    optimisation.seq,
-    Path("fortran/seq/loop_host.F90.j2"),
-)
+    loop_host_template = Path("cpp/omp/loop_host.cpp.j2")
+    master_kernel_template = Path("cpp/omp/master_kernel.cpp.j2")
 
-fvec = Scheme(
-    fortran.lang,
-    optimisation.vec,
-    Path("fortran/vec/loop_host.F90.j2"),
-)
 
-fomp = Scheme(
-    fortran.lang,
-    optimisation.omp,
-    Path("fortran/omp/loop_host.F90.j2"),
-)
+class CppCuda(Scheme):
+    lang = Lang.find("cpp")
+    opt = Opt.find("cuda")
 
-fcuda = Scheme(
-    fortran.lang,
-    optimisation.cuda,
-    Path("fortran/cuda/loop_host.CUF.j2"),
-)
+    loop_host_template = Path("cpp/cuda_kepler/loop_host.cu.j2")
+    master_kernel_template = Path("cpp/cuda_kepler/master_kernel.cu.j2")
 
-from fortran.translator.kernels import cuda
+    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
+        return cpp.translator.kernels.cuda.translateKernel(self.opt.config, source, kernel, app)
 
-fcuda.translateKernel = MethodType(cuda.translateKernel, fcuda)  # type: ignore
 
-from fortran.translator.kernels import vec
+Scheme.register(CppSeq)
+Scheme.register(CppOpenMP)
+Scheme.register(CppCuda)
 
-fvec.translateKernel = MethodType(vec.translateKernel, fvec)  # type: ignore
+
+class FortranSeq(Scheme):
+    lang = Lang.find("F95")
+    opt = Opt.find("seq")
+
+    loop_host_template = Path("fortran/seq/loop_host.F90.j2")
+    master_kernel_template = None
+
+
+class FortranVec(Scheme):
+    lang = Lang.find("F95")
+    opt = Opt.find("vec")
+
+    loop_host_template = Path("fortran/vec/loop_host.F90.j2")
+    master_kernel_template = None
+
+    def translateKernel(self, source:str, kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.vec.translateKernel(self.opt.config, source, kernel, app)
+
+
+class FortranOpenMP(Scheme):
+    lang = Lang.find("F95")
+    opt = Opt.find("openmp")
+
+    loop_host_template = Path("fortran/omp/loop_host.F90.j2")
+    master_kernel_template = None
+
+
+class FortranCuda(Scheme):
+    lang = Lang.find("F95")
+    opt = Opt.find("cuda")
+
+    loop_host_template = Path("fortran/cuda/loop_host.CUF.j2")
+    master_kernel_template = None
+
+    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.cuda.translateKernel(self.opt.config, source, kernel, app)
+
+
+Scheme.register(FortranSeq)
+Scheme.register(FortranVec)
+Scheme.register(FortranOpenMP)
+Scheme.register(FortranCuda)

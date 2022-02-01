@@ -1,12 +1,12 @@
 import re
-from typing import Tuple
+from typing import Any, Dict, Tuple
 from xml.etree.ElementTree import Element, dump
 
 from store import Application, Kernel
 from util import SourceBuffer, find, indexSplit
 
 
-def translateKernel(self, source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:
+def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:
     buffer = SourceBuffer(source)
 
     # Collect indirect increment identifiers TODO: Tidy
