@@ -5,7 +5,7 @@ from util import SourceBuffer
 
 
 # Augment source program to use generated kernel hosts
-def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
+def translateProgram(source: str, program: Program, soa: bool = False) -> str:
     buffer = SourceBuffer(source)
 
     # 1. Comment-out const calls
