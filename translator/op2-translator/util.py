@@ -1,5 +1,6 @@
 import re
 import subprocess
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, TypeVar
 
@@ -52,6 +53,35 @@ def uniqueBy(xs: Iterable[T], f: Callable[[T], Any]) -> List[T]:
             u.append(x)
 
     return u
+
+
+class Findable(ABC):
+    instances: List["Findable"]
+
+    @classmethod
+    def register(cls, new_cls: Any) -> None:
+        if not hasattr(cls, "instances"):
+            cls.instances = []
+
+        cls.instances.append(new_cls())
+
+    @classmethod
+    def all(cls) -> List["Findable"]:
+        if not hasattr(cls, "instances"):
+            return []
+
+        return cls.instances
+
+    @classmethod
+    def find(cls, key: str) -> Optional["Findable"]:
+        if not hasattr(cls, "instances"):
+            return None
+
+        return next((i for i in cls.instances if i.matches(key)), None)
+
+    @abstractmethod
+    def matches(self, key: T) -> bool:
+        pass
 
 
 class SourceBuffer:

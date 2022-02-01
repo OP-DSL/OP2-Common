@@ -12,7 +12,7 @@ env = Environment(
     loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "../resources/templates")),
     lstrip_blocks=True,
     trim_blocks=True,
-    line_statement_prefix='@',
+    line_statement_prefix="@",
 )
 
 env.tests["r_or_w_acc"] = lambda arg: arg.acc in (OP.READ, OP.WRITE)

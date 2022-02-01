@@ -12,7 +12,7 @@ from util import enumRegex, safeFind
 macro_instances = {}  # TODO: Cleanup
 
 
-def parseKernel(self, path: Path, name: str) -> Kernel:
+def parseKernel(path: Path, name: str) -> Kernel:
     # Invoke Clang parser on kernel source
     translation_unit = Index.create().parse(path)
 
@@ -35,7 +35,7 @@ def parseKernel(self, path: Path, name: str) -> Kernel:
     return Kernel(name, path, params)
 
 
-def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool) -> Program:
+def parseProgram(path: Path, include_dirs: Set[Path], soa: bool) -> Program:
     # Locate OP2 install
     op2_install = os.getenv("OP2_INSTALL_PATH")
     if not op2_install:

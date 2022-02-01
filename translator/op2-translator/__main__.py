@@ -37,7 +37,8 @@ def main(argv=None) -> None:
     )
 
     # Positional args
-    parser.add_argument("optimisation", help="Optimisation scheme", type=str, choices=Opt.names())
+    opt_names = [opt.name for opt in Opt.all()]
+    parser.add_argument("optimisation", help="Optimisation scheme", type=str, choices=opt_names)
     parser.add_argument("file_paths", help="Input OP2 sources", type=isFilePath, nargs="+")
 
     # Invoke arg parser
@@ -58,18 +59,18 @@ def main(argv=None) -> None:
     opt = Opt.find(args.optimisation)
     lang = Lang.find(extension)
 
-    Type.set_formatter(lang.formatType)
-
     if opt.name == "cuda":
         opt.config["soa"] = args.soa
 
     if opt.name == "omp":
         opt.config["thread_timing"] = args.thread_timing
 
-    if not lang:
+    if lang is None:
         exit(f"Unsupported file extension: {extension}")
 
-    scheme = Scheme.find(lang, opt)
+    Type.set_formatter(lang.formatType)
+
+    scheme = Scheme.find((lang, opt))
     if not scheme:
         exit(f"No scheme registered for {lang} {opt}")
 

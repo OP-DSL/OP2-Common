@@ -2,20 +2,13 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Dict, List
 
-from util import find
+from util import Findable
 
 
-class Opt(object):
-    instances: ClassVar[List[Opt]] = []
+class Opt(Findable):
     name: str
     kernel_translation: bool
     config: Dict[str, Any]
-
-    def __init__(self, name: str, kernel_translation: bool = False, config: Dict[str, Any] = {}) -> None:
-        self.__class__.instances.append(self)
-        self.name = name
-        self.kernel_translation = kernel_translation
-        self.config = config
 
     def __str__(self) -> str:
         return self.name
@@ -26,29 +19,39 @@ class Opt(object):
     def __hash__(self) -> int:
         return hash(self.name)
 
-    @classmethod
-    def all(cls) -> List[Opt]:
-        return cls.instances
-
-    @classmethod
-    def names(cls) -> List[str]:
-        return [o.name for o in cls.all()]
-
-    @classmethod
-    def find(cls, name: str) -> Opt:
-        return find(cls.all(), lambda o: o.name == name)
+    def matches(self, key: str) -> bool:
+        return self.name == key.lower()
 
 
-# Define optimisations here ...
+class Seq(Opt):
+    name = "seq"
+    kernel_translation = False
 
-seq = Opt("seq", False, config={"grouped": False})
+    config = {"grouped": False}
 
-cuda = Opt(
-    "cuda",
-    True,
-    config={"atomics": True, "ind_inc": False, "inc_stage": 0, "soa": False},
-)
 
-omp = Opt("omp", False, config={"grouped": False, "thread_timing": False})
+class Cuda(Opt):
+    name = "cuda"
+    kernel_translation = True
 
-vec = Opt("vec", True, config={"grouped": False})
+    config = {"atomics": True, "ind_inc": False, "inc_stage": 0, "soa": False}
+
+
+class OpenMP(Opt):
+    name = "openmp"
+    kernel_translation = False
+
+    config = {"grouped": False, "thread_timing": False}
+
+
+class Vec(Opt):
+    name = "vec"
+    kernel_translation = True
+
+    config = {"grouped": False}
+
+
+Opt.register(Seq)
+Opt.register(Cuda)
+Opt.register(OpenMP)
+Opt.register(Vec)

@@ -1,56 +1,40 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, ClassVar, List, Set
 
 from op import Type
 from store import Kernel, ParseError, Program
-from util import find
+from util import Findable
 
 
-class Lang(object):
-    instances: ClassVar[List[Lang]] = []
-
+class Lang(Findable):
     name: str
-    com_delim: str
-    types: List[str]
+
     source_exts: List[str]
     include_ext: str
-    zero_idx: bool
     kernel_dir: bool
 
-    def __init__(
-        self,
-        name: str,
-        com_delim: str,
-        types: List[str],
-        source_exts: List[str],
-        include_ext: str,
-        zero_idx: bool = True,
-        kernel_dir: bool = False,
-    ) -> None:
-        self.__class__.instances.append(self)
-        self.name = name
-        self.com_delim = com_delim
-        self.types = types
-        self.source_exts = source_exts
-        self.include_ext = include_ext
-        self.zero_idx = zero_idx
-        self.kernel_dir = kernel_dir
+    com_delim: str
+    zero_idx: bool
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
-        raise NotImplementedError(f'no program parser registered for the "{self.name}" language')
+    @abstractmethod
+    def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool = False) -> Program:
+        pass
 
+    @abstractmethod
     def parseKernel(self, path: Path, name: str) -> Kernel:
-        raise NotImplementedError(f'no kernel parser registered for the "{self.name}" language')
+        pass
 
-    # Augment source program to use generated kernel hosts
+    @abstractmethod
     def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
-        raise NotImplementedError(f'no program translator registered for the "{self.name}" language')
+        pass
 
+    @abstractmethod
     def formatType(self, typ: Type) -> str:
-        raise NotImplementedError(f'no type formatter registered for the "{self.name}" language')
+        pass
 
     def __str__(self) -> str:
         return self.name
@@ -61,10 +45,5 @@ class Lang(object):
     def __hash__(self) -> int:
         return hash(self.name)
 
-    @classmethod
-    def all(cls) -> List[Lang]:
-        return cls.instances
-
-    @classmethod
-    def find(cls, name: str) -> Lang:
-        return find(cls.all(), lambda l: name == l.name or name in l.source_exts)
+    def matches(self, key: str) -> bool:
+        return key in self.source_exts
