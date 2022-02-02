@@ -133,6 +133,11 @@ typedef struct op_id_to_val_core{
     //   ids = (int *)xrealloc(ids, size * sizeof(int));
     //   vals = (int *)xrealloc(vals, size * sizeof(int));
     // }
+    if(check_val(val) == 1){  // todo: this has to be modified. no two dats with the same exec levels will be stored with this condition
+      printf("checkval id=%d val=%d\n", id, val);
+      return -1;
+    }
+    
     ids[index] = id;
     vals[index] = val;
 
@@ -175,6 +180,18 @@ typedef struct op_id_to_val_core{
     // printf("test1 max_val=%d\n", max_val);
     return max_val;
   }
+
+  int get_count(){
+    return index;
+  }
+
+  int get_val_at(int id){
+    if(id < index){
+      return vals[id];
+    }
+    return -999999; 
+  }
+
   int* ids;
   int* vals;
   int index;
@@ -196,8 +213,9 @@ typedef struct {
   int nonexec_size; /* number of additional imported elements that are not
                        executed */
   //suneth
-  // int *exec_sizes;
-  // int *nonexec_sizes;
+  int* core_sizes;
+  int *exec_sizes;
+  int *nonexec_sizes;
   op_id_to_val dat_to_execlevels;
   op_id_to_val execlevel_to_size;
 } op_set_core;
@@ -213,6 +231,8 @@ typedef struct {
   int *map_d;       /* array on device */
   char const *name; /* name of pointer */
   int user_managed; /* indicates whether the user is managing memory */
+  int **aug_maps;   /* augmented data maps */
+  int *map_org;
 } op_map_core;
 
 typedef op_map_core *op_map;
@@ -442,7 +462,7 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
                   char const *name);
 
 int op_is_root();
-int is_execlevel_required_for_set(op_set set, int exec_level);
+int is_halo_required_for_set(op_set set, int halo_id);
 
 /*******************************************************************************
 * Memory allocation functions

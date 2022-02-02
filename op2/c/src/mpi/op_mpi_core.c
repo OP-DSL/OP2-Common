@@ -776,12 +776,15 @@ void step5(int **part_range, int my_rank, int comm_size){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
+    halo_list list = OP_import_nonexec_list[set->index];
+    // if(list == NULL)
+    //   continue;
+
     //-----Discover neighbors-----
     ranks_size = 0;
     neighbors = (int *)xmalloc(comm_size * sizeof(int));
     sizes = (int *)xmalloc(comm_size * sizeof(int));
 
-    halo_list list = OP_import_nonexec_list[set->index];
     find_neighbors_set(list, neighbors, sizes, &ranks_size, my_rank, comm_size,
                        OP_MPI_WORLD);
 
@@ -2080,11 +2083,11 @@ void op_halo_permap_create() {
 
 void op_halo_destroy() {
   // remove halos from op_dats
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
-  }
+  // op_dat_entry *item;
+  // TAILQ_FOREACH(item, &OP_dat_list, entries) {
+  //   op_dat dat = item->dat;
+  //   dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
+  // }
 
   // free lists
   // for (int s = 0; s < OP_set_index; s++) {

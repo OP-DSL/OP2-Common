@@ -235,10 +235,10 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       (dat->dirtybit == 1)) {
 
     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
+    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[0][dat->set->index]; //OP_import_nonexec_list[dat->set->index];
 
     halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
+    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[0][dat->set->index]; //OP_export_nonexec_list[dat->set->index];
 
     //-------first exchange exec elements related to this data array--------
 
@@ -301,45 +301,83 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
-
-    set_elem_index = 0;
-    buf_index = 0;
-    buf_start = 0;
-    for (int r = 0; r < exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels; r++) {
-      buf_start =  buf_index;
-      for(int l = 0; l < exp_nonexec_list->num_levels; l++){
-        for (int i = 0; i < exp_nonexec_list->sizes[exp_nonexec_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_nonexec_list->level_disps[l];
-          int disp_in_level = exp_nonexec_list->disps[exp_nonexec_list->rank_disps[l] + r];
-          set_elem_index = exp_nonexec_list->list[level_disp + disp_in_level + i];
-
-          memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                    ->buf_nonexec[buf_index * dat->size],
+    for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
+      for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
+        set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
+        memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
+                    ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size +
+                                  j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-          buf_index++;
-        }
       }
-
+      // printf("export nonexec from %d to %d data %10s, number of elements of size %d | sending:\n ",
+      //                 rank, exp_nonexec_list->ranks[i],
+      //                 dat->name,exp_nonexec_list->sizes[i]);
+      // double *b = (double*)&((op_mpi_buffer)(dat->mpi_buffer))
+      //                ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size];
+      // for (int el = 0; el < (dat->size * exp_nonexec_list->sizes[i])/8; el++)
+      //   printf("%g ", b[el]);
+      // printf("\n");
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                     ->buf_nonexec[buf_start * dat->size],
-                dat->size * (buf_index - buf_start), MPI_CHAR,
-                exp_nonexec_list->ranks[r], dat->index, OP_MPI_WORLD,
+                     ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size],
+                dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
+                exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-        
     }
 
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
-
-     for (int i = 0; i < imp_nonexec_list->ranks_size / imp_nonexec_list->num_levels; i++) {
-      MPI_Irecv(&(dat->data[nonexec_init + imp_nonexec_list->disps_by_rank[i] * dat->size]),
-                dat->size * imp_nonexec_list->sizes_by_rank[i], MPI_CHAR,
-                imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
-                &((op_mpi_buffer)(dat->mpi_buffer))
-                     ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+    for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
+      //      printf("import on to %d from %d data %10s, number of elements of
+      //      size %d | recieving:\n ",
+      //            my_rank, imp_nonexec_list->ranks[i], dat->name,
+      //            imp_nonexec_list->sizes[i]);
+      MPI_Irecv(
+          &(dat->data[nonexec_init + imp_nonexec_list->disps[i] * dat->size]),
+          dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
+          imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
+          &((op_mpi_buffer)(dat->mpi_buffer))
+               ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
     }
+
+    // int rank;
+    // MPI_Comm_rank(OP_MPI_WORLD, &rank);
+
+    // set_elem_index = 0;
+    // buf_index = 0;
+    // buf_start = 0;
+    // for (int r = 0; r < exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels; r++) {
+    //   buf_start =  buf_index;
+    //   for(int l = 0; l < exp_nonexec_list->num_levels; l++){
+    //     for (int i = 0; i < exp_nonexec_list->sizes[exp_nonexec_list->rank_disps[l] + r]; i++) {
+    //       int level_disp = exp_nonexec_list->level_disps[l];
+    //       int disp_in_level = exp_nonexec_list->disps[exp_nonexec_list->rank_disps[l] + r];
+    //       set_elem_index = exp_nonexec_list->list[level_disp + disp_in_level + i];
+
+    //       memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
+    //                 ->buf_nonexec[buf_index * dat->size],
+    //            (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+    //       buf_index++;
+    //     }
+    //   }
+
+    //   MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
+    //                  ->buf_nonexec[buf_start * dat->size],
+    //             dat->size * (buf_index - buf_start), MPI_CHAR,
+    //             exp_nonexec_list->ranks[r], dat->index, OP_MPI_WORLD,
+    //             &((op_mpi_buffer)(dat->mpi_buffer))
+    //                  ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+        
+    // }
+
+    // int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
+
+    //  for (int i = 0; i < imp_nonexec_list->ranks_size / imp_nonexec_list->num_levels; i++) {
+    //   MPI_Irecv(&(dat->data[nonexec_init + imp_nonexec_list->disps_by_rank[i] * dat->size]),
+    //             dat->size * imp_nonexec_list->sizes_by_rank[i], MPI_CHAR,
+    //             imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
+    //             &((op_mpi_buffer)(dat->mpi_buffer))
+    //                  ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+    // }
 
     // clear dirty bit
     dat->dirtybit = 0;

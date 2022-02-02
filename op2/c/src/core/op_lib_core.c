@@ -87,12 +87,12 @@ int compare_sets(op_set set1, op_set set2) {
     return 0;
 }
 
-int is_execlevel_required_for_set(op_set set, int exec_level){
-  if(set->dat_to_execlevels->get_max_val() > exec_level){
+int is_halo_required_for_set(op_set set, int halo_id){
+  if(set->dat_to_execlevels->get_max_val() > halo_id){
     return 1;
   }
-  // return 0;
-  return 1;
+  return 0;
+  // return 1;
 }
 
 op_dat search_dat(op_set set, int dim, char const *type, int size,
@@ -289,6 +289,7 @@ op_set op_decl_set_core(int size, char const *name) {
   set->nonexec_size = 0;
   OP_set_list[OP_set_index++] = set;
 
+  set->core_sizes = NULL;
   set->dat_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
   set->dat_to_execlevels->init();
   set->execlevel_to_size = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
@@ -366,6 +367,10 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->map_d = NULL;
   map->name = copy_str(name);
   map->user_managed = 1;
+
+  map->aug_maps = NULL;
+  // printf("map=%s from=%s levels=%d\n", map->name, from->name, from->dat_to_execlevels->get_count());
+  // map->aug_maps = (int **)malloc((size_t)from->dat_to_execlevels->get_count() * sizeof(int *));
 
   OP_map_list[OP_map_index++] = map;
   OP_map_ptr_list[OP_map_index - 1] = imap; // m;
