@@ -1,5 +1,5 @@
 import re
-from typing import Tuple, Dict, Any
+from typing import Any, Dict, Tuple
 from xml.etree.ElementTree import Element, dump
 
 from store import Application, Kernel
