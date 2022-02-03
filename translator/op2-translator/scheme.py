@@ -100,7 +100,7 @@ class FortranVec(Scheme):
     loop_host_template = Path("fortran/vec/loop_host.F90.j2")
     master_kernel_template = None
 
-    def translateKernel(self, source:str, kernel: Kernel, app: Application) -> str:
+    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.vec.translateKernel(self.opt.config, source, kernel, app)
 
 

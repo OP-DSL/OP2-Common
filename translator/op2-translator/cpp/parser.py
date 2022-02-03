@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit
 
@@ -9,331 +9,300 @@ import op as OP
 from store import Kernel, Location, ParseError, Program
 from util import enumRegex, safeFind
 
-macro_instances = {}  # TODO: Cleanup
-
 
 def parseKernel(path: Path, name: str) -> Kernel:
-    # Invoke Clang parser on kernel source
     translation_unit = Index.create().parse(path)
-
-    # Collect root-level nodes
     nodes = translation_unit.cursor.get_children()
 
-    # Search for kernel function
     node = safeFind(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == name)
     if not node:
         raise ParseError(f"failed to locate kernel function {name}", parseLocation(node))
 
-    # Collect parameter types
     params = []
     for n in node.get_children():
-        if n.kind == CursorKind.PARM_DECL:
-            typ = n.type.get_pointee() or n.type
-            param = (n.spelling, parseType(typ.spelling, parseLocation(n)))
-            params.append(param)
+        if n.kind != CursorKind.PARM_DECL:
+            continue
+
+        param_type = n.type.get_pointee() or n.type
+        param = (n.spelling, parseType(param_type.spelling, parseLocation(n)))
+
+        params.append(param)
 
     return Kernel(name, path, params)
 
 
 def parseProgram(path: Path, include_dirs: Set[Path], soa: bool) -> Program:
-    # Locate OP2 install
-    op2_install = os.getenv("OP2_INSTALL_PATH")
-    if not op2_install:
-        exit("Fatal: OP2_INSTALL_PATH not set")
-
-    # Add OP2 includes
-    op2_include = Path(op2_install).joinpath("include")
-    include_dirs.add(op2_include)
-
-    # Form Clang args
     args = [f"-I{dir}" for dir in include_dirs]
-
-    # Invoke Clang parser on the program source
     translation_unit = Index.create().parse(path, args=args, options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
 
-    # Throw the parse error first parse error caught in the diagnostics
     error = next(iter(translation_unit.diagnostics), None)
     if error:
         raise ParseError(error.spelling, parseLocation(error))
 
-    # Initialise search stack
     program = Program(path)
-    stack = []
 
-    for child in translation_unit.cursor.get_children():
-        # Ignore macro definitions and cursors outside of the program file
-        if child.kind != CursorKind.MACRO_DEFINITION and child.location.file.name == translation_unit.spelling:
-            # Collect the locations and identifiers of macro instances
-            if child.kind == CursorKind.MACRO_INSTANTIATION:
-                macro_instances[(child.location.line, child.location.column)] = child.displayname
-            # Populate with the top-level cursors from the target file
-            else:
-                stack.append(child)
+    macros: Dict[Location, str] = {}
+    nodes: List[Cursor] = []
 
-    ptr: str
+    for node in translation_unit.cursor.get_children():
+        if node.kind == CursorKind.MACRO_DEFINITION:
+            continue
 
-    # DFS
-    while stack:
-        # Manage the stack
-        node = stack.pop()
-        stack.extend(node.get_children())
+        if node.location.file.name != translation_unit.spelling:
+            continue
 
-        # TODO: This is a bit of a hack. Cleanup
-        if node.kind == CursorKind.VAR_DECL:
-            if safeFind(node.get_children(), lambda n: n.kind == CursorKind.CALL_EXPR):
-                ptr = node.spelling
+        if node.kind == CursorKind.MACRO_INSTANTIATION:
+            macros[parseLocation(node)] = node.spelling
+            continue
 
-        # Focus on function calls
-        if node.kind == CursorKind.CALL_EXPR:
-            name = node.spelling
-            args = list(node.get_children())[1:]
-            loc = parseLocation(node)
+        nodes.append(node)
 
-            if name == "op_init":
-                program.recordInit(loc)
-
-            elif name == "op_decl_set":
-                program.sets.append(parseSet(args, ptr, loc))
-
-            elif name == "op_decl_map":
-                program.maps.append(parseMap(args, ptr, loc))
-
-            elif name == "op_decl_dat":
-                program.datas.append(parseDat(args, ptr, loc))
-
-            elif name == "op_decl_const":
-                program.consts.append(parseConst(args, loc))
-
-            elif name == "op_par_loop":
-                program.loops.append(parseLoop(args, loc, soa))
-
-            elif name == "op_exit":
-                program.recordExit()
+    for node in nodes:
+        parseNode(node, translation_unit.cursor, macros, program)
 
     return program
 
 
-def parseSet(nodes: List[Cursor], ptr: str, loc: Location) -> OP.Set:
-    if len(nodes) != 2:
-        raise ParseError("incorrect number of nodes passed to op_decl_set", loc)
+def parseNode(node: Cursor, parent: Cursor, macros: Dict[Location, str], program: Program) -> None:
+    if node.kind == CursorKind.CALL_EXPR:
+        parseCall(node, parent, macros, program)
 
-    _ = parseIdentifier(nodes[0])
-    debug = parseStringLit(nodes[1])
-
-    return OP.Set(ptr)
+    for child in node.get_children():
+        parseNode(child, node, macros, program)
 
 
-def parseMap(nodes: List[Cursor], ptr: str, loc: Location) -> OP.Map:
-    if len(nodes) != 5:
+def parseCall(node: Cursor, parent: Cursor, macros: Dict[Location, str], program: Program) -> None:
+    name = node.spelling
+    args = list(node.get_arguments())
+    loc = parseLocation(node)
+
+    if name == "op_init":
+        program.recordInit(loc)
+
+    elif name == "op_decl_set":
+        ptr = parsePtr(parent)
+        program.sets.append(parseSet(args, ptr, loc))
+
+    elif name == "op_decl_map":
+        ptr = parsePtr(parent)
+        program.maps.append(parseMap(args, ptr, loc))
+
+    elif name == "op_decl_dat":
+        ptr = parsePtr(parent)
+        program.dats.append(parseDat(args, ptr, loc))
+
+    elif name == "op_decl_const":
+        program.consts.append(parseConst(args, loc))
+
+    elif name == "op_par_loop":
+        program.loops.append(parseLoop(args, loc, macros))
+
+    elif name == "op_exit":
+        program.recordExit()
+
+
+def parseSet(args: List[Cursor], ptr: str, loc: Location) -> OP.Set:
+    if len(args) != 2:
+        raise ParseError("incorrect number of args passed to op_decl_set", loc)
+
+    return OP.Set(loc, ptr)
+
+
+def parseMap(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
+    if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_decl_map", loc)
 
-    from_set = parseIdentifier(nodes[0])
-    to_set = parseIdentifier(nodes[1])
-    dim = parseIntLit(nodes[2], signed=False)
-    _ = parseIdentifier(nodes[3])
-    debug = parseStringLit(nodes[4])
+    from_set_ptr = parseIdentifier(args[0])
+    to_set_ptr = parseIdentifier(args[1])
+    dim = parseIntLit(args[2])
 
-    return OP.Map(from_set, to_set, dim, ptr, loc)
+    return OP.Map(loc, from_set_ptr, to_set_ptr, dim, ptr)
 
 
-def parseDat(nodes: List[Cursor], ptr: str, loc: Location) -> OP.Data:
-    if len(nodes) != 5:
+def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
+    if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_decl_dat", loc)
 
-    set_ = parseIdentifier(nodes[0])
-    dim = parseIntLit(nodes[1], signed=False)
-    typ = parseType(parseStringLit(nodes[2]), loc)
-    _ = parseIdentifier(nodes[3])
-    debug = parseStringLit(nodes[4])
+    set_ptr = parseIdentifier(args[0])
+    dim = parseIntLit(args[1])
+    typ = parseType(parseStringLit(args[2]), loc)
 
-    return OP.Data(set_, dim, typ, ptr, loc)
+    return OP.Dat(loc, set_ptr, dim, typ, ptr)
 
 
-def parseConst(nodes: List[Cursor], loc: Location) -> OP.Const:
-    if len(nodes) != 3:
+def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
+    if len(args) != 3:
         raise ParseError("incorrect number of args passed to op_decl_const", loc)
 
     # TODO dim may not be literal
-    dim = parseIntLit(nodes[0], signed=False)
-    typ = parseType(parseStringLit(nodes[1]), loc)
-    ptr = parseIdentifier(nodes[2])
-    debug = ptr
+    dim = parseIntLit(args[0])
+    typ = parseType(parseStringLit(args[1]), loc)
+    ptr = parseIdentifier(args[2])
 
-    return OP.Const(ptr, dim, typ, debug, loc)
+    return OP.Const(loc, dim, typ, ptr)
 
 
-def parseLoop(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Loop:
-    if len(nodes) < 3:
+def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
+    if len(args) < 3:
         raise ParseError("incorrect number of args passed to op_par_loop")
 
-    # Parse loop kernel and set
-    kernel = parseIdentifier(nodes[0])
-    _ = parseStringLit(nodes[1])
-    set_ = parseIdentifier(nodes[2])
+    kernel = parseIdentifier(args[0])
+    set_ptr = parseIdentifier(args[2])
 
     loop_args = []
-
-    # Parse loop args
-    for node in nodes[3:]:
+    for node in args[3:]:
         node = descend(descend(node))
+
         name = node.spelling
+
         arg_loc = parseLocation(node)
-        args = list(node.get_children())[1:]
+        arg_args = list(node.get_arguments())
 
         if name == "op_arg_dat":
-            loop_args.append(parseArgDat(args, arg_loc, soa))
+            loop_args.append(parseArgDat(arg_args, arg_loc, macros))
 
         elif name == "op_opt_arg_dat":
-            loop_args.append(parseOptArgDat(args, arg_loc, soa))
+            loop_args.append(parseOptArgDat(arg_args, arg_loc, macros))
 
         elif name == "op_arg_gbl":
-            loop_args.append(parseArgGbl(args, arg_loc))
+            loop_args.append(parseArgGbl(arg_args, arg_loc, macros))
 
         elif name == "op_opt_arg_gbl":
-            loop_args.append(parseOptArgGbl(args, arg_loc))
+            loop_args.append(parseOptArgGbl(arg_args, arg_loc, macros))
 
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
 
-    return OP.Loop(kernel, set_, loc, loop_args)
+    return OP.Loop(loc, kernel, set_ptr, loop_args)
 
 
-def parseArgDat(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Arg:
-    if len(nodes) != 6:
+def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+    if len(args) != 6:
         raise ParseError("incorrect number of args passed to op_arg_dat", loc)
 
-    access_regex = enumRegex(OP.DAT_ACCESS_TYPES)
+    dat_ptr = parseIdentifier(args[0])
 
-    var = parseIdentifier(nodes[0])
-    idx = parseIntLit(nodes[1], signed=True)
-    map_ = parseIdentifier(nodes[2]) or OP.ID
-    dim = parseIntLit(nodes[3], signed=False)
-    typ = parseType(parseStringLit(nodes[4]), loc)
-    acc = macro_instances[(nodes[5].location.line, nodes[5].location.column)]  # TODO: Cleanup
-    soa_ = soa and dim > 1
+    map_idx = parseIntLit(args[1])
+    map_ptr = "OP_ID" if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
-    return OP.Arg(var, dim, typ, acc, loc, map_, idx, soa_)
+    dat_dim = parseIntLit(args[3])
+    dat_typ = parseType(parseStringLit(args[4]), loc)
+
+    access_type = parseAccessType(args[5], OP.AccessType.validDatTypes(), loc, macros)
+
+    return OP.Arg(loc, dat_ptr, dat_dim, dat_typ, access_type, map_ptr, map_idx)
 
 
-def parseOptArgDat(nodes: List[Cursor], loc: Location, soa: bool) -> OP.Arg:
-    if len(nodes) != 7:
+def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+    if len(args) != 7:
         ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
 
-    # Parse opt argument
-    opt = parseIdentifier(nodes[0])
+    opt = parseIdentifier(args[0])
 
-    # Parse standard argDat arguments
-    dat = parseArgDat(nodes[1:], loc, soa)
-
-    # Return augmented dat
+    dat = parseArgDat(args[1:], loc, macros)
     dat.opt = opt
+
     return dat
 
 
-def parseArgGbl(nodes: List[Cursor], loc: Location) -> OP.Arg:
-    if len(nodes) != 4:
+def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+    if len(args) != 4:
         raise ParseError("incorrect number of args passed to op_arg_gbl", loc)
 
-    access_regex = enumRegex(OP.GBL_ACCESS_TYPES)
+    dat_ptr = parseIdentifier(args[0])
+    dat_dim = parseIntLit(args[1])
+    dat_typ = parseType(parseStringLit(args[2]), loc)
 
-    var = parseIdentifier(nodes[0])
-    dim = parseIntLit(nodes[1], signed=False)
-    typ = parseType(parseStringLit(nodes[2]), loc)
-    acc = macro_instances[(nodes[3].location.line, nodes[3].location.column)]  # TODO: Cleanup
+    access_type = parseAccessType(args[3], OP.AccessType.validGblTypes(), loc, macros)
 
-    return OP.Arg(var, dim, typ, acc, loc)
+    return OP.Arg(loc, dat_ptr, dat_dim, dat_typ, access_type)
 
 
-def parseOptArgGbl(nodes: List[Cursor], loc: Location) -> OP.Arg:
-    if len(nodes) != 5:
+def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+    if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
-    # Parse opt argument
-    opt = parseIdentifier(nodes[0])
+    opt = parseIdentifier(args[0])
 
-    # Parse standard argGbl arguments
-    dat = parseArgGbl(nodes[1:], loc)
-
-    # Return augmented dat
+    dat = parseArgGbl(args[1:], loc, macros)
     dat.opt = opt
+
     return dat
 
 
-def parseIdentifier(node: Cursor, regex: str = None) -> str:
-    # TODO: Check this
+def parsePtr(node: Cursor) -> str:
+    if node.kind == CursorKind.VAR_DECL:
+        return node.spelling
+
+    if node.kind == CursorKind.BINARY_OPERATOR:
+        children = list(node.get_children())
+        tokens = list(node.get_tokens())
+        operator = tokens[len(list(children[0].get_tokens()))].spelling
+
+        if operator != "=":
+            raise ParseError(f"unexpected binary operator {operator}", parseLocation(node))
+
+        return parseIdentifier(children[0])
+
+    raise ParseError(f"expected variable declaration or assignment", parseLocation(node))
+
+
+def parseIdentifier(node: Cursor) -> str:
     while node.kind == CursorKind.CSTYLE_CAST_EXPR:
         node = list(node.get_children())[1]
 
-    # Descend to child node
     if node.kind == CursorKind.UNEXPOSED_EXPR:
         node = descend(node)
 
-    # Descend to child node
     if node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling in (
         "&",
         "*",
     ):
         node = descend(node)
 
-    # Check for null
     if node.kind == CursorKind.GNU_NULL_EXPR:
-        return ""
+        raise ParseError("expected identifier, found NULL", parseLocation(node))
 
-    # Validate the node
     if node.kind != CursorKind.DECL_REF_EXPR:
-        raise ParseError("expected identifier")
+        raise ParseError("expected identifier", parseLocation(node))
 
-    value = node.spelling
-
-    # Apply conditional regex constraint
-    if regex and not re.match(regex, value):
-        raise ParseError(f"expected identifier matching {regex}")
-
-    return value
+    return node.spelling
 
 
-def parseIntLit(node: Cursor, signed: bool = True) -> int:
-    # Assume the literal is not negated
-    negation = False
+def parseIntLit(node: Cursor) -> int:
+    coeff = 1
 
-    # Check if the node is wrapped in a valid unary negation
-    if signed and node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling == "-":
-        negation = True
+    if node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling == "-":
+        coeff = -1
         node = descend(node)
 
-    # Validate the node
     if node.kind != CursorKind.INTEGER_LITERAL:
-        if not signed:
-            raise ParseError("expected unsigned integer literal")
-        else:
-            raise ParseError("expected integer literal")
+        raise ParseError("expected integer literal", parseLocation(node))
 
-    # Extract the value
-    value = int(next(node.get_tokens()).spelling)
-
-    return -value if negation else value
+    return coeff * int(next(node.get_tokens()).spelling)
 
 
-def parseStringLit(node: Cursor, regex: str = None) -> str:
-    # Validate the node
+def parseStringLit(node: Cursor) -> str:
     if node.kind != CursorKind.UNEXPOSED_EXPR:
         raise ParseError("expected string literal")
 
-    # Descend to child node
     node = descend(node)
-
-    # Validate the node
     if node.kind != CursorKind.STRING_LITERAL:
         raise ParseError("expected string literal")
 
-    # Extract value from string delimeters
-    value = node.spelling[1:-1]
+    return node.spelling[1:-1]
 
-    # Apply conditional regex constraint
-    if regex and not re.match(regex, value):
-        raise ParseError(f"expected string literal matching {regex}")
 
-    return value
+def parseAccessType(
+    node: Cursor, valid_types: List[OP.AccessType], loc: Location, macros: Dict[Location, str]
+) -> OP.AccessType:
+    access_type_str = macros.get(parseLocation(node))
+    valid_type_strs = [t.value for t in valid_types]
+
+    if access_type_str not in valid_type_strs:
+        raise ParseError(f"invalid access type {access_type_str}, expected one of {', '.join(valid_type_strs)}", loc)
+
+    return OP.AccessType(access_type_str)
 
 
 def parseType(typ: str, loc: Location) -> OP.Type:
