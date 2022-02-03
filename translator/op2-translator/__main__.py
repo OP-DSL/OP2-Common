@@ -83,6 +83,10 @@ def main(argv=None) -> None:
     except ParseError as e:
         exit(e)
 
+    print(app)
+
+    return
+
     # Validation phase
     try:
         validate(args, scheme, app)
@@ -91,10 +95,6 @@ def main(argv=None) -> None:
 
     # Code-generation phase
     codegen(args, scheme, app)
-
-    # End of main
-    if args.verbose:
-        print("\nTerminating")
 
 
 def parsing(args: Namespace, scheme: Scheme) -> Application:
