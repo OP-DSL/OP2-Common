@@ -1,5 +1,7 @@
 import re
 import subprocess
+import functools
+import operator
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, TypeVar
@@ -32,8 +34,8 @@ def indexSplit(s: str, i: int) -> Tuple[str, str]:
         return s[:i], s[i:]
 
 
-def flattern(arr: List[List[T]]) -> List[T]:
-    return sum(arr, [])
+def flatten(arr: List[List[T]]) -> List[T]:
+    return functools.reduce(operator.iconcat, arr, [])
 
 
 def find(xs: Iterable[T], p: Callable[[T], bool]) -> T:

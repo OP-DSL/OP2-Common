@@ -9,7 +9,7 @@ from typing_extensions import Protocol
 
 import op as OP
 from op import OpError
-from util import find, flattern, safeFind, uniqueBy
+from util import find, flatten, safeFind, uniqueBy
 
 if TYPE_CHECKING:
     from language import Lang
@@ -116,24 +116,24 @@ class Application:
 
     @property
     def sets(self) -> List[OP.Set]:
-        return flattern(program.sets for program in self.programs)
+        return flatten(program.sets for program in self.programs)
 
     @property
     def maps(self) -> List[OP.Map]:
-        return flattern(program.maps for program in self.programs)
+        return flatten(program.maps for program in self.programs)
 
     @property
     def datas(self) -> List[OP.Data]:
-        return flattern(program.dats for program in self.programs)
+        return flatten(program.dats for program in self.programs)
 
     @property
     def consts(self) -> List[OP.Const]:
-        consts = flattern(program.consts for program in self.programs)
+        consts = flatten(program.consts for program in self.programs)
         return uniqueBy(consts, lambda c: c.ptr)
 
     @property
     def loops(self) -> List[OP.Loop]:
-        loops = flattern(program.loops for program in self.programs)
+        loops = flatten(program.loops for program in self.programs)
         return uniqueBy(loops, lambda l: l.kernel)
 
     def validate(self, lang: Lang) -> None:
