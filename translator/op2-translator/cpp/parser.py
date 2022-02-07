@@ -176,24 +176,24 @@ def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) ->
     return OP.Loop(loc, kernel, set_ptr, loop_args)
 
 
-def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgDat:
     if len(args) != 6:
         raise ParseError("incorrect number of args passed to op_arg_dat", loc)
 
     dat_ptr = parseIdentifier(args[0])
 
     map_idx = parseIntLit(args[1])
-    map_ptr = "OP_ID" if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
+    map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
     dat_dim = parseIntLit(args[3])
     dat_typ = parseType(parseStringLit(args[4]), loc)
 
-    access_type = parseAccessType(args[5], OP.AccessType.validDatTypes(), loc, macros)
+    access_type = parseAccessType(args[5], loc, macros)
 
-    return OP.Arg(loc, dat_ptr, dat_dim, dat_typ, access_type, map_ptr, map_idx)
+    return OP.ArgDat(loc, access_type, None, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
 
 
-def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgDat:
     if len(args) != 7:
         ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
 
@@ -205,20 +205,20 @@ def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str
     return dat
 
 
-def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
     if len(args) != 4:
         raise ParseError("incorrect number of args passed to op_arg_gbl", loc)
 
-    dat_ptr = parseIdentifier(args[0])
-    dat_dim = parseIntLit(args[1])
-    dat_typ = parseType(parseStringLit(args[2]), loc)
+    ptr = parseIdentifier(args[0])
+    dim = parseIntLit(args[1])
+    typ = parseType(parseStringLit(args[2]), loc)
 
-    access_type = parseAccessType(args[3], OP.AccessType.validGblTypes(), loc, macros)
+    access_type = parseAccessType(args[3], loc, macros)
 
-    return OP.Arg(loc, dat_ptr, dat_dim, dat_typ, access_type)
+    return OP.ArgGbl(loc, access_type, None, ptr, dim, typ)
 
 
-def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Arg:
+def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
     if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
@@ -293,14 +293,11 @@ def parseStringLit(node: Cursor) -> str:
     return node.spelling[1:-1]
 
 
-def parseAccessType(
-    node: Cursor, valid_types: List[OP.AccessType], loc: Location, macros: Dict[Location, str]
-) -> OP.AccessType:
+def parseAccessType(node: Cursor, loc: Location, macros: Dict[Location, str]) -> OP.AccessType:
     access_type_str = macros.get(parseLocation(node))
-    valid_type_strs = [t.value for t in valid_types]
 
-    if access_type_str not in valid_type_strs:
-        raise ParseError(f"invalid access type {access_type_str}, expected one of {', '.join(valid_type_strs)}", loc)
+    if access_type_str not in OP.AccessType.values():
+        raise ParseError(f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc)
 
     return OP.AccessType(access_type_str)
 

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Final, List, Optional, Union
 
 from cached_property import cached_property
 
-from util import find, uniqueBy
+from util import ABDC, find, uniqueBy
 
 if TYPE_CHECKING:
     from store import Location
@@ -24,12 +24,8 @@ class AccessType(Enum):
     MAX = "OP_MAX"
 
     @staticmethod
-    def validDatTypes() -> List[AccessType]:
-        return [AccessType.READ, AccessType.WRITE, AccessType.RW, AccessType.INC]
-
-    @staticmethod
-    def validGblTypes() -> List[AccessType]:
-        return [AccessType.READ, AccessType.INC, AccessType.MAX, AccessType.MIN]
+    def values() -> List[str]:
+        return [x.value for x in list(AccessType)]
 
 
 class OpError(Exception):
@@ -124,31 +120,28 @@ class Const:
 
 
 @dataclass
-class Arg:
+class Arg(ABDC):
     loc: Location
 
+    access_type: AccessType
+    opt: Optional[str]
+
+
+@dataclass
+class ArgDat(Arg):
     dat_ptr: str
     dat_dim: int
     dat_typ: Type
 
-    access_type: AccessType
-
     map_ptr: Optional[str] = None
     map_idx: Optional[int] = None
 
-    opt: Optional[str] = None
 
-    def isDirect(self) -> bool:
-        return self.map_ptr == "OP_ID"
-
-    def isIndirect(self) -> bool:
-        return not self.isDirect()
-
-    def isGbl(self) -> bool:
-        return self.map_ptr is None
-
-    def isVec(self) -> bool:
-        return self.map_idx is not None and self.map_idx < 0
+@dataclass
+class ArgGbl(Arg):
+    ptr: str
+    dim: int
+    typ: Type
 
 
 class Loop:

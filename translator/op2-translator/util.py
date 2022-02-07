@@ -1,8 +1,9 @@
-import re
-import subprocess
 import functools
 import operator
+import re
+import subprocess
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, TypeVar
 
@@ -84,6 +85,15 @@ class Findable(ABC):
     @abstractmethod
     def matches(self, key: T) -> bool:
         pass
+
+
+@dataclass
+class ABDC(ABC):
+    def __new__(cls, *args, **kwargs):
+        if cls == ABDC or cls.__bases__[0] == ABDC:
+            raise TypeError(f"Can't instantiate abstract class {cls.__name__}")
+
+        return super().__new__(cls)
 
 
 class SourceBuffer:
