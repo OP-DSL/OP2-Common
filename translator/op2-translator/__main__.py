@@ -83,15 +83,14 @@ def main(argv=None) -> None:
     except ParseError as e:
         exit(e)
 
-    print(app)
-
-    return
-
     # Validation phase
     try:
         validate(args, scheme, app)
     except OpError as e:
         exit(e)
+
+    print(app)
+    return
 
     # Code-generation phase
     codegen(args, scheme, app)
@@ -116,7 +115,7 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
             print(f"  Parsed: {program}")
 
     # Parse the referenced kernels
-    for kernel_name in {loop.kernel for loop in app.loops}:
+    for kernel_name in {loop.kernel for loop in app.loops()}:
 
         # Locate kernel header file
         file_name = f"{kernel_name}.{scheme.lang.include_ext}"
@@ -128,7 +127,7 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
         # Parse kernel header file
         kernel = scheme.lang.parseKernel(Path(kernel_path), kernel_name)
 
-        app.kernels.append(kernel)
+        app.kernels[kernel_name] = kernel
 
     return app
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, Dict
 
 from typing_extensions import Protocol
 
@@ -91,7 +91,7 @@ class Kernel:
 @dataclass
 class Application:
     programs: List[Program] = field(default_factory=list)
-    kernels: List[Kernel] = field(default_factory=list)
+    kernels: Dict[str, Kernel] = field(default_factory=dict)
 
     def __str__(self) -> str:
         if len(self.programs) > 0:
@@ -100,206 +100,194 @@ class Application:
             programs_str = "No programs"
 
         if len(self.kernels) > 0:
-            kernels_str = "\n".join([str(k) for k in self.kernels])
+            kernels_str = "\n".join([str(k) for k in self.kernels.values()])
         else:
             kernels_str = "No kernels"
 
         return programs_str + "\n" + kernels_str
 
-    @property
     def hasInit(self) -> bool:
         return any(program.init for program in self.programs)
 
-    @property
     def hasExit(self) -> bool:
         return any(program.exit for program in self.programs)
 
-    @property
     def sets(self) -> List[OP.Set]:
         return flatten(program.sets for program in self.programs)
 
-    @property
     def maps(self) -> List[OP.Map]:
         return flatten(program.maps for program in self.programs)
 
-    @property
-    def datas(self) -> List[OP.Data]:
+    def dats(self) -> List[OP.Data]:
         return flatten(program.dats for program in self.programs)
 
-    @property
     def consts(self) -> List[OP.Const]:
         consts = flatten(program.consts for program in self.programs)
         return uniqueBy(consts, lambda c: c.ptr)
 
-    @property
     def loops(self) -> List[OP.Loop]:
         loops = flatten(program.loops for program in self.programs)
         return uniqueBy(loops, lambda l: l.kernel)
 
     def validate(self, lang: Lang) -> None:
-        return
+        if not self.hasInit:
+            print("warning: no call to op_init")
+
+        if not self.hasExit:
+            print("warning: no call to op_exit")
+
+        self.validateConsts(lang)
+
+        self.validateSets(lang)
+        self.validateDats(lang)
+        self.validateMaps(lang)
+
+        self.validateLoops(lang)
+
+    def validateConsts(self, lang: Lang) -> None:
+        seen_const_ptrs: Set[str] = set()
+
+        for const in self.consts():
+            if const.ptr in seen_const_ptrs:
+                raise OpError(f"duplicate const declaration: {const.ptr}", const.loc)
+
+            seen_const_ptrs.add(const.ptr)
+
+            if const.dim < 1:
+                raise OpError(f"invalid const dimension: {const.dim}", const.dim)
+
+    def validateSets(self, lang: Lang) -> None:
+        seen_set_ptrs: Set[str] = set()
+
+        for set_ in self.sets():
+            if set_.ptr in seen_set_ptrs:
+                raise OpError(f"duplicate set declaration: {set_.ptr}", set_.loc)
+
+            seen_set_ptrs.add(set_.ptr)
+
+    def validateDats(self, lang: Lang) -> None:
+        set_ptrs = {set_.ptr for set_ in self.sets()}
+        seen_dat_ptrs: Set[str] = set()
+
+        for dat in self.dats():
+            if dat.ptr in seen_dat_ptrs:
+                raise OpError(f"duplicate dat declaration: {dat.ptr}", dat.loc)
+
+            seen_dat_ptrs.add(dat.ptr)
+
+            if dat.dim < 1:
+                raise OpError(f"invalid dat dimension: {dat.dim}", dat.loc)
+
+            if dat.set_ptr not in set_ptrs:
+                raise OpError(f"dat declaration references unknown set: {dat.set_ptr}", dat.loc)
+
+    def validateMaps(self, lang: Lang) -> None:
+        set_ptrs = {set_.ptr for set_ in self.sets()}
+        seen_map_ptrs: Set[str] = set()
+
+        for map_ in self.maps():
+            if map_.ptr in seen_map_ptrs:
+                raise OpError(f"duplicate map declaration: {map_.ptr}", map_.loc)
+
+            seen_map_ptrs.add(map_.ptr)
+
+            if map_.dim < 1:
+                raise OpError(f"invalid map dimension: {map_.dim}", map_.loc)
+
+            if map_.from_set_ptr not in set_ptrs:
+                raise OpError(f"map declaration references unknown source set: {map_.from_set_ptr}", map_.loc)
+
+            if map_.to_set_ptr not in set_ptrs:
+                raise OpError(f"map declaration references unknown target set: {map_.to_set_ptr}", map_.loc)
+
+    def validateLoops(self, lang: Lang) -> None:
+        set_ptrs = {set_.ptr for set_ in self.sets()}
+
+        for loop in self.loops():
+            if loop.set_ptr not in set_ptrs:
+                raise OpError(f"loop references unknown set: {loop.set_ptr}", loop.loc)
+
+            for arg in loop.args:
+                if isinstance(arg, OP.ArgDat):
+                    self.validateArgDat(arg, loop, lang)
+
+                if isinstance(arg, OP.ArgGbl):
+                    self.validateArgGbl(arg, loop, lang)
+
+            self.validateKernel(loop, lang)
+
+    def validateArgDat(self, arg: OP.ArgDat, loop: OP.Loop, lang: Lang) -> None:
+        valid_access_types = [OP.AccessType.READ, OP.AccessType.WRITE, OP.AccessType.RW, OP.AccessType.INC]
+        if arg.access_type not in valid_access_types:
+            raise OpError(f"invalid access type for dat argument: {arg.access_type}", arg.loc)
+
+        dat = safeFind(self.dats(), lambda d: d.ptr == arg.dat_ptr)
+
+        if dat is None:
+            raise OpError(f"loop argument references unknown dat: {arg.dat_ptr}", arg.loc)
+
+        if arg.dat_dim != dat.dim:
+            raise OpError(f"loop argument dat dimension mismatch: {arg.dat_dim} (expected {dat.dim})", arg.loc)
+
+        if arg.dat_typ != dat.typ:
+            raise OpError(f"loop argument dat type mismatch: {arg.dat_typ} (expected {dat.typ})", arg.loc)
+
+        if arg.map_ptr is None:
+            if dat.set_ptr != loop.set_ptr:
+                raise OpError(f"indirect loop argument dat requires a map: {arg.dat_ptr}", arg.loc)
+
+            return
+
+        map_ = safeFind(self.maps(), lambda m: m.ptr == arg.map_ptr)
+
+        if map_ is None:
+            raise OpError(f"loop argument references unknown map: {arg.map_ptr}", arg.loc)
+
+        if arg.map_idx is None:
+            raise OpError(f"indirect loop argument requires map index", arg.loc)
+
+        if map_.from_set_ptr != loop.set_ptr:
+            raise OpError(
+                f"loop argument map from set mismatch: {map_.from_set_ptr} (expected {loop.set_ptr})", arg.loc
+            )
+
+        if map_.to_set_ptr != dat.set_ptr:
+            raise OpError(f"loop argument map to set mismatch: {map_.to_set_ptr} (expected {dat.set_ptr})", arg.loc)
 
 
-#    def validate(self, lang: Lang) -> None:
-#        if not self.hasInit:
-#            print("warning: no call to op_init found")
-#
-#        if not self.hasExit:
-#            print("warning: no call to op_exit found")
-#
-#        # Collect the pointers of defined sets
-#        set_ptrs = [s.ptr for s in self.sets]
-#
-#        # Validate data declerations
-#        for data in self.datas:
-#            # Validate set
-#            if data.set not in set_ptrs:
-#                raise OpError(
-#                    f'undefined set "{data.set}" referenced in data decleration',
-#                    data.loc,
-#                )
-#
-#        # Validate map declerations
-#        for map in self.maps:
-#            # Validate both sets
-#            for set_ in (map.from_set, map.to_set):
-#                if set_ not in set_ptrs:
-#                    raise OpError(f'undefined set "{set_}" referenced in map decleration', map.loc)
-#
-#        # Validate constant declerations
-#        for const in self.consts:
-#            # Search for previous decleration
-#            prev = safeFind(self.consts, lambda c: c.ptr == const.ptr)
-#
-#            if prev and const.dim != prev.dim:
-#                raise ParseError(f'dim mismatch in repeated decleration of "{const.ptr}" const')
-#            elif prev and const.dim != prev.dim:
-#                raise ParseError(f'size mismatch in repeated decleration of "{const.ptr}" const')
-#
-#        # Validate loop calls
-#        for loop in self.loops:
-#            kern = safeFind(self.kernels, lambda k: k.name == loop.kernel)
-#            loop.kernelPath = str(kern.path)
-#            prev = safeFind(self.loops, lambda l: l.kernel == loop.kernel)
-#            if prev:
-#                for i, (arg_a, arg_b) in enumerate(zip(prev.args, loop.args)):
-#                    if arg_a.acc != arg_b.acc:
-#                        raise ParseError(f"varying access types for arg {i} in {loop.kernel} par loops")
-#                    # TODO: Consider more compatability issues
-#
-#            # Validate loop dataset
-#            if loop.set not in set_ptrs:
-#                raise OpError(f'undefined set "{loop.set}" referenced in par loop call', loop.loc)
-#
-#            # Validate loop args
-#            for arg in loop.args:
-#                if not arg.global_:
-#                    # Look for the referenced data
-#                    data_ = safeFind(self.datas, lambda d: d.ptr == arg.var)
-#
-#                    # Validate the data referenced in the arg
-#                    if not data_:
-#                        raise OpError(
-#                            f'undefined data "{arg.var}" referenced in par loop arg',
-#                            arg.loc,
-#                        )
-#                    elif arg.typ != data_.typ:
-#                        raise OpError(
-#                            f"type mismatch of par loop data, expected {data_.typ}",
-#                            arg.loc,
-#                        )
-#                    elif arg.dim != data_.dim:
-#                        raise OpError(
-#                            f"dimension mismatch of par loop data, expected {data_.dim}",
-#                            arg.loc,
-#                        )
-#
-#                    # Validate direct args
-#                    if arg.direct:
-#                        # Validate index
-#                        if arg.idx != -1:
-#                            raise OpError(
-#                                "incompatible index for direct access, expected -1",
-#                                arg.loc,
-#                            )
-#                        # Check the dataset can be accessed directly
-#                        if data_.set != loop.set:
-#                            raise OpError(
-#                                f'cannot directly access the "{arg.var}" dataset from the "{loop.set}" loop set',
-#                                arg.loc,
-#                            )
-#
-#                        # Check that the same dataset has not already been directly accessed
-#                        if safeFind(loop.directs, lambda a: a is not arg and a.var == arg.var):
-#                            raise OpError(
-#                                f'duplicate direct accesses to the "{arg.var}" dataset in the same par loop',
-#                                arg.loc,
-#                            )
-#
-#                    # Validate indirect args
-#                    elif arg.indirect:
-#                        # Look for the referenced map decleration
-#                        map_ = safeFind(self.maps, lambda m: m.ptr == arg.map)
-#
-#                        if not map_:
-#                            raise OpError(
-#                                f'undefined map "{arg.map}" referenced in par loop arg',
-#                                arg.loc,
-#                            )
-#
-#                        # Check that the mapping maps from the loop set
-#                        if map_.from_set != loop.set:
-#                            raise OpError(
-#                                f'cannot apply the "{arg.map}" mapping to the "{loop.set}" loop set',
-#                                arg.loc,
-#                            )
-#
-#                        # Check that the mapping maps to the data set
-#                        if map_.to_set != data_.set:
-#                            raise OpError(
-#                                f'cannot map to the "{arg.var}" dataset with the "{arg.map}" mapping',
-#                                arg.loc,
-#                            )
-#
-#                        # Determine the valid index range using the given language
-#                        min_idx = 0 if lang.zero_idx else 1
-#                        max_idx = map_.dim - 1 if lang.zero_idx else map_.dim
-#
-#                        # Adjust min index for vec args
-#                        # TODO check how Fortran OP2 does vec args
-#                        if arg.vector and lang.zero_idx:
-#                            min_idx = -map_.dim
-#
-#                        # Perform range check
-#                        if arg.idx is None or arg.idx < min_idx or arg.idx > max_idx:
-#                            raise OpError(
-#                                f"index {arg.idx} out of range, must be in the interval [{min_idx},{max_idx}]",
-#                                arg.loc,
-#                            )
-#
-#                    # Enforce unique data access
-#                    for other in loop.args:
-#                        if (
-#                            other is not arg
-#                            and other.var == arg.var
-#                            and (other.idx == arg.idx and other.map == arg.map)
-#                        ):
-#                            raise OpError(f"duplicate data accesses in the same par loop", arg.loc)
-#
-#            # Validate par loop arguments against kernel parameters
-#            kernel = find(self.kernels, lambda k: k.name == loop.kernel)
-#
-#            if len(loop.args) != kernel.paramCount:
-#                raise ParseError(f"incorrect number of args passed to the {kernel} kernel", loop.loc)
-#
-#            for i, (param, arg) in enumerate(zip(kernel.params, loop.args)):
-#                if not arg.vector and arg.typ != param[1]:
-#                    raise ParseError(
-#                        f"argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1]}",
-#                        arg.loc,
-#                    )
-#                elif arg.vector and arg.typ != param[1][:-2]:
-#                    raise ParseError(
-#                        f"argument {i} to {kernel} kernel has incompatible type {arg.typ}, expected {param[1][:-2]}",
-#                        arg.loc,
-#                    )
+        idx_high = map_.dim if lang.zero_idx else map_.dim + 1
+        if arg.map_idx < -map_.dim or arg.map_idx >= idx_high:
+            raise OpError(
+                f"loop argument map index out of range: {arg.map_idx} (expected {-map_.dim} <= idx < {idx_high})",
+                arg.loc,
+            )
+
+        if not lang.zero_idx and arg.map_idx == 0:
+            raise OpError(f"loop argument map index cannot be zero", arg.loc)
+
+    def validateArgGbl(self, arg: OP.ArgGbl, loop: OP.Loop, lang: Lang) -> None:
+        valid_access_types = [OP.AccessType.READ, OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
+        if arg.access_type not in valid_access_types:
+            raise OpError(f"invalid access type for gbl argument: {arg.access_type}", arg.loc)
+
+        if arg.dim < 1:
+            raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
+
+    def validateKernel(self, loop: OP.Loop, lang: Lang) -> None:
+        kernel = self.kernels[loop.kernel]
+
+        if len(loop.args) != len(kernel.params):
+            raise OpError(f"number of loop arguments does not match number of kernel arguments", loop.loc)
+
+        for loop_arg, kernel_param in zip(loop.args, kernel.params):
+            if isinstance(loop_arg, OP.ArgDat) and loop_arg.dat_typ != kernel_param[1]:
+                raise OpError(
+                    f"loop argument type does not match kernel paramater type: {loop_arg.dat_typ} != {kernel_param[1]}",
+                    loop.loc,
+                )
+
+            if isinstance(loop_arg, OP.ArgGbl) and loop_arg.typ != kernel_param[1]:
+                raise OpError(
+                    f"loop argument type does not match kernel paramater type: {loop_arg.typ} != {kernel_param[1]}",
+                    loop.loc,
+                )
