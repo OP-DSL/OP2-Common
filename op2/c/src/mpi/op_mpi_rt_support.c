@@ -229,16 +229,18 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   arg->sent = 0; // reset flag
 
   int exec_levels = 2;
+  int num_levels = dat->set->dat_to_execlevels->get_count();
+  printf("op_exchange_halo dat %s num_levels=%d\n", dat->name, num_levels);
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
 
     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[0][dat->set->index]; //OP_import_nonexec_list[dat->set->index];
+    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[num_levels - 1][dat->set->index]; //OP_import_nonexec_list[dat->set->index];
 
     halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[0][dat->set->index]; //OP_export_nonexec_list[dat->set->index];
+    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[num_levels - 1][dat->set->index]; //OP_export_nonexec_list[dat->set->index];
 
     //-------first exchange exec elements related to this data array--------
 
@@ -325,7 +327,12 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
     }
 
-    int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
+    int nonexec_init = 0;
+    for(int l = 0; l < num_levels - 1; l++){
+      nonexec_init += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
+    }
+    nonexec_init *= dat->size;
+    nonexec_init += (dat->set->size + imp_exec_list->size) * dat->size;
     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
       //      printf("import on to %d from %d data %10s, number of elements of
       //      size %d | recieving:\n ",

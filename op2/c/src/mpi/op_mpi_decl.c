@@ -124,7 +124,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 #ifdef COMM_AVOID
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  printf("op_decl_dat_temp_char COMM_AVOID\n");
+  printf("op_decl_dat_temp_char COMM_AVOID new1\n");
 
   char *d = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
@@ -144,6 +144,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   
   // initialize data bits to 0
   //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
+  dat->data =
+            (char *)xrealloc(dat->data, (set->size + halo_size) * dat->size);
   for (size_t i = 0; i < (set->size + halo_size) * dim * size; i++)
     dat->data[i] = 0;
   dat->user_managed = 0;

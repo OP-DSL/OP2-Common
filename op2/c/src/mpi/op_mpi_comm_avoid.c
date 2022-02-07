@@ -852,6 +852,8 @@ void prepare_aug_maps(){
     for(int l = 0; l < max_level; l++){
       exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
     }
+
+    map->map = (int *)xrealloc(map->map, (map->from->size + exec_size) * (size_t)map->dim * sizeof(int));        
     map->map_org = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
     memcpy(map->map_org, map->map, (size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
 
@@ -1126,10 +1128,10 @@ void step8_renumber_mappings_prev(int exec_levels, int **part_range, int my_rank
 
 void step4_import_nonexec(int dummy, int **part_range, int my_rank, int comm_size){
 
-  OP_import_nonexec_list =
-      (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
-  OP_export_nonexec_list =
-      (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
+  // OP_import_nonexec_list =
+  //     (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
+  // OP_export_nonexec_list =
+  //     (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
 
   // declare temporaty scratch variables to hold non-exec set export lists
   int s_i;
@@ -1228,7 +1230,7 @@ void step4_import_nonexec(int dummy, int **part_range, int my_rank, int comm_siz
       halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
       create_nonexec_ex_import_list(set, set_list, h_list, s_i, comm_size, my_rank);
       op_free(set_list); // free temp list
-      OP_import_nonexec_list[set->index] = h_list;
+      // OP_import_nonexec_list[set->index] = h_list;
       OP_aug_import_nonexec_lists[el][set->index] = h_list;
     }
   }
@@ -2720,13 +2722,21 @@ void op_halo_create_comm_avoid() {
   step4_import_nonexec(num_halos, part_range, my_rank, comm_size);
 
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
-  step5(part_range, my_rank, comm_size); //todo: uncomment this
+  // step5(part_range, my_rank, comm_size); //todo: uncomment this
 
   // todo: this is going upto max exec levels. but for non exec we don't need non exec for all the levels.
   // hack: check null inside create_handshake_h_list
   for(int l = 0; l < get_max_halo_level_count(); l++){
     OP_aug_export_nonexec_lists[l] = create_handshake_h_list(OP_aug_import_nonexec_lists[l], part_range, my_rank, comm_size);
   }
+
+  OP_import_nonexec_list =
+      (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
+  OP_export_nonexec_list =
+      (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
+
+  OP_export_nonexec_list = OP_aug_export_nonexec_lists[0];
+  OP_import_nonexec_list = OP_aug_import_nonexec_lists[0];
 
   /*-STEP 6 - Exchange execute set elements/data using the import/export
    * lists--*/
