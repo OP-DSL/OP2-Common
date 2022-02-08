@@ -84,7 +84,7 @@ ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
     CCFLAGS = -O0 -g -pg
   else
-    CCFLAGS = -O3 -xHost #-DCOMM_PERF
+    CCFLAGS = -O3 -xHost -g #-DCOMM_PERF
   endif
   CXX       = icpc
   CXXFLAGS  = $(CCFLAGS)

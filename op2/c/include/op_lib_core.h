@@ -403,6 +403,7 @@ void op_download_dat(op_dat dat);
 *******************************************************************************/
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_levels);
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
 

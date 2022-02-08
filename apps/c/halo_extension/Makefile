@@ -196,7 +196,7 @@ airfoil_mpi_genseq: airfoil_mpi_op.cpp seq/airfoil_mpi_seqkernels.cpp \
                 Makefile
 	        $(MPICPP) $(VAR) $(CPPFLAGS) $(OP2_INC) $(OP2_INC) \
                 $(PARMETIS_INC) $(PTSCOTCH_INC) -Iseq -I. \
-                airfoil_mpi_op.cpp -lm seq/airfoil_mpi_seqkernels.cpp $(OP2_LIB) -lop2_mpi_comm_avoid \
+                airfoil_mpi_op.cpp -lm seq/airfoil_mpi_seqkernels.cpp $(OP2_LIB) -lop2_mpi \
                 $(PARMETIS_LIB) $(PTSCOTCH_LIB) -o airfoil_mpi_genseq
 
 

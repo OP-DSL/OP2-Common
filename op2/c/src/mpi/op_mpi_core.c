@@ -3137,6 +3137,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
+#ifndef COMM_AVOID
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
@@ -3168,11 +3169,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
-      #ifndef COMM_AVOID
       size = set->size + set->exec_size;
-      #else
-      size = set->size + OP_merged_import_exec_list[set->index]->size;
-      #endif
       exec_flag = 1;
     }
   }
@@ -3211,6 +3208,81 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
   return size;
 }
+
+#else
+
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_levels) {
+  printf("op_mpi_halo_exchanges_chained set=%s h_levels=%d\n", set->name, h_levels);
+  int size = set->size;
+  int direct_flag = 1;
+
+  if (OP_diags > 0) {
+    int dummy;
+    for (int n = 0; n < nargs; n++)
+      op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
+  }
+
+  if (OP_hybrid_gpu) {
+    for (int n = 0; n < nargs; n++)
+      if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
+          args[n].dat->dirty_hd == 2) {
+        op_download_dat(args[n].dat);
+        args[n].dat->dirty_hd = 0;
+      }
+  }
+
+  // check if this is a direct loop
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1)
+    return size;
+
+  // not a direct loop ...
+  int exec_flag = 0;
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      size = set->size + set->exec_sizes[h_levels];
+      exec_flag = 1;
+    }
+  }
+  op_timers_core(&c1, &t1);
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
+      if (args[n].map == OP_ID) {
+        op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+      } else {
+        // Check if dat-map combination was already done or if there is a
+        // mismatch (same dat, diff map)
+        int found = 0;
+        int fallback = 0;
+        for (int m = 0; m < nargs; m++) {
+          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map)
+            found = 1;
+          else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
+            fallback = 1;
+        }
+        // If there was a map mismatch with other argument, do full halo
+        // exchange
+        if (fallback)
+          op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+        else if (!found) { // Otherwise, if partial halo exchange is enabled for
+                           // this map, do it
+          if (OP_map_partial_exchange[args[n].map->index])
+            op_exchange_halo_partial(&args[n], exec_flag);  //todo: check whether this also needs h_levels
+          else
+            op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+        }
+      }
+    }
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+  return size;
+}
+#endif
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   int size = set->size;
@@ -3546,7 +3618,11 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
   sp_coupled_data->dirtybit = 1;
 
   int exec_flag = 1;
+  #ifdef COMM_AVOID
+  op_exchange_halo_chained(temp_arg, exec_flag, 0);
+  #else
   op_exchange_halo(temp_arg, exec_flag);
+  #endif
   op_wait_all(temp_arg);
 
   // step 5: count wholly owned cell maps
