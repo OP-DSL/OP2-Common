@@ -435,8 +435,8 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
   dat->aug_data = new_aug_data;
 
-  dat->loopchain_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  dat->loopchain_to_execlevels->init();
+  // dat->loopchain_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
+  // dat->loopchain_to_execlevels->init();
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;

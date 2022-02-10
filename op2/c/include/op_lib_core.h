@@ -120,97 +120,97 @@ typedef struct op_halo_info_core{
 typedef op_halo_info_core* op_halo_info;
 
 // #include <op_util.h>
-#define OP_ID_ARRAY_SIZE 100
-typedef struct op_id_to_val_core{
-  // op_id_to_val_core(){
-  void init(){
-    ids = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
-    vals = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
-    index = 0;
-    size = OP_ID_ARRAY_SIZE;
-    max_val = 0;
-  }
-  ~op_id_to_val_core(){
-    free(ids);
-    free(vals);
-    index = 0;
-    size = 0;
-    max_val = 0;
-  }
-  int set(int id, int val){
-    // if(index >= OP_ID_ARRAY_SIZE){
-    //   size *= 2;
-    //   ids = (int *)xrealloc(ids, size * sizeof(int));
-    //   vals = (int *)xrealloc(vals, size * sizeof(int));
-    // }
-    if(check_val(val) == 1){  // todo: this has to be modified. no two dats with the same exec levels will be stored with this condition
-      printf("checkval id=%d val=%d\n", id, val);
-      return -1;
-    }
+// #define OP_ID_ARRAY_SIZE 100
+// typedef struct op_id_to_val_core{
+//   // op_id_to_val_core(){
+//   void init(){
+//     ids = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
+//     vals = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
+//     index = 0;
+//     size = OP_ID_ARRAY_SIZE;
+//     max_val = 0;
+//   }
+//   ~op_id_to_val_core(){
+//     free(ids);
+//     free(vals);
+//     index = 0;
+//     size = 0;
+//     max_val = 0;
+//   }
+//   int set(int id, int val){
+//     // if(index >= OP_ID_ARRAY_SIZE){
+//     //   size *= 2;
+//     //   ids = (int *)xrealloc(ids, size * sizeof(int));
+//     //   vals = (int *)xrealloc(vals, size * sizeof(int));
+//     // }
+//     if(check_val(val) == 1){  // todo: this has to be modified. no two dats with the same exec levels will be stored with this condition
+//       printf("checkval id=%d val=%d\n", id, val);
+//       return -1;
+//     }
     
-    ids[index] = id;
-    vals[index] = val;
+//     ids[index] = id;
+//     vals[index] = val;
 
-    if(max_val < val){
-      max_val = val;
-    }
-    index++;
-    return index;
-  }
+//     if(max_val < val){
+//       max_val = val;
+//     }
+//     index++;
+//     return index;
+//   }
 
-  // int get_vals(int** rvals){
-  //   *rvals = (int*)malloc(size * sizeof(int));
-  //   memcpy(*rvals, vals, size *  sizeof(int));
+//   // int get_vals(int** rvals){
+//   //   *rvals = (int*)malloc(size * sizeof(int));
+//   //   memcpy(*rvals, vals, size *  sizeof(int));
 
-  //   quickSort(*rvals, 0, index - 1);
-  //   int new_size = removeDups(*rvals, index);
-  //   return new_size;
-  // }
+//   //   quickSort(*rvals, 0, index - 1);
+//   //   int new_size = removeDups(*rvals, index);
+//   //   return new_size;
+//   // }
 
-  //todo: add a binary search
-  int check_id(int id){
-    for(int i = 0; i < index; i++){
-      if(ids[i] == id){
-        return 1;
-      }
-    }
-    return 0;
-  }
+//   //todo: add a binary search
+//   int check_id(int id){
+//     for(int i = 0; i < index; i++){
+//       if(ids[i] == id){
+//         return 1;
+//       }
+//     }
+//     return 0;
+//   }
 
-  int check_val(int val){
-    for(int i = 0; i < index; i++){
-      if(vals[i] == val){
-        return 1;
-      }
-    }
-    return 0;
-  }
+//   int check_val(int val){
+//     for(int i = 0; i < index; i++){
+//       if(vals[i] == val){
+//         return 1;
+//       }
+//     }
+//     return 0;
+//   }
 
-  int get_max_val(){
-    // printf("test1 max_val=%d\n", max_val);
-    return max_val;
-  }
+//   int get_max_val(){
+//     // printf("test1 max_val=%d\n", max_val);
+//     return max_val;
+//   }
 
-  int get_count(){
-    return index;
-  }
+//   int get_count(){
+//     return index;
+//   }
 
-  int get_val_at(int id){
-    if(id < index){
-      return vals[id];
-    }
-    return -999999; 
-  }
+//   int get_val_at(int id){
+//     if(id < index){
+//       return vals[id];
+//     }
+//     return -999999; 
+//   }
 
-  int* ids;
-  int* vals;
-  int index;
-  int size;
-  int max_val;
+//   int* ids;
+//   int* vals;
+//   int index;
+//   int size;
+//   int max_val;
 
-}op_id_to_val_core;
+// }op_id_to_val_core;
 
-typedef op_id_to_val_core* op_id_to_val;
+// typedef op_id_to_val_core* op_id_to_val;
 // #endif
 
 typedef struct {
@@ -266,7 +266,7 @@ typedef struct {
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
 
-  op_id_to_val loopchain_to_execlevels;
+  // op_id_to_val loopchain_to_execlevels;
 } op_dat_core;
 
 typedef op_dat_core *op_dat;
