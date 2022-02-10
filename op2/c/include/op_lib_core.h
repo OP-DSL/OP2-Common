@@ -109,6 +109,16 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
  * structures
  */
 // #ifdef COMM_AVOID
+#define OP_NHALOS_SIZE 10
+
+typedef struct op_halo_info_core{
+  int *nhalos;      //array of number of halos
+  int max_nhalos;   //max number of halos
+  int nhalos_count; //number of elements in nhalos
+  int nhalos_cap;   //capacity of nhalos
+}op_halo_info_core;
+typedef op_halo_info_core* op_halo_info;
+
 // #include <op_util.h>
 #define OP_ID_ARRAY_SIZE 100
 typedef struct op_id_to_val_core{
@@ -213,11 +223,13 @@ typedef struct {
   int nonexec_size; /* number of additional imported elements that are not
                        executed */
   //suneth
-  int* core_sizes;
+  int *core_sizes;
   int *exec_sizes;
   int *nonexec_sizes;
-  op_id_to_val dat_to_execlevels;
-  op_id_to_val execlevel_to_size;
+  // op_id_to_val dat_to_execlevels;
+  // op_id_to_val execlevel_to_size;
+
+  op_halo_info halo_info;
 } op_set_core;
 
 typedef op_set_core *op_set;

@@ -604,3 +604,26 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
+
+/*******************************************************************************
+ * Halo extension utils
+ *******************************************************************************/
+
+int op_mpi_add_nhalos(op_set set, int nhalos){
+
+  op_halo_info halo_info = set->halo_info;
+  if(halo_info->nhalos_count >= halo_info->nhalos_cap){
+    halo_info->nhalos = (int *)xrealloc(halo_info->nhalos, (halo_info->nhalos_cap + 10) * sizeof(int));
+    halo_info->nhalos_cap += 10;
+  }
+
+  halo_info->nhalos[halo_info->nhalos_count++] = nhalos;
+
+  quickSort(halo_info->nhalos, 0, halo_info->nhalos_count - 1);
+  halo_info->nhalos_count = removeDups(halo_info->nhalos, halo_info->nhalos_count);
+
+  if(nhalos > halo_info->max_nhalos){
+    halo_info->max_nhalos = nhalos;
+  }
+  return 1;
+}

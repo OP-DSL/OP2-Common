@@ -88,7 +88,7 @@ int compare_sets(op_set set1, op_set set2) {
 }
 
 int is_halo_required_for_set(op_set set, int halo_id){
-  if(set->dat_to_execlevels->get_max_val() > halo_id){
+  if(set->halo_info->max_nhalos > halo_id){
     return 1;
   }
   return 0;
@@ -263,6 +263,16 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 }
 
+void op_init_halo_info(op_halo_info halo_info){
+  halo_info->nhalos = (int *)malloc(OP_NHALOS_SIZE * sizeof(int));
+  for(int i = 0; i < OP_NHALOS_SIZE; i++){
+    halo_info->nhalos[i] = -1;
+  }
+  halo_info->nhalos[0] = 1; // default value: 1 halo for all sets
+  halo_info->max_nhalos = 1;
+  halo_info->nhalos_count = 1;
+}
+
 op_set op_decl_set_core(int size, char const *name) {
   if (size < 0) {
     printf(" op_decl_set error -- negative/zero size for set: %s\n", name);
@@ -290,10 +300,17 @@ op_set op_decl_set_core(int size, char const *name) {
   OP_set_list[OP_set_index++] = set;
 
   set->core_sizes = NULL;
-  set->dat_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  set->dat_to_execlevels->init();
-  set->execlevel_to_size = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  set->execlevel_to_size->init();
+  set->exec_sizes = NULL;
+  set->nonexec_sizes = NULL;
+  set->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
+  op_init_halo_info(set->halo_info);
+
+
+
+  // set->dat_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
+  // set->dat_to_execlevels->init();
+  // set->execlevel_to_size = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
+  // set->execlevel_to_size->init();
 
   return set;
 }

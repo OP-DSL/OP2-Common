@@ -231,7 +231,7 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
   arg->sent = 0; // reset flag
 
   // int exec_levels = 2;
-  int num_levels = dat->set->dat_to_execlevels->get_val_at(h_levels); //dat->set->dat_to_execlevels->get_count();
+  int num_levels = dat->set->halo_info->nhalos[h_levels]; //dat_to_execlevels->get_val_at(h_levels); //dat->set->dat_to_execlevels->get_count();
   printf("op_exchange_halo_chained dat %s h_levels=%d num_levels=%d\n", dat->name, h_levels, num_levels);
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||

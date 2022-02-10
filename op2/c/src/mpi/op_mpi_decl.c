@@ -131,13 +131,13 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  int exec_levels = set->dat_to_execlevels->get_max_val();//2;
+  int exec_levels = set->halo_info->max_nhalos; //2;
   int halo_size = 0;
   for(int l = 0; l < exec_levels; l++){
     halo_size += OP_aug_import_exec_lists[l][set->index]->size;
   }
 
-  int num_levels = set->dat_to_execlevels->get_count();
+  int num_levels = set->halo_info->nhalos_count;
   for(int l = 0; l < num_levels; l++){
     halo_size += OP_aug_import_nonexec_lists[l][set->index]->size;
   }
