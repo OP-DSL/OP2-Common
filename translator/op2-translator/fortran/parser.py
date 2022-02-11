@@ -215,8 +215,7 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
     kernel = parseIdentifier(args.items[0], loc)
     set_ptr = parseIdentifier(args.items[1], loc)
 
-    loop = OP.Loop(loc, kernel, set_ptr)
-
+    loop_args = []
     for arg_node in args.items[2:]:
         if type(arg_node) is not f2003.Structure_Constructor:
             raise ParseError("unable to parse op_par_loop argument", loc)
@@ -225,21 +224,21 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         arg_args = fpu.get_child(arg_node, f2003.Component_Spec_List)
 
         if name == "op_arg_dat":
-            loop.addArg(parseArgDat(arg_args, loc))
+            loop_args.append(parseArgDat(arg_args, loc))
 
         elif name == "op_opt_arg_dat":
-            loop.addArg(parseOptArgDat(arg_args, loc))
+            loop_args.append(parseOptArgDat(arg_args, loc))
 
         elif name == "op_arg_gbl":
-            loop.addArg(parseArgGbl(arg_args, loc))
+            loop_args.append(parseArgGbl(arg_args, loc))
 
         elif name == "op_opt_arg_gbl":
-            loop.addArg(parseOptArgGbl(arg_args, loc))
+            loop_args.append(parseOptArgGbl(arg_args, loc))
 
         else:
             raise ParseError(f"invalid loop argument {name}", loc)
 
-    return loop
+    return OP.Loop(loc, kernel, set_ptr, loop_args)
 
 
 def parseArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgDat:
@@ -341,7 +340,9 @@ def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     access_type_str = parseIdentifier(node, loc)
 
     if access_type_str not in OP.AccessType.values():
-        raise ParseError(f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc)
+        raise ParseError(
+            f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc
+        )
 
     return OP.AccessType(access_type_str)
 

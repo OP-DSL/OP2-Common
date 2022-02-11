@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, Dict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from typing_extensions import Protocol
 
@@ -118,7 +118,7 @@ class Application:
     def maps(self) -> List[OP.Map]:
         return flatten(program.maps for program in self.programs)
 
-    def dats(self) -> List[OP.Data]:
+    def dats(self) -> List[OP.Dat]:
         return flatten(program.dats for program in self.programs)
 
     def consts(self) -> List[OP.Const]:
@@ -236,6 +236,9 @@ class Application:
             if dat.set_ptr != loop.set_ptr:
                 raise OpError(f"indirect loop argument dat requires a map: {arg.dat_ptr}", arg.loc)
 
+            if arg.map_idx != -1:
+                raise OpError(f"direct loop argument map index must be -1", arg.loc)
+
             return
 
         map_ = safeFind(self.maps(), lambda m: m.ptr == arg.map_ptr)
@@ -254,6 +257,8 @@ class Application:
         if map_.to_set_ptr != dat.set_ptr:
             raise OpError(f"loop argument map to set mismatch: {map_.to_set_ptr} (expected {dat.set_ptr})", arg.loc)
 
+        if arg.map_idx == -1:
+            raise OpError(f"indirect loop argument map index cannot be -1", arg.loc)
 
         idx_high = map_.dim if lang.zero_idx else map_.dim + 1
         if arg.map_idx < -map_.dim or arg.map_idx >= idx_high:
@@ -269,6 +274,9 @@ class Application:
         valid_access_types = [OP.AccessType.READ, OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
         if arg.access_type not in valid_access_types:
             raise OpError(f"invalid access type for gbl argument: {arg.access_type}", arg.loc)
+
+        if arg.access_type != OP.AccessType.READ and arg.typ not in [OP.Float(64), OP.Float(32), OP.Int(True, 32)]:
+            raise OpError(f"invalid access type for reduced gbl argument: {arg.access_type}", arg.loc)
 
         if arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)

@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import re
 from pathlib import Path
@@ -23,9 +24,11 @@ def parseKernel(path: Path, name: str) -> Kernel:
         if n.kind != CursorKind.PARM_DECL:
             continue
 
-        param_type = n.type.get_pointee() or n.type
-        param = (n.spelling, parseType(param_type.spelling, parseLocation(n)))
+        param_type = n.type.get_canonical()
+        while param_type.get_pointee().spelling:
+            param_type = param_type.get_pointee()
 
+        param = (n.spelling, parseType(param_type.spelling, parseLocation(n)))
         params.append(param)
 
     return Kernel(name, path, params)
@@ -198,11 +201,9 @@ def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str
         ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
 
     opt = parseIdentifier(args[0])
-
     dat = parseArgDat(args[1:], loc, macros)
-    dat.opt = opt
 
-    return dat
+    return dataclasses.replace(dat, opt=opt)
 
 
 def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
@@ -223,11 +224,9 @@ def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
     opt = parseIdentifier(args[0])
-
     dat = parseArgGbl(args[1:], loc, macros)
-    dat.opt = opt
 
-    return dat
+    return dataclasses.replace(dat, opt=opt)
 
 
 def parsePtr(node: Cursor) -> str:
@@ -297,7 +296,9 @@ def parseAccessType(node: Cursor, loc: Location, macros: Dict[Location, str]) ->
     access_type_str = macros.get(parseLocation(node))
 
     if access_type_str not in OP.AccessType.values():
-        raise ParseError(f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc)
+        raise ParseError(
+            f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc
+        )
 
     return OP.AccessType(access_type_str)
 

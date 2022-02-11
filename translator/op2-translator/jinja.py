@@ -12,13 +12,14 @@ env = Environment(
     loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "../resources/templates")),
     lstrip_blocks=True,
     trim_blocks=True,
-    line_statement_prefix="@",
 )
 
-env.tests["r_or_w_acc"] = lambda arg: arg.acc in (OP.READ, OP.WRITE)
-env.tests["rw_acc"] = lambda arg: arg.acc == OP.RW
-env.tests["inc_acc"] = lambda arg: arg.acc == OP.INC
-env.tests["without_dim"] = lambda arg: not isinstance(arg.dim, int)
-env.tests["global"] = lambda arg: arg.global_
-env.tests["direct"] = lambda arg: arg.direct
-env.tests["indirect"] = lambda arg: arg.indirect
+env.tests["direct"] = lambda lh: len(lh.maps) == 0
+env.tests["indirect"] = lambda lh: len(lh.maps) > 0
+
+env.tests["dat"] = lambda arg: isinstance(arg, OP.ArgDat)
+env.tests["gbl"] = lambda arg: isinstance(arg, OP.ArgGbl)
+
+env.tests["vec"] = lambda arg: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
+
+env.tests["reduction"] = lambda access_type: access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
