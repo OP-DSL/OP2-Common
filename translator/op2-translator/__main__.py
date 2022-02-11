@@ -89,9 +89,6 @@ def main(argv=None) -> None:
     except OpError as e:
         exit(e)
 
-    print(app)
-    return
-
     # Code-generation phase
     codegen(args, scheme, app)
 
@@ -112,7 +109,7 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
         app.programs.append(program)
 
         if args.verbose:
-            print(f"  Parsed: {program}")
+            print(program)
 
     # Parse the referenced kernels
     for kernel_name in {loop.kernel for loop in app.loops()}:
@@ -126,6 +123,9 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
 
         # Parse kernel header file
         kernel = scheme.lang.parseKernel(Path(kernel_path), kernel_name)
+
+        if args.verbose:
+            print(kernel)
 
         app.kernels[kernel_name] = kernel
 
@@ -154,9 +154,9 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
     generated_paths: List[Path] = []
 
     # Generate loop hosts
-    for i, loop in enumerate(app.loops, 1):
+    for i, loop in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(loop, i)
+        source, extension = scheme.genLoopHost(loop, app, i)
 
         # Form output file path
         path = None
@@ -165,19 +165,19 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
             path = Path(
                 args.out,
                 scheme.opt.name,
-                f"{loop.name}_{scheme.opt.name}kernel.{extension}",
+                f"{loop.kernel}_kernel.{extension}",
             )
         else:
-            path = Path(args.out, f"{loop.name}_{scheme.opt.name}kernel.{extension}")
+            path = Path(args.out, f"{loop.kernel}_{scheme.opt.name}_kernel.{extension}")
 
         # Write the generated source file
         with open(path, "w") as file:
-            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
             generated_paths.append(path)
 
             if args.verbose:
-                print(f"Generated loop host {i} of {len(app.loops)}: {path}")
+                print(f"Generated loop host {i} of {len(app.loops())}: {path}")
 
     # Generate master kernel file
     if scheme.master_kernel_template != None:
@@ -186,11 +186,11 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
         path = None
         if scheme.lang.kernel_dir:
             Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
-            path = Path(args.out, scheme.opt.name, f"{appname}_{scheme.opt.name}kernels.{extension}")
+            path = Path(args.out, scheme.opt.name, f"{appname}_kernels.{extension}")
         else:
-            path = Path(args.out, f"{appname}_{scheme.opt.name}kernels.{extension}")
+            path = Path(args.out, f"{appname}_{scheme.opt.name}_kernels.{extension}")
         with open(path, "w") as file:
-            file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
             generated_paths.append(path)
 
@@ -220,28 +220,28 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
                     print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
 
     # Generate kernel translations
-    if scheme.opt.kernel_translation:
-        for i, kernel in enumerate(app.kernels, 1):
-            # Read the raw source file
-            with open(kernel.path, "r") as raw_file:
+    # if scheme.opt.kernel_translation:
+    #     for i, kernel in enumerate(app.kernels, 1):
+    #         # Read the raw source file
+    #         with open(kernel.path, "r") as raw_file:
 
-                # Generate the source translation
-                source, tran = scheme.translateKernel(raw_file.read(), kernel, app)
+    #             # Generate the source translation
+    #             source, tran = scheme.translateKernel(raw_file.read(), kernel, app)
 
-                # if this kernel should be translated
-                if tran:
-                    # Form output file path
-                    new_path = Path(
-                        args.out,
-                        f"{kernel}_{scheme.opt.name}.{scheme.lang.include_ext}",
-                    )
+    #             # if this kernel should be translated
+    #             if tran:
+    #                 # Form output file path
+    #                 new_path = Path(
+    #                     args.out,
+    #                     f"{kernel}_{scheme.opt.name}.{scheme.lang.include_ext}",
+    #                 )
 
-                    # Write the translated source file
-                    with open(new_path, "w") as new_file:
-                        new_file.write(source)
+    #                 # Write the translated source file
+    #                 with open(new_path, "w") as new_file:
+    #                     new_file.write(source)
 
-                        if args.verbose:
-                            print(f"Translated kernel   {i} of {len(app.kernels)}: {new_path}")
+    #                     if args.verbose:
+    #                         print(f"Translated kernel   {i} of {len(app.kernels)}: {new_path}")
 
 
 def isDirPath(path):

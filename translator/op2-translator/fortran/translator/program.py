@@ -18,13 +18,13 @@ def translateProgram(source: str, program: Program, soa: bool = False) -> str:
         after = after.replace(
             loop.kernel, f'"{loop.kernel}"'
         )  # TODO: This assumes that the kernel arg is on the same line as the call
-        buffer.update(loop.loc.line - 1, before + f"{loop.name}_host" + after)
+        buffer.update(loop.loc.line - 1, before + f"{loop.kernel}_host" + after)
 
     # 3. Update headers
     index = buffer.search(r"\s*use\s+OP2_Fortran_Reference\s*", re.IGNORECASE)
     buffer.apply(index, lambda line: "! " + line)
     for loop in program.loops:
-        buffer.insert(index, f"  use {loop.name.upper()}_MODULE")
+        buffer.insert(index, f"  use {loop.kernel.upper()}_MODULE")
 
     # 4. Update init call TODO: Use a line number from the program
     source = buffer.translate()
