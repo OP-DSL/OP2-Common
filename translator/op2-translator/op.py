@@ -54,7 +54,7 @@ class Type:
         return self.__class__.formatter(self)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Int(Type):
     signed: bool
     size: int
@@ -66,7 +66,7 @@ class Int(Type):
             return f"u{self.size}"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Float(Type):
     size: int
 
@@ -74,7 +74,7 @@ class Float(Type):
         return f"f{self.size}"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Bool(Type):
     pass
 
@@ -82,13 +82,13 @@ class Bool(Type):
         return "bool"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Set:
     loc: Location
     ptr: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Map:
     loc: Location
 
@@ -99,7 +99,7 @@ class Map:
     ptr: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Dat:
     loc: Location
 
@@ -110,7 +110,7 @@ class Dat:
     ptr: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Const:
     loc: Location
 
@@ -119,7 +119,7 @@ class Const:
     ptr: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Arg(ABDC):
     loc: Location
 
@@ -127,7 +127,7 @@ class Arg(ABDC):
     opt: Optional[str]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ArgDat(Arg):
     dat_ptr: str
     dat_dim: int
@@ -137,31 +137,20 @@ class ArgDat(Arg):
     map_idx: Optional[int] = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ArgGbl(Arg):
     ptr: str
     dim: int
     typ: Type
 
 
+@dataclass(frozen=True)
 class Loop:
     loc: Location
 
     kernel: str
     set_ptr: str
     args: List[Arg]
-
-    def __init__(self, loc: Location, kernel: str, set_ptr: str, args: List[Arg] = []) -> None:
-        self.loc = loc
-        self.kernel = kernel
-        self.set_ptr = set_ptr
-        self.args = []
-
-        for arg in args:
-            self.addArg(arg)
-
-    def addArg(self, arg: Arg) -> None:
-        self.args.append(arg)
 
 
 # class Loop:

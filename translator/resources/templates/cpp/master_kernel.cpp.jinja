@@ -1,0 +1,44 @@
+{% block const_decls %}
+    {% for const in app.consts() %}
+extern {{ const.typ }} {{ const.ptr }}{% if const.dim > 1 %}[{{ const.dim }}]{% endif %};
+    {% endfor %}
+{% endblock %}
+
+{% block includes %}
+{# TODO: include ../user_types.h if exists #}
+#include "op_lib_cpp.hpp"
+{%- endblock %}
+
+{%- macro const_decl_func(guard='') %}
+#ifndef MAX_CONST_SIZE
+#define MAX_CONST_SIZE 128
+#endif
+
+void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
+    {{ guard }}
+
+    if (size > MAX_CONST_SIZE) {
+        printf("error: requested size %d for const %s exceeds MAX_CONST_SIZE\n", size, name);
+        exit(1);
+    }
+
+    {% for const in app.consts() %}
+    if (!strcmp(name, "{{ const.ptr }}") {
+        {{ caller(const) }}
+        return;
+    }
+    {% endfor %}
+
+    printf("error: unknown const name %s\n", name);
+    exit(1);
+}
+{% endmacro %}
+
+{% block const_decl_func %}
+{% endblock %}
+
+{% block kernel_includes %}
+    {% for loop_ in app.loops() %}
+#include "{{ loop_.kernel }}_kernel.hpp"
+    {% endfor %}
+{% endblock %}
