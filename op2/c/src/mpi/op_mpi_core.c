@@ -3119,10 +3119,9 @@ int getSetSizeFromOpArg(op_arg *arg) {
 #else
 int getSetSizeFromOpArg(op_arg *arg) {
 
-  int exec_levels = arg->dat->set->halo_info->max_nhalos;
   int exec_size = 0;
-
   if(arg->opt){
+    int exec_levels = arg->dat->set->halo_info->max_nhalos;
     for(int l = 0; l < exec_levels; l++){
       exec_size += OP_aug_import_exec_lists[l][arg->dat->set->index]->size;
     }

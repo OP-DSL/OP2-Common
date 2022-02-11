@@ -143,7 +143,7 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
       printf("ERROR: Invalid set merge");
       return NULL;
     }
-    init_ranks_size += h_lists[i]->ranks_size;
+    init_ranks_size += (h_lists[i]) ? h_lists[i]->ranks_size : 0;
   }
 
   int *temp_ranks = (int *)xmalloc(init_ranks_size * sizeof(int));
@@ -568,6 +568,7 @@ void exchange_aug_part_ranges(int halo_id, int **part_range, int my_rank, int co
 
     op_set set = OP_set_list[s];
     if(is_halo_required_for_set(set, halo_id) != 1){
+      OP_export_part_range_list[set->index] = NULL;
       continue;
     }
     s_i = 0;
