@@ -58,7 +58,6 @@ void op_download_dat(op_dat dat) {}
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
-#ifndef COMM_AVOID
 void op_exchange_halo(op_arg *arg, int exec_flag) {
   op_dat dat = arg->dat;
 
@@ -85,7 +84,6 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
-    printf("op_exchange_halo dat %s exec_flag=%d exchanged >>>>>>>>>>\n", dat->name, exec_flag);
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
@@ -202,8 +200,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   }
 }
 
-#else
-
+#ifdef COMM_AVOID
 void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
   op_dat dat = arg->dat;
   printf("op_exchange_halo_chained dat=%s set=%s h_levels=%d\n", dat->name, dat->set->name, h_levels);
@@ -230,8 +227,7 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
 
   arg->sent = 0; // reset flag
 
-  // int exec_levels = 2;
-  int num_levels = dat->set->halo_info->nhalos[h_levels]; //dat_to_execlevels->get_val_at(h_levels); //dat->set->dat_to_execlevels->get_count();
+  int num_levels = dat->set->halo_info->nhalos[h_levels];
   printf("op_exchange_halo_chained dat %s h_levels=%d num_levels=%d\n", dat->name, h_levels, num_levels);
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
@@ -239,10 +235,10 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
       (dat->dirtybit == 1)) {
     printf("op_exchange_halo_chained dat %s h_levels=%d num_levels=%d exchanged >>>>>>>>>>\n", dat->name, h_levels, num_levels);
     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[h_levels][dat->set->index]; //OP_import_nonexec_list[dat->set->index];
+    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[h_levels][dat->set->index];
 
     halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[h_levels][dat->set->index]; //OP_export_nonexec_list[dat->set->index];
+    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[h_levels][dat->set->index];
 
     //-------first exchange exec elements related to this data array--------
 
@@ -415,7 +411,6 @@ void op_unpack(op_arg *arg){
     }
   }
 }
-
 #endif
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {

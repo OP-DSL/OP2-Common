@@ -3119,7 +3119,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 #else
 int getSetSizeFromOpArg(op_arg *arg) {
 
-  int exec_levels = 2;
+  int exec_levels = arg->dat->set->halo_info->max_nhalos;
   int exec_size = 0;
 
   if(arg->opt){
@@ -3128,16 +3128,23 @@ int getSetSizeFromOpArg(op_arg *arg) {
     }
   }
 
+  // by taking size of all non exec halos, returning total dat array size
+  int non_exec_size = 0;
+  if(arg->opt){
+    for(int l = 0; l < arg->dat->set->halo_info->nhalos_count; l++){
+      non_exec_size += OP_aug_import_nonexec_lists[l][arg->dat->set->index]->size;
+    }
+  }
+
   return arg->opt ? (arg->dat->set->size +
                      exec_size +
-                     OP_import_nonexec_list[arg->dat->set->index]->size)
+                     non_exec_size)
                   : 0;
 }
 #endif
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
-#ifndef COMM_AVOID
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   int size = set->size;
   int direct_flag = 1;
@@ -3209,8 +3216,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   return size;
 }
 
-#else
-
+#ifdef COMM_AVOID
 int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_levels) {
   printf("op_mpi_halo_exchanges_chained set=%s h_levels=%d\n", set->name, h_levels);
   int size = set->size;
@@ -3618,11 +3624,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
   sp_coupled_data->dirtybit = 1;
 
   int exec_flag = 1;
-  #ifdef COMM_AVOID
-  op_exchange_halo_chained(temp_arg, exec_flag, 0);
-  #else
   op_exchange_halo(temp_arg, exec_flag);
-  #endif
   op_wait_all(temp_arg);
 
   // step 5: count wholly owned cell maps

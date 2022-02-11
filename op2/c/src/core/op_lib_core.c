@@ -271,6 +271,7 @@ void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos[0] = 1; // default value: 1 halo for all sets
   halo_info->max_nhalos = 1;
   halo_info->nhalos_count = 1;
+  halo_info->nhalos_cap = OP_NHALOS_SIZE;
 }
 
 op_set op_decl_set_core(int size, char const *name) {
@@ -304,14 +305,7 @@ op_set op_decl_set_core(int size, char const *name) {
   set->nonexec_sizes = NULL;
   set->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
   op_init_halo_info(set->halo_info);
-
-
-
-  // set->dat_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  // set->dat_to_execlevels->init();
-  // set->execlevel_to_size = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  // set->execlevel_to_size->init();
-
+  
   return set;
 }
 
@@ -386,8 +380,6 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   map->aug_maps = NULL;
-  // printf("map=%s from=%s levels=%d\n", map->name, from->name, from->dat_to_execlevels->get_count());
-  // map->aug_maps = (int **)malloc((size_t)from->dat_to_execlevels->get_count() * sizeof(int *));
 
   OP_map_list[OP_map_index++] = map;
   OP_map_ptr_list[OP_map_index - 1] = imap; // m;
@@ -434,9 +426,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   // if (data != NULL)
   //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
   dat->aug_data = new_aug_data;
-
-  // dat->loopchain_to_execlevels = (op_id_to_val)op_malloc(sizeof(op_id_to_val_core));
-  // dat->loopchain_to_execlevels->init();
 
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;

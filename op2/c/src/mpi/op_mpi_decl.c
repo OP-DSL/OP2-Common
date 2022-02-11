@@ -124,7 +124,6 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 #ifdef COMM_AVOID
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  printf("op_decl_dat_temp_char COMM_AVOID new1\n");
 
   char *d = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
@@ -173,12 +172,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
     nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size;
   }
 
-  // halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
-
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);
-
-  // halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
@@ -194,7 +189,9 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   return dat;
 }
+
 #else
+
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
   char *d = NULL;

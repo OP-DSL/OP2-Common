@@ -108,9 +108,8 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 /*
  * structures
  */
-// #ifdef COMM_AVOID
-#define OP_NHALOS_SIZE 10
 
+#define OP_NHALOS_SIZE 10
 typedef struct op_halo_info_core{
   int *nhalos;      //array of number of halos
   int max_nhalos;   //max number of halos
@@ -118,100 +117,6 @@ typedef struct op_halo_info_core{
   int nhalos_cap;   //capacity of nhalos
 }op_halo_info_core;
 typedef op_halo_info_core* op_halo_info;
-
-// #include <op_util.h>
-// #define OP_ID_ARRAY_SIZE 100
-// typedef struct op_id_to_val_core{
-//   // op_id_to_val_core(){
-//   void init(){
-//     ids = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
-//     vals = (int*)malloc(OP_ID_ARRAY_SIZE * sizeof(int));
-//     index = 0;
-//     size = OP_ID_ARRAY_SIZE;
-//     max_val = 0;
-//   }
-//   ~op_id_to_val_core(){
-//     free(ids);
-//     free(vals);
-//     index = 0;
-//     size = 0;
-//     max_val = 0;
-//   }
-//   int set(int id, int val){
-//     // if(index >= OP_ID_ARRAY_SIZE){
-//     //   size *= 2;
-//     //   ids = (int *)xrealloc(ids, size * sizeof(int));
-//     //   vals = (int *)xrealloc(vals, size * sizeof(int));
-//     // }
-//     if(check_val(val) == 1){  // todo: this has to be modified. no two dats with the same exec levels will be stored with this condition
-//       printf("checkval id=%d val=%d\n", id, val);
-//       return -1;
-//     }
-    
-//     ids[index] = id;
-//     vals[index] = val;
-
-//     if(max_val < val){
-//       max_val = val;
-//     }
-//     index++;
-//     return index;
-//   }
-
-//   // int get_vals(int** rvals){
-//   //   *rvals = (int*)malloc(size * sizeof(int));
-//   //   memcpy(*rvals, vals, size *  sizeof(int));
-
-//   //   quickSort(*rvals, 0, index - 1);
-//   //   int new_size = removeDups(*rvals, index);
-//   //   return new_size;
-//   // }
-
-//   //todo: add a binary search
-//   int check_id(int id){
-//     for(int i = 0; i < index; i++){
-//       if(ids[i] == id){
-//         return 1;
-//       }
-//     }
-//     return 0;
-//   }
-
-//   int check_val(int val){
-//     for(int i = 0; i < index; i++){
-//       if(vals[i] == val){
-//         return 1;
-//       }
-//     }
-//     return 0;
-//   }
-
-//   int get_max_val(){
-//     // printf("test1 max_val=%d\n", max_val);
-//     return max_val;
-//   }
-
-//   int get_count(){
-//     return index;
-//   }
-
-//   int get_val_at(int id){
-//     if(id < index){
-//       return vals[id];
-//     }
-//     return -999999; 
-//   }
-
-//   int* ids;
-//   int* vals;
-//   int index;
-//   int size;
-//   int max_val;
-
-// }op_id_to_val_core;
-
-// typedef op_id_to_val_core* op_id_to_val;
-// #endif
 
 typedef struct {
   int index;        /* index */
@@ -222,13 +127,9 @@ typedef struct {
   int exec_size;    /* number of additional imported elements to be executed */
   int nonexec_size; /* number of additional imported elements that are not
                        executed */
-  //suneth
   int *core_sizes;
   int *exec_sizes;
   int *nonexec_sizes;
-  // op_id_to_val dat_to_execlevels;
-  // op_id_to_val execlevel_to_size;
-
   op_halo_info halo_info;
 } op_set_core;
 
@@ -265,8 +166,6 @@ typedef struct {
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
-
-  // op_id_to_val loopchain_to_execlevels;
 } op_dat_core;
 
 typedef op_dat_core *op_dat;
