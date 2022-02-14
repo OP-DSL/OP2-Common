@@ -1,5 +1,11 @@
-Implementation Example - Airfoil
-================================
+Examples
+========
+
+See the `OP2-APPS <https://github.com/OP-DSL/OP2-APPS>`_ repository to see the latest generated parallel code for each application.
+
+
+Airfoil
+-------
 
 The airfoil implementation example is currently available in PDF form `here <https://op-dsl.github.io/docs/OP2/airfoil-doc.pdf>`__.
 

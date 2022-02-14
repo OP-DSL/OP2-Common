@@ -1,7 +1,13 @@
-OP2 C/C++ Manual
+OP2 API
 ================
 
-The key concept behind OP2 is that unstructured grids can be described by a number of sets. Depending on the application, these sets might be of nodes, edges, faces, cells of a variety of types, far-field boundary nodes, wall boundary faces, etc. Associated with these are data (e.g. coordinate data at nodes) and mappings to other sets (e.g. edge mapping to the two nodes at each end of the edge). All of the numerically-intensive operations can then be described as a loop over all members of a set, carrying out some operations on data associated directly with the set or with another set through a mapping.
+Overview
+--------
+
+The key characteristic of unstructured-mesh applications is the explicit connectivity required to specify the mesh and access data (indirectly) on neighboring mesh elements during computation over mesh elements. As such OP2 allows to describe an unstructured mesh by a number of sets, where depending on the application, these sets might be of nodes, edges, faces, cells of a variety of types, far-field boundary nodes, wall boundary faces, etc. Associated with these are data (e.g. coordinate data at nodes) and mappings to other sets (i.e. explicit connectivity, e.g. edge mapping to the two nodes at each end of the edge). All of the numerically-intensive operations can then be described as a loop over all members of a set, carrying out some operations on data associated directly with the set or with another set through a mapping.
+
+Key Concepts and Structure
+--------------------------
 
 OP2 makes the important restriction that the order in which the function is applied to the members of the set must not affect the final result to within the limits of finite precision floating-point arithmetic. This allows the parallel implementation to choose its own ordering to achieve maximum parallel efficiency. Two other restrictions are that the sets and maps are static (i.e. they do not change) and the operands in the set operations are not referenced through a double level of mapping indirection (i.e. through a mapping to another set which in turn uses another mapping to data in a third set).
 
@@ -15,9 +21,6 @@ Further to these there are also in-development versions that can emit SYCL and A
 
 .. note::
    This documentation describes the C++ API, but FORTRAN 90 is also supported with a very similar API.
-
-Overview
---------
 
 A computational project can be viewed as involving three steps:
 
@@ -58,8 +61,11 @@ To achieve the high performance for large applications, a preprocessor is needed
 
 In looking at the API specification, users may think it is a little verbose in places. For example, users have to re-supply information about the datatype of the datasets being used in a parallel loop. This is a deliberate choice to simplify the task of the preprocessor, and therefore hopefully reduce the chance for errors. It is also motivated by the thought that "programming is easy; it’s debugging which is difficult": writing code isn’t time-consuming, it’s correcting it which takes the time. Therefore, it’s not unreasonable to ask the programmer to supply redundant information, but be assured that the preprocessor or library will check that all redundant information is self-consistent. If you declare a dataset as being of type :c:type:`OP_DOUBLE` and later say that it is of type :c:type:`OP_FLOAT` this will be flagged up as an error at run-time.
 
+OP2 C/C++ API
+-------------
+
 Initialisation and Termination
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. c:function:: void op_init(int argc, char **argv, int diags_level)
 
@@ -381,10 +387,3 @@ Other I/O and Utilities
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
-
-Executing with GPUDirect
-------------------------
-
-OP2 supports execution with GPU direct MPI when using the MPI + CUDA builds. To enable this, simply pass ``-gpudirect`` as a command line argument when running the executable.
-
-You may also have to user certain environment variables depending on MPI implementation, so check your cluster's user-guide.
