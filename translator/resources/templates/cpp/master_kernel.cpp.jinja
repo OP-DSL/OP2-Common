@@ -1,6 +1,6 @@
 {% block const_decls %}
     {% for const in app.consts() %}
-extern {{ const.typ }} {{ const.ptr }}{% if const.dim > 1 %}[{{ const.dim }}]{% endif %};
+extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
     {% endfor %}
 {% endblock %}
 
@@ -15,7 +15,7 @@ extern {{ const.typ }} {{ const.ptr }}{% if const.dim > 1 %}[{{ const.dim }}]{% 
 #endif
 
 void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
-    {{ guard }}
+    {{guard}}
 
     if (size > MAX_CONST_SIZE) {
         printf("error: requested size %d for const %s exceeds MAX_CONST_SIZE\n", size, name);
@@ -23,8 +23,8 @@ void op_decl_const_char(int dim, const char *type, int size, char *dat, const ch
     }
 
     {% for const in app.consts() %}
-    if (!strcmp(name, "{{ const.ptr }}") {
-        {{ caller(const) }}
+    if (!strcmp(name, "{{const.ptr}}") {
+        {{caller(const)}}
         return;
     }
     {% endfor %}
@@ -39,6 +39,6 @@ void op_decl_const_char(int dim, const char *type, int size, char *dat, const ch
 
 {% block kernel_includes %}
     {% for loop_ in app.loops() %}
-#include "{{ loop_.kernel }}_kernel.hpp"
+#include "{{loop_.kernel}}_kernel.hpp"
     {% endfor %}
 {% endblock %}

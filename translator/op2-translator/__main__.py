@@ -32,7 +32,7 @@ def main(argv=None) -> None:
         help="Header Include",
         type=isDirPath,
         action="append",
-        nargs="+",
+        nargs=1,
         default=["."],
     )
 

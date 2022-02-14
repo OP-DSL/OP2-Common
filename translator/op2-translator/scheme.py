@@ -27,7 +27,7 @@ class LoopHost:
 
     set_: OP.Set
 
-    args: List[OP.Arg]
+    args: List[tuple[OP.Arg, int]]
     args_expanded: List[tuple[OP.Arg, int]]
 
     # Used dats and maps to the index of the first arg to reference them
@@ -52,7 +52,7 @@ class LoopHost:
 
     def addArg(self, arg: OP.Arg, app: Application, lang: Lang) -> None:
         idx = len(self.args)
-        self.args.append(arg)
+        self.args.append((arg, idx))
 
         if isinstance(arg, OP.ArgGbl):
             self.args_expanded.append((arg, idx))
