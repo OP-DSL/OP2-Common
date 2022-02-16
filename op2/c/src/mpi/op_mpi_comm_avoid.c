@@ -1348,7 +1348,8 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
             temp_core_elems[set->index][el][count++] = e;
           }
         }
-        quickSort(temp_core_elems[set->index][el], 0, count - 1);
+        if(count > 0)
+          quickSort(temp_core_elems[set->index][el], 0, count - 1);
 
         if (count + num_exp != set->size)
           printf("sizes not equal\n");
@@ -1741,7 +1742,11 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
       }
       set->nonexec_sizes[el] = OP_aug_import_nonexec_lists[el][set->index]->size;  //duplicate elements in the on exec. so no +=
       if(exec_levels == 1){
-        set->nonexec_size = OP_aug_import_nonexec_lists[el][set->index]->size;
+        set->nonexec_size = 0;
+        for(int l = 0; l <= el; l++){
+          set->nonexec_size += OP_aug_import_nonexec_lists[el][set->index]->size;
+        }
+        
       }
     }
     printf("step11 my_rank=%d set=%s exec=%d non=%d\n", my_rank, set->name, set->exec_size, set->nonexec_size);
@@ -1831,6 +1836,7 @@ void set_dats_mgcfd(){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     op_mpi_add_nhalos(set, 2);
+    op_mpi_add_nhalos(set, 3);
     printf("setdat set=%s max_halo=%d count=%d cap=%d nhalos[0]=%d\n", 
     set->name, set->halo_info->max_nhalos, set->halo_info->nhalos_count, set->halo_info->nhalos_cap, set->halo_info->nhalos[0]);
   }
