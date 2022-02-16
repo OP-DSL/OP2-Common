@@ -31,6 +31,8 @@ halo_list *OP_merged_export_exec_list;
 halo_list *OP_merged_import_nonexec_list;
 halo_list *OP_merged_export_nonexec_list;
 
+#define DEFAULT_HALO_COUNT 1
+
 
 void print_array(int* arr, int size, const char* name, int my_rank){
   for(int i = 0; i < size; i++){
@@ -936,7 +938,7 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                                       my_rank, comm_size);
 
               if (part == my_rank) {
-                if(exec_levels == 1){
+                if(exec_levels == DEFAULT_HALO_COUNT){
                   OP_map_list[map->index]->map[e * map->dim + j] = local_index;
                   // printf("renumber00 my_rank=%d map=%s set=%s size=%d orgval[%d][%d]=%d prev=%d\n", 
                   // my_rank, map->name, map->from->name, len, e, j, map->map[e * map->dim + j], map->map_org[e * map->dim + j]);
@@ -967,7 +969,7 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                       for(int l1 = 0; l1 < l; l1++){  //take the size of prev exec levels
                         prev_exec_set_list_size += OP_aug_import_exec_lists[l1][set->index]->size;
                       }
-                      if(exec_levels == 1){
+                      if(exec_levels == DEFAULT_HALO_COUNT){
                         OP_map_list[map->index]->map[e * map->dim + j] =
                             found + map->to->size + prev_exec_set_list_size;
                             // printf("renumber10 my_rank=%d map=%s set=%s size=%d orgval[%d][%d]=%d prev=%d\n", 
@@ -1004,7 +1006,7 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                       non_exec_set_list_size += OP_aug_import_nonexec_lists[l][set->index]->size;
                     }
 
-                    if(exec_levels == 1){
+                    if(exec_levels == DEFAULT_HALO_COUNT){
                       OP_map_list[map->index]->map[e * map->dim + j] =
                           found + set->size + exec_set_list_size + non_exec_set_list_size;
                       // printf("renumber20 my_rank=%d map=%s set=%s size=%d orgval[%d][%d]=%d prev=%d nonexec_size=%d\n", 
@@ -1354,7 +1356,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         if (count + num_exp != set->size)
           printf("sizes not equal\n");
         
-        if(exec_levels == 1){
+        if(exec_levels == DEFAULT_HALO_COUNT){
           set->core_size = count;
         }
         set->core_sizes[el] = count;
@@ -1365,7 +1367,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         for (int e = 0; e < set->size; e++) { // for each elment of this set
           temp_core_elems[set->index][el][e] = e;
         }
-        if(exec_levels == 1){
+        if(exec_levels == DEFAULT_HALO_COUNT){
           set->core_size = set->size;
         }
         set->core_sizes[el] = set->size;
@@ -1636,7 +1638,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
               }else{
                 //  printf("step10 renum0 my_rank=%d set=%s level=%d elem=%d j=%d val=%d new=%d\n", 
                 //     my_rank, map->from->name, el, e, j,  OP_map_list[map->index]->aug_maps[el][e * map->dim + j], core_index);
-                if(exec_levels == 1){
+                if(exec_levels == DEFAULT_HALO_COUNT){
                   OP_map_list[map->index]->map[e * map->dim + j] = core_index;
                 }
                 OP_map_list[map->index]->aug_maps[el][e * map->dim + j] = core_index;       
@@ -1645,7 +1647,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
             else{
               //  printf("step10 renum1 my_rank=%d set=%s level=%d elem=%d j=%d val=%d new=%d\n", 
               //       my_rank, map->from->name, el, e, j,  OP_map_list[map->index]->aug_maps[el][e * map->dim + j],  map->to->core_sizes[0] + index);
-              if(exec_levels == 1){
+              if(exec_levels == DEFAULT_HALO_COUNT){
                   OP_map_list[map->index]->map[e * map->dim + j] = map->to->core_sizes[0] + index;
                 }
                 OP_map_list[map->index]->aug_maps[el][e * map->dim + j] =
@@ -1735,13 +1737,13 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
       for(int l = 0; l < exec_levels; l++){
         set->exec_sizes[el] += OP_aug_import_exec_lists[l][set->index] ? 
         OP_aug_import_exec_lists[l][set->index]->size : 0;
-        if(exec_levels == 1){
+        if(exec_levels == DEFAULT_HALO_COUNT){
           set->exec_size += OP_aug_import_exec_lists[l][set->index] ? 
             OP_aug_import_exec_lists[l][set->index]->size : 0;
         }
       }
       set->nonexec_sizes[el] = OP_aug_import_nonexec_lists[el][set->index]->size;  //duplicate elements in the on exec. so no +=
-      if(exec_levels == 1){
+      if(exec_levels == DEFAULT_HALO_COUNT){
         set->nonexec_size = 0;
         for(int l = 0; l <= el; l++){
           set->nonexec_size += OP_aug_import_nonexec_lists[el][set->index]->size;
