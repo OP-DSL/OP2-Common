@@ -608,13 +608,16 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
 /*******************************************************************************
  * Halo extension utils
  *******************************************************************************/
+int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
 
-int op_mpi_add_nhalos(op_set set, int nhalos){
-
-  op_halo_info halo_info = set->halo_info;
   if(halo_info->nhalos_count >= halo_info->nhalos_cap){
     halo_info->nhalos = (int *)xrealloc(halo_info->nhalos, (halo_info->nhalos_cap + 10) * sizeof(int));
     halo_info->nhalos_cap += 10;
+  }
+
+  if(nhalos >= halo_info->nhalos_indices_cap){
+    halo_info->nhalos_indices = (int *)xrealloc(halo_info->nhalos_indices, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
+    halo_info->nhalos_indices_cap += 10;
   }
 
   halo_info->nhalos[halo_info->nhalos_count++] = nhalos;
@@ -625,5 +628,21 @@ int op_mpi_add_nhalos(op_set set, int nhalos){
   if(nhalos > halo_info->max_nhalos){
     halo_info->max_nhalos = nhalos;
   }
+
+  for(int i = 0; i < halo_info->nhalos_count; i++){
+    halo_info->nhalos_indices[halo_info->nhalos[i]] = i;
+  }
+  return 1;
+}
+
+int op_mpi_add_nhalos_set(op_set set, int nhalos){
+  return op_mpi_add_nhalos(set->halo_info, nhalos);
+}
+
+int op_mpi_add_nhalos_map(op_map map, int nhalos){
+
+  op_mpi_add_nhalos(map->halo_info, nhalos);
+  op_mpi_add_nhalos_set(map->from, nhalos);
+  op_mpi_add_nhalos_set(map->to, nhalos);
   return 1;
 }

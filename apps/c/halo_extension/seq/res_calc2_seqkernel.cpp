@@ -30,15 +30,8 @@ void op_par_loop_res_calc2(char const *name, op_set set,
     printf(" kernel routine with indirection: res_calc2\n");
   }
 
-  
-
 #ifdef COMM_AVOID
-  // int exec_size = 0;
-  // for(int l = 0; l < 1; l++){
-  //   exec_size += OP_aug_import_exec_lists[l][set->index]->size;
-  // }
-  // set_size = set->size + exec_size;
-  int set_size = op_mpi_halo_exchanges_chained(set, nargs, args, 0);
+  int set_size = op_mpi_halo_exchanges_chained(set, nargs, args, 1);
 #else
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
 #endif
@@ -52,17 +45,11 @@ void op_par_loop_res_calc2(char const *name, op_set set,
       int map1idx;
       int map2idx;
       int map3idx;
-      #ifdef COMM_AVOID
-      map0idx = arg0.map->aug_maps[1][n * arg0.map->dim + 0];
-      map1idx = arg0.map->aug_maps[1][n * arg0.map->dim + 1];
-      map2idx = arg2.map->aug_maps[1][n * arg2.map->dim + 0];
-      map3idx = arg2.map->aug_maps[1][n * arg2.map->dim + 1];
-      #else
+    
       map0idx = arg0.map_data[n * arg0.map->dim + 0];
       map1idx = arg0.map_data[n * arg0.map->dim + 1];
       map2idx = arg2.map_data[n * arg2.map->dim + 0];
       map3idx = arg2.map_data[n * arg2.map->dim + 1];
-      #endif
 
       res_calc2(
         &((double*)arg0.data)[1 * map0idx],
@@ -76,7 +63,7 @@ void op_par_loop_res_calc2(char const *name, op_set set,
     op_mpi_wait_all(nargs, args);
   }
 
-#ifndef COMM_AVOID
+#ifdef COMM_AVOID
   // combine reduction data
   op_mpi_set_dirtybit(nargs, args);
 #endif

@@ -92,7 +92,9 @@ void op_dump_to_hdf5(char const *file_name);
 void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name);
 
-int op_mpi_add_nhalos(op_set set, int nhalos);
+int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos);
+int op_mpi_add_nhalos_set(op_set set, int nhalos);
+int op_mpi_add_nhalos_map(op_map map, int nhalos);
 
 #ifdef __cplusplus
 }

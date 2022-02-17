@@ -3216,8 +3216,8 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 }
 
 #ifdef COMM_AVOID
-int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_levels) {
-  printf("op_mpi_halo_exchanges_chained set=%s h_levels=%d\n", set->name, h_levels);
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos) {
+  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d\n", set->name, nhalos);
   int size = set->size;
   int direct_flag = 1;
 
@@ -3248,7 +3248,7 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_lev
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
-      size = set->size + set->exec_sizes[h_levels];
+      size = set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
       exec_flag = 1;
     }
   }
@@ -3256,7 +3256,7 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_lev
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID) {
-        op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+        op_exchange_halo_chained(&args[n], exec_flag);
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3271,13 +3271,13 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_lev
         // If there was a map mismatch with other argument, do full halo
         // exchange
         if (fallback)
-          op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+          op_exchange_halo_chained(&args[n], exec_flag);
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);  //todo: check whether this also needs h_levels
           else
-            op_exchange_halo_chained(&args[n], exec_flag, h_levels);
+            op_exchange_halo_chained(&args[n], exec_flag);
         }
       }
     }

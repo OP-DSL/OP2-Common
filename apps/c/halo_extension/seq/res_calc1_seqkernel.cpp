@@ -30,21 +30,10 @@ void op_par_loop_res_calc1(char const *name, op_set set,
     printf(" kernel routine with indirection: res_calc1\n");
   }
 
-  int my_rank=0;
-  op_rank(&my_rank);
-
 #ifdef COMM_AVOID
-  int exec_size = 0;
-  // for(int l = 0; l < 2; l++){
-  //   exec_size += OP_aug_import_exec_lists[l][set->index]->size;
-  // }
-  // set_size = set->size + exec_size;
-  int set_size = op_mpi_halo_exchanges_chained(set, nargs, args, 1);
-  printf("res_calc1 aug_maps COMM_AVOID my_rank=%d set=%s set->size=%d, set_size=%d\n", my_rank, set->name, set->size, set_size);
+  int set_size = op_mpi_halo_exchanges_chained(set, nargs, args, 2);
 #else
-  
   int set_size = op_mpi_halo_exchanges(set, nargs, args);
-  printf("res_calc1 aug_maps OP2 my_rank=%d set=%s set_size=%d\n", my_rank, set->name, set_size);
 #endif
   if (set_size > 0) {
 
@@ -55,14 +44,8 @@ void op_par_loop_res_calc1(char const *name, op_set set,
       int map0idx;
       int map1idx;
       
-      #ifdef COMM_AVOID
-      map0idx = arg0.map->aug_maps[1][n * arg0.map->dim + 0];
-      map1idx = arg0.map->aug_maps[1][n * arg0.map->dim + 1];
-      printf("res_calc1 aug_maps my_rank=%d map=%s n=%d map0[%d]=%d map1[%d]=%d\n", my_rank, arg0.map->name, n, n * arg0.map->dim + 0, map0idx, n * arg0.map->dim + 1, map1idx);
-      #else
       map0idx = arg0.map_data[n * arg0.map->dim + 0];
       map1idx = arg0.map_data[n * arg0.map->dim + 1];
-      #endif
 
       res_calc1(
         &((double*)arg0.data)[1 * map0idx],

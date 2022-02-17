@@ -201,12 +201,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 #ifdef COMM_AVOID
-void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
+void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
   op_dat dat = arg->dat;
-  printf("op_exchange_halo_chained dat=%s set=%s h_levels=%d\n", dat->name, dat->set->name, h_levels);
-
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   if (arg->opt == 0)
     return;
@@ -227,18 +223,20 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
 
   arg->sent = 0; // reset flag
 
-  int num_levels = dat->set->halo_info->nhalos[h_levels];
-  printf("op_exchange_halo_chained dat %s h_levels=%d num_levels=%d\n", dat->name, h_levels, num_levels);
+  int nhalos = arg->nhalos;
+  int nhalos_index = arg->nhalos_index;
+
+  // printf("op_exchange_halo_chained dat %s nhalos=%d nhalos_index=%d\n", dat->name, nhalos, nhalos_index);
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
-    printf("op_exchange_halo_chained dat %s h_levels=%d num_levels=%d exchanged >>>>>>>>>>\n", dat->name, h_levels, num_levels);
+    // printf("op_exchange_halo_chained dat %s nhalos=%d nhalos_index=%d exchanged >>>>>>>>>>\n", dat->name, nhalos, nhalos_index);
     halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[h_levels][dat->set->index];
+    halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[nhalos_index][dat->set->index];
 
     halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[h_levels][dat->set->index];
+    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[nhalos_index][dat->set->index];
 
     //-------first exchange exec elements related to this data array--------
 
@@ -258,7 +256,7 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
 
     for (int r = 0; r < exp_exec_list->ranks_size / exp_exec_list->num_levels; r++) {
       buf_start =  buf_index;
-      for(int l = 0; l < exp_exec_list->num_levels; l++){
+      for(int l = 0; l < nhalos; l++){
         for (int i = 0; i < exp_exec_list->sizes[exp_exec_list->rank_disps[l] + r]; i++) {
           int level_disp = exp_exec_list->level_disps[l];
           int disp_in_level = exp_exec_list->disps[exp_exec_list->rank_disps[l] + r];
@@ -326,7 +324,7 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
     }
 
     int nonexec_init = 0;
-    for(int l = 0; l < h_levels; l++){
+    for(int l = 0; l < nhalos_index; l++){
       nonexec_init += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
     }
     nonexec_init *= dat->size;
@@ -392,8 +390,6 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels) {
 
 void op_unpack(op_arg *arg){
   op_dat dat = arg->dat;
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   int init = dat->set->size * dat->size;
   halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
@@ -401,7 +397,7 @@ void op_unpack(op_arg *arg){
   for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
   
     int prev_exec_size = 0;
-    for(int l = 0; l < imp_exec_list->num_levels; l++){ // this has to be changed to dat's levels
+    for(int l = 0; l < arg->nhalos; l++){ // this has to be changed to dat's levels
 
       memcpy(&(dat->data[init + (imp_exec_list->level_disps[l] + imp_exec_list->disps[imp_exec_list->rank_disps[l] + i]) * dat->size]), 
             &(dat->aug_data[imp_exec_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),

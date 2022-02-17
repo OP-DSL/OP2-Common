@@ -110,11 +110,14 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
  */
 
 #define OP_NHALOS_SIZE 10
+#define OP_NHALOS_MAX 10
 typedef struct op_halo_info_core{
   int *nhalos;      //array of number of halos
+  int *nhalos_indices; //array of number of halos to array index. to do a reverse search
   int max_nhalos;   //max number of halos
   int nhalos_count; //number of elements in nhalos
   int nhalos_cap;   //capacity of nhalos
+  int nhalos_indices_cap;   //capacity of nhalos
 }op_halo_info_core;
 typedef op_halo_info_core* op_halo_info;
 
@@ -146,6 +149,7 @@ typedef struct {
   int user_managed; /* indicates whether the user is managing memory */
   int **aug_maps;   /* augmented data maps */
   int *map_org;
+  op_halo_info halo_info;
 } op_map_core;
 
 typedef op_map_core *op_map;
@@ -186,6 +190,8 @@ typedef struct {
   int sent; /* flag to indicate if this argument has
                data in flight under non-blocking MPI comms*/
   int opt;  /* flag to indicate if this argument is in use */
+  int nhalos;
+  int nhalos_index;
 } op_arg;
 
 typedef struct {
@@ -270,6 +276,9 @@ void op_arg_check(op_set, int, op_arg, int *, char const *);
 op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc);
 
+op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
+                       const char *typ, op_access acc, int nhalos, int max_map_nhalos);
+
 op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
                            const char *typ, op_access acc);
 
@@ -314,7 +323,7 @@ void op_download_dat(op_dat dat);
 *******************************************************************************/
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
-int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int h_levels);
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos);
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
 

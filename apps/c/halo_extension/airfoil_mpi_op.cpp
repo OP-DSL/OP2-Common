@@ -402,20 +402,20 @@ int main(int argc, char **argv) {
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
-  niter = 1;
+  niter = 100;
   for (int iter = 1; iter <= niter; iter++) {
 
     op_par_loop_res_calc1("res_calc1",edges,
-                op_arg_dat(p_q,0,pecell,1,"double",OP_READ),
-                op_arg_dat(p_q,1,pecell,1,"double",OP_READ),
-                op_arg_dat(p_res,0,pecell,1,"double",OP_INC),
-                op_arg_dat(p_res,1,pecell,1,"double",OP_INC));
+                op_arg_dat_halo(p_q,0,pecell,1,"double",OP_READ,2,2),
+                op_arg_dat_halo(p_q,1,pecell,1,"double",OP_READ,2,2),
+                op_arg_dat_halo(p_res,0,pecell,1,"double",OP_INC,2,2),
+                op_arg_dat_halo(p_res,1,pecell,1,"double",OP_INC,2,2));
 
     op_par_loop_res_calc2("res_calc2",edges,
-                op_arg_dat(p_res,0,pecell,1,"double",OP_READ),
-                op_arg_dat(p_res,1,pecell,1,"double",OP_READ),
-                op_arg_dat(p_nodedata,0,pedge,2,"double",OP_INC),
-                op_arg_dat(p_nodedata,1,pedge,2,"double",OP_INC));
+                op_arg_dat_halo(p_res,0,pecell,1,"double",OP_READ,1,2),
+                op_arg_dat_halo(p_res,1,pecell,1,"double",OP_READ,1,2),
+                op_arg_dat_halo(p_nodedata,0,pedge,2,"double",OP_INC,1,1),
+                op_arg_dat_halo(p_nodedata,1,pedge,2,"double",OP_INC,1,1));
   }
 
   op_timers(&cpu_t2, &wall_t2);

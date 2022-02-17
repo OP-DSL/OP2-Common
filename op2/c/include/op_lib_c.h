@@ -89,6 +89,8 @@ void op_decl_const_char(int, char const *, int, char *, char const *);
 
 op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
 
+op_arg op_arg_dat_halo(op_dat, int, op_map, int, char const *, op_access, int, int);
+
 op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
 
 op_arg op_arg_gbl_char(char *, int, const char *, int, op_access);

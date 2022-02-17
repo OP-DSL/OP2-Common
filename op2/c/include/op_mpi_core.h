@@ -382,7 +382,7 @@ void op_move_to_device();
 *******************************************************************************/
 
 void op_exchange_halo(op_arg *arg, int exec_flag);
-void op_exchange_halo_chained(op_arg *arg, int exec_flag, int h_levels);
+void op_exchange_halo_chained(op_arg *arg, int exec_flag);
 void op_exchange_halo_partial(op_arg *arg, int exec_flag);
 void op_wait_all(op_arg *arg);
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag);

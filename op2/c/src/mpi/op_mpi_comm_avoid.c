@@ -31,7 +31,7 @@ halo_list *OP_merged_export_exec_list;
 halo_list *OP_merged_import_nonexec_list;
 halo_list *OP_merged_export_nonexec_list;
 
-#define DEFAULT_HALO_COUNT 1
+#define DEFAULT_HALO_COUNT 3
 
 
 void print_array(int* arr, int size, const char* name, int my_rank){
@@ -855,9 +855,9 @@ void prepare_aug_maps(){
 
   for (int m = 0; m < OP_map_index; m++) { 
     op_map map = OP_map_list[m];
-    map->aug_maps = (int **)malloc((size_t)map->from->halo_info->nhalos_count * sizeof(int *));
+    map->aug_maps = (int **)malloc((size_t)map->halo_info->nhalos_count * sizeof(int *));
 
-    int max_level = map->from->halo_info->max_nhalos;
+    int max_level = map->halo_info->max_nhalos;
 
     int exec_size = 0;
     for(int l = 0; l < max_level; l++){
@@ -868,7 +868,7 @@ void prepare_aug_maps(){
     map->map_org = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
     memcpy(map->map_org, map->map, (size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
 
-    for(int el = 0; el < map->from->halo_info->nhalos_count; el++){
+    for(int el = 0; el < map->halo_info->nhalos_count; el++){
       int *m = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
       if (m == NULL) {
         printf(" op_decl_map_core error -- error allocating memory to map\n");
@@ -909,8 +909,8 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
       if (compare_sets(map->to, set) == 1) { // need to select
                                             // mappings TO this set
 
-        int num_levels = map->from->halo_info->nhalos_count;
-        int max_level = map->from->halo_info->max_nhalos;
+        int num_levels = map->halo_info->nhalos_count;
+        int max_level = map->halo_info->max_nhalos;
 
         for(int el = 0; el < num_levels; el++){
 
@@ -1234,8 +1234,10 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
         exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
         exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
       }
-      exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
-      imp_exec_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
+      if(OP_aug_import_exec_lists[l][dat->set->index]){
+        exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
+        imp_exec_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
+      }
     }
 
     int nonexec_e_list_size = 0;
@@ -1504,7 +1506,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         op_free(new_map);
         
         //for aug maps
-        for(int el = 0; el < num_levels; el++){
+        for(int el = 0; el < map->halo_info->nhalos_count; el++){
           int *aug_map = (int *)xmalloc(set->size * map->dim * sizeof(int));
           for (int i = 0; i < count; i++) {
             memcpy(&aug_map[i * map->dim],
@@ -1602,8 +1604,8 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
   for (int m = 0; m < OP_map_index; m++) { // for each set
     op_map map = OP_map_list[m];
 
-    int num_levels = map->from->halo_info->nhalos_count;
-    int max_level = map->from->halo_info->max_nhalos;
+    int num_levels = map->halo_info->nhalos_count;
+    int max_level = map->halo_info->max_nhalos;
 
     for(int el = 0; el < num_levels; el++){
       int exec_levels = map->from->halo_info->nhalos[el];
@@ -1751,7 +1753,9 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
         
       }
     }
-    printf("step11 my_rank=%d set=%s exec=%d non=%d\n", my_rank, set->name, set->exec_size, set->nonexec_size);
+    printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d) exec=%d(0=%d) non=%d(0=%d) max_halo=%d halo_count=%d\n", my_rank, set->name,
+    set->size, set->core_size, set->core_sizes[0],
+    set->exec_size, set->exec_sizes[0], set->nonexec_size, set->nonexec_sizes[0], set->halo_info->max_nhalos, set->halo_info->nhalos_count);
   }
 }
 
@@ -1814,31 +1818,23 @@ void merge_nonexec_halos(int exec_levels, int my_rank, int comm_size){
   }
 }
 
-void set_dats_halo_extension(){
-  op_dat_entry *item;
-  int d = -1; // d is just simply the tag for mpi comms
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_set set = item->dat->set;
-    if (strncmp("p_res", item->dat->name, strlen("p_res")) == 0) { // if this data array
-      op_mpi_add_nhalos(set, 2);
-      printf("setdat set=%s max_halo=%d count=%d cap=%d nhalos[0]=%d\n", 
-        set->name, set->halo_info->max_nhalos, set->halo_info->nhalos_count, set->halo_info->nhalos_cap, set->halo_info->nhalos[0]);
 
-    }
-    else{
-      printf("setdat set=%s max_halo=%d count=%d cap=%d nhalos[0]=%d\n", 
-        set->name, set->halo_info->max_nhalos, set->halo_info->nhalos_count, set->halo_info->nhalos_cap, set->halo_info->nhalos[0]);
+void set_maps_halo_extension(){
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map map = OP_map_list[m];
+    if (strncmp("pecell", map->name, strlen("pecell")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
     }
   }
-
 }
+
 
 void set_dats_mgcfd(){
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    op_mpi_add_nhalos(set, 2);
-    op_mpi_add_nhalos(set, 3);
+    op_mpi_add_nhalos_set(set, 2);
+    op_mpi_add_nhalos_set(set, 3);
     printf("setdat set=%s max_halo=%d count=%d cap=%d nhalos[0]=%d\n", 
     set->name, set->halo_info->max_nhalos, set->halo_info->nhalos_count, set->halo_info->nhalos_cap, set->halo_info->nhalos[0]);
   }
@@ -1899,8 +1895,9 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_dats_halo_extension();
-  set_dats_mgcfd();
-
+  // set_dats_mgcfd();
+  set_maps_halo_extension(); 
+   
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
   double max_time;

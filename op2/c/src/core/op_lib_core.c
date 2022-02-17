@@ -265,13 +265,19 @@ void op_init_core(int argc, char **argv, int diags) {
 
 void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos = (int *)malloc(OP_NHALOS_SIZE * sizeof(int));
+  halo_info->nhalos_indices = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
   for(int i = 0; i < OP_NHALOS_SIZE; i++){
     halo_info->nhalos[i] = -1;
   }
+  for(int i = 0; i < OP_NHALOS_MAX; i++){
+    halo_info->nhalos_indices[i] = -1;
+  }
   halo_info->nhalos[0] = 1; // default value: 1 halo for all sets
+  halo_info->nhalos_indices[1] = 0;
   halo_info->max_nhalos = 1;
   halo_info->nhalos_count = 1;
   halo_info->nhalos_cap = OP_NHALOS_SIZE;
+  halo_info->nhalos_indices_cap = OP_NHALOS_MAX;
 }
 
 op_set op_decl_set_core(int size, char const *name) {
@@ -380,6 +386,8 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   map->aug_maps = NULL;
+  map->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
+  op_init_halo_info(map->halo_info);
 
   OP_map_list[OP_map_index++] = map;
   OP_map_ptr_list[OP_map_index - 1] = imap; // m;
@@ -686,6 +694,61 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
+
+  return arg;
+}
+
+
+op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
+                       const char *typ, op_access acc, int nhalos, int max_map_nhalos) {
+  op_arg arg;
+
+  /* index is not used for now */
+  arg.index = -1;
+  arg.opt = 1;
+  arg.argtype = OP_ARG_DAT;
+
+  arg.dat = dat;
+  arg.map = map;
+  arg.dim = dim;
+  arg.idx = idx;
+
+  if (dat != NULL) {
+    arg.size = dat->size;
+    arg.data = dat->data;
+    arg.data_d = dat->data_d;
+    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+    arg.map_data = (idx == -1 ? NULL : map->aug_maps[map->halo_info->nhalos_indices[max_map_nhalos]]);
+  } else {
+    /* set default values */
+    arg.size = -1;
+    arg.data = NULL;
+    arg.data_d = NULL;
+    arg.map_data_d = NULL;
+    arg.map_data = NULL;
+  }
+
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
+      strcmp(typ, "real*8") == 0)
+    arg.type = doublestr;
+  else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
+           strcmp(typ, "real*4") == 0)
+    arg.type = floatstr;
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
+           strcmp(typ, "integer*4") == 0)
+    arg.type = intstr;
+  else if (strcmp(typ, "bool") == 0)
+    arg.type = boolstr;
+  else
+    arg.type = copy_str(typ); //Warning this is going to leak
+
+  arg.acc = acc;
+
+  /*initialize to 0 states no-mpi messages inflight for this arg*/
+  arg.sent = 0;
+
+  arg.nhalos = nhalos;
+  arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
 
   return arg;
 }
