@@ -6,6 +6,8 @@ from pathlib import Path
 from types import MethodType
 from typing import ClassVar, List, Optional, Tuple
 
+from jinja2 import Environment
+
 import cpp
 import cpp.translator.kernels.cuda
 import fortran
@@ -13,11 +15,10 @@ import fortran.translator.kernels.cuda
 import fortran.translator.kernels.vec
 import op as OP
 import optimisation
-from jinja import env
 from language import Lang
 from optimisation import Opt
 from store import Application, Kernel
-from util import Findable, find
+from util import Findable, find, safeFind
 
 
 class LoopHost:
@@ -82,6 +83,23 @@ class LoopHost:
 
             self.args_expanded.append((arg_expanded, idx))
 
+    def findDat(self, dat_ptr: str) -> Optional[tuple[OP.Dat, int]]:
+        return safeFind(self.dats.items(), lambda dat: dat[0].ptr == dat_ptr)
+
+    def findMap(self, map_ptr: str) -> Optional[tuple[OP.Map, int]]:
+        return safeFind(self.maps.items(), lambda map_: map_[0].ptr == map_ptr)
+
+    def optIdx(self, arg: OP.Arg) -> Optional[int]:
+        idx = 0
+        for arg2, _ in self.args:
+            if arg2 == arg:
+                break
+
+            if arg2.opt:
+                idx += 1
+
+        return idx
+
 
 class Scheme(Findable):
     lang: Lang
@@ -93,7 +111,7 @@ class Scheme(Findable):
     def __str__(self) -> str:
         return self.lang.name + "/" + self.opt.name
 
-    def genLoopHost(self, loop: OP.Loop, app: Application, kernel_idx: int) -> Tuple[str, str]:
+    def genLoopHost(self, env: Environment, loop: OP.Loop, app: Application, kernel_idx: int) -> Tuple[str, str]:
         # Load the loop host template
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
@@ -103,7 +121,7 @@ class Scheme(Findable):
         # Generate source from the template
         return template.render(OP=OP, lh=loop_host, opt=self.opt), extension
 
-    def genMasterKernel(self, app) -> Tuple[str, str]:
+    def genMasterKernel(self, env: Environment, app: Application) -> Tuple[str, str]:
         if self.master_kernel_template is None:
             exit(f"No master kernel template registered for {self}")
         # Load the loop host template

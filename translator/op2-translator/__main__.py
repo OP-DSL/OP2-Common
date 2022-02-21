@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
+from jinja import env
 from language import Lang
 from op import OpError, Type
 from optimisation import Opt
@@ -156,7 +157,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
     # Generate loop hosts
     for i, loop in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(loop, app, i)
+        source, extension = scheme.genLoopHost(env, loop, app, i)
 
         # Form output file path
         path = None
@@ -181,7 +182,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
     # Generate master kernel file
     if scheme.master_kernel_template != None:
-        source, extension = scheme.genMasterKernel(app)
+        source, extension = scheme.genMasterKernel(env, app)
         appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
         path = None
         if scheme.lang.kernel_dir:

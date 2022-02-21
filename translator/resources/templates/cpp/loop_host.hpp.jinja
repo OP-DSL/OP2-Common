@@ -1,0 +1,116 @@
+{% macro arg_dat_redef(arg, sarg) %}
+    {% set params -%}
+{{sarg}}.dat, {{arg.map_idx}}, {{sarg}}.map, {{arg.dat_dim}}, "{{arg.dat_typ}}", {{arg.access_type.value}}
+    {%- endset %}
+
+    {%- if arg is opt -%}
+op_opt_arg_dat(sarg.opt, {{params}})
+    {%- else -%}
+op_arg_dat({{params}})
+    {%- endif %}
+{% endmacro -%}
+
+{%- macro arg_to_pointer(arg, idx) %}
+    {% set cast = arg.typ if arg is gbl else arg.dat_typ %}
+    {% set offset = " + n * %d" % arg.dat_dim if arg is direct %}
+    {% set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect %}
+({{cast}} *)arg{{idx}}.data{{offset}}
+{%- endmacro -%}
+
+{% block kernel %}
+{{lh.kernel_func}}
+{% endblock %}
+
+{%- block kernel_wrapper %}
+{% endblock -%}
+
+{% block host_prologue %}
+void op_par_loop_{{lh.kernel.name}}(
+    const char *name,
+    op_set set,
+    {% for arg, idx in lh.args %}
+    op_arg arg{{idx}}{{"," if not loop.last else " "}} // {{lh.kernel.params[idx][0]}}
+    {% endfor %}
+) {
+    int num_args_expanded = {{lh.args_expanded|length}};
+    op_arg args_expanded[{{lh.args_expanded|length}}];
+
+    {% for arg, idx in lh.args_expanded %}
+        {% set sarg = "arg%d" % idx %}
+    args_expanded[{{loop.index0}}] = {{arg_dat_redef(arg, sarg) if lh.args[idx][0] is vec else sarg}};
+    {% endfor %}
+
+    double cpu_start, cpu_end, wall_start, wall_end;
+    op_timing_realloc({{lh.kernel_idx}});
+    op_timers_core(&cpu_start, &wall_start);
+
+    if (OP_diags > 2)
+        printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel.name}}\n");
+
+    {% block host_prologue_halo_exchange required %}
+    {% endblock %}
+
+    if (set_size == 0)
+        goto epilogue;
+
+{% endblock %}
+{% block host_loop %}
+    for (int n = 0; n < set_size; ++n) {
+    {% if lh is indirect %}
+        if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
+            op_mpi_test_all(num_args_expanded, args_expanded);
+
+        if (n == set->core_size)
+            op_mpi_wait_all{{"_grouped" if opt.config.grouped-}}
+                (num_args_expanded, args_expanded{{", 1" if opt.config.grouped}});
+
+    {% for map, idx in lh.maps.items() %}
+        int map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
+    {% endfor %}
+
+    {% endif %}
+    {% for arg, idx in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+        {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+        {% endfor %}
+        };
+
+    {% endfor %}
+        {{lh.kernel.name}}(
+    {% for arg, idx in lh.args %}
+        {% if arg is not vec %}
+            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+        {% else %}
+            arg{{idx}}_vec{{"," if not loop.last}}
+        {% endif %}
+    {% endfor %}
+        );
+    }
+{% endblock %}
+
+epilogue:
+{% block host_epilogue_cleanup %}
+    {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
+    if (set_size == 0 || set_size == set->core_size)
+        op_mpi_wait_all(num_args_expanded, args_expanded);
+
+    {% endif %}
+    {% for arg in lh.args if arg is gbl and arg is reduction %}
+    op_mpi_reduce_{{arg.typ}}(&arg{{loop.index0}}, ({{arg.typ}} *)arg{{loop.index0}}.data)
+
+    {% endfor %}
+    op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+{% endblock %}
+
+{% block host_epilogue_timers %}
+    op_timers_core(&cpu_end, &wall_end);
+
+    OP_kernels[{{lh.kernel_idx}}].name = name;
+    OP_kernels[{{lh.kernel_idx}}].count += 1;
+    OP_kernels[{{lh.kernel_idx}}].time += wall_end - wall_start;
+
+    // TODO: review kernel transfer calculation
+{% endblock %}
+}
+

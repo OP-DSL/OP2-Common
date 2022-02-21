@@ -258,14 +258,12 @@ def parseArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.
 
     access_type = parseAccessType(args.items[5], loc)
 
-    return OP.ArgDat(loc, access_type, None, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
+    return OP.ArgDat(loc, access_type, False, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
 
 
 def parseOptArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgDat:
     if args is None or len(args.items) != 7:
         raise ParseError("incorrect number of arguments for op_opt_arg_dat", loc)
-
-    opt = parseIdentifier(args.items[0], loc)
 
     dat_ptr = parseIdentifier(args.items[1], loc)
 
@@ -280,7 +278,7 @@ def parseOptArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> 
 
     access_type = parseAccessType(args.items[6], loc)
 
-    return OP.ArgDat(loc, access_type, opt, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
+    return OP.ArgDat(loc, access_type, True, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
 
 
 def parseArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgGbl:
@@ -293,14 +291,12 @@ def parseArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.
 
     access_type = parseAccessType(args.items[3], loc)
 
-    return OP.ArgGbl(loc, access_type, None, ptr, dim, typ)
+    return OP.ArgGbl(loc, access_type, False, ptr, dim, typ)
 
 
 def parseOptArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgGbl:
     if args is None or len(args.items) != 5:
         raise ParseError("incorrect number of arguments for op_opt_arg_gbl", loc)
-
-    opt = parseIdentifier(args.items[0], loc)
 
     ptr = parseIdentifier(args.items[1], loc)
     dim = parseIntLiteral(args.items[2], loc)
@@ -308,7 +304,7 @@ def parseOptArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> 
 
     access_type = parseAccessType(args.items[4], loc)
 
-    return OP.ArgGbl(loc, access_type, opt, ptr, dim, typ)
+    return OP.ArgGbl(loc, access_type, True, ptr, dim, typ)
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:

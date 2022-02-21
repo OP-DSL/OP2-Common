@@ -86,13 +86,25 @@ def parseCall(node: Cursor, parent: Cursor, macros: Dict[Location, str], program
         ptr = parsePtr(parent)
         program.sets.append(parseSet(args, ptr, loc))
 
+    elif name == "op_decl_set_hdf5":
+        ptr = parsePtr(parent)
+        program.sets.append(parseSetHdf5(args, ptr, loc))
+
     elif name == "op_decl_map":
         ptr = parsePtr(parent)
         program.maps.append(parseMap(args, ptr, loc))
 
+    elif name == "op_decl_map_hdf5":
+        ptr = parsePtr(parent)
+        program.maps.append(parseMapHdf5(args, ptr, loc))
+
     elif name == "op_decl_dat":
         ptr = parsePtr(parent)
         program.dats.append(parseDat(args, ptr, loc))
+
+    elif name == "op_decl_dat_hdf5":
+        ptr = parsePtr(parent)
+        program.dats.append(parseDatHdf5(args, ptr, loc))
 
     elif name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
@@ -111,6 +123,13 @@ def parseSet(args: List[Cursor], ptr: str, loc: Location) -> OP.Set:
     return OP.Set(loc, ptr)
 
 
+def parseSetHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Set:
+    if len(args) != 2:
+        raise ParseError("incorrect number of args passed to op_decl_set_hdf5", loc)
+
+    return OP.Set(loc, ptr)
+
+
 def parseMap(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
     if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_decl_map", loc)
@@ -122,6 +141,13 @@ def parseMap(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
     return OP.Map(loc, from_set_ptr, to_set_ptr, dim, ptr)
 
 
+def parseMapHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
+    if len(args) != 5:
+        raise ParseError("incorrect number of args passed to op_decl_map_hdf5", loc)
+
+    return parseMap(args, ptr, loc)
+
+
 def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
     if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_decl_dat", loc)
@@ -131,6 +157,13 @@ def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
     typ = parseType(parseStringLit(args[2]), loc)
 
     return OP.Dat(loc, set_ptr, dim, typ, ptr)
+
+
+def parseDatHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
+    if len(args) != 5:
+        raise ParseError("incorrect number of args passed to op_decl_dat_hdf5", loc)
+
+    return parseDat(args, ptr, loc)
 
 
 def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
@@ -193,17 +226,15 @@ def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) 
 
     access_type = parseAccessType(args[5], loc, macros)
 
-    return OP.ArgDat(loc, access_type, None, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
+    return OP.ArgDat(loc, access_type, False, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
 
 
 def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgDat:
     if len(args) != 7:
         ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
 
-    opt = parseIdentifier(args[0])
     dat = parseArgDat(args[1:], loc, macros)
-
-    return dataclasses.replace(dat, opt=opt)
+    return dataclasses.replace(dat, opt=True)
 
 
 def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
@@ -216,17 +247,15 @@ def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) 
 
     access_type = parseAccessType(args[3], loc, macros)
 
-    return OP.ArgGbl(loc, access_type, None, ptr, dim, typ)
+    return OP.ArgGbl(loc, access_type, False, ptr, dim, typ)
 
 
 def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
     if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
-    opt = parseIdentifier(args[0])
     dat = parseArgGbl(args[1:], loc, macros)
-
-    return dataclasses.replace(dat, opt=opt)
+    return dataclasses.replace(dat, opt=True)
 
 
 def parsePtr(node: Cursor) -> str:

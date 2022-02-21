@@ -2,18 +2,18 @@
 
 {% block const_decls %}
     {% for const in app.consts() %}
-__constant__ {{ const.typ }} {{ const.ptr }}_cuda{% if const.dim > 1 %}[{{ const.dim }}]{% endif %};
+__constant__ {{const.typ}} {{const.ptr}}_cuda{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
     {% endfor %}
 {% endblock %}
 
 {% block includes %}
-{{ super() }}
+{{super()}}
 #include "op_cuda_rt_support"
 #include "op_cuda_reduction"
 {% endblock %}
 
 {% block const_decl_func %}
     {% call(const) const_decl_func("if (!OP_hybrid_gpu) return;") %}
-cutilSafeCall(cudaMemcpyToSymbol({{ const.ptr }}_cuda, dat, dim * size);
+cutilSafeCall(cudaMemcpyToSymbol({{const.ptr}}_cuda, dat, dim * size);
     {%- endcall %}
 {% endblock %}

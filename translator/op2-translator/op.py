@@ -124,7 +124,7 @@ class Arg(ABDC):
     loc: Location
 
     access_type: AccessType
-    opt: Optional[str]
+    opt: bool
 
 
 @dataclass(frozen=True)
