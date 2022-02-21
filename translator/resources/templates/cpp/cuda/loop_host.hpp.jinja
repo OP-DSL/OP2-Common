@@ -1,0 +1,345 @@
+{% extends "cpp/loop_host.hpp.jinja" %}
+
+{% block kernel %}
+__device__ {{super()}}
+{% endblock %}
+
+{% macro opt_cond(arg, idx) %}
+    {%- if arg is opt -%}arg{{idx}}.opt{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cond_comp(arg, idx) %}
+    {%- if arg is opt -%}{{opt_cond(arg, idx)}} && {% endif -%}
+{% endmacro %}
+
+{% macro opt_tern(arg, idx, alt = "NULL") %}
+    {%- if arg is opt -%}{{opt_cond(arg, idx)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_if(arg, idx) %}
+    {% if arg is opt %}
+    if ({{opt_cond(arg, idx)}}) {
+    {{caller()|indent-}}
+    {{"}"|indent(first = true)}}
+    {% else %}
+{{caller()-}}
+    {% endif %}
+{% endmacro %}
+
+{% macro opt_cuda_cond(arg) %}
+    {%- if arg is opt -%}optflags & 1 << {{lh.optIdx(arg)}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_cond_comp(arg) %}
+    {%- if arg is opt -%}{{opt_cuda_cond(arg)}} && {% endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_tern(arg, alt = "NULL") %}
+    {%- if arg is opt -%}{{opt_cuda_cond(arg)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_if(arg) %}
+    {% if arg is opt %}
+    if ({{opt_cuda_cond(arg)}}) {
+    {{caller()|indent-}}
+    {{"}"|indent(first = true)}}
+    {% else %}
+{{caller()-}}
+    {% endif %}
+{% endmacro %}
+
+{% macro map_lookup(arg) -%}
+map_{{arg.map_ptr}}[set_size * {{arg.map_idx}} + n]
+{%- endmacro %}
+
+{% macro arg_to_pointer_cuda(arg, idx) -%}
+    {%- if arg is gbl -%}
+gbl_{{arg.ptr}}{{"_local" if arg.access_type != OP.AccessType.READ}}
+    {%- elif arg is direct -%}
+dat_{{arg.dat_ptr}} + n * {{arg.dat_dim}}
+    {%- elif arg is vec -%}
+arg{{idx}}_vec
+    {%- elif arg is inc and opt.config.atomics -%}
+arg{{idx}}_{{arg.map_idx}}_local
+    {%- else -%}
+dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} * {{arg.dat_dim}}
+    {%- endif -%}
+{%- endmacro %}
+
+{% block kernel_wrapper %}
+__global__ void op_cuda_{{lh.kernel.name}}(
+    {{-"\n    const unsigned optflags," if lh.args|opt|length > 0}}
+    {% for dat, idx in lh.dats.items() %}
+    {{"const " if dat is read_in lh}}{{dat.typ}} *__restrict dat_{{dat.ptr}},
+    {% endfor %}
+    {% for map, idx in lh.maps.items() %}
+    const int *__restrict map_{{map.ptr}},
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl %}
+    {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl_{{arg.ptr}},
+    {% endfor %}
+    int set_size
+    {%- if lh is indirect %},
+    {{-"int *col_reord," if opt.config.color2}}
+    int start,
+    int end
+    {%- endif +%}
+) {
+    {% for arg, idx in lh.args|gbl|reduction %}
+    {{arg.typ}} gbl_{{arg.ptr}}_local[{{arg.dim}}];
+    for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{arg.dim}}; ++d)
+        gbl_{{arg.ptr}}_local[d] = {% if arg is inc -%}
+            ZERO_{{arg.typ}}
+        {%- else -%}
+            gbl_{{arg.ptr}}[blockidx.x * {{arg.dim}} + {{i}}]
+        {%- endif -%};
+
+    {% endfor %}
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+
+    {% if lh is direct %}
+    for (int n = thread_id; n < set_size; n += blockDim.x * gridDim.x) {
+        {{lh.kernel.name}}(
+            {% for arg, idx in lh.args %}
+            {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg, idx)}}{% endcall %}{{-"," if not loop.last}}
+            {% endfor %}
+        );
+    }
+    {% else %}
+    if (thread_id + start >= end)
+        return;
+
+    int n = {{"thread_id + start" if opt.config.atomics else "col_reord[thread_id + start]"}};
+
+        {% for arg, idx in lh.args_expanded|indirect|reduction if opt.config.atomics %}
+    {{arg.dat_typ}} arg{{idx}}_{{arg.map_idx}}_local[{{arg.dat_dim}}];
+    for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
+        arg{{idx}}_{{arg.map_idx}}_local[d] = ZERO_{{arg.dat_typ}};
+
+        {% endfor %}
+        {% for arg, idx in lh.args|vec %}
+    {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[{{arg.map_idx * -1}}];
+            {% call opt_cuda_if(arg) %}
+                {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+    arg{{idx}}_vec[{{loop.index0}}] = {{arg_to_pointer_cuda(arg_expanded, idx)}};
+                {% endfor %}
+            {% endcall %}
+
+        {% endfor %}
+    {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+        {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg, idx)}}{% endcall %}{{-"," if not loop.last}}
+        {% endfor %}
+    );
+    {% endif %}
+    {% for arg, idx in lh.args_expanded|indirect|reduction if opt.config.atomics %}
+
+    for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
+        atomicAdd(dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} + d, arg{{idx}}_{{arg.map_idx}}_local[d]);
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+
+    for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{arg.dim}}; ++d)
+        op_reduction<{{arg.access_type.value}}>(gbl_{{arg.ptr}} + blockIdx.x * {{arg.dim}} + d, gbl_{{arg.ptr}}_local[d]);
+    {% endfor %}
+}
+
+{% endblock %}
+
+{% block host_prologue_halo_exchange %}
+    int set_size = op_mpi_halo_exchanges_grouped(set, num_args_expanded, args_expanded, 2);
+{% endblock %}
+
+{% block host_prologue %}
+{{super()}}
+    {% if lh.args|opt|length > 0 %}
+    unsigned optflags = 0;
+
+    {% for arg, idx in lh.args|opt %}
+        {% call opt_if(arg, idx) %}
+    optflags |= 1 << {{ lh.optIdx(arg) }};
+        {% endcall %}
+
+    {% endfor %}
+    {% endif %}
+    {% if opt.config.color2 %}
+#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
+    int part_size = OP_PART_SIZE_{{lh.kernel_idx}};
+#else
+    int part_size = OP_part_size;
+#endif
+
+    {% endif %}
+    {% if opt.config.color2 and lh is indirect %}
+    int num_args_indirect = {{lh.maps|length}};
+    int args_indirect[{{lh.args_expanded|length}}] = {
+        {%- for arg, idx in lh.args_expanded -%}
+        {{"-1" if arg is direct else lh.findMap[arg.map_ptr][1]}}{{", " if not loop.last}}
+        {%- endfor -%}
+    };
+
+    op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
+                        args_expanded, num_args_indirect, args_indirect, OP_COLOR2);
+
+    {% endif %}
+    {% for arg, idx in lh.args|gbl %}
+    {{arg.typ}} *arg{{idx}}_host_data = ({{arg.typ}} *)arg{{idx}}.data;{{"\n" if loop.last}}
+    {% endfor %}
+    {% if lh.args|gbl|read|length > 0 %}
+    int const_bytes = 0;
+
+        {% for arg, idx in lh.args|gbl|read %}
+            {% call opt_if(arg, idx) %}
+    const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    reallocConstArrays(const_bytes);
+    const_bytes = 0;
+
+        {% for arg, idx in lh.args|gbl|read %}
+            {% call opt_if(arg, idx) %}
+    arg{{idx}}.data   = OP_consts_h + const_bytes;
+    arg{{idx}}.data_d = OP_consts_d + const_bytes;
+
+    for (int d = 0; d < {{arg.dim}}; ++d)
+        (({{arg.typ}} *)arg{{idx}}.data)[d] = arg{{idx}}_host_data[d];
+
+    const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+
+        {% endfor %}
+    mvConstArraysToDevice(const_bytes);
+
+    {% endif %}
+    {% if opt.config.atomics or lh is direct %}
+#ifdef OP_BLOCK_SIZE_{{lh.kernel_idx}}
+    int block_size = OP_BLOCK_SIZE_{{lh.kernel_idx}};
+#else
+    int block_size = OP_block_size;
+#endif
+
+    {% endif %}
+    {% if lh is direct %}
+    int num_blocks = 200;
+
+    {% endif %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+        {% if lh is direct %}
+    int max_blocks = num_blocks;
+        {% elif opt.config.atomics %}
+    int max_blocks = (MAX(set->core_size, set->size + set->exec_size - set->core_size) - 1) / block_size + 1;
+        {% else %}
+    int max_blocks = 0;
+    for (int col = 0; col < plan->ncolors; ++col)
+        max_blocks = MAX(max_blocks, plan->ncolblk[col]);
+        {% endif %}
+
+    int reduction_bytes = 0;
+    int reduction_size = 0;
+
+        {% for arg, idx in lh.args|gbl|reduction %}
+            {% call opt_if(arg, idx) %}
+    reduction_bytes += ROUND_UP(max_blocks * {{arg.dim}} * sizeof({{arg.typ}}));
+    reduction_size   = MAX(reduction_size, sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    reallocReductArrays(reduction_bytes);
+    reduction_bytes = 0;
+
+        {% for arg, idx in lh.args|gbl|reduction %}
+            {% call opt_if(arg, idx) %}
+    arg{{idx}}.data   = OP_reduct_h + reduction_bytes;
+    arg{{idx}}.data_d = OP_reduct_d + reduction_bytes;
+
+    for (int d = 0; d < max_blocks * {{arg.dim}}; ++d)
+        (({{arg.typ}} *)arg{{idx}}.data)[d] =
+            {%- if arg.access_type == OP.AccessType.INC %} ZERO_{{arg.typ}}{% else %} arg{{idx}}_host_data[d];{% endif %};
+
+    reduction_bytes += ROUND_UP(max_blocks * {{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    mvReductArraysToDevice(reduction_bytes);
+
+    {% endif %}
+{% endblock %}
+
+{% macro kernel_call() %}
+op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
+{{-", reduction_size * block_size" if lh.args|gbl|reduction|length > 0}}>>>(
+    {{-"\n    optflags," if lh.args|opt|length > 0 }}
+    {% for dat, idx in lh.dats.items() %}
+    ({{dat.typ}} *)arg{{idx}}.data_d,
+    {% endfor %}
+    {% for map, idx in lh.maps.items() %}
+    arg{{idx}}.map_data_d,
+    {% endfor %}
+    {% for arg, idx in lh.args|select("gbl") %}
+    ({{arg.typ}} *)arg{{idx}}.data_d,
+    {% endfor %}
+    {% for extra_arg in varargs %}
+    {{extra_arg}}{{"," if not loop.last}}
+    {% endfor %}
+)
+{% endmacro %}
+
+{% block host_loop %}
+    {% if lh is direct %}
+    {{kernel_call("set->size")|indent}}
+
+        {% if lh.args|gbl|reduction|length > 0 %}
+    mvReductArraysToHost(reduction_bytes);
+        {% endif %}
+    {% elif opt.config.atomics %}
+    {{kernel_call("start", "end", "set->size + set->exec_size")|indent}}
+    {% else %}
+
+    {% endif %}
+    {% if lh.args|gbl|read|length > 0 %}
+    mvConstArraysToHost(const_bytes);
+
+    {% endif %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+    for (int d = 0; {{opt_cond_comp(arg, idx)}}d < max_blocks * {{arg.dim}}; ++d)
+        {% if arg.access_type == OP.AccessType.INC %}
+        arg{{idx}}_host_data[d] += (({{arg.typ}} *)arg{{idx}}.data)[d];
+        {% elif arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX] %}
+        arg{{idx}}_host_data[d] = {{arg.access_type.value}}(arg{{idx}}_host_data[d], (({{arg.typ}} *)arg{{idx}}.data)[d]);
+        {% endif %}
+
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl|read %}
+    for (int d = 0; {{opt_cond_comp(arg, idx)}}d < {{arg.dim}}; ++d)
+        arg{{idx}}_host_data[d] = (({{arg.typ}} *)arg{{idx}}.data)[d];
+
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl %}
+        {% call opt_if(arg, idx) %}
+    arg{{idx}}.data = (char *)arg{{idx}}_host_data;
+    op_mpi_reduce(&arg{{idx}}, arg{{idx}}_host_data);
+        {% endcall %}
+
+    {% endfor %}
+    op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
+    cutilSafeCall(cudaDeviceSynchronize());
+{% endblock %}
+
+{% block host_epilogue_cleanup %}
+{% endblock %}
+
+{% block host_epilogue_timers %}
+{{super()}}
+    {% if lh is direct %}
+        {% for arg, idx in lh.args_expanded|reject("gbl") %}
+            {% call opt_if(*lh.args[idx]) %}
+    OP_kernels[{{lh.kernel_idx}}].transfer += (float)set->size * arg{{idx}}.size{{-" * 2.0f" if not arg is read}};
+            {% endcall %}
+        {% endfor %}
+    {% elif opt.config.color2 %}
+    OP_kernels[{{lh.kernel_idx}}].transfer  += plan->transfer;
+    OP_kernels[{{lh.kernel_idx}}].transfer2 += plan->transfer2;
+    {% endif %}
+    {#- TODO: Transfer estimation with indirect + atomics? #}
+{% endblock %}

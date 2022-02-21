@@ -207,6 +207,10 @@ class Application:
             if loop.set_ptr not in set_ptrs:
                 raise OpError(f"loop references unknown set: {loop.set_ptr}", loop.loc)
 
+            num_opts = len([arg for arg in loop.args if arg.opt])
+            if num_opts > 32:
+                raise OpError(f"number of optional arguments exceeds 32: {num_opts}", loop.loc)
+
             for arg in loop.args:
                 if isinstance(arg, OP.ArgDat):
                     self.validateArgDat(arg, loop, lang)
