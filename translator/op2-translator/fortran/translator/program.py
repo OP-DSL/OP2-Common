@@ -1,11 +1,11 @@
 import re
 
 from store import Program
-from util import SourceBuffer
+from util import SourceBuffer, safeFind
 
 
 # Augment source program to use generated kernel hosts
-def translateProgram(source: str, program: Program, soa: bool = False) -> str:
+def translateProgram(source: str, program: Program) -> str:
     buffer = SourceBuffer(source)
 
     # 1. Comment-out const calls
@@ -28,7 +28,7 @@ def translateProgram(source: str, program: Program, soa: bool = False) -> str:
 
     # 4. Update init call TODO: Use a line number from the program
     source = buffer.translate()
-    if soa:
+    if safeFind(program.dats, lambda d: d.soa) is not None:
         source = re.sub(r"\bop_init(\w*)\b\s*\((.*)\)", "op_init\\1_soa(\\2,1)", source)
         source = re.sub(r"\bop_mpi_init(\w*)\b\s*\((.*)\)", "op_mpi_init\\1_soa(\\2,1)", source)
 

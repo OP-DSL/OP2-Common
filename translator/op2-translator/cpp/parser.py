@@ -34,7 +34,7 @@ def parseKernel(path: Path, name: str) -> Kernel:
     return Kernel(name, path, params)
 
 
-def parseProgram(path: Path, include_dirs: Set[Path], soa: bool) -> Program:
+def parseProgram(path: Path, include_dirs: Set[Path]) -> Program:
     args = [f"-I{dir}" for dir in include_dirs]
     translation_unit = Index.create().parse(path, args=args, options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
 
@@ -152,11 +152,21 @@ def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
     if len(args) != 5:
         raise ParseError("incorrect number of args passed to op_decl_dat", loc)
 
+    soa = False
+
     set_ptr = parseIdentifier(args[0])
     dim = parseIntLit(args[1])
-    typ = parseType(parseStringLit(args[2]), loc)
 
-    return OP.Dat(loc, set_ptr, dim, typ, ptr)
+    typ_str = parseStringLit(args[2]).strip()
+
+    soa_regex = r":soa$"
+    if re.search(soa_regex, typ_str):
+        soa = True
+        typ_str = re.sub(soa_regex, "", typ_str)
+
+    typ = parseType(typ_str, loc)
+
+    return OP.Dat(loc, set_ptr, dim, typ, ptr, soa)
 
 
 def parseDatHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:

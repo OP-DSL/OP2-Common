@@ -34,7 +34,7 @@ class Cuda(Opt):
     name = "cuda"
     kernel_translation = True
 
-    config = {"atomics": True, "ind_inc": False, "inc_stage": 0, "soa": False}
+    config = {"atomics": True, "ind_inc": False, "inc_stage": 0}
 
 
 class OpenMP(Opt):
