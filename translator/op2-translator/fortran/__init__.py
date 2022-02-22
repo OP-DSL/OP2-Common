@@ -19,14 +19,14 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool = False) -> Program:
-        return fortran.parser.parseProgram(path, include_dirs, soa)
+    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
+        return fortran.parser.parseProgram(path, include_dirs)
 
     def parseKernel(self, path: Path, name: str) -> Kernel:
         return fortran.parser.parseKernel(path, name)
 
-    def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
-        return fortran.translator.program.translateProgram(source, program, soa)
+    def translateProgram(self, source: str, program: Program) -> str:
+        return fortran.translator.program.translateProgram(source, program)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):

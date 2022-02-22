@@ -87,7 +87,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     return parseType(type_spec.tofortran(), loc)
 
 
-def parseProgram(path: Path, include_dirs: Set[Path], soa: bool) -> Program:
+def parseProgram(path: Path, include_dirs: Set[Path]) -> Program:
     reader = FortranFileReader(str(path))
     parser = ParserFactory().create(std="f2003")
 
@@ -177,24 +177,45 @@ def parseDat(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Da
     if args is None or len(args.items) != 6:
         raise ParseError("incorrect number of arguments for op_decl_dat", loc)
 
+    soa = False
+
     set_ = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)
-    typ = parseType(parseStringLiteral(args.items[2], loc), loc)
+
+    typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
+
+    soa_regex = r":soa$"
+    if re.search(soa_regex, typ_str):
+        soa = True
+        typ_str = re.sub(soa_regex, "", typ_str)
+
+    typ = parseType(typ_str, loc)
+
     ptr = parseIdentifier(args.items[4], loc)
 
-    return OP.Dat(loc, set_, dim, typ, ptr)
+    return OP.Dat(loc, set_, dim, typ, ptr, soa)
 
 
 def parseDatHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Dat:
     if args is None or len(args.items) != 7:
         raise ParseError("incorrect number of arguments for op_decl_dat_hdf5", loc)
 
+    soa = False
+
     set_ = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)
     ptr = parseIdentifier(args.items[2], loc)
-    typ = parseType(parseStringLiteral(args.items[3], loc), loc)
 
-    return OP.Dat(loc, set_, dim, typ, ptr)
+    typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
+
+    soa_regex = r":soa$"
+    if re.search(soa_regex, typ_str):
+        soa = True
+        typ_str = re.sub(soa_regex, "", typ_str)
+
+    typ = parseType(typ_str, loc)
+
+    return OP.Dat(loc, set_, dim, typ, ptr, soa)
 
 
 def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Const:
@@ -343,7 +364,7 @@ def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     return OP.AccessType(access_type_str)
 
 
-def parseType(typ: str, loc: Location) -> OP.Type:
+def parseType(typ: str, loc: Location) -> (OP.Type, bool):
     typ_clean = typ.strip().lower()
     typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
 
