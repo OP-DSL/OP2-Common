@@ -27,14 +27,14 @@ class Cpp(Lang):
     com_delim = "//"
     zero_idx = True
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool = False) -> Program:
-        return cpp.parser.parseProgram(path, include_dirs, soa)
+    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
+        return cpp.parser.parseProgram(path, include_dirs)
 
     def parseKernel(self, path: Path, name: str) -> Kernel:
         return cpp.parser.parseKernel(path, name)
 
-    def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
-        return cpp.translator.program.translateProgram(source, program, soa)
+    def translateProgram(self, source: str, program: Program) -> str:
+        return cpp.translator.program.translateProgram(source, program)
 
     def formatType(self, typ: OP.Type) -> str:
         int_types = {
