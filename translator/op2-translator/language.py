@@ -21,7 +21,7 @@ class Lang(Findable):
     zero_idx: bool
 
     @abstractmethod
-    def parseProgram(self, path: Path, include_dirs: Set[Path], soa: bool = False) -> Program:
+    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
         pass
 
     @abstractmethod
@@ -29,7 +29,7 @@ class Lang(Findable):
         pass
 
     @abstractmethod
-    def translateProgram(self, source: str, program: Program, soa: bool = False) -> str:
+    def translateProgram(self, source: str, program: Program) -> str:
         pass
 
     @abstractmethod

@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import os
 import re
@@ -26,7 +27,7 @@ def main(argv=None) -> None:
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath, default=".")
     parser.add_argument("-p", "--prefix", help="Output File Prefix", type=isValidPrefix, default="op")
-    parser.add_argument("-soa", "--soa", help="Structs of Arrays", action="store_true")
+    parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
     parser.add_argument("-t", "--thread_timing", help="Use thread timers", action="store_true")
     parser.add_argument(
         "-I",
@@ -60,9 +61,6 @@ def main(argv=None) -> None:
     opt = Opt.find(args.optimisation)
     lang = Lang.find(extension)
 
-    if opt.name == "cuda":
-        opt.config["soa"] = args.soa
-
     if opt.name == "omp":
         opt.config["thread_timing"] = args.thread_timing
 
@@ -83,6 +81,13 @@ def main(argv=None) -> None:
         app = parsing(args, scheme)
     except ParseError as e:
         exit(e)
+
+    if args.force_soa:
+        for program in app.programs:
+            program.dats = [dataclasses.replace(dat, soa=True) for dat in program.dats]
+
+    if args.verbose:
+        print(app)
 
     # Validation phase
     try:
@@ -106,11 +111,8 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
             print(f"Parsing file {i} of {len(args.file_paths)}: {raw_path}")
 
         # Parse the program
-        program = scheme.lang.parseProgram(Path(raw_path), include_dirs, args.soa)
+        program = scheme.lang.parseProgram(Path(raw_path), include_dirs)
         app.programs.append(program)
-
-        if args.verbose:
-            print(program)
 
     # Parse the referenced kernels
     for kernel_name in {loop.kernel for loop in app.loops()}:
@@ -124,9 +126,6 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
 
         # Parse kernel header file
         kernel = scheme.lang.parseKernel(Path(kernel_path), kernel_name)
-
-        if args.verbose:
-            print(kernel)
 
         app.kernels[kernel_name] = kernel
 
@@ -204,7 +203,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
         with open(program.path, "r") as raw_file:
 
             # Generate the source translation
-            source = scheme.lang.translateProgram(raw_file.read(), program, args.soa)
+            source = scheme.lang.translateProgram(raw_file.read(), program)
 
             # Form output file path
             new_file = os.path.splitext(os.path.basename(program.path))[0]

@@ -109,6 +109,8 @@ class Dat:
     typ: Type
     ptr: str
 
+    soa: bool
+
 
 @dataclass(frozen=True)
 class Const:
