@@ -1,8 +1,16 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
-{% block kernel %}
-__device__ {{super()}}
+{% block soa_strides %}
+    {% for dat, idx in lh.dats.items()|soa %}
+int op2_dat_{{dat.ptr}}_stride = -1;
+__constant__ int op2_dat_{{dat.ptr}}_stride_d;
+
+    {% endfor %}
 {% endblock %}
+
+{% macro stride_cuda(arg) -%}
+{{-(" * op2_dat_%s_stride_d" % arg.dat_ptr) if lh.findDat(arg.dat_ptr)[0] is soa-}}
+{%- endmacro %}
 
 {% macro opt_cond(arg, idx) %}
     {%- if arg is opt -%}arg{{idx}}.opt{%- endif -%}
@@ -56,13 +64,13 @@ map_{{arg.map_ptr}}[set_size * {{arg.map_idx}} + n]
     {%- if arg is gbl -%}
 gbl_{{arg.ptr}}{{"_local" if arg.access_type != OP.AccessType.READ}}
     {%- elif arg is direct -%}
-dat_{{arg.dat_ptr}} + n * {{arg.dat_dim}}
+dat_{{arg.dat_ptr}} + n{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
     {%- elif arg is vec -%}
 arg{{idx}}_vec
     {%- elif arg is inc and opt.config.atomics -%}
 arg{{idx}}_{{arg.map_idx}}_local
     {%- else -%}
-dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} * {{arg.dat_dim}}
+dat_{{arg.dat_ptr}} + {{map_lookup(arg)}}{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
     {%- endif -%}
 {%- endmacro %}
 
@@ -135,7 +143,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {% for arg, idx in lh.args_expanded|indirect|reduction if opt.config.atomics %}
 
     for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
-        atomicAdd(dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} + d, arg{{idx}}_{{arg.map_idx}}_local[d]);
+        atomicAdd(dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{idx}}_{{arg.map_idx}}_local[d]);
     {% endfor %}
     {% for arg, idx in lh.args|gbl|reduction %}
 
@@ -212,6 +220,13 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     mvConstArraysToDevice(const_bytes);
 
     {% endif %}
+    {% for dat, idx in lh.dats.items()|soa %}
+    if (op2_dat_{{dat.ptr}}_stride != getSetSizeFromOpArg(&arg{{idx}})) {
+        op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});
+        cudaMemcpyToSymbol(op2_dat_{{dat.ptr}}_stride_d, &op2_dat_{{dat.ptr}}_stride, sizeof(int));
+    }
+
+    {% endfor %}
     {% if opt.config.atomics or lh is direct %}
 #ifdef OP_BLOCK_SIZE_{{lh.kernel_idx}}
     int block_size = OP_BLOCK_SIZE_{{lh.kernel_idx}};

@@ -33,8 +33,8 @@ class Cpp(Lang):
     def parseKernel(self, path: Path, name: str) -> Kernel:
         return cpp.parser.parseKernel(path, name)
 
-    def translateProgram(self, source: str, program: Program) -> str:
-        return cpp.translator.program.translateProgram(source, program)
+    def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
+        return cpp.translator.program.translateProgram(source, program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         int_types = {

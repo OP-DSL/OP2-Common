@@ -6,7 +6,7 @@ from store import Application, Kernel
 from util import SourceBuffer, find, indexSplit
 
 
-def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:
+def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Application) -> str:
     buffer = SourceBuffer(source)
 
     # Collect indirect increment identifiers TODO: Tidy
@@ -24,55 +24,56 @@ def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Ap
             ind = ind + arg.indirect
             print(arg.var, arg.typ, arg.dim)
 
-    # modify only indirect loops
-    if ind:
-        # Ast traversal
-        subroutine = kernel.ast.find("file/subroutine")
-        body = subroutine.find("body")
+    if not ind:
+        return source
 
-        # Augment kernel subroutine name
-        index = int(subroutine.attrib["line_begin"]) - 1
-        buffer.apply(index, lambda line: line.replace(kernel.name, kernel.name + "_vec"))
+    # Ast traversal
+    subroutine = kernel.ast.find("file/subroutine")
+    body = subroutine.find("body")
 
-        # Augment subroutine header with additional argument
-        arguments = kernel.ast.find("file/subroutine/header/arguments")
-        line_index = int(arguments.attrib["line_begin"]) - 1
-        line = buffer.get(line_index).strip()
-        continuations = 0
-        while line.endswith("&"):
-            continuations += 1
-            line = line[:-1].strip() + buffer.get(line_index + continuations).strip()[1:].strip()
+    # Augment kernel subroutine name
+    index = int(subroutine.attrib["line_begin"]) - 1
+    buffer.apply(index, lambda line: line.replace(kernel.name, kernel.name + "_vec"))
 
-        # remove closing )
-        i = line.find(")")
-        line = line[:i]
-        para = line[line.find("(") + 1 :].split(",")  # collect the kernel parameters -- for later
-        para = [x.strip(" ") for x in para]
+    # Augment subroutine header with additional argument
+    arguments = kernel.ast.find("file/subroutine/header/arguments")
+    line_index = int(arguments.attrib["line_begin"]) - 1
+    line = buffer.get(line_index).strip()
+    continuations = 0
+    while line.endswith("&"):
+        continuations += 1
+        line = line[:-1].strip() + buffer.get(line_index + continuations).strip()[1:].strip()
 
-        buffer.update(line_index, line.strip() + ",idx)")
+    # remove closing )
+    i = line.find(")")
+    line = line[:i]
+    para = line[line.find("(") + 1 :].split(",")  # collect the kernel parameters -- for later
+    para = [x.strip(" ") for x in para]
 
-        # Remove old continuations
-        for i in range(1, continuations + 1):
-            buffer.remove(line_index + i)
+    buffer.update(line_index, line.strip() + ",idx)")
 
-        # remove Vec args from sepcification - note: assumes local vars are on separate lines
-        spec = body.find("specification")
-        s = int(spec.attrib["line_begin"])
-        e = int(spec.attrib["line_end"])
-        for i in range(s, e):
-            line = buffer.get(i)
-            Vars = re.split(",|::", line)
-            Vars = [x.strip(" ") for x in Vars]
-            for p in para:
-                if p in Vars:
-                    ui = i
-            buffer.update(ui, "")
+    # Remove old continuations
+    for i in range(1, continuations + 1):
+        buffer.remove(line_index + i)
 
-        # Add additional argument - idx
-        spec = body.find("specification")
-        indent = " " * int(spec.attrib["col_begin"])
-        buffer.insert(int(spec.attrib["line_begin"]), indent + "INTEGER(kind=4) :: idx")
+    # remove Vec args from sepcification - note: assumes local vars are on separate lines
+    spec = body.find("specification")
+    s = int(spec.attrib["line_begin"])
+    e = int(spec.attrib["line_end"])
+    for i in range(s, e):
+        line = buffer.get(i)
+        Vars = re.split(",|::", line)
+        Vars = [x.strip(" ") for x in Vars]
+        for p in para:
+            if p in Vars:
+                ui = i
+        buffer.update(ui, "")
 
-        source = buffer.translate()
+    # Add additional argument - idx
+    spec = body.find("specification")
+    indent = " " * int(spec.attrib["col_begin"])
+    buffer.insert(int(spec.attrib["line_begin"]), indent + "INTEGER(kind=4) :: idx")
 
-    return source, ind
+    source = buffer.translate()
+
+    return source

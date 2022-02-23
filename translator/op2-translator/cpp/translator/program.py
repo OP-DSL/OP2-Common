@@ -5,7 +5,7 @@ from util import SourceBuffer, safeFind
 
 
 # Augment source program to use generated kernel hosts
-def translateProgram(source: str, program: Program) -> str:
+def translateProgram(source: str, program: Program, force_soa: bool) -> str:
     buffer = SourceBuffer(source)
 
     # 1. Update const calls
@@ -33,7 +33,7 @@ def translateProgram(source: str, program: Program) -> str:
 
     # 4. Update init call TODO: Use a line number from the program
     source = buffer.translate()
-    if safeFind(program.dats, lambda d: d.soa) is not None:
+    if force_soa:
         source = re.sub(r"\bop_init\b\s*\((.*)\)", "op_init_soa(\\1,1)", source)
         source = re.sub(r"\bop_mpi_init\b\s*\((.*)\)", "op_mpi_init_soa(\\1,1)", source)
 

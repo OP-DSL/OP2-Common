@@ -96,7 +96,7 @@ def main(argv=None) -> None:
         exit(e)
 
     # Code-generation phase
-    codegen(args, scheme, app)
+    codegen(args, scheme, app, args.force_soa)
 
 
 def parsing(args: Namespace, scheme: Scheme) -> Application:
@@ -149,7 +149,7 @@ def validate(args: Namespace, scheme: Scheme, app: Application) -> None:
             print("Dumped store:", store_path, end="\n\n")
 
 
-def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
+def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     generated_paths: List[Path] = []
 
@@ -203,7 +203,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
         with open(program.path, "r") as raw_file:
 
             # Generate the source translation
-            source = scheme.lang.translateProgram(raw_file.read(), program)
+            source = scheme.lang.translateProgram(raw_file.read(), program, force_soa)
 
             # Form output file path
             new_file = os.path.splitext(os.path.basename(program.path))[0]
@@ -218,31 +218,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
                 if args.verbose:
                     print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
-
-    # Generate kernel translations
-    # if scheme.opt.kernel_translation:
-    #     for i, kernel in enumerate(app.kernels, 1):
-    #         # Read the raw source file
-    #         with open(kernel.path, "r") as raw_file:
-
-    #             # Generate the source translation
-    #             source, tran = scheme.translateKernel(raw_file.read(), kernel, app)
-
-    #             # if this kernel should be translated
-    #             if tran:
-    #                 # Form output file path
-    #                 new_path = Path(
-    #                     args.out,
-    #                     f"{kernel}_{scheme.opt.name}.{scheme.lang.include_ext}",
-    #                 )
-
-    #                 # Write the translated source file
-    #                 with open(new_path, "w") as new_file:
-    #                     new_file.write(source)
-
-    #                     if args.verbose:
-    #                         print(f"Translated kernel   {i} of {len(app.kernels)}: {new_path}")
-
 
 def isDirPath(path):
     if os.path.isdir(path):

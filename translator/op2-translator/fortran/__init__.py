@@ -25,8 +25,8 @@ class Fortran(Lang):
     def parseKernel(self, path: Path, name: str) -> Kernel:
         return fortran.parser.parseKernel(path, name)
 
-    def translateProgram(self, source: str, program: Program) -> str:
-        return fortran.translator.program.translateProgram(source, program)
+    def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
+        return fortran.translator.program.translateProgram(source, program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):
