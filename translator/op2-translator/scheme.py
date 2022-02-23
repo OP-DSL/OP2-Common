@@ -35,9 +35,9 @@ class LoopHost:
     dats: OrderedDict[OP.Dat, int]
     maps: OrderedDict[OP.Map, int]
 
-    def __init__(self, loop: OP.Loop, kernel_idx: int, app: Application, lang: Lang) -> None:
+    def __init__(self, loop: OP.Loop, kernel_func: str, kernel_idx: int, app: Application, lang: Lang) -> None:
         self.kernel = app.kernels[loop.kernel]
-        self.kernel_func = self.kernel.path.read_text()
+        self.kernel_func = kernel_func
         self.kernel_idx = kernel_idx
 
         self.set_ = find(app.sets(), lambda s: s.ptr == loop.set_ptr)
@@ -116,7 +116,11 @@ class Scheme(Findable):
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
 
-        loop_host = LoopHost(loop, kernel_idx, app, self.lang)
+        kernel = app.kernels[loop.kernel]
+        kernel_source = kernel.path.read_text()
+        kernel_func = self.translateKernel(kernel_source, kernel, app)
+
+        loop_host = LoopHost(loop, kernel_func, kernel_idx, app, self.lang)
 
         # Generate source from the template
         return template.render(OP=OP, lh=loop_host, opt=self.opt), extension
@@ -124,6 +128,7 @@ class Scheme(Findable):
     def genMasterKernel(self, env: Environment, app: Application) -> Tuple[str, str]:
         if self.master_kernel_template is None:
             exit(f"No master kernel template registered for {self}")
+
         # Load the loop host template
         template = env.get_template(str(self.master_kernel_template))
         extension = self.master_kernel_template.suffixes[-2][1:]
@@ -132,7 +137,7 @@ class Scheme(Findable):
         return template.render(OP=OP, app=app, opt=self.opt), extension
 
     def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
-        raise NotImplementedError(f'no kernel translator registered for the "{self}" scheme')
+        return source
 
     def matches(self, key: tuple[Lang, Opt]) -> bool:
         return self.lang == key[0] and self.opt == key[1]
