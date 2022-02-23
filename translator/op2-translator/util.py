@@ -131,6 +131,12 @@ class SourceBuffer:
     def apply(self, index: int, f: Callable[[str], str]):
         self.update(index, f(self.get(index)))
 
+    def applyAll(self, f: Callable[[str], str]):
+        for i in range(len(self.rawLines)):
+            update = f(self.get(i))
+            if update != self.get(i):
+                self.update(i, update)
+
     def search(self, pattern: str, flags: int = 0) -> Optional[int]:
         for i, line in enumerate(self.rawLines):
             if re.match(pattern, line, flags):

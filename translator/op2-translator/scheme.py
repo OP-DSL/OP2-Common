@@ -4,7 +4,7 @@ import dataclasses
 from collections import OrderedDict
 from pathlib import Path
 from types import MethodType
-from typing import ClassVar, List, Optional, Tuple
+from typing import ClassVar, List, Optional, Tuple, Set
 
 from jinja2 import Environment
 
@@ -111,14 +111,15 @@ class Scheme(Findable):
     def __str__(self) -> str:
         return self.lang.name + "/" + self.opt.name
 
-    def genLoopHost(self, env: Environment, loop: OP.Loop, app: Application, kernel_idx: int) -> Tuple[str, str]:
+    def genLoopHost(
+        self, include_dirs: Set[Path], env: Environment, loop: OP.Loop, app: Application, kernel_idx: int
+    ) -> Tuple[str, str]:
         # Load the loop host template
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
 
         kernel = app.kernels[loop.kernel]
-        kernel_source = kernel.path.read_text()
-        kernel_func = self.translateKernel(kernel_source, kernel, app)
+        kernel_func = self.translateKernel(include_dirs, kernel, app)
 
         loop_host = LoopHost(loop, kernel_func, kernel_idx, app, self.lang)
 
@@ -136,7 +137,7 @@ class Scheme(Findable):
         # Generate source from the template
         return template.render(OP=OP, app=app, opt=self.opt), extension
 
-    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
+    def translateKernel(self, include_dirs: Set[Path], source: str, kernel: Kernel, app: Application) -> str:
         return source
 
     def matches(self, key: tuple[Lang, Opt]) -> bool:
@@ -166,8 +167,8 @@ class CppCuda(Scheme):
     loop_host_template = Path("cpp/cuda/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/cuda/master_kernel.cu.jinja")
 
-    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.cuda.translateKernel(self.opt.config, source, kernel, app)
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return cpp.translator.kernels.cuda.translateKernel(include_dirs, self.opt.config, kernel, app)
 
 
 Scheme.register(CppSeq)
@@ -190,8 +191,8 @@ class FortranVec(Scheme):
     loop_host_template = Path("fortran/vec/loop_host.F90.jinja")
     master_kernel_template = None
 
-    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
-        return fortran.translator.kernels.vec.translateKernel(self.opt.config, source, kernel, app)
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.vec.translateKernel(self.opt.config, kernel.path.read_text(), kernel, app)
 
 
 class FortranOpenMP(Scheme):
@@ -209,8 +210,8 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = None
 
-    def translateKernel(self, source: str, kernel: Kernel, app: Application) -> str:
-        return fortran.translator.kernels.cuda.translateKernel(self.opt.config, source, kernel, app)
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.cuda.translateKernel(self.opt.config, kernel.path.read_text(), kernel, app)
 
 
 # Scheme.register(FortranSeq)

@@ -152,11 +152,12 @@ def validate(args: Namespace, scheme: Scheme, app: Application) -> None:
 def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     generated_paths: List[Path] = []
+    include_dirs = set([Path(dir) for [dir] in args.I])
 
     # Generate loop hosts
     for i, loop in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(env, loop, app, i)
+        source, extension = scheme.genLoopHost(include_dirs, env, loop, app, i)
 
         # Form output file path
         path = None
@@ -218,6 +219,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
                 if args.verbose:
                     print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
+
 
 def isDirPath(path):
     if os.path.isdir(path):
