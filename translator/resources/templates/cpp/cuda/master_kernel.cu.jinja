@@ -2,18 +2,26 @@
 
 {% block const_decls %}
     {% for const in app.consts() %}
-__constant__ {{const.typ}} {{const.ptr}}_cuda{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+__constant__ {{const.typ}} {{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endblock %}
+
+{% block soa_strides %}
+    {% for dat in app.dats()|soa %}
+int op2_dat_{{dat.ptr}}_stride = -1;
+__constant__ int op2_dat_{{dat.ptr}}_stride_d;
+
     {% endfor %}
 {% endblock %}
 
 {% block includes %}
 {{super()}}
-#include "op_cuda_rt_support"
-#include "op_cuda_reduction"
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
 {% endblock %}
 
 {% block const_decl_func %}
     {% call(const) const_decl_func("if (!OP_hybrid_gpu) return;") %}
-cutilSafeCall(cudaMemcpyToSymbol({{const.ptr}}_cuda, dat, dim * size);
+cutilSafeCall(cudaMemcpyToSymbol({{const.ptr}}_d, dat, dim * size));
     {%- endcall %}
 {% endblock %}

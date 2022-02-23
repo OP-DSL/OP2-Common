@@ -4,9 +4,14 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
     {% endfor %}
 {% endblock %}
 
+{% if app.dats()|soa|length > 0 %}
+    {% block soa_strides %}
+    {% endblock %}
+{% endif %}
+
 {% block includes %}
 {# TODO: include ../user_types.h if exists #}
-#include "op_lib_cpp.hpp"
+#include "op_lib_cpp.h"
 {%- endblock %}
 
 {%- macro const_decl_func(guard='') %}
@@ -23,7 +28,7 @@ void op_decl_const_char(int dim, const char *type, int size, char *dat, const ch
     }
 
     {% for const in app.consts() %}
-    if (!strcmp(name, "{{const.ptr}}") {
+    if (!strcmp(name, "{{const.ptr}}")) {
         {{caller(const)}}
         return;
     }
