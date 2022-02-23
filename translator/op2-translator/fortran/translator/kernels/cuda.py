@@ -6,7 +6,7 @@ from store import Application, Kernel
 from util import SourceBuffer, find, indexSplit
 
 
-def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Application) -> Tuple[str, int]:
+def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Application) -> str:
     buffer = SourceBuffer(source)
 
     # Collect indirect increment identifiers TODO: Tidy
@@ -80,4 +80,4 @@ def translateKernel(config: Dict[str, Any], source: str, kernel: Kernel, app: Ap
     for const in app.consts:
         source = source.replace(const.ptr, const.ptr + "_OP2")
 
-    return source, 1
+    return source

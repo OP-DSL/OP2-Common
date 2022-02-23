@@ -39,6 +39,8 @@ def indirect(x: Union[OP.Arg, LoopHost]) -> bool:
 env.tests["direct"] = direct
 env.tests["indirect"] = indirect
 
+env.tests["soa"] = lambda dat: dat.soa
+
 env.tests["opt"] = lambda arg: arg.opt
 
 env.tests["dat"] = lambda arg: isinstance(arg, OP.ArgDat)
@@ -79,12 +81,21 @@ def unpack_arg(arg):
     return arg[0]
 
 
+def unpack_dat(dat):
+    if isinstance(dat, OP.Dat):
+        return dat
+
+    return dat[0]
+
+
 def test_to_filter(filter_, key=unpack_arg):
     return lambda xs: list(filter(lambda x: env.tests[filter_](key(x)), xs))
 
 
 env.filters["direct"] = test_to_filter("direct")
 env.filters["indirect"] = test_to_filter("indirect")
+
+env.filters["soa"] = test_to_filter("soa", unpack_dat)
 
 env.filters["opt"] = test_to_filter("opt")
 
